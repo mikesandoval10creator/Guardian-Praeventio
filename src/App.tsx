@@ -64,6 +64,7 @@ const SystemHealth = lazy(() => import('./pages/SystemHealth').then(module => ({
 const Help = lazy(() => import('./pages/Help').then(module => ({ default: module.Help })));
 const PublicNodeView = lazy(() => import('./pages/PublicNodeView').then(module => ({ default: module.PublicNodeView })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const Projects = lazy(() => import('./pages/Projects').then(module => ({ default: module.Projects })));
 const Login = lazy(() => import('./pages/Login'));
 const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: module.Splash })));
 const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
@@ -511,6 +512,7 @@ function AppRoutes() {
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
                     <Route path="import-data" element={<ImportData />} />
+                    <Route path="projects" element={<Projects />} />
                     <Route path="project-setup" element={<ProjectSetup />} />
                     {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
                     <Route path="findings-heatmap" element={<FindingsHeatMap />} />
