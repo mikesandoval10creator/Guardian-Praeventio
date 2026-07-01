@@ -1,0 +1,7 @@
+# Firebase Hosting public dir — intentionally empty.
+# firebase.json rewrites ALL requests ("source": "**") to the Cloud Run
+# service `guardian-praeventio` (southamerica-west1). Firebase Hosting acts as
+# a pure proxy for the custom domain (app.praeventio.net) + managed SSL; Cloud
+# Run serves the SPA + API. No static files are served from here (dotfiles are
+# ignored per firebase.json "ignore"). Do not add an index.html here — it would
+# shadow the Cloud Run root.
