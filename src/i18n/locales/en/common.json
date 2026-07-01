@@ -2714,6 +2714,22 @@
       "sensitivity": "Sensitivity band ±20%: {{low}}% to {{high}}%",
       "recommended": "Recommended",
       "rationaleTitle": "Comparative analysis"
+    },
+    "nonComp": {
+      "title": "Cost of NON-compliance",
+      "subtitle": "Estimated exposure if an inspection finds the breach (Ley 16.744 · Labor Code art. 477).",
+      "kind": "Type of breach",
+      "kind_document_missing": "Missing document",
+      "kind_training_overdue": "Overdue training",
+      "kind_epp_expired": "Expired PPE",
+      "kind_safety_breach": "Serious safety breach",
+      "kind_fatal_accident_risk": "Fatal-accident risk",
+      "stoppageDays": "Stoppage days (estimated)",
+      "history": "Prior inspection history",
+      "exposure": "Total estimated exposure",
+      "fine": "Estimated fine (from)",
+      "stoppage": "Stoppage cost",
+      "disclaimer": "Reference estimate based on Chilean historicals + SUSESO/DT publications. Not legal advice."
     }
   },
   "oc": {
