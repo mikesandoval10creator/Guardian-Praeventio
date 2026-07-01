@@ -12,6 +12,8 @@
   "coverageAnalysis": "perTest",
   "concurrency": 4,
   "timeoutMS": 60000,
+  "_notes_dryRunTimeout": "dryRunTimeoutMinutes:20 (2026-07-01) — el dry-run INICIAL corre la suite completa (~2255 tests) UNA vez bajo instrumentacion perTest para medir cobertura por test. Con el crecimiento de la suite supero los 5min (default de Stryker) -> 'Initial test run timed out!' -> el job moria ANTES de computar ningun score (job cronicamente rojo, ver run 28495665848 job 84461277367). NO era una caida de score de limiters (esa premisa del baseline era stale). 20min da margen holgado; el job total (~60min) lo acomoda junto a la fase de mutacion (~15min con ignoreStatic). Ver stryker-mutator.io/docs/stryker-js/troubleshooting 'initial test run timed out'.",
+  "dryRunTimeoutMinutes": 20,
   "_notes_ignoreStatic": "ignoreStatic:true (2026-05-29) — con coverageAnalysis=perTest los mutantes ESTÁTICOS (código a nivel de módulo) no se aíslan por test, así que cada uno re-corre la suite completa (2255 tests × ~3min). 166 static mutants (9% del total) consumían ~96% del tiempo → la run completa tomaba ~8h y el job mutation.yml (timeout 60min) quedaba crónicamente rojo. Skipearlos restaura una run de ~15min manteniendo los mutantes a nivel de función (mayor señal); los static suelen sobrevivir espuriamente (mutaciones de constantes top-level sin test directo).",
   "ignoreStatic": true,
   "thresholds": { "high": 80, "low": 60, "break": 50 },
