@@ -2714,6 +2714,22 @@
       "sensitivity": "Banda de sensibilidad ±20%: {{low}}% a {{high}}%",
       "recommended": "Recomendado",
       "rationaleTitle": "Análisis comparativo"
+    },
+    "nonComp": {
+      "title": "Costo de NO cumplir",
+      "subtitle": "Exposición estimada si una fiscalización detecta el incumplimiento (Ley 16.744 · Código del Trabajo art. 477).",
+      "kind": "Tipo de incumplimiento",
+      "kind_document_missing": "Documento faltante",
+      "kind_training_overdue": "Capacitación vencida",
+      "kind_epp_expired": "EPP vencido",
+      "kind_safety_breach": "Falta grave de seguridad",
+      "kind_fatal_accident_risk": "Riesgo de accidente fatal",
+      "stoppageDays": "Días de paralización (estimado)",
+      "history": "Historial de fiscalización previa",
+      "exposure": "Exposición total estimada",
+      "fine": "Multa estimada (desde)",
+      "stoppage": "Costo de paralización",
+      "disclaimer": "Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal."
     }
   },
   "oc": {

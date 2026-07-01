@@ -27,6 +27,7 @@ import {
   Info,
   ShoppingCart,
   BarChart3,
+  AlertOctagon,
 } from 'lucide-react';
 import {
   TIERS,
@@ -49,6 +50,10 @@ import {
   type PreventionInvestment,
   type RoiReport,
 } from '../services/financialAnalytics/roiCalculator';
+import {
+  estimateNonComplianceCost,
+  type IncompletionKind,
+} from '../services/costCalculator/preventionCostCalculator';
 import { generatePricingOcPdf } from '../utils/pricingOcPdf';
 import { logger } from '../utils/logger';
 import {
@@ -136,6 +141,11 @@ export const PricingCalculator: React.FC = () => {
   const [currentIncidents, setCurrentIncidents] = useState<number>(4);
   const [avgIncidentCost, setAvgIncidentCost] = useState<number>(2_500_000);
   const [scenarioComparison, setScenarioComparison] = useState<CompareScenariosResponse | null>(null);
+
+  // Cost-of-non-compliance inputs (regulatory exposure)
+  const [ncKind, setNcKind] = useState<IncompletionKind>('safety_breach');
+  const [ncStoppageDays, setNcStoppageDays] = useState<number>(3);
+  const [ncHasHistory, setNcHasHistory] = useState<boolean>(false);
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -242,6 +252,22 @@ export const PricingCalculator: React.FC = () => {
   const eppBudget = useMemo(
     () => estimateMonthlyEppBudgetClp(industryPrefix, workers),
     [industryPrefix, workers],
+  );
+
+  // Cost of non-compliance — regulatory exposure (Ley 16.744 / Código del
+  // Trabajo art. 477). Reusa `workers` como trabajadores afectados; el resto
+  // son inputs propios con defaults conservadores. Motor determinístico.
+  const nonComplianceEstimate = useMemo(
+    () =>
+      estimateNonComplianceCost({
+        kind: ncKind,
+        affectedWorkerCount: workers,
+        estimatedStoppageDays: ncStoppageDays,
+        dailyStoppageCostClp: 500_000,
+        adminHoursToFix: 8,
+        hasHistoryOfFines: ncHasHistory,
+      }),
+    [ncKind, workers, ncStoppageDays, ncHasHistory],
   );
 
   // ─── Actions ─────────────────────────────────────────────────────────
@@ -611,6 +637,130 @@ export const PricingCalculator: React.FC = () => {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* COSTO DE NO CUMPLIR — exposición regulatoria ──────────────────
+          Consume estimateNonComplianceCost (preventionCostCalculator). El
+          contrapunto del ROI: cuánto cuesta NO prevenir. Multas ancladas en
+          Ley 16.744 + Código del Trabajo art. 477 (hasta CLP 500M por riesgo
+          de accidente fatal), multiplicador 1.8× por historial, paralización
+          + horas admin. Sin fabricar datos — todo determinístico. */}
+      <section
+        data-testid="pricing-calculator-noncompliance"
+        className="bg-elevated rounded-xl border border-rose-500/30 p-5 space-y-4"
+      >
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
+          <AlertOctagon className="w-4 h-4 text-rose-500" />
+          {t('pricingCalc.nonComp.title', 'Costo de NO cumplir')}
+        </h2>
+        <p className="text-xs text-muted-token">
+          {t(
+            'pricingCalc.nonComp.subtitle',
+            'Exposición estimada si una fiscalización detecta el incumplimiento (Ley 16.744 · Código del Trabajo art. 477).',
+          )}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="block">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
+              {t('pricingCalc.nonComp.kind', 'Tipo de incumplimiento')}
+            </span>
+            <select
+              value={ncKind}
+              onChange={(e) => setNcKind(e.target.value as IncompletionKind)}
+              data-testid="pc-nc-kind"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
+            >
+              <option value="document_missing">
+                {t('pricingCalc.nonComp.kind_document_missing', 'Documento faltante')}
+              </option>
+              <option value="training_overdue">
+                {t('pricingCalc.nonComp.kind_training_overdue', 'Capacitación vencida')}
+              </option>
+              <option value="epp_expired">
+                {t('pricingCalc.nonComp.kind_epp_expired', 'EPP vencido')}
+              </option>
+              <option value="safety_breach">
+                {t('pricingCalc.nonComp.kind_safety_breach', 'Falta grave de seguridad')}
+              </option>
+              <option value="fatal_accident_risk">
+                {t('pricingCalc.nonComp.kind_fatal_accident_risk', 'Riesgo de accidente fatal')}
+              </option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
+              {t('pricingCalc.nonComp.stoppageDays', 'Días de paralización (estimado)')}
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={ncStoppageDays}
+              onChange={(e) => setNcStoppageDays(Number(e.target.value) || 0)}
+              data-testid="pc-nc-days"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
+            />
+          </label>
+          <label className="flex items-center gap-2 md:mt-6">
+            <input
+              type="checkbox"
+              checked={ncHasHistory}
+              onChange={(e) => setNcHasHistory(e.target.checked)}
+              data-testid="pc-nc-history"
+              className="rounded border-default-token"
+            />
+            <span className="text-[11px] font-medium text-secondary-token">
+              {t('pricingCalc.nonComp.history', 'Historial de fiscalización previa')}
+            </span>
+          </label>
+        </div>
+
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 space-y-2">
+          <p className="text-[11px] text-muted-token">
+            {t('pricingCalc.nonComp.exposure', 'Exposición total estimada')}
+          </p>
+          <p
+            data-testid="pc-nc-exposure"
+            className="text-2xl font-black text-rose-600 dark:text-rose-400"
+          >
+            {formatCurrency(nonComplianceEstimate.totalEstimatedClpMin, 'CLP')} —{' '}
+            {formatCurrency(nonComplianceEstimate.totalEstimatedClpMax, 'CLP')}
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-sm pt-1">
+            <div>
+              <p className="text-[11px] text-muted-token">
+                {t('pricingCalc.nonComp.fine', 'Multa estimada (desde)')}
+              </p>
+              <p data-testid="pc-nc-fine" className="font-bold text-primary-token">
+                {formatCurrency(nonComplianceEstimate.estimatedFineClpMin, 'CLP')}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-token">
+                {t('pricingCalc.nonComp.stoppage', 'Costo de paralización')}
+              </p>
+              <p className="font-bold text-primary-token">
+                {formatCurrency(nonComplianceEstimate.stoppageCostClp, 'CLP')}
+              </p>
+            </div>
+          </div>
+          {nonComplianceEstimate.notes.length > 0 && (
+            <ul className="text-[11px] text-muted-token space-y-0.5 list-disc list-inside pt-1">
+              {nonComplianceEstimate.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted-token flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          {t(
+            'pricingCalc.nonComp.disclaimer',
+            'Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal.',
+          )}
+        </p>
       </section>
 
       {/* ROI SCENARIO COMPARATOR (server-computed) ──────────────────────
