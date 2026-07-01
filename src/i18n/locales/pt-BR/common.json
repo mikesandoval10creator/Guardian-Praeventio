@@ -2268,9 +2268,9 @@
       "title_line_2": "prevenção de riscos",
       "subtitle": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA",
       "description": "IA, emergências e conformidade regulatória chilena em um único aplicativo. Para empresas que levam a segurança dos trabalhadores a sério.",
-      "cta_primary": "Acessar o app",
-      "cta_secondary": "Comecar gratis",
-      "free_tier_note": "Grátis até 10 trabalhadores · Sem cartão de crédito"
+      "cta_primary": "Começar grátis",
+      "cta_secondary": "Acessar o app",
+      "free_tier_note": "Comece grátis · Sem cartão de crédito · SOS e emergências, sempre grátis"
     },
     "problem": {
       "eyebrow": "O problema",
@@ -2301,7 +2301,7 @@
       },
       "iso": {
         "title": "Auditorias ISO",
-        "desc": "Checklists ISO 45001, OHSAS 18001 e relatórios SUSESO gerados em PDF com um clique."
+        "desc": "Checklists ISO 45001 e relatórios SUSESO gerados em PDF com um clique."
       },
       "teams": {
         "title": "Gestão de Equipes",
@@ -2331,30 +2331,63 @@
     },
     "pricing": {
       "title": "Planos para cada empresa",
-      "subtitle": "Escale conforme sua empresa crescer. Comece grátis hoje.",
+      "subtitle": "Vidas protegidas de graça, sempre. Escale conforme sua empresa crescer.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabalhadores",
+      "workers_line": "Até {{n}} trabalhadores",
+      "projects_line": "Projetos: {{n}}",
+      "annual": "ou {{price}}/ano · economize 3 meses",
       "choose_plan": "Escolher plano {{name}}",
-      "footnote": "Planos enterprise até 5.000 trabalhadores · Preços em USD",
-      "plans": {
-        "free": {
-          "name": "Gratuito",
-          "price": "$0"
+      "footnote": "Mais de 500 trabalhadores? Planos Titanio, Platino e Diamante — até ilimitado. Preços mensais em CLP.",
+      "regulatory_note": "As faixas seguem a lei chilena: acima de 25 trabalhadores por obra exige-se Comitê Paritário (CPHS) (plano Plata em diante) e acima de 100, Departamento de Prevenção de Riscos (plano Oro em diante). SOS, emergências e registro de incidentes são grátis em todos os planos.",
+      "includes": {
+        "gratis": {
+          "b1": "1 projeto, até 3 trabalhadores",
+          "b2": "SOS e emergências sempre grátis",
+          "b3": "Registro de incidentes e riscos"
         },
-        "committee": {
-          "name": "Comitê",
-          "price": "$10/mês"
+        "cobre": {
+          "b1": "Até 3 obras simultâneas",
+          "b2": "IA Gemini: PTS e matriz IPER",
+          "b3": "Relatórios DIAT e SUSESO em PDF"
         },
-        "department": {
-          "name": "Departamento",
-          "price": "$30/mês"
+        "plata": {
+          "b1": "Comitê Paritário (CPHS) integrado",
+          "b2": "Até 10 projetos",
+          "b3": "Treinamentos com certificados"
         },
-        "enterprise": {
-          "name": "Enterprise",
-          "price": "A partir de $50/mês"
+        "oro": {
+          "b1": "Departamento de Prevenção (DPRP)",
+          "b2": "Até 50 projetos",
+          "b3": "Painel executivo e analytics"
         }
       }
+    },
+    "trust": {
+      "disclaimer": "Marcos normativos e órgãos de referência que o Guardian ajuda você a cumprir. Não implica afiliação nem endosso desses órgãos; as decisões são de quem dirige o projeto."
+    },
+    "security": {
+      "eyebrow": "Segurança e confiança",
+      "title": "Segurança de nível empresarial",
+      "subtitle": "Protegemos os dados da sua equipe com o mesmo rigor com que protegemos suas vidas.",
+      "residency": {
+        "title": "Dados no Chile / LATAM",
+        "desc": "Residência de dados na região e design preparado para a Lei 21.719 antes de sua vigência (01-12-2026)."
+      },
+      "encryption": {
+        "title": "Criptografia e biometria no dispositivo",
+        "desc": "Criptografia de ponta a ponta; o processamento biométrico ocorre 100% no dispositivo — câmeras e frequência cardíaca nunca saem do telefone."
+      },
+      "audit": {
+        "title": "Registro imutável",
+        "desc": "Cada ação que altera um estado é gravada em um audit log append-only: nunca é editado nem apagado."
+      },
+      "backups": {
+        "title": "Backups e recuperação",
+        "desc": "Backups criptografados e plano de recuperação de desastres (DR) para que a operação nunca pare."
+      },
+      "disclaimer": "O Guardian orienta com base na lei vigente e nas informações que sua equipe registra; a decisão final é sempre de quem dirige o projeto."
     },
     "final_cta": {
       "title_line_1": "Comece hoje.",

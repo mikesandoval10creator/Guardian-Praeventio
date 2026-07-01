@@ -2268,9 +2268,9 @@
       "title_line_2": "prevención de riesgos",
       "subtitle": "Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA",
       "description": "IA, emergencias y cumplimiento normativo chileno en una sola app. Para empresas que se toman en serio la seguridad de sus trabajadores.",
-      "cta_primary": "Entrar a la app",
-      "cta_secondary": "Comenzar gratis",
-      "free_tier_note": "Gratis hasta 10 trabajadores · Sin tarjeta de crédito"
+      "cta_primary": "Comenzar gratis",
+      "cta_secondary": "Entrar a la app",
+      "free_tier_note": "Comienza gratis · Sin tarjeta de crédito · SOS y emergencias, gratis siempre"
     },
     "problem": {
       "eyebrow": "El problema",
@@ -2301,7 +2301,7 @@
       },
       "iso": {
         "title": "Auditorías ISO",
-        "desc": "Checklist ISO 45001, OHSAS 18001 y reportes SUSESO generados en PDF con un clic."
+        "desc": "Checklist ISO 45001 y reportes SUSESO generados en PDF con un clic."
       },
       "teams": {
         "title": "Gestión de Equipos",
@@ -2331,30 +2331,63 @@
     },
     "pricing": {
       "title": "Planes para cada empresa",
-      "subtitle": "Escala cuando tu empresa crezca. Empieza gratis hoy.",
+      "subtitle": "Vidas protegidas gratis, siempre. Escala cuando tu empresa crezca.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabajadores",
+      "workers_line": "Hasta {{n}} trabajadores",
+      "projects_line": "Proyectos: {{n}}",
+      "annual": "o {{price}}/año · ahorra 3 meses",
       "choose_plan": "Elegir plan {{name}}",
       "footnote": "¿Más de 500 trabajadores? Planes Titanio, Platino y Diamante — hasta ilimitado. Precios mensuales en CLP.",
-      "plans": {
-        "free": {
-          "name": "Gratuito",
-          "price": "$0"
+      "regulatory_note": "Los tramos siguen la ley chilena: sobre 25 trabajadores por faena se exige Comité Paritario de Higiene y Seguridad (plan Plata en adelante) y sobre 100, Departamento de Prevención de Riesgos (plan Oro en adelante). SOS, emergencias y reporte de incidentes son gratis en todos los planes.",
+      "includes": {
+        "gratis": {
+          "b1": "1 proyecto, hasta 3 trabajadores",
+          "b2": "SOS y emergencias siempre gratis",
+          "b3": "Reporte de incidentes y riesgos"
         },
-        "committee": {
-          "name": "Comité",
-          "price": "$10/mes"
+        "cobre": {
+          "b1": "Hasta 3 faenas simultáneas",
+          "b2": "IA Gemini: PTS y matriz IPER",
+          "b3": "Reportes DIAT y SUSESO en PDF"
         },
-        "department": {
-          "name": "Departamento",
-          "price": "$30/mes"
+        "plata": {
+          "b1": "Comité Paritario (CPHS) integrado",
+          "b2": "Hasta 10 proyectos",
+          "b3": "Capacitaciones con certificados"
         },
-        "enterprise": {
-          "name": "Enterprise",
-          "price": "Desde $50/mes"
+        "oro": {
+          "b1": "Departamento de Prevención (DPRP)",
+          "b2": "Hasta 50 proyectos",
+          "b3": "Dashboard ejecutivo y analítica"
         }
       }
+    },
+    "trust": {
+      "disclaimer": "Marcos normativos y organismos de referencia que Guardian te ayuda a cumplir. No implica afiliación ni respaldo de estos organismos; las decisiones las toma quien dirige el proyecto."
+    },
+    "security": {
+      "eyebrow": "Seguridad y confianza",
+      "title": "Seguridad de nivel empresa",
+      "subtitle": "Protegemos los datos de tu gente con el mismo rigor con que cuidamos sus vidas.",
+      "residency": {
+        "title": "Datos en Chile / LATAM",
+        "desc": "Residencia de datos en la región y diseño preparado para la Ley 21.719 antes de su entrada en vigencia (01-12-2026)."
+      },
+      "encryption": {
+        "title": "Cifrado y biometría en el dispositivo",
+        "desc": "Cifrado extremo a extremo; el procesamiento biométrico ocurre 100% en el dispositivo — las cámaras y el ritmo cardíaco nunca salen del teléfono."
+      },
+      "audit": {
+        "title": "Bitácora inmutable",
+        "desc": "Cada acción que cambia un estado queda escrita en un audit log append-only: no se edita ni se borra."
+      },
+      "backups": {
+        "title": "Respaldos y recuperación",
+        "desc": "Respaldos cifrados y plan de recuperación ante desastres (DR) para que la operación nunca se detenga."
+      },
+      "disclaimer": "Guardian orienta según la ley vigente y la información que tu equipo registra; la decisión final es siempre de quien dirige el proyecto."
     },
     "final_cta": {
       "title_line_1": "Empieza hoy.",
