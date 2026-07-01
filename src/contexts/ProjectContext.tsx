@@ -210,6 +210,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           collection: 'projects',
           data: {
             ...projectData,
+            // M-1: owning tenant (single-tenant-per-user → tenant == owner uid).
+            tenantId: user?.uid,
             createdAt: new Date().toISOString(),
             createdBy: user?.uid,
             members: [user?.uid]
@@ -224,6 +226,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       const docRef = await addDoc(collection(db, 'projects'), {
         ...projectData,
+        // M-1: owning tenant (single-tenant-per-user → tenant == owner uid).
+        tenantId: user?.uid,
         createdAt: new Date().toISOString(),
         createdBy: user?.uid,
         members: [user?.uid]
