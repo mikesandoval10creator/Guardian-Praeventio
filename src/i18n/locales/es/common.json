@@ -2336,7 +2336,7 @@
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabajadores",
       "choose_plan": "Elegir plan {{name}}",
-      "footnote": "Planes enterprise hasta 5,000 trabajadores · Precios en USD",
+      "footnote": "¿Más de 500 trabajadores? Planes Titanio, Platino y Diamante — hasta ilimitado. Precios mensuales en CLP.",
       "plans": {
         "free": {
           "name": "Gratuito",
