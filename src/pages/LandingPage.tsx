@@ -8,6 +8,7 @@ import {
   FileSpreadsheet, FileText, Mail, Activity, Mic
 } from 'lucide-react';
 import { PublicEmergencyButton } from '../components/emergency/PublicEmergencyButton';
+import { TIERS, type Tier, type TierId } from '../services/pricing/tiers';
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -23,21 +24,28 @@ const FEATURES = [
   { icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', id: 'dashboard' },
 ];
 
-interface Plan {
-  id: string;
-  workers: string;
+// Pricing cards read REAL tiers from the single source of truth
+// (services/pricing/tiers.ts) — NEVER hardcode plan names/prices here. Only the
+// consumer-facing ladder is shown as cards; premium tiers (Titanio/Platino/
+// Diamante) are acknowledged honestly in the footnote (landing.pricing.footnote).
+interface PlanCard {
+  tier: Tier;
   color: string;
   popular?: boolean;
   recommended?: boolean;
 }
-
-// Plan name + price copy in i18n under `landing.pricing.plans.<id>.{name,price}`.
-const PLANS: Plan[] = [
-  { id: 'free', workers: '10', color: 'border-zinc-700' },
-  { id: 'committee', workers: '25', color: 'border-[#4db6ac]', popular: true },
-  { id: 'department', workers: '100', color: 'border-blue-500', recommended: true },
-  { id: 'enterprise', workers: '250+', color: 'border-violet-500' },
+const tierById = (id: TierId): Tier => TIERS.find((t) => t.id === id)!;
+const PLAN_CARDS: PlanCard[] = [
+  { tier: tierById('gratis'), color: 'border-zinc-700' },
+  { tier: tierById('cobre'), color: 'border-[#b87333]' },
+  { tier: tierById('plata'), color: 'border-[#4db6ac]', popular: true },
+  { tier: tierById('oro'), color: 'border-[#d4af37]', recommended: true },
 ];
+
+/** Monthly CLP price for a landing card: 0 → "Gratis", else "$1.234.567" (es-CL). */
+function formatTierPriceClp(clp: number): string {
+  return clp === 0 ? 'Gratis' : `$${clp.toLocaleString('es-CL')}`;
+}
 
 const COMPLIANCE_BADGES = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
 
@@ -390,29 +398,34 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {PLANS.map((p) => (
+            {PLAN_CARDS.map(({ tier, color, popular, recommended }) => (
               <a
-                key={p.id}
+                key={tier.id}
                 href="/login"
                 onClick={(e) => { e.preventDefault(); handleLogin(); }}
-                className={`relative bg-zinc-900 border rounded-2xl p-5 flex flex-col gap-3 ${p.color} ${p.popular ? 'ring-2 ring-[#4db6ac] ring-offset-2 ring-offset-zinc-950' : ''} hover:border-white/30 transition-colors`}
-                aria-label={t('landing.pricing.choose_plan', { name: t(`landing.pricing.plans.${p.id}.name`) })}
+                className={`relative bg-zinc-900 border rounded-2xl p-5 flex flex-col gap-3 ${color} ${popular ? 'ring-2 ring-[#4db6ac] ring-offset-2 ring-offset-zinc-950' : ''} hover:border-white/30 transition-colors`}
+                aria-label={t('landing.pricing.choose_plan', { name: tier.nombre })}
               >
-                {p.popular && (
+                {popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#4db6ac] text-zinc-950 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                     {t('landing.pricing.popular_badge')}
                   </div>
                 )}
-                {p.recommended && (
+                {recommended && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold-400 text-petroleum-900 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                     {t('landing.pricing.recommended_badge')}
                   </div>
                 )}
-                <p className="font-black text-sm">{t(`landing.pricing.plans.${p.id}.name`)}</p>
-                <p className="text-2xl font-black tracking-tighter">{t(`landing.pricing.plans.${p.id}.price`)}</p>
+                <p className="font-black text-sm">{tier.nombre}</p>
+                <p className="text-2xl font-black tracking-tighter">
+                  {formatTierPriceClp(tier.clpRegular)}
+                  {tier.clpRegular > 0 && (
+                    <span className="text-sm font-medium text-zinc-400">/mes</span>
+                  )}
+                </p>
                 <div className="flex items-center gap-1.5 text-zinc-400">
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="text-xs font-bold">{p.workers} {t('landing.pricing.workers_suffix')}</span>
+                  <span className="text-xs font-bold">{tier.trabajadoresMax} {t('landing.pricing.workers_suffix')}</span>
                 </div>
               </a>
             ))}

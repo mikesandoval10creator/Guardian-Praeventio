@@ -65,18 +65,20 @@ test.describe('Landing page', () => {
   test('pricing tiers card grid has 4 plans', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/Planes para cada empresa/i)).toBeVisible();
-    await expect(page.getByText(/Gratuito/i).first()).toBeVisible();
-    await expect(page.getByText(/Comit[eé]/i).first()).toBeVisible();
-    await expect(page.getByText(/Departamento/i).first()).toBeVisible();
-    await expect(page.getByText(/Enterprise/i).first()).toBeVisible();
+    // Real tier names from src/services/pricing/tiers.ts (the `nombre` field),
+    // NOT the old fake plans. The 4 landing cards map to gratis/cobre/plata/oro.
+    await expect(page.getByText(/Gratis/i).first()).toBeVisible();
+    await expect(page.getByText(/Cobre/i).first()).toBeVisible();
+    await expect(page.getByText(/Plata/i).first()).toBeVisible();
+    await expect(page.getByText(/Oro/i).first()).toBeVisible();
   });
 
-  test('Departamento has RECOMENDADO pill (gold)', async ({ page }) => {
+  test('Oro has RECOMENDADO pill (gold)', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/RECOMENDADO/i)).toBeVisible();
   });
 
-  test('Comité has POPULAR pill (teal)', async ({ page }) => {
+  test('Plata has POPULAR pill (teal)', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/POPULAR/i)).toBeVisible();
   });
