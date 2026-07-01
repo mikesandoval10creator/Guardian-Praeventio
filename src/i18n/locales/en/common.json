@@ -2268,9 +2268,9 @@
       "title_line_2": "risk prevention",
       "subtitle": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform",
       "description": "AI, emergencies, and Chilean regulatory compliance in a single app. For companies that take worker safety seriously.",
-      "cta_primary": "Enter the app",
-      "cta_secondary": "Start free",
-      "free_tier_note": "Free up to 10 workers . No credit card required"
+      "cta_primary": "Start free",
+      "cta_secondary": "Enter the app",
+      "free_tier_note": "Start free · No credit card · SOS & emergencies, free forever"
     },
     "problem": {
       "eyebrow": "The problem",
@@ -2301,7 +2301,7 @@
       },
       "iso": {
         "title": "ISO Audits",
-        "desc": "ISO 45001 and OHSAS 18001 checklists and SUSESO reports generated as PDF in one click."
+        "desc": "ISO 45001 checklists and SUSESO reports generated as PDF in one click."
       },
       "teams": {
         "title": "Team Management",
@@ -2331,30 +2331,63 @@
     },
     "pricing": {
       "title": "Plans for every company",
-      "subtitle": "Scale as your company grows. Start free today.",
+      "subtitle": "Lives protected free, always. Scale as your company grows.",
       "popular_badge": "Popular",
       "recommended_badge": "Recommended",
       "workers_suffix": "workers",
+      "workers_line": "Up to {{n}} workers",
+      "projects_line": "Projects: {{n}}",
+      "annual": "or {{price}}/year · save 3 months",
       "choose_plan": "Choose {{name}} plan",
-      "footnote": "Enterprise plans up to 5,000 workers · Prices in USD",
-      "plans": {
-        "free": {
-          "name": "Free",
-          "price": "$0"
+      "footnote": "More than 500 workers? Titanio, Platino and Diamante plans — up to unlimited. Monthly prices in CLP.",
+      "regulatory_note": "Tiers follow Chilean law: above 25 workers per site a Joint Health & Safety Committee (CPHS) is required (Plata plan and up) and above 100, a Risk Prevention Department (Oro plan and up). SOS, emergencies and incident reporting are free on every plan.",
+      "includes": {
+        "gratis": {
+          "b1": "1 project, up to 3 workers",
+          "b2": "SOS & emergencies always free",
+          "b3": "Incident & hazard reporting"
         },
-        "committee": {
-          "name": "Committee",
-          "price": "$10/mo"
+        "cobre": {
+          "b1": "Up to 3 simultaneous sites",
+          "b2": "Gemini AI: JSA & IPER matrix",
+          "b3": "DIAT & SUSESO reports in PDF"
         },
-        "department": {
-          "name": "Department",
-          "price": "$30/mo"
+        "plata": {
+          "b1": "Joint Committee (CPHS) built in",
+          "b2": "Up to 10 projects",
+          "b3": "Training with certificates"
         },
-        "enterprise": {
-          "name": "Enterprise",
-          "price": "From $50/mo"
+        "oro": {
+          "b1": "Risk Prevention Dept. (DPRP)",
+          "b2": "Up to 50 projects",
+          "b3": "Executive dashboard & analytics"
         }
       }
+    },
+    "trust": {
+      "disclaimer": "Regulatory frameworks and reference bodies that Guardian helps you comply with. This does not imply affiliation with or endorsement by these organizations; decisions are made by whoever runs the project."
+    },
+    "security": {
+      "eyebrow": "Security & trust",
+      "title": "Enterprise-grade security",
+      "subtitle": "We protect your people's data with the same rigor we protect their lives.",
+      "residency": {
+        "title": "Data in Chile / LATAM",
+        "desc": "Regional data residency and a design ready for Chile's Law 21.719 ahead of its effective date (Dec 1, 2026)."
+      },
+      "encryption": {
+        "title": "On-device encryption & biometrics",
+        "desc": "End-to-end encryption; biometric processing runs 100% on-device — camera frames and heart rate never leave the phone."
+      },
+      "audit": {
+        "title": "Immutable audit log",
+        "desc": "Every state-changing action is written to an append-only audit log: never edited, never deleted."
+      },
+      "backups": {
+        "title": "Backups & disaster recovery",
+        "desc": "Encrypted backups and a disaster-recovery (DR) plan so operations never stop."
+      },
+      "disclaimer": "Guardian provides guidance based on current law and the information your team records; the final decision always rests with whoever runs the project."
     },
     "final_cta": {
       "title_line_1": "Start today.",

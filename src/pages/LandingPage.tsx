@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert, Zap, BookOpen, BarChart3, Users, Brain,
   CheckCircle2, ArrowRight, Play, Star, Globe, Lock,
-  FileSpreadsheet, FileText, Mail, Activity, Mic
+  FileSpreadsheet, FileText, Mail, Activity, Mic,
+  Layers, Server, ScrollText, Database
 } from 'lucide-react';
 import { PublicEmergencyButton } from '../components/emergency/PublicEmergencyButton';
 import { TIERS, type Tier, type TierId } from '../services/pricing/tiers';
@@ -47,7 +48,19 @@ function formatTierPriceClp(clp: number): string {
   return clp === 0 ? 'Gratis' : `$${clp.toLocaleString('es-CL')}`;
 }
 
-const COMPLIANCE_BADGES = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+// Regulatory frameworks + reference bodies Guardian helps comply with. NOT an
+// endorsement (see landing.trust.disclaimer). OHSAS 18001 removed — superseded
+// by ISO 45001 (2018, migration deadline 2021).
+const COMPLIANCE_BADGES = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+
+// Enterprise-grade security pillars (A.4). Copy in i18n under
+// `landing.security.<id>.{title,desc}`.
+const SECURITY_PILLARS = [
+  { id: 'residency', icon: Server },
+  { id: 'encryption', icon: Lock },
+  { id: 'audit', icon: ScrollText },
+  { id: 'backups', icon: Database },
+] as const;
 
 // Steps. Copy in i18n under `landing.how.<id>.{title,desc}`.
 const HOW_STEPS = [
@@ -178,7 +191,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             <img
               src="/mascots/guardian-default.png"
               alt="Guardian Praeventio"
-              className="w-48 h-48 object-contain select-none"
+              className="w-28 h-28 sm:w-32 sm:h-32 object-contain select-none"
               draggable={false}
             />
           </div>
@@ -188,7 +201,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             {t('landing.hero.compliance_badge')}
           </div>
 
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-none mb-6">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.05] mb-6">
             {t('landing.hero.title_line_1')}<br />
             <span className="text-teal-400">{t('landing.hero.title_line_2')}</span>
           </h1>
@@ -205,14 +218,14 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={handleEnter}
+              onClick={handleLogin}
               className="w-full sm:w-auto flex items-center justify-center gap-3 bg-teal-400 hover:bg-teal-500 text-zinc-950 px-8 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-lg shadow-teal-400/20 transition-all"
             >
               <Play className="w-4 h-4 fill-current" aria-hidden="true" />
               {t('landing.hero.cta_primary')}
             </motion.button>
             <button
-              onClick={handleLogin}
+              onClick={handleEnter}
               className="w-full sm:w-auto flex items-center justify-center gap-2 border border-white/10 hover:border-white/30 px-8 py-4 rounded-2xl text-base font-bold text-zinc-300 hover:text-white transition-all"
             >
               {t('landing.hero.cta_secondary')}
@@ -220,7 +233,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             </button>
           </div>
 
-          <p className="mt-5 text-xs text-zinc-600 font-bold uppercase tracking-widest">
+          <p className="mt-5 text-xs text-zinc-500 font-semibold">
             {t('landing.hero.free_tier_note')}
           </p>
         </motion.div>
@@ -250,6 +263,9 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             );
           })}
         </ul>
+        <p className="max-w-3xl mx-auto text-center text-[10px] text-zinc-600 mt-3 leading-relaxed">
+          {t('landing.trust.disclaimer')}
+        </p>
       </div>
 
       {/* ── POR QUÉ GUARDIAN (pain point) ────────────────────────────── */}
@@ -397,7 +413,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             <p className="text-zinc-400">{t('landing.pricing.subtitle')}</p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {PLAN_CARDS.map(({ tier, color, popular, recommended }) => (
               <a
                 key={tier.id}
@@ -417,22 +433,73 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   </div>
                 )}
                 <p className="font-black text-sm">{tier.nombre}</p>
-                <p className="text-2xl font-black tracking-tighter">
+                <p className="text-2xl font-black tracking-tight">
                   {formatTierPriceClp(tier.clpRegular)}
                   {tier.clpRegular > 0 && (
                     <span className="text-sm font-medium text-zinc-400">/mes</span>
                   )}
                 </p>
-                <div className="flex items-center gap-1.5 text-zinc-400">
-                  <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="text-xs font-bold">{tier.trabajadoresMax} {t('landing.pricing.workers_suffix')}</span>
+                {tier.clpAnual > 0 && (
+                  <p className="-mt-1 text-[11px] font-bold text-teal-400">
+                    {t('landing.pricing.annual', { price: formatTierPriceClp(tier.clpAnual) })}
+                  </p>
+                )}
+                <div className="flex flex-col gap-1.5 text-zinc-400">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                    <span className="text-xs font-bold">{t('landing.pricing.workers_line', { n: tier.trabajadoresMax })}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                    <span className="text-xs font-bold">{t('landing.pricing.projects_line', { n: tier.proyectosMax })}</span>
+                  </div>
                 </div>
+                <ul className="mt-1 space-y-1.5 list-none p-0">
+                  {(['b1', 'b2', 'b3'] as const).map((k) => (
+                    <li key={k} className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 text-teal-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                      <span className="text-[11px] leading-snug text-zinc-300">{t(`landing.pricing.includes.${tier.id}.${k}`)}</span>
+                    </li>
+                  ))}
+                </ul>
               </a>
             ))}
           </div>
 
           <p className="text-center text-xs text-zinc-600 mt-6 font-bold">
             {t('landing.pricing.footnote')}
+          </p>
+          <p className="max-w-2xl mx-auto text-center text-[11px] text-zinc-500 mt-3 leading-relaxed">
+            {t('landing.pricing.regulatory_note')}
+          </p>
+        </div>
+      </motion.section>
+
+      {/* ── SEGURIDAD Y CONFIANZA (A.4) ─────────────────────────────── */}
+      <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10 border-t border-white/5">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">{t('landing.security.eyebrow')}</p>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-3">
+              {t('landing.security.title')}
+            </h2>
+            <p className="text-zinc-400 max-w-xl mx-auto">{t('landing.security.subtitle')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {SECURITY_PILLARS.map((pillar) => (
+              <div key={pillar.id} className="bg-zinc-900 border border-white/5 rounded-2xl p-6">
+                <div className="w-11 h-11 rounded-xl border border-teal-400/20 bg-teal-400/10 flex items-center justify-center mb-4" aria-hidden="true">
+                  <pillar.icon className="w-5 h-5 text-teal-400" />
+                </div>
+                <h3 className="font-black text-base mb-2 tracking-tight">{t(`landing.security.${pillar.id}.title`)}</h3>
+                <p className="text-sm text-zinc-400 leading-relaxed">{t(`landing.security.${pillar.id}.desc`)}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="max-w-3xl mx-auto text-center text-[11px] text-zinc-500 mt-8 leading-relaxed">
+            {t('landing.security.disclaimer')}
           </p>
         </div>
       </motion.section>
