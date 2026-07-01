@@ -341,16 +341,21 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    // Capture the existing role before mutation for audit_logs.
+    // Capture the existing role + FULL claim set before mutation. M-1: we MUST
+    // preserve existing custom claims (notably `tenantId`) — setCustomUserClaims
+    // OVERWRITES the entire claim object, so a bare { role } would silently drop
+    // tenantId and break tenant scoping on the next role change.
     let oldRole: string | null = null;
+    let existingClaims: Record<string, unknown> = {};
     try {
       const targetRecord = await admin.auth().getUser(uid);
-      oldRole = (targetRecord.customClaims?.role as string | undefined) ?? null;
+      existingClaims = targetRecord.customClaims ?? {};
+      oldRole = (existingClaims.role as string | undefined) ?? null;
     } catch {
       // Target may not exist yet; setCustomUserClaims will surface the error.
     }
 
-    await admin.auth().setCustomUserClaims(uid, { role });
+    await admin.auth().setCustomUserClaims(uid, { ...existingClaims, role });
 
     // Force re-auth so the client picks up the new claim immediately rather
     // than continuing with a stale ID token until natural expiry.
