@@ -248,6 +248,8 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     // the rubro fields ride inside the whitelisted `metadata` map.
     await db.collection('projects').doc(projectId).set({
       name: payload.projectName,
+      // M-1: stamp the owning tenant. Single-tenant-per-user model → tenant == owner uid.
+      tenantId: uid,
       industry: payload.industry,
       status: 'active',
       createdAt: new Date().toISOString(),

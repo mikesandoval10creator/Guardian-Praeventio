@@ -203,6 +203,10 @@ service cloud.firestore {
                // toggleEmergency via setDoc(merge). Without these in the
                // allowlist, declaring an emergency was silently denied.
                'isEmergencyActive', 'activeEmergencyProtocol', 'emergencyStartTime',
+               // M-1 multi-tenant (Phase 1): owning tenant. OPTIONAL here so
+               // existing creates keep passing; becomes required + tenant-scoped
+               // once the backfill + rules-tightening (Phase 3) land.
+               'tenantId',
                // Future-proof slots used by some integrations
                'ownerUid', 'ownerEmail', 'organizationId', 'erpId',
                'tags', 'metadata', 'invitedEmails', 'photos',
