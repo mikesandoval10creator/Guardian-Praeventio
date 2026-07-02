@@ -2098,6 +2098,28 @@ service cloud.firestore {
           }
         }
 
+        // B.2 (VIDA/LEGAL) — worker incident reports. Written ONLY by the
+        // audited server route (incidents.ts → incidentRagService.reportIncident,
+        // Admin SDK; reporterUid stamped from the verified token, never from
+        // the body). Until B.2 this 6-segment path had NO match → default-deny:
+        // a worker could FILE an incident but never READ their own record.
+        // Ley 16.744 + ADR 0021: a worker reading their OWN prevention records
+        // is life-safety/legal — FREE on every tier, never gated.
+        //   • owner-read via reporterUid (survives later membership changes;
+        //     provable for queries filtered where('reporterUid','==',uid)).
+        //   • member-read via the PATH projectId (supervisors triage their
+        //     project's incidents; provable for whole-collection queries).
+        //   • tenant claims NOT required (isMemberOfTenant claims unminted
+        //     until M-1) — membership is checked against projects/{pid}.
+        match /incidents/{incidentId} {
+          allow read: if isSignedIn()
+            && (
+              resource.data.reporterUid == request.auth.uid
+              || isProjectMember(projectId)
+            );
+          allow create, update, delete: if false;
+        }
+
         // OLA 2 (blindaje, 2026-06-14) — server-only-write tenant stores that
         // previously had NO rule under this block (no recursive catch-all here,
         // unlike projects/{pid}/** which the master-gate covers). They are

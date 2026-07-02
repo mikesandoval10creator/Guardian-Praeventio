@@ -1366,3 +1366,29 @@ FREE on every tier. Rules tests: `src/rules-tests/emergencyAlerts.rules.test.ts`
 149. **Tenant-Wide SOS Sweep**: an unfiltered list over
      `tenants/t1/emergency_alerts` (no `projectId` equality) — unprovable,
      denied.
+
+## Worker incident reports (tenants/{tid}/projects/{pid}/incidents) — server write, owner + member read (B.2, added 2026-07-02)
+
+`tenants/{tenantId}/projects/{projectId}/incidents/{id}` is written ONLY by the
+audited server route (`src/server/routes/incidents.ts` →
+`incidentRagService.reportIncident`, Admin SDK; `reporterUid` stamped from the
+verified token). Until B.2 the 6-segment path had NO match → default-deny: a
+worker could FILE an incident but never READ their own record (Ley 16.744 —
+their own prevention trail; ADR 0021 — life-safety/legal reads are FREE on
+every tier). Now: owner-read via `resource.data.reporterUid` (survives later
+membership changes; provable with a `reporterUid` equality filter) OR
+member-read via the path `projectId` (`isProjectMember`, no tenant claims —
+those are unminted until M-1); all client writes denied. Rules tests:
+`src/rules-tests/incidents.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+150. **Incident Forgery**: a client `setDoc` on
+     `tenants/t1/projects/p1/incidents/x` (even a project member) — only the
+     audited server route writes incidents.
+151. **Incident Tamper/Erasure**: client update or delete of an existing
+     incident (rewriting severity, or erasing the legal trail).
+152. **Peer Incident Snoop**: an outsider — or a member of a DIFFERENT
+     project — reading someone else's incident.
+153. **Tenant Incident Sweep**: an unfiltered list by a non-member (no
+     `reporterUid` equality) — unprovable, denied.
