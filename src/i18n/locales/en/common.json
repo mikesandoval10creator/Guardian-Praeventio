@@ -4566,6 +4566,13 @@
       }
     }
   },
+  "emergenciaAvanzada": {
+    "sos": {
+      "location": "View location",
+      "subtitle": "Alerts sent with the SOS button. Check on each person now.",
+      "title": "Worker SOS — last 24 h"
+    }
+  },
   "iper": {
     "page": {
       "title": "IPER 5x5 Matrix",

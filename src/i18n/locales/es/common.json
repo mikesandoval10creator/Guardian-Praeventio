@@ -4566,6 +4566,13 @@
       }
     }
   },
+  "emergenciaAvanzada": {
+    "sos": {
+      "location": "Ver ubicación",
+      "subtitle": "Alertas enviadas con el botón SOS. Verifica el estado de cada persona ahora.",
+      "title": "SOS de trabajadores — últimas 24 h"
+    }
+  },
   "iper": {
     "page": {
       "title": "Matriz IPER 5x5",

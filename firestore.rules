@@ -1839,7 +1839,7 @@ service cloud.firestore {
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts']);
         allow create, update, delete: if false;
       }
 
@@ -1859,6 +1859,22 @@ service cloud.firestore {
       // un usuario con role supervisor-tier Y vínculo al tenant.
       match /supervisor_only/{docId} {
         allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
+        allow create, update, delete: if false;
+      }
+
+      // B.3 (VIDA) — worker SOS alerts. Written EXCLUSIVELY by the SOS
+      // server route via Admin SDK (src/server/routes/emergency.ts;
+      // tenantId = projects/{pid}.tenantId || pid). Read is granted to
+      // members of the REFERENCED project — NOT via tenant claims
+      // (isMemberOfTenant claims are unminted until M-1), so the dashboard
+      // (EmergenciaAvanzada) can subscribe with where('projectId','==',pid),
+      // which also makes list queries provable. Life-safety visibility is
+      // FREE on every tier (ADR 0021) — never tier-gated. Clients can never
+      // create/tamper/erase an SOS (compliance + life-safety trail).
+      match /emergency_alerts/{alertId} {
+        allow read: if isSignedIn()
+          && resource.data.projectId is string
+          && isProjectMember(resource.data.projectId);
         allow create, update, delete: if false;
       }
 
