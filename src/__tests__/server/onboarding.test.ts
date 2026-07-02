@@ -526,6 +526,18 @@ describe('POST /api/onboarding/complete', () => {
       expect(meta.sectorId).toBe('GP-CONS-RES');
     });
 
+    it('M-1: stamps tenantId = caller uid on the canonical projects/{pid} doc', async () => {
+      // Founder decision 2026-07-02 (+ design doc §4): tenant == creator uid.
+      // Without this stamp every tenant-guarded router 400s for wizard
+      // projects (audit 2026-07-02 §2 — 61 routers).
+      const res = await completeOnboarding();
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+      const project = firestoreStore.get(`projects/${pid}`) as Record<string, unknown>;
+      expect(project.tenantId).toBe('uid-S');
+      expect(project.tenantId).toBe(project.createdBy); // convention: tenantId = createdBy
+    });
+
     it('seeds the rubro risks into the top-level nodes collection with deterministic ids', async () => {
       const res = await completeOnboarding();
       expect(res.status).toBe(200);
