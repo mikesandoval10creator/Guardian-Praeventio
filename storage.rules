@@ -188,9 +188,15 @@ service firebase.storage {
     // Read stays at `isSignedIn()` because `workerId` is not a uid or
     // project id — we cannot gate per-owner without Firestore access; the
     // unguessable path + signed URL remain the boundary for reads.
+    // V5 (audit §3.2, staged 2026-07-02 — MERGE ONLY AFTER the role-claims
+    // sync trigger is deployed and tokens have refreshed): create/update
+    // gated on admin/supervisor tier. The only real writer is DocsModal
+    // (a supervisor surface); a worker's OWN documents go to the per-uid
+    // workers/{uid} vault below, never here. Without minted claims this
+    // gate would brick uploads — hence the stacked merge order.
     match /documents/{workerId}/{allPaths=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && isAllowedUpload() && isUnder(50 * 1024 * 1024);
+      allow create, update: if isAdminOrSupervisorTier() && isAllowedUpload() && isUnder(50 * 1024 * 1024);
       allow delete: if false;
     }
 

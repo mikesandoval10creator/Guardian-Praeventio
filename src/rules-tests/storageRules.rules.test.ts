@@ -171,15 +171,25 @@ describe('reconstructions/{pid}/** — binary 3D models', () => {
   });
 });
 
-describe('documents/{workerId}/** — F7 evidence lock (uploads open, deletes DENIED)', () => {
+describe('documents/{workerId}/** — F7 evidence lock + V5 tier-gated writes', () => {
   const PATH = 'documents/worker-7/contract.pdf';
 
-  // Upload / read behavior unchanged (V5 tier-gate ships separately, AFTER
-  // role claims are actually minted — see the role-claims sync trigger).
-  it('any signed-in user can upload a worker document (unchanged)', async () => {
-    await assertSucceeds(uploadBytes(r(member(), PATH), BYTES, { contentType: 'application/pdf' }));
+  // V5 (audit §3.2): create/update demand admin/supervisor tier — before,
+  // ANY signed-in user could write into another worker's namespace.
+  // Merge order: AFTER the role-claims sync trigger is live (claims real).
+  it('V5: an admin-tier user can upload a worker document', async () => {
+    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { role: 'admin' }), PATH), BYTES, { contentType: 'application/pdf' }));
   });
-  it('an unauthenticated request cannot upload (unchanged)', async () => {
+  it('V5: a supervisor-tier user (prevencionista) can upload a worker document', async () => {
+    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { role: 'prevencionista' }), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('V5: a worker-role user CANNOT upload (was open to any signed-in user)', async () => {
+    await assertFails(uploadBytes(r(storageOf(MEMBER, { role: 'worker' }), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('V5: a signed-in user with NO role claim CANNOT upload (presence-guarded, silent deny)', async () => {
+    await assertFails(uploadBytes(r(member(), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('V5: an unauthenticated request cannot upload (unchanged)', async () => {
     await assertFails(uploadBytes(r(unauth(), PATH), BYTES, { contentType: 'application/pdf' }));
   });
   it('a signed-in user can read a worker document (unchanged)', async () => {
