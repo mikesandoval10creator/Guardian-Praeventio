@@ -36,7 +36,9 @@ vi.mock('../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-const enqueueMock = vi.fn(async () => true);
+const enqueueMock = vi.fn<
+  (payload: Record<string, unknown>, opts?: Record<string, unknown>) => Promise<boolean>
+>(async () => true);
 const registerMock = vi.fn();
 vi.mock('../services/incidents/incidentOutbox', () => ({
   enqueueIncidentReport: (
