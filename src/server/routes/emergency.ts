@@ -223,7 +223,16 @@ export async function sendToProjectSupervisors(
 
 const router = Router();
 
-router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
+// Audit 2026-07-02 §3.1 #5 (VIDA): server-side idempotency. A retried SOS
+// whose first POST reached the server but whose response was lost (flaky
+// mobile network) replays the recorded response instead of creating a second
+// emergency_alerts doc and re-firing the FCM/email fan-out. Semantics
+// (idempotencyKey middleware, Stripe pattern): header absent → passes through
+// (legacy clients keep working); cache-read failure → handler runs anyway
+// (fail-open: a SOS must never be blocked by its own safety net); only 2xx
+// responses are cached (a 500 stays retryable against fresh state).
+// sosLimiter stays BEFORE the middleware per its concurrency contract.
+router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail: string | null = req.user!.email ?? null;
   const { type, projectId, geo, timestamp } = req.body ?? {};
