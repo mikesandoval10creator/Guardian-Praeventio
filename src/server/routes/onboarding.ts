@@ -444,20 +444,32 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     }
   }
 
-  await auditServerEvent(req, 'onboarding.completed', 'onboarding', {
-    industry: payload.industry,
-    countries: payload.countries,
-    tier: payload.tier,
-    projectId,
-    invitedCount: invitedEmails.length,
-    failedInvites: invitationFailures.length,
-    csvProvided: !!payload.workersCsv,
-    siiCode: payload.siiCode,
-    sectorId: payload.sectorId,
-    estimatedWorkers: payload.estimatedWorkers,
-    seededRisks,
-    seededObligations,
-  });
+  // Audit invariant (rule #3/#14): awaited + guarded. Onboarding already
+  // succeeded at this point — an audit_logs failure is severe (compliance
+  // trail: logged + Sentry) but must NOT turn the user's completed
+  // onboarding into a 500. Mirrors the 'onboarding.projectSeeded' guard.
+  try {
+    await auditServerEvent(req, 'onboarding.completed', 'onboarding', {
+      industry: payload.industry,
+      countries: payload.countries,
+      tier: payload.tier,
+      projectId,
+      invitedCount: invitedEmails.length,
+      failedInvites: invitationFailures.length,
+      csvProvided: !!payload.workersCsv,
+      siiCode: payload.siiCode,
+      sectorId: payload.sectorId,
+      estimatedWorkers: payload.estimatedWorkers,
+      seededRisks,
+      seededObligations,
+    });
+  } catch (auditErr) {
+    logger.error('audit_event_failed', auditErr as Error, {
+      action: 'onboarding.completed',
+      projectId,
+    });
+    captureRouteError(auditErr, 'onboarding.completion_audit', { uid, projectId });
+  }
 
   logger.info('onboarding_completed', {
     uid,
