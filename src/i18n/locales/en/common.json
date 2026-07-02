@@ -4574,6 +4574,14 @@
     }
   },
   "iper": {
+    "save": {
+      "button": "Save assessment",
+      "descriptionLabel": "Hazard / assessed task description",
+      "descriptionPlaceholder": "E.g. work at height above 1.8 m on a mobile scaffold",
+      "error": "The assessment could not be saved. Check your connection and try again.",
+      "noProject": "Select a project to save the assessment.",
+      "success": "Assessment saved — it now appears in the landscape."
+    },
     "page": {
       "title": "IPER 5x5 Matrix",
       "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."

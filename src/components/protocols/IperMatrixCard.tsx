@@ -4,7 +4,7 @@
 // recomendación, con opción de aplicar efectividad de controles para
 // obtener residual.
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Grid3x3 } from 'lucide-react';
 import {
@@ -35,11 +35,17 @@ export function IperMatrixCard({
     IperInput['controlEffectiveness']
   >(initialControlEffectiveness);
 
-  const result = useMemo(() => {
-    const r = calculateIper({ probability, severity, controlEffectiveness });
-    onChange?.({ probability, severity, controlEffectiveness }, r);
-    return r;
-  }, [probability, severity, controlEffectiveness, onChange]);
+  const result = useMemo(
+    () => calculateIper({ probability, severity, controlEffectiveness }),
+    [probability, severity, controlEffectiveness],
+  );
+
+  // Notify listeners AFTER commit, not during render: calling a parent's
+  // setState from inside this component's useMemo is a React anti-pattern
+  // ("Cannot update a component while rendering a different component").
+  useEffect(() => {
+    onChange?.({ probability, severity, controlEffectiveness }, result);
+  }, [probability, severity, controlEffectiveness, result, onChange]);
 
   return (
     <section
