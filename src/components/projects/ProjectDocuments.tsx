@@ -5,7 +5,7 @@ import {
   FileText, 
   Upload, 
   Download, 
-  Trash2, 
+  Archive, 
   Loader2, 
   File, 
   CheckCircle2, 
@@ -22,14 +22,12 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
-  deleteObject,
   collection,
   addDoc,
   query,
   where,
-  onSnapshot,
-  deleteDoc,
-  doc
+  doc,
+  updateDoc
 } from '../../services/firebase';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
@@ -45,6 +43,7 @@ interface ProjectDocument {
   uploadedBy: string;
   createdAt: string;
   isPendingSync?: boolean;
+  archived?: boolean;
 }
 
 interface ProjectDocumentsProps {
@@ -53,7 +52,7 @@ interface ProjectDocumentsProps {
 
 export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   const [uploading, setUploading] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; url: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [uploadToast, setUploadToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -117,18 +116,18 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
     }
   };
 
-  const handleDelete = (docId: string, url: string) => setDeleteTarget({ id: docId, url });
+  const handleArchive = (docId: string) => setArchiveTarget({ id: docId });
 
-  const doDeleteDocument = async () => {
-    if (!deleteTarget) return;
-    const { id: docId, url } = deleteTarget;
-    setDeleteTarget(null);
-    try {
-      await deleteObject(ref(storage, url));
-    } catch {
-      // file may already be gone — continue to Firestore cleanup
-    }
-    await deleteDoc(doc(db, 'project_documents', docId));
+  // F7 (founder decision 2026-07-02): project documents are legal evidence
+  // (PTS, EPP actas, emergency plans — DS 44 / Ley 16.744 trail). Nothing is
+  // deleted from the client: the Storage object AND the Firestore row are
+  // kept. "Remove" = archive (hide-only flag); firestore.rules admits ONLY
+  // this flag on update and denies delete outright.
+  const doArchiveDocument = async () => {
+    if (!archiveTarget) return;
+    const { id: docId } = archiveTarget;
+    setArchiveTarget(null);
+    await updateDoc(doc(db, 'project_documents', docId), { archived: true });
   };
 
   const formatSize = (bytes: number) => {
@@ -139,7 +138,10 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const filteredDocs = documents.filter(d => 
+  // F7: archived docs are hidden (hide-only removal — record + file survive
+  // as legal evidence).
+  const filteredDocs = documents.filter(d =>
+    !d.archived &&
     (d.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
@@ -253,16 +255,16 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
                   <Download className="w-4 h-4" />
                 </a>
                 <button
-                  onClick={() => handleDelete(doc.id, doc.url)}
+                  onClick={() => handleArchive(doc.id)}
                   disabled={!isOnline}
-                  title={!isOnline ? 'Requiere conexión a internet' : ''}
+                  title={!isOnline ? 'Requiere conexión a internet' : 'Archivar documento (la evidencia se conserva)'}
                   className={`p-2 rounded-lg transition-all ${
                     !isOnline 
                       ? 'text-zinc-600 cursor-not-allowed' 
                       : 'hover:bg-red-500/10 text-zinc-400 hover:text-red-500'
                   }`}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Archive className="w-4 h-4" />
                 </button>
               </div>
             </motion.div>
@@ -274,13 +276,12 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
           </div>
         )}
       <ConfirmDialog
-        isOpen={!!deleteTarget}
-        title="Eliminar documento"
-        message="El archivo se eliminará de Storage y Firestore permanentemente."
-        confirmLabel="Eliminar"
-        danger
-        onConfirm={doDeleteDocument}
-        onCancel={() => setDeleteTarget(null)}
+        isOpen={!!archiveTarget}
+        title="Archivar documento"
+        message="El documento se ocultará de esta lista. El registro y el archivo se conservan como evidencia legal — no se eliminan."
+        confirmLabel="Archivar"
+        onConfirm={doArchiveDocument}
+        onCancel={() => setArchiveTarget(null)}
       />
       </div>
     </div>
