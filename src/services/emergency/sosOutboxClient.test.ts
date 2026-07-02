@@ -51,12 +51,19 @@ describe('sendSos transport', () => {
     expect(await sendSos(ev())).toEqual({ ok: false, error: 'HTTP 503' });
   });
 
-  it('treats any 2xx as transport-OK (zero-reach is handled at the UI, not by re-POSTing — avoids duplicate alert docs)', async () => {
+  it('treats any 2xx as transport-OK (zero-reach is handled at the UI, not by re-POSTing)', async () => {
     // Even a recorded-but-zero-reach response (delivered:false) is a successful
-    // TRANSPORT: the SOS is on the server. Re-POSTing would duplicate the
-    // emergency_alerts doc, so the outbox stops on the first 2xx.
+    // TRANSPORT: the SOS is on the server. Zero-reach escalation is a UI
+    // decision (tel: fallback), so the outbox stops on the first 2xx.
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ delivered: false }) });
     expect(await sendSos(ev())).toEqual({ ok: true });
+  });
+
+  it('sends Idempotency-Key = clientEventId so a transport retry can never duplicate the alert server-side (§3.1 #5)', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true });
+    await sendSos(ev({ clientEventId: 'evt-idem-1' }));
+    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers['Idempotency-Key']).toBe('evt-idem-1');
   });
 
   it('fails fast (non-retryable) when projectId is missing — the server 400s without it', async () => {
