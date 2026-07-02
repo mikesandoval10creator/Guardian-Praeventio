@@ -428,6 +428,7 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
+import { setupRoleClaimsSync } from "./src/server/triggers/roleClaimsSync.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import { makeSystemEventAuditor, setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
 import { gracefulShutdown } from "./src/server/lifecycle.js";
@@ -1494,6 +1495,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
+let roleClaimsSyncHandle: { unsubscribe: () => void } | null = null;
 let mqttBridgeHandle: MqttBridgeHandle | null = null;
 
 // AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
@@ -1521,6 +1523,18 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       onEvent: makeSystemEventAuditor(admin.firestore(), () =>
         admin.firestore.FieldValue.serverTimestamp(),
       ),
+    });
+
+    // M-1 / F7 enabler — mirror users/{uid}.role into the `role` custom
+    // claim (Storage rules cannot read Firestore; the claim is their only
+    // role signal, and no normal flow minted it). Idempotent, self-healing
+    // on every boot (initial snapshot = natural backfill), zero Auth I/O in
+    // steady state via the claimsSync mirror stamp; lifecycle-locked claims
+    // (inactive/anonymized) are never overwritten. See roleClaimsSync.ts.
+    roleClaimsSyncHandle = setupRoleClaimsSync({
+      db: admin.firestore(),
+      auth: admin.auth(),
+      firestoreNamespace: admin.firestore,
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).
@@ -1579,6 +1593,7 @@ process.on('SIGTERM', () => {
       () => triggersHandle?.unsubscribe(),
       () => healthHandle?.stop(),
       () => systemEngineHandle?.unsubscribe(),
+      () => roleClaimsSyncHandle?.unsubscribe(),
       // Sprint 27 (audit P0 H10) — clear the env polling interval too.
       () => clearInterval(environmentalPollingHandle),
       // claude/mqtt-wire — release the MQTT bridge subscription + client.
