@@ -24,8 +24,24 @@ import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@testing-library/react';
 
+/** Return shape of the mocked useSeismicMonitor — `error` is a union (not the
+ *  inferred `null`) so per-test overrides like `error: 'network down'` type. */
+type SeismicMonitorState = {
+  earthquakes: unknown[];
+  criticalAlert: unknown;
+  loading: boolean;
+  error: string | null;
+};
+
 const mocks = vi.hoisted(() => ({
-  seismicMonitor: vi.fn(() => ({ earthquakes: [], criticalAlert: null, loading: false, error: null })),
+  seismicMonitor: vi.fn(
+    (): {
+      earthquakes: unknown[];
+      criticalAlert: unknown;
+      loading: boolean;
+      error: string | null;
+    } => ({ earthquakes: [], criticalAlert: null, loading: false, error: null }),
+  ),
   // Mutable per-test override for the `emergency_events` collection — most
   // tests want no active emergency (default []); the mojibake test needs
   // one active event to actually exercise the "● EN VIVO" render path.
@@ -54,8 +70,11 @@ vi.mock('../contexts/FirebaseContext', () => ({
   }),
 }));
 
+// The component calls useSeismicMonitor(lat, lng); the mock ignores the args
+// (no test asserts them) — a plain zero-arg call keeps tsc happy (TS2556:
+// spreading unknown[] into the zero-arg vi.fn is not assignable).
 vi.mock('../hooks/useSeismicMonitor', () => ({
-  useSeismicMonitor: (...args: unknown[]) => mocks.seismicMonitor(...args),
+  useSeismicMonitor: () => mocks.seismicMonitor(),
 }));
 
 vi.mock('../hooks/useFirestoreCollection', () => ({
@@ -138,9 +157,17 @@ vi.mock('framer-motion', () => {
 import { EmergenciaAvanzada } from './EmergenciaAvanzada';
 import { logger } from '../utils/logger';
 
+const seismicState = (over: Partial<SeismicMonitorState> = {}): SeismicMonitorState => ({
+  earthquakes: [],
+  criticalAlert: null,
+  loading: false,
+  error: null,
+  ...over,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: null });
+  mocks.seismicMonitor.mockReturnValue(seismicState());
   mocks.emergencyEvents = [];
   mocks.chatErrorCb = null;
   mocks.safetyErrorCb = null;
@@ -225,20 +252,20 @@ describe('EmergenciaAvanzada — "Estado de Zonas" has no fabricated uncondition
 
 describe('EmergenciaAvanzada — seismic panel is honest about loading/error/empty (bug 10)', () => {
   it('shows the loading state only while useSeismicMonitor reports loading:true', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: true, error: null });
+    mocks.seismicMonitor.mockReturnValue(seismicState({ loading: true }));
     const { getByText } = render(<EmergenciaAvanzada />);
     expect(getByText('Cargando datos sísmicos...')).toBeInTheDocument();
   });
 
   it('shows an honest error state instead of an eternal spinner when USGS fails', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: 'network down' });
+    mocks.seismicMonitor.mockReturnValue(seismicState({ error: 'network down' }));
     const { getByText, queryByText } = render(<EmergenciaAvanzada />);
     expect(queryByText('Cargando datos sísmicos...')).not.toBeInTheDocument();
     expect(getByText(/no se pudo conectar con la red sismológica/i)).toBeInTheDocument();
   });
 
   it('shows an honest empty state (not "Cargando...") when loading finished with zero quakes', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: null });
+    mocks.seismicMonitor.mockReturnValue(seismicState());
     const { getByText, queryByText } = render(<EmergenciaAvanzada />);
     expect(queryByText('Cargando datos sísmicos...')).not.toBeInTheDocument();
     expect(getByText(/sin actividad sísmica registrada/i)).toBeInTheDocument();
