@@ -114,29 +114,54 @@ export interface SosOutboxDeps {
 export class SosOutbox {
   private readonly now: () => number;
 
+  /**
+   * Serializa las operaciones que hacen load→modify→save. Sin esto, un
+   * `flush()` (que se para en la red durante `send()`) y un `enqueue()`
+   * concurrente cargan el mismo estado y el `save()` stale del flush
+   * sobreescribe el SOS recién encolado → SOS PERDIDO. flush/enqueue/
+   * clearDeadLetter comparten esta cadena; snapshot/deadLetters son solo
+   * lectura y no la necesitan.
+   * ponytail: el lock abarca los `send()` de red del flush, así que un
+   * enqueue durante un flush largo espera a que termine. Aceptable para un
+   * backstop de reintento en cliente; si la latencia del enqueue-durante-flush
+   * llegara a importar, cambiar a reconciliar-al-guardar (re-load + merge).
+   */
+  private mutation: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly deps: SosOutboxDeps) {
     this.now = deps.now ?? (() => Date.now());
+  }
+
+  private runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+    // Encadena tras la mutación previa (haya resuelto o fallado, para no
+    // bloquear la cola si una operación lanza). Devuelve el resultado real al
+    // llamador; la cadena se sigue con un no-op que traga el error.
+    const run = this.mutation.then(fn, fn);
+    this.mutation = run.then(() => undefined, () => undefined);
+    return run;
   }
 
   /**
    * Encola un evento. Idempotente: si el `clientEventId` ya está en la
    * cola, NO se duplica.
    */
-  async enqueue(event: SosEvent): Promise<void> {
-    const current = await this.deps.storage.load();
-    if (current.some((e) => e.event.clientEventId === event.clientEventId)) {
-      return;
-    }
-    // Hard cap: si la cola está llena evictamos el pendiente más viejo,
-    // PERO nunca un dead-letter (SOS no entregado = lo más importante).
-    const trimmed = this.trimForCapacity(current);
-    const entry: OutboxEntry = {
-      event,
-      queuedAt: new Date(this.now()).toISOString(),
-      retryCount: 0,
-      nextRetryAt: this.now(),
-    };
-    await this.deps.storage.save([...trimmed, entry]);
+  enqueue(event: SosEvent): Promise<void> {
+    return this.runExclusive(async () => {
+      const current = await this.deps.storage.load();
+      if (current.some((e) => e.event.clientEventId === event.clientEventId)) {
+        return;
+      }
+      // Hard cap: si la cola está llena evictamos el pendiente más viejo,
+      // PERO nunca un dead-letter (SOS no entregado = lo más importante).
+      const trimmed = this.trimForCapacity(current);
+      const entry: OutboxEntry = {
+        event,
+        queuedAt: new Date(this.now()).toISOString(),
+        retryCount: 0,
+        nextRetryAt: this.now(),
+      };
+      await this.deps.storage.save([...trimmed, entry]);
+    });
   }
 
   /**
@@ -146,7 +171,16 @@ export class SosOutbox {
    *
    * Devuelve un resumen para telemetría.
    */
-  async flush(): Promise<{
+  flush(): Promise<{
+    sent: number;
+    pending: number;
+    gaveUp: number;
+    deadLettered: number;
+  }> {
+    return this.runExclusive(async () => this.flushInternal());
+  }
+
+  private async flushInternal(): Promise<{
     sent: number;
     pending: number;
     gaveUp: number;
@@ -229,13 +263,15 @@ export class SosOutbox {
    * Remueve un dead-letter una vez escalado por otra vía (p.ej. el
    * trabajador confirmó que avisó presencialmente). Idempotente.
    */
-  async clearDeadLetter(clientEventId: string): Promise<void> {
-    const all = await this.deps.storage.load();
-    await this.deps.storage.save(
-      all.filter(
-        (e) => !(e.deadLettered && e.event.clientEventId === clientEventId),
-      ),
-    );
+  clearDeadLetter(clientEventId: string): Promise<void> {
+    return this.runExclusive(async () => {
+      const all = await this.deps.storage.load();
+      await this.deps.storage.save(
+        all.filter(
+          (e) => !(e.deadLettered && e.event.clientEventId === clientEventId),
+        ),
+      );
+    });
   }
 
   /**
