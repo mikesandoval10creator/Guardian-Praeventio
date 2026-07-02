@@ -2791,6 +2791,9 @@
     }
   },
   "incident_report": {
+    "err_queue_full": "The report could not be stored on this device (queue full). Write it down and tell your supervisor.",
+    "queued_body": "No connection to the server. Your report is saved on this device and will be sent automatically when the signal returns — do not type it again.",
+    "queued_title": "Saved on this device",
     "back_emergency": "Emergency",
     "badge": "Report",
     "title": "Report near-miss",

@@ -3557,6 +3557,9 @@
     "active_label_drill": "Simulado ativo"
   },
   "incident_report": {
+    "err_queue_full": "Não foi possível guardar o relato neste dispositivo (fila cheia). Anote e avise seu supervisor.",
+    "queued_body": "Sem conexão com o servidor. Seu relato ficou salvo neste dispositivo e será enviado automaticamente quando o sinal voltar — não digite de novo.",
+    "queued_title": "Salvo neste dispositivo",
     "back_emergency": "Emergência",
     "badge": "Reportar",
     "err_generic": "Não foi possível reportar. Tente novamente.",

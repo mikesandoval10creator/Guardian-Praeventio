@@ -2791,6 +2791,9 @@
     }
   },
   "incident_report": {
+    "err_queue_full": "No se pudo guardar el reporte en este dispositivo (cola llena). Anótalo y avisa a tu supervisor.",
+    "queued_body": "Sin conexión con el servidor. Tu reporte quedó guardado en este dispositivo y se enviará automáticamente al recuperar señal — no lo escribas de nuevo.",
+    "queued_title": "Guardado en este dispositivo",
     "back_emergency": "Emergencia",
     "badge": "Reportar",
     "title": "Reportar near-miss",
