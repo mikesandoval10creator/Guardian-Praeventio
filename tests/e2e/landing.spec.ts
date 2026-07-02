@@ -39,10 +39,13 @@ test.describe('Landing page', () => {
     await expect(page.getByText(/Gesti[oó]n de riesgos.*bienestar.*cumplimiento/i)).toBeVisible();
   });
 
-  test('compliance badges row renders all 9', async ({ page }) => {
+  test('compliance badges row renders all 7', async ({ page }) => {
     await page.goto('/');
-    // Badges: DS 54, DS 44/2024, Ley 16.744, ISO 45001, OHSAS 18001, SUSESO, ISL, ACHS, IST
-    const expected = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+    // Mirrors COMPLIANCE_BADGES in src/pages/LandingPage.tsx (#1164): DS 54 was
+    // dropped (derogated by DS 44/2024) and OHSAS 18001 was dropped as a
+    // compliance badge (superseded by ISO 45001). (OHSAS may still appear
+    // elsewhere as historical/educational content — not asserted here.)
+    const expected = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
     for (const badge of expected) {
       await expect(page.getByText(badge, { exact: false }).first()).toBeVisible();
     }
