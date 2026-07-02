@@ -51,11 +51,16 @@ async function notifyBrigadeServer(
   }
   try {
     const user = auth.currentUser;
-    if (!user) return 'ok'; // sin usuario no podemos firmar; no es fallo de red
+    // Sin auth local NO podemos firmar el server call — pero esto NO es 'ok':
+    // el fan-out no ocurrió. Devolvemos 'network-fail' para que el caller
+    // dispare el mesh fallback (BLE), donde un peer CON sesión relaya el SOS al
+    // server por nosotros (mismo camino que offline). Devolver 'ok' aquí
+    // descartaba la alerta en silencio (audit 2026-07-02 §3.1).
+    if (!user) return 'network-fail';
     // §2.20 (2026-05-23) — usar apiAuthHeader unified (E2E + Bearer fallback).
     const { apiAuthHeader } = await import('../lib/apiAuth');
     const authHeader = await apiAuthHeader();
-    if (!authHeader) return 'ok';
+    if (!authHeader) return 'network-fail';
     const res = await fetch('/api/emergency/notify-brigada', {
       method: 'POST',
       credentials: 'include',
