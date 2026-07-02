@@ -18,7 +18,7 @@
     "mcp:start": "node bin/mcp-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "typecheck:ci": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "lint": "eslint . && eslint firestore.rules",
     "lint:fix": "eslint . --fix && eslint firestore.rules --fix",
