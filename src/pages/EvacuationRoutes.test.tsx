@@ -12,15 +12,30 @@
 //
 // Also unit-tests the pure `deriveEvacuationInstructions` helper directly —
 // no fabricated literals, computed from a real path.
+//
+// FIX (2026-07-02, post-CI): two hardening changes to how this file mocks.
+//   1. `selectedProject` is a vi.hoisted STABLE object. The page's USGS
+//      effect depends on [selectedProject]; a factory returning a fresh
+//      object per render re-fired that effect on every setState (the real
+//      ProjectContext keeps the object stable via React state, so the test
+//      was the anomaly).
+//   2. The notify tests stub fetch BY URL (mockImplementation), not by call
+//      order (mockResolvedValueOnce). The re-firing effect silently ATE the
+//      queued one-shot response: the "success" and "500" tests failed on a
+//      response they never received, and the notified:0 test passed for the
+//      wrong reason (default response coincidence). URL routing makes each
+//      test exercise the branch it claims to pin.
 
 import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { deriveEvacuationInstructions } from './EvacuationRoutes';
 
+const stableProject = vi.hoisted(() => ({ id: 'p-1', name: 'Faena Norte' }));
+
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({
-    selectedProject: { id: 'p-1', name: 'Faena Norte' },
+    selectedProject: stableProject,
   }),
 }));
 
@@ -150,6 +165,23 @@ describe('EvacuationRoutes — "Emergencia Activa" badge is conditioned on real 
 });
 
 describe('EvacuationRoutes — "Notificar a Cuadrilla" button is wired to the real endpoint', () => {
+  /**
+   * URL-aware fetch stub. The page also fetches USGS on mount; routing
+   * responses by URL (instead of queue position) means a stray/extra page
+   * fetch can never eat the notify response — each test exercises the exact
+   * response branch it claims to pin.
+   */
+  function stubFetch(notifyResponse: {
+    ok: boolean;
+    status?: number;
+    json: () => Promise<unknown>;
+  }) {
+    fetchMock.mockImplementation(async (url: unknown) => {
+      if (String(url).includes('/api/emergency/notify-brigada')) return notifyResponse;
+      return { ok: true, json: async () => ({ features: [] }) };
+    });
+  }
+
   async function renderWithCalculatedRoute() {
     const utils = render(<EvacuationRoutes />);
     await utils.findByText('Plano de Faena (Grilla Dinámica)');
@@ -160,10 +192,7 @@ describe('EvacuationRoutes — "Notificar a Cuadrilla" button is wired to the re
 
   it('POSTs to /api/emergency/notify-brigada when clicked', async () => {
     const utils = await renderWithCalculatedRoute();
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ notified: 2 }),
-    });
+    stubFetch({ ok: true, json: async () => ({ notified: 2 }) });
 
     fireEvent.click(utils.getByText('Notificar a Cuadrilla'));
 
@@ -179,31 +208,21 @@ describe('EvacuationRoutes — "Notificar a Cuadrilla" button is wired to the re
 
   it('shows a success confirmation with the notified count', async () => {
     const utils = await renderWithCalculatedRoute();
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ notified: 3 }),
-    });
+    stubFetch({ ok: true, json: async () => ({ notified: 3 }) });
     fireEvent.click(utils.getByText('Notificar a Cuadrilla'));
     await utils.findByText(/Cuadrilla notificada \(3 supervisores\)/i);
   });
 
   it('shows an honest error (not a false success) when notified:0', async () => {
     const utils = await renderWithCalculatedRoute();
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ notified: 0 }),
-    });
+    stubFetch({ ok: true, json: async () => ({ notified: 0 }) });
     fireEvent.click(utils.getByText('Notificar a Cuadrilla'));
     await utils.findByText(/ningún supervisor tiene notificaciones push registradas/i);
   });
 
   it('shows an honest error when the request fails', async () => {
     const utils = await renderWithCalculatedRoute();
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: 'server_error' }),
-    });
+    stubFetch({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
     fireEvent.click(utils.getByText('Notificar a Cuadrilla'));
     await utils.findByText(/no se pudo contactar a la cuadrilla/i);
   });
