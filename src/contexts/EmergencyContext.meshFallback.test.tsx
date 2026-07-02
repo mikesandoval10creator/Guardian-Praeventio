@@ -33,9 +33,17 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: updateDocMock,
 }));
 
+// auth.currentUser is mutable per-test (a logged-out worker pressing SOS must
+// still fall back to the mesh, not be silently dropped).
+const authState = vi.hoisted(() => ({
+  currentUser: { uid: 'u-test', getIdToken: async () => 'tok' } as
+    | { uid: string; getIdToken: () => Promise<string> }
+    | null,
+}));
+
 vi.mock('../services/firebase', () => ({
   db: { __db: true },
-  auth: { currentUser: { uid: 'u-test', getIdToken: async () => 'tok' } },
+  auth: { get currentUser() { return authState.currentUser; } },
   serverTimestamp: () => ({ __ts: true }),
 }));
 
@@ -94,6 +102,7 @@ beforeEach(() => {
   meshEnqueueOutboundMock.mockReset();
   captureEmergencyErrorMock.mockClear();
   onlineFlag = true;
+  authState.currentUser = { uid: 'u-test', getIdToken: async () => 'tok' };
   // Default: server fetch succeeds.
   globalThis.fetch = vi.fn(async () =>
     new Response('{}', { status: 200 }),
@@ -183,6 +192,32 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     // Verificación load-bearing: el wrapper construye un packet
     // type: 'sos' (ver meshFallback.ts buildPacket). Compatible con
     // Sprint 32 B3 XP wire que filtra por event.packetType === 'sos'.
+  });
+
+  it('online + sin auth local → mesh fallback SÍ se llama (no descartar en silencio)', async () => {
+    // Un trabajador deslogueado presionando SOS: no podemos firmar el server
+    // call, PERO un peer con sesión puede relayarlo → debe ir al mesh, no
+    // tratarse como 'ok' (audit 2026-07-02 §3.1).
+    authState.currentUser = null;
+    meshEnqueueOutboundMock.mockResolvedValue({ enqueued: true, packetId: 'pkt-noauth' });
+
+    render(
+      <EmergencyProvider>
+        <Harness />
+      </EmergencyProvider>,
+    );
+
+    await act(async () => {
+      await handle.trigger('fall', 'proj-NOAUTH');
+    });
+    await flushMicrotasks();
+
+    expect(meshEnqueueOutboundMock).toHaveBeenCalledTimes(1);
+    const arg = meshEnqueueOutboundMock.mock.calls[0]?.[0] as { uid: string; projectId: string };
+    expect(arg.uid).toBe('anonymous');
+    expect(arg.projectId).toBe('proj-NOAUTH');
+    // Sin auth no se intenta el fetch al server (no hay con qué firmar).
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('offline + mesh wrapper throws → error capturado, no rompe UX', async () => {
