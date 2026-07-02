@@ -91,7 +91,35 @@ function planTenantDataMoves(resolved) {
     .map((p) => ({ projectId: p.id, from: `tenants/${p.id}`, to: `tenants/${p.tenantId}` }));
 }
 
-module.exports = { planProjectStamps, planClaimUpdate, planTenantDataMoves };
+/**
+ * Select the Firestore database this backfill must target. Mirrors the
+ * server.ts boot rule: production data lives in the NAMED database from
+ * firebase-applet-config.json (`firestoreDatabaseId`), NOT "(default)".
+ * Without this, `admin.firestore()` scans an empty default DB and the whole
+ * run reports "nothing to do" — a silent wrong-target, the worst failure
+ * mode for a security migration. Emulator runs keep the default handle
+ * (the emulator serves it regardless of named-DB config — same exception
+ * server.ts makes).
+ *
+ * @param {{ app: () => unknown, firestore: () => unknown }} adminNs — firebase-admin namespace
+ * @param {{ firestoreDatabaseId?: unknown }} cfg — parsed firebase-applet-config.json
+ * @param {string | undefined} emulatorHost — process.env.FIRESTORE_EMULATOR_HOST
+ * @param {(app: unknown, dbId: string) => unknown} [getFirestoreImpl] — injectable for unit tests
+ */
+function resolveBackfillDb(adminNs, cfg, emulatorHost, getFirestoreImpl) {
+  const named =
+    typeof cfg.firestoreDatabaseId === 'string' &&
+    cfg.firestoreDatabaseId.length > 0 &&
+    cfg.firestoreDatabaseId !== '(default)';
+  if (!emulatorHost && named) {
+    // eslint-disable-next-line global-require
+    const getFs = getFirestoreImpl ?? require('firebase-admin/firestore').getFirestore;
+    return getFs(adminNs.app(), cfg.firestoreDatabaseId);
+  }
+  return adminNs.firestore();
+}
+
+module.exports = { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfillDb };
 
 // ---- CLI -------------------------------------------------------------------
 
@@ -100,8 +128,23 @@ const BATCH_LIMIT = 450; // Firestore hard cap is 500 — leave headroom.
 
 async function main() {
   const admin = require('firebase-admin');
-  admin.initializeApp({ credential: admin.credential.applicationDefault() });
-  const db = admin.firestore();
+  // Explicit projectId: ADC user credentials (gcloud auth application-default
+  // login) don't always expose a detectable project id — the PUBLIC client
+  // config is the canonical source, same file server.ts reads at boot.
+  // eslint-disable-next-line global-require
+  const appletConfig = require('../firebase-applet-config.json');
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+    projectId: appletConfig.projectId,
+  });
+  const db = resolveBackfillDb(admin, appletConfig, process.env.FIRESTORE_EMULATOR_HOST);
+  console.log(
+    `[m1-backfill] target: project=${appletConfig.projectId} db=${
+      typeof appletConfig.firestoreDatabaseId === 'string' && appletConfig.firestoreDatabaseId
+        ? appletConfig.firestoreDatabaseId
+        : '(default)'
+    }${process.env.FIRESTORE_EMULATOR_HOST ? ' [EMULATOR]' : ''}`,
+  );
 
   // ---------- 1. project stamps ----------
   const snap = await db.collection('projects').get();

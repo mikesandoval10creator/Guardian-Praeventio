@@ -9,11 +9,11 @@
 //   • legacy `tenants/{projectId}` namespaces are healed only when the
 //     resolved tenant actually differs.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
-const { planProjectStamps, planClaimUpdate, planTenantDataMoves } = require_(
+const { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfillDb } = require_(
   '../../../scripts/backfill-project-tenantid.cjs',
 ) as {
   planProjectStamps: (
@@ -26,6 +26,12 @@ const { planProjectStamps, planClaimUpdate, planTenantDataMoves } = require_(
   planTenantDataMoves: (
     resolved: Array<{ id: string; tenantId: string }>,
   ) => Array<{ projectId: string; from: string; to: string }>;
+  resolveBackfillDb: (
+    adminNs: { app: () => unknown; firestore: () => unknown },
+    cfg: { firestoreDatabaseId?: unknown },
+    emulatorHost: string | undefined,
+    getFirestoreImpl?: (app: unknown, dbId: string) => unknown,
+  ) => unknown;
 };
 
 describe('planProjectStamps', () => {
@@ -90,5 +96,39 @@ describe('planTenantDataMoves', () => {
         { id: 'uid-b', tenantId: 'uid-b' }, // tenant == id → nothing to heal
       ]),
     ).toEqual([{ projectId: 'p1', from: 'tenants/p1', to: 'tenants/uid-a' }]);
+  });
+});
+
+describe('resolveBackfillDb (named-database targeting — the silent-wrong-target guard)', () => {
+  // Production Firestore lives in the NAMED database from
+  // firebase-applet-config.json (`firestoreDatabaseId`), same rule server.ts
+  // applies at boot. A bare `admin.firestore()` scans the empty "(default)"
+  // DB and the whole backfill reports "nothing to do" — these tests pin that
+  // the script can never regress into that failure mode.
+  const cfgNamed = { firestoreDatabaseId: 'ai-studio-test-db' };
+
+  it('selects the NAMED database from the applet config (production path)', () => {
+    const getFs = vi.fn(() => 'NAMED_DB');
+    const adminNs = { app: () => 'APP', firestore: vi.fn(() => 'DEFAULT_DB') };
+    expect(resolveBackfillDb(adminNs, cfgNamed, undefined, getFs)).toBe('NAMED_DB');
+    expect(getFs).toHaveBeenCalledWith('APP', 'ai-studio-test-db');
+    expect(adminNs.firestore).not.toHaveBeenCalled();
+  });
+
+  it('keeps the default handle under the emulator (same exception as server.ts)', () => {
+    const getFs = vi.fn(() => 'NAMED_DB');
+    const adminNs = { app: () => 'APP', firestore: vi.fn(() => 'DEFAULT_DB') };
+    expect(resolveBackfillDb(adminNs, cfgNamed, 'localhost:8080', getFs)).toBe('DEFAULT_DB');
+    expect(getFs).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the default handle for "(default)" or a missing databaseId', () => {
+    const getFs = vi.fn(() => 'NAMED_DB');
+    const adminNs = { app: () => 'APP', firestore: vi.fn(() => 'DEFAULT_DB') };
+    expect(
+      resolveBackfillDb(adminNs, { firestoreDatabaseId: '(default)' }, undefined, getFs),
+    ).toBe('DEFAULT_DB');
+    expect(resolveBackfillDb(adminNs, {}, undefined, getFs)).toBe('DEFAULT_DB');
+    expect(getFs).not.toHaveBeenCalled();
   });
 });
