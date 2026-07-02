@@ -203,6 +203,25 @@ describe('useManDownDetection — inactivity escalation', () => {
     );
   });
 
+  it('writes the mandown_event even if the risk-node write fails (escalation not gated on decorations)', async () => {
+    // Audit 2026-07-02 §3.1: the mandown_event (escalation cron input) used to be
+    // LAST in the write chain, so a failure of the decorative risk-node write
+    // silently skipped it. It must now be written regardless.
+    h.addNode.mockRejectedValueOnce(new Error('graph down'));
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(42);
+    // The mandown_event doc carries `workerId` (the emergency_messages doc carries
+    // `senderId` instead) — it MUST still have been written.
+    const mandownWrite = h.addDoc.mock.calls.find(
+      (call) => {
+        const data = call[1] as Record<string, unknown> | undefined;
+        return !!data && 'workerId' in data;
+      },
+    );
+    expect(mandownWrite).toBeDefined();
+  });
+
   it('does NOT escalate before the inactivity threshold', async () => {
     const { result } = renderHook(() => useManDownDetection());
     act(() => result.current.startDetection());
