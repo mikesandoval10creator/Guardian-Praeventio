@@ -129,9 +129,11 @@ bcnRouter.get('/snapshot', async (_req, res) => {
     return res.status(500).json({
       error: 'bcn_snapshot_error',
       message:
-        error instanceof Error
-          ? error.message
-          : 'Error desconocido al fetchar BCN snapshot.',
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : error instanceof Error
+            ? error.message
+            : 'Error desconocido al fetchar BCN snapshot.',
     });
   }
 });

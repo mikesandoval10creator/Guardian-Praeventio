@@ -221,6 +221,25 @@ describe('GET /api/bcn/snapshot — unexpected error', () => {
     expect(body.error).toBe('bcn_snapshot_error');
     expect(body.message).toBe('boom-sync');
   });
+
+  it('500 does NOT leak the raw error message in production (CLAUDE.md #8)', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      H.fetchLawFromBCN.mockImplementation(() => {
+        throw new Error('secret-internal-detail');
+      });
+      const app = await buildApp();
+      const res = await request(app).get('/api/bcn/snapshot');
+      expect(res.status).toBe(500);
+      const body = res.body as { error: string; message?: string };
+      expect(body.error).toBe('bcn_snapshot_error');
+      // The raw message must be gated away — never surfaced to a public caller.
+      expect(body.message).toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
 });
 
 // ─── Caching behaviour (module-level cache, single router instance) ────────────

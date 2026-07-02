@@ -2791,6 +2791,9 @@
     }
   },
   "incident_report": {
+    "err_queue_full": "The report could not be stored on this device (queue full). Write it down and tell your supervisor.",
+    "queued_body": "No connection to the server. Your report is saved on this device and will be sent automatically when the signal returns — do not type it again.",
+    "queued_title": "Saved on this device",
     "back_emergency": "Emergency",
     "badge": "Report",
     "title": "Report near-miss",
@@ -4566,7 +4569,22 @@
       }
     }
   },
+  "emergenciaAvanzada": {
+    "sos": {
+      "location": "View location",
+      "subtitle": "Alerts sent with the SOS button. Check on each person now.",
+      "title": "Worker SOS — last 24 h"
+    }
+  },
   "iper": {
+    "save": {
+      "button": "Save assessment",
+      "descriptionLabel": "Hazard / assessed task description",
+      "descriptionPlaceholder": "E.g. work at height above 1.8 m on a mobile scaffold",
+      "error": "The assessment could not be saved. Check your connection and try again.",
+      "noProject": "Select a project to save the assessment.",
+      "success": "Assessment saved — it now appears in the landscape."
+    },
     "page": {
       "title": "IPER 5x5 Matrix",
       "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."

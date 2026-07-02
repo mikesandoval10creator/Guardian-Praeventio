@@ -277,37 +277,11 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         );
       });
 
-      // 1. Add Risk Node
-      await addNode({
-        type: NodeType.EMERGENCY,
-        title: `ALERTA: Hombre Caído - ${user.displayName || 'Trabajador'}`,
-        description: `Se ha detectado una posible caída o inmovilidad prolongada del trabajador en el proyecto ${selectedProject.name}.`,
-        tags: ['Emergencia', 'Hombre Caído', 'Crítico'],
-        projectId: selectedProject.id,
-        connections: [],
-        metadata: {
-          type: 'Man Down',
-          userId: user.uid,
-          userName: user.displayName,
-          timestamp: new Date().toISOString(),
-          status: 'Activa',
-          location: location
-        }
-      });
-
-      // 2. Send Emergency Message to Crisis Chat
-      const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
-      await addDoc(messagesRef, {
-        projectId: selectedProject.id,
-        senderId: user.uid,
-        senderName: 'SISTEMA AUTOMÁTICO',
-        senderRole: 'ALERTA MAN DOWN',
-        text: `ðŸš¨ ALERTA CRÍTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
-        type: 'emergency',
-        timestamp: serverTimestamp()
-      });
-
-      // 3. Create auditable mandown_event for supervisor acknowledgment tracking.
+      // 1. CRITICAL FIRST — the auditable mandown_event is the input the
+      //    supervisor-escalation cron reads. It MUST be written even if the
+      //    decorative risk-node / crisis-chat writes fail, so it goes first and
+      //    is NOT gated on them (audit 2026-07-02 §3.1: previously it was LAST in
+      //    the chain, so any earlier write failure skipped it silently).
       //
       // Sprint 12 — when an `accidente de trayecto` commute session is active
       // for this project, decorate the event with `tipo: 'trayecto'` so
@@ -332,6 +306,44 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         tagged,
       );
       mandownEventRef.current = { projectId: selectedProject.id, docId: eventRef.id };
+
+      // 2. Best-effort Risk Node (Red Neuronal graph) — must NOT abort escalation.
+      try {
+        await addNode({
+          type: NodeType.EMERGENCY,
+          title: `ALERTA: Hombre Caído - ${user.displayName || 'Trabajador'}`,
+          description: `Se ha detectado una posible caída o inmovilidad prolongada del trabajador en el proyecto ${selectedProject.name}.`,
+          tags: ['Emergencia', 'Hombre Caído', 'Crítico'],
+          projectId: selectedProject.id,
+          connections: [],
+          metadata: {
+            type: 'Man Down',
+            userId: user.uid,
+            userName: user.displayName,
+            timestamp: new Date().toISOString(),
+            status: 'Activa',
+            location: location
+          }
+        });
+      } catch (nodeErr) {
+        logger.warn('mandown: risk-node write failed (non-blocking)', { error: nodeErr });
+      }
+
+      // 3. Best-effort Crisis-Chat broadcast — must NOT abort escalation.
+      try {
+        const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+        await addDoc(messagesRef, {
+          projectId: selectedProject.id,
+          senderId: user.uid,
+          senderName: 'SISTEMA AUTOMÁTICO',
+          senderRole: 'ALERTA MAN DOWN',
+          text: `ðŸš¨ ALERTA CRÍTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
+          type: 'emergency',
+          timestamp: serverTimestamp()
+        });
+      } catch (chatErr) {
+        logger.warn('mandown: crisis-chat write failed (non-blocking)', { error: chatErr });
+      }
 
       // NOTE: do NOT clear isAlerting here — the supervisor must explicitly
       // acknowledge via acknowledgeAlert() to silence the local alarm. This

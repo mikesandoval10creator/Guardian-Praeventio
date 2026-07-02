@@ -104,6 +104,12 @@ export function RootLayout() {
     void import('../../services/emergency/sosOutboxClient').then((m) => m.registerSosFlushOnReconnect());
   }, []);
 
+  // B.1 — same guarantee for incident reports typed offline: drain the
+  // durable outbox on app start + reconnect (idempotent).
+  useEffect(() => {
+    void import('../../services/incidents/incidentOutbox').then((m) => m.registerIncidentFlushOnReconnect());
+  }, []);
+
   // Initialize background watcher
   useAutonomousAlerts();
   useZettelkastenIntelligence();

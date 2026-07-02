@@ -28,6 +28,7 @@ import {
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { Worker, NodeType, RiskNode } from '../types';
 import { where } from 'firebase/firestore';
 import { analyzeAttendancePatterns } from '../services/geminiService';
@@ -44,6 +45,7 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 export function Attendance() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const { addNode, addConnection, getConnectedNodes } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function Attendance() {
           timestamp: now.toISOString(),
           location: 'Torniquete Principal',
           projectId: selectedProject.id,
+          recordedBy: user?.uid ?? '',
           createdAt: serverTimestamp()
         });
       } catch (error) {
@@ -283,6 +286,7 @@ export function Attendance() {
           timestamp: now.toISOString(),
           location: 'Torniquete Principal',
           projectId: selectedProject.id,
+          recordedBy: user?.uid ?? '',
           createdAt: serverTimestamp()
         });
       } catch (error) {

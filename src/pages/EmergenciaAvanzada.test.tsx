@@ -1,232 +1,168 @@
 // @vitest-environment jsdom
 //
-// Praeventio Guard — de-fabrication of EmergenciaAvanzada.tsx.
-// Audit 2026-07-02 §3.4 (docs/audits/AUDITORIA-END-TO-END-2026-07-02.md):
-//   #1 — both onSnapshot listeners (chat + emergency_safety) had no error
-//        callback; a Firestore permission failure was indistinguishable
-//        from "no activity". Now both surface an honest error banner.
-//   #3 — "Estado de Zonas" had an unconditional 'Zona de Seguridad: ACTIVA'
-//        literal with no real source. Removed; only the two entries derived
-//        from `activeEmergency` (real state) remain.
-//   #4 — `â— EN VIVO` mojibake fixed to `● EN VIVO`.
-// Also pins the useSeismicMonitor consumer fix (bug 10): the eternal
-// "Cargando datos sísmicos..." now distinguishes loading vs error vs
-// genuinely-empty.
+// B.3 (VIDA) — EmergenciaAvanzada surfaces worker SOS alerts.
+//
+// The SOS server route writes tenants/{tenantId}/emergency_alerts (Admin SDK;
+// tenantId = projects/{pid}.tenantId || pid) but no dashboard ever subscribed:
+// a worker's SOS reached Firestore and stayed invisible. This suite pins:
+//   1. the dashboard subscribes to tenants/{project.tenantId}/emergency_alerts.
+//   2. tenantId falls back to projectId (server parity) when the project has
+//      no tenantId field.
+//   3. alerts pushed by the subscription render the banner (count + rows +
+//      Google Maps link from geo).
+//   4. stale alerts (> 24 h) are filtered out; empty feed hides the banner.
+//
+// Hermetic: mocks react-i18next, framer-motion, contexts, hooks and the
+// firebase service module (onSnapshot handlers captured per collection path).
+//
+// NOTE (merge 2026-07-02): the de-fabrication suite for this same page lives
+// in EmergenciaAvanzada.defabrication.test.tsx — the two suites need
+// incompatible hermetic mock sets (this one mocks react-i18next and captures
+// onNext by path; that one uses real i18n and captures onError callbacks), so
+// they are kept as separate files on purpose.
 
-import React from 'react';
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactNode, HTMLAttributes } from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 
-const mocks = vi.hoisted(() => ({
-  seismicMonitor: vi.fn(() => ({ earthquakes: [], criticalAlert: null, loading: false, error: null })),
-  // Mutable per-test override for the `emergency_events` collection — most
-  // tests want no active emergency (default []); the mojibake test needs
-  // one active event to actually exercise the "● EN VIVO" render path.
-  emergencyEvents: [] as any[],
-  // Captured error callbacks from the two onSnapshot listeners this
-  // component owns (emergency_chat, emergency_safety) — set by the mocked
-  // onSnapshot below, read by the tests to simulate a Firestore failure.
-  chatErrorCb: null as null | ((err: Error) => void),
-  safetyErrorCb: null as null | ((err: Error) => void),
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (_k: string, fallback?: string) => (typeof fallback === 'string' ? fallback : _k),
+  }),
+}));
+
+vi.mock('framer-motion', () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  motion: {
+    div: (props: { children?: ReactNode } & Record<string, unknown>) => {
+      const { children, initial: _i, animate: _a, exit: _e, ...rest } = props;
+      return <div {...(rest as HTMLAttributes<HTMLDivElement>)}>{children}</div>;
+    },
+  },
+}));
+
+let mockProject: { id: string; name: string; tenantId?: string } | null = null;
+vi.mock('../contexts/ProjectContext', () => ({
+  useProject: () => ({ selectedProject: mockProject }),
+}));
+vi.mock('../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({ user: { uid: 'u1', email: 'u1@test.com' }, isAdmin: true }),
 }));
 
 vi.mock('../hooks/useAcousticSOS', () => ({
   useAcousticSOS: () => ({ isActive: false, start: vi.fn(), stop: vi.fn() }),
 }));
-
-vi.mock('../contexts/ProjectContext', () => ({
-  useProject: () => ({
-    selectedProject: { id: 'p-1', name: 'Faena Norte', coordinates: { lat: -33.45, lng: -70.66 } },
-  }),
-}));
-
-vi.mock('../contexts/FirebaseContext', () => ({
-  useFirebase: () => ({
-    user: { uid: 'u-1', displayName: 'Ana', email: 'ana@test.cl' },
-    isAdmin: true,
-  }),
-}));
-
 vi.mock('../hooks/useSeismicMonitor', () => ({
-  useSeismicMonitor: (...args: unknown[]) => mocks.seismicMonitor(...args),
+  useSeismicMonitor: () => ({ earthquakes: [], criticalAlert: null }),
 }));
-
 vi.mock('../hooks/useFirestoreCollection', () => ({
-  useFirestoreCollection: (path: string | null) => {
-    if (path && path.endsWith('/emergency_events')) return { data: mocks.emergencyEvents };
-    if (path && path.endsWith('/workers')) return { data: [{ id: 'w-1', name: 'Pedro', role: 'Operador' }] };
-    return { data: [] };
-  },
-}));
-
-// Each of the two listeners this component owns (emergency_chat,
-// emergency_safety) is distinguished by collection path in the mocked
-// `onSnapshot()` call below so the test can trigger each error callback
-// independently.
-vi.mock('../services/firebase', () => ({
-  db: {},
-  serverTimestamp: vi.fn(),
-  collection: vi.fn((_db: unknown, path: string) => ({ path })),
-  addDoc: vi.fn(async () => ({ id: 'doc-1' })),
-  updateDoc: vi.fn(async () => undefined),
-  doc: vi.fn((_db: unknown, path: string, id: string) => ({ path, id })),
-  setDoc: vi.fn(async () => undefined),
-  onSnapshot: vi.fn((ref: { path: string }, onNext: (snap: any) => void, onError: (err: Error) => void) => {
-    if (ref.path.endsWith('/emergency_chat')) {
-      mocks.chatErrorCb = onError;
-      onNext({ docs: [] });
-      return () => {};
-    }
-    if (ref.path.endsWith('/emergency_safety')) {
-      mocks.safetyErrorCb = onError;
-      onNext({ docs: [] });
-      return () => {};
-    }
-    onNext({ docs: [] });
-    return () => {};
-  }),
-  query: vi.fn((ref: unknown) => ref),
-  orderBy: vi.fn(),
-  limit: vi.fn(),
+  useFirestoreCollection: () => ({ data: [] }),
 }));
 
 vi.mock('../components/shared/Card', () => ({
-  Card: ({ children, className }: any) => React.createElement('div', { className }, children),
+  Card: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
 }));
-
-vi.mock('../components/shared/ConfirmDialog', () => ({
-  ConfirmDialog: ({ isOpen, title }: any) =>
-    isOpen ? React.createElement('div', { role: 'dialog' }, title) : null,
-}));
-
 vi.mock('../components/shared/Tooltip', () => ({
-  Tooltip: ({ children }: any) => children,
+  Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
+}));
+vi.mock('../components/shared/ConfirmDialog', () => ({
+  ConfirmDialog: () => null,
+}));
+vi.mock('../utils/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('../utils/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
+// firebase service: capture each onSnapshot handler by its collection path.
+type SnapDoc = { id: string; data: () => Record<string, unknown> };
+type FakeSnap = { docs: SnapDoc[] };
+const snapshotHandlers = new Map<string, (snap: FakeSnap) => void>();
+vi.mock('../services/firebase', () => ({
+  db: {},
+  serverTimestamp: () => ({ __serverTimestamp: true }),
+  collection: (_db: unknown, path: string) => ({ __path: path }),
+  query: (col: { __path: string }, ..._constraints: unknown[]) => ({ __path: col.__path }),
+  where: (...args: unknown[]) => ({ __where: args }),
+  orderBy: (...args: unknown[]) => ({ __orderBy: args }),
+  limit: (n: number) => ({ __limit: n }),
+  doc: (_db: unknown, path: string, id?: string) => ({ __path: id ? `${path}/${id}` : path }),
+  addDoc: vi.fn(async () => ({ id: 'new-doc' })),
+  updateDoc: vi.fn(async () => undefined),
+  setDoc: vi.fn(async () => undefined),
+  onSnapshot: (
+    q: { __path: string },
+    onNext: (snap: FakeSnap) => void,
+    _onError?: (err: unknown) => void,
+  ) => {
+    snapshotHandlers.set(q.__path, onNext);
+    return () => snapshotHandlers.delete(q.__path);
   },
 }));
 
-vi.mock('framer-motion', () => {
-  const Pass = ({ children, ...rest }: any) =>
-    React.createElement('div', rest, children);
-  return {
-    motion: new Proxy({}, { get: () => Pass }),
-    AnimatePresence: ({ children }: any) => children,
-  };
-});
-
 import { EmergenciaAvanzada } from './EmergenciaAvanzada';
-import { logger } from '../utils/logger';
+
+const sosDoc = (
+  id: string,
+  overrides: Record<string, unknown> = {},
+): SnapDoc => ({
+  id,
+  data: () => ({
+    type: 'sos',
+    uid: `worker-${id}`,
+    userEmail: `${id}@faena.cl`,
+    projectId: 'p1',
+    geo: { lat: -33.45, lng: -70.66 },
+    clientTimestamp: null,
+    createdAt: { toMillis: () => Date.now() - 60_000 },
+    ...overrides,
+  }),
+});
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: null });
-  mocks.emergencyEvents = [];
-  mocks.chatErrorCb = null;
-  mocks.safetyErrorCb = null;
+  snapshotHandlers.clear();
+  mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA' };
 });
 
-afterEach(() => {
-  cleanup();
-});
+describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
+  it('subscribes to tenants/{project.tenantId}/emergency_alerts', () => {
+    render(<EmergenciaAvanzada />);
+    expect(snapshotHandlers.has('tenants/tA/emergency_alerts')).toBe(true);
+  });
 
-describe('EmergenciaAvanzada — chat onSnapshot error is surfaced (not silent)', () => {
-  it('renders an error banner when the chat listener fails', async () => {
-    const { getByText, queryByRole } = render(<EmergenciaAvanzada />);
-    // Switch to the "comms" tab to see the chat panel.
-    fireEvent.click(getByText('Canal de Emergencia'));
+  it('falls back to projectId as tenantId when the project has none (server parity)', () => {
+    mockProject = { id: 'p1', name: 'Faena Norte' };
+    render(<EmergenciaAvanzada />);
+    expect(snapshotHandlers.has('tenants/p1/emergency_alerts')).toBe(true);
+  });
 
-    expect(mocks.chatErrorCb).toBeTypeOf('function');
-    mocks.chatErrorCb!(new Error('permission-denied'));
+  it('renders the SOS banner with count, rows and the Maps link', () => {
+    render(<EmergenciaAvanzada />);
+    const push = snapshotHandlers.get('tenants/tA/emergency_alerts');
+    expect(push).toBeDefined();
 
-    await waitFor(() => {
-      expect(queryByRole('alert')).toBeInTheDocument();
-    });
-    expect(logger.error).toHaveBeenCalledWith(
-      'EmergenciaAvanzada: emergency_chat onSnapshot failed',
-      expect.any(Error),
-      expect.objectContaining({ projectId: 'p-1' }),
+    act(() => push!({ docs: [sosDoc('a1'), sosDoc('a2', { geo: null })] }));
+
+    expect(screen.getByTestId('sos-alerts-banner')).toBeInTheDocument();
+    expect(screen.getByTestId('sos-alerts-count').textContent).toBe('2');
+    expect(screen.getAllByTestId('sos-alert-row')).toHaveLength(2);
+    expect(screen.getByText('a1@faena.cl')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Ver ubicación' }) as HTMLAnchorElement;
+    expect(link.href).toContain('google.com/maps?q=-33.45,-70.66');
+  });
+
+  it('filters stale alerts (>24 h) and hides the banner when nothing is recent', () => {
+    render(<EmergenciaAvanzada />);
+    const push = snapshotHandlers.get('tenants/tA/emergency_alerts');
+
+    act(() =>
+      push!({
+        docs: [sosDoc('old', { createdAt: { toMillis: () => Date.now() - 25 * 60 * 60 * 1000 } })],
+      }),
     );
-  });
-});
+    expect(screen.queryByTestId('sos-alerts-banner')).not.toBeInTheDocument();
 
-describe('EmergenciaAvanzada — worker safety onSnapshot error is surfaced (not silent)', () => {
-  it('renders an error banner when the safety listener fails', async () => {
-    const { getByText, queryByRole } = render(<EmergenciaAvanzada />);
-    fireEvent.click(getByText('Brigadas y Recursos'));
-
-    expect(mocks.safetyErrorCb).toBeTypeOf('function');
-    mocks.safetyErrorCb!(new Error('permission-denied'));
-
-    await waitFor(() => {
-      expect(queryByRole('alert')).toBeInTheDocument();
-    });
-    expect(logger.error).toHaveBeenCalledWith(
-      'EmergenciaAvanzada: emergency_safety onSnapshot failed',
-      expect.any(Error),
-      expect.objectContaining({ projectId: 'p-1' }),
-    );
-  });
-});
-
-describe('EmergenciaAvanzada — mojibake fix', () => {
-  it('renders the correct "● EN VIVO" indicator (not the mojibake) when an emergency is active', () => {
-    // The "EN VIVO" badge only renders on the comms tab while
-    // activeEmergency is truthy — an inactive-emergency render (the
-    // default in every other test in this file) never reaches this
-    // branch at all, so this test deliberately seeds an active event to
-    // actually exercise the fixed line.
-    mocks.emergencyEvents = [{ id: 'ev-1', status: 'active', active: true, startedBy: 'Ana', type: 'Sismo' }];
-    const { getByText, container } = render(<EmergenciaAvanzada />);
-    fireEvent.click(getByText('Canal de Emergencia'));
-
-    expect(container.innerHTML).toContain('EN VIVO');
-    expect(container.innerHTML).toContain('●');
-    // No stray mojibake byte sequence anywhere in the DOM.
-    expect(container.innerHTML.includes('â—')).toBe(false);
-  });
-});
-
-describe('EmergenciaAvanzada — "Estado de Zonas" has no fabricated unconditional entry', () => {
-  it('does NOT render "Zona de Seguridad" (the previously-unconditional fake entry)', () => {
-    const { queryByText } = render(<EmergenciaAvanzada />);
-    expect(queryByText('Zona de Seguridad')).not.toBeInTheDocument();
-  });
-
-  it('still renders the two real, activeEmergency-derived zone entries', () => {
-    const { getByText, getAllByText } = render(<EmergenciaAvanzada />);
-    expect(getByText('Área de Trabajo')).toBeInTheDocument();
-    expect(getByText('Planta / Faena')).toBeInTheDocument();
-    // No active emergency in this test's mocked data → both entries read
-    // OPERATIVO (2 separate <span> elements, one per zone).
-    expect(getAllByText('OPERATIVO')).toHaveLength(2);
-  });
-});
-
-describe('EmergenciaAvanzada — seismic panel is honest about loading/error/empty (bug 10)', () => {
-  it('shows the loading state only while useSeismicMonitor reports loading:true', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: true, error: null });
-    const { getByText } = render(<EmergenciaAvanzada />);
-    expect(getByText('Cargando datos sísmicos...')).toBeInTheDocument();
-  });
-
-  it('shows an honest error state instead of an eternal spinner when USGS fails', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: 'network down' });
-    const { getByText, queryByText } = render(<EmergenciaAvanzada />);
-    expect(queryByText('Cargando datos sísmicos...')).not.toBeInTheDocument();
-    expect(getByText(/no se pudo conectar con la red sismológica/i)).toBeInTheDocument();
-  });
-
-  it('shows an honest empty state (not "Cargando...") when loading finished with zero quakes', () => {
-    mocks.seismicMonitor.mockReturnValue({ earthquakes: [], criticalAlert: null, loading: false, error: null });
-    const { getByText, queryByText } = render(<EmergenciaAvanzada />);
-    expect(queryByText('Cargando datos sísmicos...')).not.toBeInTheDocument();
-    expect(getByText(/sin actividad sísmica registrada/i)).toBeInTheDocument();
+    act(() => push!({ docs: [] }));
+    expect(screen.queryByTestId('sos-alerts-banner')).not.toBeInTheDocument();
   });
 });

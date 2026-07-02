@@ -14,7 +14,7 @@ import { useSeismicMonitor, Earthquake } from "../hooks/useSeismicMonitor";
 import { useFirestoreCollection } from "../hooks/useFirestoreCollection";
 import {
   db, serverTimestamp, collection, addDoc, updateDoc,
-  doc, setDoc, onSnapshot, query, orderBy, limit,
+  doc, setDoc, onSnapshot, query, orderBy, limit, where,
 } from "../services/firebase";
 import { Worker } from "../types";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
@@ -38,6 +38,23 @@ interface EmergencyEvent {
   resolvedBy?: string | null;
   active: boolean;
 }
+
+// B.3 (VIDA) — worker SOS alert row, as written by the SOS server route
+// (src/server/routes/emergency.ts → tenants/{tenantId}/emergency_alerts).
+interface SosAlert {
+  id: string;
+  type: string;
+  uid: string;
+  userEmail?: string | null;
+  projectId: string;
+  geo?: { lat: number; lng: number } | null;
+  clientTimestamp?: string | null;
+  createdAt?: { toMillis?: () => number } | null;
+}
+
+// Only surface SOS pings from the recent window — old alerts are history,
+// not an actionable emergency.
+const SOS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface ChatMessage {
   id: string;
@@ -67,6 +84,7 @@ export function EmergenciaAvanzada() {
   // permanently-empty list.
   const [chatError, setChatError] = useState<string | null>(null);
   const [safetyError, setSafetyError] = useState<string | null>(null);
+  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
 
   const acousticSOS = useAcousticSOS({
     threshold: 75,
@@ -151,6 +169,46 @@ export function EmergenciaAvanzada() {
           projectId: selectedProject.id,
         });
         setSafetyError('No se pudo cargar el estado de seguridad del personal. Verifica tu conexión o permisos.');
+      },
+    );
+  }, [selectedProject?.id]);
+
+  // B.3 (VIDA) — worker SOS alerts. The SOS button posts to the server,
+  // which writes tenants/{tenantId}/emergency_alerts (Admin SDK) with
+  // tenantId = projects/{pid}.tenantId || pid — mirror that fallback here.
+  // Before this subscription the alert reached Firestore but NO dashboard
+  // ever showed it. Filter by projectId only (equality → no composite
+  // index needed) and sort client-side.
+  useEffect(() => {
+    if (!selectedProject) { setSosAlerts([]); return undefined; }
+    const tenantId =
+      (selectedProject as { tenantId?: string }).tenantId ?? selectedProject.id;
+    const alertsQuery = query(
+      collection(db, `tenants/${tenantId}/emergency_alerts`),
+      where('projectId', '==', selectedProject.id),
+      limit(50),
+    );
+    return onSnapshot(
+      alertsQuery,
+      snap => {
+        const now = Date.now();
+        const alerts = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as SosAlert))
+          .filter(a => {
+            const ms = a.createdAt?.toMillis?.();
+            // Docs with a pending/absent server timestamp stay visible —
+            // hiding a fresh SOS is the worse failure mode.
+            return typeof ms !== 'number' || now - ms < SOS_WINDOW_MS;
+          })
+          .sort(
+            (x, y) =>
+              (y.createdAt?.toMillis?.() ?? now) - (x.createdAt?.toMillis?.() ?? now),
+          );
+        setSosAlerts(alerts);
+      },
+      err => {
+        // A rules denial or offline error must never crash the dashboard.
+        logger.error('EmergenciaAvanzada: emergency_alerts subscribe failed', { err });
       },
     );
   }, [selectedProject?.id]);
@@ -282,6 +340,16 @@ export function EmergenciaAvanzada() {
 
   const recentQuakes = earthquakes.slice(0, 5);
 
+  const formatSosTime = (a: SosAlert): string => {
+    const ms = a.createdAt?.toMillis?.();
+    if (typeof ms === 'number') {
+      return new Date(ms).toLocaleString('es-CL', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      });
+    }
+    return a.clientTimestamp ?? '—';
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
@@ -355,6 +423,62 @@ export function EmergenciaAvanzada() {
               <span className="text-emerald-400">{safeCount} {t('emergenciaAvanzada.safe', 'Seguros')}</span>
               <span className="text-red-400">{dangerCount} {t('emergenciaAvanzada.danger', 'En Peligro')}</span>
               <span className="text-zinc-400">{unknownCount} {t('emergenciaAvanzada.unknown', 'Sin Confirmar')}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* B.3 (VIDA) — worker SOS alerts (server-written; subscription above) */}
+      <AnimatePresence>
+        {sosAlerts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            data-testid="sos-alerts-banner"
+            className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/50 space-y-3"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 animate-pulse">
+                <ShieldAlert className="w-5 h-5 text-rose-500" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-black text-rose-500 uppercase tracking-wider">
+                  {t('emergenciaAvanzada.sos.title', 'SOS de trabajadores — últimas 24 h')}
+                </h2>
+                <p className="text-xs text-rose-400/80 mt-1">
+                  {t('emergenciaAvanzada.sos.subtitle', 'Alertas enviadas con el botón SOS. Verifica el estado de cada persona ahora.')}
+                </p>
+              </div>
+              <span data-testid="sos-alerts-count" className="text-2xl font-black text-rose-500 shrink-0">
+                {sosAlerts.length}
+              </span>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {sosAlerts.map(a => (
+                <div
+                  key={a.id}
+                  data-testid="sos-alert-row"
+                  className="p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-primary-token truncate">
+                      {a.userEmail ?? a.uid}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">{formatSosTime(a)}</p>
+                  </div>
+                  {a.geo && (
+                    <a
+                      href={`https://www.google.com/maps?q=${a.geo.lat},${a.geo.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 shrink-0"
+                    >
+                      {t('emergenciaAvanzada.sos.location', 'Ver ubicación')}
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
           </motion.div>
         )}

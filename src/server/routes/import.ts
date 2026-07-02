@@ -207,7 +207,7 @@ router.post(
       captureRouteError(err, 'import.excel.parse', { uid, kind });
       return res
         .status(500)
-        .json({ error: 'parse_failed', message: (err as Error)?.message ?? 'unknown' });
+        .json({ error: 'parse_failed', message: process.env.NODE_ENV === 'production' ? undefined : ((err as Error)?.message ?? 'unknown') });
     }
     const targetSheet = options?.sheetName
       ? parseResult.sheets.find(

@@ -10,15 +10,21 @@
 //   • El "auto-tipo" es near_miss por default — la cultura POSITIVA: la
 //     mayoría de los reportes valiosos son near-miss (Heinrich pyramid).
 //     El trabajador puede escalar a incident/post_mortem si aplica.
-//   • Idempotency-Key derivado de timestamp+rand para evitar duplicados en
-//     re-tap accidentales o reconexión offline (mismo pattern que Stripe).
+//   • Idempotency-Key = `inc-${randomId()}` (rule #15) para evitar duplicados
+//     en re-tap accidentales o replay del outbox (mismo pattern que Stripe);
+//     el mismo valor viaja como `id` del payload → doc determinístico
+//     server-side, un replay jamás duplica el incidente.
+//   • B.1 (VIDA): si el fetch falla (sin señal / 5xx transitorio) el reporte
+//     NO se pierde — se encola durable en IndexedDB (incidentOutbox) y se
+//     reenvía al reconectar con el MISMO Idempotency-Key. Si agota reintentos
+//     queda dead-lettered (retenido y visible), jamás descarte silencioso.
 //   • Cero PII en logs del cliente; el server emite el audit row.
 //
 // Gamificación: la respuesta incluye `xpAwarded`, mostrada como confirmación
 // inline (banner "+10 XP por reportar un near-miss"). Refuerzo positivo
 // inmediato. Si la app está offline, el banner sólo aparece tras flush.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,11 +35,17 @@ import {
   ShieldAlert,
   Send,
   Sparkles,
+  WifiOff,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { randomId } from '../utils/randomId';
+import {
+  enqueueIncidentReport,
+  registerIncidentFlushOnReconnect,
+} from '../services/incidents/incidentOutbox';
 
 type IncidentEventType = 'near_miss' | 'incident' | 'post_mortem';
 type IncidentSeverity = 'low' | 'med' | 'high' | 'critical';
@@ -83,10 +95,6 @@ const SEVERITY_OPTIONS: Array<{
   },
 ];
 
-function generateIdempotencyKey(): string {
-  return `inc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 export function IncidentReport() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
@@ -98,10 +106,21 @@ export function IncidentReport() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
+  const [queueNonce, setQueueNonce] = useState(0);
 
   // Idempotency key persistente durante el ciclo del formulario — si el
   // worker da re-tap (red flaky), el server replay el mismo response.
-  const idempotencyKey = useMemo(() => generateIdempotencyKey(), [result?.incidentId]);
+  const idempotencyKey = useMemo(
+    () => `inc-${randomId()}`,
+    [result?.incidentId, queueNonce],
+  );
+
+  // B.1 — drain any report queued offline (incl. previous sessions) and arm
+  // the reconnect re-flush whenever this page is open.
+  useEffect(() => {
+    registerIncidentFlushOnReconnect();
+  }, []);
 
   const canSubmit =
     !submitting &&
@@ -113,38 +132,82 @@ export function IncidentReport() {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
+    setQueued(false);
+
+    const user = auth.currentUser;
+    if (!user) {
+      setError(t('incident_report.err_must_login'));
+      setSubmitting(false);
+      return;
+    }
+    const witnesses = witnessesText
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, 50);
+    // Shared shape for the direct POST and the offline outbox. `id` makes the
+    // server-side doc deterministic (reportIncidentSchema: "caller
+    // offline-first puede pasar un id determinístico") — a replay can never
+    // duplicate the incident.
+    const payload = {
+      id: idempotencyKey,
+      projectId: selectedProject!.id,
+      incidentType,
+      severity,
+      description: description.trim(),
+      location: location.trim() || undefined,
+      witnesses: witnesses.length > 0 ? witnesses : undefined,
+      ts: new Date().toISOString(),
+    };
+
+    // B.1 (VIDA) — the report is already typed; from here on it must NEVER be
+    // lost in silence. Network failure / transient server error → durable
+    // outbox, replayed on reconnect with the SAME Idempotency-Key.
+    const queueForRetry = async (): Promise<void> => {
+      const accepted = await enqueueIncidentReport(payload, {
+        clientEventId: idempotencyKey,
+        occurredAt: payload.ts,
+      });
+      if (accepted) {
+        setQueued(true);
+        setQueueNonce((n) => n + 1); // fresh key for the NEXT report
+        setDescription('');
+        setLocation('');
+        setWitnessesText('');
+      } else {
+        // Queue saturated — surface it, never pretend it was stored.
+        setError(t('incident_report.err_queue_full'));
+      }
+    };
+
     try {
-      const user = auth.currentUser;
-      if (!user) {
-        setError(t('incident_report.err_must_login'));
-        setSubmitting(false);
+      let res: Response;
+      try {
+        // §2.20 (2026-05-23) — apiAuthHeader unified. Inside the guarded
+        // block: an offline token refresh failure must also queue, not lose.
+        const authHeader = await apiAuthHeader();
+        res = await fetch('/api/incidents/report', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // No signal / DNS / airplane mode — the classic mina-sin-señal case.
+        await queueForRetry();
         return;
       }
-      // §2.20 (2026-05-23) — apiAuthHeader unified.
-      const authHeader = await apiAuthHeader();
-      const witnesses = witnessesText
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-        .slice(0, 50);
-      const res = await fetch('/api/incidents/report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { 'Authorization': authHeader } : {}),
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({
-          projectId: selectedProject!.id,
-          incidentType,
-          severity,
-          description: description.trim(),
-          location: location.trim() || undefined,
-          witnesses: witnesses.length > 0 ? witnesses : undefined,
-          ts: new Date().toISOString(),
-        }),
-      });
       if (!res.ok) {
+        if (res.status >= 500 || res.status === 429 || res.status === 408) {
+          // Transient server-side — retry later with the SAME key.
+          await queueForRetry();
+          return;
+        }
+        // Deterministic 4xx (validation/permissions): queuing cannot fix it —
+        // show it so the worker can correct and resubmit.
         const text = await res.text().catch(() => '');
         let parsed: { error?: string } = {};
         try {
@@ -200,7 +263,7 @@ export function IncidentReport() {
       )}
 
       {result && (
-        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-100">
+        <div data-testid="incident-success-banner" className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-100">
           <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-xs mb-1">
             <CheckCircle2 className="w-4 h-4" />
             {t('incident_report.registered')}
@@ -217,8 +280,21 @@ export function IncidentReport() {
         </div>
       )}
 
+      {queued && (
+        <div
+          data-testid="incident-queued-banner"
+          className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-100"
+        >
+          <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-xs mb-1">
+            <WifiOff className="w-4 h-4" />
+            {t('incident_report.queued_title')}
+          </div>
+          <p className="text-sm">{t('incident_report.queued_body')}</p>
+        </div>
+      )}
+
       {error && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-sm flex items-start gap-2">
+        <div data-testid="incident-error-banner" className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
