@@ -94,7 +94,7 @@ router.post('/convert-dwg', verifyAuth, async (req, res) => {
     captureRouteError(err, 'cad.converter_unreachable', { inputUri });
     return res
       .status(502)
-      .json({ error: 'converter_unreachable', message: (err as Error).message });
+      .json({ error: 'converter_unreachable', message: process.env.NODE_ENV === 'production' ? undefined : (err as Error).message });
   }
 
   if (!fnRes.ok) {
