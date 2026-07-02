@@ -4567,6 +4567,14 @@
     }
   },
   "iper": {
+    "save": {
+      "button": "Salvar avaliação",
+      "descriptionLabel": "Descrição do perigo / tarefa avaliada",
+      "descriptionPlaceholder": "Ex.: trabalho em altura acima de 1,8 m em andaime móvel",
+      "error": "Não foi possível salvar a avaliação. Verifique sua conexão e tente novamente.",
+      "noProject": "Selecione um projeto para poder salvar a avaliação.",
+      "success": "Avaliação salva — já aparece no panorama."
+    },
     "page": {
       "title": "Matriz IPER 5x5",
       "subtitle": "Estime o nível de risco (probabilidade × severidade) e o residual ao aplicar controles. É um guia — a decisão é da equipe."
