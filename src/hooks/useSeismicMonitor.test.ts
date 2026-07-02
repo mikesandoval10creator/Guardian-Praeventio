@@ -5,6 +5,13 @@
 // feeds (USGS) are discreet enriching data — a near + strong + recent quake
 // raises a criticalAlert; everything else must NOT. We pin the alert criteria
 // (magnitude ≥ 4.5, distance < 500km via Haversine, within the last 2h).
+//
+// Audit 2026-07-02 §3.1 bug 10: the hook used to swallow every fetch/parse
+// failure with a commented-out logger.error and no loading/error signal —
+// consumers (EmergenciaAvanzada.tsx) rendered "Cargando datos sísmicos..."
+// forever on a persistent USGS outage. These tests pin the new contract:
+// `loading` starts true and settles to false on both success AND failure,
+// and a failure surfaces via `error` + `logger.warn` (not silent).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -12,9 +19,22 @@ import { useSeismicMonitor } from './useSeismicMonitor';
 
 const fetchMock = vi.fn();
 
+vi.mock('../utils/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    critical: vi.fn(),
+  },
+}));
+
+import { logger } from '../utils/logger';
+
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+  vi.mocked(logger.warn).mockClear();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -92,11 +112,32 @@ describe('useSeismicMonitor', () => {
     expect(result.current.criticalAlert).toBeNull();
   });
 
-  it('fails silently on network error (no throw, empty list, no alert)', async () => {
+  it('surfaces a network error via `error` + logger.warn (not silent) and keeps an empty list', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
     const { result } = renderHook(() => useSeismicMonitor());
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.earthquakes).toHaveLength(0);
     expect(result.current.criticalAlert).toBeNull();
+    expect(result.current.error).toBe('network down');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'useSeismicMonitor: USGS fetch failed',
+      expect.objectContaining({ message: 'network down' }),
+    );
+  });
+
+  it('starts `loading: true` and settles to `false` once the first fetch resolves', async () => {
+    fetchMock.mockResolvedValue(usgs([feature({ id: 'a' })]));
+    const { result } = renderHook(() => useSeismicMonitor());
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.earthquakes).toHaveLength(1);
+  });
+
+  it('settles `loading: false` even when the fetch rejects', async () => {
+    fetchMock.mockRejectedValue(new Error('boom'));
+    const { result } = renderHook(() => useSeismicMonitor());
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
   });
 });

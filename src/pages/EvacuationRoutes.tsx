@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Route, Map, AlertTriangle, Navigation, ShieldAlert, Users, Footprints, Info, Activity, Loader2 } from 'lucide-react';
+import { Route, Map, AlertTriangle, Navigation, ShieldAlert, Users, Footprints, Info, Activity, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -27,14 +27,88 @@ interface Earthquake {
   url: string;
 }
 
+// Audit 2026-07-02 §3.4 #5: the "Instrucciones" list used to be 4 literal
+// <li> strings ("Avanzar al Norte 30m"...) completely disconnected from the
+// `path` the A* engine actually returned — Distancia/Tiempo below it were
+// already real (computed from `path.length`), so the instructions were the
+// one dishonest piece left in this panel. This derives real turn-by-turn
+// steps from the real path: each grid step is 10m (same scale already used
+// for Distancia), and consecutive same-direction steps are grouped into one
+// segment so a 5-cell straight line reads as "Avanzar al Norte 50m" instead
+// of five separate 10m lines.
+type CardinalDirection = 'Norte' | 'Sur' | 'Este' | 'Oeste';
+
+function directionOf(from: { x: number; y: number }, to: { x: number; y: number }): CardinalDirection | null {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  // Grid convention (see calculateRoute below): {x:0,y:0} is the top-left
+  // corner (origin) and {x:9,y:9} is the safe zone (bottom-right) — so
+  // decreasing y is North, increasing y is South, matching DIRECTIONS_4 in
+  // gridAStar.ts ({dx:0,dy:-1} = up/North first in the neighbor order).
+  if (dy < 0) return 'Norte';
+  if (dy > 0) return 'Sur';
+  if (dx > 0) return 'Este';
+  if (dx < 0) return 'Oeste';
+  return null;
+}
+
+const GRID_METERS_PER_CELL = 10;
+
+/**
+ * Groups a real A* path into human-readable turn-by-turn steps. Pure
+ * function of `path` — no fabricated data. Returns [] for a path too short
+ * to have a direction (0 or 1 cells).
+ */
+export function deriveEvacuationInstructions(path: { x: number; y: number }[]): string[] {
+  if (!path || path.length < 2) return [];
+  const steps: string[] = [];
+  let currentDir: CardinalDirection | null = null;
+  let segmentCells = 0;
+  let isFirstSegment = true;
+
+  const flushSegment = () => {
+    if (currentDir && segmentCells > 0) {
+      const verb = isFirstSegment ? 'Avanzar al' : 'Girar al';
+      steps.push(`${verb} ${currentDir} ${segmentCells * GRID_METERS_PER_CELL}m`);
+      isFirstSegment = false;
+    }
+  };
+
+  for (let i = 1; i < path.length; i++) {
+    const dir = directionOf(path[i - 1], path[i]);
+    if (dir === null) continue; // no movement (shouldn't happen, defensive)
+    if (dir === currentDir) {
+      segmentCells += 1;
+    } else {
+      flushSegment();
+      currentDir = dir;
+      segmentCells = 1;
+    }
+  }
+  flushSegment();
+  steps.push('Llegada a Zona Segura');
+  return steps;
+}
+
 export function EvacuationRoutes() {
   const { t } = useTranslation();
   const [isCalculating, setIsCalculating] = useState(false);
   const [routeCalculated, setRouteCalculated] = useState(false);
   const [grid, setGrid] = useState<number[][]>([]);
   const [path, setPath] = useState<{x: number, y: number}[]>([]);
+  // Real turn-by-turn steps derived from the actual A* path (see
+  // deriveEvacuationInstructions above) — no fabricated literals.
+  const routeInstructions = useMemo(() => deriveEvacuationInstructions(path), [path]);
   const [recentEarthquake, setRecentEarthquake] = useState<Earthquake | null>(null);
   const [isCheckingSeismic, setIsCheckingSeismic] = useState(true);
+  // Audit 2026-07-02 §3.4 #6: "Notificar a Cuadrilla" had no onClick — a
+  // dead button that looked actionable. Wired to the real, existing
+  // supervisor fan-out endpoint (same one EmergencyContext/CoastalEmergencyMap
+  // call) instead of inventing a parallel notify path.
+  const [notifyingCrew, setNotifyingCrew] = useState(false);
+  const [notifyCrewResult, setNotifyCrewResult] = useState<
+    { status: 'ok'; notified: number } | { status: 'error'; message: string } | null
+  >(null);
 
   const { selectedProject } = useProject();
   const { user } = useFirebase();
@@ -157,6 +231,69 @@ export function EvacuationRoutes() {
     }, 300);
   };
 
+  // Audit 2026-07-02 §3.4 #6 — real POST to the existing supervisor
+  // fan-out endpoint (`/api/emergency/notify-brigada`, same one
+  // `EmergencyContext.notifyBrigadeServer` and `CoastalEmergencyMap` call).
+  // Not duplicating that logic in a new context/service: this page has no
+  // existing wire to EmergencyContext, and the endpoint is a plain
+  // authenticated POST — a direct fetch mirrors the CoastalEmergencyMap.tsx
+  // pattern rather than adding a new abstraction layer.
+  const notifyCrew = async () => {
+    if (!selectedProject || !user) {
+      setNotifyCrewResult({
+        status: 'error',
+        message: 'No hay proyecto o usuario activo. Selecciona un proyecto para notificar a la cuadrilla.',
+      });
+      return;
+    }
+    setNotifyingCrew(true);
+    setNotifyCrewResult(null);
+    try {
+      const { apiAuthHeader } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
+      const res = await fetch('/api/emergency/notify-brigada', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
+        },
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          emergencyType: 'other',
+          message: `Ruta de evacuación calculada (A*): ${path.length * GRID_METERS_PER_CELL}m, ${Math.ceil((path.length * GRID_METERS_PER_CELL) / 1.5)}s estimados. Cuadrilla requerida en punto de encuentro.`,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'network' }));
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as { notified?: number };
+      const notified = body.notified ?? 0;
+      if (notified === 0) {
+        // HTTP 200 with zero recipients is NOT success — nobody was
+        // actually reached (same honest-failure pattern CoastalEmergencyMap
+        // uses for this exact endpoint).
+        setNotifyCrewResult({
+          status: 'error',
+          message: 'El servidor respondió OK pero ningún supervisor tiene notificaciones push registradas — nadie recibió el aviso. Contacta a la cuadrilla por otro medio.',
+        });
+        return;
+      }
+      setNotifyCrewResult({ status: 'ok', notified });
+    } catch (err) {
+      logger.error('EvacuationRoutes: notify-brigada failed', err, {
+        projectId: selectedProject.id,
+      });
+      setNotifyCrewResult({
+        status: 'error',
+        message: 'No se pudo contactar a la cuadrilla vía notificación push. Reintenta o usa el canal de emergencia directo.',
+      });
+    } finally {
+      setNotifyingCrew(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
@@ -169,12 +306,21 @@ export function EvacuationRoutes() {
             {t('evacuationRoutes.subtitle', 'Algoritmo A* sobre grilla 10×10 (real, determinístico, heurística Manhattan)')}
           </p>
         </div>
-        <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
-          <ShieldAlert className="w-5 h-5" />
-          <span className="font-bold uppercase tracking-wider text-sm">
-            {t('evacuationRoutes.activeEmergency', 'Emergencia Activa')}
-          </span>
-        </div>
+        {/* Audit 2026-07-02 §3.4 #5: this badge used to be a static <div>
+            with no condition — always rendered "Emergencia Activa" even with
+            zero seismic activity. Now tied to the real state this page
+            already tracks: a quake ≥6.0 is exactly the threshold that
+            auto-triggers `calculateRoute(true)` below, so "active emergency"
+            here means the same thing the auto-trigger logic means. No
+            recent quake at/above that threshold → badge does not render. */}
+        {recentEarthquake && recentEarthquake.mag >= 6.0 && (
+          <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
+            <ShieldAlert className="w-5 h-5" />
+            <span className="font-bold uppercase tracking-wider text-sm">
+              {t('evacuationRoutes.activeEmergency', 'Emergencia Activa')}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -316,16 +462,40 @@ export function EvacuationRoutes() {
               <div className="p-4 rounded-xl bg-surface border border-default-token">
                 <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">Instrucciones</p>
                 <ul className="space-y-2 text-sm text-secondary-token">
-                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Avanzar al Norte 30m</li>
-                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Girar al Este 20m</li>
-                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Continuar al Sur 50m</li>
-                  <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Llegada a Zona Segura</li>
+                  {routeInstructions.map((step, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {step}
+                    </li>
+                  ))}
                 </ul>
               </div>
 
-              <Button className="w-full" variant="secondary">
-                Notificar a Cuadrilla
+              <Button
+                className="w-full"
+                variant="secondary"
+                onClick={notifyCrew}
+                disabled={notifyingCrew}
+              >
+                {notifyingCrew ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Notificando...
+                  </span>
+                ) : (
+                  'Notificar a Cuadrilla'
+                )}
               </Button>
+              {notifyCrewResult && notifyCrewResult.status === 'ok' && (
+                <div role="status" className="flex items-center gap-2 text-xs font-bold text-emerald-500">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Cuadrilla notificada ({notifyCrewResult.notified} supervisor{notifyCrewResult.notified === 1 ? '' : 'es'}).
+                </div>
+              )}
+              {notifyCrewResult && notifyCrewResult.status === 'error' && (
+                <div role="alert" className="flex items-center gap-2 text-xs font-bold text-amber-500">
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {notifyCrewResult.message}
+                </div>
+              )}
             </motion.div>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-default-token rounded-xl bg-elevated">

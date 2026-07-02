@@ -60,6 +60,13 @@ export function EmergenciaAvanzada() {
   const [showTriggerConfirm, setShowTriggerConfirm] = useState(false);
   const [showResolveConfirm, setShowResolveConfirm] = useState(false);
   const [pendingQuake, setPendingQuake] = useState<Earthquake | null>(null);
+  // Audit 2026-07-02 §3.4 #1: both onSnapshot listeners below (chat +
+  // emergency_safety) had no error callback — a Firestore permission
+  // failure was silently indistinguishable from "no activity". These track
+  // per-channel failure so the UI can render an honest error instead of a
+  // permanently-empty list.
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [safetyError, setSafetyError] = useState<string | null>(null);
 
   const acousticSOS = useAcousticSOS({
     threshold: 75,
@@ -72,7 +79,16 @@ export function EmergenciaAvanzada() {
   const projectLat = selectedProject?.coordinates?.lat ?? -33.4489;
   const projectLng = selectedProject?.coordinates?.lng ?? -70.6693;
 
-  const { earthquakes, criticalAlert } = useSeismicMonitor(projectLat, projectLng);
+  // Audit 2026-07-02 §3.1 bug 10: consume the hook's loading/error signal
+  // so this page can distinguish "still fetching" from "USGS is down" from
+  // "no quakes today" — previously all three rendered the same eternal
+  // "Cargando datos sísmicos..." because the hook swallowed errors.
+  const {
+    earthquakes,
+    criticalAlert,
+    loading: seismicLoading,
+    error: seismicError,
+  } = useSeismicMonitor(projectLat, projectLng);
 
   const { data: emergencyEvents } = useFirestoreCollection<EmergencyEvent>(
     selectedProject ? `projects/${selectedProject.id}/emergency_events` : null
@@ -90,19 +106,31 @@ export function EmergenciaAvanzada() {
   // Real-time chat
   useEffect(() => {
     if (!selectedProject) return undefined;
+    setChatError(null);
     const q = query(
       collection(db, `projects/${selectedProject.id}/emergency_chat`),
       orderBy('createdAt', 'asc'),
       limit(100)
     );
-    return onSnapshot(q, snap => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
-    });
+    return onSnapshot(
+      q,
+      snap => {
+        setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
+        setChatError(null);
+      },
+      err => {
+        logger.error('EmergenciaAvanzada: emergency_chat onSnapshot failed', err, {
+          projectId: selectedProject.id,
+        });
+        setChatError('No se pudo cargar el canal de emergencia. Verifica tu conexión o permisos.');
+      },
+    );
   }, [selectedProject?.id]);
 
   // Real-time worker safety statuses
   useEffect(() => {
     if (!selectedProject) return undefined;
+    setSafetyError(null);
     const safetyQuery = query(
       collection(db, `projects/${selectedProject.id}/emergency_safety`),
       limit(50),
@@ -116,7 +144,14 @@ export function EmergenciaAvanzada() {
           statuses[data.workerId] = data.status;
         });
         setSafetyStatuses(statuses);
-      }
+        setSafetyError(null);
+      },
+      err => {
+        logger.error('EmergenciaAvanzada: emergency_safety onSnapshot failed', err, {
+          projectId: selectedProject.id,
+        });
+        setSafetyError('No se pudo cargar el estado de seguridad del personal. Verifica tu conexión o permisos.');
+      },
     );
   }, [selectedProject?.id]);
 
@@ -378,7 +413,12 @@ export function EmergenciaAvanzada() {
             </div>
           </Card>
 
-          {/* Zone status */}
+          {/* Zone status — Audit 2026-07-02 §3.4 #3: the previous third
+              entry ('Zona de Seguridad: ACTIVA') was an unconditional literal
+              with no real source behind it — it claimed a real-world state
+              that was never actually checked. Removed; the two entries below
+              stay because they ARE derived from `activeEmergency`, the real
+              Firestore-backed emergency lifecycle state. */}
           <Card className="p-4 border-white/5 space-y-3">
             <h3 className="text-xs font-bold text-muted-token uppercase tracking-widest flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />
@@ -387,7 +427,6 @@ export function EmergenciaAvanzada() {
             {[
               { name: 'Área de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Planta / Faena', status: activeEmergency ? 'EVACUANDO' : 'OPERATIVO', color: activeEmergency ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10' },
-              { name: 'Zona de Seguridad', status: 'ACTIVA', color: 'text-emerald-400 bg-emerald-500/10' },
             ].map(z => (
               <div key={z.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-subtle-token">
                 <span className="text-xs text-secondary-token">{z.name}</span>
@@ -430,10 +469,21 @@ export function EmergenciaAvanzada() {
                   <RefreshCw className="w-3 h-3" /> Actualiza cada 2 min
                 </span>
               </div>
-              {recentQuakes.length === 0 ? (
+              {seismicLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
+                  <Activity className="w-10 h-10 mb-3 opacity-40 animate-pulse" />
+                  <p className="text-sm">Cargando datos sísmicos...</p>
+                </div>
+              ) : seismicError ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-amber-500" role="alert">
+                  <XCircle className="w-10 h-10 mb-3 opacity-60" />
+                  <p className="text-sm font-bold">No se pudo conectar con la Red Sismológica (USGS).</p>
+                  <p className="text-xs text-zinc-500 mt-1">Reintenta en unos minutos. La app sigue monitoreando en segundo plano.</p>
+                </div>
+              ) : recentQuakes.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Activity className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm">Cargando datos sísmicos...</p>
+                  <p className="text-sm">Sin actividad sísmica registrada en las últimas 24h.</p>
                 </div>
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1">
@@ -470,10 +520,19 @@ export function EmergenciaAvanzada() {
             <div className="flex-1 flex flex-col gap-3 min-h-0">
               <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Canal de Emergencia
-                {activeEmergency && <span className="ml-2 text-[10px] text-red-400 animate-pulse">â— EN VIVO</span>}
+                {activeEmergency && !chatError && <span className="ml-2 text-[10px] text-red-400 animate-pulse">● EN VIVO</span>}
               </h3>
+              {chatError && (
+                <div
+                  role="alert"
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
+                >
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {chatError}
+                </div>
+              )}
               <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-subtle-token p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
-                {messages.length === 0 ? (
+                {chatError ? null : messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 my-auto">
                     <Radio className="w-10 h-10 mb-3 opacity-40" />
                     <p className="text-sm">Canal en silencio.</p>
@@ -523,7 +582,16 @@ export function EmergenciaAvanzada() {
               <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Estado de Personal
               </h3>
-              {!workers || workers.length === 0 ? (
+              {safetyError && (
+                <div
+                  role="alert"
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
+                >
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {safetyError}
+                </div>
+              )}
+              {safetyError ? null : !workers || workers.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Users className="w-10 h-10 mb-3 opacity-40" />
                   <p className="text-sm">No hay trabajadores registrados en este proyecto.</p>
