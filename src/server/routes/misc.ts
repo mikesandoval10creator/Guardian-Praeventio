@@ -342,7 +342,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
   } catch (error: any) {
     logger.error('legal_check_updates_failed', error);
     sentryCapture(error, { endpoint: '/api/legal/check-updates', tags: { method: 'GET' } });
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message });
   }
 });
 

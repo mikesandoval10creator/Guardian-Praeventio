@@ -124,7 +124,7 @@ router.post('/crews/:id/members', verifyAuth, organicLimiter, async (req, res) =
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -229,7 +229,7 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -295,7 +295,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -330,7 +330,7 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -409,7 +409,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -429,7 +429,7 @@ router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 

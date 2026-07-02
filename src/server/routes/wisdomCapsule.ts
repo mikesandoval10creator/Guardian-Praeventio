@@ -320,7 +320,7 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -434,7 +434,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
@@ -487,7 +487,7 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal') });
   }
 });
 
