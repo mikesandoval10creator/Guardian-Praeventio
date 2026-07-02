@@ -1339,3 +1339,30 @@ Exercised by `src/rules-tests/learningCards.rules.test.ts`.
 
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
+
+## Worker SOS alerts (tenants/{tid}/emergency_alerts) — server write, project-member read (B.3, added 2026-07-02)
+
+`tenants/{tenantId}/emergency_alerts/{id}` is written EXCLUSIVELY by the SOS
+server route (`src/server/routes/emergency.ts`, Admin SDK; `tenantId =
+projects/{pid}.tenantId || pid`). Until B.3 the collection had NO dedicated
+rule: the tenant catch-all requires `isMemberOfTenant()` claims that no flow
+mints yet (M-1 pending), so a worker's SOS reached Firestore and stayed
+INVISIBLE to every dashboard. Now: read for members of the REFERENCED project
+(`resource.data.projectId`); list queries must filter `projectId` by equality
+to be provable; the collection is excluded from the tenant catch-all;
+create/update/delete denied to every client — an SOS is a life-safety +
+compliance record only the server writes. ADR 0021: life-safety visibility is
+FREE on every tier. Rules tests: `src/rules-tests/emergencyAlerts.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+146. **SOS Forgery**: a client `setDoc` on `tenants/t1/emergency_alerts/x`
+     (even a project member or admin) — only the server writes SOS.
+147. **SOS Tamper/Erasure**: update or delete of an existing alert (e.g.
+     nulling `geo` to hide a location, or deleting the row to erase the
+     life-safety trail).
+148. **Cross-Project SOS Snoop**: a member of project B reading project A's
+     alert within the same tenant.
+149. **Tenant-Wide SOS Sweep**: an unfiltered list over
+     `tenants/t1/emergency_alerts` (no `projectId` equality) — unprovable,
+     denied.

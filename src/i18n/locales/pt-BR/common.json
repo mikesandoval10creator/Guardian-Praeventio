@@ -4566,6 +4566,13 @@
       }
     }
   },
+  "emergenciaAvanzada": {
+    "sos": {
+      "location": "Ver localização",
+      "subtitle": "Alertas enviados com o botão SOS. Verifique o estado de cada pessoa agora.",
+      "title": "SOS de trabalhadores — últimas 24 h"
+    }
+  },
   "iper": {
     "save": {
       "button": "Salvar avaliação",
