@@ -14,6 +14,12 @@
 //
 // Hermetic: mocks react-i18next, framer-motion, contexts, hooks and the
 // firebase service module (onSnapshot handlers captured per collection path).
+//
+// NOTE (merge 2026-07-02): the de-fabrication suite for this same page lives
+// in EmergenciaAvanzada.defabrication.test.tsx — the two suites need
+// incompatible hermetic mock sets (this one mocks react-i18next and captures
+// onNext by path; that one uses real i18n and captures onError callbacks), so
+// they are kept as separate files on purpose.
 
 import type { ReactNode, HTMLAttributes } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';

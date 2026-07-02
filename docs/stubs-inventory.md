@@ -152,6 +152,14 @@ imports en vez de batch-grep.
 - **Why stub**: compatibilidad de schema (clientes pueden enviar el erpType y recibir un error honesto en vez de 400 confuso); evita simular éxito.
 - **Removal criteria**: implementar el adapter real correspondiente en `src/services/erp/` y moverlo a `SUPPORTED_ERP_ADAPTERS`.
 
+## Evacuation.tsx "Estado Crítico" panel — sin fuente real de sensores de campo
+- **File**: `src/pages/Evacuation.tsx` (panel "Estado Crítico", debajo de "Rutas Disponibles")
+- **Owner**: TBD (requiere integración IoT de sensores de humo/red de incendio)
+- **Sprint target**: TODO(sprint-N) — bloqueado hasta que exista una fuente de telemetría de campo (no hay ingestión de sensores de humo/incendio en el repo hoy)
+- **User-visible?**: YES pero honesto — antes mostraba 'Online' hardcodeado para Sensores de Humo/Luces de Emergencia/Red de Incendio (fabricado, cero fuente real). Ahora cada ítem muestra 'Sin telemetría' en gris + nota inline explicando que la integración está pendiente. No se inventa un hook nuevo grande (directiva del bloque de remediación 2026-07-02).
+- **Why stub**: no existe pipeline de ingestión IoT para sensores de incendio/humo en el repo (`telemetry_events` cubre wearables/machinery, no sensores fijos de faena).
+- **Removal criteria**: cuando exista una colección/endpoint real de telemetría de sensores de campo, cablear el panel a esa fuente y quitar esta entrada. Ver auditoría `docs/audits/AUDITORIA-END-TO-END-2026-07-02.md` §3.1 bug 8.
+
 ## Proximity event bridge ausente en @capgo/capacitor-proximity (D1 wiring)
 - **File**: `src/services/proximitySensor/proximityPluginAdapter.ts:49-67` (`loadProximityPlugin()` retorna `null` en toda plataforma)
 - **Owner**: mobile (D1 islands follow-up — `TODO(sprint-D1-followup)` inline)

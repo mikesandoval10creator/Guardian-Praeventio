@@ -8,11 +8,9 @@ import {
   Navigation, 
   Shield, 
   AlertCircle, 
-  Users, 
   ChevronRight, 
   MapPin,
   Maximize2,
-  Clock,
   Plus,
   Minus,
   Zap,
@@ -306,10 +304,19 @@ export function Evacuation() {
     }
   }, [incidentNodes.length, emergencyNodes.length]);
 
+  // Audit 2026-07-02 §3.1 bug 9: 'capacity'/'time' per route ('120
+  // personas', '2.5 min', etc.) were invented literals with no real source
+  // — removed rather than kept fabricated. `status` (blocked/clear) reads a
+  // real field on the Gemini route response (`rutasBloqueadas`), but the
+  // route id/name themselves (R1/R2/R3, "Ruta Principal Norte"...) are
+  // illustrative placeholders — no engine in this repo names evacuation
+  // routes that way yet (the real, named-node A* engine lives in
+  // EvacuationRoutes.tsx / gridAStar.ts). The panel is labeled
+  // "Referencial" below so it doesn't claim to be live route telemetry.
   const routes = [
-    { id: 'R1', name: 'Ruta Principal Norte', status: aiRoute?.rutasBloqueadas?.includes('R1') ? 'blocked' : 'clear', capacity: '120 personas', time: '2.5 min' },
-    { id: 'R2', name: 'Ruta Secundaria Sur', status: aiRoute?.rutasBloqueadas?.includes('R2') ? 'blocked' : 'clear', capacity: '80 personas', time: '3.1 min' },
-    { id: 'R3', name: 'Ruta de Emergencia Este', status: aiRoute?.rutasBloqueadas?.includes('R3') ? 'blocked' : 'clear', capacity: '50 personas', time: 'N/A' },
+    { id: 'R1', name: 'Ruta Principal Norte', status: aiRoute?.rutasBloqueadas?.includes('R1') ? 'blocked' : 'clear' },
+    { id: 'R2', name: 'Ruta Secundaria Sur', status: aiRoute?.rutasBloqueadas?.includes('R2') ? 'blocked' : 'clear' },
+    { id: 'R3', name: 'Ruta de Emergencia Este', status: aiRoute?.rutasBloqueadas?.includes('R3') ? 'blocked' : 'clear' },
   ];
 
   const directionsCallback = useCallback((
@@ -745,10 +752,18 @@ export function Evacuation() {
         {/* Routes & Status */}
         <div className="space-y-6">
           <div className="bg-elevated border border-default-token rounded-[32px] p-8 shadow-xl">
-            <h3 className="text-xl font-black text-primary-token mb-6 flex items-center gap-3 uppercase tracking-tight">
-              <Navigation className="w-6 h-6 text-indigo-500" />
-              Rutas Disponibles
-            </h3>
+            <div className="flex items-center justify-between mb-1 gap-3">
+              <h3 className="text-xl font-black text-primary-token flex items-center gap-3 uppercase tracking-tight">
+                <Navigation className="w-6 h-6 text-indigo-500" />
+                Rutas Disponibles
+              </h3>
+              <span className="px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest bg-elevated border border-default-token text-muted-token shrink-0">
+                Referencial
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-token mb-6 leading-relaxed">
+              Nombres de ruta ilustrativos — no provienen de un catastro de rutas con nombre. El estado (despejada/obstruida) sí refleja la última respuesta del motor de rutas.
+            </p>
             <div className="space-y-4">
               {routes.map((route) => (
                 <button
@@ -773,16 +788,6 @@ export function Evacuation() {
                       </span>
                     </div>
                     <h4 className="font-black text-primary-token group-hover:text-emerald-400 transition-colors uppercase tracking-tight">{route.name}</h4>
-                    <div className="flex items-center gap-6 mt-4">
-                      <div className="flex items-center gap-2 text-[10px] text-muted-token font-black uppercase tracking-widest">
-                        <Users className="w-4 h-4" />
-                        <span>{route.capacity}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-token font-black uppercase tracking-widest">
-                        <Clock className="w-4 h-4" />
-                        <span>{route.time}</span>
-                      </div>
-                    </div>
                   </div>
                 </button>
               ))}
@@ -794,22 +799,34 @@ export function Evacuation() {
               <Shield className="w-6 h-6 text-amber-500" />
               Estado Crítico
             </h3>
+            {/* Audit 2026-07-02 §3.1 bug 8: this panel used to hardcode
+                'Sensores de Humo'/'Luces de Emergencia'/'Red de Incendio' as
+                'Online' unconditionally — there is no real sensor telemetry
+                feed wired into the app (no IoT ingestion for smoke/fire
+                sensors exists yet). Honest-empty: gray "no telemetry
+                connected" state instead of a fabricated green "Online".
+                TODO(sprint-N): wire real sensor telemetry (fire/smoke IoT
+                ingestion) once the hardware integration exists; see
+                docs/stubs-inventory.md. */}
             <div className="space-y-6">
               {[
-                { label: 'Sensores de Humo', status: 'Online', color: 'text-emerald-500' },
-                { label: 'Luces de Emergencia', status: 'Online', color: 'text-emerald-500' },
-                { label: 'Rociadores', status: 'Mantenimiento', color: 'text-amber-500' },
-                { label: 'Red de Incendio', status: 'Online', color: 'text-emerald-500' },
+                { label: 'Sensores de Humo' },
+                { label: 'Luces de Emergencia' },
+                { label: 'Rociadores' },
+                { label: 'Red de Incendio' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <span className="text-sm font-bold text-secondary-token uppercase tracking-tight">{item.label}</span>
                   <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full ${item.color.replace('text', 'bg')} animate-pulse`} />
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${item.color}`}>{item.status}</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sin telemetría</span>
                   </div>
                 </div>
               ))}
             </div>
+            <p className="mt-6 text-[10px] text-muted-token leading-relaxed">
+              La integración de sensores de campo (humo, red de incendio) está pendiente. Este panel mostrará estado en vivo cuando esa fuente exista.
+            </p>
           </div>
         </div>
       </div>
