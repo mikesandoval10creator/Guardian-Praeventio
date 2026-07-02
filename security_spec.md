@@ -1337,5 +1337,38 @@ Exercised by `src/rules-tests/learningCards.rules.test.ts`.
      repeated failed reviews on a critical topic before an audit — denied (delete is
      admin/supervisor only).
 
+### attendance — anti-forge on the virtual turnstile (audit §3.2, hardened 2026-07-02)
+
+`projects/{pid}/attendance/{id}` is the "Torniquete Virtual": a gate operator
+(any project member) records a worker's Check-In/Check-Out (Attendance.tsx
+`addDoc`), and EvacuationDashboard reads the collection as the evacuation
+headcount seed. Attendance is ALSO the source of legal hours-worked (payroll).
+The previous rule allowed `create, update` for any project member with NO schema
+validation and NO identity binding — so any member could inject an arbitrary or
+backdated attendance doc for any worker. Hardened: create requires
+`isValidAttendance(incoming())` (pins `workerId`/`type ∈ {Check-In,Check-Out}`/
+`timestamp`/`projectId`/`recordedBy`) AND `incoming().recordedBy ==
+request.auth.uid` (accountable, unspoofable author); update is admin/supervisor
+only with `recordedBy` frozen against `existing()`; read is project members.
+Exercised by `src/rules-tests/attendance.rules.test.ts` (7 tests).
+
+154. **Attendance Forge for a Co-worker**: a line worker `addDoc`-ing an
+     attendance record with `recordedBy: <supervisor-uid>` to fabricate a
+     check-in trail under someone else's name — denied (`recordedBy ==
+     request.auth.uid`).
+155. **Backdated / Arbitrary-shape Attendance**: injecting a free-form doc
+     (missing fields, or `type` outside `{Check-In, Check-Out}`, or a doctored
+     `timestamp`) to seed payroll/evacuation counts — denied
+     (`isValidAttendance`).
+156. **Cross-project Attendance Injection**: writing an attendance doc whose
+     `projectId` names a different project than its path — denied
+     (`isValidAttendance` requires `data.projectId == <path projectId>`).
+157. **Silent Attendance Rewrite by a Worker**: a line worker `updateDoc`-ing an
+     existing record to move a timestamp or flip Check-In↔Check-Out after the
+     fact — denied (update is admin/supervisor only).
+158. **Recorder Laundering on Update**: an admin/supervisor correcting a record
+     but rewriting `recordedBy` to erase who originally logged it — denied
+     (`recordedBy` immutable against `existing()`).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

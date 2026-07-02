@@ -261,6 +261,21 @@ service cloud.firestore {
              data.createdAt is string && data.createdAt.size() > 0;
     }
 
+    // Attendance ("Torniquete Virtual"): a gate operator records check-in/out
+    // FOR a worker, so workerId is the WORKER (not the caller). Shape is pinned
+    // so arbitrary/backdated docs can't be injected — attendance seeds legal
+    // payroll AND the evacuation headcount. `recordedBy` is the accountable
+    // caller (bound to uid in the rule, not here).
+    function isValidAttendance(data, projectId) {
+      return data.keys().hasAll(['workerId', 'type', 'timestamp', 'projectId', 'recordedBy']) &&
+             data.keys().size() <= 20 &&
+             data.workerId is string && data.workerId.size() > 0 && data.workerId.size() <= 200 &&
+             data.type in ['Check-In', 'Check-Out'] &&
+             data.timestamp is string && data.timestamp.size() > 0 &&
+             data.projectId == projectId &&
+             data.recordedBy is string;
+    }
+
     // ===============================================================
     // COLLECTION MATCHING
     // ===============================================================
@@ -395,7 +410,20 @@ service cloud.firestore {
       }
 
       match /attendance/{attendanceId} {
-        allow create, update: if isValidId(projectId) && (isProjectMember(projectId) || isSupervisor() || isAdmin());
+        // Read: any project member (staffing / evacuation headcount).
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        // Create: a project member (gate operator) records attendance, but the
+        // payload shape is validated and `recordedBy` is bound to the caller —
+        // no arbitrary/backdated docs, and every record names an accountable
+        // author who cannot be spoofed. (workerId is the worker, not the caller.)
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && isValidAttendance(incoming(), projectId)
+          && incoming().recordedBy == request.auth.uid;
+        // Update: restricted to admin/supervisor (a line worker must not silently
+        // rewrite an attendance record); the recorder stays immutable.
+        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor())
+          && isValidAttendance(incoming(), projectId)
+          && incoming().recordedBy == existing().recordedBy;
       }
 
       match /reports/{reportId} {
