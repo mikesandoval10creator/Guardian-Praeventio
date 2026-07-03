@@ -1,26 +1,24 @@
 /**
- * LÁM. 05 · PLANES — matches the Claude Design landing 1:1. Prices come from the
- * single source of truth (services/pricing/tiers.ts); the per-plan `who`/`note`
- * marketing copy and the per-project framing are the design's own (the user's
- * approved wording). Header strings are i18n; the interactive control copy is
- * inline es-CL, as the design ships Spanish-only. φ-gold stays for geometry.
+ * LÁM. 05 · PLANES — matches the Claude Design landing 1:1, fully i18n'd
+ * (es/en/pt-BR under `landing.dc.*`). Prices come from the single source of
+ * truth (services/pricing/tiers.ts); the per-project worker ceiling used for
+ * the slider recommendation is tiers.ts `trabajadoresMax`. φ-gold stays for
+ * geometry; each card uses its plan's own material colour.
  */
 import { useState, type MouseEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { TIERS, type Tier, type TierId } from '../../services/pricing/tiers';
 
-/** Design plan meta: material colour + the exact `who`/`note` marketing copy.
- *  The per-project worker ceiling used for the recommendation comes from
- *  tiers.ts (`trabajadoresMax`) — the single source of truth. */
-const PLAN_META: Record<TierId, { metal: string; who: string; note: string }> = {
-  gratis: { metal: '#33474a', who: '1 proyecto activo · hasta 3 trabajadores', note: 'Todas las funciones vida-crítica incluidas' },
-  cobre: { metal: '#a85f32', who: '3 proyectos activos · 24 trabajadores por proyecto', note: 'Bajo el umbral de CPHS (25 por proyecto)' },
-  plata: { metal: '#8c9598', who: '5 proyectos activos · hasta 99 trabajadores por proyecto', note: 'Desbloquea Comité Paritario (CPHS) — requerido desde 25 trabajadores por proyecto' },
-  oro: { metal: '#b08733', who: '10 proyectos activos · hasta 499 trabajadores por proyecto', note: 'Desbloquea Depto. de Prevención — requerido desde 100 trabajadores por proyecto' },
-  titanio: { metal: '#5e6e71', who: '20 proyectos activos · hasta 1.999 trabajadores por proyecto', note: 'Sin cobros extra · SSO' },
-  platino: { metal: '#7c8b93', who: '30 proyectos activos · hasta 9.999 trabajadores por proyecto', note: 'Multi-tenant + ejecutivo de cuenta' },
-  diamante: { metal: '#4fa3a0', who: '50 proyectos activos · trabajadores ilimitados', note: 'Multi-jurisdicción + residencia de datos por región' },
+/** Material colour per tier (design palette). */
+const METAL: Record<TierId, string> = {
+  gratis: '#33474a',
+  cobre: '#a85f32',
+  plata: '#8c9598',
+  oro: '#b08733',
+  titanio: '#5e6e71',
+  platino: '#7c8b93',
+  diamante: '#4fa3a0',
 };
 
 const clp = (n: number): string => (n === 0 ? '$0' : `$${n.toLocaleString('es-CL')}`);
@@ -50,10 +48,10 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
   const rec = recommendFor(workers);
   const legal =
     workers >= 100
-      ? 'Obligatorio Departamento de Prevención de Riesgos (≥100 por proyecto) · incluido desde el plan Oro'
+      ? t('landing.dc.legal_dprp')
       : workers >= 25
-        ? 'Obligatorio Comité Paritario CPHS (≥25 por proyecto) · incluido desde el plan Plata'
-        : 'A este tamaño no se exige Comité Paritario (umbral: 25 trabajadores por proyecto)';
+        ? t('landing.dc.legal_cphs')
+        : t('landing.dc.legal_none');
 
   const reveal = (delay = 0) =>
     reduced
@@ -85,18 +83,18 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
 
       {/* controls: monthly/annual toggle + workers slider + live legal note */}
       <motion.div {...reveal(0.05)} className="pv-price-controls">
-        <div className="pv-toggle" role="group" aria-label="Ciclo de facturación">
+        <div className="pv-toggle" role="group" aria-label={t('landing.dc.toggle_monthly')}>
           <button type="button" className="pv-toggle-btn" aria-pressed={!yearly} onClick={() => setYearly(false)}>
-            Mensual
+            {t('landing.dc.toggle_monthly')}
           </button>
           <button type="button" className="pv-toggle-btn" aria-pressed={yearly} onClick={() => setYearly(true)}>
-            Anual · ahorra 3 meses
+            {t('landing.dc.toggle_annual')}
           </button>
         </div>
 
         <div className="pv-slider-box">
           <label htmlFor="pv-workers" className="pv-mono pv-slider-label">
-            Trabajadores por proyecto
+            {t('landing.dc.slider_label')}
           </label>
           <input
             id="pv-workers"
@@ -108,7 +106,7 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
             className="pv-range"
           />
           <span className="pv-mono pv-slider-rec">
-            <b>{workers.toLocaleString('es-CL')}</b> por proyecto → plan recomendado <b>{rec.nombre}</b>
+            {t('landing.dc.rec_line', { n: workers.toLocaleString('es-CL'), plan: rec.nombre })}
           </span>
           <span className="pv-mono pv-slider-legal" data-on={workers >= 25}>
             {legal}
@@ -125,24 +123,25 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
         aria-label={t('landing.pricing.choose_plan', { name: free.nombre })}
       >
         <span className="pv-plan-free-name">
-          <i className="pv-plan-dot" style={{ background: PLAN_META.gratis.metal }} aria-hidden="true" />
+          <i className="pv-plan-dot" style={{ background: METAL.gratis }} aria-hidden="true" />
           {free.nombre}
         </span>
-        <span className="pv-mono pv-plan-free-who">{PLAN_META.gratis.who}</span>
+        <span className="pv-mono pv-plan-free-who">{t('landing.dc.who_gratis')}</span>
         <span className="pv-plan-free-price">
-          $0 <small className="pv-mono">para siempre</small>
+          $0 <small className="pv-mono">{t('landing.dc.free_forever')}</small>
         </span>
-        <span className="pv-plan-free-note">{PLAN_META.gratis.note}</span>
+        <span className="pv-plan-free-note">{t('landing.dc.note_gratis')}</span>
       </motion.a>
 
       {/* paid plans — metal cards */}
       <div className="pv-plan-grid">
         {paid.map((tier, i) => {
-          const meta = PLAN_META[tier.id];
           const isRec = tier.id === rec.id;
           const price = yearly ? tier.clpAnual : tier.clpRegular;
-          const per = yearly ? '/año · IVA incl.' : '/mes · IVA incl.';
-          const sub = yearly ? 'ahorra 3 meses vs mensual' : `intro 3 meses: ${clp(tier.clpIntro3mo)}/mes`;
+          const per = yearly ? t('landing.dc.per_year') : t('landing.dc.per_month');
+          const sub = yearly
+            ? t('landing.dc.sub_annual')
+            : t('landing.dc.sub_intro', { price: clp(tier.clpIntro3mo) });
           return (
             <motion.a
               key={tier.id}
@@ -151,20 +150,20 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
               onClick={choose}
               className="pv-plan-card"
               data-rec={isRec || undefined}
-              style={{ background: metalGradient(meta.metal), borderTopColor: meta.metal }}
+              style={{ background: metalGradient(METAL[tier.id]), borderTopColor: METAL[tier.id] }}
               aria-label={t('landing.pricing.choose_plan', { name: tier.nombre })}
             >
-              {isRec && <span className="pv-plan-badge">Para tu dotación</span>}
+              {isRec && <span className="pv-plan-badge">{t('landing.dc.recommended_for')}</span>}
               <span className="pv-plan-name">
-                <i className="pv-plan-dot" style={{ background: meta.metal }} aria-hidden="true" />
+                <i className="pv-plan-dot" style={{ background: METAL[tier.id] }} aria-hidden="true" />
                 {tier.nombre}
               </span>
-              <span className="pv-mono pv-plan-who">{meta.who}</span>
+              <span className="pv-mono pv-plan-who">{t(`landing.dc.who_${tier.id}`)}</span>
               <span className="pv-plan-price">
                 {clp(price)} <small className="pv-mono">{per}</small>
               </span>
               <span className="pv-mono pv-plan-sub">{sub}</span>
-              <span className="pv-plan-note">{meta.note}</span>
+              <span className="pv-plan-note">{t(`landing.dc.note_${tier.id}`)}</span>
             </motion.a>
           );
         })}
@@ -172,7 +171,7 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
 
       <p className="pv-price-outro">
         <span className="pv-pulse-dot" aria-hidden="true" />
-        Ten un buen día, cada día y así una buena vida
+        {t('landing.dc.outro')}
       </p>
     </section>
   );

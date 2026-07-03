@@ -8,6 +8,7 @@
  */
 import { motion, useReducedMotion } from 'framer-motion';
 import type { SVGProps } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type DrawProps = { delay?: number; duration?: number };
 
@@ -43,6 +44,7 @@ export function ShieldMark({ size = 26, ...rest }: { size?: number } & SVGProps<
  * The spiral (gold) is the ONLY gold in the viewport — φ discipline.
  */
 export function HeroBlueprint({ caption }: { caption: string }) {
+  const { t } = useTranslation();
   const spiral = useDraw({ delay: 1.0, duration: 2.4 });
   const posts = useDraw({ delay: 0.2, duration: 1.4 });
   const beams = useDraw({ delay: 0.6, duration: 1.2 });
@@ -196,16 +198,16 @@ export function HeroBlueprint({ caption }: { caption: string }) {
 
       {/* HUD labels — language-neutral technical chips (ponytail: inline, not i18n keys) */}
       <span className="pv-hud" style={{ top: '15%', left: '-4%' }}>
-        DS 44 <small>✓ vigente</small>
+        DS 44 <small>{t('landing.dc.hud_ds44_sub')}</small>
       </span>
       <span className="pv-hud" style={{ top: '39%', right: '-8%' }}>
-        mesh · BLE <small>sin señal</small>
+        mesh · BLE <small>{t('landing.dc.hud_mesh_sub')}</small>
       </span>
       <span className="pv-hud" style={{ bottom: '24%', left: '-6%' }}>
-        SpO₂ <small>on-device</small>
+        SpO₂ <small>{t('landing.dc.hud_spo2_sub')}</small>
       </span>
       <span className="pv-hud pv-hud-vida" style={{ bottom: '9%', right: '-2%' }}>
-        SOS <small>· gratis</small>
+        SOS <small>{t('landing.dc.hud_sos_sub')}</small>
       </span>
     </div>
   );

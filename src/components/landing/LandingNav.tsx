@@ -34,8 +34,7 @@ export function LandingNav({ onEnter, onLogin }: LandingNavProps) {
           <span className="font-semibold tracking-tight">
             Guardian <b style={{ color: 'var(--pv-teal)' }}>Praeventio</b>
           </span>
-          {/* ponytail: fixed brand tagline, inline (not i18n) — matches the design lockup */}
-          <span className="pv-nav-tagline">Tu aplicación de prevención de riesgos</span>
+          <span className="pv-nav-tagline">{t('landing.dc.nav_tagline')}</span>
         </span>
       </div>
 

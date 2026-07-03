@@ -2253,6 +2253,46 @@
     }
   },
   "landing": {
+    "dc": {
+      "nav_tagline": "Seu app de prevenção de riscos",
+      "hud_ds44_sub": "✓ vigente",
+      "hud_mesh_sub": "sem sinal",
+      "hud_spo2_sub": "no dispositivo",
+      "hud_sos_sub": "· grátis",
+      "tag_free": "Grátis · sempre",
+      "tag_rag": "RAG · lei vigente",
+      "tag_private": "Privado por design",
+      "tag_audit": "Auditável · DS 44",
+      "toggle_monthly": "Mensal",
+      "toggle_annual": "Anual · economize 3 meses",
+      "slider_label": "Trabalhadores por projeto",
+      "rec_line": "{{n}} por projeto → plano recomendado {{plan}}",
+      "legal_dprp": "Departamento de Prevenção de Riscos obrigatório (≥100 por projeto) · incluído a partir do plano Oro",
+      "legal_cphs": "Comitê Paritário (CPHS) obrigatório (≥25 por projeto) · incluído a partir do plano Plata",
+      "legal_none": "Neste tamanho não se exige Comitê Paritário (limite: 25 trabalhadores por projeto)",
+      "free_forever": "para sempre",
+      "per_year": "/ano · IVA incl.",
+      "per_month": "/mês · IVA incl.",
+      "sub_annual": "economize 3 meses vs mensal",
+      "sub_intro": "intro 3 meses: {{price}}/mês",
+      "recommended_for": "Para sua equipe",
+      "outro": "Tenha um bom dia, cada dia — e assim, uma boa vida",
+      "no_card": "Sem cartão · no seu idioma (ES · PT · EN) · dados no Chile",
+      "who_gratis": "1 projeto ativo · até 3 trabalhadores",
+      "who_cobre": "3 projetos ativos · 24 trabalhadores por projeto",
+      "who_plata": "5 projetos ativos · até 99 trabalhadores por projeto",
+      "who_oro": "10 projetos ativos · até 499 trabalhadores por projeto",
+      "who_titanio": "20 projetos ativos · até 1.999 trabalhadores por projeto",
+      "who_platino": "30 projetos ativos · até 9.999 trabalhadores por projeto",
+      "who_diamante": "50 projetos ativos · trabalhadores ilimitados",
+      "note_gratis": "Todas as funções vida-crítica incluídas",
+      "note_cobre": "Abaixo do limite de CPHS (25 por projeto)",
+      "note_plata": "Desbloqueia o Comitê Paritário (CPHS) — exigido a partir de 25 trabalhadores por projeto",
+      "note_oro": "Desbloqueia o Depto. de Prevenção — exigido a partir de 100 trabalhadores por projeto",
+      "note_titanio": "Sem cobranças extras · SSO",
+      "note_platino": "Multi-tenant + executivo de conta",
+      "note_diamante": "Multi-jurisdição + residência de dados por região"
+    },
     "skip_to_content": "Pular para o conteúdo",
     "meta": {
       "title": "Guardian Praeventio — 5 minutos que podem salvar a sua vida",
@@ -2260,17 +2300,17 @@
     },
     "nav": {
       "login": "Entrar",
-      "enter": "Acessar"
+      "enter": "Começar grátis"
     },
     "hero": {
       "compliance_badge": "Conformidade DS 44/2024 · Lei 16.744",
       "title_line_1": "5 minutos que podem",
       "title_line_2": "salvar a sua vida",
       "subtitle": "O diálogo diário de segurança de 5 minutos que você já faz toda manhã, transformado em um sistema que antecipa o acidente que ainda não aconteceu.",
-      "description": "Funciona sem sinal, protege primeiro quem trabalha e guarda a evidência que a norma exige — DS 44/2024, Lei 16.744, DS 594 — pronto para escalar ao mundo.",
-      "cta_primary": "Começar grátis",
+      "description": "SOS, homem-caído, evacuação com rota e rede mesh sem sinal — grátis para o trabalhador, sempre. Cobramos a gestão e a escala, nunca a segurança.",
+      "cta_primary": "Proteger minha equipe",
       "cta_secondary": "Como funciona",
-      "free_tier_note": "SOS · Homem-caído · Evacuação · Rede mesh — grátis para o trabalhador, sempre. Sem cartão de crédito.",
+      "free_tier_note": "Funções vida-crítica sem custo · Dados no Chile · Biometria 100% no dispositivo",
       "blueprint_caption": "Planta de andaime desenhando-se sobre a espiral áurea — φ 1,618"
     },
     "problem": {
@@ -2331,8 +2371,8 @@
       }
     },
     "pricing": {
-      "title": "Planos para cada empresa",
-      "subtitle": "Vidas protegidas de graça, sempre. Escale conforme sua empresa crescer.",
+      "title": "A vida não tem preço — por isso cuidamos das suas metas e sonhos",
+      "subtitle": "Todos os planos — incluindo o grátis — trazem todas as funções vida-crítica, multi-país ilimitado, previsões de calendário e fallback ISO 45001. Os módulos legais são desbloqueados por dotação, não pelo nome do plano.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabalhadores",
@@ -2429,7 +2469,7 @@
       "sistema": "FL. 02 · SISTEMA",
       "proceso": "FL. 03 · PROCESSO",
       "confianza": "FL. 04 · CONFIANÇA",
-      "planes": "FL. 05 · PLANOS",
+      "planes": "Planos — cobramos a gestão, nunca a segurança",
       "cierre": "FL. 06 · GUARDIÃO"
     },
     "vida": {

@@ -49,7 +49,7 @@ export function SistemaSection() {
       svg: <SosCascade labels={[t('landing.vida.sos.step_push'), t('landing.vida.sos.step_email'), t('landing.vida.sos.step_call')]} />,
       title: t('landing.vida.sos.title'),
       desc: t('landing.vida.sos.desc'),
-      tag: 'Gratis · siempre',
+      tag: t('landing.dc.tag_free'),
       life: true,
     },
     {
@@ -63,7 +63,7 @@ export function SistemaSection() {
       ),
       title: t('landing.vida.mesh.title'),
       desc: t('landing.vida.mesh.desc'),
-      tag: 'Gratis · siempre',
+      tag: t('landing.dc.tag_free'),
       life: true,
     },
     {
@@ -71,7 +71,7 @@ export function SistemaSection() {
       svg: <EvacPlan startLabel={t('landing.vida.evac.start_label')} exitLabel={t('landing.vida.evac.exit_label')} />,
       title: t('landing.vida.evac.title'),
       desc: t('landing.vida.evac.desc'),
-      tag: 'Gratis · siempre',
+      tag: t('landing.dc.tag_free'),
       life: true,
     },
     {
@@ -79,21 +79,21 @@ export function SistemaSection() {
       svg: <RagPanel />,
       title: t('landing.features.ai.title'),
       desc: t('landing.features.ai.desc'),
-      tag: 'RAG · ley vigente',
+      tag: t('landing.dc.tag_rag'),
     },
     {
       n: '05',
       svg: <BiometricPanel />,
       title: t('landing.sistema.bio.title'),
       desc: t('landing.sistema.bio.desc'),
-      tag: 'Privado por diseño',
+      tag: t('landing.dc.tag_private'),
     },
     {
       n: '06',
       svg: <AuditChainPanel />,
       title: t('landing.sistema.evidence.title'),
       desc: t('landing.sistema.evidence.desc'),
-      tag: 'Auditable · DS 44',
+      tag: t('landing.dc.tag_audit'),
     },
   ];
 

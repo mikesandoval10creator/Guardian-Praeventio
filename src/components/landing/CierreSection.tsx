@@ -68,7 +68,7 @@ export function CierreSection({ onStart }: CierreSectionProps) {
           <div className="flex items-center" style={{ gap: 'var(--pv-sp-3)', marginTop: 'var(--pv-sp-4)' }}>
             <CopihueLine delay={0.4} />
             <p className="pv-mono" style={{ fontSize: 'var(--pv-t--1)', color: 'rgba(244,241,233,0.6)', letterSpacing: '0.03em', margin: 0 }}>
-              Sin tarjeta · en tu idioma (ES · PT · EN) · datos en Chile
+              {t('landing.dc.no_card')}
             </p>
           </div>
         </motion.div>

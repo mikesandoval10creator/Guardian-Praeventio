@@ -2253,6 +2253,46 @@
     }
   },
   "landing": {
+    "dc": {
+      "nav_tagline": "Your occupational risk-prevention app",
+      "hud_ds44_sub": "✓ in effect",
+      "hud_mesh_sub": "no signal",
+      "hud_spo2_sub": "on-device",
+      "hud_sos_sub": "· free",
+      "tag_free": "Free · always",
+      "tag_rag": "RAG · current law",
+      "tag_private": "Private by design",
+      "tag_audit": "Auditable · DS 44",
+      "toggle_monthly": "Monthly",
+      "toggle_annual": "Annual · save 3 months",
+      "slider_label": "Workers per project",
+      "rec_line": "{{n}} per project → recommended plan {{plan}}",
+      "legal_dprp": "Risk Prevention Department required (≥100 per project) · included from the Oro plan",
+      "legal_cphs": "Joint Health & Safety Committee (CPHS) required (≥25 per project) · included from the Plata plan",
+      "legal_none": "At this size no Joint Committee is required (threshold: 25 workers per project)",
+      "free_forever": "forever",
+      "per_year": "/year · VAT incl.",
+      "per_month": "/month · VAT incl.",
+      "sub_annual": "save 3 months vs monthly",
+      "sub_intro": "3-month intro: {{price}}/mo",
+      "recommended_for": "For your headcount",
+      "outro": "Have a good day, every day — and so, a good life",
+      "no_card": "No card · in your language (ES · PT · EN) · data in Chile",
+      "who_gratis": "1 active project · up to 3 workers",
+      "who_cobre": "3 active projects · 24 workers per project",
+      "who_plata": "5 active projects · up to 99 workers per project",
+      "who_oro": "10 active projects · up to 499 workers per project",
+      "who_titanio": "20 active projects · up to 1,999 workers per project",
+      "who_platino": "30 active projects · up to 9,999 workers per project",
+      "who_diamante": "50 active projects · unlimited workers",
+      "note_gratis": "All life-critical features included",
+      "note_cobre": "Below the CPHS threshold (25 per project)",
+      "note_plata": "Unlocks the Joint Committee (CPHS) — required from 25 workers per project",
+      "note_oro": "Unlocks the Prevention Dept. — required from 100 workers per project",
+      "note_titanio": "No extra charges · SSO",
+      "note_platino": "Multi-tenant + account executive",
+      "note_diamante": "Multi-jurisdiction + per-region data residency"
+    },
     "skip_to_content": "Skip to content",
     "meta": {
       "title": "Guardian Praeventio — 5 minutes that can save your life",
@@ -2260,17 +2300,17 @@
     },
     "nav": {
       "login": "Log in",
-      "enter": "Enter"
+      "enter": "Start free"
     },
     "hero": {
       "compliance_badge": "Compliant with DS 44/2024 . Law 16.744",
       "title_line_1": "5 minutes that can",
       "title_line_2": "save your life",
       "subtitle": "The five-minute safety talk you already run every morning, turned into a system that anticipates the accident that hasn't happened yet.",
-      "description": "Works with no signal, protects the worker first and keeps the evidence Chilean law demands — DS 44/2024, Law 16.744, DS 594 — ready to scale worldwide.",
-      "cta_primary": "Start free",
+      "description": "SOS, man-down, routed evacuation and offline mesh — free for the worker, always. We charge for management and scale, never for safety.",
+      "cta_primary": "Protect my team",
       "cta_secondary": "How it works",
-      "free_tier_note": "SOS · Man-down · Evacuation · Mesh network — free for the worker, always. No credit card.",
+      "free_tier_note": "Life-critical features at no cost · Data in Chile · Biometrics 100% on-device",
       "blueprint_caption": "Scaffold blueprint drawing itself over the golden spiral — φ 1.618"
     },
     "problem": {
@@ -2331,8 +2371,8 @@
       }
     },
     "pricing": {
-      "title": "Plans for every company",
-      "subtitle": "Lives protected free, always. Scale as your company grows.",
+      "title": "Life has no price — that's why we protect your goals and dreams",
+      "subtitle": "Every plan — including the free one — includes all life-critical features, unlimited multi-country, calendar predictions and ISO 45001 fallback. Legal modules unlock by headcount, not by plan name.",
       "popular_badge": "Popular",
       "recommended_badge": "Recommended",
       "workers_suffix": "workers",
@@ -2429,7 +2469,7 @@
       "sistema": "SHT. 02 · SYSTEM",
       "proceso": "SHT. 03 · PROCESS",
       "confianza": "SHT. 04 · TRUST",
-      "planes": "SHT. 05 · PLANS",
+      "planes": "Plans — we charge for management, never for safety",
       "cierre": "SHT. 06 · GUARDIAN"
     },
     "vida": {
