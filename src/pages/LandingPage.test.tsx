@@ -105,7 +105,8 @@ describe('LandingPage (Plano Vivo)', () => {
         // Prices come from tiers.ts (single source of truth); the per-project
         // worker framing on the cards is the Claude Design marketing copy.
         const formatted = `$${tier.clpRegular.toLocaleString('es-CL')}`;
-        expect(screen.getAllByText(new RegExp(formatted.replace(/[.$]/g, '\\$&'))).length).toBeGreaterThan(0);
+        // Escape ALL regex metacharacters (incl. backslash) — CodeQL-clean.
+        expect(screen.getAllByText(new RegExp(formatted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).length).toBeGreaterThan(0);
       }
     }
   });

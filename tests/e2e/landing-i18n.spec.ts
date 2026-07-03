@@ -43,13 +43,14 @@ test.describe('Landing page — English locale (full i18n)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/5 minutes that can/i);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/save your life/i);
 
-    // Body sections that USED to be hardcoded Spanish — now English.
-    await expect(page.getByText(/Why Guardian/i)).toBeVisible();
-    await expect(page.getByText(/spreadsheets and paperwork/i)).toBeVisible();
-    await expect(page.getByText(/Connects facts that today die/i)).toBeVisible();
+    // El Sistema — the six vida-crítica cards (reused i18n keys render in English).
+    // 2026-07 Claude Design folds the old Vida + Cómo-funciona into this section.
+    await expect(page.getByText(/Every battle is won before it is fought/i)).toBeVisible();
     await expect(page.getByText(/SOS & man-down/i).first()).toBeVisible();
-    await expect(page.getByText(/How it works/i).first()).toBeVisible();
-    await expect(page.getByText(/Automatic compliance/i).first()).toBeVisible();
+    await expect(page.getByText(/Artificial Intelligence/i)).toBeVisible();
+    await expect(page.getByText(/Biometrics, 100% on-device/i)).toBeVisible();
+    await expect(page.getByText(/Evidence that can't be erased/i)).toBeVisible();
+    // Pricing header + footer localized.
     await expect(page.getByText(/Plans for every company/i)).toBeVisible();
     await expect(page.getByText(/Made in Chile/i)).toBeVisible();
 

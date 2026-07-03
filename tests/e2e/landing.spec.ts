@@ -57,7 +57,8 @@ test.describe('Landing page', () => {
     await page.goto('/');
     await expect(page.getByText(/La victoria se gana antes de la batalla/i)).toBeVisible();
     await expect(page.getByText(/SOS y hombre-caído/i)).toBeVisible();
-    await expect(page.getByText(/Red mesh sin señal/i)).toBeVisible();
+    // "red mesh sin señal" also appears in the hero copy, so target the card heading.
+    await expect(page.getByRole('heading', { name: 'Red mesh sin señal' })).toBeVisible();
   });
 
   test('El Sistema — IA, biometría and evidencia cards visible', async ({ page }) => {
