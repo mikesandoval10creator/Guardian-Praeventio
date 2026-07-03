@@ -10,7 +10,7 @@ import { SUBSCRIPTION_PLANS } from './subscriptionPlan.js';
 describe('scaleCapsForPlan', () => {
   it('maps each plan to its tier caps (7-metal scheme)', () => {
     expect(scaleCapsForPlan('free')).toEqual({ trabajadoresMax: 3, proyectosMax: 1 });
-    expect(scaleCapsForPlan('cobre')).toEqual({ trabajadoresMax: 72, proyectosMax: 3 });
+    expect(scaleCapsForPlan('cobre')).toEqual({ trabajadoresMax: 24, proyectosMax: 3 });
     expect(scaleCapsForPlan('plata')).toEqual({ trabajadoresMax: 99, proyectosMax: 5 });
     expect(scaleCapsForPlan('oro')).toEqual({ trabajadoresMax: 499, proyectosMax: 10 });
     expect(scaleCapsForPlan('titanio')).toEqual({ trabajadoresMax: 1999, proyectosMax: 20 });
@@ -41,7 +41,7 @@ describe('scaleCapsForPlan', () => {
 
   it('normalizes legacy aliases (premium→oro, basic→cobre)', () => {
     expect(scaleCapsForPlan('premium')).toEqual({ trabajadoresMax: 499, proyectosMax: 10 });
-    expect(scaleCapsForPlan('basic')).toEqual({ trabajadoresMax: 72, proyectosMax: 3 });
+    expect(scaleCapsForPlan('basic')).toEqual({ trabajadoresMax: 24, proyectosMax: 3 });
   });
 
   it('every declared plan resolves to caps > 0 (guards an orphaned plan with no tier row)', () => {

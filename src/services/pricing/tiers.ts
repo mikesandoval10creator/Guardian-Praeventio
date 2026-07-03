@@ -47,7 +47,18 @@ export type WorkspaceTier =
 export interface Tier {
   id: TierId;
   nombre: string;
+  /**
+   * Max workers PER PROJECT (faena). CPHS-aligned: 25+ workers in a single
+   * faena legally requires a Comité Paritario (DS 44/2024, which counts by
+   * faena), so lower tiers cap below 25 (Cobre = 24) and push an upgrade to the
+   * tier that unlocks CPHS rather than crossing the threshold silently.
+   */
   trabajadoresMax: number;
+  /**
+   * Max SIMULTANEOUS ACTIVE projects. To open another past the cap, a tenant
+   * must close an active project or upgrade — the scale lever that drives the
+   * upsell (see the landing "N proyectos activos" framing).
+   */
   proyectosMax: number;
   clpRegular: number;
   clpIntro3mo: number;
@@ -89,12 +100,13 @@ export const TIERS: readonly Tier[] = [
     workspaceTier: 'none',
   },
   {
-    // Intermedio multi-faena: hasta 3 faenas, cada una bajo el umbral CPHS
-    // (<25), sin necesidad de Comité Paritario por faena (DS 44/2024 art. 23,
-    // que cuenta por faena). "Bueno, bonito y barato".
+    // Intermedio multi-faena: hasta 3 faenas ACTIVAS, cada una bajo el umbral
+    // CPHS (24 < 25 trabajadores por faena → sin Comité Paritario; DS 44/2024
+    // art. 23 cuenta por faena). A 25 en una faena se debe saltar a Plata, que
+    // habilita el CPHS. trabajadoresMax es POR PROYECTO. "Bueno, bonito y barato".
     id: 'cobre',
     nombre: 'Cobre',
-    trabajadoresMax: 72,
+    trabajadoresMax: 24,
     proyectosMax: 3,
     clpRegular: 9990,
     clpIntro3mo: 6990,

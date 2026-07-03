@@ -10,23 +10,24 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { TIERS, type Tier, type TierId } from '../../services/pricing/tiers';
 
-/** Design plan meta: material colour, per-project worker ceiling used for the
- *  slider recommendation, and the exact `who`/`note` marketing copy. */
-const PLAN_META: Record<TierId, { metal: string; max: number; who: string; note: string }> = {
-  gratis: { metal: '#33474a', max: 3, who: '1 proyecto activo · hasta 3 trabajadores', note: 'Todas las funciones vida-crítica incluidas' },
-  cobre: { metal: '#a85f32', max: 24, who: '3 proyectos activos · 24 trabajadores por proyecto', note: 'Bajo el umbral de CPHS (25 por proyecto)' },
-  plata: { metal: '#8c9598', max: 99, who: '5 proyectos activos · hasta 99 trabajadores por proyecto', note: 'Desbloquea Comité Paritario (CPHS) — requerido desde 25 trabajadores por proyecto' },
-  oro: { metal: '#b08733', max: 499, who: '10 proyectos activos · hasta 499 trabajadores por proyecto', note: 'Desbloquea Depto. de Prevención — requerido desde 100 trabajadores por proyecto' },
-  titanio: { metal: '#5e6e71', max: 1999, who: '20 proyectos activos · hasta 1.999 trabajadores por proyecto', note: 'Sin cobros extra · SSO' },
-  platino: { metal: '#7c8b93', max: 9999, who: '30 proyectos activos · hasta 9.999 trabajadores por proyecto', note: 'Multi-tenant + ejecutivo de cuenta' },
-  diamante: { metal: '#4fa3a0', max: Infinity, who: '50 proyectos activos · trabajadores ilimitados', note: 'Multi-jurisdicción + residencia de datos por región' },
+/** Design plan meta: material colour + the exact `who`/`note` marketing copy.
+ *  The per-project worker ceiling used for the recommendation comes from
+ *  tiers.ts (`trabajadoresMax`) — the single source of truth. */
+const PLAN_META: Record<TierId, { metal: string; who: string; note: string }> = {
+  gratis: { metal: '#33474a', who: '1 proyecto activo · hasta 3 trabajadores', note: 'Todas las funciones vida-crítica incluidas' },
+  cobre: { metal: '#a85f32', who: '3 proyectos activos · 24 trabajadores por proyecto', note: 'Bajo el umbral de CPHS (25 por proyecto)' },
+  plata: { metal: '#8c9598', who: '5 proyectos activos · hasta 99 trabajadores por proyecto', note: 'Desbloquea Comité Paritario (CPHS) — requerido desde 25 trabajadores por proyecto' },
+  oro: { metal: '#b08733', who: '10 proyectos activos · hasta 499 trabajadores por proyecto', note: 'Desbloquea Depto. de Prevención — requerido desde 100 trabajadores por proyecto' },
+  titanio: { metal: '#5e6e71', who: '20 proyectos activos · hasta 1.999 trabajadores por proyecto', note: 'Sin cobros extra · SSO' },
+  platino: { metal: '#7c8b93', who: '30 proyectos activos · hasta 9.999 trabajadores por proyecto', note: 'Multi-tenant + ejecutivo de cuenta' },
+  diamante: { metal: '#4fa3a0', who: '50 proyectos activos · trabajadores ilimitados', note: 'Multi-jurisdicción + residencia de datos por región' },
 };
 
 const clp = (n: number): string => (n === 0 ? '$0' : `$${n.toLocaleString('es-CL')}`);
 
-/** Lowest tier whose per-project ceiling covers `workers` (falls through to Diamante). */
+/** Lowest tier whose per-project worker cap (tiers.ts) covers `workers`. */
 function recommendFor(workers: number): Tier {
-  return TIERS.find((t) => workers <= PLAN_META[t.id].max) ?? TIERS[TIERS.length - 1];
+  return TIERS.find((t) => workers <= t.trabajadoresMax) ?? TIERS[TIERS.length - 1];
 }
 
 /** "165deg" metal wash → paper, from a #rrggbb metal. */
