@@ -6,7 +6,6 @@
 import { useTranslation } from 'react-i18next';
 import { loadLocale } from '../../i18n';
 import { LANDING_SUPPORTED_LOCALES } from './langDetect';
-import { ShieldMark } from './BlueprintArt';
 
 const PILL_LOCALES = [
   { tag: 'es', label: 'ES' },
@@ -30,7 +29,7 @@ export function LandingNav({ onEnter, onLogin }: LandingNavProps) {
   return (
     <nav className="pv-nav">
       <div className="flex items-center gap-2.5">
-        <ShieldMark />
+        <img className="pv-nav-logo" src="/brand/logo%20guardian%20praeventio.jpg" alt="" aria-hidden="true" />
         <span className="leading-tight">
           <span className="font-semibold tracking-tight">
             Guardian <b style={{ color: 'var(--pv-teal)' }}>Praeventio</b>

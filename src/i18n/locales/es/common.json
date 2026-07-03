@@ -2260,17 +2260,17 @@
     },
     "nav": {
       "login": "Iniciar sesión",
-      "enter": "Entrar"
+      "enter": "Empezar gratis"
     },
     "hero": {
       "compliance_badge": "Cumplimiento DS 44/2024 · Ley 16.744",
       "title_line_1": "5 minutos que pueden",
       "title_line_2": "salvar tu vida",
       "subtitle": "La charla de 5 minutos que ya haces cada mañana, convertida en un sistema que anticipa el accidente que aún no ocurre.",
-      "description": "Funciona sin señal, protege primero a quien trabaja y deja la evidencia que exige la norma chilena — DS 44/2024, Ley 16.744, DS 594 — lista para escalar al mundo.",
-      "cta_primary": "Comenzar gratis",
+      "description": "SOS, hombre-caído, evacuación con ruteo y red mesh sin señal — gratis para el trabajador, siempre. Se cobra la gestión y la escala, nunca la seguridad.",
+      "cta_primary": "Proteger a mi equipo",
       "cta_secondary": "Cómo funciona",
-      "free_tier_note": "SOS · Hombre-caído · Evacuación · Red mesh — gratis para el trabajador, siempre. Sin tarjeta de crédito.",
+      "free_tier_note": "Funciones vida-crítica sin costo · Datos en Chile · Biometría 100% en el dispositivo",
       "blueprint_caption": "Plano de andamio dibujándose sobre la espiral áurea — φ 1,618"
     },
     "problem": {
@@ -2331,8 +2331,8 @@
       }
     },
     "pricing": {
-      "title": "Planes para cada empresa",
-      "subtitle": "Vidas protegidas gratis, siempre. Escala cuando tu empresa crezca.",
+      "title": "La vida no tiene precio por eso cuidamos tus metas y sueños",
+      "subtitle": "Todos los planes — incluido el gratis — llevan todas las funciones vida-crítica, multi-país ilimitado, predicciones de calendario y fallback ISO 45001. Los módulos legales se desbloquean por dotación, no por nombre de plan.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabajadores",
@@ -2429,7 +2429,7 @@
       "sistema": "LÁM. 02 · SISTEMA",
       "proceso": "LÁM. 03 · PROCESO",
       "confianza": "LÁM. 04 · CONFIANZA",
-      "planes": "LÁM. 05 · PLANES",
+      "planes": "Planes — se cobra la gestión, nunca la seguridad",
       "cierre": "LÁM. 06 · GUARDIÁN"
     },
     "vida": {

@@ -11,7 +11,7 @@
  * Renders OUTSIDE AppProviders (App.tsx) — everything here must be
  * self-contained: raw i18next (global instance), no app contexts.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -40,6 +40,7 @@ interface LandingPageProps {
 export function LandingPage({ onEnter }: LandingPageProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const andamioRef = useRef<HTMLDivElement>(null);
 
   /* document title + meta description, restored on unmount */
   useEffect(() => {
@@ -103,6 +104,73 @@ export function LandingPage({ onEnter }: LandingPageProps) {
     };
   }, [i18n]);
 
+  /* Andamio vivo — the scaffold grows down the page margins with the scroll
+     (ported from the Claude Design support.js `_buildZig`). Only drawn where
+     there is a free gutter beside the centred content; hidden on narrow
+     viewports and static under prefers-reduced-motion. */
+  useEffect(() => {
+    const layer = andamioRef.current;
+    if (!layer) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let rows: { el: SVGGElement; py: number }[] = [];
+
+    const build = () => {
+      const W = Math.max(320, window.innerWidth);
+      const H = document.documentElement.scrollHeight;
+      const gutter = (W - 1360) / 2; // free margin beside the 1360px content column
+      if (gutter < 110) {
+        layer.innerHTML = '';
+        rows = [];
+        return;
+      }
+      const cell = Math.max(84, Math.round(Math.max(104, Math.min(150, gutter / 2))));
+      const rightXs: number[] = [];
+      for (let x = Math.round(W - gutter + 18); x <= W + cell; x += cell) rightXs.push(x);
+      const leftXs = rightXs.map((x) => Math.round(W - x)).sort((a, b) => a - b);
+      const startY = Math.round(window.innerHeight * 0.82);
+      const band = (xs: number[], y: number, r: number) => {
+        let s = `<line x1="${xs[0]}" y1="${y}" x2="${xs[xs.length - 1]}" y2="${y}" stroke="#0F7C6E" stroke-width="1.1" opacity="0.32"/>`;
+        for (let c = 0; c < xs.length; c++) {
+          s += `<line x1="${xs[c]}" y1="${y}" x2="${xs[c]}" y2="${y + cell}" stroke="#0F7C6E" stroke-width="1.1" opacity="0.32"/>`;
+          s += `<circle cx="${xs[c]}" cy="${y}" r="2.4" fill="#0F7C6E" opacity="0.42"/>`;
+          if (c < xs.length - 1) {
+            const a = (r + c) % 2 === 0;
+            s += `<line x1="${xs[a ? c : c + 1]}" y1="${y}" x2="${xs[a ? c + 1 : c]}" y2="${y + cell}" stroke="#17B6A3" stroke-width="0.8" opacity="0.24"/>`;
+          }
+        }
+        return s;
+      };
+      let g = '';
+      for (let y = startY, r = 0; y < H - 30; y += cell, r++) {
+        g += `<g data-py="${y}" style="opacity:${reduced ? 1 : 0};transition:opacity .6s ease">${band(rightXs, y, r)}${band(leftXs, y, r)}</g>`;
+      }
+      layer.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;overflow:visible">${g}</svg>`;
+      rows = Array.from(layer.querySelectorAll<SVGGElement>('g[data-py]')).map((el) => ({
+        el,
+        py: parseFloat(el.getAttribute('data-py') || '0'),
+      }));
+    };
+
+    const onScroll = () => {
+      if (reduced) return;
+      const front = window.scrollY + window.innerHeight * 0.85;
+      for (const rw of rows) rw.el.style.opacity = front >= rw.py ? '1' : '0';
+    };
+    const onResize = () => {
+      build();
+      onScroll();
+    };
+
+    build();
+    onScroll();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
   const handleEnter = () => {
     onEnter();
   };
@@ -118,6 +186,9 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
   return (
     <div className="pv-landing pv-grain min-h-screen">
+      {/* Andamio vivo — scaffold that grows down the page margins with scroll. */}
+      <div className="pv-andamio" aria-hidden="true" ref={andamioRef} />
+
       {/* Public, no-login emergency access (prototype-recovery #1): a person
           in crisis reaches first-aid + call-for-help in one tap from the
           public landing, BEFORE "Entrar". Self-contained — renders outside

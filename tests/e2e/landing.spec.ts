@@ -69,7 +69,7 @@ test.describe('Landing page', () => {
 
   test('pricing tiers grid renders the real tiers from tiers.ts', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Planes para cada empresa/i)).toBeVisible();
+    await expect(page.getByText(/La vida no tiene precio/i)).toBeVisible();
     // Real tier names from src/services/pricing/tiers.ts (`nombre`). The 2026-07
     // design shows all seven: the free row + six metal cards.
     for (const name of ['Gratis', 'Cobre', 'Plata', 'Oro', 'Titanio', 'Platino', 'Diamante']) {
@@ -96,12 +96,10 @@ test.describe('Landing page', () => {
     await expect(page.getByText(/Santiago.*Chile/i)).toBeVisible();
   });
 
-  test('CTA primary "Comenzar gratis" button is visible and clickable', async ({ page }) => {
+  test('CTA primary "Proteger a mi equipo" button is visible and clickable', async ({ page }) => {
     await page.goto('/');
-    // El CTA primario del hero (landing.hero.cta_primary = "Comenzar gratis").
-    // El mismo label existe también en el cierre (final_cta.button), así que
-    // .first() apunta al del hero, que es el verdadero call-to-action.
-    const cta = page.getByRole('button', { name: /Comenzar gratis/i }).first();
+    // El CTA primario del hero (landing.hero.cta_primary = "Proteger a mi equipo").
+    const cta = page.getByRole('button', { name: /Proteger a mi equipo/i }).first();
     await expect(cta).toBeVisible();
     await expect(cta).toBeEnabled();
   });

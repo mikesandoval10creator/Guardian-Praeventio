@@ -622,6 +622,20 @@
     display: none;
   }
 }
+.pv-nav-logo {
+  height: 50px;
+  width: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(6, 63, 57, 0.14);
+  background: #fff;
+  display: block;
+  flex: none;
+}
+@media (max-width: 560px) {
+  .pv-nav-logo {
+    height: 40px;
+  }
+}
 
 /* ── responsive ─────────────────────────────────────────────── */
 @media (max-width: 900px) {
@@ -879,6 +893,36 @@
   color: var(--pv-teal);
   min-height: 0.9rem;
 }
+.pv-plan-note {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--pv-ink-soft);
+  margin-top: 0.2rem;
+}
+.pv-price-outro {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  justify-content: center;
+  margin-top: var(--pv-sp-4);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--pv-ink-soft);
+}
+.pv-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pv-teal-bright);
+  box-shadow: 0 0 0 4px rgba(23, 182, 163, 0.18);
+  flex: none;
+  animation: pv-pulse 2.4s ease-in-out infinite;
+}
+@keyframes pv-pulse {
+  50% {
+    box-shadow: 0 0 0 7px rgba(23, 182, 163, 0.05);
+  }
+}
 @media (max-width: 720px) {
   .pv-plan-free {
     flex-direction: column;
@@ -1043,4 +1087,23 @@
   .pv-cierre-logo-wrap {
     order: -1;
   }
+}
+
+/* ── andamio vivo: scroll scaffold in the page margins ───────── */
+.pv-landing {
+  position: relative;
+}
+.pv-andamio {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* keep nav, content and footer above the scaffold layer */
+.pv-landing > .pv-nav,
+.pv-landing > main,
+.pv-landing > footer {
+  position: relative;
+  z-index: 1;
 }

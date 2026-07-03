@@ -1,35 +1,32 @@
 /**
- * LÁM. 05 · PLANES — pricing reads REAL tiers from the single source of truth
- * (services/pricing/tiers.ts). NEVER hardcode plan names, prices, worker or
- * project counts here. Layout follows the Claude Design landing (2026-07):
- * monthly/annual toggle + a workers slider that recommends a plan and shows
- * the CPHS/DPRP legal threshold, then the free row + the paid metal cards.
- * φ-gold (#B08733) stays reserved for geometry — cards use each plan's metal.
- * Control copy is inline es-CL (ponytail: the design ships Spanish-only; header
- * strings stay i18n).
+ * LÁM. 05 · PLANES — matches the Claude Design landing 1:1. Prices come from the
+ * single source of truth (services/pricing/tiers.ts); the per-plan `who`/`note`
+ * marketing copy and the per-project framing are the design's own (the user's
+ * approved wording). Header strings are i18n; the interactive control copy is
+ * inline es-CL, as the design ships Spanish-only. φ-gold stays for geometry.
  */
 import { useState, type MouseEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { TIERS, type Tier, type TierId } from '../../services/pricing/tiers';
 
-/** Material colour per tier (design palette). Not φ-gold except Oro's own metal. */
-const METAL: Record<TierId, string> = {
-  gratis: '#33474a',
-  cobre: '#a85f32',
-  plata: '#8c9598',
-  oro: '#b08733',
-  titanio: '#5e6e71',
-  platino: '#7c8b93',
-  diamante: '#4fa3a0',
+/** Design plan meta: material colour, per-project worker ceiling used for the
+ *  slider recommendation, and the exact `who`/`note` marketing copy. */
+const PLAN_META: Record<TierId, { metal: string; max: number; who: string; note: string }> = {
+  gratis: { metal: '#33474a', max: 3, who: '1 proyecto activo · hasta 3 trabajadores', note: 'Todas las funciones vida-crítica incluidas' },
+  cobre: { metal: '#a85f32', max: 24, who: '3 proyectos activos · 24 trabajadores por proyecto', note: 'Bajo el umbral de CPHS (25 por proyecto)' },
+  plata: { metal: '#8c9598', max: 99, who: '5 proyectos activos · hasta 99 trabajadores por proyecto', note: 'Desbloquea Comité Paritario (CPHS) — requerido desde 25 trabajadores por proyecto' },
+  oro: { metal: '#b08733', max: 499, who: '10 proyectos activos · hasta 499 trabajadores por proyecto', note: 'Desbloquea Depto. de Prevención — requerido desde 100 trabajadores por proyecto' },
+  titanio: { metal: '#5e6e71', max: 1999, who: '20 proyectos activos · hasta 1.999 trabajadores por proyecto', note: 'Sin cobros extra · SSO' },
+  platino: { metal: '#7c8b93', max: 9999, who: '30 proyectos activos · hasta 9.999 trabajadores por proyecto', note: 'Multi-tenant + ejecutivo de cuenta' },
+  diamante: { metal: '#4fa3a0', max: Infinity, who: '50 proyectos activos · trabajadores ilimitados', note: 'Multi-jurisdicción + residencia de datos por región' },
 };
 
 const clp = (n: number): string => (n === 0 ? '$0' : `$${n.toLocaleString('es-CL')}`);
-const cap = (n: number): string => (Number.isFinite(n) ? n.toLocaleString('es-CL') : 'ilimitados');
 
-/** Lowest tier whose worker cap covers `workers` (falls through to Diamante). */
+/** Lowest tier whose per-project ceiling covers `workers` (falls through to Diamante). */
 function recommendFor(workers: number): Tier {
-  return TIERS.find((t) => workers <= t.trabajadoresMax) ?? TIERS[TIERS.length - 1];
+  return TIERS.find((t) => workers <= PLAN_META[t.id].max) ?? TIERS[TIERS.length - 1];
 }
 
 /** "165deg" metal wash → paper, from a #rrggbb metal. */
@@ -52,10 +49,10 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
   const rec = recommendFor(workers);
   const legal =
     workers >= 100
-      ? 'Obligatorio Departamento de Prevención de Riesgos (≥100) · incluido desde el plan Oro'
+      ? 'Obligatorio Departamento de Prevención de Riesgos (≥100 por proyecto) · incluido desde el plan Oro'
       : workers >= 25
-        ? 'Obligatorio Comité Paritario CPHS (≥25) · incluido desde el plan Plata'
-        : 'A este tamaño no se exige Comité Paritario (umbral: 25 trabajadores)';
+        ? 'Obligatorio Comité Paritario CPHS (≥25 por proyecto) · incluido desde el plan Plata'
+        : 'A este tamaño no se exige Comité Paritario (umbral: 25 trabajadores por proyecto)';
 
   const reveal = (delay = 0) =>
     reduced
@@ -77,7 +74,7 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
 
   return (
     <section id="planes" className="pv-section">
-      <motion.div {...reveal()} style={{ maxWidth: '62ch', margin: '0 auto var(--pv-sp-4)' }}>
+      <motion.div {...reveal()} style={{ maxWidth: '64ch', margin: '0 auto var(--pv-sp-4)' }}>
         <span className="pv-kicker" style={{ marginBottom: 'var(--pv-sp-2)' }}>
           {t('landing.lam.planes')}
         </span>
@@ -98,7 +95,7 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
 
         <div className="pv-slider-box">
           <label htmlFor="pv-workers" className="pv-mono pv-slider-label">
-            Trabajadores en tu faena más grande
+            Trabajadores por proyecto
           </label>
           <input
             id="pv-workers"
@@ -110,7 +107,7 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
             className="pv-range"
           />
           <span className="pv-mono pv-slider-rec">
-            <b>{workers.toLocaleString('es-CL')}</b> trabajadores → plan recomendado <b>{rec.nombre}</b>
+            <b>{workers.toLocaleString('es-CL')}</b> por proyecto → plan recomendado <b>{rec.nombre}</b>
           </span>
           <span className="pv-mono pv-slider-legal" data-on={workers >= 25}>
             {legal}
@@ -127,27 +124,24 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
         aria-label={t('landing.pricing.choose_plan', { name: free.nombre })}
       >
         <span className="pv-plan-free-name">
-          <i className="pv-plan-dot" style={{ background: METAL.gratis }} aria-hidden="true" />
+          <i className="pv-plan-dot" style={{ background: PLAN_META.gratis.metal }} aria-hidden="true" />
           {free.nombre}
         </span>
-        <span className="pv-mono pv-plan-free-who">
-          {free.proyectosMax} proyecto · hasta {cap(free.trabajadoresMax)} trabajadores
-        </span>
+        <span className="pv-mono pv-plan-free-who">{PLAN_META.gratis.who}</span>
         <span className="pv-plan-free-price">
           $0 <small className="pv-mono">para siempre</small>
         </span>
-        <span className="pv-plan-free-note">Todas las funciones vida-crítica incluidas</span>
+        <span className="pv-plan-free-note">{PLAN_META.gratis.note}</span>
       </motion.a>
 
       {/* paid plans — metal cards */}
       <div className="pv-plan-grid">
         {paid.map((tier, i) => {
+          const meta = PLAN_META[tier.id];
           const isRec = tier.id === rec.id;
           const price = yearly ? tier.clpAnual : tier.clpRegular;
           const per = yearly ? '/año · IVA incl.' : '/mes · IVA incl.';
-          const sub = yearly
-            ? 'ahorra 3 meses vs mensual'
-            : `intro 3 meses: ${clp(tier.clpIntro3mo)}/mes`;
+          const sub = yearly ? 'ahorra 3 meses vs mensual' : `intro 3 meses: ${clp(tier.clpIntro3mo)}/mes`;
           return (
             <motion.a
               key={tier.id}
@@ -156,31 +150,28 @@ export function PricingSection({ onChoosePlan }: PricingSectionProps) {
               onClick={choose}
               className="pv-plan-card"
               data-rec={isRec || undefined}
-              style={{ background: metalGradient(METAL[tier.id]), borderTopColor: METAL[tier.id] }}
+              style={{ background: metalGradient(meta.metal), borderTopColor: meta.metal }}
               aria-label={t('landing.pricing.choose_plan', { name: tier.nombre })}
             >
               {isRec && <span className="pv-plan-badge">Para tu dotación</span>}
               <span className="pv-plan-name">
-                <i className="pv-plan-dot" style={{ background: METAL[tier.id] }} aria-hidden="true" />
+                <i className="pv-plan-dot" style={{ background: meta.metal }} aria-hidden="true" />
                 {tier.nombre}
               </span>
-              <span className="pv-mono pv-plan-who">
-                {cap(tier.proyectosMax)} proyectos · hasta {cap(tier.trabajadoresMax)} trabajadores
-              </span>
+              <span className="pv-mono pv-plan-who">{meta.who}</span>
               <span className="pv-plan-price">
                 {clp(price)} <small className="pv-mono">{per}</small>
               </span>
               <span className="pv-mono pv-plan-sub">{sub}</span>
+              <span className="pv-plan-note">{meta.note}</span>
             </motion.a>
           );
         })}
       </div>
 
-      <p
-        className="text-center"
-        style={{ maxWidth: '72ch', margin: 'var(--pv-sp-4) auto 0', fontSize: '0.68rem', lineHeight: 1.5, color: 'var(--pv-ink-soft)', opacity: 0.85 }}
-      >
-        {t('landing.pricing.regulatory_note')}
+      <p className="pv-price-outro">
+        <span className="pv-pulse-dot" aria-hidden="true" />
+        Ten un buen día, cada día y así una buena vida
       </p>
     </section>
   );
