@@ -2388,6 +2388,14 @@
         "title": "Bitácora inmutable",
         "desc": "Cada acción que cambia un estado queda escrita en un audit log append-only: no se edita ni se borra."
       },
+      "biometria": {
+        "title": "Biometría que no viaja",
+        "desc": "Cámara y pulso se procesan en el teléfono del trabajador y se descartan. Al servidor solo llega el semáforo."
+      },
+      "iso": {
+        "title": "ISO 45001",
+        "desc": "Gestión de seguridad y salud alineada al estándar internacional vigente, como respaldo en países sin norma local."
+      },
       "backups": {
         "title": "Respaldos y recuperación",
         "desc": "Respaldos cifrados y plan de recuperación ante desastres (DR) para que la operación nunca se detenga."
@@ -2458,6 +2466,10 @@
       "title_pre": "Conecta hechos que hoy mueren en un",
       "title_ac": "archivador",
       "sub": "Un casi-incidente en marzo, un extintor vencido en junio: en papel son hechos aislados; en Guardian, una causa raíz conectada. El sistema une los puntos antes del accidente — y administra tus faenas completas: equipos, plazos, documentos y cumplimiento en un solo lugar.",
+      "bio": {
+        "title": "Biometría 100% en el dispositivo",
+        "desc": "Signos vitales medidos con la cámara y los sensores del teléfono. Ni el pulso ni la imagen salen del dispositivo: se procesan y se descartan."
+      },
       "evidence": {
         "title": "Evidencia que no se borra",
         "desc": "Cada registro queda en una cadena de auditoría inmutable, con autor y sello de tiempo: la prueba que exigen el DS 44 y la Ley 16.744, lista para la fiscalización. Se archiva, nunca se destruye."

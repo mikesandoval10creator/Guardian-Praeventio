@@ -110,6 +110,12 @@
 .pv-on-ink .pv-ac {
   color: var(--pv-mist);
 }
+/* life-critical accent — copihue, ONLY for "salvar tu vida" (ADR 0021 heart) */
+.pv-ac-vida {
+  color: #c63a47;
+  font-style: italic;
+  font-variation-settings: 'opsz' 144;
+}
 
 /* mono kicker with dash — sheet labels (LÁM. 01 · VIDA) */
 .pv-kicker {
@@ -541,7 +547,80 @@
 .pv-hero-visual {
   justify-self: center;
   width: 100%;
-  max-width: 420px;
+  max-width: 540px;
+  overflow: visible;
+}
+
+/* ── hero stage: scaffold SVG + guardian core + HUD labels ──── */
+.pv-hero-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 0.9;
+}
+.pv-hero-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pv-hero-mascot {
+  position: absolute;
+  left: 50%;
+  top: 53%;
+  width: 62%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  filter: drop-shadow(0 26px 30px rgba(6, 63, 57, 0.32));
+  animation: pv-hero-float 7s ease-in-out infinite;
+}
+@keyframes pv-hero-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(-50%, -58%);
+  }
+}
+.pv-hud {
+  position: absolute;
+  z-index: 4;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--pv-teal-deep);
+  background: var(--pv-paper-soft);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(15, 124, 110, 0.28);
+  white-space: nowrap;
+}
+.pv-hud small {
+  color: var(--pv-ink-soft);
+  opacity: 0.75;
+}
+.pv-hud-vida {
+  color: #c63a47;
+  border-color: rgba(198, 58, 71, 0.35);
+}
+
+/* nav brand tagline (under the wordmark) */
+.pv-nav-tagline {
+  display: block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pv-teal-deep);
+  margin-top: -1px;
+}
+@media (max-width: 560px) {
+  .pv-nav-tagline {
+    display: none;
+  }
 }
 
 /* ── responsive ─────────────────────────────────────────────── */
@@ -554,9 +633,13 @@
   /* la frase manda en pantallas chicas: el plano se dibuja después, centrado */
   .pv-hero-visual {
     order: 1;
-    max-width: 230px;
+    max-width: 320px;
     justify-self: center;
     margin-top: var(--pv-sp-3);
+  }
+  /* HUD chips extienden fuera del stage: se ocultan en móvil para no desbordar */
+  .pv-hud {
+    display: none;
   }
   .pv-manga {
     grid-template-columns: 1fr;
@@ -598,5 +681,366 @@
   .pv-landing *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ── planes (LÁM. 05): toggle + workers slider + metal cards ──── */
+.pv-price-controls {
+  max-width: 1120px;
+  margin: 0 auto var(--pv-sp-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pv-sp-3);
+  align-items: stretch;
+}
+.pv-toggle {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: var(--pv-paper);
+  border: 1px solid rgba(6, 63, 57, 0.14);
+  border-radius: 999px;
+  padding: 0.35rem;
+  flex: none;
+}
+.pv-toggle-btn {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  font-size: var(--pv-t--1);
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--pv-ink-soft);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.pv-toggle-btn[aria-pressed='true'] {
+  background: var(--pv-teal-deep);
+  color: var(--pv-paper);
+}
+.pv-slider-box {
+  flex: 1;
+  min-width: 280px;
+  background: var(--pv-paper);
+  border: 1px solid rgba(6, 63, 57, 0.14);
+  border-radius: 14px;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.4rem;
+  align-items: center;
+}
+.pv-slider-label {
+  font-size: var(--pv-t--1);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pv-ink-soft);
+}
+.pv-range {
+  flex: 1;
+  min-width: 140px;
+  accent-color: var(--pv-teal);
+}
+.pv-slider-rec {
+  font-size: var(--pv-t--1);
+  color: var(--pv-teal-deep);
+}
+.pv-slider-legal {
+  flex-basis: 100%;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--pv-ink-soft);
+}
+.pv-slider-legal[data-on='true'] {
+  color: var(--pv-teal-deep);
+}
+.pv-plan-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.pv-plan-free {
+  max-width: 1120px;
+  margin: 0 auto var(--pv-sp-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.8rem;
+  text-decoration: none;
+  color: inherit;
+  background: linear-gradient(165deg, rgba(15, 124, 110, 0.12), var(--pv-paper) 70%);
+  border: 1px solid rgba(6, 63, 57, 0.12);
+  border-left: 3px solid var(--pv-teal);
+  border-radius: 16px;
+  padding: 1.1rem 1.4rem;
+}
+.pv-plan-free-name {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.4rem;
+  min-width: 140px;
+}
+.pv-plan-free-who {
+  flex: 1;
+  min-width: 180px;
+  font-size: var(--pv-t--1);
+  color: var(--pv-ink-soft);
+}
+.pv-plan-free-price {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 1.6rem;
+  white-space: nowrap;
+}
+.pv-plan-free-price small {
+  font-size: var(--pv-t--1);
+  color: var(--pv-ink-soft);
+  font-weight: 400;
+}
+.pv-plan-free-note {
+  font-size: 0.78rem;
+  color: var(--pv-teal-deep);
+  max-width: 26ch;
+}
+.pv-plan-grid {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap: var(--pv-sp-2);
+}
+.pv-plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(6, 63, 57, 0.12);
+  border-top: 3px solid;
+  border-radius: 16px;
+  padding: 1.3rem 1.1rem 1.1rem;
+  transition: transform 0.22s, box-shadow 0.22s;
+}
+.pv-plan-card:hover,
+.pv-plan-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px -18px rgba(6, 63, 57, 0.5);
+}
+.pv-plan-card[data-rec] {
+  box-shadow: 0 0 0 2px var(--pv-teal);
+}
+.pv-plan-badge {
+  position: absolute;
+  top: -0.7rem;
+  left: 1rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--pv-teal);
+  color: var(--pv-paper);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+.pv-plan-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+.pv-plan-who {
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  color: var(--pv-ink-soft);
+}
+.pv-plan-price {
+  margin-top: 0.3rem;
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+.pv-plan-price small {
+  font-size: 0.62rem;
+  color: var(--pv-ink-soft);
+  font-weight: 400;
+}
+.pv-plan-sub {
+  font-size: 0.62rem;
+  color: var(--pv-teal);
+  min-height: 0.9rem;
+}
+@media (max-width: 720px) {
+  .pv-plan-free {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ── El Sistema: 6 vida-crítica cards on ink ─────────────────── */
+.pv-sys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--pv-sp-3);
+}
+.pv-sys-card {
+  background: rgba(207, 224, 219, 0.05);
+  border: 1px solid rgba(207, 224, 219, 0.14);
+  border-radius: 16px;
+  padding: 1.6rem 1.5rem;
+  transform-origin: top center;
+}
+.pv-sys-n {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--pv-teal-bright);
+}
+.pv-sys-svg {
+  margin: 0.9rem 0 0.4rem;
+}
+.pv-sys-mesh {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.pv-sys-mesh > svg {
+  flex: 1;
+  min-width: 0;
+}
+.pv-sys-card h3 {
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.3rem;
+  margin: 0.6rem 0 0.5rem;
+  color: var(--pv-paper);
+}
+.pv-sys-card p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--pv-mist);
+  margin: 0;
+}
+.pv-sys-tag {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pv-mist);
+  background: rgba(207, 224, 219, 0.08);
+  border: 1px solid rgba(207, 224, 219, 0.25);
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+}
+.pv-sys-tag-life {
+  color: var(--pv-teal-bright);
+  background: rgba(23, 182, 163, 0.12);
+  border-color: rgba(23, 182, 163, 0.3);
+}
+
+/* ── Seguridad: pensativo guardian + rings + 6 trust cards ────── */
+.pv-sec-head {
+  display: grid;
+  grid-template-columns: minmax(0, 61.8fr) minmax(0, 38.2fr);
+  align-items: center;
+  gap: var(--pv-sp-4);
+  max-width: 1120px;
+  margin: 0 auto var(--pv-sp-5);
+}
+.pv-sec-guardian {
+  position: relative;
+  justify-self: center;
+  width: min(84%, 300px);
+  aspect-ratio: 1;
+}
+.pv-sec-rings {
+  position: absolute;
+  inset: -14%;
+  width: 128%;
+  height: 128%;
+  overflow: visible;
+}
+.pv-sec-mascot {
+  position: relative;
+  display: block;
+  width: 100%;
+  filter: drop-shadow(0 22px 26px rgba(6, 63, 57, 0.28));
+  animation: pv-floaty 8s ease-in-out infinite;
+}
+.pv-sec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--pv-sp-3);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .pv-sec-head {
+    grid-template-columns: 1fr;
+  }
+  .pv-sec-guardian {
+    order: -1;
+    width: min(70%, 240px);
+  }
+}
+
+/* ── Cierre: white logo card + rings ─────────────────────────── */
+.pv-cierre-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 61.8fr) minmax(0, 38.2fr);
+  align-items: center;
+  gap: var(--pv-sp-4);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.pv-cierre-logo-wrap {
+  position: relative;
+  justify-self: center;
+  width: min(90%, 340px);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pv-cierre-rings {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  overflow: visible;
+}
+.pv-cierre-logo-card {
+  position: relative;
+  width: min(78%, 260px);
+  background: #fff;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 30px 50px -20px rgba(0, 0, 0, 0.55);
+}
+.pv-cierre-logo-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+@media (max-width: 900px) {
+  .pv-cierre-grid {
+    grid-template-columns: 1fr;
+  }
+  .pv-cierre-logo-wrap {
+    order: -1;
   }
 }

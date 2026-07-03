@@ -2388,6 +2388,14 @@
         "title": "Registro imutável",
         "desc": "Cada ação que altera um estado é gravada em um audit log append-only: nunca é editado nem apagado."
       },
+      "biometria": {
+        "title": "Biometria que não viaja",
+        "desc": "Câmera e pulso são processados no telefone do trabalhador e descartados. Ao servidor só chega o semáforo."
+      },
+      "iso": {
+        "title": "ISO 45001",
+        "desc": "Gestão de segurança e saúde alinhada ao padrão internacional vigente, como reserva em países sem norma local."
+      },
       "backups": {
         "title": "Backups e recuperação",
         "desc": "Backups criptografados e plano de recuperação de desastres (DR) para que a operação nunca pare."
@@ -2458,6 +2466,10 @@
       "title_pre": "Conecta fatos que hoje morrem em um",
       "title_ac": "arquivo",
       "sub": "Um quase-acidente em março, um extintor vencido em junho: no papel são fatos isolados; no Guardian, uma causa raiz conectada. O sistema liga os pontos antes do acidente — e administra suas obras completas: equipes, prazos, documentos e conformidade em um só lugar.",
+      "bio": {
+        "title": "Biometria 100% no dispositivo",
+        "desc": "Sinais vitais medidos com a câmera e os sensores do telefone. Nem o pulso nem a imagem saem do aparelho: são processados e descartados."
+      },
       "evidence": {
         "title": "Evidência que não se apaga",
         "desc": "Cada registro fica em uma cadeia de auditoria imutável, com autor e carimbo de tempo: a prova que a norma exige, pronta para a fiscalização. Arquiva-se, nunca se destrói."

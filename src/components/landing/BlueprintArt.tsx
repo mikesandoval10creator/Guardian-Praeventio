@@ -43,89 +43,170 @@ export function ShieldMark({ size = 26, ...rest }: { size?: number } & SVGProps<
  * The spiral (gold) is the ONLY gold in the viewport — φ discipline.
  */
 export function HeroBlueprint({ caption }: { caption: string }) {
-  const spiral = useDraw({ delay: 1.2, duration: 2.2 });
-  const posts = useDraw({ delay: 0.1, duration: 1.4 });
-  const beams = useDraw({ delay: 0.7, duration: 1.2 });
-  const braces = useDraw({ delay: 1.1, duration: 1.2 });
+  const spiral = useDraw({ delay: 1.0, duration: 2.4 });
+  const posts = useDraw({ delay: 0.2, duration: 1.4 });
+  const beams = useDraw({ delay: 0.6, duration: 1.2 });
+  const braces = useDraw({ delay: 1.0, duration: 1.2 });
   const reduced = useReducedMotion();
 
   return (
-    <div className={reduced ? '' : 'pv-floaty'} style={{ maxWidth: 420, width: '100%' }}>
-      <svg viewBox="0 0 260 420" style={{ width: '100%', height: 'auto', overflow: 'visible' }} role="img" aria-label={caption}>
-        {/* plano fill */}
-        <rect x="46" y="70" width="168" height="300" style={{ fill: 'var(--pv-teal)' }} opacity="0.06" />
-        {/* golden spiral — φ */}
+    <div className="pv-hero-stage">
+      <svg viewBox="0 0 460 540" className="pv-hero-svg" role="img" aria-label={caption}>
+        <defs>
+          <radialGradient id="pvGlow" cx="50%" cy="46%" r="60%">
+            <stop offset="0%" stopColor="#17b6a3" stopOpacity="0.38" />
+            <stop offset="55%" stopColor="#0f7c6e" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#0f7c6e" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="pvBlob" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#17b6a3" />
+            <stop offset="60%" stopColor="#0f7c6e" />
+            <stop offset="100%" stopColor="#063f39" />
+          </linearGradient>
+          {/* liquid deformation — teal mass breathes forever */}
+          <filter id="pvLiquid" x="-40%" y="-40%" width="180%" height="180%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.011 0.015" numOctaves="2" seed="7" result="n">
+              {!reduced && (
+                <animate
+                  attributeName="baseFrequency"
+                  dur="24s"
+                  values="0.011 0.015;0.017 0.010;0.011 0.015"
+                  repeatCount="indefinite"
+                />
+              )}
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+
+        {/* teal glow behind the core */}
+        <ellipse cx="230" cy="250" rx="215" ry="235" fill="url(#pvGlow)" />
+
+        {/* liquid teal mass */}
+        <g filter="url(#pvLiquid)">
+          <path
+            d="M230 70 C330 78 388 150 384 250 C380 350 320 430 230 436 C140 430 80 350 76 250 C72 150 130 62 230 70 Z"
+            fill="url(#pvBlob)"
+            opacity="0.16"
+          />
+          <path
+            d="M232 120 C300 126 344 180 342 250 C340 320 300 372 232 378 C165 372 122 320 120 250 C118 180 164 114 232 120 Z"
+            fill="#17b6a3"
+            opacity="0.14"
+          />
+        </g>
+
+        {/* manga speed lines (ground) */}
+        <g style={{ stroke: 'var(--pv-teal-deep)' }} strokeWidth="1" opacity="0.14">
+          <line x1="20" y1="470" x2="150" y2="330" />
+          <line x1="45" y1="500" x2="170" y2="360" />
+          <line x1="80" y1="516" x2="196" y2="386" />
+        </g>
+
+        {/* scaffold — draws itself */}
+        <g fill="none">
+          <rect x="96" y="120" width="268" height="300" style={{ fill: 'var(--pv-teal)' }} opacity="0.05" />
+          {[120, 230, 340].map((x, i) => (
+            <motion.line
+              key={`post-${x}`}
+              {...posts}
+              transition={{ ...(posts.transition ?? {}), delay: 0.2 + i * 0.15 }}
+              x1={x}
+              y1="96"
+              x2={x}
+              y2="440"
+              style={{ stroke: 'var(--pv-teal-deep)' }}
+              strokeWidth="1.4"
+            />
+          ))}
+          {[150, 250, 350].map((y, i) => (
+            <motion.line
+              key={`beam-${y}`}
+              {...beams}
+              transition={{ ...(beams.transition ?? {}), delay: 0.6 + i * 0.12 }}
+              x1="104"
+              y1={y}
+              x2="356"
+              y2={y}
+              style={{ stroke: 'var(--pv-teal-deep)' }}
+              strokeWidth="1.2"
+            />
+          ))}
+          {[
+            [120, 150, 230, 250],
+            [230, 150, 120, 250],
+            [230, 250, 340, 350],
+            [340, 250, 230, 350],
+          ].map(([x1, y1, x2, y2], i) => (
+            <motion.line
+              key={`brace-${i}`}
+              {...braces}
+              transition={{ ...(braces.transition ?? {}), delay: 1.0 + i * 0.1 }}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              style={{ stroke: 'var(--pv-teal)' }}
+              strokeWidth="1"
+            />
+          ))}
+          {[
+            [120, 150],
+            [340, 150],
+            [230, 250],
+            [120, 350],
+            [340, 350],
+          ].map(([cx, cy]) => (
+            <circle key={`joint-${cx}-${cy}`} cx={cx} cy={cy} r="3.2" style={{ fill: 'var(--pv-teal)' }} />
+          ))}
+        </g>
+
+        {/* φ golden spiral — the ONLY gold in the viewport */}
         <motion.path
           {...spiral}
-          d="M162 258 a96 96 0 0 1 -96 -96 a59.3 59.3 0 0 1 59.3 -59.3 a36.7 36.7 0 0 1 36.7 36.7 a22.7 22.7 0 0 1 -22.7 22.7 a14 14 0 0 1 -14 -14"
+          d="M300 300 a70 70 0 0 1 -70 -70 a43.3 43.3 0 0 1 43.3 -43.3 a26.7 26.7 0 0 1 26.7 26.7 a16.5 16.5 0 0 1 -16.5 16.5 a10.2 10.2 0 0 1 -10.2 -10.2"
           style={{ stroke: 'var(--pv-gold)', fill: 'none' }}
-          strokeWidth="1.2"
-          opacity="0.8"
+          strokeWidth="1.3"
+          opacity="0.85"
         />
-        {/* scaffold posts */}
-        {[70, 130, 190].map((x, i) => (
-          <motion.line
-            key={x}
-            {...posts}
-            transition={{ ...(posts.transition ?? {}), delay: 0.1 + i * 0.18 }}
-            x1={x}
-            y1="60"
-            x2={x}
-            y2="380"
-            style={{ stroke: 'var(--pv-teal-deep)' }}
-            strokeWidth="1.4"
-          />
-        ))}
-        {/* ledgers */}
-        {[110, 190, 270, 350].map((y, i) => (
-          <motion.line
-            key={y}
-            {...beams}
-            transition={{ ...(beams.transition ?? {}), delay: 0.7 + i * 0.12 }}
-            x1="60"
-            y1={y}
-            x2="200"
-            y2={y}
-            style={{ stroke: 'var(--pv-teal-deep)' }}
-            strokeWidth="1.4"
-          />
-        ))}
-        {/* diagonal bracing */}
-        {[
-          [70, 110, 130, 190],
-          [130, 110, 70, 190],
-          [130, 270, 190, 350],
-          [190, 270, 130, 350],
-        ].map(([x1, y1, x2, y2], i) => (
-          <motion.line
-            key={i}
-            {...braces}
-            transition={{ ...(braces.transition ?? {}), delay: 1.1 + i * 0.1 }}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            style={{ stroke: 'var(--pv-teal-deep)' }}
-            strokeWidth="1.4"
-          />
-        ))}
-        {/* joints */}
-        {[
-          [70, 110],
-          [130, 190],
-          [190, 270],
-          [130, 350],
-        ].map(([cx, cy]) => (
-          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.2" style={{ fill: 'var(--pv-teal)' }} />
-        ))}
-        {/* cota — dimension line with φ */}
-        <line x1="222" y1="70" x2="222" y2="370" style={{ stroke: 'var(--pv-ink)' }} strokeWidth="1" opacity="0.4" />
-        <line x1="218" y1="70" x2="226" y2="70" style={{ stroke: 'var(--pv-ink)' }} strokeWidth="1" opacity="0.4" />
-        <line x1="218" y1="370" x2="226" y2="370" style={{ stroke: 'var(--pv-ink)' }} strokeWidth="1" opacity="0.4" />
-        <text x="230" y="224" className="pv-cota" transform="rotate(90 230 224)">
-          φ · 1.618
-        </text>
+
+        {/* HUD rings — rotate around the core (SVG-native for exact center) */}
+        <circle cx="230" cy="250" r="182" fill="none" stroke="#0f7c6e" strokeWidth="1" strokeDasharray="3 10" opacity="0.5">
+          {!reduced && (
+            <animateTransform attributeName="transform" type="rotate" from="0 230 250" to="360 230 250" dur="46s" repeatCount="indefinite" />
+          )}
+        </circle>
+        <circle cx="230" cy="250" r="150" fill="none" stroke="#17b6a3" strokeWidth="1" strokeDasharray="1 14" opacity="0.55">
+          {!reduced && (
+            <animateTransform attributeName="transform" type="rotate" from="360 230 250" to="0 230 250" dur="60s" repeatCount="indefinite" />
+          )}
+        </circle>
+        <g opacity="0.6">
+          {!reduced && (
+            <animateTransform attributeName="transform" type="rotate" from="0 230 250" to="360 230 250" dur="46s" repeatCount="indefinite" />
+          )}
+          <circle cx="230" cy="68" r="3" fill="#17b6a3" />
+          <circle cx="412" cy="250" r="2.4" fill="#0f7c6e" />
+          <circle cx="230" cy="432" r="2.4" fill="#0f7c6e" />
+        </g>
       </svg>
+
+      {/* the guardian — living core of the plano */}
+      <img className="pv-hero-mascot" src="/mascots/guardian-default-trans.png" alt="" aria-hidden="true" />
+
+      {/* HUD labels — language-neutral technical chips (ponytail: inline, not i18n keys) */}
+      <span className="pv-hud" style={{ top: '15%', left: '-4%' }}>
+        DS 44 <small>✓ vigente</small>
+      </span>
+      <span className="pv-hud" style={{ top: '39%', right: '-8%' }}>
+        mesh · BLE <small>sin señal</small>
+      </span>
+      <span className="pv-hud" style={{ bottom: '24%', left: '-6%' }}>
+        SpO₂ <small>on-device</small>
+      </span>
+      <span className="pv-hud pv-hud-vida" style={{ bottom: '9%', right: '-2%' }}>
+        SOS <small>· gratis</small>
+      </span>
     </div>
   );
 }
@@ -410,6 +491,59 @@ export function SosCascade({ labels }: { labels: readonly [string, string, strin
           )}
         </g>
       ))}
+    </svg>
+  );
+}
+
+/** IA anclada a la norma — question → RAG box → answer with a legal citation. */
+export function RagPanel() {
+  return (
+    <svg viewBox="0 0 260 100" aria-hidden="true" style={{ width: '100%', height: 'auto' }}>
+      <rect x="24" y="14" width="58" height="72" rx="3" style={{ stroke: 'var(--pv-mist)', fill: 'rgba(207,224,219,0.05)' }} strokeWidth="1.3" />
+      <line x1="34" y1="30" x2="72" y2="30" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1" opacity="0.6" />
+      <line x1="34" y1="42" x2="72" y2="42" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1" opacity="0.6" />
+      <line x1="34" y1="54" x2="60" y2="54" style={{ stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.4" />
+      <line x1="34" y1="66" x2="72" y2="66" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1" opacity="0.6" />
+      <text x="53" y="98" textAnchor="middle" className="pv-cota">DS 44 · art. 7</text>
+      <line x1="90" y1="50" x2="136" y2="50" style={{ stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.4" strokeDasharray="4 4" />
+      <rect x="144" y="26" width="92" height="48" rx="10" style={{ fill: 'rgba(23,182,163,0.08)', stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.3" />
+      <line x1="158" y1="42" x2="222" y2="42" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1" opacity="0.7" />
+      <line x1="158" y1="54" x2="206" y2="54" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1" opacity="0.7" />
+      <text x="190" y="92" textAnchor="middle" className="pv-cota">respuesta con cita legal</text>
+    </svg>
+  );
+}
+
+/** Biometría on-device — vitals measured in the phone; nothing leaves it. */
+export function BiometricPanel() {
+  return (
+    <svg viewBox="0 0 260 100" aria-hidden="true" style={{ width: '100%', height: 'auto' }}>
+      <rect x="96" y="10" width="46" height="80" rx="6" style={{ stroke: 'var(--pv-mist)', fill: 'rgba(207,224,219,0.06)' }} strokeWidth="1.4" />
+      <path d="M104 50 h8 l5 -12 l7 22 l5 -10 h10" style={{ stroke: 'var(--pv-teal-bright)', fill: 'none' }} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="150" y1="50" x2="196" y2="50" style={{ stroke: 'var(--pv-mist)' }} strokeWidth="1.2" strokeDasharray="4 4" opacity="0.5" />
+      <line x1="186" y1="36" x2="206" y2="64" style={{ stroke: 'var(--pv-vida-bright)' }} strokeWidth="1.8" />
+      <line x1="206" y1="36" x2="186" y2="64" style={{ stroke: 'var(--pv-vida-bright)' }} strokeWidth="1.8" />
+      <text x="196" y="82" textAnchor="middle" className="pv-cota">nada sale</text>
+      <text x="119" y="99" textAnchor="middle" className="pv-cota">se procesa aquí</text>
+    </svg>
+  );
+}
+
+/** Evidencia inmutable — hash-chained records, signed, append-only. */
+export function AuditChainPanel() {
+  return (
+    <svg viewBox="0 0 260 100" aria-hidden="true" style={{ width: '100%', height: 'auto' }}>
+      <rect x="24" y="34" width="52" height="34" rx="4" style={{ stroke: 'var(--pv-mist)', fill: 'rgba(207,224,219,0.05)' }} strokeWidth="1.3" />
+      <text x="50" y="55" textAnchor="middle" className="pv-cota">#a1f4</text>
+      <line x1="76" y1="51" x2="96" y2="51" style={{ stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.4" />
+      <rect x="96" y="34" width="52" height="34" rx="4" style={{ stroke: 'var(--pv-mist)', fill: 'rgba(207,224,219,0.05)' }} strokeWidth="1.3" />
+      <text x="122" y="55" textAnchor="middle" className="pv-cota">#7c2e</text>
+      <line x1="148" y1="51" x2="168" y2="51" style={{ stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.4" />
+      <rect x="168" y="34" width="52" height="34" rx="4" style={{ fill: 'rgba(23,182,163,0.08)', stroke: 'var(--pv-teal-bright)' }} strokeWidth="1.4" />
+      <text x="194" y="55" textAnchor="middle" className="pv-cota" style={{ fill: 'var(--pv-teal-bright)' }}>firmado</text>
+      <rect x="228" y="42" width="14" height="12" rx="2" style={{ stroke: 'var(--pv-mist)', fill: 'none' }} strokeWidth="1.3" />
+      <path d="M231 42 v-4 a4 4 0 0 1 8 0 v4" style={{ stroke: 'var(--pv-mist)', fill: 'none' }} strokeWidth="1.3" />
+      <text x="130" y="90" textAnchor="middle" className="pv-cota">append-only · nada se borra</text>
     </svg>
   );
 }

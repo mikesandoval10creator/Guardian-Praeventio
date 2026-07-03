@@ -51,39 +51,42 @@ test.describe('Landing page', () => {
     }
   });
 
-  test('"Por qué Guardian" pain-point section visible', async ({ page }) => {
+  // 2026-07 Claude Design: the former Vida + Cómo-funciona sections are folded
+  // into one dark "El Sistema" section with six vida-crítica cards.
+  test('El Sistema — vida-crítica features visible', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Por qu[eé] Guardian/i)).toBeVisible();
-    await expect(page.getByText(/hojas de c[aá]lculo y papeleo/i)).toBeVisible();
+    await expect(page.getByText(/La victoria se gana antes de la batalla/i)).toBeVisible();
+    await expect(page.getByText(/SOS y hombre-caído/i)).toBeVisible();
+    await expect(page.getByText(/Red mesh sin señal/i)).toBeVisible();
   });
 
-  test('"Cómo funciona" 3-step flow visible', async ({ page }) => {
+  test('El Sistema — IA, biometría and evidencia cards visible', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/C[oó]mo funciona/i)).toBeVisible();
-    await expect(page.getByText(/Registra/i).first()).toBeVisible();
-    await expect(page.getByText(/IA analiza/i).first()).toBeVisible();
-    await expect(page.getByText(/Cumplimiento autom[aá]tico/i).first()).toBeVisible();
+    await expect(page.getByText(/Inteligencia Artificial/i).first()).toBeVisible();
+    await expect(page.getByText(/Biometr[ií]a 100% en el dispositivo/i)).toBeVisible();
+    await expect(page.getByText(/Evidencia que no se borra/i)).toBeVisible();
   });
 
-  test('pricing tiers card grid has 4 plans', async ({ page }) => {
+  test('pricing tiers grid renders the real tiers from tiers.ts', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/Planes para cada empresa/i)).toBeVisible();
-    // Real tier names from src/services/pricing/tiers.ts (the `nombre` field),
-    // NOT the old fake plans. The 4 landing cards map to gratis/cobre/plata/oro.
-    await expect(page.getByText(/Gratis/i).first()).toBeVisible();
-    await expect(page.getByText(/Cobre/i).first()).toBeVisible();
-    await expect(page.getByText(/Plata/i).first()).toBeVisible();
-    await expect(page.getByText(/Oro/i).first()).toBeVisible();
+    // Real tier names from src/services/pricing/tiers.ts (`nombre`). The 2026-07
+    // design shows all seven: the free row + six metal cards.
+    for (const name of ['Gratis', 'Cobre', 'Plata', 'Oro', 'Titanio', 'Platino', 'Diamante']) {
+      await expect(page.getByText(new RegExp(name, 'i')).first()).toBeVisible();
+    }
   });
 
-  test('Oro has RECOMENDADO pill (gold)', async ({ page }) => {
+  test('pricing shows the "Para tu dotación" recommended badge', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/RECOMENDADO/i)).toBeVisible();
+    await expect(page.getByText(/Para tu dotaci[oó]n/i)).toBeVisible();
   });
 
-  test('Plata has POPULAR pill (teal)', async ({ page }) => {
+  test('pricing has the monthly/annual toggle and workers slider', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/POPULAR/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Mensual/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Anual/i })).toBeVisible();
+    await expect(page.locator('#pv-workers')).toBeVisible();
   });
 
   test('footer has contact email + Santiago location', async ({ page }) => {

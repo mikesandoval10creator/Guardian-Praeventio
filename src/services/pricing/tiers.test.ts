@@ -74,12 +74,13 @@ describe('getTierById', () => {
     expect(t.workspaceTier).toBe('multi-tenant-csm');
   });
 
-  it('returns diamante (the jewel) with Infinity capacities + multi residency', () => {
+  it('returns diamante (the jewel) with unlimited workers, 50 projects + multi residency', () => {
     const t = getTierById('diamante');
     expect(t.clpRegular).toBe(3900000);
     expect(t.usdRegular).toBe(4200);
     expect(t.trabajadoresMax).toBe(Infinity);
-    expect(t.proyectosMax).toBe(Infinity);
+    // Projects-per-plan follow the Claude Design ladder (2026-07-03): Diamante = 50.
+    expect(t.proyectosMax).toBe(50);
     expect(t.jurisdictionsMax).toBe(Infinity);
     expect(t.dataResidency).toBe('multi');
     expect(t.multiJurisdiction).toBe(true);
@@ -158,7 +159,7 @@ describe('calculateMonthlyCost', () => {
   });
 
   it('Titanio within limits returns base only', () => {
-    const r = calculateMonthlyCost('titanio', 1000, 50);
+    const r = calculateMonthlyCost('titanio', 1000, 20);
     expect(r.base).toBe(249990);
     expect(r.workerOverage).toBe(0);
     expect(r.total).toBe(249990);
@@ -169,8 +170,9 @@ describe('calculateMonthlyCost', () => {
     expect(r.total).toBe(0);
   });
 
-  it('Diamante always returns base regardless of usage', () => {
-    const r = calculateMonthlyCost('diamante', 50000, 1000);
+  it('Diamante: unlimited workers, base only within its 50-project cap', () => {
+    // Projects-per-plan follow the Claude Design ladder (Diamante = 50); workers stay unlimited.
+    const r = calculateMonthlyCost('diamante', 50000, 50);
     expect(r.total).toBe(3900000);
     expect(r.workerOverage).toBe(0);
     expect(r.projectOverage).toBe(0);

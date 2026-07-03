@@ -126,10 +126,14 @@ describe('LandingPage (Plano Vivo)', () => {
     expect(screen.getByText(/Evacuación con ruteo A\*/i)).toBeInTheDocument();
   });
 
-  it('keeps the e2e-pinned sections: Por qué Guardian + Cómo funciona', () => {
+  it('renders El Sistema with the six vida-crítica features (2026-07 consolidation)', () => {
+    // The Claude Design landing folds the former Vida + Cómo-funciona sections
+    // into one "El Sistema" section: the 3 life-safety cards (SOS/mesh/evac,
+    // asserted above) plus IA-on-norm, on-device biometrics and the audit chain.
     renderLanding();
-    expect(screen.getByText(/Por qué Guardian/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Cómo funciona/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Registra/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/La victoria se gana antes de la batalla/i)).toBeInTheDocument();
+    expect(screen.getByText(/Inteligencia Artificial/i)).toBeInTheDocument();
+    expect(screen.getByText(/Biometría 100% en el dispositivo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Evidencia que no se borra/i)).toBeInTheDocument();
   });
 });

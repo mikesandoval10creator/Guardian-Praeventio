@@ -2388,6 +2388,14 @@
         "title": "Immutable audit log",
         "desc": "Every state-changing action is written to an append-only audit log: never edited, never deleted."
       },
+      "biometria": {
+        "title": "Biometrics that never travel",
+        "desc": "Camera and pulse are processed on the worker's phone and discarded. Only the traffic-light status reaches the server."
+      },
+      "iso": {
+        "title": "ISO 45001",
+        "desc": "Occupational health and safety aligned with the current international standard, as a fallback in countries without a local framework."
+      },
       "backups": {
         "title": "Backups & disaster recovery",
         "desc": "Encrypted backups and a disaster-recovery (DR) plan so operations never stop."
@@ -2458,6 +2466,10 @@
       "title_pre": "Connects facts that today die in a",
       "title_ac": "filing cabinet",
       "sub": "A near-miss in March, an expired extinguisher in June: on paper they are isolated facts; in Guardian, a connected root cause. The system joins the dots before the accident — and runs your entire sites: teams, deadlines, documents and compliance in one place.",
+      "bio": {
+        "title": "Biometrics, 100% on-device",
+        "desc": "Vital signs measured with the phone's camera and sensors. Neither your pulse nor the image leaves the device — they are processed and discarded."
+      },
       "evidence": {
         "title": "Evidence that can't be erased",
         "desc": "Every record lands in an immutable audit chain with author and timestamp: the proof DS 44 and Law 16.744 demand, ready for inspection. Archived, never destroyed."

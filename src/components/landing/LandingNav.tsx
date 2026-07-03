@@ -29,10 +29,14 @@ export function LandingNav({ onEnter, onLogin }: LandingNavProps) {
 
   return (
     <nav className="pv-nav">
-      <div className="flex items-center gap-2.5 font-semibold tracking-tight">
+      <div className="flex items-center gap-2.5">
         <ShieldMark />
-        <span>
-          Guardian <b style={{ color: 'var(--pv-teal)' }}>Praeventio</b>
+        <span className="leading-tight">
+          <span className="font-semibold tracking-tight">
+            Guardian <b style={{ color: 'var(--pv-teal)' }}>Praeventio</b>
+          </span>
+          {/* ponytail: fixed brand tagline, inline (not i18n) — matches the design lockup */}
+          <span className="pv-nav-tagline">Tu aplicación de prevención de riesgos</span>
         </span>
       </div>
 

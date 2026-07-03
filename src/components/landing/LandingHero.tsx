@@ -34,7 +34,7 @@ export function LandingHero({ onStart, onHowItWorks }: LandingHeroProps) {
 
         <motion.h1 {...enter(0.12)} className="pv-h1" style={{ marginBottom: 'var(--pv-sp-3)' }}>
           {t('landing.hero.title_line_1')}{' '}
-          <span className="pv-ac">{t('landing.hero.title_line_2')}</span>
+          <span className="pv-ac-vida">{t('landing.hero.title_line_2')}</span>
         </motion.h1>
 
         <motion.p

@@ -11,23 +11,23 @@ describe('scaleCapsForPlan', () => {
   it('maps each plan to its tier caps (7-metal scheme)', () => {
     expect(scaleCapsForPlan('free')).toEqual({ trabajadoresMax: 3, proyectosMax: 1 });
     expect(scaleCapsForPlan('cobre')).toEqual({ trabajadoresMax: 72, proyectosMax: 3 });
-    expect(scaleCapsForPlan('plata')).toEqual({ trabajadoresMax: 99, proyectosMax: 10 });
-    expect(scaleCapsForPlan('oro')).toEqual({ trabajadoresMax: 499, proyectosMax: 50 });
-    expect(scaleCapsForPlan('titanio')).toEqual({ trabajadoresMax: 1999, proyectosMax: 100 });
-    expect(scaleCapsForPlan('platino')).toEqual({ trabajadoresMax: 9999, proyectosMax: 500 });
+    expect(scaleCapsForPlan('plata')).toEqual({ trabajadoresMax: 99, proyectosMax: 5 });
+    expect(scaleCapsForPlan('oro')).toEqual({ trabajadoresMax: 499, proyectosMax: 10 });
+    expect(scaleCapsForPlan('titanio')).toEqual({ trabajadoresMax: 1999, proyectosMax: 20 });
+    expect(scaleCapsForPlan('platino')).toEqual({ trabajadoresMax: 9999, proyectosMax: 30 });
     expect(scaleCapsForPlan('diamante')).toEqual({
       trabajadoresMax: Infinity,
-      proyectosMax: Infinity,
+      proyectosMax: 50,
     });
   });
 
   it('resolves pre-collapse legacy plan ids to the closest-up 7-metal cap', () => {
     // comité → Plata band; departamento → Oro band; ilimitado → Diamante.
-    expect(scaleCapsForPlan('comite')).toEqual({ trabajadoresMax: 99, proyectosMax: 10 });
-    expect(scaleCapsForPlan('departamento')).toEqual({ trabajadoresMax: 499, proyectosMax: 50 });
+    expect(scaleCapsForPlan('comite')).toEqual({ trabajadoresMax: 99, proyectosMax: 5 });
+    expect(scaleCapsForPlan('departamento')).toEqual({ trabajadoresMax: 499, proyectosMax: 10 });
     expect(scaleCapsForPlan('ilimitado')).toEqual({
       trabajadoresMax: Infinity,
-      proyectosMax: Infinity,
+      proyectosMax: 50,
     });
   });
 
@@ -40,7 +40,7 @@ describe('scaleCapsForPlan', () => {
   });
 
   it('normalizes legacy aliases (premium→oro, basic→cobre)', () => {
-    expect(scaleCapsForPlan('premium')).toEqual({ trabajadoresMax: 499, proyectosMax: 50 });
+    expect(scaleCapsForPlan('premium')).toEqual({ trabajadoresMax: 499, proyectosMax: 10 });
     expect(scaleCapsForPlan('basic')).toEqual({ trabajadoresMax: 72, proyectosMax: 3 });
   });
 

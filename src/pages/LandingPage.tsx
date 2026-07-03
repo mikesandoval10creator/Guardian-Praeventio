@@ -25,9 +25,7 @@ import { PublicEmergencyButton } from '../components/emergency/PublicEmergencyBu
 import { LandingNav } from '../components/landing/LandingNav';
 import { LandingHero } from '../components/landing/LandingHero';
 import { ComplianceStrip } from '../components/landing/ComplianceStrip';
-import { VidaSection } from '../components/landing/VidaSection';
 import { SistemaSection } from '../components/landing/SistemaSection';
-import { HowSection } from '../components/landing/HowSection';
 import { SecuritySection } from '../components/landing/SecuritySection';
 import { PricingSection } from '../components/landing/PricingSection';
 import { CierreSection } from '../components/landing/CierreSection';
@@ -115,7 +113,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
   };
 
   const scrollToHow = () => {
-    document.getElementById('vida')?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('sistema')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -140,9 +138,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       <main id="main-content" tabIndex={-1}>
         <LandingHero onStart={handleLogin} onHowItWorks={scrollToHow} />
         <ComplianceStrip />
-        <VidaSection />
         <SistemaSection />
-        <HowSection />
         <SecuritySection />
         <PricingSection onChoosePlan={handleLogin} />
         <CierreSection onStart={handleEnter} />
