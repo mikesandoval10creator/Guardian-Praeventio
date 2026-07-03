@@ -21,12 +21,12 @@ describe('smoke: billing tier → invoice → audit', () => {
     expect(tier.clpRegular).toBe(9990);
   });
 
-  it('calculateMonthlyCost(cobre, 80, 3) = 9990 + 8*990 = 17910', () => {
-    const cost = calculateMonthlyCost('cobre', 80, 3);
+  it('calculateMonthlyCost(cobre, 30, 3) = 9990 + 6*990 = 15930', () => {
+    const cost = calculateMonthlyCost('cobre', 30, 3);
     expect(cost.base).toBe(9990);
-    expect(cost.workerOverage).toBe(8 * 990);
+    expect(cost.workerOverage).toBe(6 * 990); // 30 - 24 (per-project cap)
     expect(cost.projectOverage).toBe(0);
-    expect(cost.total).toBe(17910);
+    expect(cost.total).toBe(15930);
   });
 
   it('withIVA(10075) → { subtotal: 10075, iva: 1915, total: 11990 }', () => {
