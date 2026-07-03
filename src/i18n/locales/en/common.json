@@ -2255,8 +2255,8 @@
   "landing": {
     "skip_to_content": "Skip to content",
     "meta": {
-      "title": "Guardian Praeventio - Risk prevention in the palm of your hand",
-      "description": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform"
+      "title": "Guardian Praeventio — 5 minutes that can save your life",
+      "description": "Occupational risk prevention that anticipates the accident: SOS, man-down, A*-routed evacuation and an off-grid mesh network, free for the worker. DS 44/2024 and Law 16.744 compliance with AI grounded in the real regulation."
     },
     "nav": {
       "login": "Log in",
@@ -2264,13 +2264,14 @@
     },
     "hero": {
       "compliance_badge": "Compliant with DS 44/2024 . Law 16.744",
-      "title_line_1": "The revolution of",
-      "title_line_2": "risk prevention",
-      "subtitle": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform",
-      "description": "AI, emergencies, and Chilean regulatory compliance in a single app. For companies that take worker safety seriously.",
+      "title_line_1": "5 minutes that can",
+      "title_line_2": "save your life",
+      "subtitle": "The five-minute safety talk you already run every morning, turned into a system that anticipates the accident that hasn't happened yet.",
+      "description": "Works with no signal, protects the worker first and keeps the evidence Chilean law demands — DS 44/2024, Law 16.744, DS 594 — ready to scale worldwide.",
       "cta_primary": "Start free",
-      "cta_secondary": "Enter the app",
-      "free_tier_note": "Start free · No credit card · SOS & emergencies, free forever"
+      "cta_secondary": "How it works",
+      "free_tier_note": "SOS · Man-down · Evacuation · Mesh network — free for the worker, always. No credit card.",
+      "blueprint_caption": "Scaffold blueprint drawing itself over the golden spiral — φ 1.618"
     },
     "problem": {
       "eyebrow": "The problem",
@@ -2362,10 +2363,14 @@
           "b2": "Up to 50 projects",
           "b3": "Executive dashboard & analytics"
         }
-      }
+      },
+      "per_month": "mo"
     },
     "trust": {
-      "disclaimer": "Regulatory frameworks and reference bodies that Guardian helps you comply with. This does not imply affiliation with or endorsement by these organizations; decisions are made by whoever runs the project."
+      "disclaimer": "Regulatory frameworks and reference bodies that Guardian helps you comply with. This does not imply affiliation with or endorsement by these organizations; decisions are made by whoever runs the project.",
+      "data_residency_badge": "Data in Chile · Law 19.628",
+      "audit_badge": "Immutable audit trail",
+      "aria_label": "Reference regulatory frameworks"
     },
     "security": {
       "eyebrow": "Security & trust",
@@ -2390,10 +2395,10 @@
       "disclaimer": "Guardian provides guidance based on current law and the information your team records; the final decision always rests with whoever runs the project."
     },
     "final_cta": {
-      "title_line_1": "Start today.",
-      "title_line_2": "It's free.",
-      "subtitle": "Create your account, add your company, and comply with Chilean regulations from day one.",
-      "button": "Open Guardian Praeventio"
+      "title_line_1": "Protect the one who brings",
+      "title_line_2": "bread home",
+      "subtitle": "Safety shouldn't depend on having signal, a paid plan or luck. Start free today: 5 minutes that can save a life.",
+      "button": "Start free"
     },
     "footer": {
       "tagline": "Risk prevention in the palm of your hand.",
@@ -2406,7 +2411,70 @@
       "data_secure": "Secure data · Firebase",
       "copyright": "© 2026 Praeventio · Chile",
       "made_in": "Made in Chile"
-    }
+    },
+    "lang": {
+      "label": "Language",
+      "more": "More languages"
+    },
+    "lam": {
+      "vida": "SHT. 01 · LIFE",
+      "sistema": "SHT. 02 · SYSTEM",
+      "proceso": "SHT. 03 · PROCESS",
+      "confianza": "SHT. 04 · TRUST",
+      "planes": "SHT. 05 · PLANS",
+      "cierre": "SHT. 06 · GUARDIAN"
+    },
+    "vida": {
+      "title_pre": "What is never",
+      "title_ac": "charged for",
+      "sub": "The features that save lives are free for the worker, always. You pay for management and scale — never for safety.",
+      "free_badge": "Free for the worker, always",
+      "sos": {
+        "title": "SOS & man-down",
+        "desc": "After a fall or immobility, the phone detects and alerts on its own. The cascade doesn't stop until a human confirms: push, backup email, then a call. Detection runs 100% on-device.",
+        "step_push": "Push",
+        "step_email": "Email",
+        "step_call": "Call",
+        "impact": "Response stops depending on someone happening to watch."
+      },
+      "evac": {
+        "title": "Evacuation with A* routing",
+        "desc": "Over your site's real blueprint, the A* algorithm computes the shortest route to the safe zone around blocked sectors and guides every person in real time.",
+        "start_label": "START",
+        "exit_label": "EXIT",
+        "impact": "The evacuation drill now lives in every worker's pocket."
+      },
+      "mesh": {
+        "title": "Mesh network, no signal",
+        "desc": "On a site with no coverage, the alert hops phone to phone over Bluetooth until one finds signal. The emergency doesn't depend on a tower.",
+        "p1": "No coverage — the alert is born anyway",
+        "p2": "It hops pocket to pocket",
+        "p3": "Finds signal and reaches the world",
+        "impact": "The pit and the underground stop being silent zones."
+      }
+    },
+    "sistema": {
+      "epigraph": "“Every battle is won before it is fought” — Sun Tzu",
+      "title_pre": "Connects facts that today die in a",
+      "title_ac": "filing cabinet",
+      "sub": "A near-miss in March, an expired extinguisher in June: on paper they are isolated facts; in Guardian, a connected root cause. The system joins the dots before the accident — and runs your entire sites: teams, deadlines, documents and compliance in one place.",
+      "evidence": {
+        "title": "Evidence that can't be erased",
+        "desc": "Every record lands in an immutable audit chain with author and timestamp: the proof DS 44 and Law 16.744 demand, ready for inspection. Archived, never destroyed."
+      },
+      "iper": {
+        "title": "A living IPER matrix",
+        "desc": "Hazard identification and risk assessment that updates with every field report — not a spreadsheet frozen after induction."
+      },
+      "tag_ai": "RAG · Regulation",
+      "tag_evidence": "DS 44",
+      "tag_iper": "IPER",
+      "tag_training": "Certificates",
+      "tag_iso": "ISO 45001 · SUSESO",
+      "tag_teams": "Multi-site",
+      "tag_dashboard": "Live KPIs"
+    },
+    "mascot_alt": "The Praeventio Guardian waves hello"
   },
   "notifications": {
     "title": "Notifications",

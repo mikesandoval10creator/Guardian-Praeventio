@@ -33,10 +33,10 @@ test.describe('Landing page', () => {
     // partido por <br/> + <span>, así que aseveramos contra el <h1> completo
     // con toContainText en vez de buscar un nodo de texto contiguo.
     const heroHeading = page.getByRole('heading', { level: 1 });
-    await expect(heroHeading).toContainText(/revoluci[oó]n de la/i);
-    await expect(heroHeading).toContainText(/prevenci[oó]n de riesgos/i);
+    await expect(heroHeading).toContainText(/5 minutos que pueden/i);
+    await expect(heroHeading).toContainText(/salvar tu vida/i);
     // Subtitle (landing.hero.subtitle) — sí es un nodo único.
-    await expect(page.getByText(/Gesti[oó]n de riesgos.*bienestar.*cumplimiento/i)).toBeVisible();
+    await expect(page.getByText(/charla de 5 minutos/i)).toBeVisible();
   });
 
   test('compliance badges row renders all 7', async ({ page }) => {
@@ -93,13 +93,12 @@ test.describe('Landing page', () => {
     await expect(page.getByText(/Santiago.*Chile/i)).toBeVisible();
   });
 
-  test('CTA primary "Entrar a la app" button is visible and clickable', async ({ page }) => {
+  test('CTA primary "Comenzar gratis" button is visible and clickable', async ({ page }) => {
     await page.goto('/');
-    // El CTA primario del hero (landing.hero.cta_primary = "Entrar a la app").
-    // El locator viejo /ENTRAR/i + .first() agarraba el botón de la barra nav
-    // (primero en el DOM), frágil ante visibilidad responsive — apuntamos al
-    // botón primario del hero, que es el verdadero call-to-action.
-    const cta = page.getByRole('button', { name: /Entrar a la app/i });
+    // El CTA primario del hero (landing.hero.cta_primary = "Comenzar gratis").
+    // El mismo label existe también en el cierre (final_cta.button), así que
+    // .first() apunta al del hero, que es el verdadero call-to-action.
+    const cta = page.getByRole('button', { name: /Comenzar gratis/i }).first();
     await expect(cta).toBeVisible();
     await expect(cta).toBeEnabled();
   });

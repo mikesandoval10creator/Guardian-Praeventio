@@ -39,22 +39,22 @@ test.describe('Landing page — English locale (full i18n)', () => {
   test('renders fully in English across every section', async ({ page }) => {
     await page.goto('/');
 
-    // Hero (was already i18n'd) — English headline.
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/revolution of/i);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/risk prevention/i);
+    // Hero — English brand phrase ("5 minutes that can save your life").
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/5 minutes that can/i);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/save your life/i);
 
     // Body sections that USED to be hardcoded Spanish — now English.
     await expect(page.getByText(/Why Guardian/i)).toBeVisible();
     await expect(page.getByText(/spreadsheets and paperwork/i)).toBeVisible();
-    await expect(page.getByText(/Everything you need to comply with the law/i)).toBeVisible();
-    await expect(page.getByText(/Emergency Response/i).first()).toBeVisible();
-    await expect(page.getByText(/How it works/i)).toBeVisible();
+    await expect(page.getByText(/Connects facts that today die/i)).toBeVisible();
+    await expect(page.getByText(/SOS & man-down/i).first()).toBeVisible();
+    await expect(page.getByText(/How it works/i).first()).toBeVisible();
     await expect(page.getByText(/Automatic compliance/i).first()).toBeVisible();
     await expect(page.getByText(/Plans for every company/i)).toBeVisible();
     await expect(page.getByText(/Made in Chile/i)).toBeVisible();
 
-    // CTA button localized too.
-    await expect(page.getByRole('button', { name: /Open Guardian Praeventio/i })).toBeVisible();
+    // CTA button localized too (hero + close share the label — .first()).
+    await expect(page.getByRole('button', { name: /Start free/i }).first()).toBeVisible();
   });
 
   test('has zero Spanish leakage in the body', async ({ page }) => {

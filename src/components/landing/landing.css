@@ -1,0 +1,602 @@
+/**
+ * Plano Vivo — Guardian Praeventio landing design system.
+ *
+ * φ = 1.618 governs the type scale, the spacing ladder and the layout grid.
+ * Palette discipline (semantic, not decorative):
+ *   - teal    → the system
+ *   - gold    → ONLY φ geometry (spiral, cotas)
+ *   - copihue → ONLY life-safety (SOS / emergency)
+ * All tokens are scoped under `.pv-landing` so nothing leaks into the app.
+ * Fonts: Fraunces Variable (display serif) + Space Grotesk Variable (UI)
+ * are imported via @fontsource in LandingPage.tsx; JetBrains Mono is already
+ * loaded globally by src/index.css.
+ */
+
+.pv-landing {
+  /* ── φ tokens ─────────────────────────────────────────────── */
+  --phi: 1.618;
+
+  --pv-paper: #f4f1e9;
+  --pv-paper2: #ece7db;
+  --pv-ink: #0b1a1c;
+  --pv-ink-soft: #33474a;
+  --pv-teal: #0f7c6e;
+  --pv-teal-bright: #2fa08f;
+  --pv-teal-deep: #063f39;
+  --pv-mist: #cfe0db;
+  --pv-gold: #b08733;
+  --pv-vida: #a8402f;
+  --pv-vida-bright: #e0785c;
+  --pv-line: rgba(11, 26, 28, 0.14);
+  --pv-line-light: rgba(244, 241, 233, 0.16);
+  --pv-paper-soft: rgba(244, 241, 233, 0.72);
+
+  /* type scale: 1rem × φⁿ */
+  --pv-t--1: 0.707rem;
+  --pv-t-0: 1rem;
+  --pv-t-1: 1.618rem;
+  --pv-t-2: 2.618rem;
+  --pv-t-3: 4.236rem;
+  --pv-t-4: 6.854rem;
+
+  /* spacing ladder in φ */
+  --pv-sp-1: 0.618rem;
+  --pv-sp-2: 1rem;
+  --pv-sp-3: 1.618rem;
+  --pv-sp-4: 2.618rem;
+  --pv-sp-5: 4.236rem;
+  --pv-sp-6: 6.854rem;
+  --pv-edge: 6.18vw;
+
+  background: var(--pv-paper);
+  color: var(--pv-ink);
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(15px, 1vw + 12px, 18px);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.pv-landing ::selection {
+  background: var(--pv-teal);
+  color: var(--pv-paper);
+}
+
+/* subtle paper grain (multiply on paper, screen never used on ink) */
+.pv-grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+/* ── typography roles ────────────────────────────────────────── */
+.pv-serif {
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 400;
+  font-variation-settings: 'opsz' 144;
+}
+.pv-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-weight: 400;
+}
+
+.pv-h1 {
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 420;
+  font-variation-settings: 'opsz' 144;
+  font-size: clamp(2.5rem, 6.5vw, var(--pv-t-4));
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+}
+.pv-h2 {
+  font-family: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  font-weight: 420;
+  font-variation-settings: 'opsz' 96;
+  font-size: clamp(1.9rem, 4.2vw, var(--pv-t-3));
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.pv-ac {
+  color: var(--pv-teal);
+  font-style: italic;
+  font-variation-settings: 'opsz' 144;
+}
+.pv-on-ink .pv-ac {
+  color: var(--pv-mist);
+}
+
+/* mono kicker with dash — sheet labels (LÁM. 01 · VIDA) */
+.pv-kicker {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--pv-teal);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.pv-kicker::before {
+  content: '';
+  width: 2.618rem;
+  height: 1px;
+  background: currentColor;
+  flex: none;
+}
+.pv-on-ink .pv-kicker {
+  color: var(--pv-teal-bright);
+}
+
+/* ── sections ───────────────────────────────────────────────── */
+.pv-section {
+  padding: var(--pv-sp-6) var(--pv-edge);
+  position: relative;
+}
+.pv-on-ink {
+  background: var(--pv-ink);
+  color: var(--pv-paper);
+}
+.pv-on-paper2 {
+  background: var(--pv-paper2);
+}
+
+/* diagonal paper→ink fold between sections (origami + manga energy) */
+.pv-fold-edge-top {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 3.4rem;
+  background: var(--pv-paper);
+  clip-path: polygon(0 0, 100% 0, 100% 18%, 0 100%);
+  pointer-events: none;
+}
+.pv-fold-edge-bottom {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3.4rem;
+  background: var(--pv-paper);
+  clip-path: polygon(0 82%, 100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* ── buttons ────────────────────────────────────────────────── */
+.pv-btn-primary {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: var(--pv-t-0);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 1rem 1.8rem;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  background: var(--pv-teal);
+  color: var(--pv-paper);
+  transition: background 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 10px 30px -12px var(--pv-teal);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.pv-btn-primary:hover {
+  background: var(--pv-teal-deep);
+  transform: translateY(-2px);
+}
+.pv-btn-ink {
+  background: var(--pv-ink);
+  box-shadow: none;
+}
+.pv-btn-ink:hover {
+  background: var(--pv-teal);
+  transform: none;
+}
+.pv-btn-ghost {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: var(--pv-t-0);
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0.3rem 0;
+  transition: color 0.2s ease;
+}
+.pv-btn-ghost:hover {
+  color: var(--pv-teal);
+}
+.pv-on-ink .pv-btn-ghost:hover {
+  color: var(--pv-teal-bright);
+}
+
+/* visible keyboard focus everywhere on the landing */
+.pv-landing :focus-visible {
+  outline: 2px solid var(--pv-teal);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.pv-on-ink :focus-visible {
+  outline-color: var(--pv-teal-bright);
+}
+
+/* ── compliance marquee ─────────────────────────────────────── */
+.pv-strip {
+  border-block: 1px solid var(--pv-line);
+  padding: var(--pv-sp-2) 0;
+  overflow: hidden;
+  background: var(--pv-paper2);
+}
+.pv-strip-track {
+  display: flex;
+  gap: var(--pv-sp-5);
+  white-space: nowrap;
+  width: max-content;
+  animation: pv-slide 36s linear infinite;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pv-ink-soft);
+}
+.pv-strip-track > span {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.pv-strip-track > span::before {
+  content: '◇';
+  color: var(--pv-teal);
+}
+@keyframes pv-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── origami folds (LÁM. SISTEMA) ───────────────────────────── */
+.pv-folds {
+  display: grid;
+  gap: var(--pv-sp-3);
+  perspective: 1200px;
+}
+.pv-fold {
+  border: 1px solid var(--pv-line);
+  border-radius: 2px;
+  background: var(--pv-paper);
+  display: grid;
+  grid-template-columns: 3.2rem 1fr auto;
+  align-items: start;
+  gap: var(--pv-sp-3);
+  padding: var(--pv-sp-3) var(--pv-sp-4);
+  position: relative;
+  overflow: hidden;
+  transform-origin: top center;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+.pv-fold:hover {
+  border-color: var(--pv-teal);
+  background: linear-gradient(180deg, var(--pv-paper), var(--pv-mist) 320%);
+}
+.pv-fold::before {
+  /* origami crease: subtle diagonal corner */
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.618rem;
+  height: 2.618rem;
+  background: linear-gradient(225deg, var(--pv-mist) 0 50%, transparent 50%);
+  opacity: 0.6;
+}
+.pv-fold-n {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t-1);
+  color: var(--pv-teal);
+  line-height: 1.2;
+}
+.pv-fold h3 {
+  font-weight: 600;
+  font-size: var(--pv-t-1);
+  letter-spacing: -0.01em;
+  margin-bottom: 0.35rem;
+}
+.pv-fold p {
+  color: var(--pv-ink-soft);
+  font-size: var(--pv-t-0);
+  max-width: 56ch;
+}
+.pv-fold-tag {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  color: var(--pv-teal);
+  border: 1px solid var(--pv-teal);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* ── vida cards (on ink) ────────────────────────────────────── */
+.pv-vida-card {
+  border: 1px solid var(--pv-line-light);
+  border-radius: 2px;
+  background: rgba(244, 241, 233, 0.03);
+  padding: var(--pv-sp-4);
+}
+.pv-vida-card h3 {
+  font-weight: 600;
+  font-size: var(--pv-t-1);
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+.pv-vida-card p {
+  color: rgba(244, 241, 233, 0.72);
+  max-width: 58ch;
+}
+.pv-impact {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  color: var(--pv-vida-bright);
+  letter-spacing: 0.04em;
+  display: flex;
+  gap: 0.6rem;
+  margin-top: var(--pv-sp-2);
+}
+.pv-impact::before {
+  content: '→';
+  flex: none;
+}
+
+/* manga panels for the mesh relay story */
+.pv-manga {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--pv-sp-2);
+}
+.pv-panel {
+  border: 1.5px solid var(--pv-line-light);
+  border-radius: 2px;
+  background: rgba(244, 241, 233, 0.04);
+  padding: var(--pv-sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.pv-panel svg {
+  width: 100%;
+  height: auto;
+}
+.pv-panel-caption {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  color: rgba(244, 241, 233, 0.66);
+  letter-spacing: 0.03em;
+}
+
+/* free-forever badge (copihue red — vida only) */
+.pv-free-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pv-vida-bright);
+  border: 1px solid var(--pv-vida-bright);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+}
+
+/* ── security "notarial document" cards ─────────────────────── */
+.pv-notarial {
+  border: 1px solid var(--pv-line);
+  background: var(--pv-paper);
+  border-radius: 2px;
+  padding: var(--pv-sp-3);
+  position: relative;
+}
+.pv-notarial::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid var(--pv-line);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* ── pricing cards ──────────────────────────────────────────── */
+.pv-plan {
+  border: 1px solid var(--pv-line);
+  border-radius: 2px;
+  background: var(--pv-paper);
+  padding: var(--pv-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pv-sp-1);
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+.pv-plan:hover {
+  border-color: var(--pv-teal);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -28px rgba(11, 26, 28, 0.45);
+}
+.pv-plan-metal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+.pv-plan-pill {
+  position: absolute;
+  top: -0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ── nav ────────────────────────────────────────────────────── */
+.pv-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pv-sp-2);
+  padding: var(--pv-sp-2) var(--pv-edge);
+  background: color-mix(in srgb, var(--pv-paper) 84%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border-bottom: 1px solid var(--pv-line);
+}
+.pv-lang-btn {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--pv-ink-soft);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.45rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.pv-lang-btn:hover {
+  color: var(--pv-ink);
+}
+.pv-lang-btn[aria-pressed='true'] {
+  background: var(--pv-ink);
+  color: var(--pv-paper);
+}
+.pv-lang-select {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--pv-t--1);
+  background: transparent;
+  color: var(--pv-ink-soft);
+  border: 1px solid var(--pv-line);
+  border-radius: 6px;
+  padding: 0.25rem 0.35rem;
+  cursor: pointer;
+  max-width: 3.4rem;
+}
+
+/* ── ambient float for the hero blueprint ───────────────────── */
+.pv-floaty {
+  animation: pv-floaty 9s ease-in-out infinite;
+}
+@keyframes pv-floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* cota (dimension line) label */
+.pv-cota {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  fill: var(--pv-ink-soft);
+}
+.pv-on-ink .pv-cota {
+  fill: rgba(244, 241, 233, 0.55);
+}
+
+/* ── hero φ grid ────────────────────────────────────────────── */
+.pv-hero {
+  position: relative;
+  min-height: 92svh;
+  display: grid;
+  grid-template-columns: minmax(0, 61.8fr) minmax(0, 38.2fr);
+  align-items: center;
+  gap: var(--pv-sp-4);
+  padding: calc(var(--pv-sp-6) + 3.4rem) var(--pv-edge) var(--pv-sp-5);
+}
+.pv-hero-visual {
+  justify-self: center;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* ── responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .pv-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 7.2rem;
+  }
+  /* la frase manda en pantallas chicas: el plano se dibuja después, centrado */
+  .pv-hero-visual {
+    order: 1;
+    max-width: 230px;
+    justify-self: center;
+    margin-top: var(--pv-sp-3);
+  }
+  .pv-manga {
+    grid-template-columns: 1fr;
+  }
+  .pv-fold {
+    grid-template-columns: 1fr;
+    gap: var(--pv-sp-2);
+  }
+  .pv-fold-tag {
+    justify-self: start;
+    align-self: start;
+  }
+}
+
+/* nav compacto en teléfonos: la marca no se parte y ENTRAR siempre entra */
+.pv-nav > div:first-child {
+  white-space: nowrap;
+  flex: none;
+}
+@media (max-width: 560px) {
+  .pv-nav {
+    gap: 0.5rem;
+    padding-left: 4vw;
+    padding-right: 4vw;
+  }
+  .pv-nav > div:first-child {
+    font-size: 0.82rem;
+    gap: 0.4rem;
+  }
+  .pv-lang-select {
+    display: none;
+  }
+}
+
+/* ── reduced motion: the plano arrives fully drawn ──────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pv-landing *,
+  .pv-landing *::before,
+  .pv-landing *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
