@@ -64,7 +64,8 @@ test.describe('Landing page', () => {
   test('El Sistema — IA, biometría and evidencia cards visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/Inteligencia Artificial/i).first()).toBeVisible();
-    await expect(page.getByText(/Biometr[ií]a 100% en el dispositivo/i)).toBeVisible();
+    // "Biometría 100% en el dispositivo" also appears in the hero status line.
+    await expect(page.getByRole('heading', { name: 'Biometría 100% en el dispositivo' })).toBeVisible();
     await expect(page.getByText(/Evidencia que no se borra/i)).toBeVisible();
   });
 

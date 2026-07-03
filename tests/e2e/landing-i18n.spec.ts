@@ -51,7 +51,7 @@ test.describe('Landing page — English locale (full i18n)', () => {
     await expect(page.getByText(/Biometrics, 100% on-device/i)).toBeVisible();
     await expect(page.getByText(/Evidence that can't be erased/i)).toBeVisible();
     // Pricing header + footer localized.
-    await expect(page.getByText(/Plans for every company/i)).toBeVisible();
+    await expect(page.getByText(/Life has no price/i)).toBeVisible();
     await expect(page.getByText(/Made in Chile/i)).toBeVisible();
 
     // CTA button localized too (hero + close share the label — .first()).
