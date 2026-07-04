@@ -1448,3 +1448,23 @@ Deploy AFTER the `tenantId` claim backfill (see
      denied by the create anti-spoof.
 163. **Tenant Re-Homing**: an update that changes an existing project's
      `tenantId` (moving it to another tenant) — `tenantId` is immutable; denied.
+
+## M-1 project tenant-scoping — storage isolation (Phase 4, added 2026-07-04)
+
+Cloud Storage rules cannot read Firestore, so `memberOfSite(projectId)` gates on
+the `assignedSiteIds` custom claim (the project ids the user belongs to), minted
+by the `assignedSitesSync` trigger from `projects/{pid}.members` (+ `createdBy`).
+The prior `claim absent → allow` escape hatch was FAIL-OPEN because the claim was
+never minted (`buildClaimsWithAssignedSites` was orphaned), so `memberOfSite()`
+collapsed to `isSignedIn()` and any authenticated user reached every project's
+files. Now fail-closed. Rejected payloads:
+
+164. **Cross-Tenant File Read**: a signed-in user with no `assignedSiteIds`
+     claim (or a claim not containing `pid`) reads/lists `projects/{pid}/**`,
+     `ai_reports/{pid}/**`, `blueprints/{pid}/**`, `suseso_reports/{pid}/**`,
+     `reconstructions/{pid}/**` — denied (was the wide-open cross-tenant leak).
+165. **Cross-Tenant File Write**: a user assigned only to `site-2` uploads to
+     `projects/site-1/**` — denied (claim does not contain the target pid).
+166. **Stale-Access After Removal**: a user removed from a project keeps
+     uploading with their pre-removal token — assignedSitesSync revokes refresh
+     tokens on removal, so the stale token dies on its next refresh.
