@@ -27,6 +27,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { planProjectCap } from '../services/pricing/subscriptionPlan';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
@@ -47,6 +49,7 @@ import type { PredictedActivity } from '../services/calendar/predictions';
 export function Projects() {
   const { t } = useTranslation();
   const { projects, createProject, loading, error: projectsError, selectedProject, setSelectedProject } = useProject();
+  const { plan, loading: subscriptionLoading } = useSubscription();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,6 +104,27 @@ export function Projects() {
   };
 
   const executeSubmit = async () => {
+    // Scale gate (per-project cap): a plan caps how many ACTIVE projects a tenant
+    // may run at once (tiers.ts `proyectosMax`; Diamante = 50, a real limit — de
+    // esa forma cuidamos la base de datos). To open another past the cap the user
+    // must CLOSE an active project or upgrade — the scale lever behind the "N
+    // proyectos activos" pricing framing. Skipped while the plan is still loading
+    // to avoid a false block on the subscription-fetch race. Client-side UX gate;
+    // life-safety data is never gated (ADR 0021 — this is a management action).
+    const activeProjects = projects.filter(
+      (p) => !p.isPendingSync && p.status !== 'completed' && p.status !== 'archived',
+    );
+    const projectCap = planProjectCap(plan);
+    if (!subscriptionLoading && activeProjects.length >= projectCap) {
+      addNotification({
+        title: 'Límite de proyectos alcanzado',
+        message: `Tu plan permite ${projectCap} proyecto${projectCap === 1 ? '' : 's'} activo${projectCap === 1 ? '' : 's'} a la vez. Cierra un proyecto activo o mejora tu plan para abrir otro.`,
+        type: 'warning',
+      });
+      setIsModalOpen(false);
+      return;
+    }
+
     setIsCreating(true);
     try {
       const newProjectId = await createProject(formData);

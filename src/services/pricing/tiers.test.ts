@@ -43,7 +43,7 @@ describe('getTierById', () => {
     expect(t.clpIntro3mo).toBe(6990);
     expect(t.clpAnual).toBe(89910); // 9990 × 9 — save 3 months
     expect(t.usdRegular).toBe(11);
-    expect(t.trabajadoresMax).toBe(72);
+    expect(t.trabajadoresMax).toBe(24); // per project (faena) — CPHS-aligned (<25)
     expect(t.proyectosMax).toBe(3);
     expect(t.trabajadorExtraClp).toBe(990);
   });
@@ -74,12 +74,13 @@ describe('getTierById', () => {
     expect(t.workspaceTier).toBe('multi-tenant-csm');
   });
 
-  it('returns diamante (the jewel) with Infinity capacities + multi residency', () => {
+  it('returns diamante (the jewel) with unlimited workers, 50 projects + multi residency', () => {
     const t = getTierById('diamante');
     expect(t.clpRegular).toBe(3900000);
     expect(t.usdRegular).toBe(4200);
     expect(t.trabajadoresMax).toBe(Infinity);
-    expect(t.proyectosMax).toBe(Infinity);
+    // Projects-per-plan follow the Claude Design ladder (2026-07-03): Diamante = 50.
+    expect(t.proyectosMax).toBe(50);
     expect(t.jurisdictionsMax).toBe(Infinity);
     expect(t.dataResidency).toBe('multi');
     expect(t.multiJurisdiction).toBe(true);
@@ -130,20 +131,20 @@ describe('withIVA', () => {
 });
 
 describe('calculateMonthlyCost', () => {
-  it('Cobre, 50 workers, 2 projects → no overage', () => {
-    const r = calculateMonthlyCost('cobre', 50, 2);
+  it('Cobre, 20 workers/proyecto, 2 projects → no overage', () => {
+    const r = calculateMonthlyCost('cobre', 20, 2);
     expect(r.base).toBe(9990);
     expect(r.workerOverage).toBe(0);
     expect(r.projectOverage).toBe(0);
     expect(r.total).toBe(9990);
   });
 
-  it('Cobre, 80 workers, 3 projects → worker overage at 990', () => {
-    const r = calculateMonthlyCost('cobre', 80, 3);
+  it('Cobre, 40 workers over the per-project cap → worker overage at 990', () => {
+    const r = calculateMonthlyCost('cobre', 40, 3);
     expect(r.base).toBe(9990);
-    expect(r.workerOverage).toBe(8 * 990); // 80 - 72
+    expect(r.workerOverage).toBe(16 * 990); // 40 - 24 (per-project cap)
     expect(r.projectOverage).toBe(0);
-    expect(r.total).toBe(9990 + 8 * 990);
+    expect(r.total).toBe(9990 + 16 * 990);
   });
 
   it('Oro, 600 workers, 1 project → 101 worker overage at 290', () => {
@@ -158,7 +159,7 @@ describe('calculateMonthlyCost', () => {
   });
 
   it('Titanio within limits returns base only', () => {
-    const r = calculateMonthlyCost('titanio', 1000, 50);
+    const r = calculateMonthlyCost('titanio', 1000, 20);
     expect(r.base).toBe(249990);
     expect(r.workerOverage).toBe(0);
     expect(r.total).toBe(249990);
@@ -169,8 +170,9 @@ describe('calculateMonthlyCost', () => {
     expect(r.total).toBe(0);
   });
 
-  it('Diamante always returns base regardless of usage', () => {
-    const r = calculateMonthlyCost('diamante', 50000, 1000);
+  it('Diamante: unlimited workers, base only within its 50-project cap', () => {
+    // Projects-per-plan follow the Claude Design ladder (Diamante = 50); workers stay unlimited.
+    const r = calculateMonthlyCost('diamante', 50000, 50);
     expect(r.total).toBe(3900000);
     expect(r.workerOverage).toBe(0);
     expect(r.projectOverage).toBe(0);
@@ -179,17 +181,17 @@ describe('calculateMonthlyCost', () => {
 
 describe('suggestUpgrade', () => {
   it('Cobre @ 90 workers suggests upgrade (overage > delta to Plata)', () => {
-    // overage = (90-72)*990 = 17820; delta to plata = 19990 - 9990 = 10000
+    // overage = (90-24)*990 = 65340; delta to plata = 19990 - 9990 = 10000
     expect(suggestUpgrade('cobre', 90, 1)).toBe('plata');
   });
 
-  it('Cobre @ 75 workers does NOT suggest upgrade (overage < delta)', () => {
-    // overage = 3*990 = 2970; delta = 10000
-    expect(suggestUpgrade('cobre', 75, 1)).toBeNull();
+  it('Cobre @ 30 workers does NOT suggest upgrade (overage < delta)', () => {
+    // overage = (30-24)*990 = 5940; delta = 10000
+    expect(suggestUpgrade('cobre', 30, 1)).toBeNull();
   });
 
   it('within limits returns null', () => {
-    expect(suggestUpgrade('cobre', 50, 1)).toBeNull();
+    expect(suggestUpgrade('cobre', 20, 1)).toBeNull();
   });
 
   it('Oro at very high workers suggests titanio upgrade', () => {

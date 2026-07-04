@@ -2253,24 +2253,65 @@
     }
   },
   "landing": {
+    "dc": {
+      "nav_tagline": "Seu app de prevenção de riscos",
+      "hud_ds44_sub": "✓ vigente",
+      "hud_mesh_sub": "sem sinal",
+      "hud_spo2_sub": "no dispositivo",
+      "hud_sos_sub": "· grátis",
+      "tag_free": "Grátis · sempre",
+      "tag_rag": "RAG · lei vigente",
+      "tag_private": "Privado por design",
+      "tag_audit": "Auditável · DS 44",
+      "toggle_monthly": "Mensal",
+      "toggle_annual": "Anual · economize 3 meses",
+      "slider_label": "Trabalhadores por projeto",
+      "rec_line": "{{n}} por projeto → plano recomendado {{plan}}",
+      "legal_dprp": "Departamento de Prevenção de Riscos obrigatório (≥100 por projeto) · incluído a partir do plano Oro",
+      "legal_cphs": "Comitê Paritário (CPHS) obrigatório (≥25 por projeto) · incluído a partir do plano Plata",
+      "legal_none": "Neste tamanho não se exige Comitê Paritário (limite: 25 trabalhadores por projeto)",
+      "free_forever": "para sempre",
+      "per_year": "/ano · IVA incl.",
+      "per_month": "/mês · IVA incl.",
+      "sub_annual": "economize 3 meses vs mensal",
+      "sub_intro": "intro 3 meses: {{price}}/mês",
+      "recommended_for": "Para sua equipe",
+      "outro": "Tenha um bom dia, cada dia — e assim, uma boa vida",
+      "no_card": "Sem cartão · no seu idioma (ES · PT · EN) · dados no Chile",
+      "who_gratis": "1 projeto ativo · até 3 trabalhadores",
+      "who_cobre": "3 projetos ativos · 24 trabalhadores por projeto",
+      "who_plata": "5 projetos ativos · até 99 trabalhadores por projeto",
+      "who_oro": "10 projetos ativos · até 499 trabalhadores por projeto",
+      "who_titanio": "20 projetos ativos · até 1.999 trabalhadores por projeto",
+      "who_platino": "30 projetos ativos · até 9.999 trabalhadores por projeto",
+      "who_diamante": "50 projetos ativos · trabalhadores ilimitados",
+      "note_gratis": "Todas as funções vida-crítica incluídas",
+      "note_cobre": "Abaixo do limite de CPHS (25 por projeto)",
+      "note_plata": "Desbloqueia o Comitê Paritário (CPHS) — exigido a partir de 25 trabalhadores por projeto",
+      "note_oro": "Desbloqueia o Depto. de Prevenção — exigido a partir de 100 trabalhadores por projeto",
+      "note_titanio": "Sem cobranças extras · SSO",
+      "note_platino": "Multi-tenant + executivo de conta",
+      "note_diamante": "Multi-jurisdição + residência de dados por região"
+    },
     "skip_to_content": "Pular para o conteúdo",
     "meta": {
-      "title": "Guardian Praeventio — Prevenção de riscos na palma da sua mão",
-      "description": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA"
+      "title": "Guardian Praeventio — 5 minutos que podem salvar a sua vida",
+      "description": "Prevenção de riscos ocupacionais que antecipa o acidente: SOS, homem-caído, evacuação com rota A* e rede mesh sem sinal, grátis para o trabalhador. Conformidade DS 44/2024 e Lei 16.744 com IA baseada na norma real."
     },
     "nav": {
       "login": "Entrar",
-      "enter": "Acessar"
+      "enter": "Começar grátis"
     },
     "hero": {
       "compliance_badge": "Conformidade DS 44/2024 · Lei 16.744",
-      "title_line_1": "A revolução da",
-      "title_line_2": "prevenção de riscos",
-      "subtitle": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA",
-      "description": "IA, emergências e conformidade regulatória chilena em um único aplicativo. Para empresas que levam a segurança dos trabalhadores a sério.",
-      "cta_primary": "Começar grátis",
-      "cta_secondary": "Acessar o app",
-      "free_tier_note": "Comece grátis · Sem cartão de crédito · SOS e emergências, sempre grátis"
+      "title_line_1": "5 minutos que podem",
+      "title_line_2": "salvar a sua vida",
+      "subtitle": "O diálogo diário de segurança de 5 minutos que você já faz toda manhã, transformado em um sistema que antecipa o acidente que ainda não aconteceu.",
+      "description": "SOS, homem-caído, evacuação com rota e rede mesh sem sinal — grátis para o trabalhador, sempre. Cobramos a gestão e a escala, nunca a segurança.",
+      "cta_primary": "Proteger minha equipe",
+      "cta_secondary": "Como funciona",
+      "free_tier_note": "Funções vida-crítica sem custo · Dados no Chile · Biometria 100% no dispositivo",
+      "blueprint_caption": "Planta de andaime desenhando-se sobre a espiral áurea — φ 1,618"
     },
     "problem": {
       "eyebrow": "O problema",
@@ -2330,8 +2371,8 @@
       }
     },
     "pricing": {
-      "title": "Planos para cada empresa",
-      "subtitle": "Vidas protegidas de graça, sempre. Escale conforme sua empresa crescer.",
+      "title": "A vida não tem preço — por isso cuidamos das suas metas e sonhos",
+      "subtitle": "Todos os planos — incluindo o grátis — trazem todas as funções vida-crítica, multi-país ilimitado, previsões de calendário e fallback ISO 45001. Os módulos legais são desbloqueados por dotação, não pelo nome do plano.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabalhadores",
@@ -2362,10 +2403,14 @@
           "b2": "Até 50 projetos",
           "b3": "Painel executivo e analytics"
         }
-      }
+      },
+      "per_month": "mês"
     },
     "trust": {
-      "disclaimer": "Marcos normativos e órgãos de referência que o Guardian ajuda você a cumprir. Não implica afiliação nem endosso desses órgãos; as decisões são de quem dirige o projeto."
+      "disclaimer": "Marcos normativos e órgãos de referência que o Guardian ajuda você a cumprir. Não implica afiliação nem endosso desses órgãos; as decisões são de quem dirige o projeto.",
+      "data_residency_badge": "Dados no Chile · Lei 19.628",
+      "audit_badge": "Auditoria imutável",
+      "aria_label": "Marcos normativos de referência"
     },
     "security": {
       "eyebrow": "Segurança e confiança",
@@ -2383,6 +2428,14 @@
         "title": "Registro imutável",
         "desc": "Cada ação que altera um estado é gravada em um audit log append-only: nunca é editado nem apagado."
       },
+      "biometria": {
+        "title": "Biometria que não viaja",
+        "desc": "Câmera e pulso são processados no telefone do trabalhador e descartados. Ao servidor só chega o semáforo."
+      },
+      "iso": {
+        "title": "ISO 45001",
+        "desc": "Gestão de segurança e saúde alinhada ao padrão internacional vigente, como reserva em países sem norma local."
+      },
       "backups": {
         "title": "Backups e recuperação",
         "desc": "Backups criptografados e plano de recuperação de desastres (DR) para que a operação nunca pare."
@@ -2390,10 +2443,10 @@
       "disclaimer": "O Guardian orienta com base na lei vigente e nas informações que sua equipe registra; a decisão final é sempre de quem dirige o projeto."
     },
     "final_cta": {
-      "title_line_1": "Comece hoje.",
-      "title_line_2": "É grátis.",
-      "subtitle": "Crie sua conta, adicione sua empresa e cumpra a regulamentação chilena desde o primeiro dia.",
-      "button": "Abrir o Guardian Praeventio"
+      "title_line_1": "Protege quem leva",
+      "title_line_2": "o pão para casa",
+      "subtitle": "A segurança não deveria depender de ter sinal, plano pago ou sorte. Comece grátis hoje: 5 minutos que podem salvar uma vida.",
+      "button": "Começar grátis"
     },
     "footer": {
       "tagline": "Prevenção de riscos na palma da mão.",
@@ -2406,7 +2459,74 @@
       "data_secure": "Dados seguros · Firebase",
       "copyright": "© 2026 Praeventio · Chile",
       "made_in": "Feito no Chile"
-    }
+    },
+    "lang": {
+      "label": "Idioma",
+      "more": "Mais idiomas"
+    },
+    "lam": {
+      "vida": "FL. 01 · VIDA",
+      "sistema": "FL. 02 · SISTEMA",
+      "proceso": "FL. 03 · PROCESSO",
+      "confianza": "FL. 04 · CONFIANÇA",
+      "planes": "Planos — cobramos a gestão, nunca a segurança",
+      "cierre": "FL. 06 · GUARDIÃO"
+    },
+    "vida": {
+      "title_pre": "O que nunca",
+      "title_ac": "se cobra",
+      "sub": "As funções que salvam vidas são grátis para o trabalhador, sempre. Cobra-se pela gestão e pela escala — nunca pela segurança.",
+      "free_badge": "Grátis para o trabalhador, sempre",
+      "sos": {
+        "title": "SOS e homem-caído",
+        "desc": "Após uma queda ou imobilidade, o celular detecta e alerta sozinho. A cascata não para até um humano confirmar: notificação, e-mail de reserva e chamada. A detecção roda 100% no dispositivo.",
+        "step_push": "Notificação",
+        "step_email": "E-mail",
+        "step_call": "Chamada",
+        "impact": "A resposta deixa de depender de alguém estar olhando."
+      },
+      "evac": {
+        "title": "Evacuação com rota A*",
+        "desc": "Sobre a planta real da sua obra, o algoritmo A* calcula a rota mais curta até a zona segura, evitando os setores bloqueados, e guia cada pessoa em tempo real.",
+        "start_label": "INÍCIO",
+        "exit_label": "SAÍDA",
+        "impact": "O simulado passa a viver no bolso de cada trabalhador."
+      },
+      "mesh": {
+        "title": "Rede mesh sem sinal",
+        "desc": "Em obra sem cobertura, o alerta salta de celular em celular por Bluetooth até encontrar um com sinal. A emergência não depende de uma antena.",
+        "p1": "Sem cobertura, o alerta nasce mesmo assim",
+        "p2": "Salta de bolso em bolso",
+        "p3": "Encontra sinal e sai ao mundo",
+        "impact": "A mina e o subterrâneo deixam de ser zonas mudas."
+      }
+    },
+    "sistema": {
+      "epigraph": "«A vitória se conquista antes da batalha» — Sun Tzu",
+      "title_pre": "Conecta fatos que hoje morrem em um",
+      "title_ac": "arquivo",
+      "sub": "Um quase-acidente em março, um extintor vencido em junho: no papel são fatos isolados; no Guardian, uma causa raiz conectada. O sistema liga os pontos antes do acidente — e administra suas obras completas: equipes, prazos, documentos e conformidade em um só lugar.",
+      "bio": {
+        "title": "Biometria 100% no dispositivo",
+        "desc": "Sinais vitais medidos com a câmera e os sensores do telefone. Nem o pulso nem a imagem saem do aparelho: são processados e descartados."
+      },
+      "evidence": {
+        "title": "Evidência que não se apaga",
+        "desc": "Cada registro fica em uma cadeia de auditoria imutável, com autor e carimbo de tempo: a prova que a norma exige, pronta para a fiscalização. Arquiva-se, nunca se destrói."
+      },
+      "iper": {
+        "title": "Matriz IPER viva",
+        "desc": "Identificação de perigos e avaliação de riscos que se atualiza com cada relatório de campo — não uma planilha congelada depois da integração."
+      },
+      "tag_ai": "RAG · Norma",
+      "tag_evidence": "DS 44",
+      "tag_iper": "IPER",
+      "tag_training": "Certificados",
+      "tag_iso": "ISO 45001 · SUSESO",
+      "tag_teams": "Multi-obra",
+      "tag_dashboard": "KPI ao vivo"
+    },
+    "mascot_alt": "O Guardião da Praeventio acena"
   },
   "notifications": {
     "title": "Notificações",
