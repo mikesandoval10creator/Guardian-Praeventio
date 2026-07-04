@@ -9,8 +9,12 @@ import {
   resolveInvoiceCycle,
   DEFAULT_SUBSCRIPTION_CYCLE,
   planFromIapProductId,
+  planWorkerCap,
+  planProjectCap,
+  recommendPlanForFaena,
 } from './subscriptionPlan';
 import { iapSkuForTier } from './iapSkus';
+import { getTierById } from './tiers';
 
 describe('subscription plan normalization (7-metal scheme)', () => {
   it('maps canonical tier ids to plan ids (1:1 in the 7-metal scheme)', () => {
@@ -151,5 +155,31 @@ describe('subscription billing-cycle resolution (server-side, total)', () => {
       expect(planFromIapProductId(undefined)).toBeNull();
       expect(planFromIapProductId('')).toBeNull();
     });
+  });
+});
+
+describe('per-plan scale caps (derived from tiers.ts — single source of truth)', () => {
+  it('worker cap per faena mirrors tiers.ts trabajadoresMax (cobre = 24, not the stale 72)', () => {
+    expect(planWorkerCap('free')).toBe(getTierById('gratis').trabajadoresMax); // 3
+    expect(planWorkerCap('cobre')).toBe(24);
+    expect(planWorkerCap('plata')).toBe(getTierById('plata').trabajadoresMax); // 99
+    expect(planWorkerCap('diamante')).toBe(Infinity);
+  });
+
+  it('project cap mirrors tiers.ts proyectosMax (diamante = 50, a real limit)', () => {
+    expect(planProjectCap('free')).toBe(1);
+    expect(planProjectCap('cobre')).toBe(3);
+    expect(planProjectCap('diamante')).toBe(50);
+  });
+
+  it('recommends the smallest plan whose per-faena cap covers the headcount', () => {
+    // A faena that crosses the CPHS threshold (25) can no longer run on Cobre
+    // (cap 24); the next plan up is Plata, which unlocks the Comité Paritario band.
+    expect(recommendPlanForFaena(0)).toBe('free');
+    expect(recommendPlanForFaena(3)).toBe('free');
+    expect(recommendPlanForFaena(24)).toBe('cobre');
+    expect(recommendPlanForFaena(25)).toBe('plata');
+    // Above every finite cap still resolves (Diamante is unlimited on workers).
+    expect(recommendPlanForFaena(100_000)).toBe('diamante');
   });
 });
