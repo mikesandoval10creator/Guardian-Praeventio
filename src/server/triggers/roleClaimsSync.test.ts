@@ -96,7 +96,7 @@ describe('syncUserRoleClaim', () => {
     expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
     // Audit row (CLAUDE.md #3) with server-stamped system identity.
     expect(auditAdd).toHaveBeenCalledTimes(1);
-    const row = auditAdd.mock.calls[0][0] as Record<string, unknown>;
+    const row = (auditAdd.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(row.action).toBe('role_claim_sync');
     expect(row.userId).toBe('system:roleClaimsSync');
     expect(row.details).toEqual({
@@ -157,7 +157,7 @@ describe('syncUserRoleClaim', () => {
       role: 'soldador',
     });
     expect(auth.revokeRefreshTokens).toHaveBeenCalledExactlyOnceWith('u1');
-    const row = auditAdd.mock.calls[0][0] as Record<string, unknown>;
+    const row = (auditAdd.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect((row.details as Record<string, unknown>).revoked).toBe(true);
   });
 
@@ -218,7 +218,7 @@ describe('setupRoleClaimsSync', () => {
     ]);
     await flush();
     expect(auth.setCustomUserClaims).toHaveBeenCalledTimes(2);
-    const uids = auth.setCustomUserClaims.mock.calls.map((c) => c[0]);
+    const uids = auth.setCustomUserClaims.mock.calls.map((c) => (c as unknown[])[0]);
     expect(uids).toContain('u1');
     expect(uids).toContain('u2');
     expect(uids).not.toContain('u3');
