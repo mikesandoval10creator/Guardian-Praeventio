@@ -51,6 +51,9 @@ beforeEach(async () => {
     await setDoc(doc(db, 'projects', PID), {
       name: 'Attendance Test Project', members: [OPERATOR, OTHER], status: 'active',
       createdAt: '2026-07-01T00:00:00Z', createdBy: OPERATOR,
+      // M-1 Phase 3: the attendance UPDATE rule is tenant-scoped
+      // (isSupervisorOfTenant), so the correcting admin must hold this tenant.
+      tenantId: 't-att',
     });
     await setDoc(doc(db, 'users', ADMIN), {
       uid: ADMIN, role: 'admin', email: `${ADMIN}@x.cl`, createdAt: '2026-07-01T00:00:00Z',
@@ -62,8 +65,10 @@ type CtxDb = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>
 function attRef(ctxDb: CtxDb, id: string) {
   return doc(ctxDb as unknown as Parameters<typeof doc>[0], 'projects', PID, 'attendance', id);
 }
-function authed(uid: string, role = 'worker') {
-  return requireEnv().authenticatedContext(uid, verifiedToken(role)).firestore();
+function authed(uid: string, role = 'worker', tenantId?: string) {
+  return requireEnv()
+    .authenticatedContext(uid, verifiedToken(role, undefined, tenantId ? { tenantId } : {}))
+    .firestore();
 }
 const record = (recordedBy: string, over: Record<string, unknown> = {}) => ({
   workerId: WORKER,
@@ -121,10 +126,10 @@ describe('projects/{pid}/attendance — anti-forge (firestore.rules)', () => {
   it('admin can correct an attendance record but cannot change the recorder', async () => {
     await seedRecord('att-7', OPERATOR);
     await assertSucceeds(
-      setDoc(attRef(authed(ADMIN, 'admin'), 'att-7'), record(OPERATOR, { location: 'Portón 2' })),
+      setDoc(attRef(authed(ADMIN, 'admin', 't-att'), 'att-7'), record(OPERATOR, { location: 'Portón 2' })),
     );
     await assertFails(
-      setDoc(attRef(authed(ADMIN, 'admin'), 'att-7'), record(OTHER)),
+      setDoc(attRef(authed(ADMIN, 'admin', 't-att'), 'att-7'), record(OTHER)),
     );
   });
 });

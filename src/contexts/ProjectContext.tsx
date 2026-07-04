@@ -277,7 +277,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     let q;
     if (isAdmin) {
-      q = query(collection(db, 'projects'));
+      // M-1 Phase 3: the `projects` list rule tenant-scopes the admin branch —
+      // an unfiltered query is now DENIED. Filter by tenantId (== the caller's
+      // uid; single-tenant-per-user, mirrored by the tenantId custom claim), so
+      // an admin lists only their own tenant's projects. Requires the tenantId
+      // claim backfill to be live in prod (deploy Phase 3 rules only after it).
+      q = query(collection(db, 'projects'), where('tenantId', '==', user.uid));
     } else {
       q = query(collection(db, 'projects'), where('members', 'array-contains', user.uid));
     }

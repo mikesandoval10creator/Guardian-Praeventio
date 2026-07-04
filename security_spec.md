@@ -1425,3 +1425,26 @@ those are unminted until M-1); all client writes denied. Rules tests:
      project — reading someone else's incident.
 153. **Tenant Incident Sweep**: an unfiltered list by a non-member (no
      `reporterUid` equality) — unprovable, denied.
+
+## M-1 project tenant-scoping — cross-tenant access (Phase 3, added 2026-07-04)
+
+`projects/{pid}` and every subcollection are tenant-scoped: privilege derives
+from `isSupervisorOfTenant(project.tenantId)`, never a global role. `tenantId`
+is required, immutable, and stamped to the caller's uid (single-tenant-per-user).
+Deploy AFTER the `tenantId` claim backfill (see
+`docs/security/M1-multitenant-tenant-scope-design.md`). Rejected payloads:
+
+159. **Cross-Tenant Project Read**: an admin/supervisor whose `token.tenantId`
+     is `t1` `get`s `projects/{pid}` owned by tenant `t2` — a global role no
+     longer crosses the tenant boundary; denied.
+160. **Cross-Tenant Project Sweep**: an admin runs the unfiltered
+     `query(collection('projects'))` — `list` now requires
+     `where('tenantId','==', token.tenantId)`, so an unscoped sweep is denied.
+161. **Cross-Tenant Subcollection Snoop**: an admin of `t1` reads
+     `projects/{t2-pid}/reports|mandown_events|<medical PII>/{id}` via the
+     master gate — it is `isProjectMemberTenantScoped`, so it is denied.
+162. **Forged Tenant Stamp**: a client creates a project with
+     `tenantId != request.auth.uid` (planting it in someone else's tenant) —
+     denied by the create anti-spoof.
+163. **Tenant Re-Homing**: an update that changes an existing project's
+     `tenantId` (moving it to another tenant) — `tenantId` is immutable; denied.

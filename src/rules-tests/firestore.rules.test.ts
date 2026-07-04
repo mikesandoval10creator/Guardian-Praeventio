@@ -1354,6 +1354,8 @@ describe('firestore.rules', () => {
         status: 'active',
         createdAt: new Date().toISOString(),
         createdBy: CREATOR,
+        // M-1 Phase 3: tenantId is required + must equal the caller's uid.
+        tenantId: CREATOR,
       };
     }
 

@@ -132,6 +132,25 @@ service cloud.firestore {
       return isEmailVerified() && request.auth.uid == userId;
     }
 
+    // M-1 Phase 3 — tenant-scoped project access
+    // (docs/security/M1-multitenant-tenant-scope-design.md). The project's
+    // owning tenant is read from the doc; supervisor/admin privilege is scoped
+    // to THAT tenant (isSupervisorOfTenant), NOT global — closing the
+    // cross-tenant leak where a global admin/supervisor could read/write ANY
+    // tenant's projects and subcollections. The MEMBER + CREATOR branches are
+    // preserved, so a project member (life-safety: SOS/evacuation/ManDown) is
+    // never affected — only the global-role shortcut is removed.
+    function projectTenantId(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.get('tenantId', '');
+    }
+    function isProjectMemberTenantScoped(projectId) {
+      return isEmailVerified() && (
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members ||
+        isProjectCreator(projectId) ||
+        isSupervisorOfTenant(projectTenantId(projectId))
+      );
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -188,7 +207,7 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
+      return data.keys().hasAll(['name', 'members', 'status', 'createdAt', 'tenantId']) &&
              data.keys().hasOnly([
                // Core schema (matches Project interface in src/contexts/ProjectContext.tsx)
                'name', 'description', 'location', 'coordinates',
@@ -216,7 +235,11 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
-             data.createdAt is string && data.createdAt.size() > 0;
+             data.createdAt is string && data.createdAt.size() > 0 &&
+             // M-1 Phase 3: tenant is required + bounded. The backfill guarantees
+             // it on every existing project; create/update enforce tenantId == the
+             // owner uid (single-tenant-per-user), so it cannot be forged/re-homed.
+             data.tenantId is string && data.tenantId.size() > 0 && data.tenantId.size() <= 128;
     }
 
     function isValidReport(data) {
@@ -383,26 +406,45 @@ service cloud.firestore {
       allow get: if isValidId(projectId) && isEmailVerified() && (
         request.auth.uid in resource.data.members ||
         resource.data.get('createdBy', '') == request.auth.uid ||
-        isAdmin() ||
-        isSupervisor()
+        isSupervisorOfTenant(resource.data.get('tenantId', ''))
       );
-      // list: ONLY constraint-safe checks (no get()). The token-only role check
-      // (resource-independent → evaluated first) lets an admin/gerente run the
-      // unfiltered `query(collection('projects'))` ProjectContext uses for
-      // admins; DIRECT `resource.data.members` lets the engine match the
-      // non-admin `where('members','array-contains',uid)` query. A non-admin can
-      // therefore only list projects they belong to (tenant-scoped, no leak).
+      // list: ONLY constraint-safe checks (no get()). M-1 Phase 3 tenant-scopes
+      // the admin/gerente branch — a token-only role check is no longer enough:
+      // the query MUST filter where('tenantId','==', token.tenantId), so an
+      // admin lists only THEIR tenant's projects (no cross-tenant leak). The
+      // member branch (resource.data.members) matches the non-admin
+      // where('members','array-contains',uid) query. Limitation: only the
+      // single-tenant claim (token.tenantId) is expressible in list — the
+      // multi-tenant map claim can't be indexed (see the design doc).
       allow list: if isEmailVerified() && (
-        request.auth.token.role in ['admin', 'gerente'] ||
-        request.auth.uid in resource.data.members
+        request.auth.uid in resource.data.members ||
+        (request.auth.token.role in ['admin', 'gerente']
+          && request.auth.token.tenantId is string
+          && resource.data.tenantId == request.auth.token.tenantId)
       );
-      allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
-      allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
-      allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
+      // create: tenant is stamped to the caller's uid (single-tenant-per-user),
+      // so a client cannot forge a project into someone else's tenant.
+      allow create: if isEmailVerified() && isValidProject(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().tenantId == request.auth.uid;
+      // update: creator OR a supervisor/admin OF THIS project's tenant; tenantId
+      // is immutable (a project cannot be re-homed into another tenant).
+      allow update: if isEmailVerified()
+        && (existing().createdBy == request.auth.uid || isSupervisorOfTenant(existing().get('tenantId', '')))
+        && isValidProject(incoming())
+        && incoming().tenantId == existing().get('tenantId', '');
+      // delete: creator, or a tenant-scoped admin/gerente of this project's tenant.
+      allow delete: if isEmailVerified() && (
+        existing().createdBy == request.auth.uid ||
+        (isSupervisorOfTenant(existing().get('tenantId', '')) && request.auth.token.role in ['admin', 'gerente'])
+      );
 
-      // Master Gate for sub-collections
+      // Master Gate for sub-collections — M-1 Phase 3: tenant-scoped read so a
+      // GLOBAL admin/supervisor of another tenant can no longer read this
+      // project's reports / mandown / medical PII (the decisive leak). Members
+      // and the creator are unaffected.
       match /{subCollection=**}/{docId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
       }
 
       match /emergency_messages/{messageId} {
@@ -425,23 +467,23 @@ service cloud.firestore {
           && incoming().recordedBy == request.auth.uid;
         // Update: restricted to admin/supervisor (a line worker must not silently
         // rewrite an attendance record); the recorder stays immutable.
-        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor())
+        allow update: if isValidId(projectId) && isSupervisorOfTenant(projectTenantId(projectId))
           && isValidAttendance(incoming(), projectId)
           && incoming().recordedBy == existing().recordedBy;
       }
 
       match /reports/{reportId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidReport(incoming());
-        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().authorId == request.auth.uid && existing().status != 'Cerrado')) && isValidReport(incoming());
+        allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().authorId == request.auth.uid && existing().status != 'Cerrado')) && isValidReport(incoming());
       }
 
       match /safety_posts/{postId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidPost(incoming());
-        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid)) && (
+        allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().userId == request.auth.uid)) && (
           incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments', 'updatedAt']) ||
           isValidPost(incoming())
         );
-        allow delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid));
+        allow delete: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().userId == request.auth.uid));
       }
 
       // Safety-critical collections — strict read for project members,
