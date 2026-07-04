@@ -429,6 +429,7 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupRoleClaimsSync } from "./src/server/triggers/roleClaimsSync.js";
+import { setupAssignedSitesSync } from "./src/server/triggers/assignedSitesSync.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import { makeSystemEventAuditor, setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
 import { gracefulShutdown } from "./src/server/lifecycle.js";
@@ -1496,6 +1497,7 @@ let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
 let roleClaimsSyncHandle: { unsubscribe: () => void } | null = null;
+let assignedSitesSyncHandle: { unsubscribe: () => void } | null = null;
 let mqttBridgeHandle: MqttBridgeHandle | null = null;
 
 // AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
@@ -1532,6 +1534,19 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
     // steady state via the claimsSync mirror stamp; lifecycle-locked claims
     // (inactive/anonymized) are never overwritten. See roleClaimsSync.ts.
     roleClaimsSyncHandle = setupRoleClaimsSync({
+      db: admin.firestore(),
+      auth: admin.auth(),
+      firestoreNamespace: admin.firestore,
+    });
+
+    // M-1 Fase 4 (cierre total de storage) — mirror projects/{pid}.members
+    // (+ createdBy) into each member's `assignedSiteIds` custom claim. Storage
+    // rules cannot read Firestore; this claim is memberOfSite()'s only signal
+    // and NO flow minted it (buildClaimsWithAssignedSites was orphaned), so the
+    // old escape hatch left EVERY project's files cross-tenant readable. Now
+    // storage.rules is fail-closed and this trigger makes the claim REAL.
+    // Idempotent, boot snapshot = natural backfill. See assignedSitesSync.ts.
+    assignedSitesSyncHandle = setupAssignedSitesSync({
       db: admin.firestore(),
       auth: admin.auth(),
       firestoreNamespace: admin.firestore,
@@ -1594,6 +1609,7 @@ process.on('SIGTERM', () => {
       () => healthHandle?.stop(),
       () => systemEngineHandle?.unsubscribe(),
       () => roleClaimsSyncHandle?.unsubscribe(),
+      () => assignedSitesSyncHandle?.unsubscribe(),
       // Sprint 27 (audit P0 H10) — clear the env polling interval too.
       () => clearInterval(environmentalPollingHandle),
       // claude/mqtt-wire — release the MQTT bridge subscription + client.

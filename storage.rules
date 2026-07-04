@@ -42,22 +42,27 @@ service firebase.storage {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
-    // Best-effort project membership via the `assignedSiteIds` claim.
-    // Storage rules cannot read Firestore, so this is the only membership
-    // signal available. Conservative, mirroring resolveAssignedSitesCheck:
-    //   • claim ABSENT            → allow (legacy/pre-migration compat — the
-    //                               Firestore metadata doc + unguessable path +
-    //                               signed downloadURL remain the boundary).
-    //   • claim present, in list  → allow (verified member).
-    //   • claim present, NOT in   → DENY (the isolation boundary for migrated
-    //                               users; self-heals on the next token refresh
-    //                               if the claim was merely stale).
+    // Project membership via the `assignedSiteIds` claim (list of project ids
+    // the user belongs to). Storage rules cannot read Firestore, so this claim
+    // is the ONLY membership signal available here.
+    //
+    // M-1 Fase 4 (cierre total, 2026-07-04): FAIL-CLOSED. The prior version had
+    // a `claim ABSENT → allow` escape hatch "for legacy/pre-migration compat".
+    // But NO flow ever minted `assignedSiteIds` (buildClaimsWithAssignedSites
+    // was orphaned — src/services/auth/customClaims.ts, never called), so the
+    // hatch was ALWAYS true → memberOfSite() collapsed to isSignedIn() and ANY
+    // authenticated user could read/list/write EVERY project's files
+    // (cross-tenant leak: medical PDFs, SUSESO DIAT/DIEP, blueprints). The
+    // claim is now minted by the `assignedSitesSync` trigger (mirrors
+    // roleClaimsSync, which did the same for `role`). A token WITHOUT the claim
+    // is DENIED. The `'assignedSiteIds' in ...` presence guard makes the deny
+    // explicit and silent (reading an absent map key would otherwise log a
+    // rules warning on every claim-less request — same pattern as V5 `role`).
     function memberOfSite(projectId) {
-      return isSignedIn() && (
-        !('assignedSiteIds' in request.auth.token) ||
-        (request.auth.token.assignedSiteIds is list &&
-         projectId in request.auth.token.assignedSiteIds)
-      );
+      return isSignedIn() &&
+        'assignedSiteIds' in request.auth.token &&
+        request.auth.token.assignedSiteIds is list &&
+        projectId in request.auth.token.assignedSiteIds;
     }
 
     function isUnder(bytes) {

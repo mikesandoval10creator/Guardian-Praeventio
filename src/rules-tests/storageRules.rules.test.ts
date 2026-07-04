@@ -94,8 +94,12 @@ describe('projects/{pid}/** — assignedSiteIds-gated', () => {
     await seed(PATH, 'application/pdf');
     await assertFails(getBytes(r(outsider(), PATH)));
   });
-  it('a LEGACY user (no assignedSiteIds claim) can still upload (compat fallback)', async () => {
-    await assertSucceeds(uploadBytes(r(legacy(), PATH), BYTES, { contentType: 'application/pdf' }));
+  it('M-1 Fase 4: a user with NO assignedSiteIds claim is DENIED upload (fail-closed — no legacy escape hatch)', async () => {
+    await assertFails(uploadBytes(r(legacy(), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('M-1 Fase 4: a user with NO assignedSiteIds claim is DENIED read (was the cross-tenant leak)', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(getBytes(r(legacy(), PATH)));
   });
   it('an UNAUTHENTICATED request cannot upload', async () => {
     await assertFails(uploadBytes(r(unauth(), PATH), BYTES, { contentType: 'application/pdf' }));
