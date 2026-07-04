@@ -23,19 +23,19 @@ jobs:
 
       - name: Lint Dockerfile
         continue-on-error: true
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: Dockerfile
 
       - name: Lint Dockerfile.api
         continue-on-error: true
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: Dockerfile.api
 
       - name: Lint Dockerfile.frontend
         continue-on-error: true
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: Dockerfile.frontend
 
