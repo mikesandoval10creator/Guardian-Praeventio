@@ -54,6 +54,9 @@ export {
 // §12.5.1 split step 5 (2026-05-28): vision/multimodal moved to
 // `services/gemini/vision.ts`. Re-exported para backwards compat.
 export { analyzePostureWithAI, analyzeSafetyImage, analyzeBioImage } from './gemini/vision';
+// B4 — safety-visual image generation (afiches / procedure-step illustrations).
+export { generateSafetyVisual } from './gemini/imageGen';
+export type { SafetyVisualSpec, SafetyVisualResult } from './gemini/imageGen';
 
 // §12.5.1 split step 6 (2026-05-28): risk analysis moved to
 // `services/gemini/risk.ts`. Re-exported para backwards compat.
