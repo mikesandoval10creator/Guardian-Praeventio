@@ -7,6 +7,8 @@ import { logger } from '../utils/logger';
 import {
   normalizeSubscriptionPlanId,
   planMeetsMinimum,
+  planWorkerCap,
+  recommendPlanForFaena,
   PLAN_RANK,
   type SubscriptionPlan,
 } from '../services/pricing/subscriptionPlan';
@@ -85,36 +87,33 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-const PLAN_LIMITS: Record<SubscriptionPlan, number> = {
-  free: 3,
-  cobre: 72,
-  plata: 99,
-  oro: 499,
-  titanio: 1999,
-  platino: 9999,
-  diamante: Infinity,
-};
-
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useFirebase();
   const { projects } = useProject();
   const [plan, setPlan] = useState<SubscriptionPlan>('free');
   const [loading, setLoading] = useState(true);
 
-  // Calculate total workers across all projects
+  // Total worker-seats across all projects — kept for billing/display consumers
+  // (Pricing page, OC PDF). This is the SUM, not a cap input.
   const totalWorkers = projects.reduce((sum, project) => sum + (project.workersCount || 0), 0);
 
-  // Determine recommended plan based on workers
-  let recommendedPlan: SubscriptionPlan = 'free';
-  for (const [p, limit] of Object.entries(PLAN_LIMITS)) {
-    if (totalWorkers <= limit) {
-      recommendedPlan = p as SubscriptionPlan;
-      break;
-    }
-  }
+  // Cap evaluation is PER FAENA (project), not per tenant: the CPHS / Comité
+  // Paritario threshold is 25 workers in a SINGLE faena (DS 44/2024), and
+  // `trabajadoresMax` in tiers.ts is a per-project cap. So we evaluate the
+  // LARGEST single project's headcount — three 10-worker faenas (30 total) each
+  // stay under 25 and must NOT be pushed to upgrade, whereas one 25-worker faena
+  // must. Caps are derived from tiers.ts (single source), never a local literal.
+  const maxFaenaWorkers = projects.reduce(
+    (max, project) => Math.max(max, project.workersCount || 0),
+    0,
+  );
 
-  // Check if current plan limit is exceeded
-  const requiresUpgrade = totalWorkers > PLAN_LIMITS[plan];
+  // Smallest plan whose per-faena cap covers the biggest faena (offers the
+  // legally-required upgrade when a faena crosses the CPHS threshold).
+  const recommendedPlan: SubscriptionPlan = recommendPlanForFaena(maxFaenaWorkers);
+
+  // The current plan can no longer host the biggest faena legally/contractually.
+  const requiresUpgrade = maxFaenaWorkers > planWorkerCap(plan);
 
   useEffect(() => {
     const fetchSubscription = async () => {

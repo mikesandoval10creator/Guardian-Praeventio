@@ -1,4 +1,4 @@
-import type { TierId } from './tiers';
+import { TIERS, type TierId } from './tiers';
 import { tierForIapSku, type BillingCycle } from './iapSkus';
 
 // Re-export so callers have a single import site for plan + cycle helpers.
@@ -102,6 +102,48 @@ export function planRank(plan: unknown): number {
 /** True iff `plan` ranks at or above `minPlan`. */
 export function planMeetsMinimum(plan: unknown, minPlan: SubscriptionPlan): boolean {
   return planRank(plan) >= PLAN_RANK[minPlan];
+}
+
+// ── Per-plan scale caps, DERIVED from tiers.ts (single source of truth) ──────
+// The client used to duplicate these as a hardcoded literal in
+// SubscriptionContext (`PLAN_LIMITS`) which drifted stale (`cobre: 72` after the
+// per-project model moved Cobre to 24). Deriving here keeps the caps in lockstep
+// with the pricing ladder. `trabajadoresMax` is the per-FAENA worker cap (the
+// CPHS / Comité Paritario threshold is 25 workers per faena, DS 44/2024 — Cobre
+// caps at 24 and the next plan up unlocks the CPHS band); `proyectosMax` is the
+// max simultaneous ACTIVE projects (Diamante = 50, a real limit, not "unlimited").
+const PLAN_WORKER_CAP = {} as Record<SubscriptionPlan, number>;
+const PLAN_PROJECT_CAP = {} as Record<SubscriptionPlan, number>;
+for (const tier of TIERS) {
+  const plan = TIER_TO_SUBSCRIPTION_PLAN[tier.id];
+  PLAN_WORKER_CAP[plan] = tier.trabajadoresMax;
+  PLAN_PROJECT_CAP[plan] = tier.proyectosMax;
+}
+
+/** Max workers PER FAENA (project) allowed on `plan`. Derived from tiers.ts. */
+export function planWorkerCap(plan: SubscriptionPlan): number {
+  return PLAN_WORKER_CAP[plan] ?? PLAN_WORKER_CAP.free;
+}
+
+/** Max simultaneous ACTIVE projects allowed on `plan`. Derived from tiers.ts. */
+export function planProjectCap(plan: SubscriptionPlan): number {
+  return PLAN_PROJECT_CAP[plan] ?? PLAN_PROJECT_CAP.free;
+}
+
+/**
+ * Smallest plan whose per-faena worker cap covers `faenaWorkers` — the
+ * "you need a bigger plan to run this faena legally" recommendation. A faena
+ * that crosses 25 workers (the CPHS threshold) can no longer run on Cobre
+ * (cap 24) and is pushed to Plata, which unlocks the Comité Paritario band.
+ * `SUBSCRIPTION_PLANS` is ordered free→diamante (ascending caps), so the first
+ * match is the smallest sufficient plan; the trailing return is a safety net
+ * (Diamante's cap is Infinity, so the loop always resolves).
+ */
+export function recommendPlanForFaena(faenaWorkers: number): SubscriptionPlan {
+  for (const plan of SUBSCRIPTION_PLANS) {
+    if (faenaWorkers <= planWorkerCap(plan)) return plan;
+  }
+  return 'diamante';
 }
 
 // ───────────────────────────────────────────────────────────────────────────
