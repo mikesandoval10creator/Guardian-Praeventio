@@ -52,6 +52,9 @@ beforeEach(async () => {
       status: 'active',
       createdAt: '2026-06-01T00:00:00Z',
       createdBy: CREATOR,
+      // M-1 Phase 3: tenantId is required + immutable; the emergency-declare
+      // merge must preserve it (backfill guarantees it on every prod project).
+      tenantId: CREATOR,
     });
   });
 });

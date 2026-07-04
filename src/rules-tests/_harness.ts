@@ -70,6 +70,10 @@ export async function createRulesTestEnv(): Promise<RulesTestEnvironment> {
  * `email_verified: true` because most write rules gate on it; pass a `role`
  * for RBAC checks (`isAdmin()`, `isSupervisor()`, `isDoctor()`, …).
  */
-export function verifiedToken(role: string, email = 'user@example.com') {
-  return { email, email_verified: true, role };
+export function verifiedToken(
+  role: string,
+  email = 'user@example.com',
+  extraClaims: Record<string, unknown> = {},
+) {
+  return { email, email_verified: true, role, ...extraClaims };
 }

@@ -52,15 +52,15 @@ function validProject(extra: Record<string, unknown> = {}) {
   };
 }
 
-describe('projects create — M-1 tenantId field (phase 1)', () => {
+describe('projects create — M-1 tenantId field (phase 3)', () => {
   it('ALLOWS a create that stamps tenantId = own uid (what the app now sends)', async () => {
     await assertSucceeds(
       setDoc(doc(creatorDb(), 'projects', 'm1-with-tenant'), validProject({ tenantId: CREATOR })),
     );
   });
 
-  it('still ALLOWS a create without tenantId (optional until the backfill lands)', async () => {
-    await assertSucceeds(
+  it('Phase 3: DENIES a create without tenantId (now REQUIRED by isValidProject)', async () => {
+    await assertFails(
       setDoc(doc(creatorDb(), 'projects', 'm1-without-tenant'), validProject()),
     );
   });
@@ -74,8 +74,8 @@ describe('projects create — M-1 tenantId field (phase 1)', () => {
     );
   });
 
-  it('KNOWN PHASE-1 LIMIT: a forged tenantId (≠ uid) passes schema today — Phase 3 flips this to assertFails', async () => {
-    await assertSucceeds(
+  it('Phase 3: DENIES a forged tenantId (≠ own uid) — anti-spoof (incoming().tenantId == request.auth.uid)', async () => {
+    await assertFails(
       setDoc(
         doc(creatorDb(), 'projects', 'm1-forged-tenant'),
         validProject({ tenantId: 'someone-else' }),
