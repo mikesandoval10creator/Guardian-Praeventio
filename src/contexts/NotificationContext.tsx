@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
-import { doc, onSnapshot, collection, query, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { useFirebase } from './FirebaseContext';
 import { db } from '../services/firebase';
 
@@ -113,11 +113,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
         const token = await getToken(messaging, vapidKey ? { vapidKey } : undefined);
-        // Persist token so server can send targeted pushes
+        // Register the token via the server endpoint so it lands in
+        // users/{uid}.fcmTokens[] — the SAME array the send path (fcmAdapter)
+        // reads. The old direct write to a singular `fcmToken` field was dead
+        // (nothing read it), so web push never actually reached the device.
+        // The endpoint arrayUnions the token, writes an audit row, and stamps
+        // identity from the verified token (src/server/routes/push.ts).
+        // Best-effort: a failed registration must never break messaging setup.
         if (token && user?.uid) {
           try {
-            await updateDoc(doc(db, 'users', user.uid), { fcmToken: token });
-          } catch {} // non-critical
+            const { apiAuthHeaders } = await import('../lib/apiAuth');
+            await fetch('/api/push/register-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(await apiAuthHeaders()) },
+              body: JSON.stringify({ token, platform: 'web' }),
+            });
+          } catch { /* non-critical: push registration is best-effort */ }
         }
         if (cancelled) return;
 
