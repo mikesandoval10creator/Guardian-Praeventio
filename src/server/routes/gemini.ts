@@ -56,6 +56,7 @@ import {
   AI_MODEL_FAST_STABLE,
   AI_MODEL_REASONING,
   AI_MODEL_VISION,
+  AI_MODEL_IMAGE_GENERATION,
 } from '../../config/aiModels.js';
 // AI provider layer — per-action routing to a self-hosted OpenAI-compatible
 // endpoint (vLLM/Ollama). Without AI_SELFHOSTED_* config, resolveProvider()
@@ -233,6 +234,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'searchRelevantContext',
   'getNutritionSuggestion',
   'scanLegalUpdates',
+  // B4 — safety-visual image generation (afiches / procedure-step frames).
+  'generateSafetyVisual',
 ];
 
 // Bucket X under-billing fix — the post-call quota accounting below charges a
@@ -277,6 +280,8 @@ const GEMINI_ACTION_MODEL: Record<string, string> = {
   getChatResponse: AI_MODEL_CHAT, // gemini/chat.ts
   // ── Vision (Gemini Pro via AI_MODEL_VISION) ──
   analyzeSafetyImage: AI_MODEL_VISION, // gemini/vision.ts
+  // ── Image generation (Nano-Banana-class SKU) — bill at its real rate ──
+  generateSafetyVisual: AI_MODEL_IMAGE_GENERATION, // gemini/imageGen.ts
   // ── Fast long-form Markdown (preview Flash SKU, distinct rate) ──
   analyzeFaenaRiskWithAI: AI_MODEL_FAST_LONGFORM, // geminiBackend.ts
   // ── Fast default-but-explicit (FLASH_3_PREVIEW differs from FAST_STABLE) ──
