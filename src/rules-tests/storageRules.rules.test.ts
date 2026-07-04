@@ -106,6 +106,24 @@ describe('projects/{pid}/** — assignedSiteIds-gated', () => {
   it('a disallowed content type (executable) is rejected', async () => {
     await assertFails(uploadBytes(r(member(), `projects/${PID}/documents/x.exe`), BYTES, { contentType: 'application/x-msdownload' }));
   });
+  it('F7: a member CANNOT delete a project file (evidence lock)', async () => {
+    await seed(`projects/${PID}/documents/pts.pdf`, 'application/pdf');
+    await assertFails(deleteObject(r(member(), `projects/${PID}/documents/pts.pdf`)));
+  });
+  it('F7: even an admin-tier claim CANNOT delete a project file client-side', async () => {
+    await seed(`projects/${PID}/documents/pts2.pdf`, 'application/pdf');
+    await assertFails(deleteObject(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'admin' }), `projects/${PID}/documents/pts2.pdf`)));
+  });
+});
+
+describe('blueprints/{pid}/** — F7 evidence lock (no client deletes)', () => {
+  it('a member can still upload a blueprint snapshot', async () => {
+    await assertSucceeds(uploadBytes(r(member(), `blueprints/${PID}/plan.png`), BYTES, { contentType: 'image/png' }));
+  });
+  it('F7: a member CANNOT delete a blueprint snapshot', async () => {
+    await seed(`blueprints/${PID}/plan2.png`, 'image/png');
+    await assertFails(deleteObject(r(member(), `blueprints/${PID}/plan2.png`)));
+  });
 });
 
 describe('suseso_reports/{pid}/** — PDF-only, immutable', () => {
@@ -147,12 +165,17 @@ describe('reconstructions/{pid}/** — binary 3D models', () => {
   it('V4: unauthenticated upload is denied', async () => {
     await assertFails(uploadBytes(r(unauth(), `reconstructions/${PID}/scan.glb`), BYTES, { contentType: 'application/octet-stream' }));
   });
+  it('reconstructions delete stays member-allowed (working 3D assets, NOT F7 evidence scope — deliberate)', async () => {
+    await seed(`reconstructions/${PID}/scan-old.glb`, 'model/gltf-binary');
+    await assertSucceeds(deleteObject(r(member(), `reconstructions/${PID}/scan-old.glb`)));
+  });
 });
 
-describe('documents/{workerId}/** — V3 hardening (delete requires admin/supervisor tier)', () => {
+describe('documents/{workerId}/** — F7 evidence lock (uploads open, deletes DENIED)', () => {
   const PATH = 'documents/worker-7/contract.pdf';
 
-  // Upload / read behavior unchanged.
+  // Upload / read behavior unchanged (V5 tier-gate ships separately, AFTER
+  // role claims are actually minted — see the role-claims sync trigger).
   it('any signed-in user can upload a worker document (unchanged)', async () => {
     await assertSucceeds(uploadBytes(r(member(), PATH), BYTES, { contentType: 'application/pdf' }));
   });
@@ -164,29 +187,29 @@ describe('documents/{workerId}/** — V3 hardening (delete requires admin/superv
     await assertSucceeds(getBytes(r(member(), PATH)));
   });
 
-  // V3: delete is now gated on admin/supervisor tier role claim.
-  it('V3: admin-tier user can delete a worker document', async () => {
+  // F7 (founder decision 2026-07-02): worker documents are legal evidence —
+  // client-side delete is an evidence-destruction primitive. NOBODY deletes
+  // from the client, not even admin tier. (Supersedes V3's tier-gated
+  // delete, which was also functionally dead: no flow mints role claims.)
+  it('F7: an admin-tier claim CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    // admin role in token claim — matches isAdminOrSupervisorTier()
-    await assertSucceeds(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'admin' }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'admin' }), PATH)));
   });
-  it('V3: supervisor-tier user can delete a worker document', async () => {
+  it('F7: a supervisor-tier claim CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    await assertSucceeds(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'supervisor' }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'supervisor' }), PATH)));
   });
-  it('V3: worker-role user CANNOT delete a worker document', async () => {
+  it('F7: a worker-role user CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    // worker role — below supervisor tier, denied by isAdminOrSupervisorTier()
     await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'worker' }), PATH)));
   });
-  it('V3: unauthenticated user CANNOT delete a worker document', async () => {
+  it('F7: a user with no role claim CANNOT delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true }), PATH)));
+  });
+  it('F7: an unauthenticated user CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
     await assertFails(deleteObject(r(unauth(), PATH)));
-  });
-  it('V3: user with no role claim CANNOT delete a worker document', async () => {
-    await seed(PATH, 'application/pdf');
-    // email_verified but no role claim — isAdminOrSupervisorTier() requires role in list
-    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true }), PATH)));
   });
 });
 

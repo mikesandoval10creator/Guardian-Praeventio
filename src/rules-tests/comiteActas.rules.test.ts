@@ -5,7 +5,8 @@
 // sub-collection previously had NO write rule → default-denied (the Comité
 // Paritario feature was broken in prod). Pins: member-gated create/update,
 // schema-validated (no PII smuggling onto a legal record), immutable creation
-// stamp + meeting date, admin/supervisor-only delete. F1 fail-closed harness.
+// stamp + meeting date. F7 (2026-07-02): actas are legal evidence — NO
+// client deletes at all (full client-side immutability). F1 harness.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -126,7 +127,7 @@ describe('comite_actas (CPHS minutes) — firestore.rules (#B12)', () => {
     await assertFails(deleteDoc(ref(authed(MEMBER), 'seeded')));
   });
 
-  it('an admin CAN delete an acta', async () => {
-    await assertSucceeds(deleteDoc(ref(authed('admin-uid', 'admin'), 'seeded')));
+  it('F7: even an ADMIN cannot delete an acta client-side (evidencia legal)', async () => {
+    await assertFails(deleteDoc(ref(authed('admin-uid', 'admin'), 'seeded')));
   });
 });

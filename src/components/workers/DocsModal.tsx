@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Plus, Download, Trash2, Loader2, FileCheck, AlertCircle, ShieldCheck, AlertOctagon } from 'lucide-react';
+import { X, FileText, Plus, Download, Archive, Loader2, FileCheck, AlertCircle, ShieldCheck, AlertOctagon } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
-import { db, collection, addDoc, onSnapshot, query, where, limit, handleFirestoreError, OperationType, deleteDoc, doc, updateDoc } from '../../services/firebase';
+import { db, collection, addDoc, onSnapshot, query, where, limit, handleFirestoreError, OperationType, doc, updateDoc } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeDocumentCompliance } from '../../services/geminiService';
 import { Worker, NodeType } from '../../types';
@@ -34,7 +34,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<WorkerDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
   // Dedupe knowledge.doc.viewed across the SPA session (one fire per worker).
   const trackedDocViewedRef = useRef<Set<string>>(new Set());
 
@@ -160,19 +160,23 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
     }
   };
 
-  const handleDelete = (docId: string) => {
-    setPendingDeleteId(docId);
+  const handleArchive = (docId: string) => {
+    setPendingArchiveId(docId);
   };
 
-  const confirmDelete = async () => {
-    if (!pendingDeleteId) return;
+  // F7 (founder decision 2026-07-02): worker documents are legal evidence —
+  // nothing is deleted from the client. "Remove" = archive: flip the
+  // metadata flag; the onSnapshot query above filters archived docs out.
+  // firestore.rules denies client deletes on both document paths.
+  const confirmArchive = async () => {
+    if (!pendingArchiveId) return;
     try {
       const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
-      await deleteDoc(doc(db, path, pendingDeleteId));
+      await updateDoc(doc(db, path, pendingArchiveId), { archived: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'documents');
+      handleFirestoreError(error, OperationType.WRITE, 'documents');
     } finally {
-      setPendingDeleteId(null);
+      setPendingArchiveId(null);
     }
   };
 
@@ -273,10 +277,11 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
                           <Download className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => handleDelete(doc.id)}
+                          onClick={() => handleArchive(doc.id)}
+                          title="Archivar documento (la evidencia se conserva)"
                           className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Archive className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -303,12 +308,12 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
     </AnimatePresence>
 
     <ConfirmDialog
-      isOpen={!!pendingDeleteId}
-      title="Eliminar documento"
-      message="¿Estás seguro de eliminar este documento? Esta acción no se puede deshacer."
-      confirmLabel="Eliminar"
-      onConfirm={confirmDelete}
-      onCancel={() => setPendingDeleteId(null)}
+      isOpen={!!pendingArchiveId}
+      title="Archivar documento"
+      message="El documento se ocultará de esta lista. El registro y el archivo se conservan como evidencia legal — no se eliminan."
+      confirmLabel="Archivar"
+      onConfirm={confirmArchive}
+      onCancel={() => setPendingArchiveId(null)}
     />
     </>
   );

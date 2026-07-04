@@ -16,9 +16,14 @@
 //
 // Path (a): member-gated create/update (schema carries `workerId`, the worker
 // doc id — NOT a caller uid — so there is no anti-spoof field to bind, matching
-// the sibling /documents and /findings rules); admin/supervisor delete.
+// the sibling /documents and /findings rules).
 // Path (b): admin/supervisor only (non-project-scoped personnel record, no
 // project membership to check). Uses the F1 fail-closed harness.
+//
+// F7 (founder decision 2026-07-02): worker documents are legal evidence —
+// client-side DELETE is denied for everybody on both paths (DocsModal now
+// archives via `archived: true` instead). Physical removal is server-side
+// (Admin SDK) + audited.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -118,10 +123,14 @@ describe('projects/{pid}/workers/{wid}/documents — firestore.rules', () => {
     await seedNested('d6');
     await assertSucceeds(setDoc(nestedRef(authed(MEMBER), 'd6'), { name: 'Editado' }, { merge: true }));
   });
-  it('member cannot delete; admin can delete', async () => {
+  it('F7: NOBODY deletes client-side — member AND admin denied (evidence lock)', async () => {
     await seedNested('d5');
     await assertFails(deleteDoc(nestedRef(authed(MEMBER), 'd5')));
-    await assertSucceeds(deleteDoc(nestedRef(authed(ADMIN, 'admin'), 'd5')));
+    await assertFails(deleteDoc(nestedRef(authed(ADMIN, 'admin'), 'd5')));
+  });
+  it('F7: archive flip (archived: true) is allowed for a member (hide-only path)', async () => {
+    await seedNested('d7');
+    await assertSucceeds(setDoc(nestedRef(authed(MEMBER), 'd7'), { archived: true }, { merge: true }));
   });
 });
 
@@ -139,5 +148,13 @@ describe('workers/{wid}/documents (top-level fallback) — firestore.rules', () 
   it('a plain worker cannot delete a top-level worker document', async () => {
     await seedTop('t4');
     await assertFails(deleteDoc(topRef(authed(MEMBER), 't4')));
+  });
+  it('F7: even an ADMIN cannot delete a top-level worker document', async () => {
+    await seedTop('t5');
+    await assertFails(deleteDoc(topRef(authed(ADMIN, 'admin'), 't5')));
+  });
+  it('F7: a supervisor can archive (hide-only) a top-level worker document', async () => {
+    await seedTop('t6');
+    await assertSucceeds(setDoc(topRef(authed('sup-1', 'supervisor'), 't6'), { archived: true }, { merge: true }));
   });
 });
