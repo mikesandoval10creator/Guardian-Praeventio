@@ -31,26 +31,22 @@ test.describe('Corrective actions — action balance card', () => {
     }
   });
 
-  // FIXME (precise diagnosis 2026-06-28): auth + projectId are FIXED — with
-  // FIREBASE_AUTH_EMULATOR_HOST the browser signs in and the full app shell
-  // renders (confirmed via the failure a11y snapshot). The remaining blocker is
-  // the CLIENT projects-list query: ProjectContext runs
-  // `where('members','array-contains', uid)` on `projects`, but firestore.rules
-  // `isProjectMember` resolves membership via get() on the listed doc, which
-  // does not validate a LIST query for the emulator-minted user, so the query
-  // returns empty and the page stays in its "Selecciona un proyecto" empty
-  // state — `action-balance-card` only mounts once a project is selected. Card
-  // render/balance math is covered by ActionBalanceCard.test.tsx. Un-fixme once
-  // the harness injects client-side project selection (or the list rule is made
-  // claim-validatable for the test user). Needs browser-console instrumentation
-  // to confirm permission-denied vs custom-claim propagation in the emulator.
-  test.fixme('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
+  // Re-enabled (Bloque A, 2026-07-05): the seeded project DOES auto-select
+  // client-side (the firestore.rules read→get/list split at firestore.rules:395
+  // was already in place). The prior flake was pure latency — ProjectContext's
+  // `projects` snapshot can take >15s under a cold Firestore emulator with
+  // parallel workers, overrunning the old 15s card-visibility timeout. Fixed by
+  // waiting on the loaded (project-selected) gate with headroom first.
+  test('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
     try {
       await navigateAuthenticated(page, '/corrective-actions');
+      // Wait for the loaded (project-selected) state before asserting the card —
+      // the client `projects` snapshot is the slow step under a cold emulator.
+      await expect(page.getByTestId('corrective-actions-page')).toBeVisible({ timeout: 30_000 });
       const card = page.getByTestId('action-balance-card');
-      await expect(card).toBeVisible({ timeout: 15_000 });
+      await expect(card).toBeVisible({ timeout: 10_000 });
       await expect(page.getByTestId('action-balance-bars')).toBeVisible();
     } finally {
       await seed.cleanup();

@@ -226,12 +226,28 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
       await admin.auth().updateUser(user.uid, { emailVerified: true, email: user.email });
     } catch (err: any) {
       if (err?.code === 'auth/user-not-found') {
-        await admin.auth().createUser({
-          uid: user.uid,
-          email: user.email,
-          emailVerified: true,
-          displayName: user.displayName,
-        });
+        try {
+          await admin.auth().createUser({
+            uid: user.uid,
+            email: user.email,
+            emailVerified: true,
+            displayName: user.displayName,
+          });
+        } catch (createErr: any) {
+          // Parallel-worker race: another spec created the same uid between our
+          // update (not-found) and this create. The account exists now → update
+          // it so emailVerified is guaranteed, rather than throwing and falling
+          // back to header-only auth (which leaves the browser's rules-gated
+          // client queries permission-denied → "no active project" flakes).
+          if (
+            createErr?.code === 'auth/uid-already-exists' ||
+            createErr?.code === 'auth/email-already-exists'
+          ) {
+            await admin.auth().updateUser(user.uid, { emailVerified: true, email: user.email });
+          } else {
+            throw createErr;
+          }
+        }
       } else {
         throw err;
       }
