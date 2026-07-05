@@ -1,6 +1,6 @@
 import { collection, addDoc, serverTimestamp, db, auth, handleFirestoreError, OperationType } from './firebase';
 import { logger } from '../utils/logger';
-import { apiAuthHeader } from '../lib/apiAuth';
+import { enqueueAuditLog } from './audit/auditOutbox';
 
 /**
  * Shape of the `details` payload on audit_logs.
@@ -50,23 +50,20 @@ export const logAuditAction = async (
   details: AuditLogDetails,
   projectId?: string,
 ) => {
-  try {
-    const user = auth.currentUser;
-    if (!user) return; // Don't log if not authenticated
+  const user = auth.currentUser;
+  if (!user) return; // Don't log if not authenticated
 
-    // §2.20 (2026-05-23) — apiAuthHeader unified.
-    const authHeader = await apiAuthHeader();
-    await fetch('/api/audit-log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader ? { 'Authorization': authHeader } : {}),
-      },
-      body: JSON.stringify({ action, module, details, projectId }),
-    });
+  // Route through the durable offline outbox. The critical path is a local
+  // IndexedDB enqueue (no network — so it never hangs the caller; a bare awaited
+  // fetch used to keep a submit modal open with no signal). Delivery to
+  // /api/audit-log happens in the background: immediately when online, on
+  // reconnect otherwise. The trail is never dropped offline (§14); the server
+  // dedupes on the Idempotency-Key so a replayed flush can't duplicate the
+  // append-only row.
+  try {
+    await enqueueAuditLog({ action, module, details, projectId });
   } catch (error) {
-    // We don't want audit logging to break the main application flow,
-    // but we should log it to the console.
-    logger.error('Failed to write audit log:', error);
+    // Enqueue failing (e.g. IndexedDB unavailable) must never break the flow.
+    logger.error('Failed to enqueue audit log:', error);
   }
 };

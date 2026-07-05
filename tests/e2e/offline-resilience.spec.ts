@@ -4,38 +4,27 @@ import { seedProject } from './fixtures/seed';
 
 /**
  * Offline resilience (PWA + IndexedDB) (Sprint 19 unskip):
- *   Crear hallazgo con red caída → IndexedDB queue → reconectar → sync
- *   a Firestore → hallazgo visible en feed.
+ *   Crear hallazgo con red caída → outbox durable (IndexedDB) → reconectar →
+ *   sync a Firestore → hallazgo visible en el feed.
  *
- * Este es el test más crítico para safety en faena: si la app pierde
- * datos cuando el supervisor está bajo tierra sin señal, traicionamos
- * el caso de uso. Requiere el stack completo (Express + Firestore
- * Emulator).
+ * Este es el test más crítico para safety en faena: si la app pierde datos
+ * cuando el supervisor está bajo tierra sin señal, traicionamos el caso de
+ * uso. Requiere el stack completo (Express E2E_MODE + Firestore Emulator).
  */
-// FIXME (2026-05-30, layer 2): the auth/project root cause is fixed (see PR #601
-// / the full note in sos-button.spec.ts) — `/projects/{id}/findings` now
-// renders. What remains is feature-level: the offline finding-creation form +
-// IndexedDB→Firestore sync assertions need reconciling with the live render
-// (the "Descripción" field label drifted). Now locally-iterable (Java 21 +
-// emulator). Un-fixme once verified end-to-end.
-// Sprint E2E-99 — route-fix CONSERVADO (/findings + apertura por botón
-// new-finding-button; no existe /findings/new) y data-testid ya en Findings.
-// PERO el flujo feature-level (el campo "Descripción" no aparece bajo el harness
-// full-stack de CI → locator.fill timeout) NO es verificable en CI todavía → re-fixme.
-// Bloque B (2026-07-05): the boot-time spurious EmergencyOverlay that blocked
-// this spec is FIXED — EmergencyAlertBanner now gates the live-USGS seismic
-// auto-escalation under MODE=test. Residual (still fixme'd): after context.setOffline
-// the "Descripción" fill times out — the finding form is the AddFinding modal, and
-// the field label/open path drifted. Un-fixme once that field is reconciled.
-// Bloque B (2026-07-05) status: the boot-time seismic EmergencyOverlay, the
-// unlabelled "Descripción" field, and the project-selection path are all FIXED,
-// so this spec now drives the whole AddFinding modal. Remaining (still fixme'd) is
-// a REAL app gap, not a harness issue: AddFindingModal.handleSubmit awaits addNode
-// + logAuditAction (server POSTs) and only closes the modal on success — offline
-// those reject, so the finding is never queued to an outbox and never syncs on
-// reconnect. Making finding creation genuinely offline-first (queue-on-failure +
-// flush) is the follow-up; un-fixme once addNode/audit degrade to the outbox.
-test.describe.fixme('Offline-first sync', () => {
+// Un-fixme'd (2026-07-05). Lo que este spec ahora ejercita de verdad, y los
+// arreglos que lo destrabaron (todos código real, no hacks de test):
+//   • Creación offline-first: AddFindingModal cierra el modal apenas addNode
+//     encola el nodo en el outbox; el plan IA opcional corre solo online y en
+//     background, así que la red caída ya no bloquea el guardado.
+//   • addNode ahora AWAIT-ea el encolado durable (useRiskEngine): el op queda
+//     persistido en IndexedDB antes de resolver, así sobrevive al reload del
+//     reconnect (antes: fire-and-forget → cola vacía tras recargar).
+//   • El proxy /api/gemini en E2E_MODE ya NO mockea syncNodeToNetwork /
+//     syncBatchToNetwork (son escrituras Firestore, no generación IA): el
+//     flush del outbox escribe de verdad en `nodes` contra el emulador.
+//   • Barreras de proyecto activo (abajo): sin proyecto seleccionado
+//     handleSubmit hacía early-return y el modal nunca cerraba.
+test.describe('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
@@ -46,14 +35,18 @@ test.describe.fixme('Offline-first sync', () => {
     const seed = await seedProject();
 
     try {
-      // Sprint 34 — robustness pass per audit P0 §1.4 (continue-on-error
-      // removed). Reemplazamos `waitForTimeout(2_000)` por una poll
-      // explícita contra el feed: si el sync handler termina antes el
-      // test corre rápido; si no, el poll espera hasta 12s con
-      // intervalos exponenciales en lugar de un sleep ciego.
       await page.goto('/findings');
       // §2.24 fix (2026-05-22) — wait barrier auth real antes de UI checks.
       await signInBrowserViaCustomToken(page);
+
+      // Barrera de proyecto activo: ProjectContext auto-selecciona el proyecto
+      // sembrado de forma asíncrona (query `members array-contains uid` →
+      // setSelectedProject). El botón "Nuevo hallazgo" aparece ANTES de esa
+      // selección, así que sin esta barrera el test abre el modal y submitea con
+      // selectedProject === null → AddFindingModal.handleSubmit hace
+      // `if (!selectedProject) return` (early-return silencioso, sin cerrar el
+      // modal). El nombre accesible del selector es "Proyecto Activo E2E Project".
+      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
 
       // Sprint E2E-99 — no hay ruta /findings/new; el formulario se abre con el
       // botón "Nuevo hallazgo" (data-testid estable agregado en este sprint).
@@ -63,28 +56,59 @@ test.describe.fixme('Offline-first sync', () => {
 
       await context.setOffline(true);
 
-      // Título + Descripción are both required by the AddFinding modal.
+      // Título, Ubicación y Descripción son required en el modal AddFinding —
+      // sin los tres, la validación HTML5 bloquea el submit y el modal no cierra.
       await page.getByLabel(/T[ií]tulo/i).fill('Cable suelto');
+      await page.getByLabel(/Ubicaci[oó]n/i).fill('Piso 3, Sector B');
       await page.getByLabel(/Descripci[oó]n/i).fill('Cable suelto en piso 3');
       await page.getByRole('button', { name: /Registrar/i }).click();
 
-      // AddFindingModal has no "Guardado para sincronizar" banner — addNode queues
-      // to the offline outbox and dismisses the modal. The real proof is the
-      // finding surfacing in the feed after reconnect (asserted below); here we
-      // just confirm the save succeeded (modal closed, no blocking error).
+      // El save offline tuvo éxito cuando el modal cierra (addNode encoló el nodo
+      // en el outbox durable y no hubo error bloqueante). La prueba real es el
+      // hallazgo apareciendo en el feed tras reconectar (abajo).
       await expect(page.getByRole('button', { name: /Registrar/i })).not.toBeVisible({ timeout: 8_000 });
 
-      // Reconectar — el sync handler dispara cuando el SW recibe el evento
-      // `online`. No usamos waitForTimeout: pollearemos el feed.
+      // Reconectar. El evento `online` dispara flush() del outbox en ESTA página
+      // (autenticada, con el op en memoria). Esperamos a que el POST del flush
+      // llegue al backend ANTES de recargar; sin esto, el page.goto de abajo
+      // destruía la página antes de que el fetch del flush arrancara (se
+      // observaron 0 requests syncBatchToNetwork). El primer intento puede fallar
+      // (transitorio de arranque del server); el outbox reintenta y el flush
+      // post-reload sincroniza — por eso NO exigimos 2xx aquí, solo que el
+      // intento haya salido.
       await context.setOffline(false);
+      await page
+        .waitForResponse(
+          (r) =>
+            r.url().includes('/api/gemini') &&
+            (r.request().postData() ?? '').includes('syncBatchToNetwork'),
+          { timeout: 20_000 },
+        )
+        .catch(() => {
+          /* si no salió, el flush post-reload (abajo) es el que sincroniza */
+        });
 
-      // El hallazgo debe haberse pushed al backend y aparecer en el feed.
-      // expect.poll es robusto frente a la latencia variable del emulador
-      // de Firestore (frío puede tardar 4-6s en confirmar el write).
+      // Recargar prueba durabilidad real: el estado optimista en memoria se
+      // pierde, así que el hallazgo solo reaparece si se persistió en `nodes`.
       await page.goto('/findings');
+      // Re-firmar el browser tras el reload: el feed lee `nodes` vía onSnapshot y
+      // firestore.rules exige `request.auth != null`; el flush del outbox
+      // (POST /api/gemini) también estampa `auth.currentUser.uid`. Sin re-sign-in
+      // el query queda permission-denied y el flush corre como 'anonymous' →
+      // assertProjectMember lo rechaza (403). Mismo patrón goto+signIn del inicio.
+      await signInBrowserViaCustomToken(page);
+      // Barrera de proyecto activo tras el reload: el feed filtra por
+      // selectedProject.id, que arranca null en cada carga hasta que la query lo
+      // re-entrega. Sin esto el poll leería un feed sin proyecto.
+      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
+
+      // El hallazgo debe haberse pushed al backend y aparecer en el feed. El
+      // flush post-reload arranca con el timer de scheduleFlush (5s) + POST +
+      // confirmación onSnapshot del emulador; expect.poll con backoff tolera esa
+      // latencia variable (y un reintento del outbox si el primer flush falla).
       await expect.poll(
         async () => await page.getByText(/Cable suelto en piso 3/i).isVisible().catch(() => false),
-        { timeout: 12_000, intervals: [500, 1000, 2000] },
+        { timeout: 20_000, intervals: [500, 1000, 2000] },
       ).toBe(true);
     } finally {
       await seed.cleanup();

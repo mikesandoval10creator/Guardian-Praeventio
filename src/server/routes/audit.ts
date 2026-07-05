@@ -28,6 +28,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -37,7 +38,11 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
-router.post('/audit-log', verifyAuth, async (req, res) => {
+// idempotencyKey(): a queued audit entry that the offline outbox retries carries
+// the same Idempotency-Key (= clientEventId) on each flush; the middleware replays
+// the cached 2xx WITHOUT re-running the handler, so a reconnect drain can never
+// create a duplicate append-only audit_logs row (create:true, update/delete:false).
+router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail: string | null = req.user!.email ?? null;
   const { action, module: mod, details, projectId } = req.body ?? {};
