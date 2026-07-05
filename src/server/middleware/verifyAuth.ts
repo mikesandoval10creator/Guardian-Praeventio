@@ -96,6 +96,12 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
       email: 'e2e@praeventio.test',
       displayName: 'E2E Test User',
       tenantId: 'e2e-tenant',
+      // The E2E fixture user IS a supervisor (mirrors DEFAULT_TEST_USER.roles[0]
+      // in tests/e2e/fixtures/auth.ts). Without a server-side role, every
+      // role-gated endpoint (emergency-brigade writes, zone define, …) 403s and
+      // becomes untestable in the full-stack E2E harness. E2E-only branch —
+      // already gated by isE2EModeEnabled() + non-production.
+      role: 'supervisor',
     };
     return next();
   }
