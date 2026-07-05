@@ -139,3 +139,65 @@ export async function clearAllProjects(): Promise<void> {
   const snap = await db.collection('projects').get();
   await Promise.all(snap.docs.map((doc) => doc.ref.delete()));
 }
+
+export interface SeededZone {
+  /** The restricted-zone id (also the Firestore doc id). */
+  zoneId: string;
+  /** Cleanup the zone doc created by this seed call. */
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Seed a `restricted_zones` doc under the SAME tenant/project path the audited
+ * `/api/zones/by-site` + `/api/zones/entry-event` routes read/write
+ * (`tenants/{tenantId}/projects/{projectId}/restricted_zones/{zoneId}` — see
+ * `src/server/routes/restrictedZones.ts` zonesCollection). Defaults describe a
+ * HOT-WORK zone whose EPP/training requirements a worker won't meet, so the
+ * informed-entry engine returns `allowed: false` — which lets the E2E prove the
+ * founder no-blocking invariant: the entry is NEVER blocked but ALWAYS recorded.
+ */
+export async function seedRestrictedZone(
+  projectId: string,
+  options: {
+    tenantId?: string;
+    zoneId?: string;
+    name?: string;
+    kind?: string;
+    requiredEpp?: string[];
+    requiredTrainings?: string[];
+    responsibleUid?: string;
+  } = {},
+): Promise<SeededZone> {
+  ensureAdmin();
+  const db = admin.firestore();
+  const tenantId = options.tenantId ?? 'e2e-tenant';
+  const zoneId = options.zoneId ?? 'e2e-hot-zone';
+  const zoneRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('projects')
+    .doc(projectId)
+    .collection('restricted_zones')
+    .doc(zoneId);
+  await zoneRef.set({
+    id: zoneId,
+    kind: options.kind ?? 'hot',
+    name: options.name ?? 'Zona Caliente E2E',
+    // No `perimeter`: it's optional in the zone schema, the informed-entry flow
+    // doesn't use it (only the map overlay does), and Firestore forbids the
+    // nested-array shape `[[lng,lat], ...]` the polygon would need.
+    rules: {
+      requiredEpp: options.requiredEpp ?? ['Casco de seguridad'],
+      requiredTrainings: options.requiredTrainings ?? ['Trabajo en Caliente'],
+      responsibleUid: options.responsibleUid ?? 'e2e-user-001',
+    },
+    activeFrom: '2020-01-01T00:00:00.000Z',
+  });
+
+  return {
+    zoneId,
+    cleanup: async (): Promise<void> => {
+      await zoneRef.delete();
+    },
+  };
+}
