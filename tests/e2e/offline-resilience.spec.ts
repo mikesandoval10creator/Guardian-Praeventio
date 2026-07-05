@@ -27,6 +27,14 @@ import { seedProject } from './fixtures/seed';
 // auto-escalation under MODE=test. Residual (still fixme'd): after context.setOffline
 // the "Descripción" fill times out — the finding form is the AddFinding modal, and
 // the field label/open path drifted. Un-fixme once that field is reconciled.
+// Bloque B (2026-07-05) status: the boot-time seismic EmergencyOverlay, the
+// unlabelled "Descripción" field, and the project-selection path are all FIXED,
+// so this spec now drives the whole AddFinding modal. Remaining (still fixme'd) is
+// a REAL app gap, not a harness issue: AddFindingModal.handleSubmit awaits addNode
+// + logAuditAction (server POSTs) and only closes the modal on success — offline
+// those reject, so the finding is never queued to an outbox and never syncs on
+// reconnect. Making finding creation genuinely offline-first (queue-on-failure +
+// flush) is the follow-up; un-fixme once addNode/audit degrade to the outbox.
 test.describe.fixme('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
     test.skip(
@@ -55,11 +63,16 @@ test.describe.fixme('Offline-first sync', () => {
 
       await context.setOffline(true);
 
+      // Título + Descripción are both required by the AddFinding modal.
+      await page.getByLabel(/T[ií]tulo/i).fill('Cable suelto');
       await page.getByLabel(/Descripci[oó]n/i).fill('Cable suelto en piso 3');
-      await page.getByRole('button', { name: /Guardar/i }).click();
+      await page.getByRole('button', { name: /Registrar/i }).click();
 
-      // Sin error y sin alerta: la app encola en IndexedDB.
-      await expect(page.getByText(/Guardado para sincronizar/i)).toBeVisible({ timeout: 8_000 });
+      // AddFindingModal has no "Guardado para sincronizar" banner — addNode queues
+      // to the offline outbox and dismisses the modal. The real proof is the
+      // finding surfacing in the feed after reconnect (asserted below); here we
+      // just confirm the save succeeded (modal closed, no blocking error).
+      await expect(page.getByRole('button', { name: /Registrar/i })).not.toBeVisible({ timeout: 8_000 });
 
       // Reconectar — el sync handler dispara cuando el SW recibe el evento
       // `online`. No usamos waitForTimeout: pollearemos el feed.

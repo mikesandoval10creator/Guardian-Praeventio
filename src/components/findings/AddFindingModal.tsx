@@ -278,6 +278,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_title', 'Título del Hallazgo')}</label>
                   <input
                     required
+                    aria-label={t('findings.field_title', 'Título del Hallazgo')}
                     type="text"
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
@@ -336,6 +337,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_description', 'Descripción Detallada')}</label>
                   <textarea
                     required
+                    aria-label={t('findings.field_description', 'Descripción Detallada')}
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder={t('findings.field_description_placeholder', 'Describe lo observado y el riesgo potencial...')}

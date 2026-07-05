@@ -101,10 +101,22 @@ export async function seedProject(
     ...(options.phone !== undefined ? { phone: options.phone } : {}),
   });
 
-  const crewRef = projectRef.collection('crews').doc();
+  // CuadrillasDashboard reads the TOP-LEVEL `crews` collection filtered by
+  // `projectId` (firestore.rules: `allow read: if isProjectMember(resource.data
+  // .projectId)`; server-only writes). The seed crew must live there — NOT the
+  // project subcollection — with the same shape the server writes (organic.ts):
+  // projectId + memberUids + xp + gamification counters, so the dashboard renders
+  // it (memberUids.length, xp, daysWithoutIncident…) and auto-selects it, exposing
+  // the "Iniciar proceso" button the process-lifecycle spec drives.
+  const crewRef = db.collection('crews').doc();
   await crewRef.set({
+    projectId: projectRef.id,
     name: options.crewName ?? 'Cuadrilla Alpha',
-    supervisorUid: options.supervisorUid ?? 'e2e-user-001',
+    supervisorUid,
+    memberUids: [supervisorUid],
+    xp: 0,
+    daysWithoutIncident: 0,
+    totalProcessesCompleted: 0,
     workerCount: 0,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });

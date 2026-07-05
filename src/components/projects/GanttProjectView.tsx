@@ -87,8 +87,17 @@ const PROCESS_TYPE_LABEL: Record<ProcessType, string> = {
   otro: 'Otro',
 };
 
-function toDate(d: string | Date): Date {
-  return d instanceof Date ? d : new Date(d);
+function toDate(d: string | Date | null | undefined): Date {
+  // Defensive: a project/process without a (valid) date must NOT crash the whole
+  // Gantt — an Invalid Date propagates into the chart lib's date math and throws
+  // "RangeError: Invalid time value" on the first toISOString(), taking the whole
+  // /cuadrillas page down via the error boundary. Projects created without
+  // startDate (ProjectContext.createProject does not set one) hit this. Fall back
+  // to "now" so the timeline still draws a valid (if arbitrary) bar.
+  if (d instanceof Date) return Number.isNaN(d.getTime()) ? new Date() : d;
+  if (d == null || d === '') return new Date();
+  const parsed = new Date(d);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 function defaultEnd(start: Date): Date {
