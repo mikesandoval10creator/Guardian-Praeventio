@@ -22,6 +22,11 @@ import { seedProject } from './fixtures/seed';
 // y data-testid (start-process-button) ya en CuadrillasDashboard. PERO el flujo
 // feature-level (el StartProcessModal no aparece bajo el harness full-stack de CI
 // → locator.waitFor timeout) NO es verificable en CI todavía → re-fixme.
+// Bloque B (2026-07-05): the boot-time spurious EmergencyOverlay is FIXED
+// (EmergencyAlertBanner MODE=test gate). Residual (still fixme'd): /cuadrillas
+// CRASHES into the error boundary ("Sistema Interrumpido") under the full-stack
+// harness, so "Iniciar proceso" never renders — a real page runtime crash to
+// root-cause. Un-fixme once /cuadrillas renders in the harness.
 test.describe.fixme('Process lifecycle (start → close → XP)', () => {
   test('iniciar y cerrar un proceso otorga XP a la cuadrilla', async ({ page }) => {
     test.skip(

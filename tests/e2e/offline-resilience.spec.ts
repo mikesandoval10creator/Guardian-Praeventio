@@ -22,6 +22,11 @@ import { seedProject } from './fixtures/seed';
 // new-finding-button; no existe /findings/new) y data-testid ya en Findings.
 // PERO el flujo feature-level (el campo "Descripción" no aparece bajo el harness
 // full-stack de CI → locator.fill timeout) NO es verificable en CI todavía → re-fixme.
+// Bloque B (2026-07-05): the boot-time spurious EmergencyOverlay that blocked
+// this spec is FIXED — EmergencyAlertBanner now gates the live-USGS seismic
+// auto-escalation under MODE=test. Residual (still fixme'd): after context.setOffline
+// the "Descripción" fill times out — the finding form is the AddFinding modal, and
+// the field label/open path drifted. Un-fixme once that field is reconciled.
 test.describe.fixme('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
     test.skip(
