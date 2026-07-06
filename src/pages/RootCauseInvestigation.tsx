@@ -384,6 +384,7 @@ export function RootCauseInvestigation() {
                       <li key={a.incidentId}>
                         <button
                           type="button"
+                          data-testid={`root-cause-history-item-${a.incidentId}`}
                           onClick={() => setSelectedAnalysisId(a.incidentId)}
                           className={`w-full text-left p-2 rounded-lg text-xs ${
                             a.incidentId === selectedAnalysisId

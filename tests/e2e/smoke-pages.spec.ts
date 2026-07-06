@@ -27,6 +27,12 @@ const PROJECT_PAGES = [
   { path: '/cuadrillas', name: 'Cuadrillas' },
   { path: '/driving', name: 'Driving' },
   { path: '/comite-paritario', name: 'CPHS' },
+  // C6 — protocol pages get mount-smoke here; their real form→engine→score
+  // flows are Bloque C5's dedicated specs (protocolo-tmert/prexor, ceal-sm).
+  { path: '/tmert', name: 'TMERT' },
+  { path: '/prexor', name: 'PREXOR' },
+  { path: '/ceal-sm', name: 'CEAL-SM Campaigns' },
+  { path: '/planesi', name: 'PLANESI' },
 ];
 
 const NO_PROJECT_PAGES = [
