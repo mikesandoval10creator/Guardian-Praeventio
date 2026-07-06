@@ -221,17 +221,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         return 'offline-id-' + Date.now();
       }
 
-      const { addDoc } = await import('firebase/firestore');
+      const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
       const { seedGlobalData } = await import('../services/seedService');
 
-      const docRef = await addDoc(collection(db, 'projects'), {
-        ...projectData,
-        // M-1: owning tenant (single-tenant-per-user → tenant == owner uid).
-        tenantId: user?.uid,
-        createdAt: new Date().toISOString(),
-        createdBy: user?.uid,
-        members: [user?.uid]
+      // Server-side creation (audit invariant, CLAUDE.md #3): POST
+      // /api/projects stamps createdBy/tenantId/members/createdAt from the
+      // VERIFIED token and writes the audit_logs row the old client-side
+      // `addDoc` never did. The offline branch above still queues through the
+      // outbox (rules-gated client write) — a rare, documented exception.
+      const authHeader = await apiAuthHeaderOrThrow();
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify(projectData),
       });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error((detail as { error?: string }).error ?? `Error ${response.status}`);
+      }
+      const { projectId } = (await response.json()) as { projectId: string };
 
       // Wave-9 analytics: fire project.created with the closed-set tier
       // + industry mapping. The catalog enums are the gold standard;
@@ -245,13 +253,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } catch { /* analytics must never break user flow */ }
 
       // Seed initial data for the new project
-      await seedGlobalData(docRef.id, projectData.industry);
+      await seedGlobalData(projectId, projectData.industry);
 
       // Seed Zettelkasten template nodes (Blocks I-VIII)
       const { seedProjectNodes } = await import('../services/nodeSeedService');
-      seedProjectNodes(docRef.id, user?.uid ?? 'system').catch(() => {});
+      seedProjectNodes(projectId, user?.uid ?? 'system').catch(() => {});
 
-      return docRef.id;
+      return projectId;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'projects');
       throw error;
