@@ -116,6 +116,57 @@ export function buildAnalysis(input: BuildAnalysisInput): RootCauseAnalysis {
   };
 }
 
+/** Canonical taxonomy — the set a persisted `factors` array is filtered against. */
+export const ALL_CAUSE_FACTORS: readonly CauseFactor[] = [
+  'condicion_subestandar',
+  'acto_subestandar',
+  'falla_supervision',
+  'falla_procedimiento',
+  'falla_mantenimiento',
+  'factor_ambiental',
+  'factor_organizacional',
+  'falla_capacitacion',
+  'falla_epp',
+  'falla_diseno',
+];
+const CAUSE_FACTOR_SET: ReadonlySet<string> = new Set(ALL_CAUSE_FACTORS);
+
+/**
+ * Read-time guard for a persisted analysis. Firestore docs are NOT guaranteed
+ * to match the current schema — an older or partial write may omit the array
+ * fields, which crashed the /root-cause page (`a.factors.map`, `for (const f of
+ * a.factors)`). Every store consumer flows through this so downstream code can
+ * assume the arrays exist. Purely defensive: it never writes back, it just
+ * makes a corrupt doc renderable.
+ */
+export function normalizeRootCauseAnalysis(
+  raw: unknown,
+  incidentId: string,
+): RootCauseAnalysis {
+  const r = (raw ?? {}) as Partial<Record<keyof RootCauseAnalysis, unknown>>;
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  const factors = Array.isArray(r.factors)
+    ? (r.factors.filter((f): f is CauseFactor => typeof f === 'string' && CAUSE_FACTOR_SET.has(f)))
+    : [];
+  const primaryFactor =
+    typeof r.primaryFactor === 'string' && CAUSE_FACTOR_SET.has(r.primaryFactor)
+      ? (r.primaryFactor as CauseFactor)
+      // ponytail: a corrupt doc without a valid primaryFactor falls back to the
+      // first present factor, else a neutral taxonomy member so FACTOR_LABELS /
+      // FACTOR_TO_CATEGORY lookups never resolve to undefined.
+      : (factors[0] ?? 'condicion_subestandar');
+  return {
+    incidentId,
+    factors,
+    primaryFactor,
+    fiveWhys: strings(r.fiveWhys),
+    analyzedByUid: typeof r.analyzedByUid === 'string' ? r.analyzedByUid : '',
+    analyzedAt: typeof r.analyzedAt === 'string' ? r.analyzedAt : '',
+    suggestedActions: strings(r.suggestedActions),
+  };
+}
+
 export function computeStats(analyses: RootCauseAnalysis[]): CauseStats {
   const countByFactor: Record<CauseFactor, number> = {
     condicion_subestandar: 0,
