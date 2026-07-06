@@ -176,7 +176,7 @@ export function Projects() {
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-3xl font-black text-primary-token tracking-tighter uppercase break-words leading-tight">{selectedProject.name}</h1>
+              <h1 data-testid="project-detail-name" className="text-xl sm:text-3xl font-black text-primary-token tracking-tighter uppercase break-words leading-tight">{selectedProject.name}</h1>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
                 <span className="text-[8px] sm:text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 px-2 py-0.5 rounded-lg border border-[#4db6ac]/20">
                   {selectedProject.status}
@@ -319,6 +319,7 @@ export function Projects() {
           whileTap={{ scale: 0.98 }}
           onClick={() => setIsModalOpen(true)}
           disabled={!isOnline}
+          data-testid="create-project-button"
           title={!isOnline ? t('projects.requires_internet', 'Requiere conexión a internet') : ''}
           className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
             !isOnline
@@ -446,6 +447,7 @@ export function Projects() {
             <motion.div
               key={projectId}
               whileHover={{ y: -5 }}
+              data-testid={`project-card-${projectId}`}
               onClick={() => setSelectedProject(project)}
               className={`bg-elevated border rounded-2xl sm:rounded-3xl p-5 sm:p-6 cursor-pointer transition-all relative overflow-hidden group shadow-sm flex flex-col ${
                 /* Codex/strict note: outer early-return narrows
@@ -550,6 +552,7 @@ export function Projects() {
                     <input
                       required
                       type="text"
+                      data-testid="create-project-name-input"
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       placeholder={t('projects.form.name_placeholder', 'Ej: Mina Los Bronces - Fase 4')}
@@ -581,6 +584,7 @@ export function Projects() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.description', 'Descripción del Proyecto')}</label>
                   <textarea
                     required
+                    data-testid="create-project-description-input"
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder={t('projects.form.description_placeholder', 'Detalles sobre el alcance y objetivos...')}
@@ -597,6 +601,7 @@ export function Projects() {
                       <input
                         required
                         type="text"
+                        data-testid="create-project-location-input"
                         value={formData.location}
                         onChange={e => setFormData({ ...formData, location: e.target.value })}
                         placeholder={t('projects.form.location_placeholder', 'Ciudad, Región')}
@@ -738,6 +743,7 @@ export function Projects() {
                 <button
                   type="submit"
                   disabled={isCreating}
+                  data-testid="create-project-submit-button"
                   className="w-full bg-[#4db6ac] hover:bg-[#3a9e95] disabled:opacity-50 text-white font-black py-4 sm:py-5 rounded-2xl sm:rounded-3xl transition-all shadow-xl shadow-[#4db6ac]/20 flex items-center justify-center gap-2 sm:gap-3 uppercase tracking-widest text-[10px] sm:text-sm mt-4 shrink-0"
                 >
                   {isCreating ? (
