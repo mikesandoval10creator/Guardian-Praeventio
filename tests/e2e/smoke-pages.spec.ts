@@ -33,6 +33,11 @@ const PROJECT_PAGES = [
   { path: '/prexor', name: 'PREXOR' },
   { path: '/ceal-sm', name: 'CEAL-SM Campaigns' },
   { path: '/planesi', name: 'PLANESI' },
+  // Bloque D Rama 1 — vida/legal orphans wired (return-to-work,
+  // retaliation-protection, privacy-shield) get mount-smoke coverage.
+  { path: '/return-to-work', name: 'Return to Work' },
+  { path: '/retaliation-protection', name: 'Retaliation Protection' },
+  { path: '/privacy-shield', name: 'Privacy Shield' },
 ];
 
 const NO_PROJECT_PAGES = [

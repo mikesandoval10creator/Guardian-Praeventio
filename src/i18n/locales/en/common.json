@@ -4507,6 +4507,72 @@
       "selectProject": "Select a project to manage the waste inventory."
     }
   },
+  "returnToWork": {
+    "page": {
+      "title": "Return to Work",
+      "subtitle": "Task fit, mutuality referral and progressive return — no medical data (ADR 0012).",
+      "selectProject": "Select a project to assess task fit and return to work."
+    },
+    "panel": {
+      "aria": "Task fit assessment",
+      "title": "Task fit (return to work)",
+      "disclaimer": "Operational assessment with coded restrictions — no diagnosis or medical data (ADR 0012).",
+      "workerUid": "Worker ID",
+      "taskId": "Task ID",
+      "restriction": "Active restriction",
+      "conflict": "Task conflicts with",
+      "source": "Restriction source",
+      "startsAt": "Effective from",
+      "submit": "Assess fit",
+      "error": "Could not assess task fit.",
+      "violated": "Conflicting restrictions:"
+    }
+  },
+  "retaliationProtection": {
+    "page": {
+      "title": "Retaliation Protection",
+      "subtitle": "Karin Law 21.643 — post-report signal detection and protective actions.",
+      "selectProject": "Select a project to analyze retaliation signals."
+    },
+    "panel": {
+      "aria": "Retaliation risk analysis",
+      "title": "Post-report retaliation risk",
+      "disclaimer": "Karin Law 21.643 — signals observed within the evaluation window (90 days by default).",
+      "reportFiledAt": "Report filing date",
+      "observedAt": "Signal date",
+      "reporterUid": "Reporter ID",
+      "supervisorUid": "Supervisor ID",
+      "kind": "Signal kind",
+      "severity": "Severity",
+      "submit": "Analyze risk",
+      "error": "Could not analyze the risk.",
+      "signalCount": "Signals considered:",
+      "actions": "Recommended protective actions"
+    }
+  },
+  "privacyShield": {
+    "page": {
+      "title": "Privacy Shield",
+      "subtitle": "Law 19.628 + GDPR — personal data classification, gaps and retention.",
+      "selectProject": "Select a project to classify personal data fields."
+    },
+    "panel": {
+      "aria": "Personal data classifier",
+      "title": "Data field classification",
+      "disclaimer": "Law 19.628 + GDPR — classifies sensitivity, retention and handling obligations per field.",
+      "fieldPath": "Field path (e.g. workers.rut)",
+      "category": "Data category",
+      "encrypted": "Encrypted at rest",
+      "submit": "Classify field",
+      "error": "Could not classify the field.",
+      "sensitivity": "Sensitivity:",
+      "retention": "Retention:",
+      "days": "days",
+      "consent": "Explicit consent required",
+      "mustEncrypt": "Encryption at rest required",
+      "maskLogs": "Log masking required"
+    }
+  },
   "hazmatInventory": {
     "page": {
       "title": "HAZMAT Inventory",
