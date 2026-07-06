@@ -90,7 +90,7 @@ jobs:
 
       - name: Run markdownlint
         continue-on-error: true
-        uses: DavidAnson/markdownlint-cli2-action@v20
+        uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: '**/*.md'
           config: '{"default": true, "MD013": false, "MD033": false, "MD041": false}'
