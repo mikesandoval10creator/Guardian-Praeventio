@@ -593,7 +593,17 @@ service cloud.firestore {
       match /materials/{materialId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /assets/{assetId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /workers/{workerId} {
-        allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId);
+        // Bloque E1 (2026-07-06): a worker record is legally-retained evidence
+        // (personnel records, DS44 / Ley 16.744) — a CLIENT hard-delete is an
+        // evidence-destruction primitive and is DENIED. Removing a worker from a
+        // project is an ARCHIVE (`archived: true`) done by the audited server
+        // route POST /api/projects/:id/workers/:workerId/archive (Admin SDK
+        // bypasses rules + writes audit_logs). Same posture F7 gave /documents.
+        // Account-level erasure (Ley 21.719 / GDPR) is the separate accountRouter
+        // /anonymize flow. create/update stay role-gated for the client add/edit
+        // flows (AddWorkerModal / EditWorkerModal).
+        allow create, update: if isAdmin() || isSupervisor() || isProjectCreator(projectId);
+        allow delete: if false;
         // Worker documents (certs, contracts, EPP records, SUSESO docs) attached
         // via DocsModal (client SDK addDoc/onSnapshot/deleteDoc). The schema
         // carries `workerId` (the worker doc id, NOT a caller uid) → there is no

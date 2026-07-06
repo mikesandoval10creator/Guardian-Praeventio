@@ -271,3 +271,67 @@ describe('POST / (create project)', () => {
     expect(doc.members).toEqual(['u1']);
   });
 });
+
+// POST /:id/workers/:workerId/archive — Bloque E1. A worker record is legally
+// retained evidence (personnel records, DS44/Ley 16.744): it is NEVER
+// hard-deleted from the client. Removing a worker from a project ARCHIVES the
+// record server-side (archived:true, server-stamped) with an audit row; the
+// worker's portable history lives on their user account. Account-level erasure
+// (Ley 21.719/GDPR) is a separate flow (accountRouter), not this endpoint.
+describe('POST /:id/workers/:workerId/archive', () => {
+  const auditRows = () =>
+    [...H.db!._store.entries()]
+      .filter(([k]) => k.startsWith('audit_logs/'))
+      .map(([, v]) => v as Record<string, any>);
+
+  beforeEach(() => {
+    H.db!._seed('projects/p1/workers/w1', { id: 'w1', name: 'Juan Pérez', role: 'operario' });
+  });
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).post('/api/projects/p1/workers/w1/archive');
+    expect(res.status).toBe(401);
+  });
+
+  it('404 when the project is missing', async () => {
+    const res = await request(buildApp()).post('/api/projects/nope/workers/w1/archive').set(as('creator1'));
+    expect(res.status).toBe(404);
+  });
+
+  it('403 when a non-manager member archives', async () => {
+    const res = await request(buildApp()).post('/api/projects/p1/workers/w1/archive').set(as('member1'));
+    expect(res.status).toBe(403);
+  });
+
+  it('404 when the worker doc is missing', async () => {
+    const res = await request(buildApp()).post('/api/projects/p1/workers/ghost/archive').set(as('creator1'));
+    expect(res.status).toBe(404);
+  });
+
+  it('200 SOFT-archives with server-stamped identity + audit — the doc is NEVER destroyed', async () => {
+    const res = await request(buildApp()).post('/api/projects/p1/workers/w1/archive').set(as('creator1'));
+    expect(res.status).toBe(200);
+    // Legal retention: the worker doc still exists, only flagged archived.
+    const worker = H.db!._store.get('projects/p1/workers/w1') as Record<string, any>;
+    expect(worker, 'the worker record must be retained, never deleted').toBeTruthy();
+    expect(worker.name).toBe('Juan Pérez');
+    expect(worker.archived).toBe(true);
+    expect(worker.archivedBy).toBe('creator1'); // stamped from the verified token
+    expect(worker.archivedAt).toBeTruthy();
+    const audit = auditRows().find((r) => r.action === 'workers.archive');
+    expect(audit, 'a workers.archive audit row must exist').toBeTruthy();
+    expect(audit!.userId).toBe('creator1');
+    expect(audit!.details?.workerId).toBe('w1');
+  });
+
+  it('200 ignores a client-supplied archived:false / archivedBy spoof', async () => {
+    const res = await request(buildApp())
+      .post('/api/projects/p1/workers/w1/archive')
+      .set(as('creator1'))
+      .send({ archived: false, archivedBy: 'evil' });
+    expect(res.status).toBe(200);
+    const worker = H.db!._store.get('projects/p1/workers/w1') as Record<string, any>;
+    expect(worker.archived).toBe(true);
+    expect(worker.archivedBy).toBe('creator1');
+  });
+});

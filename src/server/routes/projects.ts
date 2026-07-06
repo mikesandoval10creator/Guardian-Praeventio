@@ -563,6 +563,73 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
   }
 });
 
+// POST /api/projects/:id/workers/:workerId/archive — Bloque E1. A worker
+// record is legally-retained evidence (personnel records, DS44 / Ley 16.744):
+// it is NEVER hard-deleted. Removing a worker from a project ARCHIVES the doc
+// server-side (archived:true, stamped from the token) with an audit row — the
+// old client `deleteDoc` bypassed the audit invariant (CLAUDE.md #3) AND
+// destroyed legally-retained data. The worker's portable history lives on their
+// user account; account-level erasure (Ley 21.719 / GDPR right to be forgotten)
+// is a separate, dedicated flow (accountRouter /anonymize), not this endpoint.
+projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, res) => {
+  const { id: projectId, workerId } = req.params;
+  const callerUid = req.user!.uid;
+
+  try {
+    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
+
+    if (!callerCanManageProject(callerUid, projectDoc.data()!)) {
+      return res.status(403).json({
+        error: 'Forbidden: Only the project creator or a gerente/admin member can archive workers',
+      });
+    }
+
+    const workerRef = admin
+      .firestore()
+      .collection('projects')
+      .doc(projectId)
+      .collection('workers')
+      .doc(workerId);
+    const workerDoc = await workerRef.get();
+    if (!workerDoc.exists) return res.status(404).json({ error: 'Worker not found' });
+
+    // Soft-archive ONLY. Identity is stamped from the verified token; any
+    // client-supplied archived/archivedBy in the body is ignored.
+    await workerRef.update({
+      archived: true,
+      archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      archivedBy: callerUid,
+    });
+
+    // CLAUDE.md #3/#14 — audit the state change; failure is severe but never
+    // converts a successful archive into a 5xx.
+    try {
+      await auditServerEvent(req, 'workers.archive', 'projects', { projectId, workerId }, { projectId });
+    } catch (auditErr) {
+      logger.error('audit_event_failed', {
+        action: 'workers.archive',
+        projectId,
+        workerId,
+        err: auditErr instanceof Error ? auditErr.message : String(auditErr),
+      });
+      sentryCapture(auditErr, {
+        endpoint: 'POST /api/projects/:id/workers/:workerId/archive',
+        trigger: 'audit',
+        tags: { projectId, workerId },
+      });
+    }
+
+    return res.json({ success: true, archived: true });
+  } catch (error: any) {
+    logger.error('worker_archive_failed', { uid: callerUid, projectId, workerId, err: error?.message });
+    sentryCapture(error, { endpoint: 'POST /api/projects/:id/workers/:workerId/archive', tags: { projectId, workerId } });
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error?.message,
+    });
+  }
+});
+
 // DELETE /api/projects/:id/members/:uid  — remove a member
 projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
   const { id: projectId, uid: targetUid } = req.params;

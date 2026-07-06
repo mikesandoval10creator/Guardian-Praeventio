@@ -2612,7 +2612,10 @@
     "ai_safety_plan": "Plano de Segurança IA",
     "ai_training": "Capacitações IA",
     "delete_title": "Excluir trabalhador",
-    "delete_message": "Tem certeza? Esta ação excluirá o trabalhador e todos os dados associados."
+    "delete_message": "Tem certeza? Esta ação excluirá o trabalhador e todos os dados associados.",
+    "archive_action": "Arquivar",
+    "archive_title": "Arquivar trabalhador",
+    "archive_message": "O trabalhador será arquivado e sairá deste projeto. Seu histórico de prevenção é mantido por exigência legal (Ley 16.744) e sua experiência permanece na conta. Nenhuma informação é excluída."
   },
   "public_demo": {
     "banner": "MODO DEMO — os dados não são persistidos · sem conta",

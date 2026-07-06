@@ -94,6 +94,11 @@ export async function seedProject(
     name: options.projectName ?? 'E2E Project',
     tenantId: options.tenantId ?? 'e2e-tenant',
     supervisorUid,
+    // Mirror the real create path (`POST /api/projects` stamps
+    // `createdBy: callerUid`): without it, `callerCanManageProject`
+    // (projects.ts) 403s the seeded supervisor on management routes such as
+    // worker archive, even though they own the project.
+    createdBy: supervisorUid,
     members: [supervisorUid],
     location: options.location ?? null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -2612,7 +2612,10 @@
     "ai_safety_plan": "AI Safety Plan",
     "ai_training": "AI Training",
     "delete_title": "Delete worker",
-    "delete_message": "Are you sure? This will delete the worker and all associated data."
+    "delete_message": "Are you sure? This will delete the worker and all associated data.",
+    "archive_action": "Archive",
+    "archive_title": "Archive worker",
+    "archive_message": "The worker will be archived and leave this project. Their prevention history is retained as legally required (Ley 16.744) and their experience stays on their account. No information is deleted."
   },
   "public_demo": {
     "banner": "DEMO MODE — data is not persisted · no account needed",
