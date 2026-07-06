@@ -161,7 +161,7 @@ export function InviteAccept() {
 
                 {/* Accept error */}
                 {acceptError && (
-                  <div className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
+                  <div data-testid="invite-accept-error" className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     {acceptError}
                   </div>
@@ -206,7 +206,7 @@ export function InviteAccept() {
 
             {/* Success state */}
             {accepted && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 py-6 text-center">
+              <motion.div data-testid="invite-accept-success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 py-6 text-center">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
                 <p className="text-lg font-black text-primary-token uppercase tracking-tight">¡Bienvenido al equipo!</p>
                 <p className="text-sm text-muted-token">Redirigiendo a Proyectos...</p>
