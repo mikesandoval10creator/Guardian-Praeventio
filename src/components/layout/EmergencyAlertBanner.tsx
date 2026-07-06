@@ -23,6 +23,14 @@ export function EmergencyAlertBanner() {
   React.useEffect(() => {
     if (!criticalAlert) return;
     if (triggeredAlertIdRef.current === criticalAlert.id) return;
+    // E2E harness (vite --mode test): never escalate a LIVE USGS seismic alert
+    // into the full-screen EmergencyOverlay. useSeismicMonitor hits the real USGS
+    // feed against the project's coords (Santiago default), and seismically active
+    // Chile frequently has a M>=4.5 quake within 500km in the last 2h — which
+    // fires the z-9999 takeover and intercepts pointer events for EVERY full-stack
+    // spec (offline, process-lifecycle, auditoria-5s, fall-detection…). The
+    // seismic→emergency escalation is covered by unit tests, not E2E.
+    if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') return;
     triggeredAlertIdRef.current = criticalAlert.id;
     triggerEmergency('sismo_critico', selectedProject?.id);
   }, [criticalAlert, selectedProject?.id, triggerEmergency]);

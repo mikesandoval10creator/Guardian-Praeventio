@@ -28,13 +28,10 @@ interface ExpirableItem {
 }
 
 test.describe('Expirations list endpoint', () => {
-  // FIXME (harness gap): a 200 + items assertion needs the project (and its
-  // epp_assignments) seeded by the test's admin SDK to be VISIBLE to the
-  // Express server's Firestore target. The full-stack harness points them at
-  // different projects, so the member gets 403 (project not found). Same gap
-  // documented in the compliance + SOS specs. The endpoint assembly + the panel
-  // render are covered by expirationScanner tests + typecheck. Un-fixme once the
-  // harness shares one emulator project across processes.
+  // Verified green 2026-07-05 (Bloque A): the prior "different projects -> 403"
+  // harness gap is fixed — server.ts:541-572 makes Express honor
+  // GOOGLE_CLOUD_PROJECT (=demo-test) under the emulator, matching seed.ts, so
+  // the member read returns 200 with the real (empty) ExpirableItem[].
   test('returns real ExpirableItem[] for a member', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();

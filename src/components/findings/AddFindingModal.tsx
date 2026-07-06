@@ -161,34 +161,16 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
         } catch { /* analytics must never break user flow */ }
       }
 
-      if (findingNode && generateAIPlan) {
-        // 2. Generate Action Plan with AI
-        const plan = await generateActionPlan(formData.title, formData.description, formData.severity);
-        
-        // 3. Create Task Nodes for each action
-        for (const tarea of plan.tareas) {
-          const taskNode = await addNode({
-            type: NodeType.TASK,
-            title: tarea.titulo,
-            description: tarea.descripcion,
-            tags: ['Acción Correctiva', 'IA', tarea.prioridad],
-            projectId: selectedProject.id,
-            connections: [],
-            metadata: {
-              findingId: findingNode.id,
-              plazoDias: tarea.plazoDias,
-              prioridad: tarea.prioridad,
-              status: 'Pendiente'
-            }
-          });
-
-          if (taskNode) {
-            // 4. Connect Task to Finding
-            await addConnection(findingNode.id, taskNode.id);
-          }
-        }
-      }
-
+      // The finding is the safety-critical write and it's done: addNode degrades to
+      // the offline outbox and resolves optimistically, so we reach this point even
+      // with no connectivity (the write flushes on reconnect). Close the modal NOW,
+      // before the optional AI enrichment below — a supervisor reporting a hazard
+      // underground must never be blocked by a Gemini call.
+      const aiInputs = {
+        title: formData.title,
+        description: formData.description,
+        severity: formData.severity,
+      };
       onClose();
       setFormData({
         title: '',
@@ -198,6 +180,39 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
         category: 'Seguridad',
         tags: ''
       });
+
+      // Optional AI action-plan enrichment — NOT on the critical path. Gemini has no
+      // offline queue, so run it only online and in the background (fire-and-forget):
+      // a slow or failed AI call can no longer keep the modal open or drop the
+      // already-saved finding.
+      if (findingNode && generateAIPlan && (typeof navigator === 'undefined' || navigator.onLine)) {
+        void (async () => {
+          try {
+            const plan = await generateActionPlan(aiInputs.title, aiInputs.description, aiInputs.severity);
+            for (const tarea of plan.tareas) {
+              const taskNode = await addNode({
+                type: NodeType.TASK,
+                title: tarea.titulo,
+                description: tarea.descripcion,
+                tags: ['Acción Correctiva', 'IA', tarea.prioridad],
+                projectId: selectedProject.id,
+                connections: [],
+                metadata: {
+                  findingId: findingNode.id,
+                  plazoDias: tarea.plazoDias,
+                  prioridad: tarea.prioridad,
+                  status: 'Pendiente'
+                }
+              });
+              if (taskNode) {
+                await addConnection(findingNode.id, taskNode.id);
+              }
+            }
+          } catch (err) {
+            logger.warn('AddFindingModal: action-plan generation failed (finding already saved)', { err: String(err) });
+          }
+        })();
+      }
     } catch (error) {
       logger.error('Error adding finding:', error);
     } finally {
@@ -278,6 +293,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_title', 'Título del Hallazgo')}</label>
                   <input
                     required
+                    aria-label={t('findings.field_title', 'Título del Hallazgo')}
                     type="text"
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
@@ -322,6 +338,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                     <input
                       required
+                      aria-label={t('findings.field_location', 'Ubicación / Área')}
                       type="text"
                       maxLength={200}
                       value={formData.location}
@@ -336,6 +353,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_description', 'Descripción Detallada')}</label>
                   <textarea
                     required
+                    aria-label={t('findings.field_description', 'Descripción Detallada')}
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder={t('findings.field_description_placeholder', 'Describe lo observado y el riesgo potencial...')}

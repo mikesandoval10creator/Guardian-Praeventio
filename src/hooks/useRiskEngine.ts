@@ -201,7 +201,14 @@ export const useRiskEngine = () => {
     };
 
     try {
-      matrixSyncManager.enqueueSet(newNode);
+      // Await the durable enqueue: enqueueSet writes the op to IndexedDB
+      // (guardian_sync_queue) inside `saveQueue()`. If we don't await, addNode
+      // resolves before the write lands — so a fast modal close + reload (the
+      // offline-resilience flow) can navigate away before the op is persisted,
+      // and the fresh page's loadQueue finds an EMPTY queue → the finding never
+      // flushes on reconnect. Awaiting makes "finding saved" mean "durably
+      // queued", which is the whole point of an offline-first write.
+      await matrixSyncManager.enqueueSet(newNode);
 
       // Generate vector embedding async so semantic search works for new nodes
       const embeddingText = `${newNode.title} ${newNode.description} ${newNode.tags.join(' ')}`.trim();

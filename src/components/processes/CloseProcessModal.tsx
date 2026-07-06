@@ -170,6 +170,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
             <button
               disabled={submitting}
               onClick={submit}
+              data-testid="close-process-confirm"
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center gap-1.5"
             >
               <PartyPopper className="w-3.5 h-3.5" />
