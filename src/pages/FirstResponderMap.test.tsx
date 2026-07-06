@@ -78,7 +78,7 @@ describe('<FirstResponderMap /> — orphan FirstResponderDispatchPanel wiring', 
   it('fetches the real responder feed on mount and renders coverage gaps', async () => {
     render(<FirstResponderMap />);
     await waitFor(() => expect(h.fetchFirstResponderFeed).toHaveBeenCalledWith('proj-1'));
-    expect(await screen.findByTestId('coverage-gap-rescue_specialist')).toBeTruthy();
+    expect(await screen.findByTestId('coverage-gap-rescue_specialist', {}, { timeout: 5_000 })).toBeTruthy();
   });
 
   it('builds a dispatch plan on demand and shows the primary responder', async () => {
@@ -91,14 +91,22 @@ describe('<FirstResponderMap /> — orphan FirstResponderDispatchPanel wiring', 
         expect.objectContaining({ incident: expect.objectContaining({ kind: 'medical_emergency' }) }),
       ),
     );
-    expect(await screen.findByTestId('first-responder-primary')).toBeTruthy();
+    expect(await screen.findByTestId('first-responder-primary', {}, { timeout: 5_000 })).toBeTruthy();
   });
 
   it('dispatching the primary posts a REAL note to the emergency channel', async () => {
     render(<FirstResponderMap />);
     await waitFor(() => expect(h.fetchFirstResponderFeed).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId('build-dispatch-plan'));
-    const notify = await screen.findByTestId('first-responder-notify-primary');
+    // Mirror the "shows the primary responder" test: wait for the plan build to
+    // resolve BEFORE querying the notify button. Under CI's single-fork pool
+    // (vitest.config.ts `singleFork: true`) sibling tests' async leaks add
+    // event-loop pressure that can push plan→setState→render past findByTestId's
+    // 1s default on the constrained runner — green in isolation and locally, red
+    // only on CI. Explicit headroom de-flakes without masking a regression: the
+    // button must still appear (build is asserted first).
+    await waitFor(() => expect(h.buildFirstResponderDispatchPlan).toHaveBeenCalled());
+    const notify = await screen.findByTestId('first-responder-notify-primary', {}, { timeout: 5_000 });
     fireEvent.click(notify);
     await waitFor(() => expect(h.addDoc).toHaveBeenCalled());
     // The dispatch note went to the project emergency channel with a real body.
