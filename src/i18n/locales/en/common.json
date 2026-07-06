@@ -5405,5 +5405,71 @@
   "privacy": {
     "lastUpdated": "Last updated",
     "providerData": "Provider data"
+  },
+  "skillGap": {
+    "page": {
+      "title": "Skill Gaps",
+      "subtitle": "Gap analysis, training plan and crew polyvalence.",
+      "selectProject": "Select a project to analyze skill gaps."
+    },
+    "panel": {
+      "aria": "Skill gap analysis",
+      "title": "Skill gap per worker",
+      "description": "Compares the worker's current level against the minimum level required for the task.",
+      "workerUid": "Worker ID",
+      "skillId": "Skill ID",
+      "currentLevel": "Current level",
+      "requiredLevel": "Minimum required level",
+      "critical": "Critical skill (blocks operation)",
+      "submit": "Analyze gaps",
+      "error": "Could not analyze the gap.",
+      "noGaps": "No gaps: the worker meets the required level.",
+      "gapLevels": "gap level(s)",
+      "criticalBadge": "Critical",
+      "expired": "Certification expired"
+    }
+  },
+  "contingencySimulation": {
+    "page": {
+      "title": "Contingency Simulation",
+      "subtitle": "Tabletop scenarios to rehearse emergency response without real risk.",
+      "selectProject": "Select a project to generate contingency scenarios."
+    },
+    "panel": {
+      "aria": "Contingency scenario generator",
+      "title": "Generate tabletop scenario",
+      "description": "Pick kind and severity — the engine builds the scenario with events and decision points to rehearse without real risk.",
+      "kind": "Scenario kind",
+      "severity": "Severity",
+      "submit": "Generate scenario",
+      "error": "Could not generate the scenario.",
+      "duration": "Estimated duration",
+      "staffPresent": "Staff present",
+      "triggerEvents": "Exercise events",
+      "decisionPoints": "Decision points",
+      "successCriteria": "Success criteria"
+    }
+  },
+  "deduplication": {
+    "page": {
+      "title": "Record Deduplication",
+      "subtitle": "Detects duplicate records (workers, equipment, projects) and plans their merge.",
+      "selectProject": "Select a project to detect duplicate records."
+    },
+    "panel": {
+      "aria": "Duplicate record detection",
+      "title": "Detect duplicates",
+      "description": "Compares two records of the same kind — the engine computes the confidence that they are the same.",
+      "kind": "Record kind",
+      "nameA": "Record A — name",
+      "emailA": "Record A — email (optional)",
+      "nameB": "Record B — name",
+      "emailB": "Record B — email (optional)",
+      "submit": "Detect duplicates",
+      "error": "Could not run the detection.",
+      "noDuplicates": "No duplicates detected between the records.",
+      "confidence": "Confidence",
+      "reasons": "Matches:"
+    }
   }
 }

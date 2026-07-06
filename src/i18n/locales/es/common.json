@@ -5405,5 +5405,71 @@
   "privacy": {
     "lastUpdated": "Última actualización",
     "providerData": "Datos del proveedor"
+  },
+  "skillGap": {
+    "page": {
+      "title": "Brechas de Competencias",
+      "subtitle": "Análisis de brechas, plan de entrenamiento y polivalencia de cuadrilla.",
+      "selectProject": "Selecciona un proyecto para analizar brechas de competencias."
+    },
+    "panel": {
+      "aria": "Análisis de brechas de competencias",
+      "title": "Brecha de competencia por trabajador",
+      "description": "Compara el nivel actual del trabajador contra el nivel mínimo requerido para la tarea.",
+      "workerUid": "ID trabajador",
+      "skillId": "ID competencia",
+      "currentLevel": "Nivel actual",
+      "requiredLevel": "Nivel mínimo requerido",
+      "critical": "Competencia crítica (bloquea la operación)",
+      "submit": "Analizar brechas",
+      "error": "No se pudo analizar la brecha.",
+      "noGaps": "Sin brechas: el trabajador cumple el nivel requerido.",
+      "gapLevels": "nivel(es) de brecha",
+      "criticalBadge": "Crítica",
+      "expired": "Certificación vencida"
+    }
+  },
+  "contingencySimulation": {
+    "page": {
+      "title": "Simulación de Contingencias",
+      "subtitle": "Escenarios tabletop para ensayar la respuesta a emergencias sin riesgo real.",
+      "selectProject": "Selecciona un proyecto para generar escenarios de contingencia."
+    },
+    "panel": {
+      "aria": "Generador de escenarios de contingencia",
+      "title": "Generar escenario tabletop",
+      "description": "Elige tipo y severidad — el motor arma el escenario con eventos y puntos de decisión para ensayar sin riesgo real.",
+      "kind": "Tipo de escenario",
+      "severity": "Severidad",
+      "submit": "Generar escenario",
+      "error": "No se pudo generar el escenario.",
+      "duration": "Duración estimada",
+      "staffPresent": "Personal presente",
+      "triggerEvents": "Eventos del ejercicio",
+      "decisionPoints": "Puntos de decisión",
+      "successCriteria": "Criterios de éxito"
+    }
+  },
+  "deduplication": {
+    "page": {
+      "title": "Deduplicación de Registros",
+      "subtitle": "Detecta registros duplicados (trabajadores, equipos, proyectos) y planifica su fusión.",
+      "selectProject": "Selecciona un proyecto para detectar registros duplicados."
+    },
+    "panel": {
+      "aria": "Detección de registros duplicados",
+      "title": "Detectar duplicados",
+      "description": "Compara dos registros del mismo tipo — el motor calcula la confianza de que sean el mismo.",
+      "kind": "Tipo de registro",
+      "nameA": "Registro A — nombre",
+      "emailA": "Registro A — email (opcional)",
+      "nameB": "Registro B — nombre",
+      "emailB": "Registro B — email (opcional)",
+      "submit": "Detectar duplicados",
+      "error": "No se pudo ejecutar la detección.",
+      "noDuplicates": "Sin duplicados detectados entre los registros.",
+      "confidence": "Confianza",
+      "reasons": "Coincidencias:"
+    }
   }
 }

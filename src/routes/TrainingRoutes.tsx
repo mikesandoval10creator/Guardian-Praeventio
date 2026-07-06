@@ -7,6 +7,10 @@ const ArcadeGames = lazy(() => import('../pages/ArcadeGames').then(module => ({ 
 const ClawMachine = lazy(() => import('../pages/ClawMachine').then(module => ({ default: module.ClawMachine })));
 const PoolGame = lazy(() => import('../pages/PoolGame').then(module => ({ default: module.PoolGame })));
 const PortableCurriculum = lazy(() => import('../pages/PortableCurriculum').then(module => ({ default: module.PortableCurriculum })));
+// Bloque D Rama 2 — wire the orphan skill-gap surface. The server router
+// (src/server/routes/skillGap.ts) + client hook (src/hooks/useSkillGap.ts)
+// existed with no page/route; SkillGapPage closes the gap.
+const SkillGapPage = lazy(() => import('../pages/SkillGapPage').then(module => ({ default: module.SkillGapPage })));
 
 export const TrainingRoutes = [
   <Route key="training" path="training" element={<Training />} />,
@@ -15,4 +19,5 @@ export const TrainingRoutes = [
   <Route key="clawmachine" path="clawmachine" element={<ClawMachine />} />,
   <Route key="poolgame" path="poolgame" element={<PoolGame />} />,
   <Route key="curriculum" path="curriculum" element={<PortableCurriculum />} />,
+  <Route key="skill-gap" path="skill-gap" element={<SkillGapPage />} />,
 ];
