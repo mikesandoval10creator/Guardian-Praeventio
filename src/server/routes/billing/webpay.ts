@@ -123,7 +123,11 @@ export function registerWebpayRoutes(
         cliente: {
           nombre: cliente.nombre,
           email: cliente.email,
-          rut: cliente.rut,
+          // rut is optional (the checkout form omits it). Firestore REJECTS an
+          // explicit `undefined` on the invoice write below, so only carry it
+          // when the client actually provided one — otherwise every RUT-less
+          // checkout 500s ("Cannot use undefined ... cliente.rut").
+          ...(cliente.rut !== undefined ? { rut: cliente.rut } : {}),
         },
         paymentMethod: body.paymentMethod,
       };
