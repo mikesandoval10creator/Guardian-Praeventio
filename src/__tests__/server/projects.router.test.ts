@@ -203,3 +203,71 @@ describe('DELETE /:id/invite (cancel)', () => {
     expect(H.db!._store.has('invitations/i1')).toBe(false);
   });
 });
+
+// POST / (create) — the server-side creation path that closes the audit-log
+// gap: the Projects page used to addDoc straight from the client (identity
+// held by rules, but NO audit_logs row — CLAUDE.md #3). The endpoint stamps
+// createdBy/tenantId/members from the verified token and audits the create.
+describe('POST / (create project)', () => {
+  const validBody = {
+    name: 'Obra Sur',
+    description: 'Edificio habitacional',
+    location: 'Rancagua',
+    industry: 'Construcción',
+    startDate: '2026-07-06',
+    riskLevel: 'Medio',
+    status: 'active',
+  };
+
+  const auditRows = () =>
+    [...H.db!._store.entries()]
+      .filter(([k]) => k.startsWith('audit_logs/'))
+      .map(([, v]) => v as Record<string, any>);
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).post('/api/projects').send(validBody);
+    expect(res.status).toBe(401);
+  });
+
+  it('400 when name is missing/empty', async () => {
+    const res = await request(buildApp()).post('/api/projects').set(as('u1')).send({ ...validBody, name: '' });
+    expect(res.status).toBe(400);
+  });
+
+  it('400 on an invalid status', async () => {
+    const res = await request(buildApp()).post('/api/projects').set(as('u1')).send({ ...validBody, status: 'hacked' });
+    expect(res.status).toBe(400);
+  });
+
+  it('200 creates the project with server-stamped identity + audit row', async () => {
+    const res = await request(buildApp()).post('/api/projects').set(as('u1')).send(validBody);
+    expect(res.status).toBe(200);
+    const projectId = res.body.projectId as string;
+    expect(typeof projectId === 'string' && projectId.length > 0).toBe(true);
+
+    const doc = H.db!._store.get(`projects/${projectId}`) as Record<string, any>;
+    expect(doc).toBeTruthy();
+    expect(doc.name).toBe('Obra Sur');
+    expect(doc.createdBy).toBe('u1'); // from the verified token
+    expect(doc.tenantId).toBe('u1'); // single-tenant-per-user
+    expect(doc.members).toEqual(['u1']);
+    expect(typeof doc.createdAt === 'string' && doc.createdAt.length > 0).toBe(true);
+
+    const audit = auditRows().find((r) => r.action === 'projects.create');
+    expect(audit, 'a projects.create audit row must exist').toBeTruthy();
+    expect(audit!.userId).toBe('u1'); // stamped by auditServerEvent from the token
+    expect(audit!.details?.projectId).toBe(projectId);
+  });
+
+  it('200 ignores client-supplied identity fields (createdBy/tenantId/members spoof)', async () => {
+    const res = await request(buildApp())
+      .post('/api/projects')
+      .set(as('u1'))
+      .send({ ...validBody, createdBy: 'evil', tenantId: 'other-tenant', members: ['evil', 'u1'] });
+    expect(res.status).toBe(200);
+    const doc = H.db!._store.get(`projects/${res.body.projectId}`) as Record<string, any>;
+    expect(doc.createdBy).toBe('u1');
+    expect(doc.tenantId).toBe('u1');
+    expect(doc.members).toEqual(['u1']);
+  });
+});
