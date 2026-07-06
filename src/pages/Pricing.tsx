@@ -318,6 +318,7 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
         <button
           onClick={() => onPurchase(tier)}
           disabled={isCurrent || isProcessing !== null}
+          data-testid={`tier-select-${tier.id}`}
           className={`w-full inline-flex items-center justify-center gap-2 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors ${
             isCurrent
               ? 'bg-zinc-300 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400 cursor-not-allowed'
@@ -1357,6 +1358,7 @@ function PricingInner() {
                   void startWebpayCheckout(tier, legacyId);
                 }}
                 disabled={isProcessing !== null}
+                data-testid="checkout-method-webpay"
                 className="w-full inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors"
               >
                 <CreditCard className="w-4 h-4" />
