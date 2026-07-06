@@ -797,6 +797,14 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many requests from this IP, please try again after 15 minutes",
+  // E2E full-stack: the whole Playwright suite funnels every spec's API
+  // traffic through ONE runner IP, blowing this 100/15min bucket before the
+  // alphabetically-last specs run (webauthn-challenge asserted 401 and got
+  // 429 — CI-only, since a filtered local run starts a fresh bucket). Skip
+  // ONLY under E2E_MODE outside production — the prod cap is untouched, and
+  // NODE_ENV=production + E2E_MODE=1 is already a fatal boot error
+  // (verifyAuth startup guard). Same pattern as sosLimiter (#1196).
+  skip: () => process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production',
   // Sprint 39 audit fix — Firestore-backed para multi-replica.
   store: makeRateLimitStore('api:'),
 });
