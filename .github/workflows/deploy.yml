@@ -39,7 +39,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # workflow_run → the SHA CI validated; workflow_dispatch → main HEAD.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
