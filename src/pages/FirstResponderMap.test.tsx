@@ -75,6 +75,19 @@ beforeEach(() => {
 });
 
 describe('<FirstResponderMap /> — orphan FirstResponderDispatchPanel wiring', () => {
+  // The build button is `disabled={building || loadingFeed}`; clicking it before
+  // the feed resolves is a silent no-op (fireEvent ignores disabled elements). On
+  // the constrained CI runner the click otherwise races ahead of the feed load,
+  // so buildFirstResponderDispatchPlan never fires (0 calls) — the real cause of
+  // the shard-4 red on main. Gate every click on the enabled button so the flow
+  // is deterministic regardless of runner speed.
+  async function clickBuildWhenEnabled() {
+    await waitFor(() =>
+      expect((screen.getByTestId('build-dispatch-plan') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(screen.getByTestId('build-dispatch-plan'));
+  }
+
   it('fetches the real responder feed on mount and renders coverage gaps', async () => {
     render(<FirstResponderMap />);
     await waitFor(() => expect(h.fetchFirstResponderFeed).toHaveBeenCalledWith('proj-1'));
@@ -83,8 +96,7 @@ describe('<FirstResponderMap /> — orphan FirstResponderDispatchPanel wiring', 
 
   it('builds a dispatch plan on demand and shows the primary responder', async () => {
     render(<FirstResponderMap />);
-    await waitFor(() => expect(h.fetchFirstResponderFeed).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId('build-dispatch-plan'));
+    await clickBuildWhenEnabled();
     await waitFor(() =>
       expect(h.buildFirstResponderDispatchPlan).toHaveBeenCalledWith(
         'proj-1',
@@ -96,16 +108,7 @@ describe('<FirstResponderMap /> — orphan FirstResponderDispatchPanel wiring', 
 
   it('dispatching the primary posts a REAL note to the emergency channel', async () => {
     render(<FirstResponderMap />);
-    await waitFor(() => expect(h.fetchFirstResponderFeed).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId('build-dispatch-plan'));
-    // Mirror the "shows the primary responder" test: wait for the plan build to
-    // resolve BEFORE querying the notify button. Under CI's single-fork pool
-    // (vitest.config.ts `singleFork: true`) sibling tests' async leaks add
-    // event-loop pressure that can push plan→setState→render past findByTestId's
-    // 1s default on the constrained runner — green in isolation and locally, red
-    // only on CI. Explicit headroom de-flakes without masking a regression: the
-    // button must still appear (build is asserted first).
-    await waitFor(() => expect(h.buildFirstResponderDispatchPlan).toHaveBeenCalled());
+    await clickBuildWhenEnabled();
     const notify = await screen.findByTestId('first-responder-notify-primary', {}, { timeout: 5_000 });
     fireEvent.click(notify);
     await waitFor(() => expect(h.addDoc).toHaveBeenCalled());
