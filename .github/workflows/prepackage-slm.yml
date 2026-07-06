@@ -44,7 +44,7 @@ jobs:
     name: Validate registry parser (dry-run)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -68,7 +68,7 @@ jobs:
     # Generous timeout — Phi-3 mini is ~2.7 GB and HF CDN can be slow.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:

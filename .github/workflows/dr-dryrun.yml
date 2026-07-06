@@ -46,7 +46,7 @@ jobs:
       # CI must have JDK for the firebase-tools emulator JAR.
       JAVA_TOOL_OPTIONS: '-Xmx2g'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node
         uses: actions/setup-node@v6

@@ -39,7 +39,7 @@ jobs:
     env:
       IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Inspect assetlinks.json
         id: android

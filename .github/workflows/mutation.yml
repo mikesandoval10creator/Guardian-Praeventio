@@ -39,7 +39,7 @@ jobs:
     # el script en scripts/check-mutation-thresholds.cjs, no re-activar
     # continue-on-error.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
