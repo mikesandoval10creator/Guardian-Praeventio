@@ -74,10 +74,15 @@ test.describe('Process lifecycle (start → close → XP)', () => {
       // +N (base …)" — assert the preview line rather than a "+N XP" string.
       await expect(page.getByText(/XP estimado para la cuadrilla/i)).toBeVisible({ timeout: 8_000 });
 
-      await page.getByRole('button', { name: /Cerrar y celebrar/i }).click();
+      // Target the CloseProcessModal's confirm by its stable testid: "Cerrar y
+      // celebrar" as an accessible name is ambiguous — an inline per-process
+      // close button (data-testid="process-close-confirm-<id>") carries the same
+      // label, tripping strict mode in CI. `close-process-confirm` is the modal's.
+      const closeConfirm = page.getByTestId('close-process-confirm');
+      await closeConfirm.click();
       // Close succeeded → CloseProcessModal dismisses (the XP grant itself is
       // server-side and covered by the endpoint tests). Assert the flow completed.
-      await expect(page.getByRole('button', { name: /Cerrar y celebrar/i })).not.toBeVisible({ timeout: 10_000 });
+      await expect(closeConfirm).not.toBeVisible({ timeout: 10_000 });
     } finally {
       await seed.cleanup();
     }

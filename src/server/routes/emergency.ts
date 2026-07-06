@@ -54,6 +54,12 @@ export const sosLimiter = rateLimit({
   max: 10,
   keyGenerator: (req: Request) =>
     req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  // E2E harness: a full-stack spec (and its Playwright retries) legitimately
+  // fires the real SOS several times, and the prod 10/min guard must not turn
+  // that into a 429 that masks the actual alert write. Bypass ONLY under
+  // E2E_MODE (never production — verifyAuth already fatals on
+  // NODE_ENV=production && E2E_MODE=1). Prod rate-limiting is unchanged.
+  skip: () => process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas alertas SOS. Espera un momento.' },
