@@ -42,6 +42,14 @@ const Ds67Simulator = lazy(() => import('../pages/Ds67Simulator').then(m => ({ d
 // Monta <CostSimulator /> + <CostScenarioCard /> sobre la superficie persistida
 // real /api/sprint-k/:projectId/cost/* (preventionCost.ts → Firestore cost_scenarios).
 const CostScenarios = lazy(() => import('../pages/CostScenarios').then(m => ({ default: m.CostScenarios })));
+// Bloque D Rama 1 (2026-07-06) — legal orphans wired. Both pure-compute HTTP
+// surfaces existed with client hooks but no page/route:
+// - RetaliationProtection (Ley Karin 21.643): src/server/routes/
+//   retaliationProtection.ts + src/hooks/useRetaliationProtection.ts.
+// - PrivacyShield (Ley 19.628 + GDPR): src/server/routes/privacyShield.ts
+//   + src/hooks/usePrivacyShield.ts.
+const RetaliationProtectionPage = lazy(() => import('../pages/RetaliationProtectionPage').then(m => ({ default: m.RetaliationProtectionPage })));
+const PrivacyShieldPage = lazy(() => import('../pages/PrivacyShieldPage').then(m => ({ default: m.PrivacyShieldPage })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -64,4 +72,6 @@ export const ComplianceRoutes = [
   <Route key="document-read" path="document-read" element={<DocumentReadConfirm />} />,
   <Route key="ds67-simulator" path="ds67-simulator" element={<Ds67Simulator />} />,
   <Route key="cost-scenarios" path="cost-scenarios" element={<CostScenarios />} />,
+  <Route key="retaliation-protection" path="retaliation-protection" element={<RetaliationProtectionPage />} />,
+  <Route key="privacy-shield" path="privacy-shield" element={<PrivacyShieldPage />} />,
 ];

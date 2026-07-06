@@ -4507,6 +4507,72 @@
       "selectProject": "Selecciona un proyecto para gestionar el inventario de residuos."
     }
   },
+  "returnToWork": {
+    "page": {
+      "title": "Reintegro Laboral",
+      "subtitle": "Aptitud de tarea, derivación a mutualidad y reintegro progresivo — sin datos médicos (ADR 0012).",
+      "selectProject": "Selecciona un proyecto para evaluar aptitud de tarea y reintegro."
+    },
+    "panel": {
+      "aria": "Evaluación de aptitud de tarea",
+      "title": "Aptitud de tarea (reintegro)",
+      "disclaimer": "Evaluación operacional con restricciones codificadas — sin diagnóstico ni datos médicos (ADR 0012).",
+      "workerUid": "ID trabajador",
+      "taskId": "ID tarea",
+      "restriction": "Restricción vigente",
+      "conflict": "La tarea choca con",
+      "source": "Fuente de la restricción",
+      "startsAt": "Vigente desde",
+      "submit": "Evaluar aptitud",
+      "error": "No se pudo evaluar la aptitud.",
+      "violated": "Restricciones en conflicto:"
+    }
+  },
+  "retaliationProtection": {
+    "page": {
+      "title": "Protección contra Represalias",
+      "subtitle": "Ley Karin 21.643 — detección de señales post-denuncia y acciones protectoras.",
+      "selectProject": "Selecciona un proyecto para analizar señales de represalia."
+    },
+    "panel": {
+      "aria": "Análisis de riesgo de represalias",
+      "title": "Riesgo de represalias post-denuncia",
+      "disclaimer": "Ley Karin 21.643 — señales observadas dentro de la ventana de evaluación (90 días por defecto).",
+      "reportFiledAt": "Fecha de la denuncia",
+      "observedAt": "Fecha de la señal",
+      "reporterUid": "ID denunciante",
+      "supervisorUid": "ID jefatura",
+      "kind": "Tipo de señal",
+      "severity": "Severidad",
+      "submit": "Analizar riesgo",
+      "error": "No se pudo analizar el riesgo.",
+      "signalCount": "Señales consideradas:",
+      "actions": "Acciones protectoras recomendadas"
+    }
+  },
+  "privacyShield": {
+    "page": {
+      "title": "Escudo de Privacidad",
+      "subtitle": "Ley 19.628 + GDPR — clasificación de datos personales, brechas y retención.",
+      "selectProject": "Selecciona un proyecto para clasificar campos de datos personales."
+    },
+    "panel": {
+      "aria": "Clasificador de datos personales",
+      "title": "Clasificación de campo de datos",
+      "disclaimer": "Ley 19.628 + GDPR — clasifica sensibilidad, retención y obligaciones de manejo por campo.",
+      "fieldPath": "Ruta del campo (ej. workers.rut)",
+      "category": "Categoría del dato",
+      "encrypted": "Cifrado en reposo",
+      "submit": "Clasificar campo",
+      "error": "No se pudo clasificar el campo.",
+      "sensitivity": "Sensibilidad:",
+      "retention": "Retención:",
+      "days": "días",
+      "consent": "Consentimiento explícito requerido",
+      "mustEncrypt": "Cifrado en reposo obligatorio",
+      "maskLogs": "Mascarado en logs obligatorio"
+    }
+  },
   "hazmatInventory": {
     "page": {
       "title": "Inventario HAZMAT",
