@@ -1,7 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PersonalizedSafetyPlan } from '../components/workers/PersonalizedSafetyPlan';
 import { TrainingRecommendations } from '../components/workers/TrainingRecommendations';
@@ -70,18 +68,30 @@ export function Workers() {
   
   const collectionPath = selectedProject ? `projects/${selectedProject.id}/workers` : 'workers';
   
-  const [deleteWorkerId, setDeleteWorkerId] = useState<string | null>(null);
+  const [archiveWorkerId, setArchiveWorkerId] = useState<string | null>(null);
 
-  const handleDelete = (workerId: string) => setDeleteWorkerId(workerId);
+  const handleArchive = (workerId: string) => setArchiveWorkerId(workerId);
 
-  const doDeleteWorker = async () => {
-    if (!deleteWorkerId) return;
+  // Bloque E1 — worker records are legally retained (DS44 / Ley 16.744): the
+  // UI ARCHIVES via the audited server route, never a client hard-delete. The
+  // worker's history stays on their portable account; account-level erasure
+  // (Ley 21.719 / GDPR) is the separate accountRouter /anonymize flow.
+  const doArchiveWorker = async () => {
+    if (!archiveWorkerId || !selectedProject) return;
     try {
-      await deleteDoc(doc(db, collectionPath, deleteWorkerId));
+      const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+      const res = await fetch(
+        `/api/projects/${selectedProject.id}/workers/${archiveWorkerId}/archive`,
+        { method: 'POST', headers: { Authorization: await apiAuthHeaderOrThrow() } },
+      );
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error((detail as { error?: string }).error ?? `Error ${res.status}`);
+      }
     } catch (error) {
-      logger.error('Error deleting worker:', error);
+      logger.error('Error archiving worker:', error);
     } finally {
-      setDeleteWorkerId(null);
+      setArchiveWorkerId(null);
     }
   };
 
@@ -186,7 +196,8 @@ export function Workers() {
             >
               <div className="absolute top-0 right-0 p-3 sm:p-4">
                 <div className="relative dropdown-container">
-                  <button 
+                  <button
+                    data-testid={`worker-menu-${worker.id}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setActiveDropdown(activeDropdown === worker.id ? null : worker.id);
@@ -215,15 +226,16 @@ export function Workers() {
                         >
                           {t('common.edit')}
                         </button>
-                        <button 
+                        <button
+                          data-testid={`worker-archive-${worker.id}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(worker.id);
+                            handleArchive(worker.id);
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                          className="w-full text-left px-4 py-2.5 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
                         >
-                          {t('common.delete')}
+                          {t('workers.archive_action', 'Archivar')}
                         </button>
                       </motion.div>
                     )}
@@ -526,13 +538,12 @@ export function Workers() {
         />
       )}
       <ConfirmDialog
-        isOpen={!!deleteWorkerId}
-        title={t('workers.delete_title')}
-        message={t('workers.delete_message')}
-        confirmLabel={t('common.delete')}
-        danger
-        onConfirm={doDeleteWorker}
-        onCancel={() => setDeleteWorkerId(null)}
+        isOpen={!!archiveWorkerId}
+        title={t('workers.archive_title', 'Archivar trabajador')}
+        message={t('workers.archive_message', 'El trabajador se archivará y saldrá de este proyecto. Su historial de prevención se conserva por obligación legal (Ley 16.744) y su experiencia permanece en su cuenta. La información no se elimina.')}
+        confirmLabel={t('workers.archive_action', 'Archivar')}
+        onConfirm={doArchiveWorker}
+        onCancel={() => setArchiveWorkerId(null)}
       />
     </div>
   );
