@@ -50,6 +50,17 @@ import {
 import { useIncidentFlowStatus, type IncidentReportPayload } from '../hooks/useIncidentFlow';
 import { IncidentReportForm } from '../components/incidentFlow/IncidentReportForm';
 import { AssignedMicrotrainingCard } from '../components/incidentFlow/AssignedMicrotrainingCard';
+// Bloque D Rama 3 — LightningTrainingPlayer was a phantom mount (built +
+// render-ratchet-baselined but never JSX-rendered): the card's start button
+// stayed permanently disabled because no page ever passed `onLaunch`. The
+// player now opens as a modal from the card, closing assign→train→certify.
+import { LightningTrainingPlayer } from '../components/microtraining/LightningTrainingPlayer';
+import { useMicrotrainingCatalog } from '../hooks/useMicrotraining';
+import {
+  isPassing,
+  shouldCertify,
+  type MicroTrainingModule,
+} from '../services/microtraining/lightningTrainingService';
 import { InvestigationPanel } from '../components/incidentFlow/InvestigationPanel';
 import { LessonPublishForm } from '../components/incidentFlow/LessonPublishForm';
 import { PDCAClosePanel } from '../components/incidentFlow/PDCAClosePanel';
@@ -139,6 +150,16 @@ export function IncidentFlowHub() {
   // Conclusión capturada por incidente al concluir la investigación; habilita
   // la publicación de la lección (paso Check del PDCA) con datos reales.
   const [conclusionByIncident, setConclusionByIncident] = useState<Record<string, LessonConclusion>>({});
+  // Bloque D Rama 3 — LightningTrainingPlayer wiring. The card's onLaunch
+  // resolves a Promise with the worker's result once the player finishes (the
+  // card then POSTs the completion itself). Catalog gives the full module
+  // (content blocks) the player needs; the assignment only carries moduleId.
+  const catalogResp = useMicrotrainingCatalog(projectId);
+  const [playerState, setPlayerState] = useState<{
+    module: MicroTrainingModule;
+    workerUid: string;
+    resolve: (r: { score: number; passed: boolean; certified: boolean } | null) => void;
+  } | null>(null);
 
   const incidents = useMemo<IncidentListItem[]>(
     () => listResp.data?.incidents ?? [],
@@ -458,6 +479,15 @@ export function IncidentFlowHub() {
                                 assignedByUid: a.assignedByUid ?? a.workerUid,
                                 derivedFromLessonId: a.derivedFromLessonId ?? a.moduleId,
                               }}
+                              onLaunch={() => {
+                                const module = catalogResp.data?.modules.find(
+                                  (m) => m.id === a.moduleId,
+                                );
+                                if (!module) return Promise.resolve(null);
+                                return new Promise((resolve) =>
+                                  setPlayerState({ module, workerUid: a.workerUid, resolve }),
+                                );
+                              }}
                             />
                           ))}
                         </div>
@@ -530,6 +560,44 @@ export function IncidentFlowHub() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Bloque D Rama 3 — the (formerly phantom) LightningTrainingPlayer,
+          opened by AssignedMicrotrainingCard's start button. Closing without
+          finishing resolves null (the card simply re-enables). */}
+      {playerState && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4"
+          data-testid="lightning-player-modal"
+        >
+          <div className="relative w-full max-w-lg">
+            <button
+              type="button"
+              data-testid="lightning-player-close"
+              aria-label={t('common.close', 'Cerrar')}
+              onClick={() => {
+                playerState.resolve(null);
+                setPlayerState(null);
+              }}
+              className="absolute -top-3 -right-3 z-10 rounded-full bg-zinc-900 text-white w-8 h-8 flex items-center justify-center border border-white/20 hover:bg-zinc-700"
+            >
+              ×
+            </button>
+            <LightningTrainingPlayer
+              module={playerState.module}
+              workerUid={playerState.workerUid}
+              onComplete={(session) => {
+                const score = session.score ?? 0;
+                playerState.resolve({
+                  score,
+                  passed: isPassing(score),
+                  certified: shouldCertify({ ...session, score }, playerState.module),
+                });
+                setPlayerState(null);
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
