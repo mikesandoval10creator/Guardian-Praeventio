@@ -62,6 +62,16 @@ import {
   type CompareScenariosResponse,
 } from '../hooks/useRoiScenario';
 
+// ── Orphan mounts (connectivity ratchet) ──────────────────────────────
+import { ROICalculatorWidget } from '../components/pricingCalculator/ROICalculatorWidget';
+import { TierComparatorWidget } from '../components/pricingCalculator/TierComparatorWidget';
+import { PymeMaturityWizard } from '../components/pymeOnboarding/PymeMaturityWizard';
+import { PymeOnboardingPlanPanel } from '../components/pymeWizard/PymeOnboardingPlanPanel';
+import type { TierPlan } from '../services/pricingCalculator/pricingCalculator';
+import type { PymeIndustry, PymeWizardInput } from '../services/pymeOnboarding/pymeWizard';
+import type { PymeOnboardingInput, PymeKeyRisk } from '../services/pymeWizard/pymeOnboardingWizard';
+import { buildOnboardingPlan } from '../services/pymeWizard/pymeOnboardingWizard';
+
 // ────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────
@@ -146,6 +156,13 @@ export const PricingCalculator: React.FC = () => {
   const [ncKind, setNcKind] = useState<IncompletionKind>('safety_breach');
   const [ncStoppageDays, setNcStoppageDays] = useState<number>(3);
   const [ncHasHistory, setNcHasHistory] = useState<boolean>(false);
+
+  // ── Pyme maturity wizard inputs ───────────────────────────────────────
+  const [pymeIndustry, setPymeIndustry] = useState<PymeIndustry>('construction');
+  const [pymeHasSupervisor, setPymeHasSupervisor] = useState<boolean>(false);
+  const [pymeHasCphs, setPymeHasCphs] = useState<boolean>(false);
+  const [pymeHasRiohs, setPymeHasRiohs] = useState<boolean>(false);
+  const [pymeHasTraining, setPymeHasTraining] = useState<boolean>(false);
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -268,6 +285,97 @@ export const PricingCalculator: React.FC = () => {
         hasHistoryOfFines: ncHasHistory,
       }),
     [ncKind, workers, ncStoppageDays, ncHasHistory],
+  );
+
+  // ── Orphan widget data (connectivity ratchet) ────────────────────────
+
+  // PymeIndustry mapping from the calculator's industry prefix.
+  const pymeIndustryFromPrefix = useMemo<PymeIndustry>(() => {
+    const map: Record<string, PymeIndustry> = {
+      'GP-CONS': 'construction',
+      'GP-MIN': 'mining',
+      'GP-AGRO': 'agriculture',
+      'GP-IND': 'industrial',
+      'GP-LOG': 'logistics',
+      'GP-SERV': 'services',
+    };
+    return map[industryPrefix] ?? 'construction';
+  }, [industryPrefix]);
+
+  // Sync pymeIndustry when calculator industry changes.
+  useEffect(() => {
+    setPymeIndustry(pymeIndustryFromPrefix);
+  }, [pymeIndustryFromPrefix]);
+
+  // ROICalculatorWidget inputs — derived from existing calculator state.
+  const roiWidgetInputs = useMemo(() => {
+    const prevented = Math.max(0, baselineIncidents - currentIncidents);
+    const monthlyCost = currentTierCost?.totalClp ?? 0;
+    return {
+      costPerPreventedIncident: avgIncidentCost,
+      preventedIncidents: prevented,
+      costPerAvoidedFine: Math.round(avgIncidentCost * 1.8),
+      finesAvoided: Math.max(0, Math.round(prevented * 0.3)),
+      adminHoursSaved: prevented * 4,
+      adminHourlyRateClp: 25_000,
+      monthlyPlanClp: monthlyCost,
+      additionalSafetyInvestmentClp: eppBudget.totalClp * 12,
+    };
+  }, [baselineIncidents, currentIncidents, avgIncidentCost, currentTierCost, eppBudget]);
+
+  // TierComparatorWidget plans — mapped from canonical TIERS.
+  const tierPlans = useMemo<TierPlan[]>(() => {
+    return TIERS.map((tier) => ({
+      id: tier.id,
+      monthlyPriceClp: tier.clpRegular,
+      workerLimit: tier.trabajadoresMax === Infinity ? 999_999 : tier.trabajadoresMax,
+      projectLimit: tier.proyectosMax === Infinity ? 999_999 : tier.proyectosMax,
+      overagePerWorkerClp: tier.trabajadorExtraClp ?? 0,
+      overagePerProjectClp: tier.proyectoExtraClp ?? 0,
+      features: [],
+    }));
+  }, []);
+
+  // PymeMaturityWizard input — derived from calculator state.
+  const pymeWizardInput = useMemo<PymeWizardInput>(() => ({
+    industry: pymeIndustry,
+    workerCount: workers,
+    hasSupervisor: pymeHasSupervisor,
+    hasCphs: pymeHasCphs,
+    hasRiohs: pymeHasRiohs,
+    hasTrainingProgram: pymeHasTraining,
+  }), [pymeIndustry, workers, pymeHasSupervisor, pymeHasCphs, pymeHasRiohs, pymeHasTraining]);
+
+  // PymeOnboardingPlanPanel plan — built from wizard input.
+  const pymeOnboardingInput = useMemo<PymeOnboardingInput>(() => {
+    const keyRisks: PymeKeyRisk[] = [];
+    if (pymeIndustry === 'construction' || pymeIndustry === 'mining') {
+      keyRisks.push('falls_from_height', 'vehicle_traffic', 'noise');
+    }
+    if (pymeIndustry === 'industrial') {
+      keyRisks.push('chemical_exposure', 'noise', 'electrical');
+    }
+    if (pymeIndustry === 'agriculture') {
+      keyRisks.push('chemical_exposure', 'manual_handling', 'biological');
+    }
+    if (pymeIndustry === 'logistics') {
+      keyRisks.push('vehicle_traffic', 'manual_handling');
+    }
+    if (pymeIndustry === 'services') {
+      keyRisks.push('psychosocial', 'manual_handling');
+    }
+    return {
+      industry: pymeIndustry,
+      workerCount: workers,
+      keyRisks,
+      hasExistingRiohs: pymeHasRiohs,
+      hasExistingCphs: pymeHasCphs,
+    };
+  }, [pymeIndustry, workers, pymeHasRiohs, pymeHasCphs]);
+
+  const pymeOnboardingPlan = useMemo(
+    () => buildOnboardingPlan(pymeOnboardingInput),
+    [pymeOnboardingInput],
   );
 
   // ─── Actions ─────────────────────────────────────────────────────────
@@ -540,6 +648,12 @@ export const PricingCalculator: React.FC = () => {
         </div>
       </section>
 
+      {/* TIER COMPARATOR WIDGET (orphan mount) ───────────────────────── */}
+      <TierComparatorWidget
+        plans={tierPlans}
+        usage={{ activeWorkers: workers, activeProjects: projects }}
+      />
+
       {/* ROI ─────────────────────────────────────────────────────────── */}
       <section
         data-testid="pricing-calculator-roi"
@@ -638,6 +752,9 @@ export const PricingCalculator: React.FC = () => {
           </ul>
         )}
       </section>
+
+      {/* ROI CALCULATOR WIDGET (orphan mount) ─────────────────────────── */}
+      <ROICalculatorWidget inputs={roiWidgetInputs} />
 
       {/* COSTO DE NO CUMPLIR — exposición regulatoria ──────────────────
           Consume estimateNonComplianceCost (preventionCostCalculator). El
@@ -909,6 +1026,96 @@ export const PricingCalculator: React.FC = () => {
             )}
           </p>
         )}
+      </section>
+
+      {/* PYME MATURITY WIZARD (orphan mount) ────────────────────────────
+          Evaluates Pyme maturity level from calculator inputs and renders
+          a 30-day onboarding plan. Pure deterministic — no Firestore. */}
+      <section
+        data-testid="pricing-calculator-pyme-maturity"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-4"
+      >
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
+          <Sparkles className="w-4 h-4 text-[#4db6ac]" />
+          {t('pricingCalc.pyme.title', 'Madurez PYME')}
+        </h2>
+        <p className="text-xs text-muted-token">
+          {t('pricingCalc.pyme.subtitle', 'Evalúa el nivel de madurez en prevención de riesgos de tu empresa.')}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="block">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
+              {t('pricingCalc.pyme.industry', 'Industria PYME')}
+            </span>
+            <select
+              value={pymeIndustry}
+              onChange={(e) => setPymeIndustry(e.target.value as PymeIndustry)}
+              data-testid="pc-pyme-industry"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
+            >
+              <option value="construction">{t('pricingCalc.pyme.industry_construction', 'Construcción')}</option>
+              <option value="mining">{t('pricingCalc.pyme.industry_mining', 'Minería')}</option>
+              <option value="agriculture">{t('pricingCalc.pyme.industry_agriculture', 'Agricultura')}</option>
+              <option value="industrial">{t('pricingCalc.pyme.industry_industrial', 'Industrial')}</option>
+              <option value="logistics">{t('pricingCalc.pyme.industry_logistics', 'Logística')}</option>
+              <option value="services">{t('pricingCalc.pyme.industry_services', 'Servicios')}</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 md:mt-6">
+            <input
+              type="checkbox"
+              checked={pymeHasSupervisor}
+              onChange={(e) => setPymeHasSupervisor(e.target.checked)}
+              data-testid="pc-pyme-supervisor"
+              className="rounded border-default-token"
+            />
+            <span className="text-[11px] font-medium text-secondary-token">
+              {t('pricingCalc.pyme.supervisor', 'Supervisor dedicado')}
+            </span>
+          </label>
+          <label className="flex items-center gap-2 md:mt-6">
+            <input
+              type="checkbox"
+              checked={pymeHasCphs}
+              onChange={(e) => setPymeHasCphs(e.target.checked)}
+              data-testid="pc-pyme-cphs"
+              className="rounded border-default-token"
+            />
+            <span className="text-[11px] font-medium text-secondary-token">
+              {t('pricingCalc.pyme.cphs', 'CPHS funcionando')}
+            </span>
+          </label>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={pymeHasRiohs}
+              onChange={(e) => setPymeHasRiohs(e.target.checked)}
+              data-testid="pc-pyme-riohs"
+              className="rounded border-default-token"
+            />
+            <span className="text-[11px] font-medium text-secondary-token">
+              {t('pricingCalc.pyme.riohs', 'RIOHS aprobado')}
+            </span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={pymeHasTraining}
+              onChange={(e) => setPymeHasTraining(e.target.checked)}
+              data-testid="pc-pyme-training"
+              className="rounded border-default-token"
+            />
+            <span className="text-[11px] font-medium text-secondary-token">
+              {t('pricingCalc.pyme.training', 'Programa de capacitación')}
+            </span>
+          </label>
+        </div>
+
+        <PymeMaturityWizard input={pymeWizardInput} />
+        <PymeOnboardingPlanPanel plan={pymeOnboardingPlan} />
       </section>
 
       {/* EPP BUDGET ──────────────────────────────────────────────────── */}

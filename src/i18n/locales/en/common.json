@@ -2883,6 +2883,21 @@
       "fine": "Estimated fine (from)",
       "stoppage": "Stoppage cost",
       "disclaimer": "Reference estimate based on Chilean historicals + SUSESO/DT publications. Not legal advice."
+    },
+    "pyme": {
+      "title": "SME Maturity",
+      "subtitle": "Assess your company's maturity level in risk prevention.",
+      "industry": "SME Industry",
+      "industry_construction": "Construction",
+      "industry_mining": "Mining",
+      "industry_agriculture": "Agriculture",
+      "industry_industrial": "Industrial",
+      "industry_logistics": "Logistics",
+      "industry_services": "Services",
+      "supervisor": "Dedicated supervisor",
+      "cphs": "CPHS operational",
+      "riohs": "RIOHS approved",
+      "training": "Training program"
     }
   },
   "oc": {

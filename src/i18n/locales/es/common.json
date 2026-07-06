@@ -2883,6 +2883,21 @@
       "fine": "Multa estimada (desde)",
       "stoppage": "Costo de paralización",
       "disclaimer": "Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal."
+    },
+    "pyme": {
+      "title": "Madurez PYME",
+      "subtitle": "Evalúa el nivel de madurez en prevención de riesgos de tu empresa.",
+      "industry": "Industria PYME",
+      "industry_construction": "Construcción",
+      "industry_mining": "Minería",
+      "industry_agriculture": "Agricultura",
+      "industry_industrial": "Industrial",
+      "industry_logistics": "Logística",
+      "industry_services": "Servicios",
+      "supervisor": "Supervisor dedicado",
+      "cphs": "CPHS funcionando",
+      "riohs": "RIOHS aprobado",
+      "training": "Programa de capacitación"
     }
   },
   "oc": {
