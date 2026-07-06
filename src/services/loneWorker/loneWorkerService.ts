@@ -145,7 +145,19 @@ export function recordCheckIn(
   const status = checkIn.status ?? 'ok';
   return {
     ...session,
-    checkIns: [...session.checkIns, { at, lat: checkIn.lat, lng: checkIn.lng, status }],
+    checkIns: [
+      ...session.checkIns,
+      {
+        at,
+        status,
+        // Omit geo when absent. A check-in without GPS is valid — the worker
+        // still pulsed — and Firestore REJECTS explicit `undefined` fields
+        // (the session flows into the client persist + the server's
+        // idempotency-cache write, both of which threw "Cannot use undefined").
+        ...(checkIn.lat !== undefined ? { lat: checkIn.lat } : {}),
+        ...(checkIn.lng !== undefined ? { lng: checkIn.lng } : {}),
+      },
+    ],
     lastKnownLocation:
       checkIn.lat !== undefined && checkIn.lng !== undefined
         ? { lat: checkIn.lat, lng: checkIn.lng, at }
