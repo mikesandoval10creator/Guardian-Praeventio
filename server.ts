@@ -1299,7 +1299,20 @@ if (process.env.NODE_ENV !== "production") {
     server: { middlewareMode: true },
     appType: "spa",
   });
-  app.use(vite.middlewares);
+  // Vite's dev middleware includes an SPA fallback that serves index.html for
+  // unmatched GETs (and 404s unmatched POSTs). Mounted before the /api + /billing
+  // routers declared later in this file, it SHADOWS every API mount that follows
+  // (GET /api/billing/* → index.html, POST → 404) — a dev/E2E-only bug, since prod
+  // (NODE_ENV=production) defers its SPA fallback to the very end (see the "SPA
+  // catch-all fallback"). Skip Vite for the server's own route namespaces so those
+  // requests fall through to the real routers below; everything else (SPA routes,
+  // /src modules, @vite client, HMR) still reaches Vite.
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/billing' || req.path.startsWith('/billing/')) {
+      return next();
+    }
+    return vite.middlewares(req, res, next);
+  });
 } else {
   // Sprint 20 13th wave Bucket C — production index.html is read once at
   // boot and cached; per-request work is just swapping the __CSP_NONCE__
