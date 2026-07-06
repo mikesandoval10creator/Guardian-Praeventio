@@ -55,6 +55,11 @@ const ShiftHandover = lazy(() => import('../pages/ShiftHandover').then(module =>
 // Fase 5 B8 — LOTO Digital (Lock-Out/Tag-Out). Engine + adapter + write
 // endpoints (loto.ts) + LotoStatusPanel existían sin page consumidor.
 const Loto = lazy(() => import('../pages/Loto').then(module => ({ default: module.Loto })));
+// Bloque D Rama 2 — wire the orphan deduplication surface. The server router
+// (src/server/routes/deduplication.ts) + client hook
+// (src/hooks/useDeduplication.ts) existed with no page/route;
+// DeduplicationPage closes the gap (duplicate detection + merge planning).
+const DeduplicationPage = lazy(() => import('../pages/DeduplicationPage').then(module => ({ default: module.DeduplicationPage })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -89,4 +94,5 @@ export const OperationsRoutes = [
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,
   <Route key="loto" path="loto" element={<Loto />} />,
   <Route key="mantenimiento-preventivo" path="mantenimiento-preventivo" element={<MantenimientoPreventivo />} />,
+  <Route key="deduplication" path="deduplication" element={<DeduplicationPage />} />,
 ];

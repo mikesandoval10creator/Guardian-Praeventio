@@ -38,6 +38,11 @@ const PROJECT_PAGES = [
   { path: '/return-to-work', name: 'Return to Work' },
   { path: '/retaliation-protection', name: 'Retaliation Protection' },
   { path: '/privacy-shield', name: 'Privacy Shield' },
+  // Bloque D Rama 2 — orphan features wired (skill-gap, contingency-simulation,
+  // deduplication) get mount-smoke coverage.
+  { path: '/skill-gap', name: 'Skill Gap' },
+  { path: '/contingency-simulation', name: 'Contingency Simulation' },
+  { path: '/deduplication', name: 'Deduplication' },
 ];
 
 const NO_PROJECT_PAGES = [
