@@ -4531,6 +4531,28 @@
       "violated": "Restrições em conflito:"
     }
   },
+  "pricingSimulator": {
+    "page": {
+      "title": "Simulador de Faturamento",
+      "subtitle": "Estime sua fatura mensal com base em trabalhadores, projetos e plano.",
+      "selectProject": "Selecione um projeto para estimar sua fatura mensal."
+    },
+    "panel": {
+      "aria": "Simulador de fatura mensal",
+      "title": "Simulador de fatura",
+      "disclaimer": "Estimativa determinística da sua fatura mensal com base em trabalhadores, projetos e plano. Referencial.",
+      "workers": "N.º de trabalhadores",
+      "projects": "N.º de projetos",
+      "tier": "Plano",
+      "submit": "Estimar fatura",
+      "error": "Não foi possível estimar a fatura.",
+      "total": "Total estimado / mês",
+      "base": "Base do plano",
+      "overage": "Excedentes",
+      "fits": "Seu uso cabe no plano sem excedentes.",
+      "exceeds": "Seu uso excede o plano — considere um plano maior."
+    }
+  },
   "retaliationProtection": {
     "page": {
       "title": "Proteção contra Retaliações",

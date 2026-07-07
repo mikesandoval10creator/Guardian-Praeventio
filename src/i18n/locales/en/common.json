@@ -4531,6 +4531,28 @@
       "violated": "Conflicting restrictions:"
     }
   },
+  "pricingSimulator": {
+    "page": {
+      "title": "Billing Simulator",
+      "subtitle": "Estimate your monthly bill based on workers, projects and plan.",
+      "selectProject": "Select a project to estimate your monthly bill."
+    },
+    "panel": {
+      "aria": "Monthly bill simulator",
+      "title": "Bill simulator",
+      "disclaimer": "Deterministic estimate of your monthly bill based on workers, projects and plan. Indicative.",
+      "workers": "No. of workers",
+      "projects": "No. of projects",
+      "tier": "Plan",
+      "submit": "Estimate bill",
+      "error": "Could not estimate the bill.",
+      "total": "Estimated total / month",
+      "base": "Plan base",
+      "overage": "Overages",
+      "fits": "Your usage fits the plan with no overages.",
+      "exceeds": "Your usage exceeds the plan — consider a higher plan."
+    }
+  },
   "retaliationProtection": {
     "page": {
       "title": "Retaliation Protection",
