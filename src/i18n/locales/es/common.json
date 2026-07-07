@@ -4543,6 +4543,28 @@
       "violated": "Restricciones en conflicto:"
     }
   },
+  "pricingSimulator": {
+    "page": {
+      "title": "Simulador de Facturación",
+      "subtitle": "Estima tu factura mensual según trabajadores, proyectos y plan.",
+      "selectProject": "Selecciona un proyecto para estimar tu factura mensual."
+    },
+    "panel": {
+      "aria": "Simulador de factura mensual",
+      "title": "Simulador de factura",
+      "disclaimer": "Estimación determinística de tu factura mensual según trabajadores, proyectos y plan. Referencial.",
+      "workers": "N.º trabajadores",
+      "projects": "N.º proyectos",
+      "tier": "Plan",
+      "submit": "Estimar factura",
+      "error": "No se pudo estimar la factura.",
+      "total": "Total estimado / mes",
+      "base": "Base del plan",
+      "overage": "Excedentes",
+      "fits": "Tu uso cabe en el plan sin excedentes.",
+      "exceeds": "Tu uso excede el plan — considera un plan mayor."
+    }
+  },
   "retaliationProtection": {
     "page": {
       "title": "Protección contra Represalias",
