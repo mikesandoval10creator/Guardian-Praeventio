@@ -47,6 +47,13 @@ import { logger } from '../utils/logger';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { EmptyState } from '../components/shared/EmptyState';
+import { MonthlyClientReportPanel } from '../components/clientReporting/MonthlyClientReportPanel';
+import { MonthlyClientReportCard } from '../components/monthlyClientReport/MonthlyClientReportCard';
+import { ReportTemplatePreview } from '../components/reportsAutomation/ReportTemplatePreview';
+import { ExplainedRecommendationCard } from '../components/explainability/ExplainedRecommendationCard';
+import type { MonthlyInputs } from '../services/clientReporting/monthlyClientReport';
+import type { ReportTemplate, ReportData } from '../services/reportsAutomation/reportsAutomation';
+import type { ExplainedRecommendation } from '../services/explainability/recommendationExplainer';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -667,6 +674,96 @@ export function Analytics() {
                 ),
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── Monthly Client Reports + Report Automation ─────────────── */}
+        {selectedProject && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <MonthlyClientReportPanel
+                inputs={{
+                  projectId: selectedProject.id,
+                  periodLabel: new Date().toISOString().slice(0, 7),
+                  totalIncidents: incidents.length,
+                  criticalIncidents: criticalRisks,
+                  totalActions: stats.totalFindings,
+                  closedActions: closedFindings,
+                  trainingHoursCompleted: 0,
+                  workersActive: selectedProject.workersCount ?? 0,
+                  complianceScore: stats.complianceRate,
+                  sifPrecursors: 0,
+                  slaCommitments: [],
+                }}
+              />
+              <MonthlyClientReportCard
+                inputs={{
+                  projectId: selectedProject.id,
+                  periodLabel: new Date().toISOString().slice(0, 7),
+                  totalIncidents: incidents.length,
+                  criticalIncidents: criticalRisks,
+                  totalActions: stats.totalFindings,
+                  closedActions: closedFindings,
+                  trainingHoursCompleted: 0,
+                  workersActive: selectedProject.workersCount ?? 0,
+                  complianceScore: stats.complianceRate,
+                  sifPrecursors: 0,
+                  slaCommitments: [],
+                }}
+              />
+            </div>
+            <ReportTemplatePreview
+              template={{
+                id: 'monthly-safety',
+                audience: 'client',
+                period: 'monthly',
+                sections: [
+                  { key: 'resumen', title: 'Resumen Ejecutivo', required: true },
+                  { key: 'indicadores', title: 'Indicadores Clave', required: true },
+                  { key: 'hallazgos', title: 'Hallazgos del Período', required: false },
+                ],
+              }}
+              data={{
+                contents: {
+                  resumen: `Período ${new Date().toISOString().slice(0, 7)}: ${incidents.length} incidentes, ${findings.length} hallazgos registrados.`,
+                  indicadores: `Riesgos críticos: ${criticalRisks} · Cumplimiento: ${stats.complianceRate}% · EPP: ${stats.eppCoverage}%`,
+                  hallazgos: `${openFindings} hallazgos abiertos de ${findings.length} totales.`,
+                },
+              }}
+              reportId={`rpt-${selectedProject.id}-${new Date().toISOString().slice(0, 7)}`}
+              periodLabel={`Reporte mensual ${new Date().toISOString().slice(0, 7)}`}
+            />
+            <ExplainedRecommendationCard
+              explained={{
+                recommendation: {
+                  id: 'rec-analytics-001',
+                  action: 'Revisar y cerrar hallazgos abiertos antes del próximo período',
+                  responsibleRole: 'Jefe de Terreno',
+                  validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+                  category: 'hallazgos',
+                },
+                whyEvidences: [
+                  {
+                    id: 'ev-001',
+                    kind: 'graph_node',
+                    description: `${openFindings} hallazgos permanecen abiertos sin acción correctiva asignada.`,
+                    citation: '(zk:hallazgos-abiertos)',
+                  },
+                  {
+                    id: 'ev-002',
+                    kind: 'legal_rule',
+                    description: 'DS 594 Art. 18 exige control documentado de no conformidades.',
+                    citation: '(DS-594)',
+                  },
+                ],
+                rationaleMarkdown: `El ${stats.totalFindings > 0 ? Math.round((openFindings / stats.totalFindings) * 100) : 0}% de hallazgos permanecen abiertos. La normativa exige cierre documentado.`,
+                confidence: openFindings > 5 ? 'high' : openFindings > 0 ? 'medium' : 'low',
+                citations: ['(zk:hallazgos-abiertos)', '(DS-594)'],
+                isFullyDeterministic: true,
+                llmInferenceShare: 0,
+                llmInferenceShareExact: 0,
+              }}
+            />
           </div>
         )}
 
