@@ -28,6 +28,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import { SafetyPost, SafetySolution, NodeType } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -125,21 +126,25 @@ export function SafetyFeed() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      // 3. Save Post to Firestore
-      const postsPath = `projects/${selectedProject.id}/safety_posts`;
-      const postRef = await addDoc(collection(db, postsPath), {
-        userId: user.uid,
-        userName: user.displayName || 'Usuario',
-        userPhoto: user.photoURL,
-        content: newPost.content,
-        type: newPost.type,
-        imageUrl: imageUrl, 
-        riskNodeId,
-        likes: [],
-        comments: [],
-        createdAt: serverTimestamp(),
-        projectId: selectedProject.id
+      // 3. Save Post via audited server endpoint (replaces direct Firestore write)
+      const headers = await apiAuthHeaders();
+      const postRes = await fetch(`/api/sprint-k/${selectedProject.id}/safety-posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          content: newPost.content,
+          type: newPost.type,
+          imageUrl: imageUrl || undefined,
+        }),
       });
+
+      if (!postRes.ok) {
+        const errData = await postRes.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${postRes.status}`);
+      }
+
+      const { postId } = await postRes.json();
+      const postRef = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
 
       if (riskNodeId) {
         // Update the Risk node to link back to the post
