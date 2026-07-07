@@ -5486,5 +5486,10 @@
       "confidence": "Confidence",
       "reasons": "Matches:"
     }
+  },
+  "clientReports": {
+    "title": "Reports",
+    "subtitle": "Executive and automated reports panel.",
+    "selectProject": "Select a project to generate reports."
   }
 }

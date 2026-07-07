@@ -50,6 +50,10 @@ const CostScenarios = lazy(() => import('../pages/CostScenarios').then(m => ({ d
 //   + src/hooks/usePrivacyShield.ts.
 const RetaliationProtectionPage = lazy(() => import('../pages/RetaliationProtectionPage').then(m => ({ default: m.RetaliationProtectionPage })));
 const PrivacyShieldPage = lazy(() => import('../pages/PrivacyShieldPage').then(m => ({ default: m.PrivacyShieldPage })));
+// Alpha41 task 395aa66d — mount 4 report orphans (MonthlyClientReportPanel,
+// MonthlyClientReportCard, ReportTemplatePreview, ExplainedRecommendationCard)
+// into a single Reports surface.
+const ClientReports = lazy(() => import('../pages/ClientReports').then(m => ({ default: m.ClientReports })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -74,4 +78,5 @@ export const ComplianceRoutes = [
   <Route key="cost-scenarios" path="cost-scenarios" element={<CostScenarios />} />,
   <Route key="retaliation-protection" path="retaliation-protection" element={<RetaliationProtectionPage />} />,
   <Route key="privacy-shield" path="privacy-shield" element={<PrivacyShieldPage />} />,
+  <Route key="client-reports" path="client-reports" element={<ClientReports />} />,
 ];

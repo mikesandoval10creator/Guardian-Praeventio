@@ -5486,5 +5486,10 @@
       "confidence": "Confianza",
       "reasons": "Coincidencias:"
     }
+  },
+  "clientReports": {
+    "title": "Reportes",
+    "subtitle": "Panel de reportes ejecutivos y automatizados.",
+    "selectProject": "Selecciona un proyecto para generar reportes."
   }
 }
