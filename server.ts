@@ -352,6 +352,8 @@ import aiGuardrailsRouter from "./src/server/routes/aiGuardrails.js";
 import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
 // Behavior-Based Safety — Sprint K (anonymous observation + profile).
 import bbsRouter from "./src/server/routes/bbs.js";
+// Safety Posts — audited mural/safety_posts write endpoint (replaces client direct write).
+import safetyPostsRouter from "./src/server/routes/safetyPosts.js";
 // Critical Roles — Sprint K §271-275 (bus-factor + sustitutos + training plan).
 import criticalRolesRouter from "./src/server/routes/criticalRoles.js";
 // Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
@@ -1214,6 +1216,7 @@ app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
 app.use('/api/sprint-k', raciMatrixRouter);
 app.use('/api/sprint-k', bbsRouter);
+app.use('/api/sprint-k', safetyPostsRouter);
 app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 app.use('/api/sprint-k', changeMgmtRouter);
