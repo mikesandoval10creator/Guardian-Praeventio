@@ -22,6 +22,7 @@ import { suggestNormativesWithAI, downloadSpecificNormative } from '../services/
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface Normative {
   id: string;
@@ -96,78 +97,25 @@ export function Normatives() {
         await downloadSpecificNormative(law.id);
       }
 
-      // 2. Also keep the frontend metadata for the UI listing (legacy support)
-      const { addDoc, collection, getDocs, query, where } = await import('firebase/firestore');
-      const { db } = await import('../services/firebase');
-      
-      const initialNormatives = [
-        {
-          title: 'Ley 16.744: Seguro Social contra Riesgos de Accidentes del Trabajo y Enfermedades Profesionales',
-          code: 'Ley 16.744',
-          category: 'Seguridad Social',
-          description: 'Establece normas sobre accidentes del trabajo y enfermedades profesionales. Es la piedra angular de la seguridad laboral en Chile.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 594: Reglamento sobre Condiciones Sanitarias y Ambientales Básicas en los Lugares de Trabajo',
-          code: 'DS 594',
-          category: 'Higiene y Salud',
-          description: 'Establece las condiciones sanitarias y ambientales básicas que debe cumplir todo lugar de trabajo.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 44/2024: Reglamento sobre Prevención de Riesgos Profesionales (reemplaza al DS 40/1969, derogado 01-02-2025)',
-          code: 'DS 44/2024',
-          category: 'Prevención',
-          description: 'Establece normas sobre la organización y funcionamiento de los Departamentos de Prevención de Riesgos. Reemplaza al DS 40/1969 (derogado).',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 44/2024: Constitución y Funcionamiento de los Comités Paritarios de Higiene y Seguridad (ex DS 54/1969, derogado 01-02-2025)',
-          code: 'DS 44/2024',
-          category: 'Comités Paritarios',
-          description: 'Regula la formación y funciones de los Comités Paritarios en empresas con más de 25 trabajadores. Materia antes regida por el DS 54/1969, derogado por el DS 44/2024.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 18: Certificación de Calidad de Elementos de Protección Personal contra Riesgos Ocupacionales',
-          code: 'DS 18',
-          category: 'EPP',
-          description: 'Establece normas sobre la certificación de calidad de los EPP comercializados en el país.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Ley 21.096: Consagra el Derecho a la Protección de Datos Personales',
-          code: 'Ley 21.096',
-          category: 'Privacidad',
-          description: 'Regula el tratamiento de datos personales y crea la Agencia de Protección de Datos.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Ley 20.123: Regula Trabajo en Régimen de Subcontratación',
-          code: 'Ley 20.123',
-          category: 'Subcontratación',
-          description: 'Establece las responsabilidades de la empresa principal en materia de seguridad y salud para trabajadores subcontratados.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        }
-      ];
-
-      for (const norm of initialNormatives) {
-        const q = query(collection(db, 'normatives'), where('code', '==', norm.code));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          await addDoc(collection(db, 'normatives'), norm);
-        }
+      // 2. Also seed UI metadata server-side so the write is audited.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
+        throw new Error('Debes iniciar sesión para sincronizar la biblioteca normativa.');
       }
-      showToast('Biblioteca sincronizada con éxito (Vectores + Metadata)', 'success');
+
+      const response = await fetch('/api/normatives/seed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error sincronizando biblioteca normativa: ${response.status}`);
+      }
+
+      showToast('Biblioteca sincronizada con éxito (Vectores + Metadata auditada)', 'success');
     } catch (error) {
       logger.error('Error seeding normatives', { error });
     } finally {
