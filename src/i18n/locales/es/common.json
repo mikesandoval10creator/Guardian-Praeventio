@@ -2886,6 +2886,9 @@
       "fine": "Multa estimada (desde)",
       "stoppage": "Costo de paralización",
       "disclaimer": "Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal."
+    },
+    "pyme": {
+      "maturityTitle": "Madurez Preventiva PYME"
     }
   },
   "oc": {

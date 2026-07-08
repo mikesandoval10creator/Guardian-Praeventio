@@ -2886,6 +2886,9 @@
       "fine": "Estimated fine (from)",
       "stoppage": "Stoppage cost",
       "disclaimer": "Reference estimate based on Chilean historicals + SUSESO/DT publications. Not legal advice."
+    },
+    "pyme": {
+      "maturityTitle": "PYME Preventive Maturity"
     }
   },
   "oc": {

@@ -32,6 +32,7 @@ import { CierreSection } from '../components/landing/CierreSection';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { detectLandingLocale, APP_LOCALE_STORAGE_KEY, LANDING_GEO_FLAG_KEY } from '../components/landing/langDetect';
 import { loadLocale } from '../i18n';
+import { toHtmlLang } from '../i18n/rtl';
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -95,7 +96,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
   /* keep <html lang> in sync — a11y + SEO on the public page */
   useEffect(() => {
     const apply = (lng: string) => {
-      document.documentElement.lang = lng;
+      document.documentElement.lang = toHtmlLang(lng) ?? lng;
     };
     apply(i18n.resolvedLanguage ?? 'es');
     i18n.on('languageChanged', apply);
