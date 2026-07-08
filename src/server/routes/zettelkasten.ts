@@ -80,6 +80,14 @@ import {
   summarizeBacklinks,
   topReferencingNodes,
 } from '../../services/zettelkasten/backlinks.js';
+// Alpha41 ZK-8 wire — consultas estructuradas cypher-lite sobre el grafo,
+// SIN LLM: parser + ejecutor local sobre getRelatedNodes.
+import {
+  parsePatternQuery,
+  runStructuredQuery,
+  GraphQueryParseError,
+  type QueryableNode,
+} from '../../services/zettelkasten/structuredQuery.js';
 
 const router = Router();
 
@@ -520,6 +528,123 @@ router.post(
       });
     } catch (err) {
       logger.error?.('zettelkasten_backlinks_failed', { err: String(err) });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ── POST /structured-query ────────────────────────────────────────────
+//
+// Alpha41 ZK-8 — consulta estructurada cypher-lite sobre las aristas
+// tipadas del grafo, p.ej.:
+//   (:Control)-[:mitigates]->(:Riesgo) WHERE severity=critical
+// Complementa /nl-query (RAG semántico): la auditoría preventiva necesita
+// respuestas EXACTAS y deterministas — parser + ejecutor locales sobre
+// getRelatedNodes, sin LLM ni embeddings. Read-only: nodos canónicos del
+// proyecto (`nodes`, filtro por projectId igual que UniversalKnowledgeContext)
+// + edges tenant-scoped vía el EdgeStore compartido.
+
+// Cap defensivo del scan de nodos para no cargar grafos gigantes en memoria.
+const STRUCTURED_QUERY_NODE_SCAN_LIMIT = 2000;
+
+const structuredQuerySchema = z.object({
+  projectId: z.string().min(1).max(256),
+  pattern: z.string().min(1).max(1024),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+
+router.post(
+  '/structured-query',
+  verifyAuth,
+  validate(structuredQuerySchema),
+  async (req, res) => {
+    const callerUid = req.user?.uid;
+    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+    const { projectId, pattern, limit } = req.body as z.infer<
+      typeof structuredQuerySchema
+    >;
+
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    let parsed;
+    try {
+      parsed = parsePatternQuery(pattern);
+    } catch (err) {
+      if (err instanceof GraphQueryParseError) {
+        return res.status(400).json({ error: 'invalid_pattern', reason: err.reason });
+      }
+      throw err;
+    }
+
+    // Edges are tenant-scoped; resolve the logical tenant from the project doc.
+    const db = admin.firestore();
+    let tenantId: string | null = null;
+    try {
+      const snap = await db.collection('projects').doc(projectId).get();
+      const data = snap.exists
+        ? (snap.data() as { tenantId?: string } | undefined)
+        : undefined;
+      if (typeof data?.tenantId === 'string' && data.tenantId.length > 0) {
+        tenantId = data.tenantId;
+      }
+    } catch (err) {
+      logger.warn('zettelkasten_structured_query_tenant_resolve_failed', {
+        err: String(err),
+      });
+    }
+    if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
+
+    try {
+      const nodesSnap = await db
+        .collection('nodes')
+        .where('projectId', '==', projectId)
+        .limit(STRUCTURED_QUERY_NODE_SCAN_LIMIT)
+        .get();
+      const nodes: QueryableNode[] = [];
+      for (const doc of nodesSnap.docs) {
+        const data = doc.data() as Record<string, unknown> | undefined;
+        if (!data || typeof data.type !== 'string') continue;
+        // Las aristas referencian el zkNodeId (campo `id` del canonical),
+        // no el doc path compuesto `{tenantId}_{projectId}_{zkNodeId}`.
+        const id = typeof data.id === 'string' && data.id.length > 0 ? data.id : doc.id;
+        nodes.push({ ...data, id, type: data.type });
+      }
+
+      const store = buildEdgeStore(db);
+      const matches = await runStructuredQuery(
+        store,
+        nodes,
+        { ...parsed, limit: limit ?? parsed.limit },
+        tenantId,
+      );
+
+      const pick = (n: QueryableNode) => ({
+        id: n.id,
+        type: n.type,
+        title: typeof n.title === 'string' ? n.title : null,
+        severity: typeof n.severity === 'string' ? n.severity : null,
+      });
+      return res.json({
+        pattern,
+        count: matches.length,
+        matches: matches.map((m) => ({
+          from: pick(m.from),
+          to: pick(m.to),
+          via: m.via,
+          direction: m.direction,
+          edgeType: m.edge.type,
+        })),
+      });
+    } catch (err) {
+      logger.error?.('zettelkasten_structured_query_failed', { err: String(err) });
       return res.status(500).json({ error: 'internal_error' });
     }
   },
