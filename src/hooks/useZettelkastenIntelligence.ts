@@ -335,10 +335,18 @@ export function useZettelkastenIntelligence() {
         );
         const trainings = trainingsSnap.docs.map(d => ({ id: d.id, ...d.data() } as TrainingSession));
 
-        // 1. Find Risks without controls (Orphan Risks)
+        // 1. Find Risks without controls (Orphan Risks) — unified edge-based
+        //    definition (matches nodeSmartActions). A risk is orphan only if it
+        //    has NO connection edge to any CONTROL node.  Previously this
+        //    checked metadata.controles (free-text), which produced false
+        //    positives when a risk was properly mitigated via graph edges but
+        //    the text field was empty.
+        const controlNodeIds = new Set(
+          fetchedNodes.filter(n => n.type === NodeType.CONTROL).map(n => n.id)
+        );
         const detectedOrphanRisks = fetchedNodes.filter(node =>
           node.type === NodeType.RISK &&
-          (!node.metadata?.controles || node.metadata.controles.trim() === '')
+          !node.connections.some(cid => controlNodeIds.has(cid))
         );
         setOrphanRisks(detectedOrphanRisks);
 
