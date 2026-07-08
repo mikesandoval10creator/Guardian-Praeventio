@@ -3456,6 +3456,9 @@
     "trainingRegistered": "Treinamento registrado"
   },
   "pricingCalc": {
+    "pyme": {
+      "maturityTitle": "Maturidade Preventiva PME"
+    },
     "header": {
       "title": "Calculadora de Preços e ROI",
       "subtitle": "Estime seu plano recomendado, custo mensal, retorno e orçamento de EPI em um só lugar."
