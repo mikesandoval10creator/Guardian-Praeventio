@@ -114,7 +114,7 @@ const PATTERN_RE = new RegExp(
 );
 // `[from.|to.]campo op valor`
 const CLAUSE_RE =
-  /^\s*(?:(from|to)\s*\.\s*)?([A-Za-z_][\w.-]*)\s*(!=|>=|<=|=|>|<)\s*(.+?)\s*$/i;
+  /^(?:(from|to)\s*\.\s*)?([A-Za-z_][\w.-]*)\s*(!=|>=|<=|=|>|<)\s*(.+)$/i;
 
 const OP_MAP: Record<string, WhereOp> = {
   '=': 'eq',
@@ -135,8 +135,8 @@ function parseValue(raw: string): string | number | boolean {
 }
 
 function parseWhere(rawWhere: string, input: string): WhereClause[] {
-  return rawWhere.split(/\s+AND\s+/i).map((rawClause) => {
-    const m = rawClause.match(CLAUSE_RE);
+  return rawWhere.split(/\s{1,64}AND\s{1,64}/i).map((rawClause) => {
+    const m = rawClause.trim().match(CLAUSE_RE);
     if (!m) throw new GraphQueryParseError('MALFORMED_WHERE', input);
     const [, target, field, op, rawValue] = m;
     return {
