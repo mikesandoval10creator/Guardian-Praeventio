@@ -2803,6 +2803,9 @@
     }
   },
   "pricingCalc": {
+    "pyme": {
+      "maturityTitle": "Madurez Preventiva PYME"
+    },
     "header": {
       "title": "Calculadora de Precios y ROI",
       "subtitle": "Estima tu plan recomendado, costo mensual, retorno y presupuesto EPP en un solo lugar."
