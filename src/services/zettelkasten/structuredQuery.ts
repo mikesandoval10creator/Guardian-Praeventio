@@ -114,7 +114,7 @@ const PATTERN_RE = new RegExp(
 );
 // `[from.|to.]campo op valor`
 const CLAUSE_RE =
-  /^(?:(from|to)\s*\.\s*)?([A-Za-z_][\w.-]*)\s*(!=|>=|<=|=|>|<)\s*(.+)$/i;
+  /^(?:(from|to)\s*\.\s*)?([A-Za-z_][\w.-]*)\s*(!=|>=|<=|=|>|<)\s*(\S.*)$/i;
 
 const OP_MAP: Record<string, WhereOp> = {
   '=': 'eq',
