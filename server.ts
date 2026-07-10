@@ -699,6 +699,18 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   );
 });
 
+// SEO: serve robots.txt and sitemap.xml with correct MIME types so crawlers
+// read real directives instead of the SPA shell. Same pattern as .well-known:
+// explicit sendFile mounted above the Vite/SPA middleware.
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(process.cwd(), 'public/robots.txt'));
+});
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml');
+  res.sendFile(path.resolve(process.cwd(), 'public/sitemap.xml'));
+});
+
 // Public health probe for Cloud Run / Marketplace listing health checks.
 // Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
 // limiter and verifyAuth — Cloud Run probes hit this endpoint frequently
