@@ -29,7 +29,7 @@ export function LandingNav({ onEnter, onLogin }: LandingNavProps) {
   return (
     <nav className="pv-nav">
       <div className="flex items-center gap-2.5">
-        <img className="pv-nav-logo" src="/brand/logo%20guardian%20praeventio.jpg" alt="" aria-hidden="true" />
+        <img className="pv-nav-logo" src="/brand/logo%20guardian%20praeventio.jpg" alt="Logo de Guardian Praeventio" />
         <span className="leading-tight">
           <span className="font-semibold tracking-tight">
             Guardian <b style={{ color: 'var(--pv-teal)' }}>Praeventio</b>
