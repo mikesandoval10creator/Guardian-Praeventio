@@ -1339,6 +1339,14 @@ if (process.env.NODE_ENV !== "production") {
   // (broken build), fall through to a 503 rather than serving the
   // template literal placeholder to a real browser.
   const distPath = path.join(process.cwd(), 'dist');
+  // Vite emits hashed assets under /assets/ (content hash in filename).
+  // These are immutable — safe to cache for 1 year. PSI flags missing
+  // Cache-Control on these responses; the immutable directive tells the
+  // browser it can skip revalidation entirely.
+  app.use('/assets', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    next();
+  });
   app.use(express.static(distPath, { index: false }));
 
   try {
