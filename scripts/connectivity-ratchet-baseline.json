@@ -3,7 +3,6 @@
   "count": 20,
   "orphans": [
     "src/components/adoption/ChurnRiskPanel.tsx",
-    "src/components/agenda/AgendaDigestCard.tsx",
     "src/components/cargo/CargoCogPanel.tsx",
     "src/components/continuity/SpofPanel.tsx",
     "src/components/dashboard/AdviceBanner.tsx",
