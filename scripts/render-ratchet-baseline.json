@@ -11,7 +11,6 @@
     "src/components/dashboard/QuickActions.tsx",
     "src/components/digital-twin/GaussianSplatViewer.tsx",
     "src/components/digital-twin/RePositionConfirmDialog.tsx",
-    "src/components/governance/DeviationRadarPanel.tsx",
     "src/components/health/OccupationalContextBundleCard.tsx",
     "src/components/horometro/MaintenanceCompleteForm.tsx",
     "src/components/hvac/AirQualityPanel.tsx",

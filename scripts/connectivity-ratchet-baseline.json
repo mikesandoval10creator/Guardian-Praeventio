@@ -9,7 +9,6 @@
     "src/components/dashboard/AdviceBanner.tsx",
     "src/components/digital-twin/GaussianSplatViewer.tsx",
     "src/components/digital-twin/RePositionConfirmDialog.tsx",
-    "src/components/governance/DeviationRadarPanel.tsx",
     "src/components/health/OccupationalContextBundleCard.tsx",
     "src/components/hvac/AirQualityPanel.tsx",
     "src/components/identity/TaxIdInput.tsx",
