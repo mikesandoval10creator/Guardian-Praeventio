@@ -194,7 +194,7 @@ export function HeroBlueprint({ caption }: { caption: string }) {
       </svg>
 
       {/* the guardian — living core of the plano */}
-      <img className="pv-hero-mascot" src="/mascots/guardian-default-trans.png" alt="Guardian, mascota del sistema de prevención, sobre el plano del andamio" />
+      <img className="pv-hero-mascot" src="/mascots/guardian-default-trans.png" alt="Guardian, mascota del sistema de prevención, sobre el plano del andamio" width={286} height={252} />
 
       {/* HUD labels — language-neutral technical chips (ponytail: inline, not i18n keys) */}
       <span className="pv-hud" style={{ top: '15%', left: '-4%' }}>

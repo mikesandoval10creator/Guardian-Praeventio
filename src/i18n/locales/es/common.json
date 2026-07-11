@@ -5499,5 +5499,16 @@
       "confidence": "Confianza",
       "reasons": "Coincidencias:"
     }
+  },
+  "aiHub": {
+    "streaming": {
+      "title": "Asesor Guardian — Streaming",
+      "desc": "El Asesor ahora responde en streaming: el primer carácter aparece en ~600ms en lugar de esperar 12s por la respuesta completa. Usa Server-Sent Events vía /api/ask-guardian con stream=true.",
+      "status": "Streaming SSE activo"
+    }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integración",
+    "tabScene3d": "Escena 3D"
   }
 }

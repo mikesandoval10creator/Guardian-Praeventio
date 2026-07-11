@@ -6,6 +6,14 @@ import { RiskNode, Worker, TrainingSession, NodeType } from '../types';
 import { collection, serverTimestamp, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logger } from '../utils/logger';
+import {
+  detectAllSmartActions,
+  type KnowledgeGraphSnapshot,
+  type SmartActionSuggestion,
+  type SmartActionKind,
+  type ProposedMutation,
+} from '../services/zettelkasten/smartActions';
+import { suggestEdgesForRisk } from '../services/zettelkasten/riskOrchestrator';
 
 export interface OrphanNotification {
   title: string;
@@ -85,6 +93,12 @@ export interface SmartAction {
   /** Lucide icon name as a string. */
   icon: string;
   priority: 'high' | 'medium' | 'low';
+  /** Legal citation from the detection engine (DS 594, Ley 16.744, etc.). */
+  rationale?: string;
+  /** Confidence 0-1 from the detection engine. */
+  confidence?: number;
+  /** Proposed graph mutations if the user approves this action. */
+  proposedMutations?: ProposedMutation[];
 }
 
 export type URLContext =
@@ -153,6 +167,36 @@ const SMART_ACTIONS: SmartAction[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// SmartActionKind → icon + context mapping for graph-detected suggestions
+// ---------------------------------------------------------------------------
+
+const KIND_META: Record<SmartActionKind, { icon: string; context: URLContext[] }> = {
+  'create-worker-epp-connection': { icon: 'Link', context: ['workers', 'epp'] },
+  'suggest-normatives-for-project': { icon: 'BookOpen', context: ['risks', 'audits', 'general'] },
+  'link-industry-to-project': { icon: 'Building2', context: ['general', 'risks'] },
+  'suggest-epp-for-worker': { icon: 'Shield', context: ['workers', 'epp'] },
+  'auto-link-training-to-worker': { icon: 'GraduationCap', context: ['training', 'workers'] },
+};
+
+/** Convert a graph-detected SmartActionSuggestion into a SmartAction for the panel. */
+function suggestionToSmartAction(s: SmartActionSuggestion): SmartAction {
+  const meta = KIND_META[s.kind];
+  // Look up the human-readable label from the static SMART_ACTIONS
+  const staticDef = SMART_ACTIONS.find(a => a.id === s.kind);
+  return {
+    id: s.id,
+    label: staticDef?.label ?? s.kind,
+    description: s.message,
+    context: meta?.context ?? ['general'],
+    icon: meta?.icon ?? 'Sparkles',
+    priority: s.priority,
+    rationale: s.rationale,
+    confidence: s.confidence,
+    proposedMutations: s.proposedMutations,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Legacy module type (preserved)
 // ---------------------------------------------------------------------------
 
@@ -190,6 +234,7 @@ export function useZettelkastenIntelligence() {
   const { nodes } = useUniversalKnowledge();
   const location = useLocation();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [graphSmartSuggestions, setGraphSmartSuggestions] = useState<SmartActionSuggestion[]>([]);
 
   // --- Legacy URL-based module detection ---
   const currentModule = useMemo<ModuleType>(
@@ -208,20 +253,30 @@ export function useZettelkastenIntelligence() {
     [location.pathname]
   );
 
-  // --- Context-filtered smart actions (new) ---
-  const smartActions = useMemo<SmartAction[]>(
-    () => SMART_ACTIONS.filter(action => action.context.includes(currentContext)),
-    [currentContext]
-  );
+  // --- Context-filtered smart actions (graph-backed + URL-context fallback) ---
+  const smartActions = useMemo<SmartAction[]>(() => {
+    // Graph-derived legal suggestions (from detectAllSmartActions + suggestEdgesForRisk)
+    const graphActions = graphSmartSuggestions.map(suggestionToSmartAction);
+
+    // URL-context filtered static actions — exclude kinds already covered by graph
+    const graphKinds = new Set(graphSmartSuggestions.map(s => s.kind));
+    const contextActions = SMART_ACTIONS
+      .filter(action => action.context.includes(currentContext))
+      .filter(action => !graphKinds.has(action.id as SmartActionKind));
+
+    // Graph actions first (legal-backed), then static context actions as fallback
+    return [...graphActions, ...contextActions];
+  }, [currentContext, graphSmartSuggestions]);
 
   // Auto-show panel when there are relevant actions for a non-general context
+  // or when the legal detection engine found graph-based gaps
   const [smartPanelVisible, setSmartPanelVisible] = useState(false);
 
   useEffect(() => {
-    if (smartActions.length > 0 && currentContext !== 'general') {
+    if (graphSmartSuggestions.length > 0 || (smartActions.length > 0 && currentContext !== 'general')) {
       setSmartPanelVisible(true);
     }
-  }, [smartActions.length, currentContext]);
+  }, [smartActions.length, currentContext, graphSmartSuggestions.length]);
 
   // --- Node-graph–derived actions (legacy, renamed to nodeSmartActions) ---
   const nodeSmartActions = useMemo<NodeSmartAction[]>(() => {
@@ -392,6 +447,116 @@ export function useZettelkastenIntelligence() {
           await batch.commit();
         }
 
+        // --- Wire real legal detection engines (smartActions.ts + riskOrchestrator.ts) ---
+        // Build KnowledgeGraphSnapshot from fetched data for detectAllSmartActions
+        const eppNodeIds = new Set(
+          fetchedNodes.filter(n => n.type === NodeType.EPP).map(n => n.id)
+        );
+        const trainingGraphNodeIds = new Set(
+          fetchedNodes.filter(n => n.type === NodeType.TRAINING).map(n => n.id)
+        );
+        const normativeNodeIds = new Set(
+          fetchedNodes.filter(n => n.type === NodeType.NORMATIVE).map(n => n.id)
+        );
+
+        const workerEppMap = new Map<string, string[]>();
+        const workerTrainingMap = new Map<string, string[]>();
+        const projectNormMap = new Map<string, string[]>();
+
+        // Build connection maps from graph edges
+        for (const node of fetchedNodes) {
+          if (node.type === NodeType.WORKER) {
+            const eppConns = node.connections.filter(cid => eppNodeIds.has(cid));
+            if (eppConns.length > 0) workerEppMap.set(node.id, eppConns);
+            const trainingConns = node.connections.filter(cid => trainingGraphNodeIds.has(cid));
+            if (trainingConns.length > 0) workerTrainingMap.set(node.id, trainingConns);
+          }
+          if (node.type === NodeType.PROJECT) {
+            const normConns = node.connections.filter(cid => normativeNodeIds.has(cid));
+            if (normConns.length > 0) projectNormMap.set(node.id, normConns);
+          }
+        }
+
+        // Enrich training connections from training attendees
+        for (const t of trainings) {
+          for (const attendeeId of (t.attendees || [])) {
+            const existing = workerTrainingMap.get(attendeeId) ?? [];
+            if (!existing.includes(t.id)) {
+              workerTrainingMap.set(attendeeId, [...existing, t.id]);
+            }
+          }
+        }
+
+        // Enrich EPP connections from worker eppIds field
+        for (const w of workers) {
+          if (w.eppIds && w.eppIds.length > 0) {
+            const existing = workerEppMap.get(w.id) ?? [];
+            const newIds = w.eppIds.filter(id => !existing.includes(id));
+            if (newIds.length > 0) {
+              workerEppMap.set(w.id, [...existing, ...newIds]);
+            }
+          }
+        }
+
+        const snapshot: KnowledgeGraphSnapshot = {
+          workers: workers.map(w => ({
+            id: w.id,
+            name: w.name,
+            cargo: w.role,
+            hireDate: w.joinedAt,
+          })),
+          projects: selectedProject
+            ? [{
+                id: selectedProject.id,
+                name: selectedProject.name,
+                description: selectedProject.description,
+                industry: selectedProject.industry,
+              }]
+            : [],
+          workerEppConnections: workerEppMap,
+          workerTrainingConnections: workerTrainingMap,
+          projectNormatives: projectNormMap,
+        };
+
+        const nowIso = new Date().toISOString();
+        const legalSuggestions = detectAllSmartActions(snapshot, nowIso);
+
+        // Run riskOrchestrator for each RISK node to detect EPP/training gaps
+        const riskNodes = fetchedNodes.filter(n => n.type === NodeType.RISK);
+        for (const risk of riskNodes) {
+          const edgeSuggestions = suggestEdgesForRisk({
+            riskNodeId: risk.id,
+            riskType: risk.title ?? '',
+            industryPrefix: risk.metadata?.industry,
+          });
+          const eppSuggestions = edgeSuggestions.filter(e => e.toNodeRef.kind === 'EPP');
+          if (eppSuggestions.length > 0) {
+            // Only suggest if this risk node has no EPP connections yet
+            const existingEpp = workerEppMap.get(risk.id) ?? [];
+            const riskEppConns = risk.connections.filter(cid => eppNodeIds.has(cid));
+            if (existingEpp.length === 0 && riskEppConns.length === 0) {
+              legalSuggestions.push({
+                id: `risk-epp-${risk.id}`,
+                kind: 'suggest-epp-for-worker',
+                priority: 'high',
+                message: `Riesgo "${risk.title}" requiere EPP: ${eppSuggestions.map(e => e.toNodeRef.label).join(', ')}`,
+                rationale: eppSuggestions[0]?.rationale ?? '',
+                affectedNodes: [{ nodeId: risk.id, kind: 'risk' }],
+                proposedMutations: eppSuggestions.map(e => ({
+                  operation: 'create_edge' as const,
+                  edgeFromId: risk.id,
+                  edgeToId: e.toNodeRef.label,
+                  edgeKind: e.type,
+                })),
+                detectedAt: nowIso,
+                confidence: 0.9,
+              });
+            }
+          }
+        }
+
+        setGraphSmartSuggestions(legalSuggestions);
+
       } catch (error) {
         logger.error("Error analyzing Zettelkasten orphans:", error);
       } finally {
@@ -411,9 +576,10 @@ export function useZettelkastenIntelligence() {
     suggestedActions,
     currentModule,
     currentEntityId,
-    // New / URL-context
+    // New / URL-context + graph-backed
     currentContext,
     smartActions,
+    graphSmartSuggestions,
     smartPanelVisible,
     setSmartPanelVisible,
   };

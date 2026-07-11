@@ -18,6 +18,7 @@ import {
   Brain
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddMedicineModal } from '../components/medicine/AddMedicineModal';
@@ -31,11 +32,14 @@ import { DrugInteractions } from '../components/medicine/DrugInteractions';
 import { Ds109Modal } from '../components/medicine/Ds109Modal';
 import { Ds67Modal } from '../components/medicine/Ds67Modal';
 import { computeSurveillanceBreakdown } from './medicineMetrics';
+import { OccupationalContextBundleCard } from '../components/health/OccupationalContextBundleCard';
+import { OCCUPATIONAL_BUNDLE_DISCLAIMER } from '../services/health/occupationalContextClient';
 import { FileCheck } from 'lucide-react';
 
 export function Medicine() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -287,6 +291,23 @@ export function Medicine() {
               {t('medicine.health_alert_text')}
             </p>
           </div>
+
+          {/* Wire OccupationalContextBundleCard — informative occupational
+              context bundle for the treating physician. Renders with a minimal
+              placeholder bundle until real worker data is wired. Per ADR 0012:
+              Praeventio organizes, never diagnoses. */}
+          {user && (
+            <OccupationalContextBundleCard
+              bundle={{
+                workerUid: user.uid,
+                generatedAt: Date.now(),
+                laborHistory: [],
+                ergonomicMetrics: [],
+                selfReportedSymptoms: [],
+                disclaimer: OCCUPATIONAL_BUNDLE_DISCLAIMER,
+              }}
+            />
+          )}
         </div>
       </div>
 

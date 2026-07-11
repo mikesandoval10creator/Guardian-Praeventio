@@ -87,7 +87,7 @@ export function CierreSection({ onStart }: CierreSectionProps) {
             </circle>
           </svg>
           <div className={reduced ? 'pv-cierre-logo-card' : 'pv-cierre-logo-card pv-floaty'}>
-            <img src="/brand/logo%20guardian%20praeventio.jpg" alt="Guardian Praeventio" />
+            <img src="/brand/logo%20guardian%20praeventio.jpg" alt="Guardian Praeventio" width={260} height={260} />
           </div>
         </motion.div>
       </div>
