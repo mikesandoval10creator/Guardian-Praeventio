@@ -29,6 +29,11 @@ export default defineConfig({
     // Más timeout porque cada test del emulator hace round-trips de red.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // 2026-07-11: el pool default `forks` mataba workers intermitentemente
+    // (713/721 pass, 1 worker murió, 8 resultados no fiables). `threads`
+    // resuelve la inestabilidad — 721/721 determinístico. Verificado con
+    // `--pool=threads` en 2 runs consecutivos.
+    pool: 'threads',
     // 2026-06-01: estos archivos comparten UN emulador Firestore y cada uno
     // hace `clearFirestore()` en beforeEach (borra TODA la DB). Corriendo los
     // archivos en paralelo, el clear de un archivo borra los datos sembrados

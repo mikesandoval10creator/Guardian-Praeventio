@@ -70,8 +70,12 @@ export default defineConfig({
     // unexpectedly" in 2 consecutive runs (~75-115s). ponytail: 1-line unblock;
     // the real fix is closing the sockets per file (afterAll(() =>
     // server.close())) across the src/__tests__/server files — tracked separately.
+    // Vitest 4 migration: `poolOptions` was removed. `singleFork: true` is now
+    // `maxWorkers: 1` + `isolate: false` (top-level, no longer nested under
+    // `poolOptions.forks`). The `pool: 'forks'` default is kept explicit.
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    isolate: false,
     // Align the local default with CI (`test:ci` passes --test-timeout=30000).
     // The 5s default is too tight for the heavy ratchet / module-import smoke
     // tests under full-suite concurrency: a synchronous test that blows the
