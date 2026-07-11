@@ -29,6 +29,8 @@ import {
   type ClosureRole,
 } from '../hooks/useProjectClosure';
 import { ProjectClosureCard } from '../components/projectClosure/ProjectClosureCard';
+import { SpofPanel } from '../components/continuity/SpofPanel';
+import { useContinuityInput } from '../hooks/useContinuityInput';
 import type {
   ClosureContext,
   ProjectClosureSnapshot,
@@ -52,6 +54,7 @@ export function ProjectClosure() {
   const statusResp = useClosureStatus(projectId);
   const [role, setRole] = useState<ClosureRole>('gerencia');
   const summaryResp = useClosureSummary(projectId, role);
+  const continuityState = useContinuityInput(projectId);
 
   // Local capture form state.
   const [lessonSummary, setLessonSummary] = useState('');
@@ -486,6 +489,9 @@ export function ProjectClosure() {
               </div>
             </dl>
           </section>
+
+          {/* SPOFs — Puntos Únicos de Falla */}
+          <SpofPanel input={continuityState.input} />
 
           {/* Lecciones transferibles */}
           <section
