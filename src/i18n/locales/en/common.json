@@ -241,7 +241,8 @@
     "block_ia_coach": "AI & Coach",
     "block_innovacion": "Innovation",
     "block_administracion": "Administration",
-    "search_placeholder": "What do you need?"
+    "search_placeholder": "What do you need?",
+    "cargo_cog": "Cargo & Stowage"
   },
   "auth": {
     "login": "Sign In",
@@ -5510,5 +5511,21 @@
   "digitalTwin": {
     "tabIntegration": "Integration",
     "tabScene3d": "3D Scene"
+  },
+  "cargo": {
+    "page_title": "Cargo & Stowage",
+    "container_config": "Container configuration",
+    "dim_x": "Length X (m)",
+    "dim_y": "Width Y (m)",
+    "dim_z": "Height Z (m)",
+    "max_payload": "Max payload (kg)",
+    "add_item": "Add item",
+    "compute": "Compute",
+    "items": "Items",
+    "mass_kg": "Mass (kg)",
+    "fragile": "Fragile",
+    "no_stack": "No stacking",
+    "no_items_placed": "No items placed",
+    "unplaced_title": "Unplaced"
   }
 }

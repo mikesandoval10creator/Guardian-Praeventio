@@ -241,7 +241,8 @@
     "block_ia_coach": "IA e Coach",
     "block_innovacion": "Inovação",
     "block_administracion": "Administração",
-    "search_placeholder": "O que você precisa?"
+    "search_placeholder": "O que você precisa?",
+    "cargo_cog": "Carga e Estiva"
   },
   "auth": {
     "login": "Entrar",
@@ -5510,5 +5511,21 @@
   "digitalTwin": {
     "tabIntegration": "Integração",
     "tabScene3d": "Cena 3D"
+  },
+  "cargo": {
+    "page_title": "Carga e Estiva",
+    "container_config": "Configuração do contêiner",
+    "dim_x": "Comprimento X (m)",
+    "dim_y": "Largura Y (m)",
+    "dim_z": "Altura Z (m)",
+    "max_payload": "Carga máxima (kg)",
+    "add_item": "Adicionar item",
+    "compute": "Calcular",
+    "items": "Itens",
+    "mass_kg": "Massa (kg)",
+    "fragile": "Frágil",
+    "no_stack": "Não empilhável",
+    "no_items_placed": "Nenhum item posicionado",
+    "unplaced_title": "Não posicionados"
   }
 }
