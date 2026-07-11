@@ -29,6 +29,8 @@ import { VitalityMonitor } from '../components/hygiene/VitalityMonitor';
 import { FloraFaunaCatalog } from '../components/hygiene/FloraFaunaCatalog';
 import { MorningRoutine } from '../components/hygiene/MorningRoutine';
 import { NutritionLog } from '../components/hygiene/NutritionLog';
+import { MeasurementQualityCard } from '../components/measurements/MeasurementQualityCard';
+import { AirQualityPanel } from '../components/hvac/AirQualityPanel';
 
 const iconMap: Record<string, any> = {
   'Ruido Ambiental': Volume2,
@@ -241,6 +243,19 @@ export function Hygiene() {
               </div>
             </div>
           </div>
+
+          {/* Wire MeasurementQualityCard — aggregated quality score for the
+              measurement chain (noise, dust, gases, lighting). Renders with
+              empty results until real ChainValidationResult data is wired. */}
+          <MeasurementQualityCard results={[]} />
+
+          {/* Wire AirQualityPanel — CO2 prediction + ventilation recommendation
+              using the thermal model steady-state calculator. Renders with
+              placeholder zone/driver until real sensor data is wired. */}
+          <AirQualityPanel
+            co2Zone={{ volumeM3: 200, airExchangeM3perH: 150 }}
+            co2Driver={{ occupancyCount: 5 }}
+          />
 
           <div className="bg-surface border border-default-token rounded-3xl p-6">
             <h3 className="text-lg font-bold text-primary-token mb-4 flex items-center gap-2">
