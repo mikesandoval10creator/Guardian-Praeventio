@@ -241,7 +241,8 @@
     "block_ia_coach": "IA y Coach",
     "block_innovacion": "Innovación",
     "block_administracion": "Administración",
-    "search_placeholder": "¿Qué necesitas?"
+    "search_placeholder": "¿Qué necesitas?",
+    "cargo_cog": "Carga y Estiba"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -5499,5 +5500,32 @@
       "confidence": "Confianza",
       "reasons": "Coincidencias:"
     }
+  },
+  "aiHub": {
+    "streaming": {
+      "title": "Asesor Guardian — Streaming",
+      "desc": "El Asesor ahora responde en streaming: el primer carácter aparece en ~600ms en lugar de esperar 12s por la respuesta completa. Usa Server-Sent Events vía /api/ask-guardian con stream=true.",
+      "status": "Streaming SSE activo"
+    }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integración",
+    "tabScene3d": "Escena 3D"
+  },
+  "cargo": {
+    "page_title": "Carga y Estiba",
+    "container_config": "Configuración del contenedor",
+    "dim_x": "Largo X (m)",
+    "dim_y": "Ancho Y (m)",
+    "dim_z": "Alto Z (m)",
+    "max_payload": "Carga máxima (kg)",
+    "add_item": "Agregar ítem",
+    "compute": "Calcular",
+    "items": "Ítems",
+    "mass_kg": "Masa (kg)",
+    "fragile": "Frágil",
+    "no_stack": "No apilable",
+    "no_items_placed": "No hay ítems ubicados",
+    "unplaced_title": "Sin ubicar"
   }
 }

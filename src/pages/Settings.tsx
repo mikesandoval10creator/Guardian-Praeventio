@@ -49,6 +49,7 @@ import { logger } from '../utils/logger';
 // Renderiza el panel completo de adquisición/descarga/cambio de modelo
 // SLM sin enlaces externos.
 import { SlmManagerScreen } from '../components/slm/SlmManagerScreen';
+import { TaxIdInput } from '../components/identity/TaxIdInput';
 
 /**
  * Sprint 34 D4 — IDs estables para el switch del render (audit P0 §1.4).
@@ -298,6 +299,11 @@ export function Settings() {
               />
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.profile.contact_admin', 'Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.')}</p>
+            {/* Wire TaxIdInput — tax-id validation per country (CL/BR/MX/AR/CO/US/GB).
+                Placed in profile section so users can validate their tax identifier. */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <TaxIdInput country="CL" />
+            </div>
           </div>
         );
       case 'security':

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
@@ -32,6 +32,8 @@ import { AddEventModal } from '../components/calendar/AddEventModal';
 // strings are scoped to a separate i18n sweep, not this file.
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 import { ExternalEventsPanel } from '../components/external-events/ExternalEventsPanel';
+import { ClimatePlanAdjustment } from '../components/climateAware/ClimatePlanAdjustment';
+import type { ScheduledTask, WeatherConditions } from '../services/climateAwareScheduling/climateAwareScheduling';
 import { logger } from '../utils/logger';
 
 interface Event {
@@ -319,6 +321,43 @@ export function Calendar() {
 
   const forecast = getForecast();
 
+  // ── Climate Plan Adjustment (real data from Calendar events + weather) ──
+  // Convert Calendar Event[] → ScheduledTask[] for the climate-aware engine.
+  const taskCategoryMap: Record<Event['type'], ScheduledTask['category']> = {
+    'Inspección': 'excavacion',
+    'Capacitación': 'oficina',
+    'Auditoría': 'oficina',
+    'Reunión': 'oficina',
+  };
+  const scheduledTasks: ScheduledTask[] = useMemo(
+    () =>
+      (allEvents ?? []).map((ev) => ({
+        id: ev.id,
+        category: taskCategoryMap[ev.type] ?? 'oficina',
+        scheduledHour: ev.time ? parseInt(ev.time.split(':')[0], 10) || 8 : 8,
+        outdoor: ev.type === 'Inspección',
+        workerUids: [],
+      })),
+    [allEvents],
+  );
+
+  const climateWeather: WeatherConditions | null = useMemo(() => {
+    if (!weatherData) return null;
+    return {
+      temperatureC: weatherData.temp,
+      humidityPercent: weatherData.humidity,
+      windSpeedMs: (weatherData.windSpeed ?? 0) / 3.6,
+      rainProbability:
+        weatherData.condition?.includes('lluvia') ||
+        weatherData.condition?.includes('tormenta') ||
+        weatherData.condition?.includes('chubasco')
+          ? 0.8
+          : 0.1,
+      uvIndex: weatherData.uv ?? 0,
+      visibilityKm: 10,
+    };
+  }, [weatherData]);
+
   const weekdayShort = [
     t('calendar.weekdays_short.mon'),
     t('calendar.weekdays_short.tue'),
@@ -428,6 +467,14 @@ export function Calendar() {
           })}
         </div>
       </div>
+
+      {/* Climate Plan Adjustment — shows how today's weather affects scheduled tasks */}
+      {climateWeather && scheduledTasks.length > 0 && (
+        <ClimatePlanAdjustment
+          tasks={scheduledTasks}
+          weather={climateWeather}
+        />
+      )}
 
       {/* Main Content Area */}
       {viewMode === 'calendar' ? (
