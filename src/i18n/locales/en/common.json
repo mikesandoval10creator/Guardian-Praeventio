@@ -5506,5 +5506,9 @@
       "desc": "The Advisor now responds in streaming: the first character appears in ~600ms instead of waiting 12s for the full response. Uses Server-Sent Events via /api/ask-guardian with stream=true.",
       "status": "SSE Streaming active"
     }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integration",
+    "tabScene3d": "3D Scene"
   }
 }

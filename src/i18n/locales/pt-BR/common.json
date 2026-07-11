@@ -5506,5 +5506,9 @@
       "desc": "O Assessor agora responde em streaming: o primeiro caractere aparece em ~600ms em vez de esperar 12s pela resposta completa. Usa Server-Sent Events via /api/ask-guardian com stream=true.",
       "status": "SSE Streaming ativo"
     }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integração",
+    "tabScene3d": "Cena 3D"
   }
 }
