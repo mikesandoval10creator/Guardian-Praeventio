@@ -5499,5 +5499,12 @@
       "confidence": "Confiança",
       "reasons": "Coincidências:"
     }
+  },
+  "aiHub": {
+    "streaming": {
+      "title": "Assessor Guardian — Streaming",
+      "desc": "O Assessor agora responde em streaming: o primeiro caractere aparece em ~600ms em vez de esperar 12s pela resposta completa. Usa Server-Sent Events via /api/ask-guardian com stream=true.",
+      "status": "SSE Streaming ativo"
+    }
   }
 }
