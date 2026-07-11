@@ -85,6 +85,7 @@ export function buildNavCatalog(
     { title: t('nav.checklist_vehiculo', 'Pre-Uso Vehículo'), icon: Truck, path: '/checklist-vehiculo', color: 'text-sky-500' },
     { title: t('nav.driving_safety', 'Conducción Segura'), icon: Car, path: '/driving-safety', color: 'text-blue-500' },
     { title: t('nav.driving_incidents', 'Incidentes de Conducción'), icon: Car, path: '/driving-incidents', color: 'text-amber-500' },
+    { title: t('nav.cargo_cog', 'Cargo y Estiba'), icon: Truck, path: '/cargo-cog', color: 'text-violet-500' },
     { title: t('nav.mining_contractors', 'Contratistas Mineros'), icon: Mountain, path: '/mining-contractors', color: 'text-amber-500' },
     { title: t('nav.suppliers', 'Proveedores'), icon: Truck, path: '/suppliers', color: 'text-blue-500' },
     { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
