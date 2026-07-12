@@ -241,7 +241,8 @@
     "block_ia_coach": "IA e Coach",
     "block_innovacion": "Inovação",
     "block_administracion": "Administração",
-    "search_placeholder": "O que você precisa?"
+    "search_placeholder": "O que você precisa?",
+    "cargo_cog": "Carga e Estiva"
   },
   "auth": {
     "login": "Entrar",
@@ -2612,7 +2613,10 @@
     "ai_safety_plan": "Plano de Segurança IA",
     "ai_training": "Capacitações IA",
     "delete_title": "Excluir trabalhador",
-    "delete_message": "Tem certeza? Esta ação excluirá o trabalhador e todos os dados associados."
+    "delete_message": "Tem certeza? Esta ação excluirá o trabalhador e todos os dados associados.",
+    "archive_action": "Arquivar",
+    "archive_title": "Arquivar trabalhador",
+    "archive_message": "O trabalhador será arquivado e sairá deste projeto. Seu histórico de prevenção é mantido por exigência legal (Ley 16.744) e sua experiência permanece na conta. Nenhuma informação é excluída."
   },
   "public_demo": {
     "banner": "MODO DEMO — os dados não são persistidos · sem conta",
@@ -3453,6 +3457,9 @@
     "trainingRegistered": "Treinamento registrado"
   },
   "pricingCalc": {
+    "pyme": {
+      "maturityTitle": "Maturidade Preventiva PME"
+    },
     "header": {
       "title": "Calculadora de Preços e ROI",
       "subtitle": "Estime seu plano recomendado, custo mensal, retorno e orçamento de EPI em um só lugar."
@@ -4528,6 +4535,28 @@
       "violated": "Restrições em conflito:"
     }
   },
+  "pricingSimulator": {
+    "page": {
+      "title": "Simulador de Faturamento",
+      "subtitle": "Estime sua fatura mensal com base em trabalhadores, projetos e plano.",
+      "selectProject": "Selecione um projeto para estimar sua fatura mensal."
+    },
+    "panel": {
+      "aria": "Simulador de fatura mensal",
+      "title": "Simulador de fatura",
+      "disclaimer": "Estimativa determinística da sua fatura mensal com base em trabalhadores, projetos e plano. Referencial.",
+      "workers": "N.º de trabalhadores",
+      "projects": "N.º de projetos",
+      "tier": "Plano",
+      "submit": "Estimar fatura",
+      "error": "Não foi possível estimar a fatura.",
+      "total": "Total estimado / mês",
+      "base": "Base do plano",
+      "overage": "Excedentes",
+      "fits": "Seu uso cabe no plano sem excedentes.",
+      "exceeds": "Seu uso excede o plano — considere um plano maior."
+    }
+  },
   "retaliationProtection": {
     "page": {
       "title": "Proteção contra Retaliações",
@@ -5471,5 +5500,32 @@
       "confidence": "Confiança",
       "reasons": "Coincidências:"
     }
+  },
+  "aiHub": {
+    "streaming": {
+      "title": "Assessor Guardian — Streaming",
+      "desc": "O Assessor agora responde em streaming: o primeiro caractere aparece em ~600ms em vez de esperar 12s pela resposta completa. Usa Server-Sent Events via /api/ask-guardian com stream=true.",
+      "status": "SSE Streaming ativo"
+    }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integração",
+    "tabScene3d": "Cena 3D"
+  },
+  "cargo": {
+    "page_title": "Carga e Estiva",
+    "container_config": "Configuração do contêiner",
+    "dim_x": "Comprimento X (m)",
+    "dim_y": "Largura Y (m)",
+    "dim_z": "Altura Z (m)",
+    "max_payload": "Carga máxima (kg)",
+    "add_item": "Adicionar item",
+    "compute": "Calcular",
+    "items": "Itens",
+    "mass_kg": "Massa (kg)",
+    "fragile": "Frágil",
+    "no_stack": "Não empilhável",
+    "no_items_placed": "Nenhum item posicionado",
+    "unplaced_title": "Não posicionados"
   }
 }

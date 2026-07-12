@@ -61,6 +61,15 @@ import {
   type CompareScenariosInput,
   type CompareScenariosResponse,
 } from '../hooks/useRoiScenario';
+import { ROICalculatorWidget } from '../components/pricingCalculator/ROICalculatorWidget';
+import { TierComparatorWidget } from '../components/pricingCalculator/TierComparatorWidget';
+import type { ROIInputs, TierPlan, CurrentUsage } from '../services/pricingCalculator/pricingCalculator';
+import { PymeMaturityWizard } from '../components/pymeOnboarding/PymeMaturityWizard';
+import { PymeOnboardingPlanPanel } from '../components/pymeWizard/PymeOnboardingPlanPanel';
+import {
+  buildOnboardingPlan,
+  type PymeOnboardingInput,
+} from '../services/pymeWizard/pymeOnboardingWizard';
 
 // ────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -268,6 +277,89 @@ export const PricingCalculator: React.FC = () => {
         hasHistoryOfFines: ncHasHistory,
       }),
     [ncKind, workers, ncStoppageDays, ncHasHistory],
+  );
+
+  // ─── PYME + Pricing widget data ──────────────────────────────────────
+  // Maps GP-* industryPrefix → PymeIndustry for the PYME widgets.
+  // Note: pymeWizard.ts and pymeOnboardingWizard.ts have different
+  // PymeIndustry unions (the latter includes 'retail'); keep separate maps.
+  const pymeIndustryMap: Record<string, 'construction' | 'mining' | 'agriculture' | 'industrial' | 'logistics' | 'services'> = {
+    'GP-CONS': 'construction',
+    'GP-MIN': 'mining',
+    'GP-AGR': 'agriculture',
+    'GP-MANU': 'industrial',
+    'GP-TRANS': 'logistics',
+    'GP-SER': 'services',
+    'GP-COM': 'services',
+  };
+
+  const pymeOnboardingIndustryMap: Record<string, PymeOnboardingInput['industry']> = {
+    'GP-CONS': 'construction',
+    'GP-MIN': 'mining',
+    'GP-AGR': 'agriculture',
+    'GP-MANU': 'industrial',
+    'GP-TRANS': 'logistics',
+    'GP-SER': 'services',
+    'GP-COM': 'retail',
+  };
+
+  const pymeInput = useMemo(
+    () => ({
+      industry: pymeIndustryMap[industryPrefix] ?? 'services' as const,
+      workerCount: workers,
+      hasSupervisor: workers >= 25,
+      hasCphs: workers >= 25,
+      hasRiohs: false,
+      hasTrainingProgram: false,
+      registersIncidents: false,
+      hasMutualidad: true,
+      usesNormedEpp: false,
+    }),
+    [industryPrefix, workers],
+  );
+
+  const pymePlan = useMemo(() => {
+    const input: PymeOnboardingInput = {
+      industry: pymeOnboardingIndustryMap[industryPrefix] ?? 'services',
+      workerCount: workers,
+      keyRisks: workers >= 50
+        ? ['falls_from_height', 'vehicle_traffic', 'noise']
+        : ['manual_handling', 'falls_from_height'],
+    };
+    return buildOnboardingPlan(input);
+  }, [industryPrefix, workers]);
+
+  const tierPlans: TierPlan[] = useMemo(
+    () =>
+      TIERS.map((t) => ({
+        id: t.id,
+        monthlyPriceClp: t.clpRegular,
+        workerLimit: t.trabajadoresMax === Infinity ? 999_999 : t.trabajadoresMax,
+        projectLimit: t.proyectosMax === Infinity ? 999_999 : t.proyectosMax,
+        overagePerWorkerClp: t.trabajadorExtraClp ?? 0,
+        overagePerProjectClp: t.proyectoExtraClp ?? 0,
+        features: [],
+      })),
+    [],
+  );
+
+  const currentUsage: CurrentUsage = useMemo(
+    () => ({ activeWorkers: workers, activeProjects: projects }),
+    [workers, projects],
+  );
+
+  const roiWidgetInputs: ROIInputs = useMemo(
+    () => ({
+      costPerPreventedIncident: avgIncidentCost,
+      preventedIncidents: Math.max(0, baselineIncidents - currentIncidents),
+      costPerAvoidedFine: 5_000_000,
+      finesAvoided: Math.max(0, Math.floor((baselineIncidents - currentIncidents) / 3)),
+      adminHoursSaved: workers * 2,
+      adminHourlyRateClp: 15_000,
+      monthlyPlanClp: currentTierCost?.totalClp ?? recommendedTier.clpRegular,
+      additionalSafetyInvestmentClp: eppBudget.totalClp * 12,
+    }),
+    [avgIncidentCost, baselineIncidents, currentIncidents, workers, currentTierCost, recommendedTier, eppBudget],
   );
 
   // ─── Actions ─────────────────────────────────────────────────────────
@@ -964,6 +1056,27 @@ export const PricingCalculator: React.FC = () => {
           </Link>
         </div>
       </section>
+
+      {/* TIER COMPARADOR WIDGET ────────────────────────────────────────── */}
+      <TierComparatorWidget plans={tierPlans} usage={currentUsage} />
+
+      {/* ROI CALCULATOR WIDGET ─────────────────────────────────────────── */}
+      <ROICalculatorWidget inputs={roiWidgetInputs} />
+
+      {/* PYME MATURITY WIZARD ──────────────────────────────────────────── */}
+      <section
+        data-testid="pricing-calculator-pyme-maturity"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-3"
+      >
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
+          <Sparkles className="w-4 h-4 text-[#4db6ac]" />
+          {t('pricingCalc.pyme.maturityTitle', 'Madurez Preventiva PYME')}
+        </h2>
+        <PymeMaturityWizard input={pymeInput} />
+      </section>
+
+      {/* PYME ONBOARDING PLAN PANEL ────────────────────────────────────── */}
+      <PymeOnboardingPlanPanel plan={pymePlan} />
 
       {/* ACTIONS ─────────────────────────────────────────────────────── */}
       <section className="flex flex-wrap gap-3 pt-2">

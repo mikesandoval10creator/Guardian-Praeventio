@@ -7,9 +7,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
-import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, collection, onSnapshot, query, orderBy, limit, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
 import { updateDoc, doc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { moderatePostContent } from '../utils/contentModeration';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 interface PostComment {
   id: string;
@@ -94,23 +95,31 @@ export function MuralDinamico() {
     setModerationError(null);
     setIsSubmitting(true);
 
-    const path = `projects/${selectedProject.id}/safety_posts`;
     try {
-      await addDoc(collection(db, path), {
-        userId: user.uid,
-        userName: user.displayName || user.email || 'Usuario',
-        userPhoto: user.photoURL || '',
-        content: newPostContent.trim(),
-        type: typeMapping[postType] || 'Tip',
-        likes: [],
-        createdAt: serverTimestamp(),
-        projectId: selectedProject.id
+      const headers = await apiAuthHeaders();
+      const res = await fetch(`/api/sprint-k/${selectedProject.id}/safety-posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          content: newPostContent.trim(),
+          type: typeMapping[postType] || 'Tip',
+        }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 400 && data.error === 'moderation_blocked') {
+          setModerationError(data.reason ?? 'Contenido no permitido.');
+        } else {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        return;
+      }
 
       setNewPostContent('');
       setPostType('info');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+      handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/safety_posts`);
     } finally {
       setIsSubmitting(false);
     }

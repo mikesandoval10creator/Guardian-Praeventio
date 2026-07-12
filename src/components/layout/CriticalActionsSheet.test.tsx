@@ -2,10 +2,23 @@
 // src/components/layout/CriticalActionsSheet.test.tsx
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import type { ReactNode } from 'react';
 
 const setModeMock = vi.fn();
 vi.mock('../../contexts/AppModeContext', () => ({
   useAppMode: () => ({ setMode: setModeMock, mode: 'normal', appearance: 'light' }),
+}));
+// Sheet uses framer-motion AnimatePresence which triggers infinite recursion
+// in React's passive mount effects during tests — stub it to a plain div.
+vi.mock('../shared/Sheet', () => ({
+  default: ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children: ReactNode }) =>
+    isOpen ? (
+      <div data-testid="sheet">
+        <h2>{title}</h2>
+        <button aria-label="Cerrar panel" onClick={onClose}>×</button>
+        {children}
+      </div>
+    ) : null,
 }));
 // FastCheckModal pulls heavy hooks — stub it for this unit test.
 vi.mock('../FastCheckModal', () => ({

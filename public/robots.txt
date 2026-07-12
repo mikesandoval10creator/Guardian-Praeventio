@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /__/firebase/
+Disallow: /admin
+
+Sitemap: https://praeventio.net/sitemap.xml
