@@ -1659,7 +1659,7 @@ describe('firestore.rules', () => {
     const MEMBER = 'organic-member-3';
     const OUTSIDER = 'organic-outsider-3';
 
-    async function seedTask(taskId: string) {
+    async function seedTask(taskId: string, overrides: Record<string, unknown> = {}) {
       await requireEnv().withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'tasks', taskId), {
           processId: 'proc-1',
@@ -1670,6 +1670,7 @@ describe('firestore.rules', () => {
           assignedUids: [MEMBER],
           status: 'pending',
           completedAt: null,
+          ...overrides,
         });
       });
     }
@@ -1692,6 +1693,72 @@ describe('firestore.rules', () => {
       await seedTask('task-B');
       const o = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
       await assertFails(getDoc(doc(o.firestore(), 'tasks', 'task-B')));
+    });
+
+    // ── Immutability + status-pipeline (audit L3 2026-07-11) ──────────
+    // The update rule pinned only the closed key set; projectId/crewId/
+    // processId were mutable and status accepted any enum value. A member
+    // could move a task to another project (cross-project leak) or walk
+    // status backwards. These lock identity + a forward-only pipeline.
+
+    async function memberCtx() {
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      return requireEnv().authenticatedContext(MEMBER, verifiedToken('worker'));
+    }
+
+    it('allows a member to edit description without changing status', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-edit');
+      const m = await memberCtx();
+      await assertSucceeds(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-edit'), { description: 'Ajustado' }),
+      );
+    });
+
+    it('denies moving a task to another project (projectId immutable)', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-move');
+      const m = await memberCtx();
+      await assertFails(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-move'), { projectId: 'otro-proyecto' }),
+      );
+    });
+
+    it('denies changing crewId (task cannot switch crew)', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-crew');
+      const m = await memberCtx();
+      await assertFails(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-crew'), { crewId: 'crew-2' }),
+      );
+    });
+
+    it('denies changing processId', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-proc');
+      const m = await memberCtx();
+      await assertFails(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-proc'), { processId: 'proc-2' }),
+      );
+    });
+
+    it('allows a forward status transition pending → doing', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-fwd');
+      const m = await memberCtx();
+      await assertSucceeds(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-fwd'), { status: 'doing' }),
+      );
+    });
+
+    it('denies a backward status transition done → pending', async (ctx) => {
+      maybeSkip(ctx);
+      await seedTask('task-back', { status: 'done', completedAt: '2026-05-03T10:00:00.000Z' });
+      const m = await memberCtx();
+      await assertFails(
+        updateDoc(doc(m.firestore(), 'tasks', 'task-back'), { status: 'pending' }),
+      );
     });
   });
 });
