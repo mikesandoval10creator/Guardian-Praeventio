@@ -50,10 +50,19 @@ Add a small exported resolver used by the provider's Firestore fetch, prove it
 returns free for invalid paid lifecycle states, and keep the existing feature
 matrix based on the resulting effective plan.
 
-## Task 5: Verify and publish
+## Task 5: Normalize lifecycle producers
+
+**Files:**
+
+- Modify: App Store and Google Play lifecycle handlers
+- Modify: Webpay, Mercado Pago, Khipu, manual invoice, and upgrade activations
+
+Persist a canonical provider on every activation. Decode App Store billing grace
+expiry and write `grace_period` plus `gracePeriodEnd` only while it is valid.
+
+## Task 6: Verify and publish
 
 Run focused tests, typecheck, lint on changed files if supported, and the relevant
 billing/subscription regression tests. Review the final diff, commit once with a
 focused message, push `codex/p0-subscription-entitlement`, open a draft PR, and
 set the Notion task to Review with its PR URL.
-

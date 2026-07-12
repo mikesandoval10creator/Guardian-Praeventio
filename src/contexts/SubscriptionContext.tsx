@@ -5,15 +5,28 @@ import { db } from '../services/firebase';
 import { useProject } from './ProjectContext';
 import { logger } from '../utils/logger';
 import {
-  normalizeSubscriptionPlanId,
   planMeetsMinimum,
   planWorkerCap,
   recommendPlanForFaena,
   PLAN_RANK,
   type SubscriptionPlan,
 } from '../services/pricing/subscriptionPlan';
+import { evaluateSubscriptionEntitlement } from '../services/pricing/subscriptionEntitlement';
 
 export type { SubscriptionPlan };
+
+/**
+ * Resolve the client-visible plan through the same lifecycle policy enforced
+ * by the server. The top-level legacy mirror is deliberately not authoritative.
+ */
+export function resolveEffectiveSubscriptionPlan(
+  userData: unknown,
+  now: Date = new Date(),
+): SubscriptionPlan {
+  if (typeof userData !== 'object' || userData === null || Array.isArray(userData)) return 'free';
+  const subscription = (userData as { subscription?: unknown }).subscription;
+  return evaluateSubscriptionEntitlement(subscription, now).effectivePlan;
+}
 
 /**
  * Per-feature gating matrix. Replaces the coarse `isPremium` / `isEnterprise`
@@ -129,11 +142,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (docSnap.exists()) {
           const userData = docSnap.data();
-          // Use the new subscription object OR fallback to old field for compatibility.
-          // Billing rails may write canonical pricing tier ids; normalize before gating.
-          const rawPlan = userData.subscription?.planId || userData.subscriptionPlan || 'free';
-          const activePlan = normalizeSubscriptionPlanId(rawPlan) ?? 'free';
-          setPlan(activePlan);
+          setPlan(resolveEffectiveSubscriptionPlan(userData));
         } else {
           await setDoc(docRef, {
             subscriptionPlan: 'free',

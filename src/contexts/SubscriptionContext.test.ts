@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getFeaturesForPlan,
+  resolveEffectiveSubscriptionPlan,
   type SubscriptionPlan,
   type SubscriptionFeatures,
 } from './SubscriptionContext';
@@ -94,5 +95,31 @@ describe('getFeaturesForPlan', () => {
     for (const p of allPlans) {
       expect(() => getFeaturesForPlan(p)).not.toThrow();
     }
+  });
+});
+
+describe('resolveEffectiveSubscriptionPlan', () => {
+  const now = new Date('2026-07-12T12:00:00.000Z');
+
+  it('uses the shared lifecycle policy for an active paid subscription', () => {
+    expect(
+      resolveEffectiveSubscriptionPlan(
+        { subscription: { planId: 'oro', status: 'active', paymentMethod: 'webpay' } },
+        now,
+      ),
+    ).toBe('oro');
+  });
+
+  it.each(['expired', 'revoked'])('downgrades a %s subscription to free', (status) => {
+    expect(
+      resolveEffectiveSubscriptionPlan(
+        { subscription: { planId: 'diamante', status, paymentMethod: 'webpay' } },
+        now,
+      ),
+    ).toBe('free');
+  });
+
+  it('does not trust the legacy top-level plan mirror', () => {
+    expect(resolveEffectiveSubscriptionPlan({ subscriptionPlan: 'diamante' }, now)).toBe('free');
   });
 });
