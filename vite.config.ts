@@ -265,6 +265,14 @@ export default defineConfig(({mode}) => {
           'pdfkit'
         ],
         output: {
+          // Alpha41 PERF — name the app entry `app-*` so the bundle budget can
+          // target it uniquely. Lazy route chunks whose facade module is a
+          // folder `index.tsx` are named `index-*` by Rollup; the `.size-limit`
+          // "Main entry" glob (`index-*.js`) was summing ALL of them (incl. a
+          // 2.4 MB three/monaco lazy chunk) and reporting a phantom 1.14 MB
+          // entry. The real entry is ~400 KB. Only entryFileNames changes;
+          // chunk/asset names keep Vite defaults.
+          entryFileNames: 'assets/app-[hash].js',
           // Vendor split: route id-based matching so transitive deps
           // (e.g. scheduler pulled in by react) land in the right chunk
           // and size-limit can budget each vendor independently.
@@ -306,19 +314,58 @@ export default defineConfig(({mode}) => {
             if (id.includes('/node_modules/firebase/') ||
                 id.includes('/node_modules/@firebase/')) return 'vendor-firebase';
 
-            // Three.js + react-three-fiber/drei
-            if (id.includes('/node_modules/three/') ||
-                id.includes('/node_modules/@react-three/')) return 'vendor-three';
+            // Alpha41 PERF — split the three.js ecosystem so the heavy
+            // authoring libs stay OFF the landing critical path. The old
+            // single `vendor-three` glued three-core + fiber (small runtime)
+            // to drei + troika-three-text + leva (~1.1 MB of 3D-authoring
+            // code). A stray shared symbol dragged the WHOLE 1.3 MB chunk into
+            // the entry's static graph → modulepreloaded on the anonymous
+            // landing. Splitting keeps three-core/fiber as the only piece the
+            // shell can pull; drei/troika/leva now load only with the lazy 3D
+            // routes that render a <Canvas> (DigitalTwin, RiskNetwork, etc.).
+            // WebXR + physics giants (@react-three/xr ≈ 870KB, rapier WASM):
+            // used ONLY by AR / physics components behind lazy 3D routes
+            // (DigitalTwinAR, TwinPhysicsScene). Isolated first so they are
+            // never pulled onto the landing critical path via the drei→fiber
+            // chain — they load only when an AR/physics scene mounts.
+            if (id.includes('/node_modules/@react-three/xr/') ||
+                id.includes('/node_modules/@react-three/rapier/') ||
+                id.includes('/node_modules/@dimforge/')) return 'vendor-xr';
+            if (id.includes('/node_modules/@react-three/drei/') ||
+                id.includes('/node_modules/troika') ||
+                id.includes('/node_modules/leva/') ||
+                id.includes('/node_modules/@react-three/postprocessing/') ||
+                id.includes('/node_modules/maath/') ||
+                id.includes('/node_modules/camera-controls/') ||
+                id.includes('/node_modules/meshline/')) return 'vendor-drei';
+            if (id.includes('/node_modules/@react-three/')) return 'vendor-r3f';
+            if (id.includes('/node_modules/three/')) return 'vendor-three';
 
             // MediaPipe (vision/camera utils, WASM workers)
             if (id.includes('/node_modules/@mediapipe/')) return 'vendor-mediapipe';
 
-            // Visualization / animation grab-bag
+            // Alpha41 PERF (Notion 397aa66d…79d8) — the old 'vendor-viz'
+            // grab-bag chunk-mated EAGER animation libs (framer-motion: 15
+            // eager importers via RootLayout/Sidebar/emergency components;
+            // gsap: shared Card.tsx) with LAZY-only charting (d3/recharts).
+            // Result: the landing modulepreloaded ~1.07MB of viz where most
+            // was chart code it never runs (PSI "unused JavaScript").
+            // Split so the boot graph carries only what it actually animates;
+            // charts now load exclusively with the lazy pages that draw them.
+            if (id.includes('/node_modules/framer-motion/')) return 'vendor-motion';
+            if (id.includes('/node_modules/gsap/') ||
+                id.includes('/node_modules/@gsap/')) return 'vendor-gsap';
             if (id.includes('/node_modules/d3') ||
-                id.includes('/node_modules/recharts/') ||
-                id.includes('/node_modules/framer-motion/') ||
-                id.includes('/node_modules/gsap/') ||
-                id.includes('/node_modules/@gsap/')) return 'vendor-viz';
+                id.includes('/node_modules/recharts/')) return 'vendor-charts';
+
+            // Alpha41 PERF — transformers/onnx pinned to ONE chunk: with no
+            // rule, two dynamic-import contexts each inlined a full copy
+            // (transformers.web-* ×2 ≈ 1.7MB duplicated in dist — PSI
+            // "JavaScript duplicado"). Worker bundles keep their own graph
+            // (worker.format 'es'), so this dedupes main-thread copies only.
+            if (id.includes('/node_modules/@huggingface/') ||
+                id.includes('/node_modules/@xenova/') ||
+                id.includes('/node_modules/onnxruntime-web/')) return 'vendor-transformers';
 
             // Sentry SDK
             if (id.includes('/node_modules/@sentry/')) return 'vendor-sentry';
