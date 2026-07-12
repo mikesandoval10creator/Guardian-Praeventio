@@ -188,6 +188,16 @@ Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
     `driving_incidents` (incl. `{ "reportedByUid": "<any>" }` or a status flip
     to `"Cerrado"`) — writes happen ONLY via the audited endpoint, which
     ignores body identity and stamps the actor from the verified token.
+27. **Worker Record Destruction** (Bloque E1, 2026-07-06): any client-SDK
+    `deleteDoc` on `projects/{pid}/workers/{workerId}` — DENIED for everyone
+    (incl. creator/admin: `allow delete: if false`). Personnel records are
+    legally-retained evidence (DS44 / Ley 16.744); removal from a project is a
+    soft ARCHIVE (`archived: true`) via the audited server route
+    `POST /api/projects/:id/workers/:workerId/archive` (identity stamped from
+    the token, `archived`/`archivedBy` in the body ignored, audit_logs row).
+    Account-level erasure (Ley 21.719 / GDPR) is the separate accountRouter
+    `/anonymize` flow. Covers the compliance gap where the old client
+    `deleteDoc` both bypassed the audit invariant AND destroyed retained data.
 
 ## Personalized plans + morning check-ins — write rules (B7, added 2026-06-03)
 

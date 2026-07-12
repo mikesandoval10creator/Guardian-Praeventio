@@ -42,6 +42,8 @@ import {
   type FocusBlock,
   type FocusBlockKind,
 } from '../services/focusBlocks/focusBlocks';
+import { AgendaDigestCard } from '../components/agenda/AgendaDigestCard';
+import type { AgendaItem, DigestInputs } from '../services/agenda/agendaScheduler';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -347,6 +349,40 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// FocusBlock → AgendaItem conversion (for digest)
+// ────────────────────────────────────────────────────────────────────────
+
+const KIND_FALLBACK_LABEL: Record<FocusBlockKind, string> = {
+  inspection: 'Inspección',
+  training: 'Capacitación',
+  audit: 'Auditoría',
+  admin: 'Administrativo',
+};
+
+function focusBlockToAgendaItem(block: FocusBlock): AgendaItem {
+  return {
+    id: block.id,
+    workerUid: block.uid,
+    title: block.note ?? KIND_FALLBACK_LABEL[block.kind],
+    startAt: block.startsAt,
+    endAt: block.endsAt,
+    focusBlock: true,
+    urgency: 'medium',
+    reminders: [],
+  };
+}
+
+function buildDigestInputs(blocks: FocusBlock[], todayYmd: string): DigestInputs {
+  const todayBlocks = blocks.filter((b) => b.startsAt.slice(0, 10) === todayYmd);
+  return {
+    upcomingItems: todayBlocks.map(focusBlockToAgendaItem),
+    overdueActions: 0,
+    pendingApprovals: 0,
+    freshIncidents: 0,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Main page
 // ────────────────────────────────────────────────────────────────────────
 
@@ -400,6 +436,9 @@ export function FocusAgenda() {
     return out;
   }, [blocks, week, weekStartYmd, weekEndYmd]);
 
+  const todayYmd = isoYmd(new Date());
+  const digestInputs = useMemo(() => buildDigestInputs(blocks, todayYmd), [blocks, todayYmd]);
+
   const totalThisWeek = useMemo(() => {
     let n = 0;
     for (const list of blocksByDay.values()) n += list.length;
@@ -451,6 +490,10 @@ export function FocusAgenda() {
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('focusAgenda.loading', 'Cargando agenda…')}
         </p>
+      )}
+
+      {uid && !loading && (
+        <AgendaDigestCard workerUid={uid} forDate={todayYmd} inputs={digestInputs} />
       )}
 
       <section

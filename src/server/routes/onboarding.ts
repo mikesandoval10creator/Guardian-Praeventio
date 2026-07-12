@@ -39,6 +39,7 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { EmailService } from '../../services/email/resendService.js';
 import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { TIERS } from '../../services/pricing/tiers.js';
+import { WORKER_ROLES } from '../../types/roles.js';
 import { SII_ACTIVIDADES_ECONOMICAS } from '../../data/sii/actividadesEconomicas.js';
 // Épica Rubros SII slice 3 — pure seed builder (risk nodes + legal
 // obligations from the rubro's preventive profile) + the CL pack whose
@@ -165,6 +166,31 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
   const tenantId = uid; // single-tenant-per-user (current data model)
   const isPaidTier = payload.tier !== 'gratis';
 
+  // ── 1a. Tenant-owner promotion (self-service, ZERO manual role steps) ──
+  // Signup can only self-assign a WORKER role (users create rule: a client
+  // can never self-promote — that stays true). Completing onboarding is the
+  // server-verified business event "this account created its company's
+  // tenant + first project", so THIS trusted route (Admin SDK + audit)
+  // promotes the GLOBAL users/{uid}.role to 'gerente'. The roleClaimsSync
+  // trigger then mirrors it into the `role` custom claim automatically —
+  // nobody (owner OR platform operator) ever assigns roles by hand.
+  // Guard: promote only FROM a worker role (or none). Existing
+  // admin/gerente/supervisor-tier (or lifecycle) roles are never touched.
+  let promoteToGerente = false;
+  try {
+    const userSnap = await db.collection('users').doc(uid).get();
+    const currentRole = userSnap.exists
+      ? ((userSnap.data() as Record<string, unknown> | undefined)?.role as string | undefined)
+      : undefined;
+    promoteToGerente =
+      currentRole == null || (WORKER_ROLES as readonly string[]).includes(currentRole);
+  } catch (roleReadErr) {
+    // Fail-safe: on a failed read we DON'T guess a role. Onboarding still
+    // completes; the promotion self-heals on a re-run or via backfill.
+    logger.error('onboarding_role_read_failed', roleReadErr as Error, { uid });
+    captureRouteError(roleReadErr, 'onboarding.role_read', { uid });
+  }
+
   // â”€â”€ 1. Persist tenant config + mirror tier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     await db.collection('users').doc(uid).set(
@@ -200,9 +226,24 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
             },
         onboarded: true,
         onboardedAt: admin.firestore.FieldValue.serverTimestamp(),
+        // 1a — tenant-owner promotion (see block above).
+        ...(promoteToGerente ? { role: 'gerente' } : {}),
       },
       { merge: true },
     );
+    if (promoteToGerente) {
+      // Audit the role change (CLAUDE.md #3), guarded (#14): a broken
+      // compliance trail is visible but never converts success into a 5xx.
+      try {
+        await auditServerEvent(req, 'onboarding.owner_role_promoted', 'onboarding', {
+          newRole: 'gerente',
+          reason: 'tenant_owner_onboarding',
+        });
+      } catch (auditErr) {
+        logger.error('audit_event_failed', auditErr as Error, { uid });
+        captureRouteError(auditErr, 'onboarding.role_promote_audit', { uid });
+      }
+    }
   } catch (writeErr) {
     logger.error('onboarding_user_write_failed', writeErr as Error, { uid });
     captureRouteError(writeErr, 'onboarding.user_write', { uid });

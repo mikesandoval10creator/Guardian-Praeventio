@@ -42,6 +42,11 @@ import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObje
 import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
 import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
 import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
+import { GaussianSplatViewer } from '../components/digital-twin/GaussianSplatViewer';
+import { RePositionConfirmDialog } from '../components/digital-twin/RePositionConfirmDialog';
+import { TwinPhysicsScene, type PhysicalObject } from '../components/twinPhysics/TwinPhysicsScene';
+import { TwinIntegrationPanel } from '../components/twinScene/TwinIntegrationPanel';
+import { TwinSceneInstancedLazy } from '../components/twinScene/TwinSceneInstancedLazy';
 // Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
 import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
 // §2.28 (2026-05-23) — AR launcher para el mesh reconstruido on-device
@@ -180,7 +185,14 @@ export function DigitalTwinFaena() {
   const { toasts, show, dismiss } = useToast();
   const reducedMotion = useReducedMotion();
 
-  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d'>('reconstruction');
+  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d' | 'scene3d' | 'integration'>('reconstruction');
+  // Reposition dialog state — wired to ARObjectOverlay's move flow.
+  const [repositionState, setRepositionState] = useState<{
+    objectId: string;
+    objectLabel: string;
+    previousPosition: { x: number; y: number; z: number };
+    newPosition: { x: number; y: number; z: number };
+  } | null>(null);
   const [mode, setMode] = useState<ProcessingMode>('cpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
@@ -595,6 +607,32 @@ export function DigitalTwinFaena() {
           <MapIcon className="w-3.5 h-3.5" aria-hidden="true" />
           {t('digitalTwin.tab25d', 'Mapa 2.5D del sitio')}
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'scene3d'}
+          onClick={() => setActiveTab('scene3d')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'scene3d'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
+          }`}
+        >
+          <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('digitalTwin.tabScene3d', 'Escena 3D')}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'integration'}
+          onClick={() => setActiveTab('integration')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'integration'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('digitalTwin.tabIntegration', 'Integración')}
+        </button>
       </div>
 
       {activeTab === 'site25d' ? (
@@ -608,6 +646,14 @@ export function DigitalTwinFaena() {
               <Site25DPanel />
             </Suspense>
           </div>
+        </div>
+      ) : activeTab === 'scene3d' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <TwinSceneInstancedLazy />
+        </div>
+      ) : activeTab === 'integration' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <TwinIntegrationPanel />
         </div>
       ) : (
       /* Main grid */
@@ -786,6 +832,23 @@ export function DigitalTwinFaena() {
           {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
           {activeJob?.status === 'completed' && (
             <PlaceObjectMenu />
+          )}
+
+          {/* Gaussian Splat viewer — visor 3D de captura .ply/.splat.
+              capture=null → empty state (funcionalidad gated por pipeline). */}
+          <GaussianSplatViewer capture={null} />
+
+          {/* Twin Physics Scene — Rapier physics simulation of placed objects. */}
+          {placedObjects.length > 0 && (
+            <TwinPhysicsScene
+              objects={placedObjects.map((o) => ({
+                id: o.id,
+                position: [o.position.x, o.position.y, o.position.z],
+                color: o.lifecycle === 'installed' ? '#14b8a6' : o.lifecycle === 'active' ? '#22d3ee' : '#94a3b8',
+              }))}
+              appearance="dark"
+              showGround
+            />
           )}
 
           {/* §2.28 (2026-05-23) — Botones AR del mesh reconstruido.
@@ -1113,6 +1176,23 @@ export function DigitalTwinFaena() {
       {/* Bucket J.5 — AR overlay (placeholder funcional, sesión WebXR real en Ola 4). */}
       {arObject && (
         <ARObjectOverlay object={arObject} onClose={() => setArObject(null)} />
+      )}
+
+      {/* Re-position confirm dialog — appears when user repositions an object via AR. */}
+      {repositionState && (
+        <RePositionConfirmDialog
+          previousPosition={repositionState.previousPosition}
+          newPosition={repositionState.newPosition}
+          objectLabel={repositionState.objectLabel}
+          onConfirm={() => {
+            handleObjectMove(
+              placedObjects.find((o) => o.id === repositionState.objectId)!,
+              repositionState.newPosition,
+            );
+            setRepositionState(null);
+          }}
+          onCancel={() => setRepositionState(null)}
+        />
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

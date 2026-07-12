@@ -188,6 +188,43 @@ describe('POST /api/onboarding/complete (real router)', () => {
     expect((completedCalls[0][2] as Record<string, unknown>).projectId).toBe(projectId);
   });
 
+  it('200 promotes the creator (signup default operario) to gerente + audit row', async () => {
+    H.db!._store.set('users/u1', { uid: 'u1', role: 'operario', email: 'u1@test.com' });
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set('x-test-uid', 'u1')
+      .send(happyPayload);
+    expect(res.status).toBe(200);
+    const user = H.db!._store.get('users/u1') as Record<string, unknown>;
+    expect(user.role).toBe('gerente');
+    const promoteCalls = H.auditSpy.mock.calls.filter(
+      (c) => c[0] === 'onboarding.owner_role_promoted',
+    );
+    expect(promoteCalls).toHaveLength(1);
+  });
+
+  it('200 promotes when the users doc does not exist yet (no signup doc)', async () => {
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set('x-test-uid', 'u1')
+      .send(happyPayload);
+    expect(res.status).toBe(200);
+    expect((H.db!._store.get('users/u1') as Record<string, unknown>).role).toBe('gerente');
+  });
+
+  it('200 NEVER touches an existing admin role (no downgrade, no promote audit)', async () => {
+    H.db!._store.set('users/u1', { uid: 'u1', role: 'admin', email: 'u1@test.com' });
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set('x-test-uid', 'u1')
+      .send(happyPayload);
+    expect(res.status).toBe(200);
+    expect((H.db!._store.get('users/u1') as Record<string, unknown>).role).toBe('admin');
+    expect(
+      H.auditSpy.mock.calls.some((c) => c[0] === 'onboarding.owner_role_promoted'),
+    ).toBe(false);
+  });
+
   it('200 even when the final completion audit REJECTS (rule #14 guard)', async () => {
     H.auditRejectAction = 'onboarding.completed';
 

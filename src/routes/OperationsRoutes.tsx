@@ -60,6 +60,10 @@ const Loto = lazy(() => import('../pages/Loto').then(module => ({ default: modul
 // (src/hooks/useDeduplication.ts) existed with no page/route;
 // DeduplicationPage closes the gap (duplicate detection + merge planning).
 const DeduplicationPage = lazy(() => import('../pages/DeduplicationPage').then(module => ({ default: module.DeduplicationPage })));
+// Wire UI #80 — CargoCogPanel orphan → page + route. Superficie de
+// estiba/cargo que monta el componente con el servicio stowageOptimizer
+// (packCargoFFD + COG + utilization). Datos reales, no mocks.
+const CargoCogPage = lazy(() => import('../pages/CargoCogPage').then(module => ({ default: module.CargoCogPage })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -95,4 +99,5 @@ export const OperationsRoutes = [
   <Route key="loto" path="loto" element={<Loto />} />,
   <Route key="mantenimiento-preventivo" path="mantenimiento-preventivo" element={<MantenimientoPreventivo />} />,
   <Route key="deduplication" path="deduplication" element={<DeduplicationPage />} />,
+  <Route key="cargo-cog" path="cargo-cog" element={<CargoCogPage />} />,
 ];

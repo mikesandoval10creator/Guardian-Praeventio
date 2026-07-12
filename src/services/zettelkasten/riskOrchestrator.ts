@@ -225,3 +225,274 @@ function eppLabelsForIndustry(prefix?: string): string[] {
   const found = EPP_BY_SECTOR[prefix];
   return (found ?? EPP_DEFAULT).map((e) => e.label);
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Zettelkasten 2: Riesgo sin control = norma exigible violada
+//
+// Catálogo riesgo → norma + control sugerido + efectividad estimada.
+// Usado por `detectUncontrolledRisks` para generar alertas OFFLINE
+// cuando un nodo RIESGO no tiene ningún nodo CONTROL que lo mitigue.
+// ────────────────────────────────────────────────────────────────────────
+
+export interface RiskNormEntry {
+  /** Patrón para matchear contra riskType normalizado. */
+  pattern: RegExp;
+  /** Código/clave de la norma chilena que exige el control. */
+  normCode: string;
+  /** Artículo o sección específica de la norma. */
+  normArticle: string;
+  /** Descripción legible de la medida exigida. */
+  requiredMeasure: string;
+  /** Control sugerido para mitigar el riesgo (label del nodo CONTROL). */
+  suggestedControl: string;
+  /** Efectividad estimada del control (0–100). */
+  estimatedEffectiveness: number;
+  /** Severidad si no se controla (para priorización en UI). */
+  uncontrolledSeverity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+/**
+ * Catálogo central: riesgo → norma chilena que exige control.
+ *
+ * Cada entrada declara qué norma exige qué medida y con qué efectividad
+ * estimada se mitiga el riesgo si se implementa el control. El orden
+ * importa: la primera regla que matchea gana.
+ */
+export const RISK_NORM_CATALOG: RiskNormEntry[] = [
+  {
+    pattern: /altura|caida.*distinto.*nivel|caida.*altura|trabajo.*altura/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 53',
+    requiredMeasure: 'Protección contra caídas en trabajo sobre 1.80 m: barandas, redes o arnés con línea de vida',
+    suggestedControl: 'Arnés con línea de vida + barandas perimetrales',
+    estimatedEffectiveness: 92,
+    uncontrolledSeverity: 'critical',
+  },
+  {
+    pattern: /confinado|espacio.*confinado/i,
+    normCode: 'DS 132',
+    normArticle: 'Art. 8',
+    requiredMeasure: 'Permiso de entrada, vigilante externo, detector de gases y respirador autónomo para espacios confinados',
+    suggestedControl: 'Permiso de entrada + vigilante + detector de gases + SCBA',
+    estimatedEffectiveness: 95,
+    uncontrolledSeverity: 'critical',
+  },
+  {
+    pattern: /caliente|soldadura|corte|chispa/i,
+    normCode: 'DS 132',
+    normArticle: 'Art. 10',
+    requiredMeasure: 'Permiso de trabajo en caliente, extintor a ≤5 m, cortafuegos y vigilancia post-trabajo 30 min',
+    suggestedControl: 'Permiso trabajo en caliente + extintor + cortafuegos + vigilancia 30 min',
+    estimatedEffectiveness: 88,
+    uncontrolledSeverity: 'high',
+  },
+  {
+    pattern: /electric|tension|loto|bloqueo.*energ/i,
+    normCode: 'DS 132',
+    normArticle: 'Art. 12–14',
+    requiredMeasure: 'Bloqueo/etiquetado (LOTO), EPP dieléctrico certificado, herramientas aisladas 1000 V',
+    suggestedControl: 'LOTO + EPP dieléctrico certificado + herramientas aisladas',
+    estimatedEffectiveness: 96,
+    uncontrolledSeverity: 'critical',
+  },
+  {
+    pattern: /silice|silicosis|polvo.*respirable/i,
+    normCode: 'DS 594 + Protocolo MINSAL',
+    normArticle: 'Art. 41 + Res. Ex. MINSAL',
+    requiredMeasure: 'Control de exposición a sílice: ventilación, supresión de polvo, respirador N95/P100, vigilancia médica anual',
+    suggestedControl: 'Extracción localizada + supresión húmeda + respirador P100 + vigilancia médica',
+    estimatedEffectiveness: 85,
+    uncontrolledSeverity: 'high',
+  },
+  {
+    pattern: /hazmat|sustancia.*peligrosa|quimico|toxico|\bgas\b/i,
+    normCode: 'DS 78',
+    normArticle: 'Art. 1–15',
+    requiredMeasure: 'Hojas de seguridad SDS, EPP químico, ducha/ lavaojos a ≤15 m, capacitación HazMat',
+    suggestedControl: 'SDS accesible + EPP químico + ducha/lavaojos + capacitación HazMat Nivel 1',
+    estimatedEffectiveness: 90,
+    uncontrolledSeverity: 'high',
+  },
+  {
+    pattern: /carga|levantamiento|manejo.*manual|ergonom/i,
+    normCode: 'Ley 20.949',
+    normArticle: 'Art. 76 bis',
+    requiredMeasure: 'Límite 25 kg por persona, equipos mecánicos auxiliares, evaluación REBA/RULA',
+    suggestedControl: 'Elevador mecánico + evaluación REBA + rotación de tareas',
+    estimatedEffectiveness: 78,
+    uncontrolledSeverity: 'medium',
+  },
+  {
+    pattern: /ruido|exposicion.*sonora|decibeles/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 38–40',
+    requiredMeasure: 'Protección auditiva obligatoria sobre 85 dB(A), programa de conservación auditiva, dosimetría',
+    suggestedControl: 'Protectores auditivos + encerramiento fuente + programa conservación auditiva',
+    estimatedEffectiveness: 82,
+    uncontrolledSeverity: 'medium',
+  },
+  {
+    pattern: /uv|radiacion.*solar|exposicion.*solar/i,
+    normCode: 'Protocolo MINSAL',
+    normArticle: 'Res. Ex. MINSAL 2019',
+    requiredMeasure: 'Protección solar: bloqueador FPS 30+, ropa UPF, pausas en sombra cada 2 h',
+    suggestedControl: 'Bloqueador FPS 30+ + ropa UPF + pausas en sombra + hidratación',
+    estimatedEffectiveness: 75,
+    uncontrolledSeverity: 'low',
+  },
+  {
+    pattern: /incendio|fuego|combustible/i,
+    normCode: 'DS 132',
+    normArticle: 'Art. 5–7',
+    requiredMeasure: 'Detectores de humo, extintores según riesgo, plan de evacuación, brigada capacitada',
+    suggestedControl: 'Detección temprana + extintores ABC + plan evacuación + brigada',
+    estimatedEffectiveness: 90,
+    uncontrolledSeverity: 'critical',
+  },
+  {
+    pattern: /caida.*plano|resbalon|pisada|superficie/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 25–27',
+    requiredMeasure: 'Pisos antideslizantes, señalización de húmedo, pasillos libres de obstáculos, iluminación ≥100 lux',
+    suggestedControl: 'Pisos antideslizantes + señalización + iluminación adecuada + orden y limpieza',
+    estimatedEffectiveness: 80,
+    uncontrolledSeverity: 'medium',
+  },
+  {
+    pattern: /aplastamiento|atrapamiento|maquinaria|prensa|volcadura/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 48–52',
+    requiredMeasure: 'Resguardos de máquinas, paradas de emergencia, bloqueo/etiquetado, capacitación operador',
+    suggestedControl: 'Resguardos físicos + parada emergencia + LOTO + capacitación operador',
+    estimatedEffectiveness: 94,
+    uncontrolledSeverity: 'critical',
+  },
+  {
+    pattern: /vehicular|transito|atropello|vehiculo|maquinaria.*movil/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 29–31',
+    requiredMeasure: 'Separación peatón-vehículo, señalización, chaleco reflectante, espejos en esquinas',
+    suggestedControl: 'Barrera peatonal + señalización vial + chaleco reflectante + demarcación',
+    estimatedEffectiveness: 85,
+    uncontrolledSeverity: 'high',
+  },
+  {
+    pattern: /biologic|bacteria|virus|hongos|parasito|legionella/i,
+    normCode: 'DS 594 + Ley 16.744',
+    normArticle: 'Art. 41 + Art. 53',
+    requiredMeasure: 'Vacunación, EPP biológico, protocolo de exposición a fluidos corporales, vigilancia epidemiológica',
+    suggestedControl: 'Vacunación + EPP biológico + protocolo BEP + vigilancia epidemiológica',
+    estimatedEffectiveness: 88,
+    uncontrolledSeverity: 'high',
+  },
+  {
+    pattern: /psicosocial|estres|acoso|violencia|sobrecarga|burnout/i,
+    normCode: 'Ley 21.643',
+    normArticle: 'Art. 154 bis',
+    requiredMeasure: 'Evaluación de factores psicosociales, protocolo de acoso, límite de horas extraordinarias',
+    suggestedControl: 'Evaluación psicosocial + protocolo acoso + gestión de carga laboral',
+    estimatedEffectiveness: 70,
+    uncontrolledSeverity: 'medium',
+  },
+  {
+    pattern: /calor|golpe.*calor|deshidratacion|termico/i,
+    normCode: 'DS 594 + Protocolo MINSAL',
+    normArticle: 'Art. 41 + Res. Ex.',
+    requiredMeasure: 'Hidratación obligatoria, pausas en sombra, aclimatación, ropa transpirable',
+    suggestedControl: 'Hidratación + pausas sombra + aclimatación progresiva + ropa ligera',
+    estimatedEffectiveness: 80,
+    uncontrolledSeverity: 'medium',
+  },
+  {
+    pattern: /vibracion|vibro/i,
+    normCode: 'DS 594',
+    normArticle: 'Art. 41',
+    requiredMeasure: 'Límites de exposición a vibración mano-brazo y cuerpo entero, rotación, equipos antivibrátiles',
+    suggestedControl: 'Herramientas antivibrátiles + rotación + guantes amortiguadores',
+    estimatedEffectiveness: 75,
+    uncontrolledSeverity: 'medium',
+  },
+];
+
+export interface UncontrolledRiskAlert {
+  /** ID del nodo RIESGO sin control. */
+  riskNodeId: string;
+  /** Título del riesgo (para UI). */
+  riskTitle: string;
+  /** Código de la norma violada. */
+  normCode: string;
+  /** Artículo específico. */
+  normArticle: string;
+  /** Medida exigida por la norma. */
+  requiredMeasure: string;
+  /** Control sugerido para mitigar. */
+  suggestedControl: string;
+  /** Efectividad estimada del control (0–100). */
+  estimatedEffectiveness: number;
+  /** Severidad si sigue sin controlar. */
+  uncontrolledSeverity: 'low' | 'medium' | 'high' | 'critical';
+  /** Mensaje de alerta formateado para UI. */
+  alertMessage: string;
+}
+
+/**
+ * Detecta nodos RIESGO que no tienen ningún nodo CONTROL conectado
+ * vía edge `mitigates` (incoming al riesgo = CONTROL → RISK).
+ *
+ * Para cada riesgo sin control, genera una alerta con la cita normativa
+ * y el control sugerido con efectividad estimada.
+ *
+ * Función PURA: no escribe a Firestore, no llama LLM. 100% OFFLINE.
+ *
+ * @param risks - Nodos de tipo RISK (o con type/riskType que matchee el catálogo)
+ * @param riskNodeIdsWithMitigatingControl - Set de IDs de riesgos que YA tienen al menos un CONTROL conectado vía `mitigates`
+ */
+export function detectUncontrolledRisks(
+  risks: Array<{ id: string; title: string; type?: string; metadata?: Record<string, any> }>,
+  riskNodeIdsWithMitigatingControl: Set<string>,
+): UncontrolledRiskAlert[] {
+  const alerts: UncontrolledRiskAlert[] = [];
+
+  for (const risk of risks) {
+    // Si ya tiene un control que lo mitigue, no hay alerta
+    if (riskNodeIdsWithMitigatingControl.has(risk.id)) continue;
+
+    // Buscar la entrada del catálogo por riskType o type
+    const riskDescriptor = risk.type ?? risk.metadata?.riskType ?? risk.title ?? '';
+    const normalized = normalize(riskDescriptor);
+    const entry = RISK_NORM_CATALOG.find((e) => e.pattern.test(normalized));
+
+    if (entry) {
+      alerts.push({
+        riskNodeId: risk.id,
+        riskTitle: risk.title,
+        normCode: entry.normCode,
+        normArticle: entry.normArticle,
+        requiredMeasure: entry.requiredMeasure,
+        suggestedControl: entry.suggestedControl,
+        estimatedEffectiveness: entry.estimatedEffectiveness,
+        uncontrolledSeverity: entry.uncontrolledSeverity,
+        alertMessage: `RIESGO SIN CONTROL — ${entry.normCode} ${entry.normArticle} exige: ${entry.requiredMeasure}. Control sugerido: ${entry.suggestedControl} (efectividad estimada: ${entry.estimatedEffectiveness}%)`,
+      });
+    } else {
+      // Riesgo no catalogado → alerta genérica con DS 594 como base
+      alerts.push({
+        riskNodeId: risk.id,
+        riskTitle: risk.title,
+        normCode: 'DS 594',
+        normArticle: 'Art. 3 inc. 2',
+        requiredMeasure: 'Identificar y controlar todo riesgo según jerarquía de controles (eliminación → sustitución → ingeniería → administrativos → EPP)',
+        suggestedControl: 'Evaluar e implementar controles según jerarquía de la DS 594',
+        estimatedEffectiveness: 50,
+        uncontrolledSeverity: 'medium',
+        alertMessage: `RIESGO SIN CONTROL — DS 594 Art. 3 inc. 2 exige identificar y controlar todo riesgo. Evaluar e implementar controles según jerarquía (efectividad estimada: 50%)`,
+      });
+    }
+  }
+
+  // Ordenar por severidad: critical > high > medium > low
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  alerts.sort((a, b) => severityOrder[a.uncontrolledSeverity] - severityOrder[b.uncontrolledSeverity]);
+
+  return alerts;
+}
