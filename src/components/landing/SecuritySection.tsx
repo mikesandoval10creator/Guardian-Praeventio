@@ -57,7 +57,7 @@ export function SecuritySection() {
               )}
             </circle>
           </svg>
-          <img src="/mascots/guardian-pensativo-trans.png" alt="" aria-hidden="true" className="pv-sec-mascot" />
+          <img src="/mascots/guardian-pensativo-trans.png" alt="Guardian reflexivo, representando la confianza y seguridad de los datos" className="pv-sec-mascot" width={458} height={423} />
         </motion.div>
       </div>
 

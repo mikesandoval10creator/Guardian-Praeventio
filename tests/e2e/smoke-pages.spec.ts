@@ -43,6 +43,8 @@ const PROJECT_PAGES = [
   { path: '/skill-gap', name: 'Skill Gap' },
   { path: '/contingency-simulation', name: 'Contingency Simulation' },
   { path: '/deduplication', name: 'Deduplication' },
+  // Bloque D Rama 4 — pricing-simulator orphan hook wired to a user page.
+  { path: '/pricing-simulator', name: 'Pricing Simulator' },
 ];
 
 const NO_PROJECT_PAGES = [

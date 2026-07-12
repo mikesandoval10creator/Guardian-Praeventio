@@ -204,6 +204,8 @@ const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: 
 // página interactiva. La sub-page `oc-sugerida` expone la lista de EPP
 // recomendado con export CSV.
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(module => ({ default: module.PricingCalculator })));
+// Bloque D Rama 4 — Pricing Simulator (wires orphan hook usePricingSimulator).
+const PricingSimulatorPage = lazy(() => import('./pages/PricingSimulatorPage').then(module => ({ default: module.PricingSimulatorPage })));
 const OcSugerida = lazy(() => import('./pages/OcSugerida').then(module => ({ default: module.OcSugerida })));
 const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
@@ -466,6 +468,8 @@ function AppRoutes() {
                     <Route path="pricing/retry" element={<Pricing />} />
                     {/* Sprint K §171-179 — Pricing Calculator + OC sugerida (lazy). */}
                     <Route path="pricing-calculator" element={<PricingCalculator />} />
+                    {/* Bloque D Rama 4 — Pricing Simulator (orphan hook wired). */}
+                    <Route path="pricing-simulator" element={<PricingSimulatorPage />} />
                     <Route path="oc-sugerida" element={<OcSugerida />} />
                     <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />

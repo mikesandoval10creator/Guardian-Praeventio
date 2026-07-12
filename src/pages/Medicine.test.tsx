@@ -59,6 +59,11 @@ vi.mock('../utils/logger', () => ({
   logger: { error: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
+// ─── FirebaseContext: useFirebase() added by PR #1236 for OccupationalContextBundleCard ──
+vi.mock('../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({ user: { uid: 'test-user-uid', displayName: 'Test Worker' } }),
+}));
+
 // ─── Heavy workstation children + sibling modals: stub at the boundary so the
 //     test isolates the DS 67 wiring (the real Ds67Modal is NOT stubbed). ─────
 vi.mock('../components/health/MedicalDisclaimer', () => ({
@@ -76,6 +81,12 @@ vi.mock('../components/medicine/AnatomyLibrary', () => ({ AnatomyLibrary: () => 
 vi.mock('../components/medicine/VigilanciaScheduler', () => ({ VigilanciaScheduler: () => null }));
 vi.mock('../components/medicine/DrugInteractions', () => ({ DrugInteractions: () => null }));
 vi.mock('../components/medicine/Ds109Modal', () => ({ Ds109Modal: () => null }));
+// OccupationalContextBundleCard renders its own MedicalDisclaimer, creating
+// duplicate data-testid="medical-disclaimer" elements. Stub it to isolate the
+// DS 67 wiring test from the PR #1236 orphan mount.
+vi.mock('../components/health/OccupationalContextBundleCard', () => ({
+  OccupationalContextBundleCard: () => null,
+}));
 
 import { Medicine } from './Medicine';
 

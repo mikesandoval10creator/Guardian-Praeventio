@@ -281,10 +281,72 @@ function flush(key: string): void {
   });
 }
 
-/** Test-only: vacía el estado del debounce. NO usar en producción. */
+/**
+ * Flush ALL pending debounced writes immediately. Called on pagehide /
+ * visibilitychange(hidden) so that critical risk nodes calculated by
+ * StructuralCalculator / scaffold-uplift are never lost if the user
+ * navigates or closes within the 2 s debounce window.
+ *
+ * Delegates to `writeNodes` (fire-and-forget). On offline the PWA
+ * sync-worker retries via `saveForSync`; on network errors the same
+ * fallback applies.
+ */
+function flushAll(): void {
+  const entries = Array.from(pending.entries());
+  if (entries.length === 0) return;
+  // Clear timers first so a racing setTimeout doesn't double-flush.
+  for (const [, entry] of entries) {
+    clearTimeout(entry.timer);
+  }
+  pending.clear();
+
+  for (const [, entry] of entries) {
+    const batch = Array.from(entry.nodes.values());
+    if (batch.length === 0) continue;
+    // Fire-and-forget: on pagehide we can't await. sendBeacon is
+    // the only API guaranteed to survive page unload in all browsers.
+    void writeNodes(batch, entry.ctx).catch((err) => {
+      logger.error('zettelkasten_pagehide_flush_failed', { err: String(err) });
+    });
+  }
+}
+
+// ── Lifecycle listeners (browser only) ──────────────────────────────
+
+function onPageHide(): void {
+  flushAll();
+}
+
+function onVisibilityChange(): void {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    flushAll();
+  }
+}
+
+let listenersAttached = false;
+
+function ensureListeners(): void {
+  if (listenersAttached) return;
+  if (typeof window === 'undefined') return; // SSR / Node — no-op
+  if (typeof document === 'undefined') return;
+  window.addEventListener('pagehide', onPageHide);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  listenersAttached = true;
+}
+
+// Attach eagerly on module load (browser). The listeners are passive
+// until there is actually something in `pending`.
+ensureListeners();
+
+/** Test-only: vacía el estado del debounce y remueve listeners. NO usar en producción. */
 export function __resetDebounceForTests(): void {
   for (const entry of pending.values()) {
     clearTimeout(entry.timer);
   }
   pending.clear();
+  if (listenersAttached && typeof window !== 'undefined') {
+    window.removeEventListener('pagehide', onPageHide);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    listenersAttached = false;
+  }
 }

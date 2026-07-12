@@ -15,6 +15,7 @@ import {
   limit,
 } from '../firebase';
 import type { RootCauseAnalysis } from './rootCauseClassifier';
+import { normalizeRootCauseAnalysis } from './rootCauseClassifier';
 
 function rootCausePath(projectId: string): string {
   return `projects/${projectId}/root_cause_analyses`;
@@ -52,8 +53,9 @@ export function subscribeRootCauseAnalyses(
       const out: RootCauseAnalysis[] = [];
       snap.forEach((d) => {
         try {
-          const data = d.data() as RootCauseAnalysis;
-          out.push({ ...data, incidentId: d.id });
+          // Normalize on read: a partial/legacy doc missing the array fields
+          // would otherwise crash the /root-cause page downstream.
+          out.push(normalizeRootCauseAnalysis(d.data(), d.id));
         } catch {
           /* skip */
         }
