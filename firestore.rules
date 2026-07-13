@@ -128,6 +128,20 @@ service cloud.firestore {
       );
     }
 
+    // Public resources owned by a project need direct association, not the
+    // global admin/supervisor shortcut in isProjectMember(). A privileged role
+    // alone must never grant management over every project's public records.
+    function isDirectProjectMember(projectId) {
+      return isEmailVerified() && isValidId(projectId) && (
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.get('members', []) ||
+        get(/databases/$(database)/documents/projects/$(projectId)).data.get('createdBy', '') == request.auth.uid
+      );
+    }
+
+    function canManagePublicDeaLocation(projectId) {
+      return isDirectProjectMember(projectId) && (isAdmin() || isSupervisor());
+    }
+
     function isOwner(userId) {
       return isEmailVerified() && request.auth.uid == userId;
     }
@@ -1261,15 +1275,18 @@ service cloud.firestore {
     // finds the nearest DEA WITHOUT login (life-safety public good, like an open
     // AED map; ADR 0021 — life-safety is never gated). No PII / no
     // company-private data — only a public location label, coordinates, status
-    // and the source project id (mirrored from a project's per-project `deas` by
-    // a member of that project). Read is open; WRITE is gated to members of the
-    // owning project so randoms can't pollute the public map. Anonymous read +
-    // write-deny are exercised by src/rules-tests/deaLocations.rules.test.ts.
+    // and the immutable source project id. Creation requires direct association
+    // with the publishing project. Update/delete authorize from the EXISTING
+    // owner and require a management role, so incoming data cannot choose which
+    // project's membership is checked. Anonymous read remains universal.
     match /dea_locations/{deaLocationId} {
       allow read: if true;
-      allow create, update: if isProjectMember(incoming().projectId)
+      allow create: if isDirectProjectMember(incoming().projectId)
         && isValidDeaLocation(incoming());
-      allow delete: if isProjectMember(existing().projectId);
+      allow update: if canManagePublicDeaLocation(existing().projectId)
+        && incoming().projectId == existing().projectId
+        && isValidDeaLocation(incoming());
+      allow delete: if canManagePublicDeaLocation(existing().projectId);
     }
 
     match /audit_logs/{logId} {

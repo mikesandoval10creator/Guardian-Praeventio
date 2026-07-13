@@ -2,9 +2,10 @@
 //
 // #4 — `dea_locations` (PUBLIC AED registry) rules. A bystander in a cardiac
 // arrest finds the nearest defibrillator WITHOUT login. Pins: anonymous READ is
-// allowed (life-safety public good, ADR 0021); WRITE is gated to members of the
-// owning project (randoms can't pollute the public map); the schema is validated
-// (coordinates required, no PII smuggling). Uses the F1 fail-closed harness.
+// universal (life-safety public good, ADR 0021); CREATE belongs to the publishing
+// project; UPDATE/DELETE require direct owner-project association plus a trusted
+// management role. Uses the F1 fail-closed harness and two-project adversarial
+// cases so incoming data cannot choose which project's membership is checked.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -12,11 +13,16 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 
-const PID = 'proj-dea-1';
-const MEMBER = 'member-uid-1';
+const PROJECT_A = 'proj-dea-a';
+const PROJECT_B = 'proj-dea-b';
+const WORKER_A = 'worker-a';
+const SUPERVISOR_A = 'supervisor-a';
+const CREATOR_A = 'creator-a';
+const WORKER_B = 'worker-b';
+const SUPERVISOR_B = 'supervisor-b';
 const OUTSIDER = 'outsider-uid-9';
 
 let testEnv: RulesTestEnvironment | null = null;
@@ -33,27 +39,36 @@ function requireEnv(): RulesTestEnvironment {
   return testEnv;
 }
 
-const validDea = {
+const validDeaFor = (projectId: string) => ({
   location: 'Recepción Principal',
   coordinates: { lat: -33.45, lng: -70.66 },
-  status: 'operational',
-  projectId: PID,
+  status: 'operational' as const,
+  projectId,
   updatedAt: '2026-06-08T00:00:00Z',
-};
+});
+
+const validDea = validDeaFor(PROJECT_A);
 
 beforeEach(async () => {
   const env = requireEnv();
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'projects', PID), {
-      name: 'DEA Project',
-      members: [MEMBER],
+    await setDoc(doc(db, 'projects', PROJECT_A), {
+      name: 'DEA Project A',
+      members: [WORKER_A, SUPERVISOR_A],
       status: 'active',
       createdAt: '2026-06-01T00:00:00Z',
-      createdBy: MEMBER,
+      createdBy: CREATOR_A,
     });
-    await setDoc(doc(db, 'dea_locations', 'seeded'), validDea);
+    await setDoc(doc(db, 'projects', PROJECT_B), {
+      name: 'DEA Project B',
+      members: [WORKER_B, SUPERVISOR_B],
+      status: 'active',
+      createdAt: '2026-06-01T00:00:00Z',
+      createdBy: SUPERVISOR_B,
+    });
+    await setDoc(doc(db, 'dea_locations', 'seeded-a'), validDea);
   });
 });
 
@@ -64,17 +79,21 @@ function ref(db: CtxDb, id: string) {
 function anonDb(): CtxDb {
   return requireEnv().unauthenticatedContext().firestore();
 }
-function authed(uid: string): CtxDb {
-  return requireEnv().authenticatedContext(uid, verifiedToken('worker')).firestore();
+function authed(uid: string, role = 'worker'): CtxDb {
+  return requireEnv().authenticatedContext(uid, verifiedToken(role)).firestore();
 }
 
 describe('dea_locations (public AED registry) — firestore.rules (#4)', () => {
   it('ANYONE (anonymous) can read the public DEA map — life-safety, no login', async () => {
-    await assertSucceeds(getDoc(ref(anonDb(), 'seeded')));
+    await assertSucceeds(getDoc(ref(anonDb(), 'seeded-a')));
   });
 
   it('a project member can publish a DEA location', async () => {
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'd1'), validDea));
+    await assertSucceeds(setDoc(ref(authed(WORKER_A), 'd1'), validDea));
+  });
+
+  it('the project creator can publish even when not duplicated in members', async () => {
+    await assertSucceeds(setDoc(ref(authed(CREATOR_A), 'd-creator'), validDea));
   });
 
   it('an anonymous user CANNOT write to the public map', async () => {
@@ -85,12 +104,18 @@ describe('dea_locations (public AED registry) — firestore.rules (#4)', () => {
     await assertFails(setDoc(ref(authed(OUTSIDER), 'd3'), validDea));
   });
 
+  it('a global supervisor CANNOT publish for an unrelated project', async () => {
+    await assertFails(
+      setDoc(ref(authed('global-supervisor', 'supervisor'), 'd-global'), validDea),
+    );
+  });
+
   it('rejects a malformed DEA (missing required coordinates)', async () => {
     await assertFails(
-      setDoc(ref(authed(MEMBER), 'd4'), {
+      setDoc(ref(authed(WORKER_A), 'd4'), {
         location: 'Sin coords',
         status: 'operational',
-        projectId: PID,
+        projectId: PROJECT_A,
         updatedAt: '2026-06-08T00:00:00Z',
       }),
     );
@@ -98,11 +123,63 @@ describe('dea_locations (public AED registry) — firestore.rules (#4)', () => {
 
   it('rejects an unexpected extra field (no PII smuggling onto the public map)', async () => {
     await assertFails(
-      setDoc(ref(authed(MEMBER), 'd5'), { ...validDea, assignedToName: 'Juan Pérez' }),
+      setDoc(ref(authed(WORKER_A), 'd5'), {
+        ...validDea,
+        assignedToName: 'Juan Pérez',
+      }),
     );
   });
 
-  it('a project member can delete a DEA from their project', async () => {
-    await assertSucceeds(deleteDoc(ref(authed(MEMBER), 'seeded')));
+  it('a project-B member CANNOT take over project A by changing projectId', async () => {
+    await assertFails(
+      updateDoc(ref(authed(WORKER_B), 'seeded-a'), { projectId: PROJECT_B }),
+    );
+  });
+
+  it('an unrelated supervisor CANNOT update project A via global role', async () => {
+    await assertFails(
+      updateDoc(ref(authed(SUPERVISOR_B, 'supervisor'), 'seeded-a'), {
+        status: 'warning',
+      }),
+    );
+  });
+
+  it('a regular project-A worker CANNOT update its public DEA', async () => {
+    await assertFails(
+      updateDoc(ref(authed(WORKER_A), 'seeded-a'), { status: 'warning' }),
+    );
+  });
+
+  it('a project-A supervisor can update public fields while retaining ownership', async () => {
+    await assertSucceeds(
+      updateDoc(ref(authed(SUPERVISOR_A, 'supervisor'), 'seeded-a'), {
+        status: 'warning',
+        updatedAt: '2026-07-13T00:00:00Z',
+      }),
+    );
+  });
+
+  it('a project-A supervisor CANNOT transfer the DEA to project B', async () => {
+    await assertFails(
+      updateDoc(ref(authed(SUPERVISOR_A, 'supervisor'), 'seeded-a'), {
+        projectId: PROJECT_B,
+      }),
+    );
+  });
+
+  it('a regular project-A worker CANNOT delete a public DEA', async () => {
+    await assertFails(deleteDoc(ref(authed(WORKER_A), 'seeded-a')));
+  });
+
+  it('an unrelated supervisor CANNOT delete project A via global role', async () => {
+    await assertFails(
+      deleteDoc(ref(authed(SUPERVISOR_B, 'supervisor'), 'seeded-a')),
+    );
+  });
+
+  it('a directly-associated project-A supervisor can delete its public DEA', async () => {
+    await assertSucceeds(
+      deleteDoc(ref(authed(SUPERVISOR_A, 'supervisor'), 'seeded-a')),
+    );
   });
 });

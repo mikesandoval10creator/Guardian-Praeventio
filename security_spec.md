@@ -260,11 +260,16 @@ sub-collection master-gate. Rules tests: `src/rules-tests/clinicalAlerts.rules.t
 
 `dea_locations/{id}` is a TOP-LEVEL **public** AED registry: a bystander in a
 cardiac arrest finds the nearest defibrillator WITHOUT login (life-safety public
-good, ADR 0021). `read: if true`. Write is gated to members of the OWNING project
-(`isProjectMember(incoming().projectId)`) plus a strict schema
+good, ADR 0021). `read: if true` remains universal regardless of authentication,
+subscription, or project. Create requires direct association with the publishing
+project (member array or project creator), deliberately excluding the global-role
+shortcut in `isProjectMember`. Update/delete authorize against the EXISTING owner
+project, require a directly associated management role (`admin`, `gerente`,
+`supervisor`, `prevencionista`, `director_obra`, or `medico_ocupacional`), and
+make `projectId` immutable. The strict schema remains unchanged
 (`isValidDeaLocation`: only `location` / `coordinates` / `status` / `projectId` /
 `updatedAt`; coordinates required; no PII). Mirrored from a project's
-`projects/{pid}/deas` by DEAZones. Rules tests:
+`projects/{pid}/deas` by DEAZones. The two-project authorization matrix lives in:
 `src/rules-tests/deaLocations.rules.test.ts`.
 
 **Rejected payloads (Dirty-Dozen extension):**
@@ -275,6 +280,18 @@ good, ADR 0021). `read: if true`. Write is gated to members of the OWNING projec
     for a project they do not belong to.
 37. **PII Smuggle**: `{ ...dea, "assignedToName": "Juan Pérez" }` — fields beyond
     the public schema are rejected (no personal data leaks onto the public map).
+38. **Cross-project DEA Takeover**: a project-B member updates an A-owned record
+    with `projectId: B` — denied because update authorization uses
+    `existing().projectId` and ownership is immutable.
+39. **Global-role Ownership Bypass**: a supervisor associated only with project B
+    updates/deletes A's public DEA — denied because global role does not establish
+    direct project association.
+40. **Worker Public-DEA Mutation**: a regular member of project A updates or
+    deletes A's public record — denied because management role is required after
+    direct association is established.
+41. **DEA Owner Reassignment**: an authorized project-A supervisor changes the
+    record to `projectId: B` — denied by
+    `incoming().projectId == existing().projectId`.
 
 ## Mesh signing key (mesh_keys) — server-only, deny client read+write (Phase 5, added 2026-06-08)
 

@@ -28,7 +28,7 @@
 - Consumes: `createRulesTestEnv()`, `verifiedToken(role)`, the real `firestore.rules` file, and Firestore `setDoc`/`updateDoc`/`deleteDoc` operations.
 - Produces: an executable authorization matrix for anonymous readers, project A/B workers, and project A/B supervisors.
 
-- [ ] **Step 1: Expand the fixture to two projects and role-bearing callers**
+- [x] **Step 1: Expand the fixture to two projects and role-bearing callers**
 
 Use stable identities and seed both projects with explicit member arrays:
 
@@ -47,7 +47,7 @@ function authed(uid: string, role = 'worker'): CtxDb {
 
 Seed `members: [WORKER_A, SUPERVISOR_A]` for A and the equivalent list for B.
 
-- [ ] **Step 2: Write failing takeover and role tests**
+- [x] **Step 2: Write failing takeover and role tests**
 
 Add real-emulator assertions for these operations:
 
@@ -72,7 +72,7 @@ Also assert that a directly associated A supervisor can update/delete, cannot
 change `projectId`, and an unassociated global supervisor cannot publish for A.
 Keep the anonymous-read, member-create, schema, and PII-smuggling assertions.
 
-- [ ] **Step 3: Run the focused suite and verify RED**
+- [x] **Step 3: Run the focused suite and verify RED**
 
 Run:
 
@@ -94,7 +94,7 @@ anonymous read and schema tests remain green.
 - Produces: `isDirectProjectMember(projectId)` and `canManagePublicDeaLocation(projectId)` rule helpers.
 - Enforces: create from direct association; update/delete from existing owner plus management role; immutable `projectId`.
 
-- [ ] **Step 1: Add fail-closed direct association helpers**
+- [x] **Step 1: Add fail-closed direct association helpers**
 
 Add near the project membership helpers:
 
@@ -114,7 +114,7 @@ function canManagePublicDeaLocation(projectId) {
 The helper name and comment must state that global role alone does not establish
 project ownership.
 
-- [ ] **Step 2: Split create/update/delete rules by operation**
+- [x] **Step 2: Split create/update/delete rules by operation**
 
 Replace the combined write rule with:
 
@@ -129,14 +129,14 @@ allow delete: if canManagePublicDeaLocation(existing().projectId);
 
 Leave `allow read: if true` byte-for-byte unchanged.
 
-- [ ] **Step 3: Run focused tests and verify GREEN**
+- [x] **Step 3: Run focused tests and verify GREEN**
 
 Run the Task 1 emulator command again.
 
 Expected: every DEA location test passes, including anonymous read and all new
 project/role cases.
 
-- [ ] **Step 4: Run rules lint**
+- [x] **Step 4: Run rules lint**
 
 Run: `npm run lint:rules`
 
@@ -152,7 +152,7 @@ Expected: exit code 0 with no Firestore rule errors.
 - Consumes: the final rule conditions and passing emulator matrix.
 - Produces: reviewer-readable rejected payloads and an updated execution record.
 
-- [ ] **Step 1: Update the public DEA security model**
+- [x] **Step 1: Update the public DEA security model**
 
 Replace the stale claim that all writes use incoming membership. Document:
 
@@ -162,7 +162,7 @@ Replace the stale claim that all writes use incoming membership. Document:
 - immutable `projectId`;
 - unchanged sanitized schema.
 
-- [ ] **Step 2: Add explicit rejected attacks**
+- [x] **Step 2: Add explicit rejected attacks**
 
 Add named entries for:
 
@@ -176,7 +176,7 @@ DEA Owner Reassignment
 Each entry must name the attempted operation and the exact rule invariant that
 denies it.
 
-- [ ] **Step 3: Mark completed plan checkboxes only after evidence exists**
+- [x] **Step 3: Mark completed plan checkboxes only after evidence exists**
 
 Record the focused test count, full rules-suite count, lint/typecheck/build
 results, and any pre-existing warnings separately from failures.
@@ -189,13 +189,13 @@ results, and any pre-existing warnings separately from failures.
 **Interfaces:**
 - Produces: one scoped commit series, one draft PR, and a Notion task in `Review`.
 
-- [ ] **Step 1: Run the full Firestore/Storage rules suite**
+- [x] **Step 1: Run the full Firestore/Storage rules suite**
 
 Run: `npm run test:rules`
 
 Expected: exit code 0; no skipped emulator assertions.
 
-- [ ] **Step 2: Run repository gates**
+- [x] **Step 2: Run repository gates**
 
 Run:
 
@@ -210,7 +210,7 @@ npm run build
 Expected: all commands exit 0. Existing warnings must be recorded, not described
 as new failures.
 
-- [ ] **Step 3: Review and stage the exact scope**
+- [x] **Step 3: Review and stage the exact scope**
 
 Run:
 
@@ -233,3 +233,22 @@ cause, list exact verification, and call out universal anonymous DEA access.
 
 Set the task to `Review`, attach the PR URL, record exact verification commands,
 and set `Estado E2E` from actual emulator evidence rather than assumption.
+
+## Verification record (2026-07-13)
+
+- TDD RED: focused Firestore Emulator run produced 7 expected authorization
+  failures and 9 passes before the production rule change.
+- Focused GREEN: 1 file, 16/16 tests passed against the real Firestore Emulator.
+- Full rules gate: 51/51 files and 739/739 tests passed with Firestore and Storage
+  emulators. One intervening run ended with a transient Vitest worker exit after
+  733/739 tests and no failed assertion; an isolated rerun passed completely.
+- Rules lint: exit 0, 0 errors, 4 deliberate open-read warnings. The DEA warning
+  is retained because universal anonymous discovery is a life-safety invariant.
+- Test-file lint: exit 0, no findings.
+- Typecheck: `npm run typecheck:ci` exited 0.
+- General Vitest gate: exit 0; JSON report recorded 18,800 passed, 0 failed, and
+  1 todo. Existing jsdom not-implemented diagnostics remain non-failing.
+- Production build: exit 0 with the expected chunk-size/dynamic-import warnings.
+- Scope review: only `firestore.rules`, the DEA rules test, `security_spec.md`,
+  and the two task plan/design documents are intended for the PR; generated
+  emulator/build files remain unstaged.
