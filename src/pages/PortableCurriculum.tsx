@@ -246,7 +246,7 @@ export function PortableCurriculum() {
         level,
         xp,
         nextLevelXp: level * 1000,
-        safeHours: 0, // placeholder — wire when audit emits training.*.duration.
+        safeHours: aggregated.stats.safeHours,
         coursesCompleted: aggregated.stats.completedTrainings,
         perfectChecks: Math.max(0, aggregated.events.length - aggregated.stats.criticalAssessments),
       });

@@ -125,6 +125,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Incremental versionCode so Google Play accepts successive AABs.
+          # build.gradle reads VERSION_CODE env var (fallback: 1).
+          VERSION_CODE: ${{ github.run_number }}
         # Tag-trigger (mobile-v*) ⇒ production. Manual dispatch ⇒ chosen
         # input. Default fallback is `internal` for safety.
         run: |
