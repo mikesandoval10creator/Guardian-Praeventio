@@ -2,7 +2,7 @@
 //
 // Real-time Firestore background triggers, simulated via Firebase Admin
 // `onSnapshot` listeners (we don't run in a Cloud Functions environment).
-// Two listeners:
+// Three listeners:
 //
 //   1. New critical incidents (`nodes` where type ∈ {Hallazgo, Incidente,
 //      Riesgo} AND severity ∈ {Crítica, Alta}) → FCM multicast to project
@@ -10,11 +10,13 @@
 //   2. RAG ingestion pipeline (`nodes` where type ∈ {normative, pts,
 //      protocol, document}) → embed via geminiBackend, store back on the
 //      doc, mark `_ragProcessingStatus`.
+//   3. Closed incidents with root cause produce a deterministic Zettelkasten
+//      post-mortem node.
 //
 // Pre-extraction lived inside `setupBackgroundTriggers` in server.ts. DI
 // shape introduced here so tests can drive the listeners with a fake
 // firestore + messaging without booting Firebase Admin or Vite. The
-// returned `unsubscribe()` releases both `onSnapshot` subscriptions —
+// returned `unsubscribe()` releases all `onSnapshot` subscriptions —
 // useful for graceful shutdown (SIGTERM) and for test seam isolation.
 //
 // IMPORTANT: this module MUST NOT do work at import time. The only
@@ -22,6 +24,7 @@
 
 import type admin from 'firebase-admin';
 import type { Resend } from 'resend';
+import { randomUUID } from 'node:crypto';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -29,6 +32,35 @@ import {
   type IncidentDoc as PostmortemIncidentDoc,
   type MinimalFirestore as PostmortemMinimalStore,
 } from '../../services/zettelkasten/incidentPostmortem.js';
+import {
+  claimBackgroundWork,
+  completeBackgroundWork,
+  releaseBackgroundWork,
+  type BackgroundClaimFields,
+} from './backgroundTriggerClaim.js';
+
+const TRIGGER_LEASE_MS = 2 * 60 * 1000;
+
+const CRITICAL_CLAIM_FIELDS: BackgroundClaimFields = {
+  completedAt: '_criticalAlertSentAt',
+  leaseUntilMs: '_criticalAlertLeaseUntilMs',
+  claimToken: '_criticalAlertClaimToken',
+  attempts: '_criticalAlertAttempts',
+};
+
+const RAG_CLAIM_FIELDS: BackgroundClaimFields = {
+  completedAt: '_ragProcessedAt',
+  leaseUntilMs: '_ragProcessingLeaseUntilMs',
+  claimToken: '_ragProcessingClaimToken',
+  attempts: '_ragProcessingAttempts',
+};
+
+const POSTMORTEM_CLAIM_FIELDS: BackgroundClaimFields = {
+  completedAt: '_postmortemWrittenAt',
+  leaseUntilMs: '_postmortemLeaseUntilMs',
+  claimToken: '_postmortemClaimToken',
+  attempts: '_postmortemAttempts',
+};
 
 // ── H23 Per-entity mutex (E.5 P2) ─────────────────────────────────────
 //
@@ -110,6 +142,9 @@ export interface BackgroundTriggersDeps {
    * import of `src/services/geminiBackend.js`. Tests inject a stub.
    */
   generateEmbeddingsBatch?: (texts: string[]) => Promise<number[][]>;
+  /** Test seams for deterministic leases/tokens; production uses clock + UUID. */
+  nowMs?: () => number;
+  createClaimToken?: () => string;
 }
 
 export interface BackgroundTriggersHandle {
@@ -130,8 +165,8 @@ function singleEmbedAdapter(
 }
 
 /**
- * Wire up the two real-time listeners and return a handle whose
- * `unsubscribe()` cancels both subscriptions. Safe to call multiple times
+ * Wire up the real-time listeners and return a handle whose
+ * `unsubscribe()` cancels all subscriptions. Safe to call multiple times
  * — each call returns an independent handle.
  */
 export function setupBackgroundTriggers(
@@ -141,12 +176,22 @@ export function setupBackgroundTriggers(
   let unsubIncidents: () => void = noop;
   let unsubRag: () => void = noop;
   let unsubIncidentClose: () => void = noop;
+  const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   try {
     const { db, messaging, resend, firestoreNamespace } = deps;
-    let isInitialLoadIncidents = true;
-    let isInitialLoadRAG = true;
-    let isInitialLoadIncidentClose = true;
+    const nowMs = deps.nowMs ?? Date.now;
+    const createClaimToken = deps.createClaimToken ?? randomUUID;
+
+    const scheduleRetry = (key: string, delayMs: number, retry: () => void): void => {
+      if (retryTimers.has(key)) return;
+      const timer = setTimeout(() => {
+        retryTimers.delete(key);
+        retry();
+      }, Math.max(1, delayMs + 5));
+      timer.unref?.();
+      retryTimers.set(key, timer);
+    };
 
     // Trigger 1: critical incidents → FCM + CPHS email
     unsubIncidents = db
@@ -154,13 +199,8 @@ export function setupBackgroundTriggers(
       .where('type', 'in', ['Hallazgo', 'Incidente', 'Riesgo'])
       .onSnapshot(
         (snapshot) => {
-          if (isInitialLoadIncidents) {
-            isInitialLoadIncidents = false;
-            return;
-          }
-
           snapshot.docChanges().forEach((change) => {
-            if (change.type !== 'added') return;
+            if (change.type !== 'added' && change.type !== 'modified') return;
             const data = change.doc.data();
             const isCritical =
               data.metadata?.severity === 'Crítica' ||
@@ -168,24 +208,45 @@ export function setupBackgroundTriggers(
             if (!isCritical || !data.projectId) return;
 
             void serializeByKey(`incident:${change.doc.id}`, async () => {
+            let claimToken: string | null = null;
             try {
-              // Codex P2 PR #120: idempotency check INSIDE the mutex.
-              // Duplicate 'added' snapshots for the same node would both
-              // queue here and both fire FCM/email after the first finishes.
-              // Re-read the doc and skip if the alert marker is already
-              // present; otherwise stamp it before sending so a third
-              // queued callback short-circuits.
-              const fresh = await change.doc.ref.get();
-              if (fresh.data()?._criticalAlertSentAt) {
+              const token = createClaimToken();
+              const claim = await claimBackgroundWork({
+                db,
+                ref: change.doc.ref,
+                fields: CRITICAL_CLAIM_FIELDS,
+                nowMs: nowMs(),
+                leaseMs: TRIGGER_LEASE_MS,
+                token,
+              });
+              if (claim.kind === 'completed') {
                 logger.info('incident_alert_skipped_idempotent', {
                   nodeId: change.doc.id,
                 });
                 return;
               }
-              await change.doc.ref.update({
-                _criticalAlertSentAt:
-                  firestoreNamespace.FieldValue.serverTimestamp(),
-              });
+              if (claim.kind === 'leased') {
+                scheduleRetry(`incident:${change.doc.id}`, claim.retryAfterMs, () => {
+                  void change.doc.ref.update({
+                    _criticalAlertRetryRequestedAt:
+                      firestoreNamespace.FieldValue.serverTimestamp(),
+                  });
+                });
+                return;
+              }
+              claimToken = token;
+
+              const complete = () =>
+                completeBackgroundWork({
+                  db,
+                  ref: change.doc.ref,
+                  fields: CRITICAL_CLAIM_FIELDS,
+                  token,
+                  completionPatch: {
+                    _criticalAlertSentAt:
+                      firestoreNamespace.FieldValue.serverTimestamp(),
+                  },
+                });
 
               const membersSnap = await db
                 .collection(`projects/${data.projectId}/members`)
@@ -202,7 +263,10 @@ export function setupBackgroundTriggers(
                 }
               });
 
-              if (supervisorUids.length === 0) return;
+              if (supervisorUids.length === 0) {
+                await complete();
+                return;
+              }
 
               const tokenDocs = await Promise.all(
                 supervisorUids.map((uid) =>
@@ -231,7 +295,10 @@ export function setupBackgroundTriggers(
               }
               const tokens = Array.from(tokenSet);
 
-              if (tokens.length === 0) return;
+              if (tokens.length === 0) {
+                await complete();
+                return;
+              }
 
               await messaging.sendEachForMulticast({
                 tokens,
@@ -279,9 +346,22 @@ export function setupBackgroundTriggers(
                     logger.warn('cphs_email_delivery_failed', { err: e instanceof Error ? e.message : String(e) }),
                   );
               }
+              await complete();
             } catch (err) {
               logger.error('fcm_push_failed', err, { trigger: 'criticalIncidentNotify' });
               sentryCapture(err, { trigger: 'criticalIncidentNotify', tags: { phase: 'fcm-push' } });
+              if (claimToken) {
+                await releaseBackgroundWork({
+                  db,
+                  ref: change.doc.ref,
+                  fields: CRITICAL_CLAIM_FIELDS,
+                  token: claimToken,
+                  failurePatch: {
+                    _criticalAlertLastError:
+                      err instanceof Error ? err.message : String(err),
+                  },
+                });
+              }
             }
             });
           });
@@ -298,18 +378,13 @@ export function setupBackgroundTriggers(
       .where('type', 'in', ['normative', 'pts', 'protocol', 'document'])
       .onSnapshot(
         async (snapshot) => {
-          if (isInitialLoadRAG) {
-            isInitialLoadRAG = false;
-            return;
-          }
-
           for (const change of snapshot.docChanges()) {
             if (change.type !== 'added' && change.type !== 'modified') continue;
             const data = change.doc.data();
 
             if (
               data._ragProcessingStatus === 'completed' ||
-              data._ragProcessingStatus === 'processing'
+              data._ragProcessingStatus === 'skipped_too_short'
             ) {
               continue;
             }
@@ -320,31 +395,57 @@ export function setupBackgroundTriggers(
             });
 
             await serializeByKey(`rag:${change.doc.id}`, async () => {
+            let claimToken: string | null = null;
             try {
               // Codex P2 PR #120: re-check status INSIDE the mutex so the
               // second concurrent snapshot (which passed the stale check
               // before the first one wrote 'processing') doesn't embed
               // again. Without this re-read, the mutex only serialises
               // duplicate work — it doesn't prevent it.
-              const fresh = await change.doc.ref.get();
-              const freshStatus = fresh.data()?._ragProcessingStatus;
-              if (freshStatus === 'completed' || freshStatus === 'processing') {
+              const token = createClaimToken();
+              const claim = await claimBackgroundWork({
+                db,
+                ref: change.doc.ref,
+                fields: RAG_CLAIM_FIELDS,
+                nowMs: nowMs(),
+                leaseMs: TRIGGER_LEASE_MS,
+                token,
+                claimPatch: { _ragProcessingStatus: 'processing' },
+                isCompleted: (fresh) =>
+                  fresh._ragProcessingStatus === 'completed' ||
+                  fresh._ragProcessingStatus === 'skipped_too_short',
+              });
+              if (claim.kind === 'completed') {
                 logger.info('rag_pipeline_skipped_inside_mutex', {
                   docId: change.doc.id,
-                  status: freshStatus,
+                  status: 'completed',
                 });
                 return;
               }
-
-              await change.doc.ref.update({
-                _ragProcessingStatus: 'processing',
-              });
+              if (claim.kind === 'leased') {
+                scheduleRetry(`rag:${change.doc.id}`, claim.retryAfterMs, () => {
+                  void change.doc.ref.update({
+                    _ragRetryRequestedAt:
+                      firestoreNamespace.FieldValue.serverTimestamp(),
+                  });
+                });
+                return;
+              }
+              claimToken = token;
 
               const textToEmbed = `Título: ${data.title || ''}\nDescripción: ${data.description || ''}\nContenido: ${data.content || ''}`;
 
               if (textToEmbed.trim().length < 10) {
-                await change.doc.ref.update({
-                  _ragProcessingStatus: 'skipped_too_short',
+                await completeBackgroundWork({
+                  db,
+                  ref: change.doc.ref,
+                  fields: RAG_CLAIM_FIELDS,
+                  token,
+                  completionPatch: {
+                    _ragProcessingStatus: 'skipped_too_short',
+                    _ragProcessedAt:
+                      firestoreNamespace.FieldValue.serverTimestamp(),
+                  },
                 });
                 return;
               }
@@ -355,11 +456,17 @@ export function setupBackgroundTriggers(
               const [embedding] = await embedFn([textToEmbed]);
 
               if (embedding && embedding.length > 0) {
-                await change.doc.ref.update({
-                  embedding,
-                  _ragProcessingStatus: 'completed',
-                  _ragProcessedAt:
-                    firestoreNamespace.FieldValue.serverTimestamp(),
+                await completeBackgroundWork({
+                  db,
+                  ref: change.doc.ref,
+                  fields: RAG_CLAIM_FIELDS,
+                  token,
+                  completionPatch: {
+                    embedding,
+                    _ragProcessingStatus: 'completed',
+                    _ragProcessedAt:
+                      firestoreNamespace.FieldValue.serverTimestamp(),
+                  },
                 });
                 logger.info('rag_pipeline_embedding_saved', { docId: change.doc.id });
               } else {
@@ -371,11 +478,19 @@ export function setupBackgroundTriggers(
                 docType: data.type,
               });
               sentryCapture(error, { trigger: 'ragPipeline', tags: { docId: change.doc.id, docType: data.type ?? null } });
-              await change.doc.ref.update({
-                _ragProcessingStatus: 'failed',
-                _ragError:
-                  error instanceof Error ? error.message : 'Unknown error',
-              });
+              if (claimToken) {
+                await releaseBackgroundWork({
+                  db,
+                  ref: change.doc.ref,
+                  fields: RAG_CLAIM_FIELDS,
+                  token: claimToken,
+                  failurePatch: {
+                    _ragProcessingStatus: 'failed',
+                    _ragError:
+                      error instanceof Error ? error.message : 'Unknown error',
+                  },
+                });
+              }
             }
             });
           }
@@ -391,10 +506,6 @@ export function setupBackgroundTriggers(
     // service to act. Fire-and-forget — never throws back to the listener.
     unsubIncidentClose = db.collection('incidents').onSnapshot(
       (snapshot) => {
-        if (isInitialLoadIncidentClose) {
-          isInitialLoadIncidentClose = false;
-          return;
-        }
         snapshot.docChanges().forEach((change) => {
           if (change.type !== 'modified' && change.type !== 'added') return;
           const data = change.doc.data() as Record<string, unknown>;
@@ -403,6 +514,7 @@ export function setupBackgroundTriggers(
           if (!data.rootCause || typeof data.rootCause !== 'string') return;
 
           void serializeByKey(`incidentClose:${change.doc.id}`, async () => {
+          let claimToken: string | null = null;
 
           const incident: PostmortemIncidentDoc = {
             id: change.doc.id,
@@ -419,9 +531,50 @@ export function setupBackgroundTriggers(
           if (!incident.tenantId || !incident.projectId) return;
 
           try {
+            const token = createClaimToken();
+            const claim = await claimBackgroundWork({
+              db,
+              ref: change.doc.ref,
+              fields: POSTMORTEM_CLAIM_FIELDS,
+              nowMs: nowMs(),
+              leaseMs: TRIGGER_LEASE_MS,
+              token,
+            });
+            if (claim.kind === 'completed') return;
+            if (claim.kind === 'leased') {
+              scheduleRetry(`incidentClose:${change.doc.id}`, claim.retryAfterMs, () => {
+                void change.doc.ref.update({
+                  _postmortemRetryRequestedAt:
+                    firestoreNamespace.FieldValue.serverTimestamp(),
+                });
+              });
+              return;
+            }
+            claimToken = token;
+
+            const deterministicNodeId = `incident-${incident.id}-postmortem`;
+            const existingNode = await db
+              .collection(`tenants/${incident.tenantId}/zettelkasten_nodes`)
+              .doc(deterministicNodeId)
+              .get();
+            if (existingNode.exists) {
+              await completeBackgroundWork({
+                db,
+                ref: change.doc.ref,
+                fields: POSTMORTEM_CLAIM_FIELDS,
+                token,
+                completionPatch: {
+                  _postmortemWrittenAt:
+                    firestoreNamespace.FieldValue.serverTimestamp(),
+                  _postmortemNodeId: deterministicNodeId,
+                },
+              });
+              return;
+            }
+
             const embedFn =
               deps.generateEmbeddingsBatch ?? (await loadDefaultEmbedder());
-            await writeIncidentPostmortemNode(incident, {
+            const result = await writeIncidentPostmortemNode(incident, {
               store: db as unknown as PostmortemMinimalStore,
               genEmbedding: singleEmbedAdapter(embedFn),
               captureError: (err, ctx) =>
@@ -436,6 +589,27 @@ export function setupBackgroundTriggers(
                   logger.info(`postmortem_${msg}`, ctx as Record<string, unknown> | undefined),
               },
             });
+            if (!result.ok) {
+              await releaseBackgroundWork({
+                db,
+                ref: change.doc.ref,
+                fields: POSTMORTEM_CLAIM_FIELDS,
+                token,
+                failurePatch: { _postmortemLastError: result.reason },
+              });
+              return;
+            }
+            await completeBackgroundWork({
+              db,
+              ref: change.doc.ref,
+              fields: POSTMORTEM_CLAIM_FIELDS,
+              token,
+              completionPatch: {
+                _postmortemWrittenAt:
+                  firestoreNamespace.FieldValue.serverTimestamp(),
+                _postmortemNodeId: result.nodeId,
+              },
+            });
           } catch (err) {
             // Defensa final: nada en este path debe romper el cierre del incidente.
             logger.error('postmortem_unexpected_error', err, { incidentId: change.doc.id });
@@ -443,6 +617,18 @@ export function setupBackgroundTriggers(
               trigger: 'incidentPostmortem',
               tags: { phase: 'unexpected', incidentId: change.doc.id },
             });
+            if (claimToken) {
+              await releaseBackgroundWork({
+                db,
+                ref: change.doc.ref,
+                fields: POSTMORTEM_CLAIM_FIELDS,
+                token: claimToken,
+                failurePatch: {
+                  _postmortemLastError:
+                    err instanceof Error ? err.message : String(err),
+                },
+              });
+            }
           }
           });
         });
@@ -462,6 +648,8 @@ export function setupBackgroundTriggers(
 
   return {
     unsubscribe: () => {
+      for (const timer of retryTimers.values()) clearTimeout(timer);
+      retryTimers.clear();
       try {
         unsubIncidents();
       } catch (e) {
