@@ -113,6 +113,40 @@ curl -s https://app.praeventio.net/api/health | jq
 
 Si `/api/health` devuelve 503 → ver §6 ("Sentry alerts").
 
+### Verificar identidad IP del rate limiter
+
+El tráfico canónico entra por el rewrite Firebase Hosting → Cloud Run declarado
+en `firebase.json`. Express confía un salto cuando Cloud Run inyecta `K_SERVICE`.
+`TRUST_PROXY_HOPS` debe quedar omitido salvo que staging demuestre otra topología;
+un valor vacío es inválido y detiene el arranque.
+
+Usar el endpoint público CSP desde dos conexiones con IP pública distinta (por
+ejemplo, red fija y datos móviles). En la red A:
+
+```bash
+curl -i -X POST \
+  -H 'Content-Type: application/csp-report' \
+  --data '{}' \
+  https://app.praeventio.net/api/csp-report
+
+curl -i -X POST \
+  -H 'Content-Type: application/csp-report' \
+  -H 'X-Forwarded-For: 192.0.2.44' \
+  --data '{}' \
+  https://app.praeventio.net/api/csp-report
+```
+
+Los encabezados `RateLimit-Remaining` deben continuar el mismo contador: el
+valor forjado no puede abrir un bucket nuevo. Repetir el primer comando desde la
+red B; debe comenzar un contador independiente. Verificar tanto el dominio
+Firebase como el dominio personalizado permitido.
+
+Si una ruta canónica tiene proxies adicionales, registrar primero la cadena
+observada y desplegar `TRUST_PROXY_HOPS=<saltos>` en staging. Repetir las tres
+pruebas antes de promover. Ante una cadena ambigua o un bucket elegible mediante
+el header forjado, retirar el override y volver a la revisión anterior; no
+promover la revisión.
+
 ### Rollback rápido
 
 ```bash
