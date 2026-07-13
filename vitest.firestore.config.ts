@@ -31,6 +31,10 @@ export default defineConfig({
         __dirname,
         'packages/capacitor-mesh/src/index.ts',
       ),
+      '@praeventio/capacitor-proximity': path.resolve(
+        __dirname,
+        'packages/capacitor-proximity/src/index.ts',
+      ),
     },
   },
   test: {

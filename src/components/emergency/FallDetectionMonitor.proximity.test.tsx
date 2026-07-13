@@ -42,8 +42,10 @@ const fake = vi.hoisted(() => {
   };
 });
 
-const fakePlugin: ProximityPluginContract = {
-  addListener(_event: 'proximityChanged', cb: ProximityCb) {
+const fakePlugin = {
+  enable: async () => undefined,
+  disable: async () => undefined,
+  async addListener(_event: 'proximityChanged', cb: ProximityCb) {
     fake.listeners.push(cb);
     return {
       remove: async () => {
@@ -53,10 +55,10 @@ const fakePlugin: ProximityPluginContract = {
     };
   },
   getCurrent: async () => ({ state: 'far' as const }),
-};
+} as unknown as ProximityPluginContract;
 
-// In production the hook falls back to the adapter (which returns null until
-// the native event bridge ships) — here we simulate a bridged device.
+// Production resolves the first-party native bridge; here we simulate the
+// same async contract without physical hardware.
 vi.mock('../../services/proximitySensor/proximityPluginAdapter', () => ({
   loadProximityPlugin: async () => fakePlugin,
 }));

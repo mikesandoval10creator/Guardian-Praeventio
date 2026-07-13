@@ -22,6 +22,9 @@
       ],
       "@praeventio/capacitor-mesh": [
         "./packages/capacitor-mesh/src/index.ts"
+      ],
+      "@praeventio/capacitor-proximity": [
+        "./packages/capacitor-proximity/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
