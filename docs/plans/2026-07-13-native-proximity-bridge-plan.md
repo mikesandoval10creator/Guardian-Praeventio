@@ -120,8 +120,8 @@
 
 - [x] Run focused Vitest tests, package TypeScript build, SDK-free Android mapper tests, app typecheck, ESLint, and the production web build. Android Gradle and Swift/device execution remain explicit environment gates.
 - [x] Inspect `git diff --check`, `git status --short`, dependency diff, and native lifecycle code line by line.
-- [ ] Commit only scoped files, push `codex/native-proximity-events`, and open a draft PR against `main`.
-- [ ] Update the Notion task with PR URL, exact verification commands, honest physical-device limitation, and status `Review`.
+- [x] Commit only scoped files, push `codex/native-proximity-events`, and open draft PR #1264 against `main`.
+- [x] Update the Notion task with PR URL, exact verification commands, honest physical-device limitation, and status `Review`.
 
 ## Verification record
 
