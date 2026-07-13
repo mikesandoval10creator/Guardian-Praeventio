@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import i18n, { loadLocale, getLoadedLazyLocales } from './index';
-import { isRtlLocale, applyHtmlDir, RTL_LOCALES } from './rtl';
+import { isRtlLocale, applyHtmlDir, RTL_LOCALES, toHtmlLang } from './rtl';
 import { normalizeLocale } from '../contexts/LanguageProvider';
 
 describe('i18n — fallback chain', () => {
@@ -47,6 +47,7 @@ describe('i18n — RTL detection', () => {
   beforeEach(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.removeAttribute('dir');
+      document.documentElement.removeAttribute('lang');
     }
   });
 
@@ -73,9 +74,26 @@ describe('i18n — RTL detection', () => {
   it('applyHtmlDir sets <html dir="rtl"> for ar and is idempotent', () => {
     applyHtmlDir('ar');
     expect(document.documentElement.getAttribute('dir')).toBe('rtl');
+    expect(document.documentElement.getAttribute('lang')).toBe('ar');
     applyHtmlDir('ar');
     expect(document.documentElement.getAttribute('dir')).toBe('rtl');
+    expect(document.documentElement.getAttribute('lang')).toBe('ar');
     applyHtmlDir('en');
+    expect(document.documentElement.getAttribute('dir')).toBe('ltr');
+    expect(document.documentElement.getAttribute('lang')).toBe('en');
+  });
+
+  it('toHtmlLang maps "es" to "es-CL" for the <html lang> attribute', () => {
+    expect(toHtmlLang('es')).toBe('es-CL');
+    expect(toHtmlLang('en')).toBe('en');
+    expect(toHtmlLang('ar')).toBe('ar');
+    expect(toHtmlLang(null)).toBeNull();
+    expect(toHtmlLang(undefined)).toBeNull();
+  });
+
+  it('applyHtmlDir maps "es" to "es-CL" on <html lang>', () => {
+    applyHtmlDir('es');
+    expect(document.documentElement.getAttribute('lang')).toBe('es-CL');
     expect(document.documentElement.getAttribute('dir')).toBe('ltr');
   });
 });

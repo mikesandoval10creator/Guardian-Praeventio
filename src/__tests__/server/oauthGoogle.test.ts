@@ -112,8 +112,12 @@ beforeEach(() => {
   // Seed a titanio+ plan for the uids that exercise the (now tier-gated) Drive
   // auth-URL route, so the existing CSRF/flow tests reach the handler.
   HADMIN.db = createFakeFirestore();
-  HADMIN.db._seed('users/uid-C', { subscription: { planId: 'titanio' } });
-  HADMIN.db._seed('users/uid-titanio', { subscription: { planId: 'titanio' } });
+  HADMIN.db._seed('users/uid-C', {
+    subscription: { planId: 'titanio', status: 'active', paymentMethod: 'webpay' },
+  });
+  HADMIN.db._seed('users/uid-titanio', {
+    subscription: { planId: 'titanio', status: 'active', paymentMethod: 'webpay' },
+  });
   HADMIN.db._seed('users/uid-free', { subscription: { planId: 'free' } });
   vi.resetModules();
 });

@@ -1,9 +1,9 @@
 // Praeventio Guard — Round 21 B1 Phase 5 tests.
 //
 // Coverage matrix for `setupBackgroundTriggers`:
-//   • Returns an unsubscribe handle that wires both listeners
-//   • Unsubscribe cancels both onSnapshot subscriptions
-//   • Initial-load snapshot is ignored (no FCM, no RAG embed)
+//   • Returns an unsubscribe handle that wires all three listeners
+//   • Unsubscribe cancels all onSnapshot subscriptions
+//   • Initial snapshots recover pending FCM, RAG, and post-mortem work
 //   • Critical incident → multicast FCM to supervisor tokens
 //   • Non-critical incident → no FCM
 //   • Listener attach failure is caught (no throw out of setup)
@@ -22,7 +22,7 @@ import {
 
 // ── fake firestore ──────────────────────────────────────────────────────
 interface CapturedListener {
-  type: 'incidents' | 'rag';
+  type: 'incidents' | 'rag' | 'incidentClose';
   next: (snapshot: any) => void | Promise<void>;
   error: (err: unknown) => void;
   unsub: ReturnType<typeof vi.fn>;
@@ -36,6 +36,7 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
   const members = overrides.members ?? [];
   const users = overrides.users ?? {};
   const projects = overrides.projects ?? {};
+  const transactionState = new WeakMap<object, Record<string, unknown>>();
 
   const collection = vi.fn((name: string) => {
     // Path-based collection (e.g. `projects/p1/members`)
@@ -91,10 +92,45 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
         }),
       };
     }
+    if (name === 'incidents') {
+      return {
+        onSnapshot: (
+          next: (snap: any) => void,
+          err: (e: unknown) => void,
+        ) => {
+          const unsub = vi.fn();
+          captured.push({ type: 'incidentClose', next, error: err, unsub });
+          return unsub;
+        },
+      };
+    }
+    if (name.startsWith('tenants/')) {
+      return {
+        doc: () => ({
+          get: vi.fn().mockResolvedValue({ exists: false, data: () => undefined }),
+          set: vi.fn().mockResolvedValue(undefined),
+        }),
+      };
+    }
     return { get: () => Promise.resolve({ forEach: () => {} }) };
   });
 
-  return { collection } as any;
+  const runTransaction = async (fn: (tx: any) => Promise<unknown>) =>
+    fn({
+      get: async (ref: any) => {
+        if (!transactionState.has(ref)) {
+          const snapshot = typeof ref.get === 'function' ? await ref.get() : { data: () => ({}) };
+          transactionState.set(ref, { ...(snapshot.data?.() ?? {}) });
+        }
+        return { data: () => ({ ...(transactionState.get(ref) ?? {}) }) };
+      },
+      update: (ref: any, patch: Record<string, unknown>) => {
+        transactionState.set(ref, { ...(transactionState.get(ref) ?? {}), ...patch });
+        if (typeof ref.update === 'function') void ref.update(patch);
+      },
+    });
+
+  return { collection, runTransaction } as any;
 }
 
 function makeFakeMessaging() {
@@ -118,7 +154,7 @@ beforeEach(() => {
 });
 
 describe('setupBackgroundTriggers', () => {
-  it('attaches both onSnapshot listeners and returns an unsubscribe handle', () => {
+  it('attaches all onSnapshot listeners and returns an unsubscribe handle', () => {
     const captured: CapturedListener[] = [];
     const handle = setupBackgroundTriggers({
       db: makeFakeDb(captured),
@@ -127,12 +163,12 @@ describe('setupBackgroundTriggers', () => {
       firestoreNamespace: fakeFirestoreNamespace,
     });
 
-    expect(captured).toHaveLength(2);
-    expect(captured.map((c) => c.type).sort()).toEqual(['incidents', 'rag']);
+    expect(captured).toHaveLength(3);
+    expect(captured.map((c) => c.type).sort()).toEqual(['incidentClose', 'incidents', 'rag']);
     expect(typeof handle.unsubscribe).toBe('function');
   });
 
-  it('unsubscribe() cancels both listeners', () => {
+  it('unsubscribe() cancels all listeners', () => {
     const captured: CapturedListener[] = [];
     const handle = setupBackgroundTriggers({
       db: makeFakeDb(captured),
@@ -146,23 +182,31 @@ describe('setupBackgroundTriggers', () => {
     }
   });
 
-  it('ignores the initial-load snapshot for incidents (no FCM)', async () => {
+  it('processes a pending critical incident from the initial snapshot after restart', async () => {
     const captured: CapturedListener[] = [];
     const messaging = makeFakeMessaging();
     setupBackgroundTriggers({
-      db: makeFakeDb(captured),
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { fcmToken: 'tok-1' } },
+      }),
       messaging,
       resend: makeFakeResend(),
       firestoreNamespace: fakeFirestoreNamespace,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
-    await incidents.next({
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const initialSnapshot = {
       docChanges: () => [
         {
           type: 'added',
           doc: {
             id: 'n1',
+            ref,
             data: () => ({
               metadata: { severity: 'Crítica' },
               projectId: 'p1',
@@ -170,9 +214,14 @@ describe('setupBackgroundTriggers', () => {
           },
         },
       ],
-    });
+    };
+    await incidents.next(initialSnapshot);
+    await new Promise((r) => setImmediate(r));
 
-    expect(messaging.sendEachForMulticast).not.toHaveBeenCalled();
+    await incidents.next(initialSnapshot);
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).toHaveBeenCalledTimes(1);
   });
 
   it('sends FCM multicast on a critical incident after the initial load', async () => {
@@ -198,7 +247,7 @@ describe('setupBackgroundTriggers', () => {
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
-    // First call = initial load (ignored)
+    // Empty snapshot followed by a real change.
     incidents.next({ docChanges: () => [] });
     // Second call = real change
     const n42Update = vi.fn().mockResolvedValue(undefined);
@@ -230,6 +279,53 @@ describe('setupBackgroundTriggers', () => {
     expect(arg.tokens.sort()).toEqual(['tok-1', 'tok-2']); // supervisor+gerente only
     expect(arg.notification.title).toContain('Crítica');
     expect(arg.data).toEqual({ projectId: 'p1', nodeId: 'n42' });
+  });
+
+  it('releases a failed critical-alert claim so a later snapshot retries it', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    messaging.sendEachForMulticast
+      .mockRejectedValueOnce(new Error('temporary FCM outage'))
+      .mockResolvedValueOnce({ successCount: 1 });
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { fcmToken: 'tok-1' } },
+      }),
+      messaging,
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+    });
+
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const snapshot = {
+      docChanges: () => [
+        {
+          type: 'added',
+          doc: {
+            id: 'n-retry',
+            ref,
+            data: () => ({
+              metadata: { severity: 'Alta' },
+              projectId: 'p1',
+            }),
+          },
+        },
+      ],
+    };
+    const listener = captured.find((c) => c.type === 'incidents')!;
+    listener.next(snapshot);
+    await new Promise((r) => setImmediate(r));
+    listener.next(snapshot);
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).toHaveBeenCalledTimes(2);
+    expect(ref.update).toHaveBeenCalledWith(
+      expect.objectContaining({ _criticalAlertSentAt: '__SERVER_TS__' }),
+    );
   });
 
   // AUDIT-2026-06 B19/B23 — mobile push was broken in prod: the app
@@ -337,7 +433,6 @@ describe('setupBackgroundTriggers', () => {
     });
 
     const rag = captured.find((c) => c.type === 'rag')!;
-    await rag.next({ docChanges: () => [] }); // initial load
     const getMock = vi.fn().mockResolvedValue({
       data: () => ({ _ragProcessingStatus: undefined }),
     });
@@ -362,7 +457,7 @@ describe('setupBackgroundTriggers', () => {
     expect(generateEmbeddingsBatch).toHaveBeenCalledTimes(1);
     // First update: processing; second: completed with embedding
     expect(updateMock).toHaveBeenCalledTimes(2);
-    expect(updateMock.mock.calls[0][0]).toEqual({
+    expect(updateMock.mock.calls[0][0]).toMatchObject({
       _ragProcessingStatus: 'processing',
     });
     expect(updateMock.mock.calls[1][0]).toMatchObject({
@@ -403,6 +498,91 @@ describe('setupBackgroundTriggers', () => {
       ],
     });
     expect(generateEmbeddingsBatch).not.toHaveBeenCalled();
+  });
+
+  it('reclaims a RAG document left processing without a live lease by a crashed process', async () => {
+    const captured: CapturedListener[] = [];
+    const generateEmbeddingsBatch = vi.fn(async () => [[0.9, 0.8]]);
+    const update = vi.fn().mockResolvedValue(undefined);
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured),
+      messaging: makeFakeMessaging(),
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+      generateEmbeddingsBatch,
+    });
+
+    const rag = captured.find((c) => c.type === 'rag')!;
+    await rag.next({
+      docChanges: () => [
+        {
+          type: 'added',
+          doc: {
+            id: 'doc-crashed',
+            ref: {
+              get: vi.fn().mockResolvedValue({
+                data: () => ({ _ragProcessingStatus: 'processing' }),
+              }),
+              update,
+            },
+            data: () => ({
+              type: 'document',
+              title: 'Procedimiento pendiente',
+              content: 'Contenido suficiente para recuperar el embedding tras reinicio',
+              _ragProcessingStatus: 'processing',
+            }),
+          },
+        },
+      ],
+    });
+
+    expect(generateEmbeddingsBatch).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ _ragProcessingStatus: 'completed' }),
+    );
+  });
+
+  it('processes a closed incident post-mortem from the initial snapshot after restart', async () => {
+    const captured: CapturedListener[] = [];
+    const update = vi.fn().mockResolvedValue(undefined);
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured),
+      messaging: makeFakeMessaging(),
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+      generateEmbeddingsBatch: vi.fn(async () => [[0.2, 0.4]]),
+    });
+
+    const listener = captured.find((c) => c.type === 'incidentClose')!;
+    listener.next({
+      docChanges: () => [
+        {
+          type: 'added',
+          doc: {
+            id: 'inc-restart-1',
+            ref: {
+              get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+              update,
+            },
+            data: () => ({
+              tenantId: 'tenant-1',
+              projectId: 'project-1',
+              status: 'closed',
+              rootCause: 'Falla de bloqueo de energía peligrosa',
+              type: 'machinery',
+            }),
+          },
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _postmortemWrittenAt: '__SERVER_TS__',
+        _postmortemNodeId: 'incident-inc-restart-1-postmortem',
+      }),
+    );
   });
 });
 

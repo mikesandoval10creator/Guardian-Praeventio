@@ -72,6 +72,7 @@ import { cycleFromProductId } from '../pricing/subscriptionPlan.js';
 
 export type AppleSsnAction =
   | 'grant'      // SUBSCRIBED, DID_RENEW — activate / extend the subscription
+  | 'grace'      // DID_FAIL_TO_RENEW + GRACE_PERIOD — temporary entitlement
   | 'revoke'     // REFUND, REVOKE        — strip the entitlement
   | 'expire'     // EXPIRED, DID_FAIL_TO_RENEW — mark inactive but keep history
   | 'noop';      // unhandled / informational types
@@ -139,6 +140,8 @@ export interface AppleRenewalInfo {
   originalTransactionId?: string;
   /** Reason an expiration occurred. */
   expirationIntent?: number;
+  /** Epoch ms — access remains valid until this instant during billing retry. */
+  gracePeriodExpiresDate?: number;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -295,6 +298,10 @@ export async function verifyAndDecodeAppleSsn(
           typeof ri.originalTransactionId === 'string' ? ri.originalTransactionId : undefined,
         expirationIntent:
           typeof ri.expirationIntent === 'number' ? ri.expirationIntent : undefined,
+        gracePeriodExpiresDate:
+          typeof ri.gracePeriodExpiresDate === 'number'
+            ? ri.gracePeriodExpiresDate
+            : undefined,
       };
     } catch (err) {
       logger.warn('apple_ssn_inner_renewal_decode_failed', {
@@ -345,7 +352,10 @@ export interface ApplyAppleEntitlementResult {
   /** `users/{uid}` doc id we resolved, or null when no match. */
   userId: string | null;
   /** What we wrote (status / expiryDate). null when action was noop or no user. */
-  applied: { status: 'active' | 'expired' | 'revoked'; expiryDate: string | null } | null;
+  applied: {
+    status: 'active' | 'grace_period' | 'expired' | 'revoked';
+    expiryDate: string | null;
+  } | null;
 }
 
 /**
@@ -380,7 +390,18 @@ export async function applyAppleEntitlement(
 ): Promise<ApplyAppleEntitlementResult> {
   const { payload, db } = input;
   const now = input.now ?? (() => new Date());
-  const action = actionForNotificationType(payload.notificationType);
+  const evaluatedAt = now();
+  const baseAction = actionForNotificationType(payload.notificationType);
+  const graceEndMs = payload.renewalInfo?.gracePeriodExpiresDate;
+  const action: AppleSsnAction =
+    baseAction === 'expire' &&
+    payload.notificationType === 'DID_FAIL_TO_RENEW' &&
+    payload.subtype === 'GRACE_PERIOD' &&
+    typeof graceEndMs === 'number' &&
+    Number.isFinite(graceEndMs) &&
+    graceEndMs > evaluatedAt.getTime()
+      ? 'grace'
+      : baseAction;
 
   if (action === 'noop') {
     return { action, userId: null, applied: null };
@@ -434,10 +455,15 @@ export async function applyAppleEntitlement(
     ? new Date(tx.expiresDate).toISOString()
     : null;
 
-  let status: 'active' | 'expired' | 'revoked';
+  let status: 'active' | 'grace_period' | 'expired' | 'revoked';
   if (action === 'grant') status = 'active';
+  else if (action === 'grace') status = 'grace_period';
   else if (action === 'revoke') status = 'revoked';
   else status = 'expired';
+  const gracePeriodEnd =
+    action === 'grace' && typeof graceEndMs === 'number'
+      ? new Date(graceEndMs).toISOString()
+      : null;
 
   // Mirror RTDN's update shape — same fields + `apple` provider tag so
   // ops can tell the two flows apart. NEVER overwrite the Google Play
@@ -446,10 +472,12 @@ export async function applyAppleEntitlement(
   const subscriptionUpdate: Record<string, unknown> = {
     'subscription.status': status,
     'subscription.expiryDate': expiryDate,
+    'subscription.gracePeriodEnd': gracePeriodEnd,
     'subscription.provider': 'app-store',
+    'subscription.paymentMethod': 'app-store',
     'subscription.appleOriginalTransactionId':
       originalTransactionId ?? null,
-    'subscription.updatedAt': now().toISOString(),
+    'subscription.updatedAt': evaluatedAt.toISOString(),
   };
   // Only a grant carries a (new) purchased cycle; revoke/expire must NOT
   // clobber the cycle the user originally bought.
