@@ -223,13 +223,13 @@ git diff -- firestore.rules src/rules-tests/deaLocations.rules.test.ts security_
 Confirm anonymous read remains, the test uses the real emulator harness, no
 secret is present, and no generated `firestore-debug.log` is staged.
 
-- [ ] **Step 4: Commit, push, and open a draft PR**
+- [x] **Step 4: Commit, push, and open a draft PR**
 
 Use conventional commits, push `codex/dea-location-ownership`, and create one
 draft PR against `main`. The PR body must link the Notion task, state the root
 cause, list exact verification, and call out universal anonymous DEA access.
 
-- [ ] **Step 5: Update Notion**
+- [x] **Step 5: Update Notion**
 
 Set the task to `Review`, attach the PR URL, record exact verification commands,
 and set `Estado E2E` from actual emulator evidence rather than assumption.
@@ -252,3 +252,8 @@ and set `Estado E2E` from actual emulator evidence rather than assumption.
 - Scope review: only `firestore.rules`, the DEA rules test, `security_spec.md`,
   and the two task plan/design documents are intended for the PR; generated
   emulator/build files remain unstaged.
+- Publication: draft PR #1265 opened against `main` at
+  `https://github.com/mikesandoval10creator/Guardian-Praeventio/pull/1265`.
+- Tracking: Notion task moved to `Review`, linked to PR #1265, populated with
+  reproducible verification commands, and set to `Estado E2E: Completa` from
+  the passing Firestore Emulator matrix.
