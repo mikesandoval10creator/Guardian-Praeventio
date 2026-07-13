@@ -171,7 +171,7 @@
     "react-qr-code": "^2.2.0",
     "react-router-dom": "^7.18.1",
     "react-window": "^2.2.7",
-    "react-zoom-pan-pinch": "^3.7.0",
+    "react-zoom-pan-pinch": "^4.0.3",
     "recharts": "^3.9.2",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
