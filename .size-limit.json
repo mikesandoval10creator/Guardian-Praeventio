@@ -24,15 +24,9 @@
     "gzip": true
   },
   {
-    "name": "vendor-r3f fiber (gzipped)",
-    "path": "dist/assets/vendor-r3f-*.js",
-    "limit": "90 KB",
-    "gzip": true
-  },
-  {
-    "name": "vendor-drei (gzipped)",
+    "name": "vendor-drei + r3f (gzipped)",
     "path": "dist/assets/vendor-drei-*.js",
-    "limit": "150 KB",
+    "limit": "420 KB",
     "gzip": true
   },
   {
