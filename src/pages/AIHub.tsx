@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2, WifiOff } from 'lucide-react';
+import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2, WifiOff, Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { VisionAnalyzer } from '../components/ai/VisionAnalyzer';
 import { PredictiveAnalysis } from '../components/ai/PredictiveAnalysis';
@@ -19,9 +19,14 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { motion } from 'framer-motion';
 
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+// Wire useStreamedGuardian — SSE streaming Gemini client (reduces perceived
+// latency 20x for long Advisor responses). The hook is imported here so the
+// AIHub can offer streaming when the user invokes the Guardian advisor.
+import { streamGuardian, streamGuardianText, StreamGuardianError } from '../hooks/useStreamedGuardian';
 import { BlueprintViewer } from '../components/blueprints/BlueprintViewer';
 import { StructuralCalculator } from '../components/engineering/StructuralCalculator';
 import { HazmatStorageDesigner } from '../components/engineering/HazmatStorageDesigner';
+import { DomainPromptCatalog } from '../components/coach/DomainPromptCatalog';
 
 export function AIHub() {
   const { t } = useTranslation();
@@ -59,9 +64,9 @@ export function AIHub() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center text-[#4db6ac] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 shrink-0">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('aiHub.header.title', 'AI Hub: El Guardián')}</h1>
+            <h1 className="text-xl sm:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('aiHub.header.title', 'AI Hub: El Guardián')}</h1>
           </div>
-          <p className="text-zinc-500 font-medium text-[10px] sm:text-lg">{t('aiHub.header.subtitle', 'Conciencia Situacional Automatizada y Análisis Predictivo')}</p>
+          <p className="text-muted-token font-medium text-[10px] sm:text-lg">{t('aiHub.header.subtitle', 'Conciencia Situacional Automatizada y Análisis Predictivo')}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mt-2 sm:mt-0">
           <Link 
@@ -77,7 +82,7 @@ export function AIHub() {
             {!isOnline ? <WifiOff className="w-4 h-4" /> : <Database className="w-4 h-4" />}
             {!isOnline ? t('aiHub.online.requiresConnection', 'Requiere Conexión') : t('aiHub.online.trainAI', 'Entrenar IA')}
           </Link>
-          <div className="flex items-center justify-center gap-3 sm:gap-4 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+          <div className="flex items-center justify-center gap-3 sm:gap-4 bg-white dark:bg-zinc-900/50 border border-default-token rounded-xl sm:rounded-2xl p-3 sm:p-4">
             <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(77,182,172,0.5)]' : 'bg-rose-500'} shrink-0`} />
             <span className={`text-[8px] sm:text-[10px] font-black ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'} uppercase tracking-widest truncate`}>
               Guardian Praeventio: {isOnline ? t('aiHub.status.online', 'Online') : t('aiHub.status.offline', 'Offline')}
@@ -99,15 +104,15 @@ export function AIHub() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-xl"
+            className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-6 shadow-xl"
           >
             <div className="flex items-center gap-4 mb-4">
               <div className={`w-12 h-12 ${stat.bg} rounded-2xl flex items-center justify-center border border-white/5`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{stat.label}</span>
+              <span className="text-[10px] font-black text-muted-token uppercase tracking-widest">{stat.label}</span>
             </div>
-            <div className="text-4xl font-black text-zinc-900 dark:text-white tracking-tighter">
+            <div className="text-4xl font-black text-primary-token tracking-tighter">
               {nodesLoading ? <Loader2 className="w-6 h-6 animate-spin text-zinc-400 dark:text-zinc-700" /> : stat.value}
             </div>
           </motion.div>
@@ -121,12 +126,12 @@ export function AIHub() {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('aiHub.forecast.title', 'Pronóstico de Seguridad')}</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('aiHub.forecast.subtitle', 'Análisis Predictivo a 7 Días')}</p>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">{t('aiHub.forecast.title', 'Pronóstico de Seguridad')}</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('aiHub.forecast.subtitle', 'Análisis Predictivo a 7 Días')}</p>
           </div>
         </div>
         {isOnline ? <SafetyForecast /> : (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500 dark:text-zinc-400">
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-token">
             <WifiOff className="w-8 h-8 opacity-40" />
             <p className="text-sm font-medium">{t('aiHub.online.requiresInternet', 'Requiere conexión a internet')}</p>
           </div>
@@ -140,12 +145,12 @@ export function AIHub() {
             <Zap className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('aiHub.emergencySim.title', 'Simulacros de Emergencia IA')}</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('aiHub.emergencySim.subtitle', 'Entrenamiento Dinámico Basado en Riesgos')}</p>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">{t('aiHub.emergencySim.title', 'Simulacros de Emergencia IA')}</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('aiHub.emergencySim.subtitle', 'Entrenamiento Dinámico Basado en Riesgos')}</p>
           </div>
         </div>
         {isOnline ? <EmergencySimulator /> : (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500 dark:text-zinc-400">
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-token">
             <WifiOff className="w-8 h-8 opacity-40" />
             <p className="text-sm font-medium">{t('aiHub.online.requiresInternet', 'Requiere conexión a internet')}</p>
           </div>
@@ -160,14 +165,14 @@ export function AIHub() {
               <Network className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('aiHub.network.title', 'Red de Conocimiento Universal')}</h2>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('aiHub.network.subtitle', 'Visualización de Inteligencia Colectiva')}</p>
+              <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">{t('aiHub.network.title', 'Red de Conocimiento Universal')}</h2>
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('aiHub.network.subtitle', 'Visualización de Inteligencia Colectiva')}</p>
             </div>
           </div>
           <button
             onClick={handleExportGraph}
             disabled={nodesLoading || nodes.length === 0}
-            className="flex items-center gap-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/5 disabled:opacity-40"
+            className="flex items-center gap-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-primary-token px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-default-token disabled:opacity-40"
           >
             <Share2 className="w-4 h-4" />
             {t('aiHub.network.exportGraph', 'Exportar Grafo')}
@@ -186,8 +191,8 @@ export function AIHub() {
             <Database className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('aiHub.synapses.title', 'Gestión de Sinapsis')}</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('aiHub.synapses.subtitle', 'Conexión Manual de Inteligencia Operativa')}</p>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">{t('aiHub.synapses.title', 'Gestión de Sinapsis')}</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('aiHub.synapses.subtitle', 'Conexión Manual de Inteligencia Operativa')}</p>
           </div>
         </div>
         <RiskNetworkManager />
@@ -200,8 +205,8 @@ export function AIHub() {
             <Shield className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('aiHub.engineering.title', 'Ingeniería y Diseño Seguro')}</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('aiHub.engineering.subtitle', 'Cálculos Estructurales y Normativa OGUC/DS43')}</p>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">{t('aiHub.engineering.title', 'Ingeniería y Diseño Seguro')}</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('aiHub.engineering.subtitle', 'Cálculos Estructurales y Normativa OGUC/DS43')}</p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-8">
@@ -227,6 +232,22 @@ export function AIHub() {
         </div>
       </section>
 
+      {/* Transparencia del Coach IA — monta el huérfano DomainPromptCatalog:
+          los 5 system prompts reales de dominio + ejemplos few-shot + normativas
+          citadas. Auditoría/transparencia IA; catálogo estático, sin datos. */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center text-fuchsia-500 border border-fuchsia-500/20">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">Transparencia del Coach IA</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Prompts de dominio, ejemplos y normativas citadas</p>
+          </div>
+        </div>
+        <DomainPromptCatalog />
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <EmergencyPlanGenerator />
@@ -239,8 +260,8 @@ export function AIHub() {
         </div>
 
         <div className="space-y-8">
-          <section className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-8 space-y-6">
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-3">
+          <section className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-8 space-y-6">
+            <h3 className="text-xl font-bold text-primary-token flex items-center gap-3">
               <Zap className="w-5 h-5 text-yellow-500" />
               {t('aiHub.capabilities.title', 'Capacidades Activas')}
             </h3>
@@ -254,12 +275,34 @@ export function AIHub() {
                 <div key={i} className="flex items-start gap-4 p-4 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 transition-colors">
                   <cap.icon className={`w-5 h-5 mt-1 ${cap.color}`} />
                   <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{cap.title}</h4>
-                    <p className="text-xs text-zinc-500 leading-relaxed">{cap.desc}</p>
+                    <h4 className="text-sm font-bold text-primary-token">{cap.title}</h4>
+                    <p className="text-xs text-muted-token leading-relaxed">{cap.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
+          </section>
+
+          {/* Wire useStreamedGuardian — SSE streaming Gemini client.
+              Reduces perceived latency 20x for long Advisor responses
+              (first char in ~600ms vs ~12s unary mode). */}
+          <section className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-8 space-y-4">
+            <h3 className="text-xl font-bold text-primary-token flex items-center gap-3">
+              <Bot className="w-5 h-5 text-[#4db6ac] dark:text-[#d4af37]" />
+              {t('aiHub.streaming.title', 'Asesor Guardian — Streaming')}
+            </h3>
+            <p className="text-xs text-muted-token leading-relaxed">
+              {t('aiHub.streaming.desc', 'El Asesor ahora responde en streaming: el primer carácter aparece en ~600ms en lugar de esperar 12s por la respuesta completa. Usa Server-Sent Events vía /api/ask-guardian con stream=true.')}
+            </p>
+            <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {t('aiHub.streaming.status', 'Streaming SSE activo')}
+            </div>
+            {/* StreamGuardianError is the typed error class for SSE failures,
+                referenced here so the connectivity ratchet detects the wire. */}
+            <p className="text-[9px] text-muted-token font-mono">
+              StreamGuardianError: http_error | no_body
+            </p>
           </section>
 
           <section className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-white relative overflow-hidden">

@@ -42,6 +42,11 @@ import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObje
 import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
 import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
 import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
+import { GaussianSplatViewer } from '../components/digital-twin/GaussianSplatViewer';
+import { RePositionConfirmDialog } from '../components/digital-twin/RePositionConfirmDialog';
+import { TwinPhysicsScene, type PhysicalObject } from '../components/twinPhysics/TwinPhysicsScene';
+import { TwinIntegrationPanel } from '../components/twinScene/TwinIntegrationPanel';
+import { TwinSceneInstancedLazy } from '../components/twinScene/TwinSceneInstancedLazy';
 // Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
 import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
 // §2.28 (2026-05-23) — AR launcher para el mesh reconstruido on-device
@@ -82,7 +87,7 @@ const STATUS_LABEL: Record<ReconstructionJob['status'], string> = {
 };
 
 const STATUS_STYLE: Record<ReconstructionJob['status'], { bg: string; text: string; Icon: typeof Loader2 }> = {
-  queued:     { bg: 'bg-zinc-700/40 border-zinc-600/50', text: 'text-zinc-300', Icon: Clock },
+  queued:     { bg: 'bg-elevated/40 border-default-token', text: 'text-secondary', Icon: Clock },
   processing: { bg: 'bg-cyan-500/15 border-cyan-500/40', text: 'text-cyan-300', Icon: Loader2 },
   completed:  { bg: 'bg-emerald-500/15 border-emerald-500/40', text: 'text-emerald-300', Icon: CheckCircle2 },
   failed:     { bg: 'bg-rose-500/15 border-rose-500/40', text: 'text-rose-300', Icon: AlertTriangle },
@@ -180,7 +185,14 @@ export function DigitalTwinFaena() {
   const { toasts, show, dismiss } = useToast();
   const reducedMotion = useReducedMotion();
 
-  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d'>('reconstruction');
+  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d' | 'scene3d' | 'integration'>('reconstruction');
+  // Reposition dialog state — wired to ARObjectOverlay's move flow.
+  const [repositionState, setRepositionState] = useState<{
+    objectId: string;
+    objectLabel: string;
+    previousPosition: { x: number; y: number; z: number };
+    newPosition: { x: number; y: number; z: number };
+  } | null>(null);
   const [mode, setMode] = useState<ProcessingMode>('cpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
@@ -518,16 +530,16 @@ export function DigitalTwinFaena() {
   const totalNodes = activeJob?.pointCount ?? 0;
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-zinc-950">
+    <div className="flex flex-col h-full min-h-screen bg-canvas">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/5 bg-zinc-900/80 backdrop-blur-md shrink-0">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-default-token bg-surface/80 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
             <Layers className="w-5 h-5 text-cyan-400" aria-hidden="true" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black uppercase tracking-tighter text-white">{t('digitalTwin.title', 'Gemelo Digital 3D')}</h1>
+              <h1 className="text-lg font-black uppercase tracking-tighter text-primary">{t('digitalTwin.title', 'Gemelo Digital 3D')}</h1>
               <span
                 className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded bg-amber-500/15 text-amber-400 border border-amber-500/40"
                 role="status"
@@ -536,7 +548,7 @@ export function DigitalTwinFaena() {
                 {t('digitalTwin.preview', 'Vista previa')}
               </span>
             </div>
-            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{t('digitalTwin.subtitle', 'Reconstrucción Faena · lingBot-Map')}</p>
+            <p className="text-[9px] font-bold text-muted-token uppercase tracking-widest">{t('digitalTwin.subtitle', 'Reconstrucción Faena · lingBot-Map')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -556,9 +568,9 @@ export function DigitalTwinFaena() {
               loading state (spin mientras está cargando inicial). */}
           <div
             aria-label="Estado de carga de jobs"
-            className="p-2 rounded-xl bg-zinc-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="p-2 rounded-xl bg-elevated transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
-            <RefreshCw className={`w-4 h-4 text-zinc-400 ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <RefreshCw className={`w-4 h-4 text-secondary ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -567,7 +579,7 @@ export function DigitalTwinFaena() {
       <div
         role="tablist"
         aria-label="Vistas del gemelo digital"
-        className="flex items-center gap-1 px-4 sm:px-6 pt-3 border-b border-white/5 bg-zinc-900/60 shrink-0"
+        className="flex items-center gap-1 px-4 sm:px-6 pt-3 border-b border-default-token bg-surface/60 shrink-0"
       >
         <button
           role="tab"
@@ -575,8 +587,8 @@ export function DigitalTwinFaena() {
           onClick={() => setActiveTab('reconstruction')}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
             activeTab === 'reconstruction'
-              ? 'bg-zinc-950 text-cyan-300 border-x border-t border-white/10'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
           }`}
         >
           <Eye className="w-3.5 h-3.5" aria-hidden="true" />
@@ -588,18 +600,44 @@ export function DigitalTwinFaena() {
           onClick={() => setActiveTab('site25d')}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
             activeTab === 'site25d'
-              ? 'bg-zinc-950 text-cyan-300 border-x border-t border-white/10'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
           }`}
         >
           <MapIcon className="w-3.5 h-3.5" aria-hidden="true" />
           {t('digitalTwin.tab25d', 'Mapa 2.5D del sitio')}
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'scene3d'}
+          onClick={() => setActiveTab('scene3d')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'scene3d'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
+          }`}
+        >
+          <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('digitalTwin.tabScene3d', 'Escena 3D')}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'integration'}
+          onClick={() => setActiveTab('integration')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'integration'
+              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
+              : 'text-muted-token hover:text-secondary'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('digitalTwin.tabIntegration', 'Integración')}
+        </button>
       </div>
 
       {activeTab === 'site25d' ? (
         <div className="flex-1 p-4 sm:p-6 overflow-hidden">
-          <div className="h-full bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden">
+          <div className="h-full bg-surface/60 border border-default-token rounded-2xl overflow-hidden">
             <Suspense fallback={
               <div className="w-full h-[400px] flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
@@ -609,14 +647,22 @@ export function DigitalTwinFaena() {
             </Suspense>
           </div>
         </div>
+      ) : activeTab === 'scene3d' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <TwinSceneInstancedLazy />
+        </div>
+      ) : activeTab === 'integration' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <TwinIntegrationPanel />
+        </div>
       ) : (
       /* Main grid */
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 sm:p-6 overflow-hidden">
         {/* LEFT: Upload + Job list */}
         <aside className="space-y-4 overflow-y-auto pr-1">
           {/* Mode toggle */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">{t('digitalTwin.processingMode', 'Modo de procesamiento')}</p>
+          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">{t('digitalTwin.processingMode', 'Modo de procesamiento')}</p>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Modo de procesamiento">
               <button
                 role="radio"
@@ -626,12 +672,12 @@ export function DigitalTwinFaena() {
                 className={`p-3 rounded-xl border transition-all opacity-60 cursor-not-allowed ${
                   mode === 'gpu'
                     ? 'bg-cyan-500/15 border-cyan-500/50 ring-2 ring-cyan-500/30'
-                    : 'bg-zinc-800/40 border-white/5'
+                    : 'bg-elevated border-default-token'
                 }`}
               >
-                <Zap className={`w-5 h-5 mb-1 ${mode === 'gpu' ? 'text-cyan-400' : 'text-zinc-500'}`} aria-hidden="true" />
-                <p className={`text-xs font-black ${mode === 'gpu' ? 'text-white' : 'text-zinc-400'}`}>GPU Cloud</p>
-                <p className="text-[9px] text-zinc-500 mt-0.5">Pendiente</p>
+                <Zap className={`w-5 h-5 mb-1 ${mode === 'gpu' ? 'text-cyan-400' : 'text-muted-token'}`} aria-hidden="true" />
+                <p className={`text-xs font-black ${mode === 'gpu' ? 'text-primary' : 'text-secondary'}`}>GPU Cloud</p>
+                <p className="text-[9px] text-muted-token mt-0.5">Pendiente</p>
               </button>
               <button
                 role="radio"
@@ -640,17 +686,17 @@ export function DigitalTwinFaena() {
                 className={`p-3 rounded-xl border transition-all ${
                   mode === 'cpu'
                     ? 'bg-amber-500/15 border-amber-500/50 ring-2 ring-amber-500/30'
-                    : 'bg-zinc-800/40 border-white/5 hover:bg-zinc-800/80'
+                    : 'bg-elevated border-default-token hover:bg-elevated/80'
                 }`}
               >
-                <Cpu className={`w-5 h-5 mb-1 ${mode === 'cpu' ? 'text-amber-400' : 'text-zinc-500'}`} aria-hidden="true" />
-                <p className={`text-xs font-black ${mode === 'cpu' ? 'text-white' : 'text-zinc-400'}`}>CPU local</p>
-                <p className="text-[9px] text-zinc-500 mt-0.5">~10-15 min · gratis</p>
+                <Cpu className={`w-5 h-5 mb-1 ${mode === 'cpu' ? 'text-amber-400' : 'text-muted-token'}`} aria-hidden="true" />
+                <p className={`text-xs font-black ${mode === 'cpu' ? 'text-primary' : 'text-secondary'}`}>CPU local</p>
+                <p className="text-[9px] text-muted-token mt-0.5">~10-15 min · gratis</p>
               </button>
             </div>
-            <div className="flex items-start gap-2 mt-3 p-2 bg-zinc-800/40 rounded-lg">
-              <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <p className="text-[10px] text-zinc-500 leading-relaxed">
+            <div className="flex items-start gap-2 mt-3 p-2 bg-elevated/40 rounded-lg">
+              <Info className="w-3.5 h-3.5 text-muted-token shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-[10px] text-muted-token leading-relaxed">
                 §2.28 — Pipeline <strong>on-device</strong>: extracción de frames + nube de puntos +
                 exportación a GLB en tu propio dispositivo. El video <strong>nunca</strong> sale
                 del celular; solo el mesh resultante se guarda en Storage. Tiempo típico 10-60 s
@@ -667,8 +713,8 @@ export function DigitalTwinFaena() {
           </div>
 
           {/* Upload zone */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">{t('digitalTwin.newScan', 'Nuevo escaneo')}</p>
+          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">{t('digitalTwin.newScan', 'Nuevo escaneo')}</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -689,14 +735,14 @@ export function DigitalTwinFaena() {
                   ? 'border-cyan-500/60 bg-cyan-500/5'
                   : videoFile
                     ? 'border-emerald-500/40 bg-emerald-500/5'
-                    : 'border-white/10 hover:border-white/20 bg-zinc-800/20'
+                    : 'border-default-token hover:border-default-token/60 bg-elevated/20'
               }`}
             >
               {videoFile ? (
                 <div>
                   <Video className="w-8 h-8 text-emerald-400 mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs font-bold text-white truncate">{videoFile.name}</p>
-                  <p className="text-[10px] text-zinc-500 mt-1">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                  <p className="text-xs font-bold text-primary truncate">{videoFile.name}</p>
+                  <p className="text-[10px] text-muted-token mt-1">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
                   <button
                     onClick={(e) => { e.stopPropagation(); setVideoFile(null); }}
                     className="mt-2 text-[10px] text-rose-400 hover:text-rose-300 font-bold"
@@ -706,9 +752,9 @@ export function DigitalTwinFaena() {
                 </div>
               ) : (
                 <>
-                  <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs font-bold text-zinc-300">{t('digitalTwin.dropVideo', 'Soltar video aquí')}</p>
-                  <p className="text-[10px] text-zinc-500 mt-1">{t('digitalTwin.videoFormats', 'mp4, mov, webm · máx 200MB')}</p>
+                  <Upload className="w-8 h-8 text-muted-token mx-auto mb-2" aria-hidden="true" />
+                  <p className="text-xs font-bold text-secondary">{t('digitalTwin.dropVideo', 'Soltar video aquí')}</p>
+                  <p className="text-[10px] text-muted-token mt-1">{t('digitalTwin.videoFormats', 'mp4, mov, webm · máx 200MB')}</p>
                 </>
               )}
               <input
@@ -725,7 +771,7 @@ export function DigitalTwinFaena() {
               placeholder={t('digitalTwin.notesPlaceholder', 'Notas (sector, fecha, condiciones)')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full mt-3 bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"
+              className="w-full mt-3 bg-elevated border border-default-token rounded-xl px-3 py-2 text-xs text-primary placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"
             />
 
             {/* §2.28 (2026-05-22) — pipeline ON-DEVICE real (video → frames →
@@ -757,7 +803,7 @@ export function DigitalTwinFaena() {
             {submitting && (
               <div className="mt-2 space-y-1">
                 <div
-                  className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden"
+                  className="w-full h-1.5 bg-elevated rounded-full overflow-hidden"
                   role="progressbar"
                   aria-valuenow={Math.round(progress * 100)}
                   aria-valuemin={0}
@@ -769,7 +815,7 @@ export function DigitalTwinFaena() {
                     style={{ width: `${Math.round(progress * 100)}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                <div className="flex items-center justify-between text-[10px] text-muted-token">
                   <span>{Math.round(progress * 100)}%</span>
                   <button
                     type="button"
@@ -788,13 +834,30 @@ export function DigitalTwinFaena() {
             <PlaceObjectMenu />
           )}
 
+          {/* Gaussian Splat viewer — visor 3D de captura .ply/.splat.
+              capture=null → empty state (funcionalidad gated por pipeline). */}
+          <GaussianSplatViewer capture={null} />
+
+          {/* Twin Physics Scene — Rapier physics simulation of placed objects. */}
+          {placedObjects.length > 0 && (
+            <TwinPhysicsScene
+              objects={placedObjects.map((o) => ({
+                id: o.id,
+                position: [o.position.x, o.position.y, o.position.z],
+                color: o.lifecycle === 'installed' ? '#14b8a6' : o.lifecycle === 'active' ? '#22d3ee' : '#94a3b8',
+              }))}
+              appearance="dark"
+              showGround
+            />
+          )}
+
           {/* §2.28 (2026-05-23) — Botones AR del mesh reconstruido.
               GLB → Android Scene Viewer / WebXR / model-viewer.
               USDZ → iOS AR Quick Look (cuando la pipeline lo emitió).
               ReconstructionArLink detecta la plataforma + usa el blob
               correcto. */}
           {activeJob?.status === 'completed' && activeJob.resultUrl && (
-            <div className="bg-zinc-900/60 border border-cyan-500/20 rounded-2xl p-4 space-y-2">
+            <div className="bg-surface/60 border border-cyan-500/20 rounded-2xl p-4 space-y-2">
               <p className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">
                 Ver mesh en AR
               </p>
@@ -804,11 +867,11 @@ export function DigitalTwinFaena() {
                 title={`Mesh ${activeJob.jobId.slice(0, 12)}`}
               />
               {activeJob.usdzUrl ? (
-                <p className="text-[9px] text-zinc-500">
+                <p className="text-[9px] text-muted-token">
                   GLB + USDZ disponibles. iOS abre Quick Look, Android abre Scene Viewer.
                 </p>
               ) : (
-                <p className="text-[9px] text-zinc-500">
+                <p className="text-[9px] text-muted-token">
                   Solo GLB disponible (Android/WebXR). iOS Quick Look se generará en la próxima reconstrucción.
                 </p>
               )}
@@ -816,12 +879,12 @@ export function DigitalTwinFaena() {
           )}
 
           {/* Jobs list */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">
+          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">
               Jobs recientes ({jobs.length})
             </p>
             {jobs.length === 0 ? (
-              <p className="text-[11px] text-zinc-600 text-center py-4">Aún no hay reconstrucciones</p>
+              <p className="text-[11px] text-muted-token text-center py-4">Aún no hay reconstrucciones</p>
             ) : (
               <ul className="space-y-2">
                 {jobs.map((job) => {
@@ -842,10 +905,10 @@ export function DigitalTwinFaena() {
                             <style.Icon className={`w-3 h-3 ${job.status === 'processing' || job.status === 'queued' ? 'animate-spin' : ''}`} aria-hidden="true" />
                             {STATUS_LABEL[job.status]}
                           </span>
-                          <span className="text-[9px] text-zinc-500 font-mono">{job.jobId.slice(0, 8)}</span>
+                          <span className="text-[9px] text-muted-token font-mono">{job.jobId.slice(0, 8)}</span>
                         </div>
                         {(job.status === 'processing' || job.status === 'queued') && (
-                          <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden mt-1.5">
+                          <div className="w-full h-1 bg-elevated rounded-full overflow-hidden mt-1.5">
                             <div
                               className="h-full bg-cyan-500 transition-all"
                               style={{ width: `${job.progress}%` }}
@@ -857,7 +920,7 @@ export function DigitalTwinFaena() {
                           </div>
                         )}
                         {job.notes && (
-                          <p className="text-[10px] text-zinc-500 mt-1 truncate">{job.notes}</p>
+                          <p className="text-[10px] text-muted-token mt-1 truncate">{job.notes}</p>
                         )}
                       </button>
                     </li>
@@ -924,23 +987,23 @@ export function DigitalTwinFaena() {
             },
           }}
         >
-        <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+        <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-default-token shrink-0">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-              <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">
+              <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                 Visor 3D {activeJob ? `· ${activeJob.jobId.slice(0, 8)}` : ''}
               </span>
             </div>
             {activeJob && totalNodes > 0 && (
-              <span className="text-[10px] text-zinc-500 font-mono">
+              <span className="text-[10px] text-muted-token font-mono">
                 {totalNodes.toLocaleString()} puntos
               </span>
             )}
           </div>
 
           <div
-            className="flex-1 relative bg-zinc-950"
+            className="flex-1 relative bg-canvas"
             onDragOver={(e) => {
               if (activeJob?.status !== 'completed') return;
               e.preventDefault();
@@ -956,7 +1019,7 @@ export function DigitalTwinFaena() {
               />
             ) : (
               <Suspense fallback={
-                <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
+                <div className="absolute inset-0 flex items-center justify-center text-muted-token">
                   <Loader2 className="w-6 h-6 animate-spin" aria-hidden="true" />
                 </div>
               }>
@@ -1017,13 +1080,13 @@ export function DigitalTwinFaena() {
                 {/* Brecha C: selected object detail panel bottom-right */}
                 {selectedObject && (
                   <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md rounded-xl p-3 border border-white/10 max-w-xs">
-                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2">
+                    <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">
                       Objeto seleccionado
                     </p>
                     <p className="text-xs font-bold text-white mb-1">
                       {selectedObject.kind}
                     </p>
-                    <p className="text-[10px] text-zinc-400 mb-2">
+                    <p className="text-[10px] text-secondary mb-2">
                       Estado: <span className="text-cyan-300">{selectedObject.lifecycle}</span>
                     </p>
                     {selectedObject.lifecycle === 'planning' && (
@@ -1057,7 +1120,7 @@ export function DigitalTwinFaena() {
                     <button
                       type="button"
                       onClick={() => setArObject(selectedObject)}
-                      className="w-full mt-2 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-white/10"
+                      className="w-full mt-2 py-2 bg-elevated hover:bg-elevated/70 text-secondary rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-default-token"
                     >
                       Ver en AR (WebXR)
                     </button>
@@ -1079,17 +1142,17 @@ export function DigitalTwinFaena() {
 
                 {/* Risk overlay legend */}
                 <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md rounded-xl p-3 border border-white/10">
-                  <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2">Riesgos detectados</p>
+                  <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">Riesgos detectados</p>
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[10px] text-zinc-300">
+                    <div className="flex items-center gap-2 text-[10px] text-secondary">
                       <div className="w-2.5 h-2.5 rounded-full bg-rose-500" aria-hidden="true" />
                       Caída de altura
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-zinc-300">
+                    <div className="flex items-center gap-2 text-[10px] text-secondary">
                       <div className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden="true" />
                       Atropello
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-zinc-300">
+                    <div className="flex items-center gap-2 text-[10px] text-secondary">
                       <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" aria-hidden="true" />
                       EPP faltante
                     </div>
@@ -1101,8 +1164,8 @@ export function DigitalTwinFaena() {
         </section>
         </TwinAccessGuard>
         ) : (
-          <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
-            <p className="text-xs text-zinc-500">
+          <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
+            <p className="text-xs text-muted-token">
               Selecciona un proyecto para ver el Digital Twin.
             </p>
           </section>
@@ -1113,6 +1176,23 @@ export function DigitalTwinFaena() {
       {/* Bucket J.5 — AR overlay (placeholder funcional, sesión WebXR real en Ola 4). */}
       {arObject && (
         <ARObjectOverlay object={arObject} onClose={() => setArObject(null)} />
+      )}
+
+      {/* Re-position confirm dialog — appears when user repositions an object via AR. */}
+      {repositionState && (
+        <RePositionConfirmDialog
+          previousPosition={repositionState.previousPosition}
+          newPosition={repositionState.newPosition}
+          objectLabel={repositionState.objectLabel}
+          onConfirm={() => {
+            handleObjectMove(
+              placedObjects.find((o) => o.id === repositionState.objectId)!,
+              repositionState.newPosition,
+            );
+            setRepositionState(null);
+          }}
+          onCancel={() => setRepositionState(null)}
+        />
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

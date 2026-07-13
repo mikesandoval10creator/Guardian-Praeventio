@@ -132,7 +132,7 @@ export function Documents() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('documents.title', 'Gestión Documental')}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('documents.title', 'Gestión Documental')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('documents.subtitle', 'Repositorio Central de Evidencia y Cumplimiento')}
           </p>
@@ -169,14 +169,14 @@ export function Documents() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 flex items-center gap-4 shadow-sm"
+            className="bg-surface border border-subtle-token rounded-3xl p-6 flex items-center gap-4 shadow-sm"
           >
             <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center border border-white/5`}>
               <stat.icon className={`w-6 h-6 ${stat.color}`} />
             </div>
             <div>
               <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{stat.label}</p>
-              <p className="text-xl font-black text-zinc-900 dark:text-white tracking-tight">{stat.value}</p>
+              <p className="text-xl font-black text-primary-token tracking-tight">{stat.value}</p>
             </div>
           </motion.div>
         ))}
@@ -204,7 +204,7 @@ export function Documents() {
             placeholder={t('documents.searchPlaceholder', 'Buscar documentos...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+            className="w-full bg-surface border border-default-token rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
@@ -215,7 +215,7 @@ export function Documents() {
               className={`px-4 sm:px-6 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                 activeCategory === cat 
                   ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20' 
-                  : 'bg-white dark:bg-zinc-900/50 text-zinc-500 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:text-zinc-900 dark:hover:text-white shadow-sm'
+                  : 'bg-surface text-zinc-500 border-subtle-token hover:border-zinc-300 dark:hover:border-white/10 hover:text-zinc-900 dark:hover:text-white shadow-sm'
               }`}
             >
               {cat}
@@ -225,11 +225,11 @@ export function Documents() {
       </div>
 
       {/* Documents List */}
-      <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-2xl sm:rounded-[2.5rem] overflow-hidden shadow-sm">
+      <div className="bg-surface/30 border border-subtle-token rounded-2xl sm:rounded-[2.5rem] overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
-              <tr className="border-b border-zinc-200 dark:border-white/5">
+              <tr className="border-b border-subtle-token">
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.fileName', 'Nombre del Archivo')}</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.category', 'Categoría')}</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.version', 'Versión')}</th>
@@ -254,11 +254,11 @@ export function Documents() {
                         className="flex items-center gap-2 sm:gap-3 cursor-pointer"
                         onClick={() => navigate(`/documents/${doc.id}`)}
                       >
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-white/5 shrink-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-elevated flex items-center justify-center border border-subtle-token shrink-0">
                           <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-tight hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate">{doc.name}</p>
+                          <p className="text-xs sm:text-sm font-bold text-primary-token uppercase tracking-tight hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate">{doc.name}</p>
                           <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest truncate">{doc.type || 'Documento IA'}</p>
                         </div>
                       </div>
@@ -296,7 +296,7 @@ export function Documents() {
                         <Tooltip content="Ver Documento">
                           <button
                             onClick={() => navigate(`/documents/${doc.id}`)}
-                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all"
                             aria-label={`Ver documento ${doc.name}`}
                           >
                             <FileText className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
@@ -308,7 +308,7 @@ export function Documents() {
                               href={doc.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                              className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all"
                               aria-label={`Descargar archivo original de ${doc.name}`}
                             >
                               <Download className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
@@ -327,7 +327,7 @@ export function Documents() {
                               e.stopPropagation();
                               setActiveDropdown(activeDropdown === doc.id ? null : doc.id);
                             }}
-                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all"
                             aria-label={`Más opciones para ${doc.name}`}
                             aria-haspopup="menu"
                             aria-expanded={activeDropdown === doc.id}
@@ -341,7 +341,7 @@ export function Documents() {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                 transition={{ duration: 0.15 }}
-                                className="absolute right-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                                className="absolute right-0 mt-1 w-32 bg-elevated border border-default-token rounded-xl shadow-xl z-20 overflow-hidden"
                               >
                                 <button 
                                   onClick={(e) => {
@@ -350,7 +350,7 @@ export function Documents() {
                                     setIsEditing(true);
                                     setActiveDropdown(null);
                                   }}
-                                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
+                                  className="w-full text-left px-4 py-2.5 text-xs text-secondary-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
                                 >
                                   {t('documents.edit', 'Editar')}
                                 </button>
@@ -360,7 +360,7 @@ export function Documents() {
                                     setSelectedVersionDocId(doc.id);
                                     setActiveDropdown(null);
                                   }}
-                                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2.5 text-xs text-secondary-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                                 >
                                   <History className="w-3 h-3" />
                                   {t('documents.versionHistory', 'Historial')}
@@ -442,28 +442,28 @@ export function Documents() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
-              className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-emerald-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col max-h-[85vh]"
+              className="relative bg-surface border border-zinc-200 dark:border-emerald-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col max-h-[85vh]"
             >
-              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-emerald-50 dark:bg-gradient-to-r dark:from-emerald-500/10 dark:to-transparent shrink-0">
+              <div className="p-6 border-b border-subtle-token flex items-center justify-between bg-emerald-50 dark:bg-gradient-to-r dark:from-emerald-500/10 dark:to-transparent shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-500 shrink-0">
                     <History className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.versionHistoryTitle', 'Historial de Versiones')}</h2>
+                    <h2 className="text-lg font-black text-primary-token uppercase tracking-tight truncate">{t('documents.versionHistoryTitle', 'Historial de Versiones')}</h2>
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">{t('documents.versionHistorySubtitle', 'Cadena de control documental')}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedVersionDocId(null)}
-                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0"
+                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors text-muted-token hover:text-zinc-900 dark:hover:text-white shrink-0"
                   aria-label={t('common.close', 'Cerrar')}
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-zinc-900 space-y-4">
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-surface space-y-4">
                 {versionChain.loading ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
@@ -480,10 +480,10 @@ export function Documents() {
                       .sort((a, b) => b.versionId.localeCompare(a.versionId, undefined, { numeric: true }))
                       .map((v, i) => {
                         const statusColors: Record<VersionStatus, string> = {
-                          draft: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300',
+                          draft: 'bg-elevated text-secondary-token',
                           in_review: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
                           approved: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                          superseded: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500',
+                          superseded: 'bg-elevated text-muted-token',
                           retired: 'bg-red-500/10 text-red-500',
                         };
                         const statusLabels: Record<VersionStatus, string> = {
@@ -499,19 +499,19 @@ export function Documents() {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.05 }}
-                            className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-white/[0.02] border border-zinc-200 dark:border-white/5 hover:border-emerald-500/30 dark:hover:border-emerald-500/20 transition-colors"
+                            className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-white/[0.02] border border-subtle-token hover:border-emerald-500/30 dark:hover:border-emerald-500/20 transition-colors"
                           >
                             <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
                               <GitBranch className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-black text-zinc-900 dark:text-white">v{v.versionId}</span>
+                                <span className="text-sm font-black text-primary-token">v{v.versionId}</span>
                                 <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusColors[v.status]}`}>
                                   {statusLabels[v.status]}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 truncate">{v.changeNotes || t('documents.noChangeNotes', 'Sin notas de cambio')}</p>
+                              <p className="text-[10px] text-muted-token mt-1 truncate">{v.changeNotes || t('documents.noChangeNotes', 'Sin notas de cambio')}</p>
                               <p className="text-[9px] text-zinc-400 dark:text-zinc-600 mt-1 uppercase tracking-wider">
                                 {new Date(v.createdAt).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                               </p>
@@ -535,13 +535,13 @@ export function Documents() {
                 )}
 
                 {versionChangelog.data?.changelog?.length ? (
-                  <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                  <div className="pt-4 border-t border-subtle-token">
                     <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">{t('documents.changelog', 'Registro de cambios')}</h3>
                     <div className="space-y-2">
                       {versionChangelog.data.changelog.map((entry) => (
                         <div key={entry.versionId} className="flex items-start gap-2 text-[10px]">
-                          <span className="font-black text-zinc-900 dark:text-white shrink-0">v{entry.versionId}</span>
-                          <span className="text-zinc-500 dark:text-zinc-400 truncate">{entry.changeNotes}</span>
+                          <span className="font-black text-primary-token shrink-0">v{entry.versionId}</span>
+                          <span className="text-muted-token truncate">{entry.changeNotes}</span>
                         </div>
                       ))}
                     </div>
@@ -549,7 +549,7 @@ export function Documents() {
                 ) : null}
               </div>
 
-              <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0">
+              <div className="p-6 border-t border-subtle-token bg-zinc-50 dark:bg-zinc-900/50 shrink-0">
                 <button
                   onClick={() => setSelectedVersionDocId(null)}
                   className="w-full px-4 py-3 rounded-xl text-xs font-black text-zinc-600 dark:text-white uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-white/5 transition-colors"

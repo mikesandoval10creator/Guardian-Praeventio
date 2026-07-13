@@ -37,6 +37,11 @@ const LoneWorkerMonitor = lazy(() => import('../pages/LoneWorkerMonitor').then(m
 // /executive-dashboard as a stopgap).
 const SifPrecursors = lazy(() => import('../pages/SifPrecursors').then(module => ({ default: module.SifPrecursors })));
 const HazmatInventoryPage = lazy(() => import('../pages/HazmatInventoryPage').then(module => ({ default: module.HazmatInventoryPage })));
+// Bloque D Rama 2 — wire the orphan contingency-simulation surface. The
+// server router (src/server/routes/contingencySimulation.ts) + client hook
+// (src/hooks/useContingencySimulation.ts) existed with no page/route;
+// ContingencySimulationPage closes the gap (tabletop drills, no real risk).
+const ContingencySimulationPage = lazy(() => import('../pages/ContingencySimulationPage').then(module => ({ default: module.ContingencySimulationPage })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -59,4 +64,5 @@ export const EmergencyRoutes = [
   <Route key="lone-worker" path="lone-worker" element={<LoneWorkerMonitor />} />,
   <Route key="first-responder-map" path="first-responder-map" element={<FirstResponderMap />} />,
   <Route key="sif" path="sif" element={<SifPrecursors />} />,
+  <Route key="contingency-simulation" path="contingency-simulation" element={<ContingencySimulationPage />} />,
 ];

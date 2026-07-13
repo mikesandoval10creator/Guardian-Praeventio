@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -37,9 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -55,9 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -71,18 +71,23 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
 
   test:
-    name: Tests
+    name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
-    # Global safety cap (2026-05-29): a flaky vitest hang previously ran to
-    # GitHub's 6h default, hogging a runner and saturating the queue so that
-    # green-but-for-Tests PRs could not merge. 30 min is well above the
-    # healthy runtime (~12-15 min) so it only fires on a genuine hang.
-    # Applied to every job below as defensive hygiene.
+    # fix/ci-tests-unblock-deploy-2026-06-22 — the full suite grew to ~14 min
+    # total (>1 500 test files), which caused the previous single-job 14-min
+    # watchdog to fire on EVERY run (both attempts). Root cause: SLOW, not a
+    # true hang. Fix: 4-way matrix shard; each shard runs ~3-4 min, well inside
+    # the 10-min watchdog below. The `test-pass` aggregator job (below) is
+    # `needs`-ed by downstream jobs so the gate still holds.
     timeout-minutes: 30
+    strategy:
+      fail-fast: true   # fail all shards if one shard has test failures
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -90,25 +95,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # AUDIT-2026-06 — vitest's pool occasionally freezes mid-queue after a
-      # worker force-kill (tests stop being scheduled, no output, job dies at
-      # the 30-min cap; 4 occurrences on 2026-06-10 alone). Healthy runs
-      # finish in ~6 min, so a 14-min watchdog + ONE retry converts a 30-min
-      # hang + manual re-kick into an automatic in-job recovery. Genuine test
-      # failures exit non-124 and are NOT retried.
-      - name: Run vitest (hang watchdog + one retry)
+      # Each shard runs 1/4 of the test files. vitest's --shard flag splits
+      # the file list deterministically by index, so coverage is complete
+      # across the 4 shards. The 10-min watchdog is generous for a ~3-4 min
+      # shard; a real freeze (not slow runtime) still fails fast.
+      - name: Run vitest shard ${{ matrix.shard }}/4
         run: |
           set +e
-          timeout 14m npm run test:ci
+          timeout 10m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
+            --test-timeout=30000 \
+            --shard=${{ matrix.shard }}/4
           rc=$?
           if [ $rc -eq 124 ]; then
-            echo "::warning::vitest pool hang detected (>14m, known force-kill freeze) — retrying once"
-            timeout 14m npm run test:ci
+            echo "::warning::vitest shard ${{ matrix.shard }}/4 pool hang detected (>10m) — retrying once"
+            timeout 10m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
+              --test-timeout=30000 \
+              --shard=${{ matrix.shard }}/4
             rc=$?
           fi
           exit $rc
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+
+  # Aggregator: downstream jobs (build, deploy) need a single gate.
+  # All 4 shards must pass before this job turns green.
+  test-pass:
+    name: Tests (all shards passed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test
+    steps:
+      - run: echo "All test shards passed"
 
   validate-env:
     # Bucket U.5 — env-var shape check. We use --mode test so this job
@@ -120,9 +137,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -134,9 +151,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -179,9 +196,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -219,11 +236,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -253,9 +270,9 @@ jobs:
     timeout-minutes: 30
     needs: typecheck
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'

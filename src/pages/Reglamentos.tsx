@@ -31,7 +31,7 @@ export const Reglamentos: React.FC = () => {
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">{t('reglamentos.title', 'Reglamentos internos')}</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-secondary-token">
           {t('reglamentos.subtitle', 'Genera PDFs firmables electrónicamente para DS 67/1999 (Higiene y Seguridad) y DS 76/2007 (Subcontratación Mining). Cada PDF lleva folio único, hash SHA-256 y firma simple Ley 19.799.')}
         </p>
       </header>

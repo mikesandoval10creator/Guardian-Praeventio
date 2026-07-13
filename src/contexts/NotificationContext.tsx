@@ -2,12 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
-import { doc, onSnapshot, collection, query, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { useFirebase } from './FirebaseContext';
 import { db } from '../services/firebase';
 
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
+import { dedupeNotifications } from '../utils/notificationDedup';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -37,6 +38,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { user } = useFirebase();
   const [isCrisisMode, setIsCrisisMode] = useState(false);
 
+  // Latest isCrisisMode without re-subscribing message/notification listeners.
+  // Reading the ref inside handlers avoids re-running effects (and stacking
+  // duplicate onMessage listeners) every time crisis mode toggles.
+  const isCrisisModeRef = useRef(isCrisisMode);
+  useEffect(() => {
+    isCrisisModeRef.current = isCrisisMode;
+  }, [isCrisisMode]);
+
+  // Notifications are persisted PER PROJECT so one project's items never bleed
+  // into another's list. Falls back to a global key before a project is picked.
+  const storageKey = selectedProject?.id
+    ? `praeventio_notifications_${selectedProject.id}`
+    : 'praeventio_notifications';
+  // Tracks which storageKey the current `notifications` were loaded for, so the
+  // save effect never writes the previous project's items under the new key
+  // during the async project switch.
+  const loadedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!selectedProject?.id) return undefined;
     const projectRef = doc(db, 'projects', selectedProject.id);
@@ -51,10 +70,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
+    let active = true;
     const loadNotifications = async () => {
-      const saved = await get('praeventio_notifications');
+      const saved = await get(storageKey);
+      if (!active) return;
+      loadedKeyRef.current = storageKey;
       if (saved) {
-        setNotifications(saved as Notification[]);
+        // Collapse any historical duplicates already on disk (the bug that
+        // produced "9 identical notifications") on the way in.
+        setNotifications(dedupeNotifications(saved as Notification[]));
       } else {
         setNotifications([
           { id: '1', title: 'Bienvenido a Praeventio Guard', message: 'Tu sistema de gestión de seguridad está listo.', type: 'success', time: 'Ahora', read: false, createdAt: Date.now() }
@@ -62,51 +86,77 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
     loadNotifications();
-  }, []);
+    return () => { active = false; };
+  }, [storageKey]);
 
   useEffect(() => {
+    // Guard: don't persist until the load for THIS key has completed, otherwise
+    // a project switch would write the old list under the new project's key.
+    if (loadedKeyRef.current !== storageKey) return;
     if (notifications.length > 0) {
-      set('praeventio_notifications', notifications);
+      set(storageKey, notifications);
     }
-  }, [notifications]);
+  }, [notifications, storageKey]);
 
   useEffect(() => {
+    let cancelled = false;
+    let unsubMessage: (() => void) | undefined;
+
     const setupMessaging = async () => {
       try {
         const messaging = await getMessagingInstance();
-        if (!messaging) return;
+        if (!messaging || cancelled) return;
 
         // Request permission and get token
         const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-          const token = await getToken(messaging, vapidKey ? { vapidKey } : undefined);
-          // Persist token so server can send targeted pushes
-          if (token && user?.uid) {
-            try {
-              await updateDoc(doc(db, 'users', user.uid), { fcmToken: token });
-            } catch {} // non-critical
-          }
-          
-          // Handle incoming messages when app is in foreground
-          onMessage(messaging, (payload) => {
-            logger.debug('Message received. ', payload as unknown as Record<string, unknown>);
-            if (!isCrisisMode) {
-              addNotification({
-                title: payload.notification?.title || 'Nueva Notificación',
-                message: payload.notification?.body || '',
-                type: 'info'
-              });
-            }
-          });
+        if (permission !== 'granted' || cancelled) return;
+
+        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+        const token = await getToken(messaging, vapidKey ? { vapidKey } : undefined);
+        // Register the token via the server endpoint so it lands in
+        // users/{uid}.fcmTokens[] — the SAME array the send path (fcmAdapter)
+        // reads. The old direct write to a singular `fcmToken` field was dead
+        // (nothing read it), so web push never actually reached the device.
+        // The endpoint arrayUnions the token, writes an audit row, and stamps
+        // identity from the verified token (src/server/routes/push.ts).
+        // Best-effort: a failed registration must never break messaging setup.
+        if (token && user?.uid) {
+          try {
+            const { apiAuthHeaders } = await import('../lib/apiAuth');
+            await fetch('/api/push/register-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(await apiAuthHeaders()) },
+              body: JSON.stringify({ token, platform: 'web' }),
+            });
+          } catch { /* non-critical: push registration is best-effort */ }
         }
+        if (cancelled) return;
+
+        // Handle incoming messages when app is in foreground. We register the
+        // listener ONCE and capture its unsubscribe — previously this effect
+        // re-ran on every isCrisisMode toggle and stacked listeners, so a single
+        // push was handled N times → N identical notifications. Crisis state is
+        // read from the ref so we never need to re-subscribe.
+        unsubMessage = onMessage(messaging, (payload) => {
+          logger.debug('Message received. ', payload as unknown as Record<string, unknown>);
+          if (isCrisisModeRef.current) return; // radio silence
+          addNotification({
+            title: payload.notification?.title || 'Nueva Notificación',
+            message: payload.notification?.body || '',
+            type: 'info'
+          });
+        });
       } catch (error) {
         logger.error('Error setting up Firebase Messaging:', error);
       }
     };
 
     setupMessaging();
-  }, [isCrisisMode]);
+    return () => {
+      cancelled = true;
+      if (unsubMessage) unsubMessage();
+    };
+  }, [user?.uid]);
 
   // Track Firestore notification IDs already surfaced to avoid re-showing on re-subscribe
   const processedFirestoreIds = useRef<Set<string>>(new Set());
@@ -137,7 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           read: false,
           createdAt: Date.now(),
         };
-        setNotifications(prev => prev.some(n => n.id === docId) ? prev : [notification, ...prev]);
+        setNotifications(prev => prev.some(n => n.id === docId) ? prev : dedupeNotifications([notification, ...prev]));
       });
     }, () => {}); // silent error — non-critical feature
 
@@ -156,7 +206,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   const addNotification = useCallback((n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
-    if (isCrisisMode) return; // Radio silence mode
+    if (isCrisisModeRef.current) return; // Radio silence mode
 
     const newNotification: Notification = {
       ...n,
@@ -165,13 +215,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       read: false,
       createdAt: Date.now()
     };
-    setNotifications(prev => [newNotification, ...prev]);
-    
+    // Dedupe by content: if an identical notification already exists it collapses
+    // into the newest one instead of stacking a visual duplicate.
+    setNotifications(prev => dedupeNotifications([newNotification, ...prev]));
+
     // Trigger Push Notification if supported
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(n.title, { body: n.message });
     }
-  }, [isCrisisMode]);
+  }, []);
 
   const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

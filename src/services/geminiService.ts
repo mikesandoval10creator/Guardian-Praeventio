@@ -1,6 +1,7 @@
 import { auth } from './firebase';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
+import type { SafetyVisualSpec, SafetyVisualResult } from './gemini/imageGen';
 
 const callGeminiAPI = async (action: string, args: any[]) => {
   try {
@@ -34,6 +35,8 @@ const callGeminiAPI = async (action: string, args: any[]) => {
 };
 
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => callGeminiAPI('generateEmbeddingsBatch', [texts]);
+// B4 — generate a safety poster / procedure-step illustration (see gemini/imageGen).
+export const generateSafetyVisual = async (spec: SafetyVisualSpec): Promise<SafetyVisualResult> => callGeminiAPI('generateSafetyVisual', [spec]);
 export const autoConnectNodes = async (newNode: any, existingNodes: any[]): Promise<string[]> => callGeminiAPI('autoConnectNodes', [newNode, existingNodes]);
 export const semanticSearch = async (query: string, nodes: any[], topK: number = 3, projectId?: string): Promise<any[]> => callGeminiAPI('semanticSearch', [query, nodes, topK, projectId]);
 export const analyzeFastCheck = async (observation: string) => callGeminiAPI('analyzeFastCheck', [observation]);

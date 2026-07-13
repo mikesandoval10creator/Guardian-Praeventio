@@ -23,9 +23,9 @@ export type CountryCode = 'CL' | 'PE' | 'CO' | 'MX' | 'AR' | 'BR' | 'ISO';
 export interface Regulation {
   /** Stable id, e.g. 'cl-ds-54' or 'co-decreto-1072'. */
   id: string;
-  /** Human-readable title, e.g. 'DS 54 — Comité Paritario'. */
+  /** Human-readable title, e.g. 'DS 44/2024 — Comité Paritario (ex DS 54, derogado 01-02-2025)'. */
   title: string;
-  /** Formal legal reference, e.g. 'Decreto Supremo 54, Art. 1'. */
+  /** Formal legal reference, e.g. 'Decreto Supremo 44/2024, Art. 1 (ex Decreto Supremo 54, derogado 01-02-2025)'. */
   reference: string;
   /** Brief scope/description shown in the UI. */
   scope: string;

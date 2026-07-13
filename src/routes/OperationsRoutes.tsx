@@ -55,6 +55,15 @@ const ShiftHandover = lazy(() => import('../pages/ShiftHandover').then(module =>
 // Fase 5 B8 — LOTO Digital (Lock-Out/Tag-Out). Engine + adapter + write
 // endpoints (loto.ts) + LotoStatusPanel existían sin page consumidor.
 const Loto = lazy(() => import('../pages/Loto').then(module => ({ default: module.Loto })));
+// Bloque D Rama 2 — wire the orphan deduplication surface. The server router
+// (src/server/routes/deduplication.ts) + client hook
+// (src/hooks/useDeduplication.ts) existed with no page/route;
+// DeduplicationPage closes the gap (duplicate detection + merge planning).
+const DeduplicationPage = lazy(() => import('../pages/DeduplicationPage').then(module => ({ default: module.DeduplicationPage })));
+// Wire UI #80 — CargoCogPanel orphan → page + route. Superficie de
+// estiba/cargo que monta el componente con el servicio stowageOptimizer
+// (packCargoFFD + COG + utilization). Datos reales, no mocks.
+const CargoCogPage = lazy(() => import('../pages/CargoCogPage').then(module => ({ default: module.CargoCogPage })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -89,4 +98,6 @@ export const OperationsRoutes = [
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,
   <Route key="loto" path="loto" element={<Loto />} />,
   <Route key="mantenimiento-preventivo" path="mantenimiento-preventivo" element={<MantenimientoPreventivo />} />,
+  <Route key="deduplication" path="deduplication" element={<DeduplicationPage />} />,
+  <Route key="cargo-cog" path="cargo-cog" element={<CargoCogPage />} />,
 ];

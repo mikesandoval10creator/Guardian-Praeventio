@@ -188,6 +188,16 @@ Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
     `driving_incidents` (incl. `{ "reportedByUid": "<any>" }` or a status flip
     to `"Cerrado"`) — writes happen ONLY via the audited endpoint, which
     ignores body identity and stamps the actor from the verified token.
+27. **Worker Record Destruction** (Bloque E1, 2026-07-06): any client-SDK
+    `deleteDoc` on `projects/{pid}/workers/{workerId}` — DENIED for everyone
+    (incl. creator/admin: `allow delete: if false`). Personnel records are
+    legally-retained evidence (DS44 / Ley 16.744); removal from a project is a
+    soft ARCHIVE (`archived: true`) via the audited server route
+    `POST /api/projects/:id/workers/:workerId/archive` (identity stamped from
+    the token, `archived`/`archivedBy` in the body ignored, audit_logs row).
+    Account-level erasure (Ley 21.719 / GDPR) is the separate accountRouter
+    `/anonymize` flow. Covers the compliance gap where the old client
+    `deleteDoc` both bypassed the audit invariant AND destroyed retained data.
 
 ## Personalized plans + morning check-ins — write rules (B7, added 2026-06-03)
 
@@ -1311,5 +1321,160 @@ existing().projectId; create/update/delete: if false`. Exercised by
      `safety_plan_periods/{otherProject_period}` to harvest another project's
      planning targets — denied (read requires membership of the doc's `projectId`).
 
+### learning_cards — worker's own SM-2 study cards (spaced repetition, added 2026-06-29)
+
+`learning_cards/{cardId}` holds a worker's OWN spaced-repetition study cards for a
+project: created CLIENT-side when a training session completes (Training.tsx
+`addDoc`) and updated as the worker grades each review (SpacedRepetitionReviewQueue
+→ `updateDoc`). Personal formative data, not a legal record. Owner-scoped: read is
+the OWNER only (`resource.data.workerUid == request.auth.uid`, no `get()` so the
+review-queue LIST query stays fail-safe) plus admin/supervisor; create requires
+`incoming().workerUid == request.auth.uid` AND project membership; update is
+owner-only with `projectId`/`workerUid` frozen; delete is admin/supervisor only.
+Exercised by `src/rules-tests/learningCards.rules.test.ts`.
+
+142. **Peer Study-Record Snoop**: a project member reading a CO-WORKER's
+     `learning_cards/{id}` to profile which topics a peer keeps failing (privacy +
+     performance-profiling vector) — denied (read requires `resource.data.workerUid
+     == request.auth.uid`; project membership alone is not enough).
+143. **Ownership Forge on Create**: a worker `setDoc`-ing a card with
+     `workerUid: <someone-else>` to plant or pollute a peer's review schedule —
+     denied (`incoming().workerUid == request.auth.uid`).
+144. **Card Project/Owner Move**: a worker `updateDoc`-ing a card's
+     `projectId`/`workerUid` to migrate their study trail into another
+     project/identity — denied (both frozen against `resource.data`).
+145. **Trail Erasure**: a worker `deleteDoc`-ing their own cards to wipe evidence of
+     repeated failed reviews on a critical topic before an audit — denied (delete is
+     admin/supervisor only).
+
+### attendance — anti-forge on the virtual turnstile (audit §3.2, hardened 2026-07-02)
+
+`projects/{pid}/attendance/{id}` is the "Torniquete Virtual": a gate operator
+(any project member) records a worker's Check-In/Check-Out (Attendance.tsx
+`addDoc`), and EvacuationDashboard reads the collection as the evacuation
+headcount seed. Attendance is ALSO the source of legal hours-worked (payroll).
+The previous rule allowed `create, update` for any project member with NO schema
+validation and NO identity binding — so any member could inject an arbitrary or
+backdated attendance doc for any worker. Hardened: create requires
+`isValidAttendance(incoming())` (pins `workerId`/`type ∈ {Check-In,Check-Out}`/
+`timestamp`/`projectId`/`recordedBy`) AND `incoming().recordedBy ==
+request.auth.uid` (accountable, unspoofable author); update is admin/supervisor
+only with `recordedBy` frozen against `existing()`; read is project members.
+Exercised by `src/rules-tests/attendance.rules.test.ts` (7 tests).
+
+154. **Attendance Forge for a Co-worker**: a line worker `addDoc`-ing an
+     attendance record with `recordedBy: <supervisor-uid>` to fabricate a
+     check-in trail under someone else's name — denied (`recordedBy ==
+     request.auth.uid`).
+155. **Backdated / Arbitrary-shape Attendance**: injecting a free-form doc
+     (missing fields, or `type` outside `{Check-In, Check-Out}`, or a doctored
+     `timestamp`) to seed payroll/evacuation counts — denied
+     (`isValidAttendance`).
+156. **Cross-project Attendance Injection**: writing an attendance doc whose
+     `projectId` names a different project than its path — denied
+     (`isValidAttendance` requires `data.projectId == <path projectId>`).
+157. **Silent Attendance Rewrite by a Worker**: a line worker `updateDoc`-ing an
+     existing record to move a timestamp or flip Check-In↔Check-Out after the
+     fact — denied (update is admin/supervisor only).
+158. **Recorder Laundering on Update**: an admin/supervisor correcting a record
+     but rewriting `recordedBy` to erase who originally logged it — denied
+     (`recordedBy` immutable against `existing()`).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
+
+## Worker SOS alerts (tenants/{tid}/emergency_alerts) — server write, project-member read (B.3, added 2026-07-02)
+
+`tenants/{tenantId}/emergency_alerts/{id}` is written EXCLUSIVELY by the SOS
+server route (`src/server/routes/emergency.ts`, Admin SDK; `tenantId =
+projects/{pid}.tenantId || pid`). Until B.3 the collection had NO dedicated
+rule: the tenant catch-all requires `isMemberOfTenant()` claims that no flow
+mints yet (M-1 pending), so a worker's SOS reached Firestore and stayed
+INVISIBLE to every dashboard. Now: read for members of the REFERENCED project
+(`resource.data.projectId`); list queries must filter `projectId` by equality
+to be provable; the collection is excluded from the tenant catch-all;
+create/update/delete denied to every client — an SOS is a life-safety +
+compliance record only the server writes. ADR 0021: life-safety visibility is
+FREE on every tier. Rules tests: `src/rules-tests/emergencyAlerts.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+146. **SOS Forgery**: a client `setDoc` on `tenants/t1/emergency_alerts/x`
+     (even a project member or admin) — only the server writes SOS.
+147. **SOS Tamper/Erasure**: update or delete of an existing alert (e.g.
+     nulling `geo` to hide a location, or deleting the row to erase the
+     life-safety trail).
+148. **Cross-Project SOS Snoop**: a member of project B reading project A's
+     alert within the same tenant.
+149. **Tenant-Wide SOS Sweep**: an unfiltered list over
+     `tenants/t1/emergency_alerts` (no `projectId` equality) — unprovable,
+     denied.
+
+## Worker incident reports (tenants/{tid}/projects/{pid}/incidents) — server write, owner + member read (B.2, added 2026-07-02)
+
+`tenants/{tenantId}/projects/{projectId}/incidents/{id}` is written ONLY by the
+audited server route (`src/server/routes/incidents.ts` →
+`incidentRagService.reportIncident`, Admin SDK; `reporterUid` stamped from the
+verified token). Until B.2 the 6-segment path had NO match → default-deny: a
+worker could FILE an incident but never READ their own record (Ley 16.744 —
+their own prevention trail; ADR 0021 — life-safety/legal reads are FREE on
+every tier). Now: owner-read via `resource.data.reporterUid` (survives later
+membership changes; provable with a `reporterUid` equality filter) OR
+member-read via the path `projectId` (`isProjectMember`, no tenant claims —
+those are unminted until M-1); all client writes denied. Rules tests:
+`src/rules-tests/incidents.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+150. **Incident Forgery**: a client `setDoc` on
+     `tenants/t1/projects/p1/incidents/x` (even a project member) — only the
+     audited server route writes incidents.
+151. **Incident Tamper/Erasure**: client update or delete of an existing
+     incident (rewriting severity, or erasing the legal trail).
+152. **Peer Incident Snoop**: an outsider — or a member of a DIFFERENT
+     project — reading someone else's incident.
+153. **Tenant Incident Sweep**: an unfiltered list by a non-member (no
+     `reporterUid` equality) — unprovable, denied.
+
+## M-1 project tenant-scoping — cross-tenant access (Phase 3, added 2026-07-04)
+
+`projects/{pid}` and every subcollection are tenant-scoped: privilege derives
+from `isSupervisorOfTenant(project.tenantId)`, never a global role. `tenantId`
+is required, immutable, and stamped to the caller's uid (single-tenant-per-user).
+Deploy AFTER the `tenantId` claim backfill (see
+`docs/security/M1-multitenant-tenant-scope-design.md`). Rejected payloads:
+
+159. **Cross-Tenant Project Read**: an admin/supervisor whose `token.tenantId`
+     is `t1` `get`s `projects/{pid}` owned by tenant `t2` — a global role no
+     longer crosses the tenant boundary; denied.
+160. **Cross-Tenant Project Sweep**: an admin runs the unfiltered
+     `query(collection('projects'))` — `list` now requires
+     `where('tenantId','==', token.tenantId)`, so an unscoped sweep is denied.
+161. **Cross-Tenant Subcollection Snoop**: an admin of `t1` reads
+     `projects/{t2-pid}/reports|mandown_events|<medical PII>/{id}` via the
+     master gate — it is `isProjectMemberTenantScoped`, so it is denied.
+162. **Forged Tenant Stamp**: a client creates a project with
+     `tenantId != request.auth.uid` (planting it in someone else's tenant) —
+     denied by the create anti-spoof.
+163. **Tenant Re-Homing**: an update that changes an existing project's
+     `tenantId` (moving it to another tenant) — `tenantId` is immutable; denied.
+
+## M-1 project tenant-scoping — storage isolation (Phase 4, added 2026-07-04)
+
+Cloud Storage rules cannot read Firestore, so `memberOfSite(projectId)` gates on
+the `assignedSiteIds` custom claim (the project ids the user belongs to), minted
+by the `assignedSitesSync` trigger from `projects/{pid}.members` (+ `createdBy`).
+The prior `claim absent → allow` escape hatch was FAIL-OPEN because the claim was
+never minted (`buildClaimsWithAssignedSites` was orphaned), so `memberOfSite()`
+collapsed to `isSignedIn()` and any authenticated user reached every project's
+files. Now fail-closed. Rejected payloads:
+
+164. **Cross-Tenant File Read**: a signed-in user with no `assignedSiteIds`
+     claim (or a claim not containing `pid`) reads/lists `projects/{pid}/**`,
+     `ai_reports/{pid}/**`, `blueprints/{pid}/**`, `suseso_reports/{pid}/**`,
+     `reconstructions/{pid}/**` — denied (was the wide-open cross-tenant leak).
+165. **Cross-Tenant File Write**: a user assigned only to `site-2` uploads to
+     `projects/site-1/**` — denied (claim does not contain the target pid).
+166. **Stale-Access After Removal**: a user removed from a project keeps
+     uploading with their pre-removal token — assignedSitesSync revokes refresh
+     tokens on removal, so the stale token dies on its next refresh.

@@ -509,6 +509,22 @@ describe('POST /api/billing/checkout', () => {
     expect(invoice.createdBy).toBe('uid-A');
   });
 
+  it('200 without cliente.rut — omits rut instead of persisting undefined (Firestore rejects undefined)', async () => {
+    const { rut: _rut, ...clienteNoRut } = validCheckout.cliente as Record<string, unknown>;
+    const res = await request(buildApp())
+      .post('/api/billing/checkout')
+      .set('x-test-uid', 'uid-R')
+      .set('x-test-email', 'r@empresa.test')
+      .send({ ...validCheckout, cliente: clienteNoRut });
+    expect(res.status).toBe(200);
+    const invoiceId = (res.body as Record<string, unknown>).invoiceId as string;
+    const invoice = H.db!._store.get(`invoices/${invoiceId}`) as Record<string, any>;
+    expect(invoice).toBeTruthy();
+    // The real Firestore rejects `rut: undefined` ("Cannot use undefined as a
+    // Firestore value"); the handler must OMIT the key, not write undefined.
+    expect(Object.prototype.hasOwnProperty.call(invoice.cliente ?? {}, 'rut')).toBe(false);
+  });
+
   it('200 manual-transfer checkout — status awaiting-payment, no paymentUrl', async () => {
     const res = await request(buildApp())
       .post('/api/billing/checkout')

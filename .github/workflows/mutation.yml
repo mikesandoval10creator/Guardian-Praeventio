@@ -39,9 +39,9 @@ jobs:
     # el script en scripts/check-mutation-thresholds.cjs, no re-activar
     # continue-on-error.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -66,7 +66,7 @@ jobs:
 
       - name: Upload Stryker HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stryker-mutation-report
           path: |
@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload Stryker JSON report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stryker-mutation-json
           path: reports/mutation/report.json

@@ -33,6 +33,12 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // Audit 2026-07-02 §3.1 #5 (VIDA): the same queued event always
+        // re-sends the same key, so a retry whose previous attempt DID reach
+        // the server (response lost in transit) replays the recorded response
+        // server-side instead of creating a duplicate alert + duplicate
+        // fan-out. POST /sos honours this via the idempotencyKey middleware.
+        'Idempotency-Key': event.clientEventId,
         ...(authHeader ? { Authorization: authHeader } : {}),
       },
       body: JSON.stringify({
@@ -45,10 +51,11 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
     });
     // The outbox is TRANSPORT-only: a 2xx means the SOS reached the server and
     // is recorded. We deliberately do NOT gate on the response's `delivered`
-    // flag here — re-POSTing a recorded-but-zero-reach SOS would create
-    // duplicate emergency_alerts docs (the server `.add()`s a new doc per call,
-    // no clientEventId idempotency yet). Zero-reach is handled at the UI layer
-    // (SOSButton: tel: fallback, no re-enqueue), not by retrying the transport.
+    // flag here — zero-reach is a DELIVERY problem handled at the UI layer
+    // (SOSButton: tel: fallback, no re-enqueue), not by re-POSTing the
+    // transport. Transport retries themselves are now safe: POST /sos honours
+    // the Idempotency-Key sent above, so a replayed event can no longer
+    // duplicate the emergency_alerts doc or the supervisor fan-out.
     return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'network_error' };

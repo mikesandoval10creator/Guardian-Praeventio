@@ -94,6 +94,11 @@ export async function seedProject(
     name: options.projectName ?? 'E2E Project',
     tenantId: options.tenantId ?? 'e2e-tenant',
     supervisorUid,
+    // Mirror the real create path (`POST /api/projects` stamps
+    // `createdBy: callerUid`): without it, `callerCanManageProject`
+    // (projects.ts) 403s the seeded supervisor on management routes such as
+    // worker archive, even though they own the project.
+    createdBy: supervisorUid,
     members: [supervisorUid],
     location: options.location ?? null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -101,10 +106,22 @@ export async function seedProject(
     ...(options.phone !== undefined ? { phone: options.phone } : {}),
   });
 
-  const crewRef = projectRef.collection('crews').doc();
+  // CuadrillasDashboard reads the TOP-LEVEL `crews` collection filtered by
+  // `projectId` (firestore.rules: `allow read: if isProjectMember(resource.data
+  // .projectId)`; server-only writes). The seed crew must live there — NOT the
+  // project subcollection — with the same shape the server writes (organic.ts):
+  // projectId + memberUids + xp + gamification counters, so the dashboard renders
+  // it (memberUids.length, xp, daysWithoutIncident…) and auto-selects it, exposing
+  // the "Iniciar proceso" button the process-lifecycle spec drives.
+  const crewRef = db.collection('crews').doc();
   await crewRef.set({
+    projectId: projectRef.id,
     name: options.crewName ?? 'Cuadrilla Alpha',
-    supervisorUid: options.supervisorUid ?? 'e2e-user-001',
+    supervisorUid,
+    memberUids: [supervisorUid],
+    xp: 0,
+    daysWithoutIncident: 0,
+    totalProcessesCompleted: 0,
     workerCount: 0,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -126,4 +143,66 @@ export async function clearAllProjects(): Promise<void> {
   const db = admin.firestore();
   const snap = await db.collection('projects').get();
   await Promise.all(snap.docs.map((doc) => doc.ref.delete()));
+}
+
+export interface SeededZone {
+  /** The restricted-zone id (also the Firestore doc id). */
+  zoneId: string;
+  /** Cleanup the zone doc created by this seed call. */
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Seed a `restricted_zones` doc under the SAME tenant/project path the audited
+ * `/api/zones/by-site` + `/api/zones/entry-event` routes read/write
+ * (`tenants/{tenantId}/projects/{projectId}/restricted_zones/{zoneId}` — see
+ * `src/server/routes/restrictedZones.ts` zonesCollection). Defaults describe a
+ * HOT-WORK zone whose EPP/training requirements a worker won't meet, so the
+ * informed-entry engine returns `allowed: false` — which lets the E2E prove the
+ * founder no-blocking invariant: the entry is NEVER blocked but ALWAYS recorded.
+ */
+export async function seedRestrictedZone(
+  projectId: string,
+  options: {
+    tenantId?: string;
+    zoneId?: string;
+    name?: string;
+    kind?: string;
+    requiredEpp?: string[];
+    requiredTrainings?: string[];
+    responsibleUid?: string;
+  } = {},
+): Promise<SeededZone> {
+  ensureAdmin();
+  const db = admin.firestore();
+  const tenantId = options.tenantId ?? 'e2e-tenant';
+  const zoneId = options.zoneId ?? 'e2e-hot-zone';
+  const zoneRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('projects')
+    .doc(projectId)
+    .collection('restricted_zones')
+    .doc(zoneId);
+  await zoneRef.set({
+    id: zoneId,
+    kind: options.kind ?? 'hot',
+    name: options.name ?? 'Zona Caliente E2E',
+    // No `perimeter`: it's optional in the zone schema, the informed-entry flow
+    // doesn't use it (only the map overlay does), and Firestore forbids the
+    // nested-array shape `[[lng,lat], ...]` the polygon would need.
+    rules: {
+      requiredEpp: options.requiredEpp ?? ['Casco de seguridad'],
+      requiredTrainings: options.requiredTrainings ?? ['Trabajo en Caliente'],
+      responsibleUid: options.responsibleUid ?? 'e2e-user-001',
+    },
+    activeFrom: '2020-01-01T00:00:00.000Z',
+  });
+
+  return {
+    zoneId,
+    cleanup: async (): Promise<void> => {
+      await zoneRef.delete();
+    },
+  };
 }

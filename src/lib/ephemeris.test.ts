@@ -1,4 +1,13 @@
 // @vitest-environment node
+//
+// TZ pin: the ephemeris calculations use `date.getTimezoneOffset()` to derive
+// the UTC offset. On UTC CI (offset = 0) the "local hours" assertions for
+// Santiago (UTC-3 / UTC-4) would land 3-4 hours earlier than expected, failing
+// the sunrise/sunset window checks.  Pinning to America/Santiago makes the
+// Date objects behave identically in CI and in local dev regardless of the
+// host OS timezone.
+process.env.TZ = 'America/Santiago';
+
 import { describe, it, expect } from 'vitest';
 import { getSunTimes, getMoonPhase, getLunarDay } from './ephemeris';
 

@@ -7,9 +7,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
-import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, collection, onSnapshot, query, orderBy, limit, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
 import { updateDoc, doc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { moderatePostContent } from '../utils/contentModeration';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 interface PostComment {
   id: string;
@@ -94,23 +95,31 @@ export function MuralDinamico() {
     setModerationError(null);
     setIsSubmitting(true);
 
-    const path = `projects/${selectedProject.id}/safety_posts`;
     try {
-      await addDoc(collection(db, path), {
-        userId: user.uid,
-        userName: user.displayName || user.email || 'Usuario',
-        userPhoto: user.photoURL || '',
-        content: newPostContent.trim(),
-        type: typeMapping[postType] || 'Tip',
-        likes: [],
-        createdAt: serverTimestamp(),
-        projectId: selectedProject.id
+      const headers = await apiAuthHeaders();
+      const res = await fetch(`/api/sprint-k/${selectedProject.id}/safety-posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          content: newPostContent.trim(),
+          type: typeMapping[postType] || 'Tip',
+        }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 400 && data.error === 'moderation_blocked') {
+          setModerationError(data.reason ?? 'Contenido no permitido.');
+        } else {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        return;
+      }
 
       setNewPostContent('');
       setPostType('info');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+      handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/safety_posts`);
     } finally {
       setIsSubmitting(false);
     }
@@ -203,7 +212,7 @@ export function MuralDinamico() {
       case 'success': return 'border-emerald-500/20 bg-emerald-500/5';
       case 'SafetyMoment':
       case 'event': return 'border-blue-500/20 bg-blue-500/5';
-      default: return 'border-white/5 bg-zinc-900/50';
+      default: return 'border-default-token bg-surface';
     }
   };
 
@@ -219,8 +228,8 @@ export function MuralDinamico() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('mural.title', 'Mural Dinámico')}</h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('mural.title', 'Mural Dinámico')}</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('mural.subtitle', 'Centro de Comando y Comunicación Táctica')}
           </p>
         </div>
@@ -235,8 +244,8 @@ export function MuralDinamico() {
             placeholder={t('mural.composerPlaceholder', 'Comparte una alerta, lección aprendida o comunicado...')}
             aria-invalid={moderationError !== null}
             aria-describedby={moderationError ? 'mural-mod-error' : undefined}
-            className={`w-full h-24 bg-zinc-900/50 border rounded-xl p-4 text-sm text-white placeholder:text-zinc-600 focus:ring-2 outline-none resize-none ${
-              moderationError ? 'border-rose-500/60 focus:ring-rose-500/40' : 'border-white/10 focus:ring-emerald-500/50'
+            className={`w-full h-24 bg-surface border rounded-xl p-4 text-sm text-primary-token placeholder:text-muted-token focus:ring-2 outline-none resize-none ${
+              moderationError ? 'border-rose-500/60 focus:ring-rose-500/40' : 'border-default-token focus:ring-emerald-500/50'
             }`}
           />
 
@@ -259,15 +268,15 @@ export function MuralDinamico() {
                   onClick={() => setPostType(type)}
                   className={`p-2 rounded-lg border transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
                     postType === type
-                      ? 'bg-zinc-800 border-emerald-500/50'
-                      : 'bg-zinc-900/50 border-white/5 hover:border-white/20'
+                      ? 'bg-elevated border-emerald-500/50'
+                      : 'bg-surface border-default-token hover:border-default-token/60'
                   }`}
                   title={`Tipo: ${type}`}
                 >
                   {getPostIcon(type)}
                 </button>
               ))}
-              <button className="p-2 rounded-lg border border-white/5 bg-zinc-900/50 hover:border-white/20 transition-colors text-zinc-400 min-h-[44px] min-w-[44px] flex items-center justify-center">
+              <button className="p-2 rounded-lg border border-default-token bg-surface hover:opacity-70 transition-colors text-muted-token min-h-[44px] min-w-[44px] flex items-center justify-center">
                 <ImageIcon className="w-5 h-5" />
               </button>
             </div>
@@ -295,7 +304,7 @@ export function MuralDinamico() {
             <Card className={`p-4 sm:p-6 border ${getPostColor(post.type)}`}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-white/10 overflow-hidden">
+                  <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center border border-default-token overflow-hidden">
                     {post.userPhoto ? (
                       <img src={post.userPhoto} alt={post.userName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
@@ -303,8 +312,8 @@ export function MuralDinamico() {
                     )}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{post.userName}</h3>
-                    <p className="text-xs text-zinc-500">
+                    <h3 className="text-sm font-bold text-primary-token">{post.userName}</h3>
+                    <p className="text-xs text-muted-token">
                       {post.userId === 'system' ? 'Sistema Guardián' : 'Usuario'} • {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleString() : 'Recién publicado'}
                     </p>
                   </div>
@@ -315,51 +324,51 @@ export function MuralDinamico() {
                     onClick={() => handleDeletePost(post)}
                     aria-label="Eliminar mi publicación"
                     title="Eliminar mi publicación"
-                    className="text-zinc-500 hover:text-rose-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    className="text-muted-token hover:text-rose-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
                 ) : (
-                  <span className="min-h-[44px] min-w-[44px] flex items-center justify-center text-zinc-700">
+                  <span className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-token opacity-40">
                     <MoreVertical className="w-5 h-5" aria-hidden="true" />
                   </span>
                 )}
               </div>
 
-              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap mb-4">
+              <p className="text-sm text-secondary-token leading-relaxed whitespace-pre-wrap mb-4">
                 {post.content}
               </p>
 
               {post.imageUrl && (
-                <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
+                <div className="mb-4 rounded-xl overflow-hidden border border-default-token">
                   <img src={post.imageUrl} alt="Post attachment" className="w-full h-auto object-cover" referrerPolicy="no-referrer" />
                 </div>
               )}
 
-              <div className="flex items-center gap-4 pt-4 border-t border-white/5">
+              <div className="flex items-center gap-4 pt-4 border-t border-default-token">
                 <button
                   onClick={() => handleToggleLike(post.id, 'likes', post.likes?.includes(user?.uid || '') ?? false)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.likes?.includes(user?.uid || '') ? 'text-amber-400' : 'text-zinc-400 hover:text-amber-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.likes?.includes(user?.uid || '') ? 'text-amber-400' : 'text-muted-token hover:text-amber-400'}`}
                 >
-                  <div className={`p-1.5 rounded-md transition-colors ${post.likes?.includes(user?.uid || '') ? 'bg-amber-500/20' : 'bg-zinc-800 group-hover:bg-amber-500/20'}`}>
+                  <div className={`p-1.5 rounded-md transition-colors ${post.likes?.includes(user?.uid || '') ? 'bg-amber-500/20' : 'bg-elevated group-hover:bg-amber-500/20'}`}>
                     <Award className="w-4 h-4" />
                   </div>
                   <span>Kudos ({post.likes?.length || 0})</span>
                 </button>
                 <button
                   onClick={() => handleToggleLike(post.id, 'acknowledged', post.acknowledged?.includes(user?.uid || '') ?? false)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.acknowledged?.includes(user?.uid || '') ? 'text-emerald-400' : 'text-zinc-400 hover:text-emerald-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.acknowledged?.includes(user?.uid || '') ? 'text-emerald-400' : 'text-muted-token hover:text-emerald-400'}`}
                 >
-                  <div className={`p-1.5 rounded-md transition-colors ${post.acknowledged?.includes(user?.uid || '') ? 'bg-emerald-500/20' : 'bg-zinc-800 group-hover:bg-emerald-500/20'}`}>
+                  <div className={`p-1.5 rounded-md transition-colors ${post.acknowledged?.includes(user?.uid || '') ? 'bg-emerald-500/20' : 'bg-elevated group-hover:bg-emerald-500/20'}`}>
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <span>Enterado {post.acknowledged?.length ? `(${post.acknowledged.length})` : ''}</span>
                 </button>
                 <button
                   onClick={() => toggleComments(post.id)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${openComments.has(post.id) ? 'text-blue-400' : 'text-zinc-400 hover:text-blue-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${openComments.has(post.id) ? 'text-blue-400' : 'text-muted-token hover:text-blue-400'}`}
                 >
-                  <div className={`p-1.5 rounded-md transition-colors ${openComments.has(post.id) ? 'bg-blue-500/20' : 'bg-zinc-800 group-hover:bg-blue-500/20'}`}>
+                  <div className={`p-1.5 rounded-md transition-colors ${openComments.has(post.id) ? 'bg-blue-500/20' : 'bg-elevated group-hover:bg-blue-500/20'}`}>
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <span>Comentar</span>
@@ -367,22 +376,22 @@ export function MuralDinamico() {
               </div>
 
               {openComments.has(post.id) && (
-                <div className="mt-4 pt-4 border-t border-white/5 space-y-3" data-testid={`comments-${post.id}`}>
+                <div className="mt-4 pt-4 border-t border-default-token space-y-3" data-testid={`comments-${post.id}`}>
                   {(post.comments ?? []).length === 0 ? (
-                    <p className="text-xs text-zinc-500 italic">Sé el primero en comentar.</p>
+                    <p className="text-xs text-muted-token italic">Sé el primero en comentar.</p>
                   ) : (
                     <ul className="space-y-2">
                       {[...(post.comments ?? [])]
                         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
                         .map((c) => (
-                          <li key={c.id} className="text-xs bg-zinc-800/40 rounded-lg px-3 py-2">
+                          <li key={c.id} className="text-xs bg-elevated/60 rounded-lg px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-zinc-200">{c.userName}</span>
-                              <span className="text-[10px] text-zinc-500 tabular-nums">
+                              <span className="font-bold text-secondary-token">{c.userName}</span>
+                              <span className="text-[10px] text-muted-token tabular-nums">
                                 {new Date(c.createdAt).toLocaleString('es-CL')}
                               </span>
                             </div>
-                            <p className="text-zinc-300 whitespace-pre-wrap mt-0.5">{c.text}</p>
+                            <p className="text-secondary-token whitespace-pre-wrap mt-0.5">{c.text}</p>
                           </li>
                         ))}
                     </ul>
@@ -398,7 +407,7 @@ export function MuralDinamico() {
                       maxLength={1000}
                       placeholder="Escribe un comentario…"
                       data-testid={`comment-input-${post.id}`}
-                      className="flex-1 resize-none rounded-lg bg-zinc-800/60 border border-white/10 px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/40"
+                      className="flex-1 resize-none rounded-lg bg-elevated border border-default-token px-3 py-2 text-xs text-secondary-token placeholder:text-muted-token focus:outline-none focus:border-blue-500/40"
                     />
                     <button
                       type="button"

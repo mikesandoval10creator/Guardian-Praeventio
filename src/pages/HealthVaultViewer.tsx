@@ -113,7 +113,7 @@ export function HealthVaultViewer() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {state.kind === 'loading' && (
-          <p className="text-zinc-600 dark:text-zinc-400" role="status">
+          <p className="text-secondary-token" role="status">
             {t('healthVaultViewer.loading', 'Cargando cartera médica…')}
           </p>
         )}
@@ -173,7 +173,7 @@ function ErrorCard({ title, body }: { title: string; body: string }) {
 function SuccessView({ data }: { data: ViewerSuccessPayload }) {
   return (
     <div className="space-y-4">
-      <header className="rounded-xl border border-teal-200 dark:border-teal-800/50 bg-white dark:bg-zinc-900 p-5">
+      <header className="rounded-xl border border-teal-200 dark:border-teal-800/50 bg-surface p-5">
         <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
           Cartera médica de {data.workerName}
         </h1>
@@ -182,7 +182,7 @@ function SuccessView({ data }: { data: ViewerSuccessPayload }) {
             Compartido con tema: <span className="font-semibold">{data.topicHint}</span>
           </p>
         )}
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+        <p className="text-xs text-muted-token mt-2">
           Acceso válido hasta {formatDate(data.expiresAt)}
         </p>
       </header>
@@ -196,7 +196,7 @@ function SuccessView({ data }: { data: ViewerSuccessPayload }) {
         {data.records.map((r) => (
           <li
             key={r.id}
-            className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
+            className="rounded-xl border border-default-token bg-surface p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -207,12 +207,12 @@ function SuccessView({ data }: { data: ViewerSuccessPayload }) {
                   {r.meta.title}
                 </h3>
                 {r.meta.issueDate && (
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+                  <p className="text-xs text-secondary-token mt-1">
                     Fecha emisión: {formatDate(r.meta.issueDate)}
                   </p>
                 )}
                 {r.meta.issuer && (
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                  <p className="text-xs text-secondary-token">
                     Emisor: {r.meta.issuer}
                   </p>
                 )}

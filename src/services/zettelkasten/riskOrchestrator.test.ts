@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestEdgesForRisk } from './riskOrchestrator.js';
+import { suggestEdgesForRisk, detectUncontrolledRisks } from './riskOrchestrator.js';
 
 describe('suggestEdgesForRisk', () => {
   it('matches trabajo en altura → arnés + casco + capacitación altura', () => {
@@ -114,5 +114,108 @@ describe('suggestEdgesForRisk', () => {
     for (const e of eppEdges) expect(e.type).toBe('requires');
     for (const e of trainingEdges) expect(e.type).toBe('requires');
     for (const e of workerGapEdges) expect(e.type).toBe('assigned_to');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Zettelkasten 2: detectUncontrolledRisks
+// ────────────────────────────────────────────────────────────────────────
+
+describe('detectUncontrolledRisks', () => {
+  it('generates alert for risk without any mitigating control', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r1', title: 'Trabajo en altura', type: 'trabajo en altura sobre 1.8m' }],
+      new Set(),
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].riskNodeId).toBe('r1');
+    expect(alerts[0].normCode).toBe('DS 594');
+    expect(alerts[0].normArticle).toMatch(/Art\. 53/);
+    expect(alerts[0].suggestedControl).toContain('Arnés');
+    expect(alerts[0].estimatedEffectiveness).toBeGreaterThan(0);
+    expect(alerts[0].alertMessage).toContain('RIESGO SIN CONTROL');
+    expect(alerts[0].uncontrolledSeverity).toBe('critical');
+  });
+
+  it('returns no alert when risk already has a mitigating control', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r1', title: 'Trabajo en altura', type: 'trabajo en altura' }],
+      new Set(['r1']), // r1 ya tiene control
+    );
+    expect(alerts).toHaveLength(0);
+  });
+
+  it('generates generic DS 594 alert for uncatalogued risk type', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r99', title: 'Riesgo exótico sin catálogo', type: 'riesgo_inexistente_xyz' }],
+      new Set(),
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].normCode).toBe('DS 594');
+    expect(alerts[0].normArticle).toMatch(/Art\. 3/);
+    expect(alerts[0].estimatedEffectiveness).toBe(50);
+    expect(alerts[0].uncontrolledSeverity).toBe('medium');
+  });
+
+  it('sorts alerts by severity: critical first, then high, medium, low', () => {
+    const alerts = detectUncontrolledRisks(
+      [
+        { id: 'r1', title: 'UV', type: 'radiacion uv solar' },           // low
+        { id: 'r2', title: 'Altura', type: 'trabajo en altura' },        // critical
+        { id: 'r3', title: 'Ergo', type: 'manejo manual de cargas' },    // medium
+        { id: 'r4', title: 'Quimico', type: 'sustancia peligrosa' },     // high
+      ],
+      new Set(),
+    );
+    expect(alerts).toHaveLength(4);
+    expect(alerts[0].uncontrolledSeverity).toBe('critical');
+    expect(alerts[1].uncontrolledSeverity).toBe('high');
+    expect(alerts[2].uncontrolledSeverity).toBe('medium');
+    expect(alerts[3].uncontrolledSeverity).toBe('low');
+  });
+
+  it('matches eléctrico risk to DS 132 LOTO', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r5', title: 'Mantenimiento eléctrico', type: 'mantenimiento eléctrico baja tensión' }],
+      new Set(),
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].normCode).toBe('DS 132');
+    expect(alerts[0].suggestedControl).toContain('LOTO');
+    expect(alerts[0].uncontrolledSeverity).toBe('critical');
+  });
+
+  it('matches confinados to DS 132 Art. 8', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r6', title: 'Espacio confinado', type: 'espacio confinado' }],
+      new Set(),
+    );
+    expect(alerts[0].normCode).toBe('DS 132');
+    expect(alerts[0].normArticle).toMatch(/Art\. 8/);
+    expect(alerts[0].suggestedControl).toContain('vigilante');
+  });
+
+  it('handles multiple risks with mixed control states', () => {
+    const alerts = detectUncontrolledRisks(
+      [
+        { id: 'r1', title: 'Altura', type: 'trabajo en altura' },
+        { id: 'r2', title: 'Ruido', type: 'exposición sonora' },
+        { id: 'r3', title: 'Confinados', type: 'espacio confinado' },
+      ],
+      new Set(['r2']), // solo ruido tiene control
+    );
+    expect(alerts).toHaveLength(2);
+    expect(alerts.map((a) => a.riskNodeId)).toContain('r1');
+    expect(alerts.map((a) => a.riskNodeId)).toContain('r3');
+    expect(alerts.map((a) => a.riskNodeId)).not.toContain('r2');
+  });
+
+  it('normalizes diacritics for pattern matching', () => {
+    const alerts = detectUncontrolledRisks(
+      [{ id: 'r7', title: 'Electricidad', type: 'eléctrico alta tensión' }],
+      new Set(),
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].suggestedControl).toContain('LOTO');
   });
 });

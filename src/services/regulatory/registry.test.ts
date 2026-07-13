@@ -50,11 +50,11 @@ describe('getReferencesForControl', () => {
     expect(refs.every((r) => r.jurisdiction === 'ISO-45001')).toBe(true);
   });
 
-  it('combines ISO baseline with Chile DS 54 for participation', () => {
+  it('combines ISO baseline with Chile DS 44 (ex DS 54) for participation', () => {
     const refs = getReferencesForControl('WORKER_PARTICIPATION', ['ISO-45001', 'CL']);
     const codes = refs.map((r) => r.code);
     expect(codes).toContain('ISO-45001:5.4');
-    expect(codes).toContain('DS-54');
+    expect(codes).toContain('DS-44');
   });
 
   it('returns empty array for unknown control id', () => {
@@ -100,7 +100,7 @@ describe('cite', () => {
   it('produces consistent short-form citations', () => {
     const out = cite('WORKER_PARTICIPATION', { jurisdictions: ['ISO-45001', 'CL'] });
     expect(out).toContain('ISO-45001:5.4');
-    expect(out.some((s) => s.includes('DS-54') && s.includes('Chile'))).toBe(true);
+    expect(out.some((s) => s.includes('DS-44') && s.includes('Chile'))).toBe(true);
   });
 
   it('uses long format when requested', () => {

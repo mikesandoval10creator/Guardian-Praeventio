@@ -8,6 +8,7 @@ import { GuestSaveModal } from '../components/shared/GuestSaveModal';
 import { analytics } from '../services/analytics';
 import type { IndustryCode, ProjectTier } from '../services/analytics';
 import { logger } from '../utils/logger';
+import { DEMO_DASHBOARD_PROJECT } from '../data/demoProject';
 
 interface Project {
   id: string;
@@ -209,6 +210,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           collection: 'projects',
           data: {
             ...projectData,
+            // M-1: owning tenant (single-tenant-per-user → tenant == owner uid).
+            tenantId: user?.uid,
             createdAt: new Date().toISOString(),
             createdBy: user?.uid,
             members: [user?.uid]
@@ -218,15 +221,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         return 'offline-id-' + Date.now();
       }
 
-      const { addDoc } = await import('firebase/firestore');
+      const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
       const { seedGlobalData } = await import('../services/seedService');
 
-      const docRef = await addDoc(collection(db, 'projects'), {
-        ...projectData,
-        createdAt: new Date().toISOString(),
-        createdBy: user?.uid,
-        members: [user?.uid]
+      // Server-side creation (audit invariant, CLAUDE.md #3): POST
+      // /api/projects stamps createdBy/tenantId/members/createdAt from the
+      // VERIFIED token and writes the audit_logs row the old client-side
+      // `addDoc` never did. The offline branch above still queues through the
+      // outbox (rules-gated client write) — a rare, documented exception.
+      const authHeader = await apiAuthHeaderOrThrow();
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify(projectData),
       });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error((detail as { error?: string }).error ?? `Error ${response.status}`);
+      }
+      const { projectId } = (await response.json()) as { projectId: string };
 
       // Wave-9 analytics: fire project.created with the closed-set tier
       // + industry mapping. The catalog enums are the gold standard;
@@ -240,13 +253,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } catch { /* analytics must never break user flow */ }
 
       // Seed initial data for the new project
-      await seedGlobalData(docRef.id, projectData.industry);
+      await seedGlobalData(projectId, projectData.industry);
 
       // Seed Zettelkasten template nodes (Blocks I-VIII)
       const { seedProjectNodes } = await import('../services/nodeSeedService');
-      seedProjectNodes(docRef.id, user?.uid ?? 'system').catch(() => {});
+      seedProjectNodes(projectId, user?.uid ?? 'system').catch(() => {});
 
-      return docRef.id;
+      return projectId;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'projects');
       throw error;
@@ -254,9 +267,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      setFetchedProjects([]);
-      setSelectedProject(null);
+    if (!isAuthReady) {
+      // Auth aún resolviendo — mantener loading; no parpadear demo ni vacío.
+      setLoading(true);
+      return undefined;
+    }
+    if (!user) {
+      // Modo invitado (embudo PLG): mostrar la faena demo para que el
+      // dashboard se vea VIVO antes de que el visitante cree cuenta. El
+      // proyecto demo es read-only; cualquier write abre GuestSaveModal.
+      setFetchedProjects([DEMO_DASHBOARD_PROJECT as unknown as Project]);
+      setSelectedProject((prev) => prev ?? (DEMO_DASHBOARD_PROJECT as unknown as Project));
       setError(null);
       setLoading(false);
       return undefined;
@@ -264,7 +285,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     let q;
     if (isAdmin) {
-      q = query(collection(db, 'projects'));
+      // M-1 Phase 3: the `projects` list rule tenant-scopes the admin branch —
+      // an unfiltered query is now DENIED. Filter by tenantId (== the caller's
+      // uid; single-tenant-per-user, mirrored by the tenantId custom claim), so
+      // an admin lists only their own tenant's projects. Requires the tenantId
+      // claim backfill to be live in prod (deploy Phase 3 rules only after it).
+      q = query(collection(db, 'projects'), where('tenantId', '==', user.uid));
     } else {
       q = query(collection(db, 'projects'), where('members', 'array-contains', user.uid));
     }
@@ -278,10 +304,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setFetchedProjects(newProjects);
       setError(null);
 
-      // Auto-select first project if none selected
-      if (newProjects.length > 0 && !selectedProject) {
-        setSelectedProject(newProjects[0]);
-      }
+      // Reconcile against the CURRENT state. Reading `selectedProject` directly
+      // here captured the value from subscription time (usually null), so every
+      // later snapshot could silently send the user back to the first project.
+      // Besides preserving the selected id, use the object from this snapshot
+      // so consumers receive refreshed project fields. If access was revoked or
+      // the project was deleted, fall back to the first project still allowed.
+      setSelectedProject((currentProject) => {
+        if (newProjects.length === 0) return null;
+        if (!currentProject) return newProjects[0] ?? null;
+        return newProjects.find(project => project.id === currentProject.id) ?? newProjects[0] ?? null;
+      });
 
       setLoading(false);
     }, (err) => {

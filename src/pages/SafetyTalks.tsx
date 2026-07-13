@@ -166,7 +166,7 @@ export function SafetyTalks() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
             <MessageCircle className="w-6 h-6 text-sky-500" /> {t('safety_talks.title', 'Charlas de seguridad')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
@@ -178,7 +178,7 @@ export function SafetyTalks() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('safety_talks.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
@@ -195,14 +195,14 @@ export function SafetyTalks() {
             )}
 
             {/* Form de signals */}
-            <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3">
-              <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-widest flex items-center gap-2">
+            <section className="rounded-2xl border border-default-token bg-elevated p-4 space-y-3">
+              <h2 className="text-sm font-black text-secondary-token uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-sky-500" />
                 {t('safety_talks.signals.heading', 'Señales contextuales')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('safety_talks.signals.active_risks', 'Riesgos activos (coma)')}
                   </span>
                   <input
@@ -210,11 +210,11 @@ export function SafetyTalks() {
                     value={activeRisksRaw}
                     onChange={(e) => setActiveRisksRaw(e.target.value)}
                     placeholder={t('safety_talks.signals.active_risks_placeholder', 'altura, eléctrico, confinado, químico')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('safety_talks.signals.todays_tasks', 'Tareas hoy (coma)')}
                   </span>
                   <input
@@ -222,11 +222,11 @@ export function SafetyTalks() {
                     value={todaysTasksRaw}
                     onChange={(e) => setTodaysTasksRaw(e.target.value)}
                     placeholder={t('safety_talks.signals.todays_tasks_placeholder', 'altura, soldadura, izaje')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('safety_talks.signals.recent_incidents', 'Incidentes recientes (coma)')}
                   </span>
                   <input
@@ -234,11 +234,11 @@ export function SafetyTalks() {
                     value={recentIncidentsRaw}
                     onChange={(e) => setRecentIncidentsRaw(e.target.value)}
                     placeholder={t('safety_talks.signals.recent_incidents_placeholder', 'caida_altura, contacto_electrico')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('safety_talks.signals.findings', 'Hallazgos abiertos (coma)')}
                   </span>
                   <input
@@ -246,49 +246,49 @@ export function SafetyTalks() {
                     value={findingsRaw}
                     onChange={(e) => setFindingsRaw(e.target.value)}
                     placeholder={t('safety_talks.signals.findings_placeholder', 'orden_aseo, epp_faltante')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
               </div>
               <div className="grid grid-cols-4 gap-3">
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.uv_index', 'UV Index')}</span>
+                  <span className="font-bold text-secondary-token">{t('safety_talks.signals.uv_index', 'UV Index')}</span>
                   <input
                     type="number"
                     min={0}
                     max={11}
                     value={uvIndex}
                     onChange={(e) => setUvIndex(parseInt(e.target.value, 10) || 0)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.temp', 'Temp °C')}</span>
+                  <span className="font-bold text-secondary-token">{t('safety_talks.signals.temp', 'Temp °C')}</span>
                   <input
                     type="number"
                     value={temperatureC}
                     onChange={(e) => setTemperatureC(parseInt(e.target.value, 10) || 0)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.wind', 'Viento km/h')}</span>
+                  <span className="font-bold text-secondary-token">{t('safety_talks.signals.wind', 'Viento km/h')}</span>
                   <input
                     type="number"
                     min={0}
                     value={windKmh}
                     onChange={(e) => setWindKmh(parseInt(e.target.value, 10) || 0)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.new_workers', 'Workers nuevos')}</span>
+                  <span className="font-bold text-secondary-token">{t('safety_talks.signals.new_workers', 'Workers nuevos')}</span>
                   <input
                     type="number"
                     min={0}
                     value={newWorkersCount}
                     onChange={(e) => setNewWorkersCount(parseInt(e.target.value, 10) || 0)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
               </div>
@@ -331,10 +331,10 @@ export function SafetyTalks() {
                     .map((t) => (
                       <li
                         key={t.id}
-                        className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
+                        className="rounded-lg border border-default-token bg-elevated p-2 text-xs flex items-center gap-2"
                       >
                         <span className="font-mono text-[10px] text-zinc-500">{t.date}</span>
-                        <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
+                        <span className="text-secondary-token flex-1 truncate">
                           {t.topicTitle}
                         </span>
                         <span className="text-[10px] text-zinc-500">

@@ -13,7 +13,7 @@
 //     agrupadas por severity (critical / warning / info).
 //   - Auto-refresh opcional cada 60s.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckCircle2,
@@ -26,6 +26,7 @@ import {
 
 import { useProject } from '../contexts/ProjectContext';
 import { ConsistencyAuditCard } from '../components/consistency/ConsistencyAuditCard';
+import { DeviationRadarPanel } from '../components/governance/DeviationRadarPanel';
 import {
   runConsistencyAudit,
   summarizeConsistencyAudit,
@@ -33,6 +34,12 @@ import {
   type ConsistencyState,
 } from '../services/consistency/consistencyAuditor';
 import { buildConsistencyStateFromFirestore } from '../services/consistency/consistencyStateBuilder';
+import {
+  buildNormalizationRadar,
+  type NormalizationPattern,
+} from '../services/governance/deviationNormalizationRadar';
+import { subscribeExceptions } from '../services/exceptions/exceptionStore';
+import type { ExceptionRecord } from '../services/exceptions/exceptionEngine';
 import { logger } from '../utils/logger';
 
 // Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep ConsistencyAudit.
@@ -46,6 +53,36 @@ export function ConsistencyAudit() {
   const [lastRunAt, setLastRunAt] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [exceptions, setExceptions] = useState<ExceptionRecord[]>([]);
+
+  // Live subscription a todas las excepciones del proyecto (no solo activas)
+  // para alimentar el radar de normalización.
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      setExceptions([]);
+      return undefined;
+    }
+    const unsub = subscribeExceptions(
+      selectedProject.id,
+      (items) => setExceptions(items),
+      (err) => {
+        logger.warn('exception_subscribe_failed', { err: err.message });
+        setExceptions([]);
+      },
+      500,
+    );
+    return unsub;
+  }, [selectedProject?.id]);
+
+  // Patrones de normalización derivados de excepciones reales.
+  const radarPatterns: NormalizationPattern[] = useMemo(
+    () =>
+      buildNormalizationRadar({
+        exceptions,
+        now: new Date().toISOString(),
+      }),
+    [exceptions],
+  );
 
   const runAudit = useCallback(async () => {
     if (!selectedProject?.id) {
@@ -102,10 +139,10 @@ export function ConsistencyAudit() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <ShieldAlert className="w-6 h-6 text-rose-500" /> {t('consistency_audit.title', 'Consistencia entre módulos')}
             </h1>
-            <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+            <p className="text-xs text-muted-token mt-1 max-w-2xl">
               {t(
                 'consistency_audit.subtitle',
                 'Auditor interno automático que detecta contradicciones entre módulos: trabajadores asignados sin capacitación vigente, EPP que no corresponde al cargo, documentos aprobados sin firma, acciones cerradas sin evidencia, permisos cuyo aprobador ya no existe, etc. 12 reglas determinísticas (sin LLM).',
@@ -124,7 +161,7 @@ export function ConsistencyAudit() {
                 ? t('consistency_audit.cta_running', 'Auditando…')
                 : t('consistency_audit.cta_run', 'Ejecutar auditoría')}
             </button>
-            <label className="flex items-center gap-1 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer">
+            <label className="flex items-center gap-1 text-[10px] font-bold text-secondary-token cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoRefresh}
@@ -137,7 +174,7 @@ export function ConsistencyAudit() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('consistency_audit.empty.select_project', 'Seleccioná un proyecto para correr la auditoría.')}
           </div>
         ) : (
@@ -181,7 +218,7 @@ export function ConsistencyAudit() {
 
             {/* Last run + stats */}
             {lastRunAt && state && (
-              <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+              <div className="flex items-center justify-between text-[10px] text-muted-token font-mono">
                 <span>
                   {t('consistency_audit.stats.last_run', {
                     defaultValue: 'Última corrida: {{date}}',
@@ -222,6 +259,9 @@ export function ConsistencyAudit() {
             ) : issues.length > 0 ? (
               <ConsistencyAuditCard inconsistencies={issues} />
             ) : null}
+
+            {/* Radar de normalización de desvíos — datos reales de excepciones. */}
+            <DeviationRadarPanel patterns={radarPatterns} />
 
             {/* Botón refresh inferior si ya hay resultados. */}
             {state && !loading && (

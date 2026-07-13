@@ -144,6 +144,15 @@ describe('countryFromCoordsAsync', () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    // Belt-and-suspenders: ensure import.meta.env is also clean after each
+    // test so that a stale real key from a previous run cannot leak through
+    // when readGoogleMapsApiKey falls back to the Vite env layer.
+    try {
+      delete (import.meta as unknown as { env: Record<string, unknown> }).env
+        .VITE_GOOGLE_MAPS_API_KEY;
+    } catch {
+      // import.meta.env may not be writable in all environments.
+    }
   });
 
   it('Santiago coords with mocked CL response → CL', async () => {
@@ -158,6 +167,13 @@ describe('countryFromCoordsAsync', () => {
 
   it('falls back to bbox method when API key is missing — (-33.45, -70.66) → CL', async () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '');
+    // Also clear import.meta.env directly — vi.stubEnv in node environment
+    // may not cascade to the Vite env layer, letting a real key leak through
+    // the fallback read in readGoogleMapsApiKey (line 203).
+    try {
+      delete (import.meta as unknown as { env: Record<string, unknown> }).env
+        .VITE_GOOGLE_MAPS_API_KEY;
+    } catch { /* non-writable env */ }
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     expect(await countryFromCoordsAsync(-33.45, -70.66)).toBe('CL');
@@ -169,6 +185,10 @@ describe('countryFromCoordsAsync', () => {
     // must treat it as missing so dev environments don't spam Google with
     // 400s and so prod builds without real key cleanly fall back to bbox.
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'YOUR_GOOGLE_MAPS_API_KEY');
+    try {
+      delete (import.meta as unknown as { env: Record<string, unknown> }).env
+        .VITE_GOOGLE_MAPS_API_KEY;
+    } catch { /* non-writable env */ }
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     expect(await countryFromCoordsAsync(-33.45, -70.66)).toBe('CL');

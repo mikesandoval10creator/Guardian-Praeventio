@@ -54,6 +54,12 @@ export const sosLimiter = rateLimit({
   max: 10,
   keyGenerator: (req: Request) =>
     req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  // E2E harness: a full-stack spec (and its Playwright retries) legitimately
+  // fires the real SOS several times, and the prod 10/min guard must not turn
+  // that into a 429 that masks the actual alert write. Bypass ONLY under
+  // E2E_MODE (never production — verifyAuth already fatals on
+  // NODE_ENV=production && E2E_MODE=1). Prod rate-limiting is unchanged.
+  skip: () => process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas alertas SOS. Espera un momento.' },
@@ -114,8 +120,12 @@ async function getUserTokensCached(
       }
     }
   } catch (err: any) {
+    // A transient read failure MUST NOT poison the cache: memoizing [] here
+    // would silently exclude this supervisor from the fan-out for the whole
+    // TTL, in the middle of an emergency. Degrade to [] for THIS call only and
+    // let the next SOS re-read.
     logger.warn('sos_user_token_lookup_failed', { uid, message: err?.message });
-    tokens = [];
+    return [];
   }
   userTokenCache.set(uid, { tokens, expiresAt: now + USER_TOKEN_CACHE_TTL_MS });
   return tokens;
@@ -219,7 +229,16 @@ export async function sendToProjectSupervisors(
 
 const router = Router();
 
-router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
+// Audit 2026-07-02 §3.1 #5 (VIDA): server-side idempotency. A retried SOS
+// whose first POST reached the server but whose response was lost (flaky
+// mobile network) replays the recorded response instead of creating a second
+// emergency_alerts doc and re-firing the FCM/email fan-out. Semantics
+// (idempotencyKey middleware, Stripe pattern): header absent → passes through
+// (legacy clients keep working); cache-read failure → handler runs anyway
+// (fail-open: a SOS must never be blocked by its own safety net); only 2xx
+// responses are cached (a 500 stays retryable against fresh state).
+// sosLimiter stays BEFORE the middleware per its concurrency contract.
+router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail: string | null = req.user!.email ?? null;
   const { type, projectId, geo, timestamp } = req.body ?? {};
@@ -266,17 +285,30 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
         clientTimestamp: timestamp ?? null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-    await db.collection('audit_logs').add({
-      action: 'emergency.sos',
-      module: 'emergency',
-      details: { projectId, alertId: alertRef.id, hasGeo: validatedGeo !== null },
-      userId: callerUid,
-      userEmail: callerEmail,
-      projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip ?? null,
-      userAgent: req.header('user-agent') ?? null,
-    });
+    // Directive #14: audit failure is SEVERE but non-blocking. A Firestore
+    // outage on this write must NOT abort the fan-out — the worker's SOS still
+    // has to reach a responder. Log + capture, then carry on.
+    try {
+      await db.collection('audit_logs').add({
+        action: 'emergency.sos',
+        module: 'emergency',
+        details: { projectId, alertId: alertRef.id, hasGeo: validatedGeo !== null },
+        userId: callerUid,
+        userEmail: callerEmail,
+        projectId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+    } catch (auditErr: any) {
+      logger.error('sos_audit_write_failed', {
+        uid: callerUid,
+        projectId,
+        alertId: alertRef.id,
+        message: auditErr?.message,
+      });
+      captureRouteError(auditErr, 'emergency.sos.audit', { projectId, alertId: alertRef.id });
+    }
 
     let notified = 0;
     let pushFailed = 0;
@@ -481,24 +513,49 @@ router.post(
       );
 
       // Audit trail — same shape as /sos so dashboards can union the streams.
-      await db.collection('audit_logs').add({
-        action: 'emergency.notify_brigada',
-        module: 'emergency',
-        details: {
+      // Directive #14: the push already fired above; a failed audit write must
+      // NOT turn this into a 500 that the client retries — that would re-fan-out
+      // to the whole brigade. Log + capture, then still return success.
+      try {
+        await db.collection('audit_logs').add({
+          action: 'emergency.notify_brigada',
+          module: 'emergency',
+          details: {
+            projectId,
+            emergencyType,
+            notified: result.notified,
+            failed: result.failed,
+          },
+          userId: callerUid,
+          userEmail: callerEmail,
+          projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+      } catch (auditErr: any) {
+        logger.error('notify_brigada_audit_write_failed', {
+          uid: callerUid,
+          projectId,
+          emergencyType,
+          message: auditErr?.message,
+        });
+        captureRouteError(auditErr, 'emergency.notify_brigada.audit', { projectId });
+      }
+
+      // `delivered` mirrors /sos: true only if a push actually landed. When zero
+      // supervisors were reached the client MUST NOT show a "brigada notificada"
+      // success — surface it so ops (and the caller) can escalate manually.
+      const delivered = result.notified > 0;
+      if (!delivered) {
+        logger.warn('notify_brigada_zero_reach', {
           projectId,
           emergencyType,
           notified: result.notified,
           failed: result.failed,
-        },
-        userId: callerUid,
-        userEmail: callerEmail,
-        projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        ip: req.ip ?? null,
-        userAgent: req.header('user-agent') ?? null,
-      });
-
-      return res.json({ ok: true, notified: result.notified, failed: result.failed });
+        });
+      }
+      return res.json({ ok: true, delivered, notified: result.notified, failed: result.failed });
     } catch (err: any) {
       logger.error('notify_brigada_failed', {
         uid: callerUid,

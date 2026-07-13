@@ -1,0 +1,52 @@
+name: PR Scope Check
+
+# Anti-#1039 guard (CLAUDE.md #24). Detects PRs that touch protected
+# security/config files outside the scope of their title:
+#   - public/.well-known/*       (signing fingerprints)
+#   - firestore.rules            (Firestore security rules)
+#   - .claude/*                  (harness config / skills / commands)
+#   - .env* (not .env.example)   (secrets)
+#   - scripts/*-baseline.json    (ratchet baselines)
+#   - android/**/AndroidManifest.xml (Android signing config)
+#   - firebase.json              (Firebase deploy config)
+#   - .github/workflows/*        (CI config)
+#
+# Opt-in: a PR title containing [scope-override] bypasses the gate; the PR
+# body should justify the protected-file changes.
+#
+# NON-BLOCKING (continue-on-error: true): advisory only until in-flight
+# baseline-touching PRs clear. Several feature branches legitimately
+# regenerate scripts/*-baseline.json as part of their plan (e.g. the
+# frontend redesign branch regenerated the connectivity baseline). A
+# blocking gate would retroactively fail them.
+# TODO: flip continue-on-error to false (make required) after in-flight
+# baseline-touching PRs (#1039-wave) are merged and the gate is stable.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  pr-scope-check:
+    name: PR scope gate (anti-phantom-config-touch)
+    runs-on: ubuntu-latest
+    # NON-BLOCKING: advisory until in-flight baseline-touching PRs clear;
+    # flip to required after.
+    continue-on-error: true
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run PR scope gate
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: node scripts/validate-pr-scope.cjs

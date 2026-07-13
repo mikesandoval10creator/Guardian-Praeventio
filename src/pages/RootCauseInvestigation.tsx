@@ -225,7 +225,7 @@ export function RootCauseInvestigation() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <Layers className="w-6 h-6 text-indigo-500" /> {t('root_cause.title', 'Causa raíz (no-blame)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
@@ -247,7 +247,7 @@ export function RootCauseInvestigation() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('root_cause.empty.select_project', 'Seleccioná un proyecto para registrar análisis.')}
           </div>
         ) : loading ? (
@@ -269,7 +269,7 @@ export function RootCauseInvestigation() {
                   {t('root_cause.form.heading', 'Nuevo análisis')}
                 </h2>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('root_cause.form.field_incident_id', 'ID del incidente (vacío = autogenerado)')}
                   </span>
                   <input
@@ -277,12 +277,12 @@ export function RootCauseInvestigation() {
                     value={incidentId}
                     onChange={(e) => setIncidentId(e.target.value)}
                     placeholder={t('root_cause.form.incident_id_placeholder', 'ej: inc-2026-05-22-001')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
 
                 <div className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('root_cause.form.factors_label', 'Factores presentes')}</span>
+                  <span className="font-bold text-secondary-token">{t('root_cause.form.factors_label', 'Factores presentes')}</span>
                   <div className="grid grid-cols-2 gap-2">
                     {FACTOR_LIST.map((f) => (
                       <label key={f} className="flex items-center gap-2 text-xs">
@@ -299,11 +299,11 @@ export function RootCauseInvestigation() {
                 </div>
 
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('root_cause.form.primary_factor', 'Factor principal')}</span>
+                  <span className="font-bold text-secondary-token">{t('root_cause.form.primary_factor', 'Factor principal')}</span>
                   <select
                     value={primaryFactor}
                     onChange={(e) => setPrimaryFactor(e.target.value as CauseFactor)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   >
                     {FACTOR_LIST.map((f) => (
                       <option key={f} value={f}>{FACTOR_LABELS[f]}</option>
@@ -312,7 +312,7 @@ export function RootCauseInvestigation() {
                 </label>
 
                 <div className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('root_cause.form.five_whys_label', '5 porqués (mín 15 caracteres por línea, dejar vacías las no aplicables)')}
                   </span>
                   {fiveWhys.map((why, idx) => (
@@ -326,13 +326,13 @@ export function RootCauseInvestigation() {
                         setFiveWhys(next);
                       }}
                       placeholder={t('root_cause.form.why_placeholder', { defaultValue: 'Porqué {{n}}…', n: idx + 1 })}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     />
                   ))}
                 </div>
 
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('root_cause.form.actions_label', 'Acciones correctivas sugeridas (una por línea, mín 1)')}
                   </span>
                   <textarea
@@ -343,7 +343,7 @@ export function RootCauseInvestigation() {
                       'root_cause.form.actions_placeholder',
                       'Ej: Capacitar al equipo en uso de arnés cada 6 meses\nInstalar línea de vida permanente en zona X',
                     )}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
 
@@ -351,7 +351,7 @@ export function RootCauseInvestigation() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -369,13 +369,13 @@ export function RootCauseInvestigation() {
             )}
 
             {history.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+              <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
                 {t('root_cause.history.empty', 'Aún no hay análisis de causa raíz en este proyecto.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
                 {/* Lista de análisis. */}
-                <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-1 max-h-[600px] overflow-y-auto">
+                <aside className="rounded-2xl border border-default-token bg-elevated p-3 space-y-1 max-h-[600px] overflow-y-auto">
                   <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
                     {t('root_cause.history.heading', { defaultValue: 'Historial ({{count}})', count: history.length })}
                   </h2>
@@ -384,11 +384,12 @@ export function RootCauseInvestigation() {
                       <li key={a.incidentId}>
                         <button
                           type="button"
+                          data-testid={`root-cause-history-item-${a.incidentId}`}
                           onClick={() => setSelectedAnalysisId(a.incidentId)}
                           className={`w-full text-left p-2 rounded-lg text-xs ${
                             a.incidentId === selectedAnalysisId
                               ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
-                              : 'hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-700 dark:text-zinc-300'
+                              : 'hover:bg-zinc-100 dark:hover:bg-white/5 text-secondary-token'
                           }`}
                         >
                           <p className="font-bold truncate">{a.incidentId}</p>
@@ -411,7 +412,7 @@ export function RootCauseInvestigation() {
                       />
                       <RootCauseTreeSummary tree={analysisToTree(selectedAnalysis)} />
                       {treeSummary && (
-                        <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 text-xs text-zinc-700 dark:text-zinc-300 space-y-1">
+                        <div className="rounded-xl border border-default-token bg-elevated p-3 text-xs text-secondary-token space-y-1">
                           <p className="font-black uppercase tracking-widest text-[10px] text-zinc-500">
                             {t('root_cause.research_summary.heading', 'Resumen investigación')}
                           </p>
@@ -449,7 +450,7 @@ export function RootCauseInvestigation() {
                           </div>
                         ) : custodyChains.length === 0 ? (
                           <div
-                            className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 text-center text-xs text-zinc-500"
+                            className="rounded-xl border border-default-token bg-elevated p-4 text-center text-xs text-zinc-500"
                             data-testid="root-cause-custody-empty"
                           >
                             {t(
@@ -471,7 +472,7 @@ export function RootCauseInvestigation() {
                       </section>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
                       {t('root_cause.history.select_hint', 'Seleccioná un análisis a la izquierda para ver el detalle.')}
                     </div>
                   )}

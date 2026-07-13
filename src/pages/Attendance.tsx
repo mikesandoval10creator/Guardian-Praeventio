@@ -28,6 +28,7 @@ import {
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { Worker, NodeType, RiskNode } from '../types';
 import { where } from 'firebase/firestore';
 import { analyzeAttendancePatterns } from '../services/geminiService';
@@ -44,6 +45,7 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 export function Attendance() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const { addNode, addConnection, getConnectedNodes } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function Attendance() {
           timestamp: now.toISOString(),
           location: 'Torniquete Principal',
           projectId: selectedProject.id,
+          recordedBy: user?.uid ?? '',
           createdAt: serverTimestamp()
         });
       } catch (error) {
@@ -283,6 +286,7 @@ export function Attendance() {
           timestamp: now.toISOString(),
           location: 'Torniquete Principal',
           projectId: selectedProject.id,
+          recordedBy: user?.uid ?? '',
           createdAt: serverTimestamp()
         });
       } catch (error) {
@@ -335,7 +339,7 @@ export function Attendance() {
             <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-3xl font-black text-zinc-950 dark:text-white uppercase tracking-tighter leading-tight">{t('attendance.header.title', 'Torniquete Virtual')}</h1>
+            <h1 className="text-xl sm:text-3xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('attendance.header.title', 'Torniquete Virtual')}</h1>
             <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-0.5">{t('attendance.header.subtitle', 'Control de Acceso Inteligente')}</p>
           </div>
         </div>
@@ -361,7 +365,7 @@ export function Attendance() {
             </button>
             <button
               onClick={handleDailyReport}
-              className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-sm active:scale-95 transition-all flex-1 sm:flex-none justify-center"
+              className="flex items-center gap-2 bg-elevated border border-zinc-200 dark:border-white/10 text-primary-token px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-sm active:scale-95 transition-all flex-1 sm:flex-none justify-center"
             >
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">{t('attendance.actions.dailyReport', 'Reporte Diario')}</span>
@@ -402,10 +406,10 @@ export function Attendance() {
                 <p className="text-white/80 text-sm font-medium mt-1">{accessResult.worker.name}</p>
               </div>
               
-              <div className="p-6 bg-white dark:bg-zinc-900">
+              <div className="p-6 bg-surface">
                 {!accessResult.passed ? (
                   <div className="space-y-4">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest text-center mb-4">{t('attendance.access.blockReasons', 'Motivos de Bloqueo')}:</p>
+                    <p className="text-sm font-bold text-primary-token uppercase tracking-widest text-center mb-4">{t('attendance.access.blockReasons', 'Motivos de Bloqueo')}:</p>
                     <ul className="space-y-2">
                       {accessResult.reasons.map((reason, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-100 dark:border-rose-500/20">
@@ -414,14 +418,14 @@ export function Attendance() {
                         </li>
                       ))}
                     </ul>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center mt-4">
+                    <p className="text-xs text-muted-token text-center mt-4">
                       {t('attendance.access.incidentLogged', 'Este incidente ha sido registrado automáticamente en la Red Neuronal.')}
                     </p>
                   </div>
                 ) : (
                   <div className="text-center space-y-2">
                     <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">{t('attendance.access.validationSuccess', 'Validación Exitosa')}</p>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">{t('attendance.access.validationDetail', 'Exámenes médicos, EPP y certificaciones al día.')}</p>
+                    <p className="text-sm text-secondary-token">{t('attendance.access.validationDetail', 'Exámenes médicos, EPP y certificaciones al día.')}</p>
                   </div>
                 )}
                 
@@ -474,13 +478,13 @@ export function Attendance() {
           { label: t('attendance.stats.absent', 'Ausentes'), value: workers.filter(w => getStatus(w.id) === 'Fuera').length, icon: UserX, color: 'text-rose-500', bg: 'bg-rose-500/10' },
           { label: t('attendance.stats.totalStaff', 'Total Dotación'), value: workers.length, icon: UserCheck, color: 'text-blue-500', bg: 'bg-blue-500/10', className: 'col-span-2 md:col-span-1' },
         ].map((stat, i) => (
-          <div key={i} className={`bg-white dark:bg-zinc-900/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-100 dark:border-white/5 shadow-sm flex items-center gap-3 sm:gap-4 ${stat.className || ''}`}>
+          <div key={i} className={`bg-elevated rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-100 dark:border-white/5 shadow-sm flex items-center gap-3 sm:gap-4 ${stat.className || ''}`}>
             <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center shrink-0`}>
               <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
             </div>
             <div>
               <p className="text-[10px] sm:text-xs font-black text-zinc-400 uppercase tracking-widest leading-tight">{stat.label}</p>
-              <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white mt-0.5">{stat.value}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-primary-token mt-0.5">{stat.value}</h3>
             </div>
           </div>
         ))}
@@ -495,7 +499,7 @@ export function Attendance() {
             placeholder="Buscar trabajador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-2.5 sm:py-3 pl-10 sm:pl-11 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-zinc-500"
+            className="w-full bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-2.5 sm:py-3 pl-10 sm:pl-11 pr-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-zinc-500"
           />
         </div>
         <button
@@ -503,7 +507,7 @@ export function Attendance() {
           className={`flex items-center justify-center gap-2 border rounded-xl sm:rounded-2xl px-4 py-2.5 sm:py-3 transition-all text-xs font-bold w-full sm:w-auto ${
             showAdvancedFilters || statusFilter !== 'all'
               ? 'bg-emerald-500 border-emerald-500 text-white'
-              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              : 'bg-elevated border-zinc-200 dark:border-white/10 text-muted-token hover:text-zinc-900 dark:hover:text-white'
           }`}
         >
           <Filter className="w-4 h-4" />
@@ -521,7 +525,7 @@ export function Attendance() {
                   key={opt.v}
                   onClick={() => setStatusFilter(opt.v as any)}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    statusFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                    statusFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-300 dark:hover:bg-zinc-700'
                   }`}
                 >{opt.label}</button>
               ))}
@@ -671,7 +675,7 @@ export function Attendance() {
                 layout
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white dark:bg-zinc-900/50 border border-zinc-100 dark:border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all group"
+                className="bg-elevated border border-zinc-100 dark:border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all group"
               >
                 <div className="flex items-start justify-between mb-3 sm:mb-4">
                   <div className="flex items-center gap-2 sm:gap-3">
@@ -679,11 +683,11 @@ export function Attendance() {
                       {worker.photoUrl ? (
                         <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-base sm:text-lg font-black text-zinc-400 dark:text-zinc-500">{worker.name[0]}</span>
+                        <span className="text-base sm:text-lg font-black text-muted-token">{worker.name[0]}</span>
                       )}
                     </div>
                     <div>
-                      <h3 className="font-black text-zinc-900 dark:text-white text-sm sm:text-base uppercase tracking-tight leading-tight">{worker.name}</h3>
+                      <h3 className="font-black text-primary-token text-sm sm:text-base uppercase tracking-tight leading-tight">{worker.name}</h3>
                       <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-0.5">{worker.role}</p>
                     </div>
                   </div>
@@ -714,7 +718,7 @@ export function Attendance() {
                       Salida
                     </button>
                   )}
-                  <button className="w-10 sm:w-12 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shrink-0">
+                  <button className="w-10 sm:w-12 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-muted-token rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shrink-0">
                     <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
                   </button>
                 </div>

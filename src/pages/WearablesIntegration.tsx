@@ -200,11 +200,11 @@ export function WearablesIntegration() {
     >
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Watch className="w-8 h-8 text-rose-500" aria-hidden="true" />
             {t('wearables.title', 'Wearables')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t(
               'wearables.subtitle',
               'Health Connect · HealthKit · Google Fit',
@@ -226,7 +226,7 @@ export function WearablesIntegration() {
             className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${
               adapter?.isAvailable
                 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                : 'text-zinc-500 bg-zinc-800 border-zinc-700'
+                : 'text-muted-token bg-elevated border-default-token'
             }`}
             data-testid="wearables-adapter-badge"
           >
@@ -254,8 +254,8 @@ export function WearablesIntegration() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Connection panel */}
-        <Card className="p-6 border-white/5 space-y-5 lg:col-span-1">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-5 lg:col-span-1">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Smartphone
               className="w-5 h-5 text-rose-500"
               aria-hidden="true"
@@ -268,7 +268,7 @@ export function WearablesIntegration() {
               className={`p-4 rounded-xl border-2 ${
                 adapter.isAvailable
                   ? 'border-emerald-500/30 bg-emerald-500/5'
-                  : 'border-zinc-800 bg-zinc-900/50'
+                  : 'border-default-token bg-surface'
               }`}
               data-testid="wearables-adapter-card"
             >
@@ -277,23 +277,23 @@ export function WearablesIntegration() {
                   className={`p-2.5 rounded-lg ${
                     adapter.isAvailable
                       ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-zinc-800 text-zinc-500'
+                      : 'bg-elevated text-muted-token'
                   }`}
                 >
                   <Watch className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-bold text-primary-token">
                     {adapterDisplayName(adapter.name)}
                   </h3>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                  <p className="text-[11px] text-muted-token mt-0.5">
                     {t('wearables.platform', 'Plataforma')}: {adapter.platform}
                   </p>
                   <p
                     className={`text-[11px] mt-0.5 ${
                       adapter.isAvailable
                         ? 'text-emerald-400'
-                        : 'text-zinc-500'
+                        : 'text-muted-token'
                     }`}
                     data-testid="wearables-availability"
                   >
@@ -314,8 +314,8 @@ export function WearablesIntegration() {
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl border-2 border-zinc-800 bg-zinc-900/50">
-              <p className="text-xs text-zinc-500 animate-pulse">
+            <div className="p-4 rounded-xl border-2 border-default-token bg-surface">
+              <p className="text-xs text-muted-token animate-pulse">
                 {t('wearables.detecting', 'Detectando adapter…')}
               </p>
             </div>
@@ -379,7 +379,7 @@ export function WearablesIntegration() {
 
           {vitals && (
             <p
-              className="text-[10px] text-zinc-500 italic text-center"
+              className="text-[10px] text-muted-token italic text-center"
               data-testid="wearables-last-sync"
             >
               {t('wearables.lastSync', 'Última sync')}:{' '}
@@ -434,9 +434,9 @@ export function WearablesIntegration() {
           </div>
 
           {isConnected && (
-            <Card className="p-6 border-white/5">
+            <Card className="p-6 border-default-token">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <h3 className="text-lg font-bold text-primary-token flex items-center gap-2">
                   <HeartPulse
                     className="w-5 h-5 text-rose-500"
                     aria-hidden="true"
@@ -445,7 +445,7 @@ export function WearablesIntegration() {
                 </h3>
                 {vitals && vitals.hrSampleCount > 0 && (
                   <span
-                    className="text-[10px] text-zinc-500 font-mono"
+                    className="text-[10px] text-muted-token font-mono"
                     data-testid="wearables-hr-sample-count"
                   >
                     {vitals.hrSampleCount} samples
@@ -500,7 +500,7 @@ export function WearablesIntegration() {
                   className="h-48 flex items-center justify-center text-center"
                   data-testid="wearables-hr-empty"
                 >
-                  <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
+                  <p className="text-xs text-muted-token max-w-xs leading-relaxed">
                     {syncing
                       ? t('wearables.syncing', 'Sincronizando…')
                       : t(
@@ -527,21 +527,21 @@ export function WearablesIntegration() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl"
+              className="bg-surface border border-default-token rounded-2xl p-6 max-w-2xl w-full shadow-2xl"
               data-testid="wearables-report-modal"
             >
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">
+                  <h2 className="text-2xl font-bold text-primary-token">
                     {t('wearables.report.title', 'Resumen 24h')}
                   </h2>
-                  <p className="text-zinc-400 text-sm mt-1">
+                  <p className="text-muted-token text-sm mt-1">
                     {t('wearables.report.adapter', 'Fuente')}: {vitals.adapterName}
                   </p>
                 </div>
                 <button
                   onClick={() => setShowReport(false)}
-                  className="text-zinc-500 hover:text-white"
+                  className="text-muted-token hover:text-primary-token"
                   aria-label={t('common.close', 'Cerrar') as string}
                 >
                   <X className="w-6 h-6" aria-hidden="true" />
@@ -561,7 +561,7 @@ export function WearablesIntegration() {
                 <Stat label="Muestras HR" value={vitals.hrSampleCount} />
               </div>
 
-              <p className="text-[11px] text-zinc-500 italic mt-4">
+              <p className="text-[11px] text-muted-token italic mt-4">
                 {t(
                   'wearables.report.disclaimer',
                   'Datos brutos del adapter. Las decisiones clínicas requieren evaluación profesional — esto es información de apoyo, NO diagnóstico.',
@@ -599,24 +599,24 @@ function VitalCard({
   subtitle,
 }: VitalCardProps) {
   return (
-    <Card className="p-4 border-white/5">
+    <Card className="p-4 border-default-token">
       <div className="flex items-center gap-2 mb-3">
         <Icon className={`w-5 h-5 ${iconColor}`} aria-hidden="true" />
-        <span className="text-xs font-bold text-zinc-400 uppercase">
+        <span className="text-xs font-bold text-muted-token uppercase">
           {label}
         </span>
       </div>
       <div
-        className="text-3xl font-black text-white font-mono"
+        className="text-3xl font-black text-primary-token font-mono"
         data-testid={testId}
       >
         {value !== null ? value.toLocaleString() : '—'}
         {value !== null && suffix && (
-          <span className="text-sm text-zinc-400 ml-1">{suffix}</span>
+          <span className="text-sm text-muted-token ml-1">{suffix}</span>
         )}
       </div>
       {subtitle && (
-        <p className="text-[10px] text-zinc-500 mt-1">{subtitle}</p>
+        <p className="text-[10px] text-muted-token mt-1">{subtitle}</p>
       )}
     </Card>
   );
@@ -632,12 +632,12 @@ function Stat({
   suffix?: string;
 }) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-800/50">
-      <div className="text-xs text-zinc-400 mb-1">{label}</div>
-      <div className="text-xl font-bold text-white font-mono">
+    <div className="p-3 rounded-xl bg-elevated">
+      <div className="text-xs text-muted-token mb-1">{label}</div>
+      <div className="text-xl font-bold text-primary-token font-mono">
         {value !== null ? value.toLocaleString() : '—'}
         {value !== null && suffix && (
-          <span className="text-sm text-zinc-400 ml-1">{suffix}</span>
+          <span className="text-sm text-muted-token ml-1">{suffix}</span>
         )}
       </div>
     </div>

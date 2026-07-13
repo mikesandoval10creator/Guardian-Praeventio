@@ -54,11 +54,11 @@ export function HazmatStorage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Beaker className="w-8 h-8 text-emerald-500" />
             {t('hazmatStorage.title', 'Acopio HAZMAT')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('hazmatStorage.subtitle', 'Matriz de Segregación Química Offline')}
           </p>
         </div>
@@ -72,15 +72,15 @@ export function HazmatStorage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Selector Panel */}
-        <Card className="p-6 border-white/5 space-y-6 lg:col-span-1">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6 lg:col-span-1">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
             Selección de Sustancias
           </h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-3">Sustancia A (Clase UN)</label>
+              <label className="block text-sm font-medium text-muted-token mb-3">Sustancia A (Clase UN)</label>
               <div className="grid grid-cols-2 gap-2">
                 {HAZARD_CLASSES.map((c) => (
                   <button
@@ -89,7 +89,7 @@ export function HazmatStorage() {
                     className={`p-2 rounded-lg text-xs font-bold border text-left transition-all ${
                       selectedClass1 === c.id
                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-zinc-900 border-white/5 text-zinc-400 hover:bg-zinc-800'
+                        : 'bg-surface border-default-token text-muted-token hover:bg-elevated'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -102,7 +102,7 @@ export function HazmatStorage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-3">Sustancia B (Clase UN)</label>
+              <label className="block text-sm font-medium text-muted-token mb-3">Sustancia B (Clase UN)</label>
               <div className="grid grid-cols-2 gap-2">
                 {HAZARD_CLASSES.map((c) => (
                   <button
@@ -111,7 +111,7 @@ export function HazmatStorage() {
                     className={`p-2 rounded-lg text-xs font-bold border text-left transition-all ${
                       selectedClass2 === c.id
                         ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                        : 'bg-zinc-900 border-white/5 text-zinc-400 hover:bg-zinc-800'
+                        : 'bg-surface border-default-token text-muted-token hover:bg-elevated'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -126,7 +126,7 @@ export function HazmatStorage() {
         </Card>
 
         {/* Result Panel */}
-        <Card className="p-6 border-white/5 lg:col-span-2 flex flex-col justify-center items-center relative overflow-hidden min-h-[400px]">
+        <Card className="p-6 border-default-token lg:col-span-2 flex flex-col justify-center items-center relative overflow-hidden min-h-[400px]">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10" style={{
             backgroundImage: 'radial-gradient(circle at center, #3f3f46 1px, transparent 1px)',
@@ -136,8 +136,8 @@ export function HazmatStorage() {
           {!selectedClass1 || !selectedClass2 ? (
             <div className="text-center z-10">
               <Beaker className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-zinc-500">Seleccione dos sustancias</h3>
-              <p className="text-sm text-zinc-600 mt-2">Para validar su compatibilidad de almacenamiento conjunto.</p>
+              <h3 className="text-xl font-bold text-muted-token">Seleccione dos sustancias</h3>
+              <p className="text-sm text-muted-token mt-2">Para validar su compatibilidad de almacenamiento conjunto.</p>
             </div>
           ) : (
             <motion.div 
@@ -148,27 +148,27 @@ export function HazmatStorage() {
             >
               <div className="flex justify-between items-center mb-8">
                 <div className="text-center">
-                  <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-zinc-900 shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass1)?.color}`}>
+                  <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-surface shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass1)?.color}`}>
                     {selectedClass1.replace('_', '.')}
                   </div>
-                  <p className="text-xs font-bold text-zinc-400 mt-3 uppercase tracking-wider">
+                  <p className="text-xs font-bold text-muted-token mt-3 uppercase tracking-wider">
                     {HAZARD_CLASSES.find(c => c.id === selectedClass1)?.name}
                   </p>
                 </div>
 
                 <div className="flex-1 flex justify-center">
-                  <div className="w-12 h-1 bg-zinc-800 rounded-full relative">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-zinc-900 px-2 text-zinc-500 font-bold text-xs">
+                  <div className="w-12 h-1 bg-elevated rounded-full relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface px-2 text-muted-token font-bold text-xs">
                       VS
                     </div>
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-zinc-900 shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass2)?.color}`}>
+                  <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-surface shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass2)?.color}`}>
                     {selectedClass2.replace('_', '.')}
                   </div>
-                  <p className="text-xs font-bold text-zinc-400 mt-3 uppercase tracking-wider">
+                  <p className="text-xs font-bold text-muted-token mt-3 uppercase tracking-wider">
                     {HAZARD_CLASSES.find(c => c.id === selectedClass2)?.name}
                   </p>
                 </div>
@@ -194,23 +194,23 @@ export function HazmatStorage() {
                        segregation?.operational === 'incompatible' ? t('hazmatStorage.incompatible', 'Incompatible — Separar') :
                        t('hazmatStorage.caution', 'Precaución — Separación Específica')}
                     </h3>
-                    <p className="text-[10px] text-zinc-400 mt-1 font-mono">
+                    <p className="text-[10px] text-muted-token mt-1 font-mono">
                       IMDG 7.2.4 — código {segregation?.imdgCode}
                     </p>
                   </div>
                 </div>
 
-                <p className="text-sm text-zinc-300 leading-relaxed">
+                <p className="text-sm text-secondary-token leading-relaxed">
                   {segregation?.rationale}
                 </p>
               </div>
             </motion.div>
           )}
 
-          <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md border border-white/10 p-3 rounded-xl max-w-xs z-10">
+          <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md border border-default-token p-3 rounded-xl max-w-xs z-10">
             <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-300">
+              <Info className="w-4 h-4 text-muted-token shrink-0 mt-0.5" />
+              <p className="text-xs text-secondary-token">
                 {t(
                   'hazmatStorage.source',
                   'Matriz IMDG 7.2.4 (Code of Safe Practice 2024), compatible con NCh 382/2190 y 49 CFR §177.848. Cubre 15 sub-clases NU. 100% offline para uso en bodegas remotas.',

@@ -73,7 +73,7 @@ export const STANDARD_OBLIGATIONS: ObligationTemplate[] = [
   {
     kind: 'cphs_meeting',
     label: 'Reunión mensual CPHS',
-    legalCitation: 'DS 54 art. 24',
+    legalCitation: 'DS 44/2024 art. 16 (ex DS 54, derogado 01-02-2025)',
     recurrence: 'monthly',
     alertLeadDays: 7,
   },

@@ -87,10 +87,10 @@ function TransparenciaInner() {
           <ShieldCheck className="w-3.5 h-3.5" />
           {t('transparencia.badge', 'Transparencia radical')}
         </div>
-        <h1 className="text-3xl sm:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
+        <h1 className="text-3xl sm:text-5xl font-black text-primary-token uppercase tracking-tighter leading-tight">
           {t('transparencia.title', 'Cómo cobramos y por qué')}
         </h1>
-        <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg max-w-2xl mx-auto">
+        <p className="text-secondary-token text-base sm:text-lg max-w-2xl mx-auto">
           {t('transparencia.lead', 'La prevención de salvaguarda de vida no debe ser opaca. Acá explicamos cada peso, cada umbral, y cuándo realmente te conviene upgradear (y cuándo NO).')}
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
@@ -105,11 +105,11 @@ function TransparenciaInner() {
       </header>
 
       {/* El bucket 2D */}
-      <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
+      <section className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token mb-2">
           {t('transparencia.bucket.title', 'El bucket 2D')}
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+        <p className="text-sm text-secondary-token mb-6">
           Cobramos en dos dimensiones: <strong>trabajadores</strong> totales y{' '}
           <strong>proyectos</strong> activos. Cada tier es un rectángulo en este plano. Si te sales
           del rectángulo en una sola dimensión, pagas overage; si te sales en ambas, conviene
@@ -117,7 +117,7 @@ function TransparenciaInner() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           <Bucket2DSvg />
-          <ul className="space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
+          <ul className="space-y-3 text-sm text-secondary-token">
             <li className="flex items-start gap-2">
               <Users className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
               Eje Y: trabajadores totales contratados, contractistas y subcontratos incluidos.
@@ -135,18 +135,18 @@ function TransparenciaInner() {
       </section>
 
       {/* Tabla de overage */}
-      <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
+      <section className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token mb-2">
           {t('transparencia.overage.title', 'Tabla de overage (tiers básicos)')}
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+        <p className="text-sm text-secondary-token mb-6">
           Si pasas de la capacidad por uno o dos trabajadores, no te bloqueamos: simplemente cobramos
           un extra mensual. Los tiers premium (Titanio en adelante) <strong>no</strong> tienen
           overage — la propuesta es predecible.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
+            <thead className="text-muted-token uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
               <tr>
                 <th className="py-3 pr-4">Tier</th>
                 <th className="py-3 pr-4">Trabajador extra</th>
@@ -159,10 +159,10 @@ function TransparenciaInner() {
                 const t = getTierById(id);
                 return (
                   <tr key={id}>
-                    <td className="py-3 pr-4 font-bold text-zinc-900 dark:text-white">{t.nombre}</td>
+                    <td className="py-3 pr-4 font-bold text-primary-token">{t.nombre}</td>
                     <td className="py-3 pr-4">{formatCurrency(t.trabajadorExtraClp ?? 0, 'CLP')}</td>
                     <td className="py-3 pr-4">{formatCurrency(t.proyectoExtraClp ?? 0, 'CLP')}</td>
-                    <td className="py-3 text-zinc-600 dark:text-zinc-400">
+                    <td className="py-3 text-secondary-token">
                       +5 trabajadores = +{formatCurrency((t.trabajadorExtraClp ?? 0) * 5, 'CLP')}/mes
                     </td>
                   </tr>
@@ -174,16 +174,16 @@ function TransparenciaInner() {
       </section>
 
       {/* Cuándo conviene */}
-      <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
+      <section className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token mb-2">
           {t('transparencia.upgrade.title', 'Cuándo te conviene upgradear (y cuándo NO)')}
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+        <p className="text-sm text-secondary-token mb-6">
           La regla: si tu overage mensual supera el delta al siguiente tier, sube. Si no, pagas overage.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
+            <thead className="text-muted-token uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
               <tr>
                 <th className="py-3 pr-4">Escenario</th>
                 <th className="py-3 pr-4">Overage</th>
@@ -222,16 +222,16 @@ function TransparenciaInner() {
       </section>
 
       {/* Comparación con alternativas */}
-      <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
+      <section className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token mb-2">
           {t('transparencia.compare.title', 'Comparación con alternativas reales')}
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+        <p className="text-sm text-secondary-token mb-6">
           Costo mensual real de una empresa chilena promedio que necesita prevención.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
+            <thead className="text-muted-token uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
               <tr>
                 <th className="py-3 pr-4">Alternativa</th>
                 <th className="py-3 pr-4">Costo</th>
@@ -240,32 +240,32 @@ function TransparenciaInner() {
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
               <tr>
-                <td className="py-3 pr-4 font-medium text-zinc-900 dark:text-white">
+                <td className="py-3 pr-4 font-medium text-primary-token">
                   Prevencionista part-time (CL)
                 </td>
                 <td className="py-3 pr-4">$400.000–$700.000 CLP/mes</td>
-                <td className="py-3 text-zinc-500 dark:text-zinc-400">No incluye software ni cobertura 24/7</td>
+                <td className="py-3 text-muted-token">No incluye software ni cobertura 24/7</td>
               </tr>
               <tr>
-                <td className="py-3 pr-4 font-medium text-zinc-900 dark:text-white">
+                <td className="py-3 pr-4 font-medium text-primary-token">
                   SafetyCulture (5 seats)
                 </td>
                 <td className="py-3 pr-4">~$120 USD/mes (~$114.000 CLP)</td>
-                <td className="py-3 text-zinc-500 dark:text-zinc-400">Sin normativa chilena nativa</td>
+                <td className="py-3 text-muted-token">Sin normativa chilena nativa</td>
               </tr>
               <tr>
-                <td className="py-3 pr-4 font-medium text-zinc-900 dark:text-white">
+                <td className="py-3 pr-4 font-medium text-primary-token">
                   Multa SUSESO promedio
                 </td>
                 <td className="py-3 pr-4">$1–25 millones CLP por incumplimiento</td>
-                <td className="py-3 text-zinc-500 dark:text-zinc-400">Una sola multa cubre años de Praeventio</td>
+                <td className="py-3 text-muted-token">Una sola multa cubre años de Praeventio</td>
               </tr>
               <tr>
-                <td className="py-3 pr-4 font-medium text-zinc-900 dark:text-white">
+                <td className="py-3 pr-4 font-medium text-primary-token">
                   Accidente grave promedio (CL)
                 </td>
                 <td className="py-3 pr-4">~$50 millones CLP</td>
-                <td className="py-3 text-zinc-500 dark:text-zinc-400">Costo directo + indirecto + reputacional</td>
+                <td className="py-3 text-muted-token">Costo directo + indirecto + reputacional</td>
               </tr>
               <tr className="bg-emerald-50 dark:bg-emerald-900/20">
                 <td className="py-3 pr-4 font-black text-emerald-700 dark:text-emerald-300">
@@ -274,7 +274,7 @@ function TransparenciaInner() {
                 <td className="py-3 pr-4 font-black text-emerald-700 dark:text-emerald-300">
                   {formatCurrency(11990, 'CLP')}/mes
                 </td>
-                <td className="py-3 text-zinc-600 dark:text-zinc-400">Hasta 25 trabajadores · 3 proyectos</td>
+                <td className="py-3 text-secondary-token">Hasta 25 trabajadores · 3 proyectos</td>
               </tr>
             </tbody>
           </table>
@@ -283,10 +283,10 @@ function TransparenciaInner() {
 
       {/* Calculator */}
       <section className="space-y-3">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token">
           {t('transparencia.calculator.title', 'Calcula tu plan')}
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-secondary-token">
           Mueve los controles. La fuente única es <code className="text-xs">tiers.ts</code> — los
           mismos números que ves en la página de planes.
         </p>
@@ -294,13 +294,13 @@ function TransparenciaInner() {
       </section>
 
       {/* Tier ladder */}
-      <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-4">
+      <section className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-primary-token mb-4">
           {t('transparencia.ladder.title', 'Los 10 tiers de un vistazo')}
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
+            <thead className="text-muted-token uppercase tracking-wider text-xs font-bold border-b border-zinc-200 dark:border-white/10">
               <tr>
                 <th className="py-3 pr-4">Tier</th>
                 <th className="py-3 pr-4">Cap. trabajadores</th>
@@ -312,7 +312,7 @@ function TransparenciaInner() {
             <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
               {TIERS.map((t) => (
                 <tr key={t.id}>
-                  <td className="py-3 pr-4 font-bold text-zinc-900 dark:text-white">{t.nombre}</td>
+                  <td className="py-3 pr-4 font-bold text-primary-token">{t.nombre}</td>
                   <td className="py-3 pr-4">
                     {t.trabajadoresMax === Infinity ? 'Ilimitados' : t.trabajadoresMax.toLocaleString('es-CL')}
                   </td>
@@ -351,7 +351,7 @@ function TransparenciaInner() {
       </section>
 
       {/* Disclosures */}
-      <section className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1 pt-4 border-t border-zinc-200 dark:border-white/10">
+      <section className="text-xs text-muted-token space-y-1 pt-4 border-t border-zinc-200 dark:border-white/10">
         <p className="flex items-center gap-2">
           <AlertCircle className="w-3.5 h-3.5" /> Facturación chilena. IVA 19% incluido en precios CLP. RUT emisor 78231119-0.
         </p>

@@ -43,6 +43,37 @@ describe('SosOutbox', () => {
     expect(await outbox.snapshot()).toHaveLength(1);
   });
 
+  it('un enqueue durante un flush en vuelo NO se pierde (race lost-update)', async () => {
+    // Reproduce el bug: flushSos() se dispara en enqueueSos (drain al
+    // reconectar) sobre el MISMO singleton. flush() hace load→send(red)→save;
+    // si un enqueue corre mientras send está en vuelo, el save() stale del
+    // flush sobreescribe el SOS recién encolado → SOS perdido.
+    const storage = new InMemorySosStorage();
+    let releaseSend: (v: { ok: boolean }) => void = () => {};
+    const sendGate = new Promise<{ ok: boolean }>((r) => { releaseSend = r; });
+    const send = vi
+      .fn<(e: SosEvent) => Promise<{ ok: boolean; error?: string }>>()
+      .mockReturnValueOnce(sendGate)
+      .mockResolvedValue({ ok: true });
+    const outbox = new SosOutbox({ storage, send });
+
+    // SOS #1 ya encolado y vencido para reintento.
+    await outbox.enqueue(makeEvent({ clientEventId: 'e1' }));
+
+    // flush() carga [e1], llama send(e1) que queda BLOQUEADO en sendGate.
+    const flushing = outbox.flush();
+    // Mientras el flush está bloqueado enviando e1, llega y se encola e2.
+    const enqueuing = outbox.enqueue(makeEvent({ clientEventId: 'e2' }));
+    // Deja que ambos avancen por sus load/save y que el flush se pare en la red.
+    await new Promise((r) => setTimeout(r, 0));
+    releaseSend({ ok: true });
+    await Promise.all([flushing, enqueuing]);
+
+    // e1 se envió y salió de la cola; e2 DEBE seguir presente.
+    const ids = (await outbox.snapshot()).map((e) => e.event.clientEventId);
+    expect(ids).toContain('e2');
+  });
+
   it('flush envía y remueve si send=ok', async () => {
     const storage = new InMemorySosStorage();
     const send = vi.fn().mockResolvedValue({ ok: true });

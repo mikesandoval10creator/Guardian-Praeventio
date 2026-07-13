@@ -225,7 +225,7 @@ export function RestrictedZonesEditor() {
       </header>
 
       {!projectId ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-900/60" data-testid="zoneEditor.noProject">
+        <div className="rounded-2xl border border-default-token bg-white p-4 text-sm text-muted-token dark:bg-zinc-900/60" data-testid="zoneEditor.noProject">
           {t('zone_editor.no_project', 'Seleccioná un proyecto para definir sus zonas restringidas.')}
         </div>
       ) : !canWrite ? (
@@ -235,9 +235,9 @@ export function RestrictedZonesEditor() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
           {/* Map */}
-          <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-white/10" style={{ minHeight: 460 }}>
+          <div className="rounded-2xl overflow-hidden border border-default-token" style={{ minHeight: 460 }}>
             {!isLoaded ? (
-              <div className="flex items-center justify-center h-full min-h-[460px] text-zinc-500" data-testid="zoneEditor.mapLoading">
+              <div className="flex items-center justify-center h-full min-h-[460px] text-muted-token" data-testid="zoneEditor.mapLoading">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" aria-hidden="true" />
                 <span className="text-xs">{t('zone_editor.loading_map', 'Cargando mapa…')}</span>
               </div>
@@ -273,8 +273,8 @@ export function RestrictedZonesEditor() {
           </div>
 
           {/* Form */}
-          <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-zinc-900/60">
-            <p className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+          <div className="space-y-3 rounded-2xl border border-default-token bg-white p-4 dark:bg-zinc-900/60">
+            <p className="flex items-center gap-1.5 text-[11px] text-muted-token">
               <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
               {drawnPath
                 ? t('zone_editor.drawn', '{{n}} puntos dibujados.', { n: drawnPath.length })
@@ -295,7 +295,7 @@ export function RestrictedZonesEditor() {
               </div>
             )}
 
-            <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="block text-xs font-bold text-secondary-token">
               {t('zone_editor.name_label', 'Nombre')}
               <input
                 type="text"
@@ -306,7 +306,7 @@ export function RestrictedZonesEditor() {
               />
             </label>
 
-            <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="block text-xs font-bold text-secondary-token">
               {t('zone_editor.kind_label', 'Tipo de zona')}
               <select
                 value={kind}
@@ -322,7 +322,7 @@ export function RestrictedZonesEditor() {
               </select>
             </label>
 
-            <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="block text-xs font-bold text-secondary-token">
               {t('zone_editor.epp_label', 'EPP requerido (separado por comas)')}
               <input
                 type="text"
@@ -333,7 +333,7 @@ export function RestrictedZonesEditor() {
               />
             </label>
 
-            <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="block text-xs font-bold text-secondary-token">
               {t('zone_editor.trainings_label', 'Capacitaciones requeridas (comas)')}
               <input
                 type="text"
@@ -344,7 +344,7 @@ export function RestrictedZonesEditor() {
               />
             </label>
 
-            <label className="flex items-center gap-2 text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="flex items-center gap-2 text-xs font-bold text-secondary-token">
               <input
                 type="checkbox"
                 checked={requiresPermit}
@@ -354,7 +354,7 @@ export function RestrictedZonesEditor() {
               {t('zone_editor.requires_permit', 'Requiere permiso de trabajo activo')}
             </label>
 
-            <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+            <label className="block text-xs font-bold text-secondary-token">
               {t('zone_editor.responsible_label', 'UID del responsable')}
               <input
                 type="text"
@@ -366,7 +366,7 @@ export function RestrictedZonesEditor() {
             </label>
 
             <div className="grid grid-cols-2 gap-2">
-              <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+              <label className="block text-xs font-bold text-secondary-token">
                 {t('zone_editor.active_from', 'Inicio')}
                 <input
                   type="datetime-local"
@@ -376,7 +376,7 @@ export function RestrictedZonesEditor() {
                   className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-800"
                 />
               </label>
-              <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-300">
+              <label className="block text-xs font-bold text-secondary-token">
                 {t('zone_editor.active_until', 'Término (opcional)')}
                 <input
                   type="datetime-local"
@@ -404,14 +404,14 @@ export function RestrictedZonesEditor() {
                 onClick={() => setDrawnPath(null)}
                 disabled={!drawnPath}
                 data-testid="zoneEditor.clear"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 px-3 py-2 text-xs font-bold text-secondary-token hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600"
               >
                 <Eraser className="w-4 h-4" />
                 {t('zone_editor.clear', 'Limpiar')}
               </button>
             </div>
 
-            <p className="text-[10px] text-zinc-400">
+            <p className="text-[10px] text-muted-token">
               {t('zone_editor.count', '{{n}} zonas definidas en este proyecto.', { n: existingZones.length })}
             </p>
           </div>

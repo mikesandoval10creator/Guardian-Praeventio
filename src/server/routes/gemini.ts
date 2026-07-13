@@ -24,7 +24,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
-import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
 import { redactPromptForVertex } from '../../services/gemini/pii.js';
 import { baselineEmergencyPlan } from '../../services/gemini/emergency.js';
@@ -56,6 +56,7 @@ import {
   AI_MODEL_FAST_STABLE,
   AI_MODEL_REASONING,
   AI_MODEL_VISION,
+  AI_MODEL_IMAGE_GENERATION,
 } from '../../config/aiModels.js';
 // AI provider layer — per-action routing to a self-hosted OpenAI-compatible
 // endpoint (vLLM/Ollama). Without AI_SELFHOSTED_* config, resolveProvider()
@@ -233,6 +234,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'searchRelevantContext',
   'getNutritionSuggestion',
   'scanLegalUpdates',
+  // B4 — safety-visual image generation (afiches / procedure-step frames).
+  'generateSafetyVisual',
 ];
 
 // Bucket X under-billing fix — the post-call quota accounting below charges a
@@ -277,6 +280,8 @@ const GEMINI_ACTION_MODEL: Record<string, string> = {
   getChatResponse: AI_MODEL_CHAT, // gemini/chat.ts
   // ── Vision (Gemini Pro via AI_MODEL_VISION) ──
   analyzeSafetyImage: AI_MODEL_VISION, // gemini/vision.ts
+  // ── Image generation (Nano-Banana-class SKU) — bill at its real rate ──
+  generateSafetyVisual: AI_MODEL_IMAGE_GENERATION, // gemini/imageGen.ts
   // ── Fast long-form Markdown (preview Flash SKU, distinct rate) ──
   analyzeFaenaRiskWithAI: AI_MODEL_FAST_LONGFORM, // geminiBackend.ts
   // ── Fast default-but-explicit (FLASH_3_PREVIEW differs from FAST_STABLE) ──
@@ -402,9 +407,18 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
     // projectId, geo o el flag ENV_CONTEXT_ENABLED está desactivado.
     let envContext: string | null = null;
     if (isEnvContextEnabled() && typeof projectId === 'string' && projectId.length > 0) {
-      const geo = await lookupProjectGeo(projectId);
-      if (geo) {
-        envContext = await fetchEnvContextWithTimeout(geo);
+      try {
+        await assertProjectMember(req.user!.uid, projectId, getFirestore());
+        const geo = await lookupProjectGeo(projectId);
+        if (geo) {
+          envContext = await fetchEnvContextWithTimeout(geo);
+        }
+      } catch (error) {
+        if (error instanceof ProjectMembershipError || (error as Error)?.name === 'ProjectMembershipError') {
+          logger.warn('ask_guardian_geo_authz_denied', { uid: req.user!.uid, projectId });
+        } else {
+          throw error;
+        }
       }
     }
 
@@ -513,6 +527,13 @@ ${envBlock}
   return undefined;
 });
 
+// Persistence RPCs that must run for REAL under E2E_MODE (never the mock) so
+// offline-sync specs actually write to the Firestore emulator. They are Firestore
+// writes via networkBackend — no Gemini quota, only admin.firestore() +
+// assertProjectMember (the caller's uid is identity-stamped above). See the
+// E2E mock branch in the handler below.
+const E2E_REAL_ACTIONS = new Set(['syncNodeToNetwork', 'syncBatchToNetwork']);
+
 // Gemini API Proxy
 router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
@@ -520,11 +541,20 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   // Sprint 19 / F-B11 — E2E_MODE deterministic mock (same gating as
   // /ask-guardian). Returns a shape compatible with the typical wrapper
   // `{ result: ... }` without invoking the real Gemini backend.
+  //
+  // EXCEPT persistence actions (2026-07-05): syncNodeToNetwork /
+  // syncBatchToNetwork are NOT Gemini generation — they persist RiskNodes to
+  // the `nodes` collection via networkBackend. Mocking them made offline-sync
+  // specs green-but-hollow: the outbox flush would 200 without ever writing, so
+  // a finding created offline never surfaced in the feed after reconnect
+  // (offline-resilience.spec). These must hit the real Firestore emulator in
+  // E2E — they need no Gemini quota, only admin.firestore() + assertProjectMember.
   if (
     process.env.E2E_MODE === '1' &&
     process.env.NODE_ENV !== 'production' &&
     typeof req.headers.authorization === 'string' &&
-    req.headers.authorization.startsWith('E2E ')
+    req.headers.authorization.startsWith('E2E ') &&
+    !E2E_REAL_ACTIONS.has(action)
   ) {
     return res.json({
       result: { ok: true, mock: true, source: 'e2e-mode', action, args: args ?? [] },

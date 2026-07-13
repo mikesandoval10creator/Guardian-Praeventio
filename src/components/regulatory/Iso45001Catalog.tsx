@@ -74,6 +74,11 @@ export function Iso45001Catalog({
                 </p>
                 <p className="text-xs truncate">{c.title}</p>
               </button>
+              {/* Funnel/PLG (2026-06-28): el link externo a iso.org se removió —
+                  expulsaba al usuario de la app en su primera interacción. La
+                  fuente oficial vive ahora SOLO en el Iso45001DetailDrawer
+                  (drill-down deliberado), nunca en la lista de primera impresión.
+                  Alinea con el test "no navega a iso.org". */}
               {covered && (
                 <span
                   className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent-success)_20%,transparent)] text-[var(--accent-success)]"

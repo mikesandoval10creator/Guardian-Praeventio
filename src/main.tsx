@@ -13,10 +13,19 @@ import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
 import { initSentry } from './lib/sentry';
+import { installOfflineRejectionGuard } from './lib/offlineErrorGuard';
 import { registerSW } from 'virtual:pwa-register';
 import { logger } from './utils/logger';
 import { ErrorFallback } from './components/shared/ErrorFallback';
 import { DEEP_LINK_EVENT_NAME } from './components/shared/DeepLinkHandler';
+
+// Neutralise the benign "Firestore read while offline" unhandled rejection
+// BEFORE Sentry attaches its own global handler (see offlineErrorGuard.ts).
+// Offline is an expected operating state for a field-safety PWA, so this must
+// not surface as an error in the console or Sentry.
+installOfflineRejectionGuard((code) =>
+  logger.debug('Suppressed benign offline Firestore read rejection', { code }),
+);
 
 // Init error monitoring before anything else so startup errors are captured
 initSentry();

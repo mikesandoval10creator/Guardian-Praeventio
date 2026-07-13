@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 import { motion } from 'framer-motion';
 import { 
   Book, 
@@ -21,6 +22,7 @@ import { suggestNormativesWithAI, downloadSpecificNormative } from '../services/
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface Normative {
   id: string;
@@ -95,78 +97,25 @@ export function Normatives() {
         await downloadSpecificNormative(law.id);
       }
 
-      // 2. Also keep the frontend metadata for the UI listing (legacy support)
-      const { addDoc, collection, getDocs, query, where } = await import('firebase/firestore');
-      const { db } = await import('../services/firebase');
-      
-      const initialNormatives = [
-        {
-          title: 'Ley 16.744: Seguro Social contra Riesgos de Accidentes del Trabajo y Enfermedades Profesionales',
-          code: 'Ley 16.744',
-          category: 'Seguridad Social',
-          description: 'Establece normas sobre accidentes del trabajo y enfermedades profesionales. Es la piedra angular de la seguridad laboral en Chile.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 594: Reglamento sobre Condiciones Sanitarias y Ambientales Básicas en los Lugares de Trabajo',
-          code: 'DS 594',
-          category: 'Higiene y Salud',
-          description: 'Establece las condiciones sanitarias y ambientales básicas que debe cumplir todo lugar de trabajo.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 40: Reglamento sobre Prevención de Riesgos Profesionales',
-          code: 'DS 44/2024',
-          category: 'Prevención',
-          description: 'Establece normas sobre la organización y funcionamiento de los Departamentos de Prevención de Riesgos.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 54: Reglamento para la Constitución y Funcionamiento de los Comités Paritarios de Higiene y Seguridad',
-          code: 'DS 54',
-          category: 'Comités Paritarios',
-          description: 'Regula la formación y funciones de los Comités Paritarios en empresas con más de 25 trabajadores.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Decreto Supremo 18: Certificación de Calidad de Elementos de Protección Personal contra Riesgos Ocupacionales',
-          code: 'DS 18',
-          category: 'EPP',
-          description: 'Establece normas sobre la certificación de calidad de los EPP comercializados en el país.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Ley 21.096: Consagra el Derecho a la Protección de Datos Personales',
-          code: 'Ley 21.096',
-          category: 'Privacidad',
-          description: 'Regula el tratamiento de datos personales y crea la Agencia de Protección de Datos.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        },
-        {
-          title: 'Ley 20.123: Regula Trabajo en Régimen de Subcontratación',
-          code: 'Ley 20.123',
-          category: 'Subcontratación',
-          description: 'Establece las responsabilidades de la empresa principal en materia de seguridad y salud para trabajadores subcontratados.',
-          status: 'active',
-          lastReview: new Date().toISOString()
-        }
-      ];
-
-      for (const norm of initialNormatives) {
-        const q = query(collection(db, 'normatives'), where('code', '==', norm.code));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          await addDoc(collection(db, 'normatives'), norm);
-        }
+      // 2. Also seed UI metadata server-side so the write is audited.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
+        throw new Error('Debes iniciar sesión para sincronizar la biblioteca normativa.');
       }
-      showToast('Biblioteca sincronizada con éxito (Vectores + Metadata)', 'success');
+
+      const response = await fetch('/api/normatives/seed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error sincronizando biblioteca normativa: ${response.status}`);
+      }
+
+      showToast('Biblioteca sincronizada con éxito (Vectores + Metadata auditada)', 'success');
     } catch (error) {
       logger.error('Error seeding normatives', { error });
     } finally {
@@ -196,14 +145,14 @@ export function Normatives() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('normatives.title', 'Normativas')}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('normatives.title', 'Normativas')}</h1>
           <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('normatives.subtitle', 'Biblioteca de leyes, decretos y estándares de seguridad')}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={seedNormatives}
             disabled={isSeeding || !isOnline}
-            className="flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 w-full sm:w-auto disabled:bg-zinc-100 dark:disabled:bg-zinc-800 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:shadow-none shadow-sm"
+            className="flex items-center justify-center gap-2 bg-elevated border border-zinc-200 dark:border-white/10 text-muted-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 w-full sm:w-auto disabled:bg-zinc-100 dark:disabled:bg-zinc-800 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:shadow-none shadow-sm"
           >
             {!isOnline ? <WifiOff className="w-4 h-4" /> : isSeeding ? <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-4 h-4" />}
             <span>{!isOnline ? 'Requiere Conexión' : 'Sincronizar Biblioteca'}</span>
@@ -213,13 +162,21 @@ export function Normatives() {
             className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 w-full sm:w-auto ${
               showSavedOnly 
                 ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
-                : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10'
+                : 'bg-surface text-muted-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10'
             }`}
           >
             <Bookmark className={`w-4 h-4 ${showSavedOnly ? 'fill-current' : ''}`} />
             <span>{t('normatives.savedTab', 'Mis Guardados')}</span>
           </button>
         </div>
+      </div>
+
+      {/* ISO 45001:2018 — catálogo de controles baseline. Reubicado del
+          dashboard (2026-06-28): pertenece a la biblioteca de estándares de
+          seguridad, no a la primera pantalla del usuario (no debe expulsar
+          ni saturar la 1ra impresión). */}
+      <div className="mb-8">
+        <Iso45001Catalog />
       </div>
 
       {/* Search & Filters */}
@@ -231,7 +188,7 @@ export function Normatives() {
             placeholder="Buscar por título, código o categoría..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-3 sm:py-2.5 pl-10 pr-4 text-[10px] sm:text-xs text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium shadow-sm"
+            className="w-full bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl py-3 sm:py-2.5 pl-10 pr-4 text-[10px] sm:text-xs text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium shadow-sm"
           />
         </div>
         <button
@@ -239,7 +196,7 @@ export function Normatives() {
           className={`flex items-center justify-center gap-2 border rounded-xl py-3 sm:py-2.5 px-6 transition-all w-full md:w-auto text-[10px] font-black uppercase tracking-widest shadow-sm ${
             showCategoryPanel || categoryFilter !== 'all'
               ? 'bg-emerald-500 border-emerald-500 text-white'
-              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800'
+              : 'bg-elevated border-zinc-200 dark:border-white/10 text-muted-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800'
           }`}
         >
           <Filter className="w-4 h-4" />
@@ -254,7 +211,7 @@ export function Normatives() {
               key={cat}
               onClick={() => setCategoryFilter(cat)}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                cat === categoryFilter ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                cat === categoryFilter ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-300 dark:hover:bg-zinc-700'
               }`}
             >{cat === 'all' ? 'Todas' : cat}</button>
           ))}
@@ -277,7 +234,7 @@ export function Normatives() {
           {!isOnline ? (
             <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-dashed border-zinc-300 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center text-center">
               <WifiOff className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-3" />
-              <p className="text-sm font-bold text-zinc-600 dark:text-zinc-400">Conexión requerida</p>
+              <p className="text-sm font-bold text-secondary-token">Conexión requerida</p>
               <p className="text-xs text-zinc-500 mt-1">Los protocolos dinámicos por IA no están disponibles sin conexión.</p>
             </div>
           ) : loadingProtocols ? (
@@ -302,8 +259,8 @@ export function Normatives() {
                     </span>
                     <AlertTriangle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                   </div>
-                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-2 line-clamp-2">{protocol.title || 'Protocolo Específico'}</h3>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-3">{protocol.description}</p>
+                  <h3 className="text-sm font-bold text-primary-token mb-2 line-clamp-2">{protocol.title || 'Protocolo Específico'}</h3>
+                  <p className="text-xs text-secondary-token line-clamp-3">{protocol.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -325,7 +282,7 @@ export function Normatives() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
               onClick={() => navigate(`/normatives/${norm.id}`)}
-              className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 transition-all group relative overflow-hidden cursor-pointer shadow-sm"
+              className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 transition-all group relative overflow-hidden cursor-pointer shadow-sm"
             >
               <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
                 <button 
@@ -335,7 +292,7 @@ export function Normatives() {
                   }}
                   className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors group/bookmark"
                 >
-                  <Bookmark className={`w-5 h-5 ${savedIds.includes(norm.id) ? 'text-emerald-500 fill-emerald-500' : 'text-zinc-400 dark:text-zinc-500 group-hover/bookmark:text-emerald-500 dark:group-hover/bookmark:text-emerald-400'}`} />
+                  <Bookmark className={`w-5 h-5 ${savedIds.includes(norm.id) ? 'text-emerald-500 fill-emerald-500' : 'text-muted-token group-hover/bookmark:text-emerald-500 dark:group-hover/bookmark:text-emerald-400'}`} />
                 </button>
                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                   norm.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'
@@ -349,14 +306,14 @@ export function Normatives() {
                   <FileText className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-white text-lg leading-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  <h3 className="font-bold text-primary-token text-lg leading-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     {norm.title}
                   </h3>
                   <p className="text-zinc-500 text-sm font-medium mt-1">{norm.code} · {norm.category}</p>
                 </div>
               </div>
 
-              <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-6 line-clamp-3">
+              <p className="text-secondary-token text-sm mb-6 line-clamp-3">
                 {norm.description}
               </p>
 
@@ -389,10 +346,10 @@ export function Normatives() {
         </div>
       ) : (
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-dashed border-zinc-300 dark:border-white/10 rounded-3xl p-20 text-center">
-          <div className="w-20 h-20 bg-white dark:bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+          <div className="w-20 h-20 bg-surface rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
             <Book className="w-10 h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">{t('normatives.notFound', 'No se encontraron normativas')}</h3>
+          <h3 className="text-xl font-bold text-primary-token mb-2">{t('normatives.notFound', 'No se encontraron normativas')}</h3>
           <p className="text-zinc-500 max-w-md mx-auto">
             Intenta con otros términos de búsqueda o revisa la biblioteca completa de estándares de seguridad.
           </p>

@@ -113,13 +113,13 @@ export function SafetyCoach() {
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center gap-3">
+      <div className="px-5 py-4 border-b border-default-token bg-surface flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shrink-0">
           <Shield className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-zinc-900 dark:text-white">{t('safetyCoach.title', 'Praeventio AI Coach')}</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('safetyCoach.subtitle', 'Mentor personal de seguridad laboral')}</p>
+          <h1 className="font-bold text-primary-token">{t('safetyCoach.title', 'Praeventio AI Coach')}</h1>
+          <p className="text-xs text-muted-token">{t('safetyCoach.subtitle', 'Mentor personal de seguridad laboral')}</p>
         </div>
 
         {/* User stats chips */}
@@ -161,7 +161,7 @@ export function SafetyCoach() {
                 {msg.role === 'coach' ? (
                   <Bot className="w-4 h-4 text-white" />
                 ) : (
-                  <User className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                  <User className="w-4 h-4 text-secondary-token" />
                 )}
               </div>
               <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
@@ -204,7 +204,7 @@ export function SafetyCoach() {
           <button
             key={prompt}
             onClick={() => { setInput(prompt); }}
-            className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-300 dark:hover:border-emerald-600 transition-colors"
+            className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-default-token bg-surface text-secondary-token hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-300 dark:hover:border-emerald-600 transition-colors"
           >
             {prompt}
           </button>
@@ -212,7 +212,7 @@ export function SafetyCoach() {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <div className="p-4 border-t border-default-token bg-surface">
         <div className="flex gap-2">
           <input
             value={input}
@@ -220,7 +220,7 @@ export function SafetyCoach() {
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
             placeholder={t('safetyCoach.input.placeholder', 'Pregunta al coach de seguridad…')}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-default-token bg-elevated text-sm text-primary-token placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
           />
           <button
             onClick={sendMessage}

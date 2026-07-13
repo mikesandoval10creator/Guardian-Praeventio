@@ -7,8 +7,8 @@
 // AssignEPPModal, …) but had NO write rule, so the whole Documents feature
 // (reports / emergency plans / EPP & SUSESO docs) was default-denied in
 // production. Schemas vary, so the rule is member-gated (no field check);
-// deleting a project document (compliance/legal trail) is admin/supervisor only.
-// Uses the F1 fail-closed harness.
+// F7 (2026-07-02): a project document is legal evidence — NO client deletes
+// for anyone (physical removal is server-side + audited). F1 harness.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -82,9 +82,9 @@ describe('projects/{pid}/documents — firestore.rules (B5)', () => {
     await seed('d4');
     await assertFails(setDoc(docRef(authed(OUTSIDER), 'd4'), { title: 'Hack' }, { merge: true }));
   });
-  it('member cannot delete a document; admin/supervisor can', async () => {
+  it('F7: NOBODY deletes client-side — member AND admin denied (evidence lock)', async () => {
     await seed('d5');
     await assertFails(deleteDoc(docRef(authed(MEMBER), 'd5')));
-    await assertSucceeds(deleteDoc(docRef(authed(ADMIN, 'admin'), 'd5')));
+    await assertFails(deleteDoc(docRef(authed(ADMIN, 'admin'), 'd5')));
   });
 });

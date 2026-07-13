@@ -105,7 +105,7 @@ export function NormativeDetail() {
   if (!normative) {
     return (
       <div className="p-6 max-w-7xl mx-auto text-center py-20">
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-4">{t('normativeDetail.notFound', 'Normativa no encontrada')}</h2>
+        <h2 className="text-2xl font-bold text-primary-token mb-4">{t('normativeDetail.notFound', 'Normativa no encontrada')}</h2>
         <button
           onClick={() => navigate('/normatives')}
           className="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 font-medium"
@@ -120,7 +120,7 @@ export function NormativeDetail() {
     <div className="p-6 max-w-4xl mx-auto space-y-8">
       <button 
         onClick={() => navigate('/normatives')}
-        className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+        className="flex items-center gap-2 text-muted-token hover:text-zinc-900 dark:hover:text-white transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         <span className="text-sm font-bold uppercase tracking-widest">{t('normativeDetail.back', 'Volver')}</span>
@@ -129,13 +129,13 @@ export function NormativeDetail() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-8 md:p-12 relative overflow-hidden shadow-sm"
+        className="bg-elevated border border-default-token rounded-3xl p-8 md:p-12 relative overflow-hidden shadow-sm"
       >
         <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
         
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-emerald-500 border border-zinc-200 dark:border-white/5 shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-emerald-500 border border-default-token shrink-0">
               <Book className="w-8 h-8" />
             </div>
             <div>
@@ -149,7 +149,7 @@ export function NormativeDetail() {
                   {normative.status === 'active' ? t('normativeDetail.active', 'Vigente') : t('normativeDetail.updated', 'Actualizada')}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">
                 {normative.title}
               </h1>
             </div>
@@ -158,9 +158,10 @@ export function NormativeDetail() {
           <div className="flex gap-2 shrink-0">
             <button 
               onClick={toggleSave}
+              aria-label="Guardar normativa"
               className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors group"
             >
-              <Bookmark className={`w-5 h-5 ${savedIds.includes(normative.id) ? 'text-emerald-500 fill-emerald-500' : 'text-zinc-400 dark:text-zinc-400 group-hover:text-emerald-500 dark:group-hover:text-emerald-400'}`} />
+              <Bookmark aria-hidden="true" className={`w-5 h-5 ${savedIds.includes(normative.id) ? 'text-emerald-500 fill-emerald-500' : 'text-zinc-400 dark:text-zinc-400 group-hover:text-emerald-500 dark:group-hover:text-emerald-400'}`} />
             </button>
             {normative.url && (
               <a 
@@ -176,23 +177,23 @@ export function NormativeDetail() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
+          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-default-token">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <Tag className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.category', 'Categoría')}</span>
             </div>
-            <p className="text-zinc-900 dark:text-white font-medium">{normative.category}</p>
+            <p className="text-primary-token font-medium">{normative.category}</p>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
+          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-default-token">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <Calendar className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.lastReview', 'Última Revisión')}</span>
             </div>
-            <p className="text-zinc-900 dark:text-white font-medium">
+            <p className="text-primary-token font-medium">
               {new Date(normative.lastReview).toLocaleDateString('es-CL')}
             </p>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
+          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-default-token">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <ShieldCheck className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.legalStatus', 'Estado Legal')}</span>
@@ -203,11 +204,11 @@ export function NormativeDetail() {
 
         <div className="space-y-8">
           <section>
-            <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-black text-primary-token uppercase tracking-tight mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-500" />
               Descripción General
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-lg">
+            <p className="text-secondary-token leading-relaxed text-lg">
               {normative.description}
             </p>
           </section>
@@ -224,7 +225,7 @@ export function NormativeDetail() {
 
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+              <h2 className="text-xl font-black text-primary-token uppercase tracking-tight flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-emerald-500" />
                 {t('normativeDetail.tasksSection', 'Tareas Operativas (IA)')}
               </h2>
@@ -255,14 +256,14 @@ export function NormativeDetail() {
             {operationalTasks.length > 0 ? (
               <ul className="space-y-3">
                 {operationalTasks.map((task, index) => (
-                  <li key={index} className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl p-4 shadow-sm">
+                  <li key={index} className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-800/50 border border-default-token rounded-xl p-4 shadow-sm">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                    <span className="text-zinc-700 dark:text-zinc-300">{task}</span>
+                    <span className="text-secondary-token">{task}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="text-center py-8 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-dashed border-zinc-300 dark:border-white/10">
+              <div className="text-center py-8 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-dashed border-default-token">
                 <p className="text-zinc-500 text-sm">
                   Haz clic en "Generar Tareas" para traducir esta normativa en acciones operativas concretas usando IA.
                 </p>

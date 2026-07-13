@@ -224,10 +224,10 @@ export function LoneWorkerMonitor() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <UserCheck className="w-6 h-6 text-teal-500" /> {t('lone_worker_page.title', 'Trabajo solitario')}
             </h1>
-            <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+            <p className="text-xs text-muted-token mt-1 max-w-2xl">
               {t(
                 'lone_worker_page.subtitle',
                 'Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).',
@@ -246,11 +246,11 @@ export function LoneWorkerMonitor() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('lone_worker_page.empty.select_project', 'Seleccioná un proyecto para iniciar sesiones de trabajo solitario.')}
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-500">
+          <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
@@ -268,7 +268,7 @@ export function LoneWorkerMonitor() {
                   {t('lone_worker_page.form.heading', 'Nueva sesión')}
                 </h2>
                 <div className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('lone_worker_page.form.interval_label', 'Intervalo de check-in (minutos)')}
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -288,7 +288,7 @@ export function LoneWorkerMonitor() {
                     ))}
                   </div>
                 </div>
-                <p className="text-[10px] text-zinc-500">
+                <p className="text-[10px] text-muted-token">
                   {t(
                     'lone_worker_page.form.geo_note',
                     'Si activás la geolocalización, el check-in incluirá las coordenadas. La sesión es self-tracking (vos sos el worker).',
@@ -298,7 +298,7 @@ export function LoneWorkerMonitor() {
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -322,10 +322,10 @@ export function LoneWorkerMonitor() {
                 already subscribes to — no fabricated data. */}
             {selectedProject && (
               <section className="space-y-2" data-testid="lone_worker_page.admin_section">
-                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                <h2 className="text-xs font-black text-muted-token uppercase tracking-widest">
                   {t('lone_worker_page.admin_panel.heading', 'Vista de supervisión')}
                 </h2>
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-[11px] text-muted-token">
                   {t(
                     'lone_worker_page.admin_panel.note',
                     'Estado y escalamiento calculados en el servidor (hora autoritativa, sin desfase de reloj del dispositivo). Ordenado por criticidad.',
@@ -339,7 +339,7 @@ export function LoneWorkerMonitor() {
             )}
 
             <section className="space-y-3">
-              <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+              <h2 className="text-xs font-black text-muted-token uppercase tracking-widest">
                 {t('lone_worker_page.active.heading', {
                   defaultValue: 'Sesiones activas ({{count}})',
                   count: activeSessions.length,
@@ -408,26 +408,26 @@ export function LoneWorkerMonitor() {
 
             {endedSessions.length > 0 && (
               <section className="space-y-2">
-                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                <h2 className="text-xs font-black text-muted-token uppercase tracking-widest">
                   {t('lone_worker_page.history.heading', 'Historial reciente')}
                 </h2>
                 <ul className="space-y-1">
                   {endedSessions.map(({ session }) => (
                     <li
                       key={session.id}
-                      className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
+                      className="rounded-lg border border-default-token bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
                     >
                       <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300">
                         {t('lone_worker_page.history.closed_badge', 'Cerrada')}
                       </span>
-                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
+                      <span className="text-secondary-token flex-1 truncate">
                         {t('lone_worker_page.history.row_summary', {
                           defaultValue: 'Worker {{uid}} · {{count}} check-ins',
                           uid: session.workerUid.slice(0, 12),
                           count: session.checkIns.length,
                         })}
                       </span>
-                      <span className="text-[10px] text-zinc-500">
+                      <span className="text-[10px] text-muted-token">
                         {new Date(session.startedAt).toLocaleDateString('es-CL')}
                       </span>
                     </li>

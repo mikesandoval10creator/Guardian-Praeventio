@@ -215,14 +215,14 @@ export function ImmutableRender() {
       >
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
               <Printer
                 className="w-8 h-8 text-fuchsia-500"
                 aria-hidden="true"
               />
               {t('immutableRender.title', 'Renderizado inmutable')}
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+            <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
               {t(
                 'immutableRender.subtitle',
                 'jsPDF + SHA-256 content addressing',
@@ -253,8 +253,8 @@ export function ImmutableRender() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Generation panel */}
-          <Card className="p-6 border-white/5 space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <FileCheck
                 className="w-5 h-5 text-fuchsia-500"
                 aria-hidden="true"
@@ -263,7 +263,7 @@ export function ImmutableRender() {
             </h2>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-2">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-2">
                 {t('immutableRender.kindLabel', 'Tipo de documento')}
               </label>
               <div
@@ -280,21 +280,21 @@ export function ImmutableRender() {
                     className={`p-3 rounded-lg border-2 text-left transition-colors ${
                       selectedKind === tpl.kind
                         ? 'border-fuchsia-500/40 bg-fuchsia-500/5'
-                        : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700'
+                        : 'border-default-token bg-surface hover:border-default-token'
                     }`}
                   >
-                    <p className="text-sm font-bold text-white flex items-center gap-2">
+                    <p className="text-sm font-bold text-primary-token flex items-center gap-2">
                       <FileText
                         className={`w-4 h-4 ${
                           selectedKind === tpl.kind
                             ? 'text-fuchsia-400'
-                            : 'text-zinc-500'
+                            : 'text-muted-token'
                         }`}
                         aria-hidden="true"
                       />
                       {tpl.title}
                     </p>
-                    <p className="text-[11px] text-zinc-400 mt-0.5 ml-6">
+                    <p className="text-[11px] text-secondary-token mt-0.5 ml-6">
                       {tpl.description}
                     </p>
                   </button>
@@ -303,7 +303,7 @@ export function ImmutableRender() {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 {t('immutableRender.titleLabel', 'Título')}
               </label>
               <input
@@ -311,12 +311,12 @@ export function ImmutableRender() {
                 value={docTitle}
                 onChange={(e) => setDocTitle(e.target.value)}
                 data-testid="immutable-title-input"
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 {t('immutableRender.subtitleLabel', 'Subtítulo (opcional)')}
               </label>
               <input
@@ -324,7 +324,7 @@ export function ImmutableRender() {
                 value={docSubtitle}
                 onChange={(e) => setDocSubtitle(e.target.value)}
                 data-testid="immutable-subtitle-input"
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40"
               />
             </div>
 
@@ -352,9 +352,9 @@ export function ImmutableRender() {
           </Card>
 
           {/* Output panel */}
-          <Card className="p-6 border-white/5 space-y-4">
+          <Card className="p-6 border-default-token space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
                 <ShieldAlert
                   className="w-5 h-5 text-fuchsia-500"
                   aria-hidden="true"
@@ -365,7 +365,7 @@ export function ImmutableRender() {
                 <button
                   onClick={reset}
                   data-testid="immutable-reset"
-                  className="text-zinc-500 hover:text-white"
+                  className="text-muted-token hover:text-primary-token"
                   aria-label="Limpiar"
                 >
                   <X className="w-4 h-4" aria-hidden="true" />
@@ -374,12 +374,12 @@ export function ImmutableRender() {
             </div>
 
             {!renderedArtifact && !isRendering && (
-              <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30 gap-2">
+              <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-default-token rounded-xl bg-surface gap-2">
                 <FileText
-                  className="w-10 h-10 text-zinc-700"
+                  className="w-10 h-10 text-muted-token"
                   aria-hidden="true"
                 />
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-muted-token">
                   {t(
                     'immutableRender.empty',
                     'Genera un documento para ver su hash + descarga.',
@@ -424,10 +424,10 @@ export function ImmutableRender() {
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-wider mb-1">
                     SHA-256
                   </p>
-                  <div className="p-2.5 rounded-md bg-zinc-950 border border-zinc-800">
+                  <div className="p-2.5 rounded-md bg-elevated border border-default-token">
                     <code
                       data-testid="immutable-hash"
                       className="text-[10px] font-mono text-fuchsia-300 break-all leading-relaxed"
@@ -452,8 +452,8 @@ export function ImmutableRender() {
 
         {/* Verify panel */}
         {renderedArtifact && (
-          <Card className="p-6 border-white/5 space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <FileCheck
                 className="w-5 h-5 text-emerald-400"
                 aria-hidden="true"
@@ -463,7 +463,7 @@ export function ImmutableRender() {
                 'Verificar integridad de un PDF',
               )}
             </h2>
-            <p className="text-xs text-zinc-400 leading-relaxed">
+            <p className="text-xs text-secondary-token leading-relaxed">
               {t(
                 'immutableRender.verifyDesc',
                 'Sube el PDF generado (o una versión modificada) para comprobar si su SHA-256 coincide con el del artifact original. Si un solo byte cambió, la verificación fallará.',
@@ -477,7 +477,7 @@ export function ImmutableRender() {
                 accept="application/pdf"
                 data-testid="immutable-verify-input"
                 onChange={() => setVerifyOutcome(null)}
-                className="flex-1 text-xs text-zinc-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-fuchsia-600 file:text-white file:font-bold hover:file:brightness-110"
+                className="flex-1 text-xs text-secondary-token file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-fuchsia-600 file:text-white file:font-bold hover:file:brightness-110"
               />
               <Button
                 onClick={() => void handleVerify()}
@@ -532,25 +532,25 @@ export function ImmutableRender() {
                     </p>
                     <div className="mt-2 grid grid-cols-1 gap-1.5 text-[11px]">
                       <div>
-                        <span className="text-zinc-500">Archivo:</span>{' '}
-                        <code className="font-mono text-zinc-300">
+                        <span className="text-muted-token">Archivo:</span>{' '}
+                        <code className="font-mono text-secondary-token">
                           {verifyOutcome.filename}
                         </code>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Tamaño:</span>{' '}
-                        <code className="font-mono text-zinc-300">
+                        <span className="text-muted-token">Tamaño:</span>{' '}
+                        <code className="font-mono text-secondary-token">
                           {(verifyOutcome.sizeBytes / 1024).toFixed(1)} KB
                         </code>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Hash esperado:</span>{' '}
+                        <span className="text-muted-token">Hash esperado:</span>{' '}
                         <code className="font-mono text-emerald-300 break-all">
                           {verifyOutcome.expectedHash.slice(0, 32)}…
                         </code>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Hash actual:</span>{' '}
+                        <span className="text-muted-token">Hash actual:</span>{' '}
                         <code
                           className={`font-mono break-all ${
                             verifyOutcome.valid
@@ -569,7 +569,7 @@ export function ImmutableRender() {
           </Card>
         )}
 
-        <p className="text-[10px] text-zinc-500 italic text-center">
+        <p className="text-[10px] text-muted-token italic text-center">
           {t(
             'immutableRender.standardNote',
             'Generación client-side con jsPDF + SHA-256 (@noble/hashes). El hash criptográfico detecta cualquier modificación a nivel de byte. Para firma digital PKI completa se requiere infraestructura adicional.',

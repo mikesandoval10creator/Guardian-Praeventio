@@ -322,9 +322,12 @@ describe('POST /api/onboarding/complete', () => {
     expect(project.ownerUid).toBe('uid-A');
     expect(project.source).toBe('onboarding-wizard');
 
-    // Step ✓: audit row emitted.
-    expect(auditServerEventMock).toHaveBeenCalledTimes(1);
-    expect(auditServerEventMock.mock.calls[0][1]).toBe('onboarding.completed');
+    // Step ✓: audit row emitted. A brand-new owner is also promoted to gerente
+    // (emits onboarding.owner_role_promoted), so assert the completed event by
+    // name, not by call index.
+    expect(
+      auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.completed'),
+    ).toBe(true);
   });
 
   it('paid tier records pendingTier + status=pending_payment instead of activating', async () => {
@@ -426,8 +429,12 @@ describe('POST /api/onboarding/complete', () => {
     expect(cfg.sectorId).toBe('GP-CONS-RES'); // derived from the catalogue, not the client
     expect(cfg.estimatedWorkers).toBe(30);
 
-    // Audit row carries the new fields.
-    const auditPayload = auditServerEventMock.mock.calls[0][3] as Record<string, unknown>;
+    // Audit row carries the new fields. Find the completed event by name — a
+    // brand-new owner also emits onboarding.owner_role_promoted.
+    const completedCall = auditServerEventMock.mock.calls.find(
+      (c) => c[1] === 'onboarding.completed',
+    );
+    const auditPayload = completedCall![3] as Record<string, unknown>;
     expect(auditPayload.siiCode).toBe(410010);
     expect(auditPayload.estimatedWorkers).toBe(30);
   });
@@ -524,6 +531,18 @@ describe('POST /api/onboarding/complete', () => {
       const meta = project.metadata as Record<string, unknown>;
       expect(meta.codigoActividadSii).toBe(410010);
       expect(meta.sectorId).toBe('GP-CONS-RES');
+    });
+
+    it('M-1: stamps tenantId = caller uid on the canonical projects/{pid} doc', async () => {
+      // Founder decision 2026-07-02 (+ design doc §4): tenant == creator uid.
+      // Without this stamp every tenant-guarded router 400s for wizard
+      // projects (audit 2026-07-02 §2 — 61 routers).
+      const res = await completeOnboarding();
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+      const project = firestoreStore.get(`projects/${pid}`) as Record<string, unknown>;
+      expect(project.tenantId).toBe('uid-S');
+      expect(project.tenantId).toBe(project.createdBy); // convention: tenantId = createdBy
     });
 
     it('seeds the rubro risks into the top-level nodes collection with deterministic ids', async () => {

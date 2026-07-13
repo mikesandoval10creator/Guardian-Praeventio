@@ -159,10 +159,10 @@ function ClawMachineInner() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="text-2xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
             <Wrench className="w-7 h-7 text-fuchsia-500" /> {t('clawMachine.title', 'Drill de Respuesta — EPP')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('clawMachine.subtitle', 'DS 594 · Ley 16.744')}</p>
+          <p className="text-xs text-muted-token uppercase tracking-widest mt-1">{t('clawMachine.subtitle', 'DS 594 · Ley 16.744')}</p>
         </div>
         <div className="px-4 py-2 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 font-bold flex items-center gap-2">
           <Trophy className="w-4 h-4" /> {score} pts
@@ -171,12 +171,12 @@ function ClawMachineInner() {
 
       <Card className="p-6 space-y-4 border-white/5">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{scenario.title}</h2>
+          <h2 className="text-lg font-bold text-primary">{scenario.title}</h2>
           <div className={`flex items-center gap-2 font-bold ${seconds <= 5 ? 'text-rose-400' : 'text-zinc-300'}`}>
             <Clock className="w-4 h-4" /> {seconds}s
           </div>
         </div>
-        <p className="text-sm text-zinc-400">{scenario.description}</p>
+        <p className="text-sm text-secondary">{scenario.description}</p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {allOptions.map(opt => {
@@ -184,10 +184,10 @@ function ClawMachineInner() {
             const reviewing = phase === 'review' || phase === 'saving' || phase === 'saved';
             const isReq = scenario.required.includes(opt);
             const cls = !reviewing
-              ? sel ? 'border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-300' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500'
+              ? sel ? 'border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-300' : 'border-default-token text-secondary hover:border-zinc-500'
               : isReq
                 ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
-                : sel ? 'border-rose-500 bg-rose-500/10 text-rose-300' : 'border-zinc-800 text-zinc-600';
+                : sel ? 'border-rose-500 bg-rose-500/10 text-rose-300' : 'border-default-token text-muted-token';
             return (
               <button key={opt} onClick={() => togglePick(opt)} disabled={reviewing}
                 className={`p-3 rounded-xl border text-xs font-medium transition-all flex items-center gap-2 ${cls}`}>
@@ -223,7 +223,7 @@ function ClawMachineInner() {
               </Button>
             </div>
             {savedDoc && (
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+              <p className="text-[10px] text-muted-token uppercase tracking-widest">
                 Mejor puntaje: {savedDoc.bestScore} · partidas: {savedDoc.plays}
               </p>
             )}
@@ -236,9 +236,9 @@ function ClawMachineInner() {
 
 function Stat({ label, value, cls }: { label: string; value: number; cls: string }) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-center">
+    <div className="p-3 rounded-xl bg-surface border border-default-token text-center">
       <p className={`text-2xl font-black ${cls}`}>{value}</p>
-      <p className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-widest text-muted-token">{label}</p>
     </div>
   );
 }

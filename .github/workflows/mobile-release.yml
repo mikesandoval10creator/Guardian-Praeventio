@@ -72,9 +72,9 @@ jobs:
     if: needs.preflight.outputs.android_ready == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -125,6 +125,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Incremental versionCode so Google Play accepts successive AABs.
+          # build.gradle reads VERSION_CODE env var (fallback: 1).
+          VERSION_CODE: ${{ github.run_number }}
         # Tag-trigger (mobile-v*) ⇒ production. Manual dispatch ⇒ chosen
         # input. Default fallback is `internal` for safety.
         run: |
@@ -139,7 +142,7 @@ jobs:
           echo "Running fastlane android $LANE"
           bundle exec fastlane android "$LANE"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: praeventio-aab
           path: android/app/build/outputs/bundle/release/*.aab
@@ -151,9 +154,9 @@ jobs:
     if: needs.preflight.outputs.ios_ready == 'true'
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -212,7 +215,7 @@ jobs:
           echo "Running fastlane ios $LANE"
           bundle exec fastlane ios "$LANE"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: praeventio-ipa
           path: ios/App/build/*.ipa
@@ -223,7 +226,7 @@ jobs:
     runs-on: ubuntu-latest
     # Always runs — cheap sanity check that doesn't need any secrets.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
@@ -247,6 +250,6 @@ jobs:
     name: Mobile pipeline lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run scripts/test-mobile-pipeline.sh
         run: bash scripts/test-mobile-pipeline.sh

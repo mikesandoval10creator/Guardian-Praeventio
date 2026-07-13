@@ -301,7 +301,7 @@ export function FatigueMonitor() {
         </div>
         {loaded && sessions.length > 0 && (
           <div className="flex items-center justify-between pt-2 border-t border-default-token">
-            <span className="text-xs text-muted-token">
+            <span data-testid="fatigue-session-count" className="text-xs text-muted-token">
               {t('fatigue.count', '{{count}} turnos registrados', { count: sessions.length })}
             </span>
             <button

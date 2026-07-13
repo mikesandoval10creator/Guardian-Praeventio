@@ -56,6 +56,15 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../hooks/usePreShiftRisk', () => ({
   usePreShiftRisk: () => mockResp,
 }));
+// F.21 added a `useUniversalKnowledge()` read in the page (weather → WBGT heat
+// stress protocol). These hermetic smoke tests don't exercise the thermal card,
+// so mock the context with no environment: `weather` resolves to null and the
+// HeatStressCard branch (gated on `weather` in PreShiftRisk.tsx) stays
+// unrendered — exactly the behaviour before F.21. Avoids pulling the real
+// provider (Firestore/graph) into a hermetic test.
+vi.mock('../contexts/UniversalKnowledgeContext', () => ({
+  useUniversalKnowledge: () => ({ environment: null }),
+}));
 
 beforeEach(() => {
   mockSelectedProject = null;

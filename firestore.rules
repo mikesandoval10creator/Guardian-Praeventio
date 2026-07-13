@@ -132,6 +132,25 @@ service cloud.firestore {
       return isEmailVerified() && request.auth.uid == userId;
     }
 
+    // M-1 Phase 3 — tenant-scoped project access
+    // (docs/security/M1-multitenant-tenant-scope-design.md). The project's
+    // owning tenant is read from the doc; supervisor/admin privilege is scoped
+    // to THAT tenant (isSupervisorOfTenant), NOT global — closing the
+    // cross-tenant leak where a global admin/supervisor could read/write ANY
+    // tenant's projects and subcollections. The MEMBER + CREATOR branches are
+    // preserved, so a project member (life-safety: SOS/evacuation/ManDown) is
+    // never affected — only the global-role shortcut is removed.
+    function projectTenantId(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.get('tenantId', '');
+    }
+    function isProjectMemberTenantScoped(projectId) {
+      return isEmailVerified() && (
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members ||
+        isProjectCreator(projectId) ||
+        isSupervisorOfTenant(projectTenantId(projectId))
+      );
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -188,7 +207,7 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
+      return data.keys().hasAll(['name', 'members', 'status', 'createdAt', 'tenantId']) &&
              data.keys().hasOnly([
                // Core schema (matches Project interface in src/contexts/ProjectContext.tsx)
                'name', 'description', 'location', 'coordinates',
@@ -203,6 +222,10 @@ service cloud.firestore {
                // toggleEmergency via setDoc(merge). Without these in the
                // allowlist, declaring an emergency was silently denied.
                'isEmergencyActive', 'activeEmergencyProtocol', 'emergencyStartTime',
+               // M-1 multi-tenant (Phase 1): owning tenant. OPTIONAL here so
+               // existing creates keep passing; becomes required + tenant-scoped
+               // once the backfill + rules-tightening (Phase 3) land.
+               'tenantId',
                // Future-proof slots used by some integrations
                'ownerUid', 'ownerEmail', 'organizationId', 'erpId',
                'tags', 'metadata', 'invitedEmails', 'photos',
@@ -212,7 +235,11 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
-             data.createdAt is string && data.createdAt.size() > 0;
+             data.createdAt is string && data.createdAt.size() > 0 &&
+             // M-1 Phase 3: tenant is required + bounded. The backfill guarantees
+             // it on every existing project; create/update enforce tenantId == the
+             // owner uid (single-tenant-per-user), so it cannot be forged/re-homed.
+             data.tenantId is string && data.tenantId.size() > 0 && data.tenantId.size() <= 128;
     }
 
     function isValidReport(data) {
@@ -259,6 +286,21 @@ service cloud.firestore {
              data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
              data.type in ['SafetyMoment', 'Tip', 'SuccessStory', 'Warning'] &&
              data.createdAt is string && data.createdAt.size() > 0;
+    }
+
+    // Attendance ("Torniquete Virtual"): a gate operator records check-in/out
+    // FOR a worker, so workerId is the WORKER (not the caller). Shape is pinned
+    // so arbitrary/backdated docs can't be injected — attendance seeds legal
+    // payroll AND the evacuation headcount. `recordedBy` is the accountable
+    // caller (bound to uid in the rule, not here).
+    function isValidAttendance(data, projectId) {
+      return data.keys().hasAll(['workerId', 'type', 'timestamp', 'projectId', 'recordedBy']) &&
+             data.keys().size() <= 20 &&
+             data.workerId is string && data.workerId.size() > 0 && data.workerId.size() <= 200 &&
+             data.type in ['Check-In', 'Check-Out'] &&
+             data.timestamp is string && data.timestamp.size() > 0 &&
+             data.projectId == projectId &&
+             data.recordedBy is string;
     }
 
     // ===============================================================
@@ -350,14 +392,59 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isValidId(projectId) && isProjectMember(projectId);
-      allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
-      allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
-      allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
+      // READ is split into `get` (single doc) and `list` (query). The Firestore
+      // rules-aware query engine evaluates `list` against query CONSTRAINTS, not
+      // a concrete document: any get()-based clause (isAdmin/isSupervisor read
+      // users/{uid}) raises "Null value error" during list eval, and
+      // resource.data.get(k,default) defeats the array-contains static match.
+      // The prior single `allow read: isProjectMember()` did a self-referential
+      // get() that the emulator cannot resolve during list at all.
+      //
+      // get: a single project doc is concrete, so the full check is safe and
+      // mirrors the prior isProjectMember() semantics (minus the self-get):
+      // member OR creator OR admin OR supervisor.
+      allow get: if isValidId(projectId) && isEmailVerified() && (
+        request.auth.uid in resource.data.members ||
+        resource.data.get('createdBy', '') == request.auth.uid ||
+        isSupervisorOfTenant(resource.data.get('tenantId', ''))
+      );
+      // list: ONLY constraint-safe checks (no get()). M-1 Phase 3 tenant-scopes
+      // the admin/gerente branch — a token-only role check is no longer enough:
+      // the query MUST filter where('tenantId','==', token.tenantId), so an
+      // admin lists only THEIR tenant's projects (no cross-tenant leak). The
+      // member branch (resource.data.members) matches the non-admin
+      // where('members','array-contains',uid) query. Limitation: only the
+      // single-tenant claim (token.tenantId) is expressible in list — the
+      // multi-tenant map claim can't be indexed (see the design doc).
+      allow list: if isEmailVerified() && (
+        request.auth.uid in resource.data.members ||
+        (request.auth.token.role in ['admin', 'gerente']
+          && request.auth.token.tenantId is string
+          && resource.data.tenantId == request.auth.token.tenantId)
+      );
+      // create: tenant is stamped to the caller's uid (single-tenant-per-user),
+      // so a client cannot forge a project into someone else's tenant.
+      allow create: if isEmailVerified() && isValidProject(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().tenantId == request.auth.uid;
+      // update: creator OR a supervisor/admin OF THIS project's tenant; tenantId
+      // is immutable (a project cannot be re-homed into another tenant).
+      allow update: if isEmailVerified()
+        && (existing().createdBy == request.auth.uid || isSupervisorOfTenant(existing().get('tenantId', '')))
+        && isValidProject(incoming())
+        && incoming().tenantId == existing().get('tenantId', '');
+      // delete: creator, or a tenant-scoped admin/gerente of this project's tenant.
+      allow delete: if isEmailVerified() && (
+        existing().createdBy == request.auth.uid ||
+        (isSupervisorOfTenant(existing().get('tenantId', '')) && request.auth.token.role in ['admin', 'gerente'])
+      );
 
-      // Master Gate for sub-collections
+      // Master Gate for sub-collections — M-1 Phase 3: tenant-scoped read so a
+      // GLOBAL admin/supervisor of another tenant can no longer read this
+      // project's reports / mandown / medical PII (the decisive leak). Members
+      // and the creator are unaffected.
       match /{subCollection=**}/{docId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
       }
 
       match /emergency_messages/{messageId} {
@@ -369,21 +456,34 @@ service cloud.firestore {
       }
 
       match /attendance/{attendanceId} {
-        allow create, update: if isValidId(projectId) && (isProjectMember(projectId) || isSupervisor() || isAdmin());
+        // Read: any project member (staffing / evacuation headcount).
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        // Create: a project member (gate operator) records attendance, but the
+        // payload shape is validated and `recordedBy` is bound to the caller —
+        // no arbitrary/backdated docs, and every record names an accountable
+        // author who cannot be spoofed. (workerId is the worker, not the caller.)
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && isValidAttendance(incoming(), projectId)
+          && incoming().recordedBy == request.auth.uid;
+        // Update: restricted to admin/supervisor (a line worker must not silently
+        // rewrite an attendance record); the recorder stays immutable.
+        allow update: if isValidId(projectId) && isSupervisorOfTenant(projectTenantId(projectId))
+          && isValidAttendance(incoming(), projectId)
+          && incoming().recordedBy == existing().recordedBy;
       }
 
       match /reports/{reportId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidReport(incoming());
-        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().authorId == request.auth.uid && existing().status != 'Cerrado')) && isValidReport(incoming());
+        allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().authorId == request.auth.uid && existing().status != 'Cerrado')) && isValidReport(incoming());
       }
 
       match /safety_posts/{postId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidPost(incoming());
-        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid)) && (
+        allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().userId == request.auth.uid)) && (
           incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments', 'updatedAt']) ||
           isValidPost(incoming())
         );
-        allow delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid));
+        allow delete: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().userId == request.auth.uid));
       }
 
       // Safety-critical collections — strict read for project members,
@@ -493,7 +593,17 @@ service cloud.firestore {
       match /materials/{materialId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /assets/{assetId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /workers/{workerId} {
-        allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId);
+        // Bloque E1 (2026-07-06): a worker record is legally-retained evidence
+        // (personnel records, DS44 / Ley 16.744) — a CLIENT hard-delete is an
+        // evidence-destruction primitive and is DENIED. Removing a worker from a
+        // project is an ARCHIVE (`archived: true`) done by the audited server
+        // route POST /api/projects/:id/workers/:workerId/archive (Admin SDK
+        // bypasses rules + writes audit_logs). Same posture F7 gave /documents.
+        // Account-level erasure (Ley 21.719 / GDPR) is the separate accountRouter
+        // /anonymize flow. create/update stay role-gated for the client add/edit
+        // flows (AddWorkerModal / EditWorkerModal).
+        allow create, update: if isAdmin() || isSupervisor() || isProjectCreator(projectId);
+        allow delete: if false;
         // Worker documents (certs, contracts, EPP records, SUSESO docs) attached
         // via DocsModal (client SDK addDoc/onSnapshot/deleteDoc). The schema
         // carries `workerId` (the worker doc id, NOT a caller uid) → there is no
@@ -506,7 +616,10 @@ service cloud.firestore {
         // → the worker Documentación feature was default-denied in production.
         match /documents/{documentId} {
           allow create, update: if isValidId(projectId) && isProjectMember(projectId);
-          allow delete: if isAdmin() || isSupervisor();
+          // F7 (2026-07-02): worker documents = legal evidence — no client
+          // deletes. DocsModal archives (`archived: true`) via the member-
+          // gated update above; physical removal is server-side + audited.
+          allow delete: if false;
         }
       }
 
@@ -716,7 +829,9 @@ service cloud.firestore {
       // NO write rule → the Documents feature was default-denied in production.
       match /documents/{documentId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
-        allow delete: if isAdmin() || isSupervisor();
+        // F7 (2026-07-02): project documents = legal evidence — no client
+        // deletes; archive via update, physical removal server-side.
+        allow delete: if false;
       }
       // CPHS committee minutes (Comité Paritario actas, DS54). Written by the
       // ComiteParitario page (client SDK): create the acta, then append acuerdos
@@ -736,7 +851,10 @@ service cloud.firestore {
         // (no client delete path exists).
         allow create: if false;
         allow update: if false;
-        allow delete: if isAdmin() || isSupervisor();
+        // F7 (2026-07-02): actas CPHS = evidencia legal (DS 44 vigente,
+        // ex DS 54) — fully immutable client-side; the audited server
+        // route (cphsMinute.ts) owns the lifecycle.
+        allow delete: if false;
       }
       // Bio-analysis / inspection findings (BioAnalysis + Hallazgos, client SDK).
       // The schema carries `reportedBy` (display name, not a uid) → member-gated
@@ -1364,7 +1482,17 @@ service cloud.firestore {
         isProjectMember(resource.data.projectId)
       );
       allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
-      allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+      // F7 (founder decision 2026-07-02): a project document is legal
+      // evidence — client delete is an evidence-destruction primitive and
+      // is DENIED. The UI "removes" via `archived: true` (hide-only); the
+      // update rule admits ONLY that flag, so the record itself stays
+      // tamper-proof. Physical removal = server-side (Admin SDK +
+      // audit_logs), never a client write.
+      allow update: if isEmailVerified()
+        && (isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId))
+        && incoming().diff(existing()).affectedKeys().hasOnly(['archived'])
+        && incoming().archived is bool;
+      allow delete: if false;
     }
 
     // Top-level worker documents — the projectId-less fallback of DocsModal
@@ -1379,7 +1507,10 @@ service cloud.firestore {
     match /workers/{workerId}/documents/{documentId} {
       allow read: if isAdmin() || isSupervisor();
       allow create, update: if isAdmin() || isSupervisor();
-      allow delete: if isAdmin() || isSupervisor();
+      // F7 (2026-07-02): no client deletes of personnel records — archive
+      // (`archived: true`) via the update rule above is the hide-only
+      // path; physical removal is server-side + audited.
+      allow delete: if false;
     }
 
     // Driving reports — SafeDrivingMode writes; own user reads; supervisors/admins see all
@@ -1418,6 +1549,43 @@ service cloud.firestore {
         isProjectMember(resource.data.projectId) &&
         incoming().projectId == resource.data.projectId &&
         incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
+      allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
+    }
+
+    // Spaced-repetition learning cards (SM-2). A worker's OWN study cards for a
+    // project: created when a training session completes (Training.tsx) and
+    // updated as the worker reviews them (SpacedRepetitionReviewQueue). Personal
+    // formative data — NOT a legal record. Owner-scoped:
+    //   - read: the OWNER (workerUid == uid) — uses no get() so the worker's
+    //     review-queue LIST query stays fail-safe — plus admin/supervisor.
+    //   - create: a project member may seed ONLY their own card
+    //     (workerUid == uid → no spoofing someone else's study record).
+    //   - update: only the owner, and projectId/workerUid are immutable
+    //     (review can change the SM-2 schedule, never the ownership).
+    //   - delete: admin/supervisor only (the worker can't erase their trail).
+    match /learning_cards/{cardId} {
+      allow read: if isValidId(cardId) && isEmailVerified() && (
+        resource.data.workerUid == request.auth.uid ||
+        isAdmin() || isSupervisor()
+      );
+      allow create: if isValidId(cardId) && isEmailVerified() &&
+        incoming().workerUid == request.auth.uid &&
+        isProjectMember(incoming().projectId) &&
+        incoming().projectId is string &&
+        incoming().workerUid is string &&
+        incoming().topic is string &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
+      allow update: if isValidId(cardId) && isEmailVerified() &&
+        resource.data.workerUid == request.auth.uid &&
+        incoming().workerUid == resource.data.workerUid &&
+        incoming().projectId == resource.data.projectId &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
       allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
     }
 
@@ -1738,7 +1906,23 @@ service cloud.firestore {
           'description', 'assignedUids', 'status', 'date',
           'crewId', 'processId', 'projectId', 'completedAt'
         ])
-        && incoming().status in ['pending', 'doing', 'done'];
+        // Immutable identity — a task can never move project/crew/process.
+        // Audit L3 (2026-07-11): the rule gated only on membership in the
+        // EXISTING project, so a member could rewrite projectId and shove the
+        // task into another project (cross-project leak). crewId/processId
+        // were likewise free to change. Pin all three.
+        && incoming().projectId == resource.data.projectId
+        && incoming().get('crewId', null) == resource.data.get('crewId', null)
+        && incoming().get('processId', null) == resource.data.get('processId', null)
+        // Forward-only status pipeline: pending → doing → done. Same-state is
+        // allowed (editing description/assignees without a status change);
+        // walking backwards (done → pending/doing, doing → pending) is denied.
+        && incoming().status in ['pending', 'doing', 'done']
+        && (
+          incoming().status == resource.data.status
+          || (resource.data.status == 'pending' && incoming().status in ['doing', 'done'])
+          || (resource.data.status == 'doing' && incoming().status == 'done')
+        );
       allow delete: if false;
     }
 
@@ -1776,7 +1960,7 @@ service cloud.firestore {
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts']);
         allow create, update, delete: if false;
       }
 
@@ -1796,6 +1980,22 @@ service cloud.firestore {
       // un usuario con role supervisor-tier Y vínculo al tenant.
       match /supervisor_only/{docId} {
         allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
+        allow create, update, delete: if false;
+      }
+
+      // B.3 (VIDA) — worker SOS alerts. Written EXCLUSIVELY by the SOS
+      // server route via Admin SDK (src/server/routes/emergency.ts;
+      // tenantId = projects/{pid}.tenantId || pid). Read is granted to
+      // members of the REFERENCED project — NOT via tenant claims
+      // (isMemberOfTenant claims are unminted until M-1), so the dashboard
+      // (EmergenciaAvanzada) can subscribe with where('projectId','==',pid),
+      // which also makes list queries provable. Life-safety visibility is
+      // FREE on every tier (ADR 0021) — never tier-gated. Clients can never
+      // create/tamper/erase an SOS (compliance + life-safety trail).
+      match /emergency_alerts/{alertId} {
+        allow read: if isSignedIn()
+          && resource.data.projectId is string
+          && isProjectMember(resource.data.projectId);
         allow create, update, delete: if false;
       }
 
@@ -2017,6 +2217,28 @@ service cloud.firestore {
             allow read: if isSignedIn() && isMemberOfTenant(tenantId);
             allow create, update, delete: if false;
           }
+        }
+
+        // B.2 (VIDA/LEGAL) — worker incident reports. Written ONLY by the
+        // audited server route (incidents.ts → incidentRagService.reportIncident,
+        // Admin SDK; reporterUid stamped from the verified token, never from
+        // the body). Until B.2 this 6-segment path had NO match → default-deny:
+        // a worker could FILE an incident but never READ their own record.
+        // Ley 16.744 + ADR 0021: a worker reading their OWN prevention records
+        // is life-safety/legal — FREE on every tier, never gated.
+        //   • owner-read via reporterUid (survives later membership changes;
+        //     provable for queries filtered where('reporterUid','==',uid)).
+        //   • member-read via the PATH projectId (supervisors triage their
+        //     project's incidents; provable for whole-collection queries).
+        //   • tenant claims NOT required (isMemberOfTenant claims unminted
+        //     until M-1) — membership is checked against projects/{pid}.
+        match /incidents/{incidentId} {
+          allow read: if isSignedIn()
+            && (
+              resource.data.reporterUid == request.auth.uid
+              || isProjectMember(projectId)
+            );
+          allow create, update, delete: if false;
         }
 
         // OLA 2 (blindaje, 2026-06-14) — server-only-write tenant stores that

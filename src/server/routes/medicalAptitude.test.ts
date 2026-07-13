@@ -9,6 +9,10 @@ import request from 'supertest';
 // `currentRole` to a worker role.
 const callerState: { uid: string; role: string } = { uid: 'uid-doc-1', role: 'medico_ocupacional' };
 
+const adminState = vi.hoisted(() => ({
+  db: null as ReturnType<typeof import('../../__tests__/helpers/fakeFirestore').createFakeFirestore> | null,
+}));
+
 vi.mock('../middleware/verifyAuth.js', () => ({
   verifyAuth: (req: any, _res: any, next: any) => {
     req.user = { uid: callerState.uid };
@@ -18,14 +22,12 @@ vi.mock('../middleware/verifyAuth.js', () => ({
 
 // Stub firebase-admin auth().getUser() so role resolution returns the
 // expected custom claim per test.
-vi.mock('firebase-admin', () => {
-  const auth = () => ({
+vi.mock('firebase-admin', async () => {
+  const { adminMock } = await import('../../__tests__/helpers/fakeFirestore');
+  const auth = {
     getUser: async (_uid: string) => ({ customClaims: { role: callerState.role } }),
-  });
-  return {
-    default: { auth },
-    auth,
   };
+  return adminMock(() => adminState.db!, auth);
 });
 
 // Audit/observability — no-op so absence of firebase-admin firestore() doesn't crash.
@@ -59,7 +61,10 @@ vi.mock('../../services/auth/webauthnChallenge.js', () => ({
 }));
 
 import medicalAptitudeRouter from './medicalAptitude.js';
-import { generateAptitudeCert } from '../../services/medical/aptitudeCertGenerator.js';
+import * as aptitudeGenerator from '../../services/medical/aptitudeCertGenerator.js';
+import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
+
+const { generateAptitudeCert } = aptitudeGenerator;
 
 function makeApp() {
   const app = express();
@@ -85,10 +90,26 @@ const validInput = {
   projectId: 'proj-alpha',
 };
 
+function seedMedicalProject(members = ['uid-doc-1', 'uid-worker-1']) {
+  adminState.db!._seed(`projects/${validInput.projectId}`, {
+    members,
+    createdBy: 'project-owner',
+    tenantId: 'tenant-alpha',
+  });
+  if (members.includes(validInput.workerUid)) {
+    adminState.db!._seed(`projects/${validInput.projectId}/workers/${validInput.workerUid}`, {
+      uid: validInput.workerUid,
+      active: true,
+    });
+  }
+}
+
 describe('POST /api/medical/aptitude-cert/generate', () => {
   beforeEach(() => {
+    adminState.db = createFakeFirestore();
     callerState.uid = 'uid-doc-1';
     callerState.role = 'medico_ocupacional';
+    seedMedicalProject();
   });
 
   it('doctor caller succeeds with 200 and returns certId/certHash/pdfBase64', async () => {
@@ -127,6 +148,36 @@ describe('POST /api/medical/aptitude-cert/generate', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_input');
   });
+
+  it('403 before generating when doctor is not a member of the requested project', async () => {
+    adminState.db = createFakeFirestore();
+    seedMedicalProject(['uid-worker-1', 'other-doctor']);
+    const generateSpy = vi.spyOn(aptitudeGenerator, 'generateAptitudeCert');
+
+    const res = await request(makeApp())
+      .post('/api/medical/aptitude-cert/generate')
+      .send(validInput);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+    expect(generateSpy).not.toHaveBeenCalled();
+    generateSpy.mockRestore();
+  });
+
+  it('403 before generating when worker is not in the project roster', async () => {
+    adminState.db = createFakeFirestore();
+    seedMedicalProject(['uid-doc-1']);
+    const generateSpy = vi.spyOn(aptitudeGenerator, 'generateAptitudeCert');
+
+    const res = await request(makeApp())
+      .post('/api/medical/aptitude-cert/generate')
+      .send(validInput);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+    expect(generateSpy).not.toHaveBeenCalled();
+    generateSpy.mockRestore();
+  });
 });
 
 const FIXED_NOW = { now: () => new Date('2026-05-05T10:00:00Z') };
@@ -151,8 +202,10 @@ function signBody(certJson: unknown, certHash: string) {
 
 describe('GET /api/medical/aptitude-cert/sign-challenge', () => {
   beforeEach(() => {
+    adminState.db = createFakeFirestore();
     callerState.uid = 'uid-doc-1';
     callerState.role = 'medico_ocupacional';
+    seedMedicalProject();
   });
 
   it('doctor gets a single-use server-issued challenge', async () => {
@@ -171,9 +224,11 @@ describe('GET /api/medical/aptitude-cert/sign-challenge', () => {
 
 describe('POST /api/medical/aptitude-cert/sign', () => {
   beforeEach(() => {
+    adminState.db = createFakeFirestore();
     callerState.uid = 'uid-doc-1';
     callerState.role = 'medico_ocupacional';
     H.verdict = { verified: true, verifiedCredentialId: 'cred-doc-1' };
+    seedMedicalProject();
   });
 
   it('200 signs with the VERIFIED registered credential when the assertion verifies', async () => {
@@ -204,12 +259,26 @@ describe('POST /api/medical/aptitude-cert/sign', () => {
 
   it('403 when a doctor signs a cert that is not theirs', async () => {
     callerState.uid = 'uid-OTHER-doctor';
+    seedMedicalProject(['uid-doc-1', 'uid-worker-1', 'uid-OTHER-doctor']);
     const cert = await generateAptitudeCert(validInput, FIXED_NOW);
     const res = await request(makeApp())
       .post('/api/medical/aptitude-cert/sign')
       .send(signBody(cert.json, cert.certHash));
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('doctor_uid_mismatch');
+  });
+
+  it('403 before signing when doctor is not a member of the cert project', async () => {
+    const cert = await generateAptitudeCert(validInput, FIXED_NOW);
+    adminState.db = createFakeFirestore();
+    seedMedicalProject(['uid-worker-1', 'other-doctor']);
+
+    const res = await request(makeApp())
+      .post('/api/medical/aptitude-cert/sign')
+      .send(signBody(cert.json, cert.certHash));
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
   });
 
   it('400 on a cert_hash mismatch (signed payload must be THIS cert)', async () => {

@@ -47,6 +47,13 @@ import { logger } from '../utils/logger';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { EmptyState } from '../components/shared/EmptyState';
+import { MonthlyClientReportPanel } from '../components/clientReporting/MonthlyClientReportPanel';
+import { MonthlyClientReportCard } from '../components/monthlyClientReport/MonthlyClientReportCard';
+import { ReportTemplatePreview } from '../components/reportsAutomation/ReportTemplatePreview';
+import { ExplainedRecommendationCard } from '../components/explainability/ExplainedRecommendationCard';
+import type { MonthlyInputs } from '../services/clientReporting/monthlyClientReport';
+import type { ReportTemplate, ReportData } from '../services/reportsAutomation/reportsAutomation';
+import type { ExplainedRecommendation } from '../services/explainability/recommendationExplainer';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -376,7 +383,7 @@ export function Analytics() {
           </div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-950 dark:text-white">{t('analytics.title', 'Reportabilidad Gerencial')}</h1>
-            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('analytics.tagline', 'Analytics & Insights Ejecutivos')}</p>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('analytics.tagline', 'Analytics & Insights Ejecutivos')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -411,7 +418,7 @@ export function Analytics() {
       <ProjectHealthCheck />
 
       {projectNodes.length === 0 ? (
-        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-default-token rounded-2xl sm:rounded-3xl shadow-sm">
           <EmptyState
             mascot
             title="Aún no hay datos para analizar"
@@ -608,8 +615,8 @@ export function Analytics() {
           </div>
 
           {/* Safety Dimensions (New) */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">{t('analytics.chart.safety_radar', 'Radar de Dimensiones de Seguridad')}</h3>
+          <div className="bg-surface rounded-2xl p-6 border border-default-token shadow-sm lg:col-span-2">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-widest mb-6" id="safety-radar-title">{t('analytics.chart.safety_radar', 'Radar de Dimensiones de Seguridad')}</h3>
             <div
               className="h-80"
               role="img"
@@ -640,7 +647,7 @@ export function Analytics() {
             </div>
             {dimensionsWithInsufficientData.length > 0 && (
               <p
-                className="mt-3 text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+                className="mt-3 text-[11px] font-medium text-muted-token"
                 role="note"
               >
                 <span className="font-bold text-amber-600 dark:text-amber-400">⚠ Datos insuficientes:</span>{' '}
@@ -652,21 +659,111 @@ export function Analytics() {
         </div>
 
         {adoptionReport && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">
+          <div className="bg-surface rounded-2xl p-6 border border-default-token shadow-sm">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-widest mb-6">
               {t('analytics.chart.module_adoption', 'Adopción de Módulos')}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {(Object.entries(adoptionReport.report.byModule) as [ModuleUsageKind, { adopters: number; adoptionPercent: number }][]).map(
                 ([module, data]) => (
-                  <div key={module} className="rounded-xl p-3 border border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{module.replace(/_/g, ' ')}</p>
-                    <p className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{data.adoptionPercent}%</p>
-                    <p className="text-[10px] text-zinc-400">{data.adopters} adopters</p>
+                  <div key={module} className="rounded-xl p-3 border border-default-token bg-zinc-50 dark:bg-zinc-800/50">
+                    <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest truncate">{module.replace(/_/g, ' ')}</p>
+                    <p className="text-2xl font-black text-primary-token mt-1">{data.adoptionPercent}%</p>
+                    <p className="text-[10px] text-muted-token">{data.adopters} adopters</p>
                   </div>
                 ),
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── Monthly Client Reports + Report Automation ─────────────── */}
+        {selectedProject && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <MonthlyClientReportPanel
+                inputs={{
+                  projectId: selectedProject.id,
+                  periodLabel: new Date().toISOString().slice(0, 7),
+                  totalIncidents: incidents.length,
+                  criticalIncidents: criticalRisks,
+                  totalActions: stats.totalFindings,
+                  closedActions: closedFindings,
+                  trainingHoursCompleted: 0,
+                  workersActive: selectedProject.workersCount ?? 0,
+                  complianceScore: stats.complianceRate,
+                  sifPrecursors: 0,
+                  slaCommitments: [],
+                }}
+              />
+              <MonthlyClientReportCard
+                inputs={{
+                  projectId: selectedProject.id,
+                  periodLabel: new Date().toISOString().slice(0, 7),
+                  totalIncidents: incidents.length,
+                  criticalIncidents: criticalRisks,
+                  totalActions: stats.totalFindings,
+                  closedActions: closedFindings,
+                  trainingHoursCompleted: 0,
+                  workersActive: selectedProject.workersCount ?? 0,
+                  complianceScore: stats.complianceRate,
+                  sifPrecursors: 0,
+                  slaCommitments: [],
+                }}
+              />
+            </div>
+            <ReportTemplatePreview
+              template={{
+                id: 'monthly-safety',
+                audience: 'client',
+                period: 'monthly',
+                sections: [
+                  { key: 'resumen', title: 'Resumen Ejecutivo', required: true },
+                  { key: 'indicadores', title: 'Indicadores Clave', required: true },
+                  { key: 'hallazgos', title: 'Hallazgos del Período', required: false },
+                ],
+              }}
+              data={{
+                contents: {
+                  resumen: `Período ${new Date().toISOString().slice(0, 7)}: ${incidents.length} incidentes, ${findings.length} hallazgos registrados.`,
+                  indicadores: `Riesgos críticos: ${criticalRisks} · Cumplimiento: ${stats.complianceRate}% · EPP: ${stats.eppCoverage}%`,
+                  hallazgos: `${openFindings} hallazgos abiertos de ${findings.length} totales.`,
+                },
+              }}
+              reportId={`rpt-${selectedProject.id}-${new Date().toISOString().slice(0, 7)}`}
+              periodLabel={`Reporte mensual ${new Date().toISOString().slice(0, 7)}`}
+            />
+            <ExplainedRecommendationCard
+              explained={{
+                recommendation: {
+                  id: 'rec-analytics-001',
+                  action: 'Revisar y cerrar hallazgos abiertos antes del próximo período',
+                  responsibleRole: 'Jefe de Terreno',
+                  validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+                  category: 'hallazgos',
+                },
+                whyEvidences: [
+                  {
+                    id: 'ev-001',
+                    kind: 'graph_node',
+                    description: `${openFindings} hallazgos permanecen abiertos sin acción correctiva asignada.`,
+                    citation: '(zk:hallazgos-abiertos)',
+                  },
+                  {
+                    id: 'ev-002',
+                    kind: 'legal_rule',
+                    description: 'DS 594 Art. 18 exige control documentado de no conformidades.',
+                    citation: '(DS-594)',
+                  },
+                ],
+                rationaleMarkdown: `El ${stats.totalFindings > 0 ? Math.round((openFindings / stats.totalFindings) * 100) : 0}% de hallazgos permanecen abiertos. La normativa exige cierre documentado.`,
+                confidence: openFindings > 5 ? 'high' : openFindings > 0 ? 'medium' : 'low',
+                citations: ['(zk:hallazgos-abiertos)', '(DS-594)'],
+                isFullyDeterministic: true,
+                llmInferenceShare: 0,
+                llmInferenceShareExact: 0,
+              }}
+            />
           </div>
         )}
 

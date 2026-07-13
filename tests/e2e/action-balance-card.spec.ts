@@ -31,19 +31,22 @@ test.describe('Corrective actions — action balance card', () => {
     }
   });
 
-  // FIXME (harness gap): asserting the balance card with REAL actions needs the
-  // corrective-actions API (Express :3000) to see the project seeded by the
-  // test's admin SDK AND ProjectContext to select it — the same cross-process
-  // Firestore-visibility gap that fixme'd the compliance + SOS specs. The card's
-  // render/balance logic is already covered by ActionBalanceCard.test.tsx.
-  // Un-fixme once the harness shares one emulator project across processes.
-  test.fixme('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
+  // Re-enabled (Bloque A, 2026-07-05): the seeded project DOES auto-select
+  // client-side (the firestore.rules read→get/list split at firestore.rules:395
+  // was already in place). The prior flake was pure latency — ProjectContext's
+  // `projects` snapshot can take >15s under a cold Firestore emulator with
+  // parallel workers, overrunning the old 15s card-visibility timeout. Fixed by
+  // waiting on the loaded (project-selected) gate with headroom first.
+  test('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
     try {
       await navigateAuthenticated(page, '/corrective-actions');
+      // Wait for the loaded (project-selected) state before asserting the card —
+      // the client `projects` snapshot is the slow step under a cold emulator.
+      await expect(page.getByTestId('corrective-actions-page')).toBeVisible({ timeout: 30_000 });
       const card = page.getByTestId('action-balance-card');
-      await expect(card).toBeVisible({ timeout: 15_000 });
+      await expect(card).toBeVisible({ timeout: 10_000 });
       await expect(page.getByTestId('action-balance-bars')).toBeVisible();
     } finally {
       await seed.cleanup();

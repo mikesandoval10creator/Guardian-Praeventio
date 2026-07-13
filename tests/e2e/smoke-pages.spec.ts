@@ -27,6 +27,24 @@ const PROJECT_PAGES = [
   { path: '/cuadrillas', name: 'Cuadrillas' },
   { path: '/driving', name: 'Driving' },
   { path: '/comite-paritario', name: 'CPHS' },
+  // C6 — protocol pages get mount-smoke here; their real form→engine→score
+  // flows are Bloque C5's dedicated specs (protocolo-tmert/prexor, ceal-sm).
+  { path: '/tmert', name: 'TMERT' },
+  { path: '/prexor', name: 'PREXOR' },
+  { path: '/ceal-sm', name: 'CEAL-SM Campaigns' },
+  { path: '/planesi', name: 'PLANESI' },
+  // Bloque D Rama 1 — vida/legal orphans wired (return-to-work,
+  // retaliation-protection, privacy-shield) get mount-smoke coverage.
+  { path: '/return-to-work', name: 'Return to Work' },
+  { path: '/retaliation-protection', name: 'Retaliation Protection' },
+  { path: '/privacy-shield', name: 'Privacy Shield' },
+  // Bloque D Rama 2 — orphan features wired (skill-gap, contingency-simulation,
+  // deduplication) get mount-smoke coverage.
+  { path: '/skill-gap', name: 'Skill Gap' },
+  { path: '/contingency-simulation', name: 'Contingency Simulation' },
+  { path: '/deduplication', name: 'Deduplication' },
+  // Bloque D Rama 4 — pricing-simulator orphan hook wired to a user page.
+  { path: '/pricing-simulator', name: 'Pricing Simulator' },
 ];
 
 const NO_PROJECT_PAGES = [

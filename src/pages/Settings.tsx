@@ -49,6 +49,7 @@ import { logger } from '../utils/logger';
 // Renderiza el panel completo de adquisición/descarga/cambio de modelo
 // SLM sin enlaces externos.
 import { SlmManagerScreen } from '../components/slm/SlmManagerScreen';
+import { TaxIdInput } from '../components/identity/TaxIdInput';
 
 /**
  * Sprint 34 D4 — IDs estables para el switch del render (audit P0 §1.4).
@@ -284,7 +285,7 @@ export function Settings() {
                 type="text"
                 disabled
                 value={user?.displayName || 'Usuario Praeventio'}
-                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed"
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token opacity-50 cursor-not-allowed"
               />
             </div>
             <div>
@@ -294,10 +295,15 @@ export function Settings() {
                 type="email"
                 disabled
                 value={user?.email || ''}
-                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed"
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token opacity-50 cursor-not-allowed"
               />
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.profile.contact_admin', 'Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.')}</p>
+            {/* Wire TaxIdInput — tax-id validation per country (CL/BR/MX/AR/CO/US/GB).
+                Placed in profile section so users can validate their tax identifier. */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <TaxIdInput country="CL" />
+            </div>
           </div>
         );
       case 'security':
@@ -305,7 +311,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.mfa_title', 'Autenticación de Dos Factores (2FA)')}</h4>
+                <h4 className="text-sm font-bold text-primary-token">{t('settings.security.mfa_title', 'Autenticación de Dos Factores (2FA)')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.security.mfa_desc', 'Añade una capa extra de seguridad a tu cuenta.')}</p>
               </div>
               {/* The fake on/off switch (local state that reverted on reload,
@@ -323,14 +329,14 @@ export function Settings() {
             </div>
             <div>
               <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.security.session_timeout', 'Tiempo de Expiración de Sesión')}</label>
-              <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => handleSessionTimeoutChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => handleSessionTimeoutChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none">
                 <option value="15">{t('settings.security.timeout_15', '15 minutos de inactividad')}</option>
                 <option value="30">{t('settings.security.timeout_30', '30 minutos de inactividad')}</option>
                 <option value="60">{t('settings.security.timeout_60', '1 hora de inactividad')}</option>
                 <option value="never">{t('settings.security.timeout_never', 'Nunca (No recomendado)')}</option>
               </select>
             </div>
-            <button onClick={() => addNotification({title: t('settings.security.password_email_title', 'Correo Enviado'), message: t('settings.security.password_email_msg', 'Se ha enviado un enlace para restablecer tu contraseña.'), type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
+            <button onClick={() => addNotification({title: t('settings.security.password_email_title', 'Correo Enviado'), message: t('settings.security.password_email_msg', 'Se ha enviado un enlace para restablecer tu contraseña.'), type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-primary-token text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
               {t('settings.security.change_password', 'Cambiar Contraseña')}
             </button>
             {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
@@ -343,7 +349,7 @@ export function Settings() {
                 tiene admin role idealmente — el componente se autocura
                 renderizando "Sin clave generada" si no hay KEK aún. */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
-              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">
+              <h4 className="text-sm font-bold text-primary-token mb-2">
                 {t('settings.security.kek_title', 'Cifrado del dispositivo')}
               </h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
@@ -364,7 +370,7 @@ export function Settings() {
                 className="w-full flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 hover:border-teal-500/40 transition-colors text-left"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-zinc-900 dark:text-white">
+                  <p className="text-sm font-bold text-primary-token">
                     {t('settings.security.system_health_link', 'Salud del sistema')}
                   </p>
                   <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-0.5">
@@ -379,7 +385,7 @@ export function Settings() {
             </div>
             {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
-              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">{t('settings.security.privacy_title', 'Datos personales y privacidad')}</h4>
+              <h4 className="text-sm font-bold text-primary-token mb-2">{t('settings.security.privacy_title', 'Datos personales y privacidad')}</h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
                 {t('settings.security.privacy_desc', 'Regímenes de protección de datos aplicables a tu cuenta + plazos legales para responder solicitudes de acceso, rectificación o supresión.')}
               </p>
@@ -390,7 +396,7 @@ export function Settings() {
             </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.fall_detection', 'Detección de Hombre Caído')}</h4>
+                <h4 className="text-sm font-bold text-primary-token">{t('settings.security.fall_detection', 'Detección de Hombre Caído')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-1">
                   {t('settings.security.fall_detection_desc', 'Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.')}
                 </p>
@@ -418,7 +424,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.email_alerts', 'Alertas por Correo Electrónico')}</h4>
+                <h4 className="text-sm font-bold text-primary-token">{t('settings.notifications.email_alerts', 'Alertas por Correo Electrónico')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.notifications.email_alerts_desc', 'Resúmenes diarios y alertas críticas.')}</p>
               </div>
               <button
@@ -436,7 +442,7 @@ export function Settings() {
             <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.push', 'Notificaciones Push')}</h4>
+                  <h4 className="text-sm font-bold text-primary-token">{t('settings.notifications.push', 'Notificaciones Push')}</h4>
                   <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.notifications.push_desc', 'Recibe alertas instantáneas.')}</p>
                 </div>
                 <button
@@ -459,7 +465,7 @@ export function Settings() {
                 <div className="pl-4 border-l-2 border-zinc-100 dark:border-white/10 space-y-4 mt-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_emergencies', '🚨 Emergencias (S.O.S)')}</h5>
+                      <h5 className="text-[11px] font-bold text-secondary-token uppercase tracking-widest">{t('settings.notifications.cat_emergencies', '🚨 Emergencias (S.O.S)')}</h5>
                       <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_emergencies_desc', 'Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)')}</p>
                     </div>
                     <button
@@ -477,7 +483,7 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_medical', '🩺 Exámenes Médicos')}</h5>
+                      <h5 className="text-[11px] font-bold text-secondary-token uppercase tracking-widest">{t('settings.notifications.cat_medical', '🩺 Exámenes Médicos')}</h5>
                       <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_medical_desc', 'Recordatorios de vigencia y nuevos resultados médicos.')}</p>
                     </div>
                     <button
@@ -494,7 +500,7 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_training', '📚 Capacitaciones')}</h5>
+                      <h5 className="text-[11px] font-bold text-secondary-token uppercase tracking-widest">{t('settings.notifications.cat_training', '📚 Capacitaciones')}</h5>
                       <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_training_desc', 'Asignaciones de cursos, ODI y charlas programadas.')}</p>
                     </div>
                     <button
@@ -511,7 +517,7 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_ai', '🤖 Asistente IA (Guardian)')}</h5>
+                      <h5 className="text-[11px] font-bold text-secondary-token uppercase tracking-widest">{t('settings.notifications.cat_ai', '🤖 Asistente IA (Guardian)')}</h5>
                       <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_ai_desc', 'Consejos predictivos y anomalías detectadas en terreno.')}</p>
                     </div>
                     <button
@@ -535,7 +541,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
               <label htmlFor={aiDetailId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.ai.detail_level', 'Nivel de Detalle del Asistente')}</label>
-              <select id={aiDetailId} value={aiDetail} onChange={(e) => handleAiDetailChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select id={aiDetailId} value={aiDetail} onChange={(e) => handleAiDetailChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none">
                 <option value="conciso">{t('settings.ai.opt_concise', 'Conciso (Respuestas directas y cortas)')}</option>
                 <option value="equilibrado">{t('settings.ai.opt_balanced', 'Equilibrado (Recomendado)')}</option>
                 <option value="detallado">{t('settings.ai.opt_detailed', 'Detallado (Explicaciones exhaustivas y normativas)')}</option>
@@ -543,7 +549,7 @@ export function Settings() {
             </div>
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.ai.predictive_title', 'Análisis Predictivo Autónomo')}</h4>
+                <h4 className="text-sm font-bold text-primary-token">{t('settings.ai.predictive_title', 'Análisis Predictivo Autónomo')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.ai.predictive_desc', 'Permite a la IA analizar datos en segundo plano.')}</p>
               </div>
               <button
@@ -571,12 +577,12 @@ export function Settings() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Database className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-                <span className="text-2xl font-black text-zinc-900 dark:text-white">1.2GB</span>
+                <span className="text-2xl font-black text-primary-token">1.2GB</span>
                 <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">{t('settings.database.storage', 'Almacenamiento')}</p>
               </div>
               <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Network className="w-6 h-6 text-indigo-500 mx-auto mb-2" />
-                <span className="text-2xl font-black text-zinc-900 dark:text-white">842</span>
+                <span className="text-2xl font-black text-primary-token">842</span>
                 <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">{t('settings.database.active_nodes', 'Nodos Activos')}</p>
               </div>
             </div>
@@ -584,7 +590,7 @@ export function Settings() {
               <button onClick={() => addNotification({title: t('settings.database.export_title', 'Exportación Iniciada'), message: t('settings.database.export_msg', 'Tus datos se están preparando para descarga.'), type: 'success'})} className="flex-1 py-2 bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] text-xs font-bold rounded-xl transition-colors border border-[#4db6ac]/20">
                 {t('settings.database.export_btn', 'Exportar Datos (JSON)')}
               </button>
-              <button onClick={() => addNotification({title: t('settings.database.cache_title', 'Caché Limpiada'), message: t('settings.database.cache_msg', 'Se ha liberado espacio local correctamente.'), type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
+              <button onClick={() => addNotification({title: t('settings.database.cache_title', 'Caché Limpiada'), message: t('settings.database.cache_msg', 'Se ha liberado espacio local correctamente.'), type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-primary-token text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
                 {t('settings.database.cache_btn', 'Limpiar Caché')}
               </button>
             </div>
@@ -604,7 +610,7 @@ export function Settings() {
                   await set('theme_preference', newPref);
                   window.dispatchEvent(new Event('theme_preference_changed'));
                 }}
-                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none"
               >
                 <option value="light">{t('settings.appearance.theme_light', 'Claro (Fondo #4EB5AC)')}</option>
                 <option value="dark">{t('settings.appearance.theme_dark', 'Oscuro')}</option>
@@ -614,7 +620,7 @@ export function Settings() {
             </div>
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.appearance.dark_manual_title', 'Modo Oscuro Manual')}</h4>
+                <h4 className="text-sm font-bold text-primary-token">{t('settings.appearance.dark_manual_title', 'Modo Oscuro Manual')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.appearance.dark_manual_desc', 'Alternar rápidamente (sobrescribe la preferencia)')}</p>
               </div>
               <button
@@ -649,7 +655,7 @@ export function Settings() {
                 single source of truth. */}
             <div>
               <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.regional.timezone', 'Zona Horaria')}</label>
-              <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none">
                 <option value="America/Santiago">America/Santiago (GMT-4)</option>
                 <option value="America/Lima">America/Lima (GMT-5)</option>
                 <option value="America/Bogota">America/Bogota (GMT-5)</option>
@@ -671,14 +677,14 @@ export function Settings() {
                 placeholder={t('settings.admin.uid_label', 'UID del usuario (Firebase Auth)')}
                 value={adminTargetUid}
                 onChange={e => { setAdminTargetUid(e.target.value); setAdminActionStatus(null); }}
-                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none"
               />
               <label htmlFor={adminRoleId} className="sr-only">{t('settings.admin.role_label', 'Rol a asignar')}</label>
               <select
                 id={adminRoleId}
                 value={adminTargetRole}
                 onChange={e => setAdminTargetRole(e.target.value)}
-                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-primary-token focus:border-emerald-500 outline-none"
               >
                 {['gerente', 'prevencionista', 'supervisor', 'director_obra', 'medico_ocupacional', 'operario'].map(r => (
                   <option key={r} value={r}>{r}</option>
@@ -867,8 +873,8 @@ export function Settings() {
   return (
     <div data-testid="settings-page" className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">{t('settings.title', 'Configuración')}</h1>
-        <p className="text-zinc-600 dark:text-zinc-400 mt-1 text-xs sm:text-sm">{t('settings.subtitle', 'Personaliza tu experiencia en Praeventio Guard')}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary-token tracking-tight">{t('settings.title', 'Configuración')}</h1>
+        <p className="text-secondary-token mt-1 text-xs sm:text-sm">{t('settings.subtitle', 'Personaliza tu experiencia en Praeventio Guard')}</p>
       </div>
 
       <div className="space-y-4 mb-6 sm:mb-8">
@@ -879,8 +885,8 @@ export function Settings() {
                 <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">{t('settings.fcm.title', 'Notificaciones Push (FCM)')}</h3>
-                <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm">{t('settings.fcm.desc', 'Recibe alertas críticas y de emergencia en tiempo real.')}</p>
+                <h3 className="font-bold text-primary-token text-sm sm:text-base">{t('settings.fcm.title', 'Notificaciones Push (FCM)')}</h3>
+                <p className="text-secondary-token text-[10px] sm:text-sm">{t('settings.fcm.desc', 'Recibe alertas críticas y de emergencia en tiempo real.')}</p>
               </div>
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto mt-2 sm:mt-0">
@@ -946,7 +952,7 @@ export function Settings() {
                     <section.icon className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{label}</h2>
+                    <h2 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-token group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{label}</h2>
                     <p className="text-zinc-600 dark:text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{description}</p>
                   </div>
                 </div>
@@ -981,7 +987,7 @@ export function Settings() {
       <div className="mt-8 sm:mt-12 p-4 sm:p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl">
         <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
           <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500" />
-          <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-widest">{t('settings.danger_zone', 'Zona de Peligro')}</h3>
+          <h3 className="text-base sm:text-lg font-bold text-primary-token uppercase tracking-widest">{t('settings.danger_zone', 'Zona de Peligro')}</h3>
         </div>
         <p className="text-[10px] sm:text-sm text-zinc-700 dark:text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
           {t('settings.danger_desc', 'Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.')}

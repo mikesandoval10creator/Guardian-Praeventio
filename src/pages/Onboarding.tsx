@@ -6,18 +6,19 @@
 // `/api/onboarding/complete` itself.
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { OnboardingWizard } from '../components/onboarding/OnboardingWizard';
 
 export function Onboarding() {
-  const navigate = useNavigate();
   return (
     <OnboardingWizard
       onComplete={() => {
-        // Hard-redirect to the dashboard. The auto-redirect guard in
-        // App.tsx will read `users/{uid}.onboarded` and let the
-        // request through this time.
-        navigate('/dashboard', { replace: true });
+        // B.6 — HARD browser navigation, not react-router's navigate().
+        // A soft client-side navigate() raced the freshly-written
+        // `users/{uid}.onboarded` flag: the App.tsx redirect guard still
+        // held the stale value and bounced the user straight back into
+        // the wizard. location.assign() forces a full reload so the
+        // guard re-reads the fresh flag from Firestore.
+        location.assign('/dashboard');
       }}
     />
   );

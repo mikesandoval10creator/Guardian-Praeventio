@@ -42,22 +42,27 @@ service firebase.storage {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
-    // Best-effort project membership via the `assignedSiteIds` claim.
-    // Storage rules cannot read Firestore, so this is the only membership
-    // signal available. Conservative, mirroring resolveAssignedSitesCheck:
-    //   • claim ABSENT            → allow (legacy/pre-migration compat — the
-    //                               Firestore metadata doc + unguessable path +
-    //                               signed downloadURL remain the boundary).
-    //   • claim present, in list  → allow (verified member).
-    //   • claim present, NOT in   → DENY (the isolation boundary for migrated
-    //                               users; self-heals on the next token refresh
-    //                               if the claim was merely stale).
+    // Project membership via the `assignedSiteIds` claim (list of project ids
+    // the user belongs to). Storage rules cannot read Firestore, so this claim
+    // is the ONLY membership signal available here.
+    //
+    // M-1 Fase 4 (cierre total, 2026-07-04): FAIL-CLOSED. The prior version had
+    // a `claim ABSENT → allow` escape hatch "for legacy/pre-migration compat".
+    // But NO flow ever minted `assignedSiteIds` (buildClaimsWithAssignedSites
+    // was orphaned — src/services/auth/customClaims.ts, never called), so the
+    // hatch was ALWAYS true → memberOfSite() collapsed to isSignedIn() and ANY
+    // authenticated user could read/list/write EVERY project's files
+    // (cross-tenant leak: medical PDFs, SUSESO DIAT/DIEP, blueprints). The
+    // claim is now minted by the `assignedSitesSync` trigger (mirrors
+    // roleClaimsSync, which did the same for `role`). A token WITHOUT the claim
+    // is DENIED. The `'assignedSiteIds' in ...` presence guard makes the deny
+    // explicit and silent (reading an absent map key would otherwise log a
+    // rules warning on every claim-less request — same pattern as V5 `role`).
     function memberOfSite(projectId) {
-      return isSignedIn() && (
-        !('assignedSiteIds' in request.auth.token) ||
-        (request.auth.token.assignedSiteIds is list &&
-         projectId in request.auth.token.assignedSiteIds)
-      );
+      return isSignedIn() &&
+        'assignedSiteIds' in request.auth.token &&
+        request.auth.token.assignedSiteIds is list &&
+        projectId in request.auth.token.assignedSiteIds;
     }
 
     function isUnder(bytes) {
@@ -93,7 +98,11 @@ service firebase.storage {
     match /projects/{projectId}/{allPaths=**} {
       allow read: if memberOfSite(projectId);
       allow create, update: if memberOfSite(projectId) && isAllowedUpload() && isUnder(100 * 1024 * 1024);
-      allow delete: if memberOfSite(projectId);
+      // F7 (founder decision 2026-07-02): project files ARE the
+      // compliance/legal trail (PTS, EPP actas, emergency plans, incident
+      // photos) — a client delete is an evidence-destruction primitive.
+      // Governed removals are server-side only (Admin SDK + audit_logs).
+      allow delete: if false;
     }
 
     // AI-generated report PDFs (ReportGenerator, EmergencyPlanGenerator).
@@ -107,7 +116,9 @@ service firebase.storage {
     match /blueprints/{projectId}/{allPaths=**} {
       allow read: if memberOfSite(projectId);
       allow create, update: if memberOfSite(projectId) && isAllowedUpload() && isUnder(50 * 1024 * 1024);
-      allow delete: if memberOfSite(projectId);
+      // F7 (2026-07-02): blueprint snapshots back findings/investigations
+      // — evidence; no client deletes (see projects/ rationale above).
+      allow delete: if false;
     }
 
     // SUSESO DIAT/DIEP report PDFs (SusesoReports) — compliance evidence,
@@ -146,8 +157,16 @@ service firebase.storage {
     // Storage rules cannot read Firestore, so this is the only role signal
     // available here. Mirrors the Firestore `hasSupervisorTierRole()` helper
     // (roles from src/types/roles.ts via firestore.rules).
+    // V5 (2026-07-02, audit §3.2): guard `'role' in ...` BEFORE the `in`
+    // comparison. Reading an absent map key raises a rules error that
+    // propagates as deny — functionally fail-closed, but it logs the
+    // `Property role is undefined on object` warning on every claim-less
+    // request (visible on each `test:rules` run) and is fragile. The
+    // presence guard makes the deny explicit and silent. (`email_verified`
+    // is already asserted by `isSignedIn()` — dropped as redundant.)
     function isAdminOrSupervisorTier() {
-      return isSignedIn() && request.auth.token.email_verified == true &&
+      return isSignedIn() &&
+        'role' in request.auth.token &&
         request.auth.token.role in [
           'admin', 'gerente',
           'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional'
@@ -162,17 +181,27 @@ service firebase.storage {
     // and the signed downloadURL (short-lived, scoped to this exact path) keeps
     // unauthenticated access closed.
     //
-    // V3 hardening (2026-06-22): delete is now restricted to admin/supervisor
-    // tier (parity with Firestore rule `allow delete: if isAdmin() ||
-    // isSupervisor()`). Read stays at `isSignedIn()` because `workerId` is
-    // not a uid or project id — we cannot gate per-owner without Firestore
-    // access; the unguessable path + signed URL remain the boundary for reads.
-    // Full owner-gated parity for reads requires a signed-URL approach or a
-    // server-side proxy rather than a Storage rule change.
+    // V3 (2026-06-22) restricted delete to admin/supervisor tier. F7
+    // (founder decision 2026-07-02) SUPERSEDES it: worker documents are
+    // legal evidence (contracts, certs, EPP/SUSESO records — the DS 44 /
+    // Ley 16.744 trail), and a client-side delete is an evidence-
+    // destruction primitive, so delete is DENIED for every client — same
+    // posture as `suseso_reports` above. Governed removals (data-subject
+    // erasure per Ley 19.628/21.719, mistaken uploads) go through the
+    // server (Admin SDK bypasses rules) with an audit_logs row. The UI
+    // offers "Archivar" (metadata `archived: true`, hide-only) instead.
+    // Read stays at `isSignedIn()` because `workerId` is not a uid or
+    // project id — we cannot gate per-owner without Firestore access; the
+    // unguessable path + signed URL remain the boundary for reads.
+    // V5 (audit §3.2): create/update gated on admin/supervisor tier — before,
+    // ANY signed-in user could write into another worker's document namespace.
+    // The only real writer is DocsModal (a supervisor surface); a worker's OWN
+    // documents live in the per-uid workers/{uid} vault below, never here.
+    // Depends on the role-claims sync trigger minting the `role` claim.
     match /documents/{workerId}/{allPaths=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && isAllowedUpload() && isUnder(50 * 1024 * 1024);
-      allow delete: if isAdminOrSupervisorTier();
+      allow create, update: if isAdminOrSupervisorTier() && isAllowedUpload() && isUnder(50 * 1024 * 1024);
+      allow delete: if false;
     }
 
     // Worker personal vault — strictly per-uid private (self-service uploads).

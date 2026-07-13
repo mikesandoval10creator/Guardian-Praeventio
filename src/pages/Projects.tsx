@@ -27,6 +27,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { planProjectCap } from '../services/pricing/subscriptionPlan';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
@@ -47,6 +49,7 @@ import type { PredictedActivity } from '../services/calendar/predictions';
 export function Projects() {
   const { t } = useTranslation();
   const { projects, createProject, loading, error: projectsError, selectedProject, setSelectedProject } = useProject();
+  const { plan, loading: subscriptionLoading } = useSubscription();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,6 +104,27 @@ export function Projects() {
   };
 
   const executeSubmit = async () => {
+    // Scale gate (per-project cap): a plan caps how many ACTIVE projects a tenant
+    // may run at once (tiers.ts `proyectosMax`; Diamante = 50, a real limit — de
+    // esa forma cuidamos la base de datos). To open another past the cap the user
+    // must CLOSE an active project or upgrade — the scale lever behind the "N
+    // proyectos activos" pricing framing. Skipped while the plan is still loading
+    // to avoid a false block on the subscription-fetch race. Client-side UX gate;
+    // life-safety data is never gated (ADR 0021 — this is a management action).
+    const activeProjects = projects.filter(
+      (p) => !p.isPendingSync && p.status !== 'completed' && p.status !== 'archived',
+    );
+    const projectCap = planProjectCap(plan);
+    if (!subscriptionLoading && activeProjects.length >= projectCap) {
+      addNotification({
+        title: 'Límite de proyectos alcanzado',
+        message: `Tu plan permite ${projectCap} proyecto${projectCap === 1 ? '' : 's'} activo${projectCap === 1 ? '' : 's'} a la vez. Cierra un proyecto activo o mejora tu plan para abrir otro.`,
+        type: 'warning',
+      });
+      setIsModalOpen(false);
+      return;
+    }
+
     setIsCreating(true);
     try {
       const newProjectId = await createProject(formData);
@@ -147,12 +171,12 @@ export function Projects() {
           <div className="flex items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
             <button 
               onClick={() => setSelectedProject(null)}
-              className="p-2.5 sm:p-3 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm shrink-0 mt-1 sm:mt-0"
+              className="p-2.5 sm:p-3 bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm shrink-0 mt-1 sm:mt-0"
             >
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">{selectedProject.name}</h1>
+              <h1 data-testid="project-detail-name" className="text-xl sm:text-3xl font-black text-primary-token tracking-tighter uppercase break-words leading-tight">{selectedProject.name}</h1>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
                 <span className="text-[8px] sm:text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 px-2 py-0.5 rounded-lg border border-[#4db6ac]/20">
                   {selectedProject.status}
@@ -161,26 +185,26 @@ export function Projects() {
               </div>
             </div>
             <div className="flex sm:hidden items-center gap-2 shrink-0">
-              <button className="p-2.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
+              <button className="p-2.5 bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
                 <BarChart3 className="w-4 h-4" />
               </button>
-              <button className="p-2.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
+              <button className="p-2.5 bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
                 <Settings className="w-4 h-4" />
               </button>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-            <button className="p-2.5 sm:p-3 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
+            <button className="p-2.5 sm:p-3 bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
               <BarChart3 className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
-            <button className="p-2.5 sm:p-3 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
+            <button className="p-2.5 sm:p-3 bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
               <Settings className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full overflow-x-auto custom-scrollbar shadow-sm">
+        <div className="flex items-center gap-2 p-1.5 bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full overflow-x-auto custom-scrollbar shadow-sm">
           {[
             { id: 'overview', label: t('projects.tab.overview', 'Resumen'), icon: Layout },
             { id: 'documents', label: t('projects.tab.documents', 'Docs'), icon: FileText },
@@ -200,7 +224,7 @@ export function Projects() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] p-4 sm:p-8 min-h-[400px] shadow-sm">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] p-4 sm:p-8 min-h-[400px] shadow-sm">
           {activeTab === 'overview' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
               <div className="space-y-6 sm:space-y-8">
@@ -211,21 +235,21 @@ export function Projects() {
                       <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] shrink-0" />
                       <div className="min-w-0">
                         <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.form.location', 'Ubicación')}</p>
-                        <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.location}</p>
+                        <p className="text-xs sm:text-sm font-bold text-primary-token truncate">{selectedProject.location}</p>
                       </div>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
                       <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.form.start_date', 'Fecha de Inicio')}</p>
-                        <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{new Date(selectedProject.startDate).toLocaleDateString('es-CL')}</p>
+                        <p className="text-xs sm:text-sm font-bold text-primary-token truncate">{new Date(selectedProject.startDate).toLocaleDateString('es-CL')}</p>
                       </div>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
                       <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.form.client', 'Cliente')}</p>
-                        <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.clientName || 'N/A'}</p>
+                        <p className="text-xs sm:text-sm font-bold text-primary-token truncate">{selectedProject.clientName || 'N/A'}</p>
                       </div>
                     </div>
                     {selectedProject.companyName && (
@@ -233,7 +257,7 @@ export function Projects() {
                         <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.detail.employer_suseso', 'Empleador (SUSESO)')}</p>
-                          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.companyName}</p>
+                          <p className="text-xs sm:text-sm font-bold text-primary-token truncate">{selectedProject.companyName}</p>
                           <p className="text-[10px] text-zinc-500">{selectedProject.companyRut} · {selectedProject.mutualidad}</p>
                         </div>
                       </div>
@@ -242,7 +266,7 @@ export function Projects() {
                 </div>
                 <div>
                   <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.description', 'Descripción')}</h3>
-                  <p className="text-zinc-600 dark:text-zinc-400 text-xs sm:text-sm leading-relaxed bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                  <p className="text-secondary-token text-xs sm:text-sm leading-relaxed bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-6">
                     {selectedProject.description}
                   </p>
                 </div>
@@ -259,7 +283,7 @@ export function Projects() {
                       <ShieldAlert className="w-8 h-8 sm:w-10 sm:h-10" />
                     </div>
                     <div>
-                      <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('projects.risk_label', 'Riesgo {{level}}', { level: selectedProject.riskLevel })}</p>
+                      <p className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tighter">{t('projects.risk_label', 'Riesgo {{level}}', { level: selectedProject.riskLevel })}</p>
                       <p className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('projects.detail.base_safety_eval', 'Evaluación de Seguridad Base')}</p>
                     </div>
                   </div>
@@ -287,7 +311,7 @@ export function Projects() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">{t('projects.title', 'Gestión de Proyectos')}</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-primary-token tracking-tighter uppercase break-words leading-tight">{t('projects.title', 'Gestión de Proyectos')}</h1>
           <p className="text-zinc-500 font-medium text-[9px] sm:text-xs md:text-sm mt-1">{t('projects.subtitle', 'Administra tus faenas, industrias y niveles de riesgo')}</p>
         </div>
         <motion.button
@@ -295,6 +319,7 @@ export function Projects() {
           whileTap={{ scale: 0.98 }}
           onClick={() => setIsModalOpen(true)}
           disabled={!isOnline}
+          data-testid="create-project-button"
           title={!isOnline ? t('projects.requires_internet', 'Requiere conexión a internet') : ''}
           className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
             !isOnline
@@ -309,37 +334,37 @@ export function Projects() {
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center border border-[#4db6ac]/20 dark:border-[#d4af37]/20 shrink-0">
             <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#4db6ac] dark:text-[#d4af37]" />
           </div>
           <div className="min-w-0">
             <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{t('projects.stats.active', 'Proyectos Activos')}</p>
-            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.status === 'active').length}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-primary-token">{projects.filter(p => p.status === 'active').length}</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
             <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
           </div>
           <div className="min-w-0">
             <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{t('projects.stats.industries', 'Industrias Cubiertas')}</p>
-            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{new Set(projects.map(p => p.industry)).size}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-primary-token">{new Set(projects.map(p => p.industry)).size}</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm sm:col-span-2 md:col-span-1">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm sm:col-span-2 md:col-span-1">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shrink-0">
             <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
           </div>
           <div className="min-w-0">
             <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{t('projects.stats.critical_risk', 'Riesgo Crítico')}</p>
-            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.riskLevel === 'Crítico').length}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-primary-token">{projects.filter(p => p.riskLevel === 'Crítico').length}</p>
           </div>
         </div>
       </div>
 
       {/* View Mode Toggle */}
-      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full sm:w-auto sm:self-start shadow-sm">
+      <div className="flex items-center gap-2 p-1.5 bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full sm:w-auto sm:self-start shadow-sm">
         {[
           { id: 'cards' as const, label: t('projects.view.cards', 'Tarjetas'), icon: Layout },
           { id: 'timeline' as const, label: t('projects.view.timeline', 'Línea de tiempo'), icon: Calendar },
@@ -368,7 +393,7 @@ export function Projects() {
           placeholder={t('projects.search_placeholder', 'Buscar por nombre, industria o ubicación...')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
+          className="w-full bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
         />
       </div>
 
@@ -422,8 +447,9 @@ export function Projects() {
             <motion.div
               key={projectId}
               whileHover={{ y: -5 }}
+              data-testid={`project-card-${projectId}`}
               onClick={() => setSelectedProject(project)}
-              className={`bg-white dark:bg-zinc-900/50 border rounded-2xl sm:rounded-3xl p-5 sm:p-6 cursor-pointer transition-all relative overflow-hidden group shadow-sm flex flex-col ${
+              className={`bg-elevated border rounded-2xl sm:rounded-3xl p-5 sm:p-6 cursor-pointer transition-all relative overflow-hidden group shadow-sm flex flex-col ${
                 /* Codex/strict note: outer early-return narrows
                    `selectedProject` to `null` so the selected-card style
                    never applies in this branch. We render the unselected
@@ -454,17 +480,17 @@ export function Projects() {
                     <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500 group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm sm:text-base md:text-lg font-black text-zinc-900 dark:text-white truncate uppercase tracking-tight">{project.name}</h3>
+                    <h3 className="text-sm sm:text-base md:text-lg font-black text-primary-token truncate uppercase tracking-tight">{project.name}</h3>
                     <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{project.industry}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-muted-token min-w-0">
                     <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span className="text-[8px] sm:text-[10px] font-bold uppercase truncate">{project.location}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-muted-token min-w-0">
                     <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span className="text-[8px] sm:text-[10px] font-bold uppercase truncate">{new Date(project.startDate).toLocaleDateString('es-CL')}</span>
                   </div>
@@ -477,7 +503,7 @@ export function Projects() {
                       project.riskLevel === 'Alto' ? 'text-amber-500' :
                       project.riskLevel === 'Medio' ? 'text-blue-500' : 'text-[#4db6ac] dark:text-[#d4af37]'
                     }`} />
-                    <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">{t('projects.risk_label', 'Riesgo {{level}}', { level: project.riskLevel })}</span>
+                    <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-muted-token">{t('projects.risk_label', 'Riesgo {{level}}', { level: project.riskLevel })}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-600 group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] group-hover:translate-x-1 transition-all" />
                 </div>
@@ -502,7 +528,7 @@ export function Projects() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-2xl bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="p-4 sm:p-8 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-[#4db6ac]/10 dark:from-[#d4af37]/10 to-transparent shrink-0">
                 <div className="flex items-center gap-3 sm:gap-4">
@@ -510,12 +536,12 @@ export function Projects() {
                     <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-[#4db6ac] dark:text-[#d4af37]" />
                   </div>
                   <div>
-                    <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('projects.new_project', 'Nuevo Proyecto')}</h3>
+                    <h3 className="text-lg sm:text-xl font-black text-primary-token uppercase tracking-tighter">{t('projects.new_project', 'Nuevo Proyecto')}</h3>
                     <p className="text-[10px] sm:text-xs text-zinc-500 font-medium">{t('projects.new_subtitle', 'Configura una nueva faena o centro de trabajo')}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors shrink-0">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
+                <button onClick={() => setIsModalOpen(false)} aria-label="Cerrar" className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors shrink-0">
+                  <X aria-hidden="true" className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
                 </button>
               </div>
 
@@ -526,10 +552,11 @@ export function Projects() {
                     <input
                       required
                       type="text"
+                      data-testid="create-project-name-input"
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       placeholder={t('projects.form.name_placeholder', 'Ej: Mina Los Bronces - Fase 4')}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                     />
                   </div>
                   <div className="space-y-1.5 sm:space-y-2">
@@ -538,7 +565,7 @@ export function Projects() {
                       <select
                         value={formData.industry}
                         onChange={e => setFormData({ ...formData, industry: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
                       >
                         {INDUSTRY_SECTORS.map(sector => (
                           <optgroup key={sector.sector} label={sector.sector}>
@@ -557,11 +584,12 @@ export function Projects() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.description', 'Descripción del Proyecto')}</label>
                   <textarea
                     required
+                    data-testid="create-project-description-input"
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder={t('projects.form.description_placeholder', 'Detalles sobre el alcance y objetivos...')}
                     rows={3}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all resize-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all resize-none"
                   />
                 </div>
 
@@ -573,10 +601,11 @@ export function Projects() {
                       <input
                         required
                         type="text"
+                        data-testid="create-project-location-input"
                         value={formData.location}
                         onChange={e => setFormData({ ...formData, location: e.target.value })}
                         placeholder={t('projects.form.location_placeholder', 'Ciudad, Región')}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
@@ -587,14 +616,14 @@ export function Projects() {
                       value={formData.clientName}
                       onChange={e => setFormData({ ...formData, clientName: e.target.value })}
                       placeholder={t('projects.form.client_placeholder', 'Nombre de la empresa mandante')}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Legal employer data for SUSESO/DIAT compliance */}
                 <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">{t('projects.form.employer_section', 'Datos del Empleador (Ley 16.744 / SUSESO)')}</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-primary-token mb-4">{t('projects.form.employer_section', 'Datos del Empleador (Ley 16.744 / SUSESO)')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-1.5 sm:space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.legal_name', 'Razón Social')}</label>
@@ -603,7 +632,7 @@ export function Projects() {
                         value={formData.companyName}
                         onChange={e => setFormData({ ...formData, companyName: e.target.value })}
                         placeholder={t('projects.form.legal_name_placeholder', 'Nombre legal de la empresa')}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
@@ -613,7 +642,7 @@ export function Projects() {
                         value={formData.companyRut}
                         onChange={e => setFormData({ ...formData, companyRut: e.target.value })}
                         placeholder={t('projects.form.rut_placeholder', 'Ej: 76.123.456-7')}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
@@ -623,7 +652,7 @@ export function Projects() {
                         value={formData.companyAddress}
                         onChange={e => setFormData({ ...formData, companyAddress: e.target.value })}
                         placeholder={t('projects.form.address_placeholder', 'Calle, Número, Ciudad')}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
@@ -631,7 +660,7 @@ export function Projects() {
                       <select
                         value={formData.mutualidad}
                         onChange={e => setFormData({ ...formData, mutualidad: e.target.value as any })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       >
                         <option value="ACHS">ACHS</option>
                         <option value="IST">IST</option>
@@ -650,7 +679,7 @@ export function Projects() {
                       <select
                         value={formData.riskLevel}
                         onChange={e => setFormData({ ...formData, riskLevel: e.target.value as any })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
                       >
                         {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
@@ -666,14 +695,14 @@ export function Projects() {
                         type="date"
                         value={formData.startDate}
                         onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">{t('projects.form.shift_section', 'Configuración de Jornada y GPS')}</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-primary-token mb-4">{t('projects.form.shift_section', 'Configuración de Jornada y GPS')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-1.5 sm:space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.shift_start', 'Inicio de Jornada')}</label>
@@ -681,7 +710,7 @@ export function Projects() {
                         type="time"
                         value={formData.shiftStart}
                         onChange={e => setFormData({ ...formData, shiftStart: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
@@ -690,7 +719,7 @@ export function Projects() {
                         type="time"
                         value={formData.shiftEnd}
                         onChange={e => setFormData({ ...formData, shiftEnd: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
@@ -704,7 +733,7 @@ export function Projects() {
                         className="w-4 h-4 text-[#4db6ac] rounded border-zinc-300 focus:ring-[#4db6ac]"
                       />
                       <div>
-                        <p className="text-xs font-bold text-zinc-900 dark:text-white">{t('projects.form.track_commute', 'Rastrear Accidentes de Trayecto')}</p>
+                        <p className="text-xs font-bold text-primary-token">{t('projects.form.track_commute', 'Rastrear Accidentes de Trayecto')}</p>
                         <p className="text-[10px] text-zinc-500">{t('projects.form.track_commute_desc', 'Mantiene el GPS activo 1 hora antes y después de la jornada.')}</p>
                       </div>
                     </label>
@@ -714,6 +743,7 @@ export function Projects() {
                 <button
                   type="submit"
                   disabled={isCreating}
+                  data-testid="create-project-submit-button"
                   className="w-full bg-[#4db6ac] hover:bg-[#3a9e95] disabled:opacity-50 text-white font-black py-4 sm:py-5 rounded-2xl sm:rounded-3xl transition-all shadow-xl shadow-[#4db6ac]/20 flex items-center justify-center gap-2 sm:gap-3 uppercase tracking-widest text-[10px] sm:text-sm mt-4 shrink-0"
                 >
                   {isCreating ? (

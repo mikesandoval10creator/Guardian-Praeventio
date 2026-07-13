@@ -184,6 +184,129 @@ function buildInviteEmailHtml({
 
 const projectsRouter = Router();
 
+// POST /api/projects — server-side project creation (closes the audit gap).
+// The Projects page used to `addDoc` straight from the client: identity was
+// held by firestore.rules (createdBy == auth.uid, unforgeable) but NO
+// audit_logs row was written (CLAUDE.md #3) and nothing ran server-side. This
+// endpoint is the audited path the UI now calls: createdBy/tenantId/members
+// are stamped from the VERIFIED token — a spoofed identity field in the body
+// is discarded. The active-projects cap stays REPORT-ONLY (Fase 1), mirroring
+// the invite seat gate below. The client keeps its post-create seeding
+// (seedGlobalData / Zettelkasten nodes) — those are member-gated subcollection
+// writes, out of scope here.
+projectsRouter.post('/', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const body = req.body ?? {};
+
+  // Fail-closed validation of the client-controlled fields.
+  if (typeof body.name !== 'string' || body.name.trim().length === 0 || body.name.length > 200) {
+    return res.status(400).json({ error: 'Invalid name' });
+  }
+  const status = body.status ?? 'active';
+  if (!['active', 'completed', 'archived'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  // Only whitelisted client fields are carried (mirrors the firestore.rules
+  // isValidProject allowlist minus the server-stamped ones).
+  const CLIENT_FIELDS = [
+    'name', 'description', 'location', 'coordinates', 'industry', 'startDate',
+    'endDate', 'clientName', 'riskLevel', 'workersCount', 'companyName',
+    'companyRut', 'companyAddress', 'mutualidad', 'phone', 'shiftStart',
+    'shiftEnd', 'trackCommute', 'settings',
+  ] as const;
+  const projectFields: Record<string, unknown> = { status };
+  for (const key of CLIENT_FIELDS) {
+    if (body[key] !== undefined) projectFields[key] = body[key];
+  }
+
+  try {
+    // Scale-gate (REPORT-ONLY, Fase 1): log — never block — when opening
+    // another active project would exceed the caller's plan cap
+    // (tiers.ts proyectosMax). Same staged rollout as the invite seat gate.
+    try {
+      const plan = await readSubscriptionPlanId(callerUid);
+      const active = await admin
+        .firestore()
+        .collection('projects')
+        .where('tenantId', '==', callerUid)
+        .where('status', '==', 'active')
+        .get();
+      const decision = evaluateScaleCap({
+        plan,
+        kind: 'projects',
+        current: active.size,
+        delta: 1,
+      });
+      if (!decision.withinCap) {
+        logger.warn('tier_gate_would_block', {
+          gate: 'projects',
+          mode: 'report-only',
+          ownerUid: callerUid,
+          plan: decision.plan,
+          cap: decision.cap,
+          current: decision.current,
+          projected: decision.projected,
+        });
+      }
+    } catch (capErr) {
+      logger.warn('scale_gate_eval_failed', {
+        uid: callerUid,
+        err: capErr instanceof Error ? capErr.message : String(capErr),
+      });
+      sentryCapture(capErr, {
+        endpoint: 'POST /api/projects',
+        trigger: 'scale-gate-report-only',
+        tags: { uid: callerUid },
+      });
+    }
+
+    const docRef = await admin
+      .firestore()
+      .collection('projects')
+      .add({
+        ...projectFields,
+        // Server-stamped identity — from the verified token, never the body.
+        // M-1: owning tenant (single-tenant-per-user → tenant == owner uid).
+        tenantId: callerUid,
+        createdBy: callerUid,
+        members: [callerUid],
+        createdAt: new Date().toISOString(),
+      });
+
+    // CLAUDE.md #3/#14 — audit the state change; failure is severe but must
+    // not convert a successful create into a 5xx.
+    try {
+      await auditServerEvent(req, 'projects.create', 'projects', {
+        projectId: docRef.id,
+        name: body.name,
+      });
+    } catch (auditErr) {
+      logger.error('audit_event_failed', {
+        action: 'projects.create',
+        projectId: docRef.id,
+        err: auditErr instanceof Error ? auditErr.message : String(auditErr),
+      });
+      sentryCapture(auditErr, {
+        endpoint: 'POST /api/projects',
+        trigger: 'audit',
+        tags: { projectId: docRef.id },
+      });
+    }
+
+    return res.json({ success: true, projectId: docRef.id });
+  } catch (error) {
+    logger.error('project_create_failed', {
+      uid: callerUid,
+      err: error instanceof Error ? error.message : String(error),
+    });
+    sentryCapture(error, { endpoint: 'POST /api/projects', tags: { uid: callerUid } });
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error)?.message,
+    });
+  }
+});
+
 // POST /api/projects/:id/invite  — project creator sends an invitation
 projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
@@ -436,6 +559,73 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
           : error.message || 'Internal server error',
+    });
+  }
+});
+
+// POST /api/projects/:id/workers/:workerId/archive — Bloque E1. A worker
+// record is legally-retained evidence (personnel records, DS44 / Ley 16.744):
+// it is NEVER hard-deleted. Removing a worker from a project ARCHIVES the doc
+// server-side (archived:true, stamped from the token) with an audit row — the
+// old client `deleteDoc` bypassed the audit invariant (CLAUDE.md #3) AND
+// destroyed legally-retained data. The worker's portable history lives on their
+// user account; account-level erasure (Ley 21.719 / GDPR right to be forgotten)
+// is a separate, dedicated flow (accountRouter /anonymize), not this endpoint.
+projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, res) => {
+  const { id: projectId, workerId } = req.params;
+  const callerUid = req.user!.uid;
+
+  try {
+    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
+
+    if (!callerCanManageProject(callerUid, projectDoc.data()!)) {
+      return res.status(403).json({
+        error: 'Forbidden: Only the project creator or a gerente/admin member can archive workers',
+      });
+    }
+
+    const workerRef = admin
+      .firestore()
+      .collection('projects')
+      .doc(projectId)
+      .collection('workers')
+      .doc(workerId);
+    const workerDoc = await workerRef.get();
+    if (!workerDoc.exists) return res.status(404).json({ error: 'Worker not found' });
+
+    // Soft-archive ONLY. Identity is stamped from the verified token; any
+    // client-supplied archived/archivedBy in the body is ignored.
+    await workerRef.update({
+      archived: true,
+      archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      archivedBy: callerUid,
+    });
+
+    // CLAUDE.md #3/#14 — audit the state change; failure is severe but never
+    // converts a successful archive into a 5xx.
+    try {
+      await auditServerEvent(req, 'workers.archive', 'projects', { projectId, workerId }, { projectId });
+    } catch (auditErr) {
+      logger.error('audit_event_failed', {
+        action: 'workers.archive',
+        projectId,
+        workerId,
+        err: auditErr instanceof Error ? auditErr.message : String(auditErr),
+      });
+      sentryCapture(auditErr, {
+        endpoint: 'POST /api/projects/:id/workers/:workerId/archive',
+        trigger: 'audit',
+        tags: { projectId, workerId },
+      });
+    }
+
+    return res.json({ success: true, archived: true });
+  } catch (error: any) {
+    logger.error('worker_archive_failed', { uid: callerUid, projectId, workerId, err: error?.message });
+    sentryCapture(error, { endpoint: 'POST /api/projects/:id/workers/:workerId/archive', tags: { projectId, workerId } });
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error?.message,
     });
   }
 });

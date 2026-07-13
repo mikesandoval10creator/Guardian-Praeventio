@@ -1,8 +1,8 @@
 [
   {
     "name": "Main entry (gzipped)",
-    "path": "dist/assets/index-*.js",
-    "limit": "532 KB",
+    "path": "dist/assets/app-*.js",
+    "limit": "540 KB",
     "gzip": true
   },
   {
@@ -18,9 +18,27 @@
     "gzip": true
   },
   {
-    "name": "vendor-three (gzipped)",
+    "name": "vendor-three core (gzipped)",
     "path": "dist/assets/vendor-three-*.js",
-    "limit": "700 KB",
+    "limit": "400 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-r3f fiber (gzipped)",
+    "path": "dist/assets/vendor-r3f-*.js",
+    "limit": "90 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-drei (gzipped)",
+    "path": "dist/assets/vendor-drei-*.js",
+    "limit": "150 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-xr + rapier (lazy, off critical path)",
+    "path": "dist/assets/vendor-xr-*.js",
+    "limit": "900 KB",
     "gzip": true
   },
   {
@@ -30,9 +48,27 @@
     "gzip": true
   },
   {
-    "name": "vendor-viz (gzipped)",
-    "path": "dist/assets/vendor-viz-*.js",
-    "limit": "400 KB",
+    "name": "vendor-charts (gzipped)",
+    "path": "dist/assets/vendor-charts-*.js",
+    "limit": "300 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-motion (gzipped)",
+    "path": "dist/assets/vendor-motion-*.js",
+    "limit": "90 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-gsap (gzipped)",
+    "path": "dist/assets/vendor-gsap-*.js",
+    "limit": "70 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-transformers (gzipped)",
+    "path": "dist/assets/vendor-transformers-*.js",
+    "limit": "380 KB",
     "gzip": true
   },
   {

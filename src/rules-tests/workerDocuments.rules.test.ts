@@ -16,9 +16,14 @@
 //
 // Path (a): member-gated create/update (schema carries `workerId`, the worker
 // doc id — NOT a caller uid — so there is no anti-spoof field to bind, matching
-// the sibling /documents and /findings rules); admin/supervisor delete.
+// the sibling /documents and /findings rules).
 // Path (b): admin/supervisor only (non-project-scoped personnel record, no
 // project membership to check). Uses the F1 fail-closed harness.
+//
+// F7 (founder decision 2026-07-02): worker documents are legal evidence —
+// client-side DELETE is denied for everybody on both paths (DocsModal now
+// archives via `archived: true` instead). Physical removal is server-side
+// (Admin SDK) + audited.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -118,10 +123,14 @@ describe('projects/{pid}/workers/{wid}/documents — firestore.rules', () => {
     await seedNested('d6');
     await assertSucceeds(setDoc(nestedRef(authed(MEMBER), 'd6'), { name: 'Editado' }, { merge: true }));
   });
-  it('member cannot delete; admin can delete', async () => {
+  it('F7: NOBODY deletes client-side — member AND admin denied (evidence lock)', async () => {
     await seedNested('d5');
     await assertFails(deleteDoc(nestedRef(authed(MEMBER), 'd5')));
-    await assertSucceeds(deleteDoc(nestedRef(authed(ADMIN, 'admin'), 'd5')));
+    await assertFails(deleteDoc(nestedRef(authed(ADMIN, 'admin'), 'd5')));
+  });
+  it('F7: archive flip (archived: true) is allowed for a member (hide-only path)', async () => {
+    await seedNested('d7');
+    await assertSucceeds(setDoc(nestedRef(authed(MEMBER), 'd7'), { archived: true }, { merge: true }));
   });
 });
 
@@ -139,5 +148,48 @@ describe('workers/{wid}/documents (top-level fallback) — firestore.rules', () 
   it('a plain worker cannot delete a top-level worker document', async () => {
     await seedTop('t4');
     await assertFails(deleteDoc(topRef(authed(MEMBER), 't4')));
+  });
+  it('F7: even an ADMIN cannot delete a top-level worker document', async () => {
+    await seedTop('t5');
+    await assertFails(deleteDoc(topRef(authed(ADMIN, 'admin'), 't5')));
+  });
+  it('F7: a supervisor can archive (hide-only) a top-level worker document', async () => {
+    await seedTop('t6');
+    await assertSucceeds(setDoc(topRef(authed('sup-1', 'supervisor'), 't6'), { archived: true }, { merge: true }));
+  });
+});
+
+// Bloque E1 (2026-07-06) — the WORKER DOC itself (not its /documents
+// sub-collection) is legally-retained evidence (personnel records, DS44 /
+// Ley 16.744). A client hard-delete is DENIED for everyone; removal from a
+// project is a soft ARCHIVE done by the audited server route. create/update
+// stay role-gated so the AddWorkerModal / EditWorkerModal flows keep working.
+describe('projects/{pid}/workers/{wid} — worker doc archive-lock (Bloque E1)', () => {
+  const workerRef = (ctxDb: CtxDb, wid = WID) =>
+    doc(ctxDb as unknown as Parameters<typeof doc>[0], 'projects', PID, 'workers', wid);
+  const workerBody = { id: WID, name: 'Juan Pérez', role: 'operario', createdAt: '2026-06-03T00:00:00Z' };
+  async function seedWorker(wid = WID) {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', PID, 'workers', wid), { ...workerBody, id: wid });
+    });
+  }
+
+  it('the project creator can create a worker doc', async () => {
+    await assertSucceeds(setDoc(workerRef(authed(MEMBER), 'w-new'), { ...workerBody, id: 'w-new' }));
+  });
+  it('the project creator can update (edit / archive) a worker doc', async () => {
+    await seedWorker();
+    await assertSucceeds(setDoc(workerRef(authed(MEMBER)), { name: 'Editado', archived: true }, { merge: true }));
+  });
+  it('a NON-member cannot create a worker doc', async () => {
+    await assertFails(setDoc(workerRef(authed(OUTSIDER), 'w-x'), { ...workerBody, id: 'w-x' }));
+  });
+  it('E1: NO client can hard-delete a worker doc — not even the project creator (legal retention)', async () => {
+    await seedWorker();
+    await assertFails(deleteDoc(workerRef(authed(MEMBER))));
+  });
+  it('E1: an ADMIN cannot hard-delete a worker doc either (physical removal is server-side only)', async () => {
+    await seedWorker();
+    await assertFails(deleteDoc(workerRef(authed(ADMIN, 'admin'))));
   });
 });

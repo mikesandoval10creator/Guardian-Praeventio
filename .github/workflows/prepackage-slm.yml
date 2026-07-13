@@ -44,9 +44,9 @@ jobs:
     name: Validate registry parser (dry-run)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -68,14 +68,14 @@ jobs:
     # Generous timeout — Phi-3 mini is ~2.7 GB and HF CDN can be slow.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
       - name: Cache pre-packaged SLM models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: public/models
           # Cache key includes the registry hash so a registry edit
@@ -92,7 +92,7 @@ jobs:
           node scripts/prepackage-slm-models.mjs $ARGS
 
       - name: Upload SLM bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slm-prepackaged-${{ github.sha }}
           path: public/models/

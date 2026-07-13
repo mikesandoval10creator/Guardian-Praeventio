@@ -35,6 +35,11 @@ const CealSmResponder = lazy(() => import('../pages/CealSmResponder').then(modul
 // Art. 66 + protocolo sílice MINSAL Res. Ex. 268/2015).
 const PlanesiEvaluation = lazy(() => import('../pages/PlanesiEvaluation').then(module => ({ default: module.PlanesiEvaluation })));
 const WasteInventoryPage = lazy(() => import('../pages/WasteInventoryPage').then(module => ({ default: module.WasteInventoryPage })));
+// Bloque D Rama 1 (2026-07-06) — Return-to-Work orphan wired. The pure-compute
+// HTTP surface (src/server/routes/returnToWork.ts) + client hook
+// (src/hooks/useReturnToWork.ts) existed with no page/route. ADR 0012:
+// task-fit + derivation vocabulary only, no medical diagnosis.
+const ReturnToWorkPage = lazy(() => import('../pages/ReturnToWorkPage').then(module => ({ default: module.ReturnToWorkPage })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -52,4 +57,5 @@ export const HealthRoutes = [
   <Route key="ceal-sm-responder" path="ceal-sm/responder" element={<CealSmResponder />} />,
   <Route key="planesi" path="planesi" element={<PlanesiEvaluation />} />,
   <Route key="waste-inventory" path="waste-inventory" element={<WasteInventoryPage />} />,
+  <Route key="return-to-work" path="return-to-work" element={<ReturnToWorkPage />} />,
 ];

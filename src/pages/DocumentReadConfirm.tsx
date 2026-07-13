@@ -210,10 +210,10 @@ export function DocumentReadConfirm() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <FileText className="w-6 h-6 text-sky-500" /> {t('document_read.title', 'Confirmación de lectura')}
             </h1>
-            <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+            <p className="text-xs text-muted-token mt-1 max-w-2xl">
               {t(
                 'document_read.subtitle',
                 'Documentos críticos (protocolos, RIOHS, procedimientos nuevos) cuya lectura por parte del personal debe quedar trazada. El sistema marca como overdue los receipts no confirmados tras el deadline.',
@@ -232,11 +232,11 @@ export function DocumentReadConfirm() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('document_read.empty.select_project', 'Seleccioná un proyecto para gestionar confirmaciones de lectura.')}
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-500">
+          <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
@@ -254,17 +254,17 @@ export function DocumentReadConfirm() {
                   {t('document_read.form.heading', 'Publicar documento')}
                 </h2>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('document_read.form.field_title', 'Título')}</span>
+                  <span className="font-bold text-secondary-token">{t('document_read.form.field_title', 'Título')}</span>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={t('document_read.form.title_placeholder', 'Ej: Procedimiento nuevo trabajo en altura — v2')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('document_read.form.field_deadline', 'Días para confirmar lectura (1-90)')}
                   </span>
                   <input
@@ -273,10 +273,10 @@ export function DocumentReadConfirm() {
                     max={90}
                     value={deadlineDays}
                     onChange={(e) => setDeadlineDays(parseInt(e.target.value, 10) || 7)}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
-                <p className="text-[10px] text-zinc-500">
+                <p className="text-[10px] text-muted-token">
                   {t(
                     'document_read.form.audience_note',
                     'Audiencia default: todos los workers activos del proyecto. Para audiencias específicas (roles, training, etc.), usá el API server-side directo.',
@@ -286,7 +286,7 @@ export function DocumentReadConfirm() {
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -304,14 +304,14 @@ export function DocumentReadConfirm() {
             )}
 
             {documents.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+              <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
                 {t('document_read.empty.no_docs', 'Aún no hay documentos publicados.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
                 {/* Lista de documentos */}
-                <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-1 max-h-[600px] overflow-y-auto">
-                  <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <aside className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-3 space-y-1 max-h-[600px] overflow-y-auto">
+                  <h2 className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                     {t('document_read.list.heading', { defaultValue: 'Documentos ({{count}})', count: documents.length })}
                   </h2>
                   <ul className="space-y-1">
@@ -327,7 +327,7 @@ export function DocumentReadConfirm() {
                           }`}
                         >
                           <p className="font-bold truncate">{d.title}</p>
-                          <p className="text-[10px] text-zinc-500 mt-0.5">
+                          <p className="text-[10px] text-muted-token mt-0.5">
                             v{d.version} · {d.readDeadlineDays}d · {new Date(d.publishedAt).toLocaleDateString('es-CL')}
                           </p>
                         </button>
@@ -358,7 +358,7 @@ export function DocumentReadConfirm() {
                       )}
                     </>
                   ) : (
-                    <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                    <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
                       {t('document_read.empty.select_doc', 'Seleccioná un documento.')}
                     </div>
                   )}

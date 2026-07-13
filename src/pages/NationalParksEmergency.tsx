@@ -170,11 +170,11 @@ export function NationalParksEmergency() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <TreePine className="w-8 h-8 text-emerald-500" />
             {t('nationalParks.title', 'Parques Nacionales')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('nationalParks.subtitle', 'Gestión de Emergencias y Clima Predictivo')}
           </p>
         </div>
@@ -198,7 +198,7 @@ export function NationalParksEmergency() {
             ? t('nationalParks.forecastReal', 'Predicción · OpenWeather')
             : t('nationalParks.forecastClimatology', 'Climatología · DMC 1981-2010')}
         </span>
-        <span className="text-zinc-500">
+        <span className="text-muted-token">
           {forecastSource === 'openweather'
             ? t('nationalParks.forecastRealDesc', 'pronóstico en tiempo real para tu ubicación')
             : t('nationalParks.forecastClimatologyDesc', 'promedio histórico 30-año (sin API key OpenWeather)')}
@@ -213,23 +213,23 @@ export function NationalParksEmergency() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className="bg-zinc-900 border border-white/10 rounded-2xl p-5 relative overflow-hidden group hover:border-emerald-500/30 transition-colors"
+              className="bg-surface border border-default-token rounded-2xl p-5 relative overflow-hidden group hover:border-emerald-500/30 transition-colors"
             >
               {/* Background gradient based on temp */}
               <div className={`absolute inset-0 opacity-10 ${day.temp < 0 ? 'bg-gradient-to-br from-blue-500 to-cyan-500' : 'bg-gradient-to-br from-amber-500 to-orange-500'}`} />
               
               <div className="relative z-10 flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">{day.day}</h3>
-                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mt-1">{day.condition}</p>
+                  <h3 className="text-sm font-black text-primary-token uppercase tracking-widest">{day.day}</h3>
+                  <p className="text-xs font-bold text-muted-token uppercase tracking-wider mt-1">{day.condition}</p>
                 </div>
                 <Icon className={`w-8 h-8 ${day.temp < 0 ? 'text-blue-400' : 'text-amber-400'}`} />
               </div>
               
               <div className="relative z-10 flex items-end justify-between">
                 <div className="flex items-start">
-                  <span className="text-3xl font-black text-white tracking-tighter">{day.temp}</span>
-                  <span className="text-sm font-bold text-zinc-500 mt-1">°C</span>
+                  <span className="text-3xl font-black text-primary-token tracking-tighter">{day.temp}</span>
+                  <span className="text-sm font-bold text-muted-token mt-1">°C</span>
                 </div>
                 
                 <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
@@ -248,37 +248,37 @@ export function NationalParksEmergency() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-emerald-500" />
             Tipo de Incidente
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Clasificación</label>
+              <label className="block text-sm font-medium text-muted-token mb-2">Clasificación</label>
               <div className="flex gap-2">
-                <button onClick={() => setIncidentType('spill')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${incidentType === 'spill' ? 'bg-violet-500/20 text-violet-400 border-violet-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Derrame Hazmat</button>
-                <button onClick={() => setIncidentType('fire')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${incidentType === 'fire' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Incendio Forestal</button>
+                <button onClick={() => setIncidentType('spill')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${incidentType === 'spill' ? 'bg-violet-500/20 text-violet-400 border-violet-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Derrame Hazmat</button>
+                <button onClick={() => setIncidentType('fire')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${incidentType === 'fire' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Incendio Forestal</button>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Estado del Parque (CONAF)</label>
+              <label className="block text-sm font-medium text-muted-token mb-2">Estado del Parque (CONAF)</label>
               <div className="flex gap-2">
-                <button onClick={() => setParkStatus('open')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Abierto</button>
-                <button onClick={() => setParkStatus('restricted')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'restricted' ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Restringido</button>
-                <button onClick={() => setParkStatus('closed')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'closed' ? 'bg-rose-500/20 text-rose-400 border-rose-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Cerrado</button>
+                <button onClick={() => setParkStatus('open')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Abierto</button>
+                <button onClick={() => setParkStatus('restricted')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'restricted' ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Restringido</button>
+                <button onClick={() => setParkStatus('closed')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${parkStatus === 'closed' ? 'bg-rose-500/20 text-rose-400 border-rose-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Cerrado</button>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <div className="pt-4 border-t border-default-token">
+            <h3 className="text-sm font-bold text-primary-token mb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-emerald-500" />
               Protocolos Ambientales
             </h3>
-            <ul className="space-y-2 text-sm text-zinc-400">
+            <ul className="space-y-2 text-sm text-muted-token">
               {incidentType === 'spill' ? (
                 <>
                   <li className="flex items-start gap-2">
@@ -311,7 +311,7 @@ export function NationalParksEmergency() {
         </Card>
 
         {/* Map Visualization (Simulated) */}
-        <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-zinc-900 flex items-center justify-center">
+        <Card className="p-0 border-default-token lg:col-span-2 overflow-hidden relative min-h-[500px] bg-surface flex items-center justify-center">
           {/* Simulated Map Background */}
           <div className="absolute inset-0 opacity-20" style={{
             backgroundImage: 'radial-gradient(circle at center, #3f3f46 1px, transparent 1px)',
@@ -353,10 +353,10 @@ export function NationalParksEmergency() {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
           />
 
-          <div className="absolute top-6 right-6 bg-black/50 backdrop-blur-md border border-white/10 p-3 rounded-xl max-w-xs">
+          <div className="absolute top-6 right-6 bg-black/50 backdrop-blur-md border border-default-token p-3 rounded-xl max-w-xs">
             <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-300">
+              <Info className="w-4 h-4 text-muted-token shrink-0 mt-0.5" />
+              <p className="text-xs text-secondary-token">
                 Las emergencias dentro de áreas silvestres protegidas tienen implicancias legales severas. Se debe priorizar la contención para evitar daño a la flora y fauna endémica.
               </p>
             </div>

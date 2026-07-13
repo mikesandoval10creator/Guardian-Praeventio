@@ -149,13 +149,13 @@ function LightPollutionAuditInner() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="text-2xl font-black text-primary-token uppercase tracking-tighter flex items-center gap-3">
             <Lightbulb className="w-7 h-7 text-amber-400" /> {t('lightAudit.title', 'Auditoría de Iluminación')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('lightAudit.subtitle', 'DS 594 Art. 103')}</p>
+          <p className="text-xs text-muted-token uppercase tracking-widest mt-1">{t('lightAudit.subtitle', 'DS 594 Art. 103')}</p>
         </div>
         <div className={`px-4 py-2 rounded-xl border font-bold uppercase text-xs tracking-widest flex items-center gap-2 ${
-          readings.length === 0 ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400' :
+          readings.length === 0 ? 'bg-zinc-500/10 border-zinc-500/20 text-muted-token' :
           compliant ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
                       'bg-rose-500/10 border-rose-500/20 text-rose-400'
         }`}>
@@ -163,30 +163,30 @@ function LightPollutionAuditInner() {
         </div>
       </div>
 
-      <Card className="p-6 space-y-4 border-white/5">
+      <Card className="p-6 space-y-4 border-default-token">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{t('lightAudit.areaLabel', 'Área auditada')}</label>
+            <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-1">{t('lightAudit.areaLabel', 'Área auditada')}</label>
             <input value={area} onChange={e => setArea(e.target.value)}
               placeholder="Ej: Bodega A — pasillo central"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500" />
+              className="w-full bg-surface border border-default-token rounded-lg px-3 py-2 text-primary-token text-sm focus:outline-none focus:border-amber-500" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{t('lightAudit.categoryLabel', 'Categoría de tarea')}</label>
+            <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-1">{t('lightAudit.categoryLabel', 'Categoría de tarea')}</label>
             <select value={category} onChange={e => setCategory(e.target.value as TaskCat)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500">
+              className="w-full bg-surface border border-default-token rounded-lg px-3 py-2 text-primary-token text-sm focus:outline-none focus:border-amber-500">
               {(Object.keys(TASK_THRESHOLDS) as TaskCat[]).map(k => (
                 <option key={k} value={k}>{TASK_THRESHOLDS[k].label} (≥{TASK_THRESHOLDS[k].threshold} lux)</option>
               ))}
             </select>
-            <p className="text-[10px] text-zinc-500 mt-1">{meta.description}</p>
+            <p className="text-[10px] text-muted-token mt-1">{meta.description}</p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <input type="number" value={draft} onChange={e => setDraft(e.target.value)} min={0}
             placeholder="Lectura en lux (sensor o luxómetro)"
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+            className="flex-1 bg-surface border border-default-token rounded-lg px-3 py-2 text-primary-token text-sm focus:outline-none focus:border-amber-500"
             onKeyDown={e => { if (e.key === 'Enter') addReading(); }} />
           <Button onClick={addReading} disabled={!draft}><Plus className="w-4 h-4 mr-1" /> {t('lightAudit.addReading', 'Agregar')}</Button>
         </div>
@@ -194,9 +194,9 @@ function LightPollutionAuditInner() {
         {readings.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              <Stat label="Mediciones" value={readings.length} cls="text-zinc-300" />
+              <Stat label="Mediciones" value={readings.length} cls="text-secondary-token" />
               <Stat label="Promedio" value={`${avg} lux`} cls="text-amber-400" />
-              <Stat label="Umbral" value={`${meta.threshold} lux`} cls="text-zinc-500" />
+              <Stat label="Umbral" value={`${meta.threshold} lux`} cls="text-muted-token" />
             </div>
             <div className="flex flex-wrap gap-1">
               {readings.map((r, i) => (
@@ -220,7 +220,7 @@ function LightPollutionAuditInner() {
               <Button variant="secondary" onClick={reset}>Nueva auditoría</Button>
             </div>
             {savedId && (
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">ID: {savedId}</p>
+              <p className="text-[10px] text-muted-token uppercase tracking-widest">ID: {savedId}</p>
             )}
           </motion.div>
         )}
@@ -231,9 +231,9 @@ function LightPollutionAuditInner() {
 
 function Stat({ label, value, cls }: { label: string; value: React.ReactNode; cls: string }) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-center">
+    <div className="p-3 rounded-xl bg-surface border border-default-token text-center">
       <p className={`text-xl font-black ${cls}`}>{value}</p>
-      <p className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-widest text-muted-token">{label}</p>
     </div>
   );
 }

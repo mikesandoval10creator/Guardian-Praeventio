@@ -33,52 +33,62 @@ test.describe('Landing page', () => {
     // partido por <br/> + <span>, así que aseveramos contra el <h1> completo
     // con toContainText en vez de buscar un nodo de texto contiguo.
     const heroHeading = page.getByRole('heading', { level: 1 });
-    await expect(heroHeading).toContainText(/revoluci[oó]n de la/i);
-    await expect(heroHeading).toContainText(/prevenci[oó]n de riesgos/i);
+    await expect(heroHeading).toContainText(/5 minutos que pueden/i);
+    await expect(heroHeading).toContainText(/salvar tu vida/i);
     // Subtitle (landing.hero.subtitle) — sí es un nodo único.
-    await expect(page.getByText(/Gesti[oó]n de riesgos.*bienestar.*cumplimiento/i)).toBeVisible();
+    await expect(page.getByText(/charla de 5 minutos/i)).toBeVisible();
   });
 
-  test('compliance badges row renders all 9', async ({ page }) => {
+  test('compliance badges row renders all 7', async ({ page }) => {
     await page.goto('/');
-    // Badges: DS 54, DS 44/2024, Ley 16.744, ISO 45001, OHSAS 18001, SUSESO, ISL, ACHS, IST
-    const expected = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+    // Mirrors COMPLIANCE_BADGES in src/pages/LandingPage.tsx (#1164): DS 54 was
+    // dropped (derogated by DS 44/2024) and OHSAS 18001 was dropped as a
+    // compliance badge (superseded by ISO 45001). (OHSAS may still appear
+    // elsewhere as historical/educational content — not asserted here.)
+    const expected = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
     for (const badge of expected) {
       await expect(page.getByText(badge, { exact: false }).first()).toBeVisible();
     }
   });
 
-  test('"Por qué Guardian" pain-point section visible', async ({ page }) => {
+  // 2026-07 Claude Design: the former Vida + Cómo-funciona sections are folded
+  // into one dark "El Sistema" section with six vida-crítica cards.
+  test('El Sistema — vida-crítica features visible', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Por qu[eé] Guardian/i)).toBeVisible();
-    await expect(page.getByText(/hojas de c[aá]lculo y papeleo/i)).toBeVisible();
+    await expect(page.getByText(/La victoria se gana antes de la batalla/i)).toBeVisible();
+    await expect(page.getByText(/SOS y hombre-caído/i)).toBeVisible();
+    // "red mesh sin señal" also appears in the hero copy, so target the card heading.
+    await expect(page.getByRole('heading', { name: 'Red mesh sin señal' })).toBeVisible();
   });
 
-  test('"Cómo funciona" 3-step flow visible', async ({ page }) => {
+  test('El Sistema — IA, biometría and evidencia cards visible', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/C[oó]mo funciona/i)).toBeVisible();
-    await expect(page.getByText(/Registra/i).first()).toBeVisible();
-    await expect(page.getByText(/IA analiza/i).first()).toBeVisible();
-    await expect(page.getByText(/Cumplimiento autom[aá]tico/i).first()).toBeVisible();
+    await expect(page.getByText(/Inteligencia Artificial/i).first()).toBeVisible();
+    // "Biometría 100% en el dispositivo" also appears in the hero status line.
+    await expect(page.getByRole('heading', { name: 'Biometría 100% en el dispositivo' })).toBeVisible();
+    await expect(page.getByText(/Evidencia que no se borra/i)).toBeVisible();
   });
 
-  test('pricing tiers card grid has 4 plans', async ({ page }) => {
+  test('pricing tiers grid renders the real tiers from tiers.ts', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Planes para cada empresa/i)).toBeVisible();
-    await expect(page.getByText(/Gratuito/i).first()).toBeVisible();
-    await expect(page.getByText(/Comit[eé]/i).first()).toBeVisible();
-    await expect(page.getByText(/Departamento/i).first()).toBeVisible();
-    await expect(page.getByText(/Enterprise/i).first()).toBeVisible();
+    await expect(page.getByText(/La vida no tiene precio/i)).toBeVisible();
+    // Real tier names from src/services/pricing/tiers.ts (`nombre`). The 2026-07
+    // design shows all seven: the free row + six metal cards.
+    for (const name of ['Gratis', 'Cobre', 'Plata', 'Oro', 'Titanio', 'Platino', 'Diamante']) {
+      await expect(page.getByText(new RegExp(name, 'i')).first()).toBeVisible();
+    }
   });
 
-  test('Departamento has RECOMENDADO pill (gold)', async ({ page }) => {
+  test('pricing shows the "Para tu dotación" recommended badge', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/RECOMENDADO/i)).toBeVisible();
+    await expect(page.getByText(/Para tu dotaci[oó]n/i)).toBeVisible();
   });
 
-  test('Comité has POPULAR pill (teal)', async ({ page }) => {
+  test('pricing has the monthly/annual toggle and workers slider', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/POPULAR/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Mensual/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Anual/i })).toBeVisible();
+    await expect(page.locator('#pv-workers')).toBeVisible();
   });
 
   test('footer has contact email + Santiago location', async ({ page }) => {
@@ -88,13 +98,10 @@ test.describe('Landing page', () => {
     await expect(page.getByText(/Santiago.*Chile/i)).toBeVisible();
   });
 
-  test('CTA primary "Entrar a la app" button is visible and clickable', async ({ page }) => {
+  test('CTA primary "Proteger a mi equipo" button is visible and clickable', async ({ page }) => {
     await page.goto('/');
-    // El CTA primario del hero (landing.hero.cta_primary = "Entrar a la app").
-    // El locator viejo /ENTRAR/i + .first() agarraba el botón de la barra nav
-    // (primero en el DOM), frágil ante visibilidad responsive — apuntamos al
-    // botón primario del hero, que es el verdadero call-to-action.
-    const cta = page.getByRole('button', { name: /Entrar a la app/i });
+    // El CTA primario del hero (landing.hero.cta_primary = "Proteger a mi equipo").
+    const cta = page.getByRole('button', { name: /Proteger a mi equipo/i }).first();
     await expect(cta).toBeVisible();
     await expect(cta).toBeEnabled();
   });

@@ -14,7 +14,7 @@ import { useSeismicMonitor, Earthquake } from "../hooks/useSeismicMonitor";
 import { useFirestoreCollection } from "../hooks/useFirestoreCollection";
 import {
   db, serverTimestamp, collection, addDoc, updateDoc,
-  doc, setDoc, onSnapshot, query, orderBy, limit,
+  doc, setDoc, onSnapshot, query, orderBy, limit, where,
 } from "../services/firebase";
 import { Worker } from "../types";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
@@ -39,6 +39,23 @@ interface EmergencyEvent {
   active: boolean;
 }
 
+// B.3 (VIDA) — worker SOS alert row, as written by the SOS server route
+// (src/server/routes/emergency.ts → tenants/{tenantId}/emergency_alerts).
+interface SosAlert {
+  id: string;
+  type: string;
+  uid: string;
+  userEmail?: string | null;
+  projectId: string;
+  geo?: { lat: number; lng: number } | null;
+  clientTimestamp?: string | null;
+  createdAt?: { toMillis?: () => number } | null;
+}
+
+// Only surface SOS pings from the recent window — old alerts are history,
+// not an actionable emergency.
+const SOS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 interface ChatMessage {
   id: string;
   text: string;
@@ -60,6 +77,14 @@ export function EmergenciaAvanzada() {
   const [showTriggerConfirm, setShowTriggerConfirm] = useState(false);
   const [showResolveConfirm, setShowResolveConfirm] = useState(false);
   const [pendingQuake, setPendingQuake] = useState<Earthquake | null>(null);
+  // Audit 2026-07-02 §3.4 #1: both onSnapshot listeners below (chat +
+  // emergency_safety) had no error callback — a Firestore permission
+  // failure was silently indistinguishable from "no activity". These track
+  // per-channel failure so the UI can render an honest error instead of a
+  // permanently-empty list.
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [safetyError, setSafetyError] = useState<string | null>(null);
+  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
 
   const acousticSOS = useAcousticSOS({
     threshold: 75,
@@ -72,7 +97,16 @@ export function EmergenciaAvanzada() {
   const projectLat = selectedProject?.coordinates?.lat ?? -33.4489;
   const projectLng = selectedProject?.coordinates?.lng ?? -70.6693;
 
-  const { earthquakes, criticalAlert } = useSeismicMonitor(projectLat, projectLng);
+  // Audit 2026-07-02 §3.1 bug 10: consume the hook's loading/error signal
+  // so this page can distinguish "still fetching" from "USGS is down" from
+  // "no quakes today" — previously all three rendered the same eternal
+  // "Cargando datos sísmicos..." because the hook swallowed errors.
+  const {
+    earthquakes,
+    criticalAlert,
+    loading: seismicLoading,
+    error: seismicError,
+  } = useSeismicMonitor(projectLat, projectLng);
 
   const { data: emergencyEvents } = useFirestoreCollection<EmergencyEvent>(
     selectedProject ? `projects/${selectedProject.id}/emergency_events` : null
@@ -90,19 +124,31 @@ export function EmergenciaAvanzada() {
   // Real-time chat
   useEffect(() => {
     if (!selectedProject) return undefined;
+    setChatError(null);
     const q = query(
       collection(db, `projects/${selectedProject.id}/emergency_chat`),
       orderBy('createdAt', 'asc'),
       limit(100)
     );
-    return onSnapshot(q, snap => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
-    });
+    return onSnapshot(
+      q,
+      snap => {
+        setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
+        setChatError(null);
+      },
+      err => {
+        logger.error('EmergenciaAvanzada: emergency_chat onSnapshot failed', err, {
+          projectId: selectedProject.id,
+        });
+        setChatError('No se pudo cargar el canal de emergencia. Verifica tu conexión o permisos.');
+      },
+    );
   }, [selectedProject?.id]);
 
   // Real-time worker safety statuses
   useEffect(() => {
     if (!selectedProject) return undefined;
+    setSafetyError(null);
     const safetyQuery = query(
       collection(db, `projects/${selectedProject.id}/emergency_safety`),
       limit(50),
@@ -116,7 +162,54 @@ export function EmergenciaAvanzada() {
           statuses[data.workerId] = data.status;
         });
         setSafetyStatuses(statuses);
-      }
+        setSafetyError(null);
+      },
+      err => {
+        logger.error('EmergenciaAvanzada: emergency_safety onSnapshot failed', err, {
+          projectId: selectedProject.id,
+        });
+        setSafetyError('No se pudo cargar el estado de seguridad del personal. Verifica tu conexión o permisos.');
+      },
+    );
+  }, [selectedProject?.id]);
+
+  // B.3 (VIDA) — worker SOS alerts. The SOS button posts to the server,
+  // which writes tenants/{tenantId}/emergency_alerts (Admin SDK) with
+  // tenantId = projects/{pid}.tenantId || pid — mirror that fallback here.
+  // Before this subscription the alert reached Firestore but NO dashboard
+  // ever showed it. Filter by projectId only (equality → no composite
+  // index needed) and sort client-side.
+  useEffect(() => {
+    if (!selectedProject) { setSosAlerts([]); return undefined; }
+    const tenantId =
+      (selectedProject as { tenantId?: string }).tenantId ?? selectedProject.id;
+    const alertsQuery = query(
+      collection(db, `tenants/${tenantId}/emergency_alerts`),
+      where('projectId', '==', selectedProject.id),
+      limit(50),
+    );
+    return onSnapshot(
+      alertsQuery,
+      snap => {
+        const now = Date.now();
+        const alerts = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as SosAlert))
+          .filter(a => {
+            const ms = a.createdAt?.toMillis?.();
+            // Docs with a pending/absent server timestamp stay visible —
+            // hiding a fresh SOS is the worse failure mode.
+            return typeof ms !== 'number' || now - ms < SOS_WINDOW_MS;
+          })
+          .sort(
+            (x, y) =>
+              (y.createdAt?.toMillis?.() ?? now) - (x.createdAt?.toMillis?.() ?? now),
+          );
+        setSosAlerts(alerts);
+      },
+      err => {
+        // A rules denial or offline error must never crash the dashboard.
+        logger.error('EmergenciaAvanzada: emergency_alerts subscribe failed', { err });
+      },
     );
   }, [selectedProject?.id]);
 
@@ -247,12 +340,22 @@ export function EmergenciaAvanzada() {
 
   const recentQuakes = earthquakes.slice(0, 5);
 
+  const formatSosTime = (a: SosAlert): string => {
+    const ms = a.createdAt?.toMillis?.();
+    if (typeof ms === 'number') {
+      return new Date(ms).toLocaleString('es-CL', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      });
+    }
+    return a.clientTimestamp ?? '—';
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-8 h-8 text-red-500" />
             {t('emergenciaAvanzada.title', 'Emergencia Avanzada')}
           </h1>
@@ -325,6 +428,62 @@ export function EmergenciaAvanzada() {
         )}
       </AnimatePresence>
 
+      {/* B.3 (VIDA) — worker SOS alerts (server-written; subscription above) */}
+      <AnimatePresence>
+        {sosAlerts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            data-testid="sos-alerts-banner"
+            className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/50 space-y-3"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 animate-pulse">
+                <ShieldAlert className="w-5 h-5 text-rose-500" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-black text-rose-500 uppercase tracking-wider">
+                  {t('emergenciaAvanzada.sos.title', 'SOS de trabajadores — últimas 24 h')}
+                </h2>
+                <p className="text-xs text-rose-400/80 mt-1">
+                  {t('emergenciaAvanzada.sos.subtitle', 'Alertas enviadas con el botón SOS. Verifica el estado de cada persona ahora.')}
+                </p>
+              </div>
+              <span data-testid="sos-alerts-count" className="text-2xl font-black text-rose-500 shrink-0">
+                {sosAlerts.length}
+              </span>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {sosAlerts.map(a => (
+                <div
+                  key={a.id}
+                  data-testid="sos-alert-row"
+                  className="p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-primary-token truncate">
+                      {a.userEmail ?? a.uid}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">{formatSosTime(a)}</p>
+                  </div>
+                  {a.geo && (
+                    <a
+                      href={`https://www.google.com/maps?q=${a.geo.lat},${a.geo.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 shrink-0"
+                    >
+                      {t('emergenciaAvanzada.sos.location', 'Ver ubicación')}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Critical seismic alert */}
       <AnimatePresence>
         {criticalAlert && !activeEmergency && (
@@ -378,19 +537,23 @@ export function EmergenciaAvanzada() {
             </div>
           </Card>
 
-          {/* Zone status */}
+          {/* Zone status — Audit 2026-07-02 §3.4 #3: the previous third
+              entry ('Zona de Seguridad: ACTIVA') was an unconditional literal
+              with no real source behind it — it claimed a real-world state
+              that was never actually checked. Removed; the two entries below
+              stay because they ARE derived from `activeEmergency`, the real
+              Firestore-backed emergency lifecycle state. */}
           <Card className="p-4 border-white/5 space-y-3">
-            <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-xs font-bold text-muted-token uppercase tracking-widest flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />
               Estado de Zonas
             </h3>
             {[
               { name: 'Área de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Planta / Faena', status: activeEmergency ? 'EVACUANDO' : 'OPERATIVO', color: activeEmergency ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10' },
-              { name: 'Zona de Seguridad', status: 'ACTIVA', color: 'text-emerald-400 bg-emerald-500/10' },
             ].map(z => (
-              <div key={z.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
-                <span className="text-xs text-zinc-700 dark:text-zinc-300">{z.name}</span>
+              <div key={z.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-subtle-token">
+                <span className="text-xs text-secondary-token">{z.name}</span>
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${z.color}`}>{z.status}</span>
               </div>
             ))}
@@ -423,28 +586,39 @@ export function EmergenciaAvanzada() {
           {activeTab === "map" && (
             <div className="flex-1 flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider">
                   Actividad Sísmica — USGS (últimas 24h)
                 </h3>
                 <span className="text-[10px] text-zinc-400 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" /> Actualiza cada 2 min
                 </span>
               </div>
-              {recentQuakes.length === 0 ? (
+              {seismicLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
+                  <Activity className="w-10 h-10 mb-3 opacity-40 animate-pulse" />
+                  <p className="text-sm">Cargando datos sísmicos...</p>
+                </div>
+              ) : seismicError ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-amber-500" role="alert">
+                  <XCircle className="w-10 h-10 mb-3 opacity-60" />
+                  <p className="text-sm font-bold">No se pudo conectar con la Red Sismológica (USGS).</p>
+                  <p className="text-xs text-zinc-500 mt-1">Reintenta en unos minutos. La app sigue monitoreando en segundo plano.</p>
+                </div>
+              ) : recentQuakes.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Activity className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm">Cargando datos sísmicos...</p>
+                  <p className="text-sm">Sin actividad sísmica registrada en las últimas 24h.</p>
                 </div>
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1">
                   {recentQuakes.map(q => (
-                    <div key={q.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 flex items-center justify-between gap-3">
+                    <div key={q.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-subtle-token flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm ${q.magnitude >= 5 ? 'bg-red-500/20 text-red-400' : q.magnitude >= 4 ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'}`}>
                           {q.magnitude.toFixed(1)}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{q.place}</p>
+                          <p className="text-xs font-bold text-primary-token truncate">{q.place}</p>
                           <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
                             <Clock className="w-3 h-3" />
                             {new Date(q.time).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
@@ -468,12 +642,21 @@ export function EmergenciaAvanzada() {
 
           {activeTab === "comms" && (
             <div className="flex-1 flex flex-col gap-3 min-h-0">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider shrink-0">
+              <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Canal de Emergencia
-                {activeEmergency && <span className="ml-2 text-[10px] text-red-400 animate-pulse">â— EN VIVO</span>}
+                {activeEmergency && !chatError && <span className="ml-2 text-[10px] text-red-400 animate-pulse">● EN VIVO</span>}
               </h3>
-              <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/5 p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
-                {messages.length === 0 ? (
+              {chatError && (
+                <div
+                  role="alert"
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
+                >
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {chatError}
+                </div>
+              )}
+              <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-subtle-token p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
+                {chatError ? null : messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 my-auto">
                     <Radio className="w-10 h-10 mb-3 opacity-40" />
                     <p className="text-sm">Canal en silencio.</p>
@@ -489,7 +672,7 @@ export function EmergenciaAvanzada() {
                       ) : (
                         <div className={`max-w-[80%] px-3 py-2 rounded-xl ${msg.sender === (user?.displayName ?? user?.email) ? 'bg-blue-600/20 border border-blue-500/30 rounded-tr-none' : 'bg-zinc-200 dark:bg-zinc-800 rounded-tl-none'}`}>
                           <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} · {msg.senderRole}</p>
-                          <p className="text-xs text-zinc-900 dark:text-white">{msg.text}</p>
+                          <p className="text-xs text-primary-token">{msg.text}</p>
                         </div>
                       )}
                     </div>
@@ -504,10 +687,11 @@ export function EmergenciaAvanzada() {
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                   placeholder={activeEmergency ? 'Mensaje de emergencia...' : 'Activa una emergencia para habilitar el canal'}
                   disabled={!activeEmergency}
-                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white placeholder-zinc-400 disabled:opacity-40 focus:outline-none focus:border-red-500/50"
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-default-token bg-surface text-primary-token placeholder-zinc-400 disabled:opacity-40 focus:outline-none focus:border-red-500/50"
                 />
                 <button
                   onClick={sendMessage}
+                  aria-label="Enviar mensaje"
                   disabled={!chatInput.trim() || !activeEmergency || sendingMsg}
                   className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-40 transition-colors"
                 >
@@ -519,10 +703,19 @@ export function EmergenciaAvanzada() {
 
           {activeTab === "resources" && (
             <div className="flex-1 flex flex-col gap-4 min-h-0">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider shrink-0">
+              <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Estado de Personal
               </h3>
-              {!workers || workers.length === 0 ? (
+              {safetyError && (
+                <div
+                  role="alert"
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
+                >
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {safetyError}
+                </div>
+              )}
+              {safetyError ? null : !workers || workers.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Users className="w-10 h-10 mb-3 opacity-40" />
                   <p className="text-sm">No hay trabajadores registrados en este proyecto.</p>
@@ -532,13 +725,13 @@ export function EmergenciaAvanzada() {
                   {workers.map(w => {
                     const status = safetyStatuses[w.id] ?? 'unknown';
                     return (
-                      <div key={w.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 flex items-center justify-between gap-3">
+                      <div key={w.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-subtle-token flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-black ${status === 'safe' ? 'bg-emerald-500/20 text-emerald-400' : status === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'}`}>
                             {w.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{w.name}</p>
+                            <p className="text-xs font-bold text-primary-token truncate">{w.name}</p>
                             <p className="text-[10px] text-zinc-500">{w.role}</p>
                           </div>
                         </div>

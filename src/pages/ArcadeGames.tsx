@@ -98,11 +98,11 @@ function ArcadeGamesInner() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
             <Gamepad2 className="w-8 h-8 text-fuchsia-500" />
             {t('arcadeGames.title', 'Arcade de Seguridad')}
           </h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
+          <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.3em] mt-2">
             {t('arcadeGames.subtitle', 'Serious-Games Tier-Gated · Refuerzo Conductual')}
           </p>
         </div>
@@ -118,10 +118,10 @@ function ArcadeGamesInner() {
       </div>
 
       <Card className="p-6 border-white/5 space-y-2">
-        <h2 className="text-sm font-black text-zinc-300 uppercase tracking-widest">
+        <h2 className="text-sm font-black text-secondary uppercase tracking-widest">
           {t('arcadeGames.whyPlay', 'Por qué jugar')}
         </h2>
-        <p className="text-sm text-zinc-400 leading-relaxed">
+        <p className="text-sm text-secondary leading-relaxed">
           {t('arcadeGames.whyPlayDescription', 'Los serious-games refuerzan respuestas automáticas (memoria muscular) y reducen el tiempo de reacción frente a incidentes reales. Cada partida persiste un puntaje a tu historial gamificado y se registra en el audit log para evidencia de capacitación continua (Ley 16.744 Art. 21, DS 44/2024 Art. 3).')}
         </p>
       </Card>
@@ -143,9 +143,9 @@ function GameCard({ game }: { game: GameMeta }) {
             {tier}
           </span>
         </div>
-        <h3 className="text-base font-bold text-white mb-1">{title}</h3>
-        <p className="text-xs text-zinc-400 leading-relaxed mb-3">{objective}</p>
-        <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{normativa}</p>
+        <h3 className="text-base font-bold text-primary mb-1">{title}</h3>
+        <p className="text-xs text-secondary leading-relaxed mb-3">{objective}</p>
+        <p className="text-[10px] text-muted-token uppercase tracking-widest">{normativa}</p>
       </Card>
     </Link>
   );

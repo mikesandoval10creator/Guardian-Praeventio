@@ -1,0 +1,39 @@
+0	1	fix/authz-cross-tenant	fix(authz): close 3 cross-tenant IDOR leaks in authz-sensitive routes
+1	1	dependabot/npm_and_yarn/simplewebauthn/server-13.3.1	chore(deps): bump @simplewebauthn/server from 11.0.0 to 13.3.2
+4	4	fix/vitest-pool-hang-2026-06-22	fix(config): enable vitest detectAsyncLeaks to surface pool-hang culprits
+4	4	security/firestore-storage-rules-2026-06-22	test(rules): fix 7 failing rules tests for V2 anti-spoof hardening
+2	2	security/audit-hardening-2026-06-22	feat(security): V11 PII redaction on /ask-guardian + V12 timing-safe E2E secret + B24 docker dedup
+2	2	feat/e2e-fixture-sos	fix(e2e): SOS button no renderizaba — reload tras sign-in (app montaba sin auth → ProjectContext/Emergency no activaban modo emergencia)
+9	15	chore/wire-orphans-real-2b	fix(test): alinear bbs.router.test al contrato stateful — seed tenantId + record-observation 201 (era 404/200, regresión del wiring bbs-profile)
+0	1	fix/deflake-offline-crypto	test(offlineCrypto): de-flake leak-check — marcador PII largo evita coincidencia azarosa en base64 (no .toContain('Ana'))
+2	3	chore/consolidate-rules	docs+governance: merge #1070 (CLAUDE rules #23/#24 + audits/INDEX) preservando conteos re-verificados; corregir nota stale #1051
+1	1	docs/consolidate-knowledge-2026-06-19	docs(consolidate): single source of truth + governance rules from MiMo-wave audit
+3	7	fix/notification-context-duplicate-listener	fix(e2e): skip login heading test in E2E mode (user already authenticated)
+0	1	fix/assets-firestore-rule	fix(rules): add top-level `assets` rule so Maquinaria persists (was default-denied)
+0	1	fix/incident-search-tenant-scope	fix(zettelkasten): scope NL incident search by real tenantId (was always empty)
+2	3	fix/sitebook-sign-idor	fix(security): harden SiteBook IDOR fix per adversarial review
+2	2	feat/f4-aptitude-webauthn-verify	fix(medical): F4 review — server-stamp signedAt, fail-loud origin, log role-resolve outage
+3	3	fix/rag-cross-tenant-scope	test(rag): update searchRelevantContext mock for object-form findNearest + over-fetch
+2	2	fix/portable-history-cross-tenant	fix(portable-history): gate users-fallback to owner self-read + dedup incidents
+0	1	fix/photo-evidence-supervisor-read	fix(rules): tighten photo_evidence read to supervisor-tier (PII)
+0	1	feat/predictive-alert-acks-rule	fix(rules): close default-deny gap on predictive_alert_acks (server-only)
+2	2	feat/cascaron-anonymize-endpoint	fix(privacy): harden WebAuthn origin binding on the anonymize gate (review #914)
+0	1	feat/cascaron-safety-posts-scrub	feat(privacy): cascaron 2b — scrub authored community posts (cross-project)
+0	1	feat/cascaron-anonymization-rules	feat(privacy): anonymization_events collection rules + tests (cascaron, OLA 2)
+0	1	claude/ola2-server-write-tenant-rules	feat(rules): explicit server-only rules for 3 latent tenant stores (OLA 2 blindaje)
+6	6	claude/ola1-evac-consolidate	fix(evacuation): unreadable-attendance ≠ no-attendance + tenant-read retry (review round 5)
+0	1	claude/ola1-evac-twin-rules	fix(rules): revive evacuation headcount + digital-twin A* — project-scoped life-safety rules (OLA 1)
+2	2	claude/br12-deps-security	test(firestore): use a valid PKCS#8 dummy key in the emulator setup (B-R12)
+3	5	claude/ola0-rules-trio	fix(rules): split nodes read into get/list — anon GET-by-id, no enumeration (#876)
+0	1	claude/ola0-vault-bearer-clean	fix(health-vault): send Bearer-prefixed Authorization in share QR flow
+0	1	claude/ola0-webauthn-rpid	fix(webauthn): resolve RP ID via fail-loud helper, set it in deploy
+1	1	ci/deploy-trim-secrets	ci(deploy): mount only provisioned secrets so the service can go live (Cloud Run)
+0	1	fix/2.31-open-handle-leak	fix(test): plug open-handle leak that caused the §2.31 CI hang
+2	2	fix/triage-exempt-falsepositives	fix(incidentFlow): use tenantId in writeAudit doc (fixes TS6133, un-breaks main typecheck)
+0	1	security/culture-pulse-pepper	security(culture-pulse): pepper the responder hash vs insider de-anonymization
+0	1	fix/oauth-test-agent-handle-leak	fix(test): kill the flaky CI Tests hang — oauthGoogle used request.agent (leaked handle)
+0	1	audit/webauthn-credentialid-base64url-rescue-2026-05-28	audit(webauthn): H25b.1 — pin base64url credentialId contract (Bloque 1.5)
+0	1	feat/fcm-sw-config-buildtime-rescue-2026-05-28	fix(security): FCM SW config injected at build time (Bloque 1.8)
+0	1	feat/distributed-lock-c14-rescue-2026-05-27	feat(sync): distributedLock helper Firestore-backed per-tenant × per-resource (Bloque 5.4 / C14)
+0	1	fix/p0-security-bundle-codex-followup-518	fix(security): address Codex 6 findings — real SQLite encryption + correct audit contract + safe RP_ID fallback
+2	2	feat/wire-weather-safety-recommendations-dashboard	fix(dashboard): address Codex P2 — unavailable gate + uv field + auth header

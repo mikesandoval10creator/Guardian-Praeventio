@@ -6,7 +6,7 @@
 import { Map, Wind, Droplets, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../shared/Skeleton';
-import { SunTracker } from '../weather/SunTracker';
+import { SunTrackerContainer } from '../SunTrackerContainer';
 import { NativeCompass } from '../weather/NativeCompass';
 import { getWeatherAdvice } from '../../services/weather/weatherAdvice';
 
@@ -315,8 +315,10 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
             borderLeft: '1px solid var(--accent-primary)',
           }}
         >
-          {/* SunTracker: parabolic arc with sun/moon/stars */}
-          <SunTracker lat={lat} lng={lng} className="w-full" />
+          {/* Rich celestial tracker: parabolic arc, sun glow + rays,
+              8 lunar phases with illumination shadow, twinkling stars,
+              next-event countdown and the Fase Solar / Ciclo Lunar info panel. */}
+          <SunTrackerContainer lat={lat} lng={lng} className="w-full" />
 
           {/* Native offline compass */}
           <div className="flex justify-center">

@@ -10,7 +10,7 @@ import { Stethoscope, Briefcase, Activity } from 'lucide-react';
 import {
   summarizeBundle,
   type OccupationalContextBundle,
-} from '../../services/health/occupationalContext.js';
+} from '../../services/health/occupationalContextClient.js';
 import { MedicalDisclaimer } from './MedicalDisclaimer';
 
 interface OccupationalContextBundleCardProps {

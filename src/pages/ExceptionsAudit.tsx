@@ -227,7 +227,7 @@ export function ExceptionsAudit() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <GitPullRequestArrow className="w-6 h-6 text-amber-500" /> {t('exceptions_page.title', 'Excepciones documentadas')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
@@ -249,7 +249,7 @@ export function ExceptionsAudit() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('exceptions_page.empty.select_project', 'Seleccioná un proyecto para registrar excepciones.')}
           </div>
         ) : loading ? (
@@ -272,11 +272,11 @@ export function ExceptionsAudit() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('exceptions_page.form.field_domain', 'Dominio')}</span>
+                    <span className="font-bold text-secondary-token">{t('exceptions_page.form.field_domain', 'Dominio')}</span>
                     <select
                       value={domain}
                       onChange={(e) => setDomain(e.target.value as ExceptionDomain)}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       {Object.entries(DOMAIN_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -284,11 +284,11 @@ export function ExceptionsAudit() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('exceptions_page.form.field_subject_kind', 'Tipo de sujeto')}</span>
+                    <span className="font-bold text-secondary-token">{t('exceptions_page.form.field_subject_kind', 'Tipo de sujeto')}</span>
                     <select
                       value={subjectKind}
                       onChange={(e) => setSubjectKind(e.target.value as ExceptionRecord['subjectRef']['kind'])}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       {SUBJECT_KINDS.map((k) => (
                         <option key={k} value={k}>{k}</option>
@@ -297,7 +297,7 @@ export function ExceptionsAudit() {
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('exceptions_page.form.field_subject_id', 'ID del sujeto (worker_uid, epp_id, task_id, etc.)')}
                   </span>
                   <input
@@ -305,11 +305,11 @@ export function ExceptionsAudit() {
                     value={subjectId}
                     onChange={(e) => setSubjectId(e.target.value)}
                     placeholder={t('exceptions_page.form.subject_id_placeholder', 'ej: worker-123, epp-arnes-001')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('exceptions_page.form.field_reason', 'Motivo (mín 20 chars) — específico, no genérico')}
                   </span>
                   <textarea
@@ -320,11 +320,11 @@ export function ExceptionsAudit() {
                       'exceptions_page.form.reason_placeholder',
                       'Ej: Capacitación trabajo en altura programada vence el 23/05, faena critica termina 25/05; solicitamos extender por 48h con vigía adicional.',
                     )}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('exceptions_page.form.field_mitigation', 'Mitigación alternativa (mín 20 chars) — qué la sustituye')}
                   </span>
                   <textarea
@@ -335,11 +335,11 @@ export function ExceptionsAudit() {
                       'exceptions_page.form.mitigation_placeholder',
                       'Ej: Vigía permanente con experiencia certificada + 2 chequeos por turno + EPP doble redundante (arnés + línea de vida primaria + secundaria).',
                     )}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('exceptions_page.form.field_duration', 'Duración (horas, máx 168 = 1 semana)')}
                   </span>
                   <input
@@ -348,14 +348,14 @@ export function ExceptionsAudit() {
                     onChange={(e) => setDurationHours(parseInt(e.target.value, 10) || 0)}
                     min={1}
                     max={168}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <div className="flex items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -390,10 +390,10 @@ export function ExceptionsAudit() {
                   {activeRecords.map((r) => (
                     <li
                       key={r.id}
-                      className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-2 text-xs flex items-center gap-2"
+                      className="rounded-lg border border-default-token bg-elevated p-2 text-xs flex items-center gap-2"
                     >
                       <span className="font-mono text-[10px] text-zinc-500">{r.id.slice(0, 10)}</span>
-                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
+                      <span className="text-secondary-token flex-1 truncate">
                         {DOMAIN_LABELS[r.domain]} · {r.subjectRef.kind}:{r.subjectRef.id.slice(0, 18)}
                       </span>
                       <span className="text-[10px] text-zinc-500">

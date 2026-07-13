@@ -184,8 +184,8 @@ export function Gamification() {
       id: 'g1',
       title: 'Buscando al Guardián',
       description: 'Encuentra al Guardián Praeventio (casco blanco, lentes verdes) y 3 extintores ocultos en la faena.',
-      thumbnail: 'https://images.unsplash.com/photo-1541888086425-d81bb19240f5?auto=format&fit=crop&q=80&w=800',
-      fallbackThumbnail: 'https://images.unsplash.com/photo-1541888086425-d81bb19240f5?auto=format&fit=crop&q=80&w=800',
+      thumbnail: '/heroes/hero-construction.svg',
+      fallbackThumbnail: '/heroes/hero-construction.svg',
       points: 100,
       locked: false,
       requiredPoints: 0,
@@ -196,8 +196,8 @@ export function Gamification() {
       id: 'g2',
       title: 'La Garra del EPP',
       description: 'Identifica al trabajador que no está usando el EPP correcto.',
-      thumbnail: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&q=80&w=800',
-      fallbackThumbnail: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&q=80&w=800',
+      thumbnail: '/heroes/hero-ergonomics.svg',
+      fallbackThumbnail: '/heroes/hero-ergonomics.svg',
       points: 100,
       locked: stats.points < 100,
       requiredPoints: 100
@@ -206,8 +206,8 @@ export function Gamification() {
       id: 'g3',
       title: 'Simulador de Extintores',
       description: 'Identifica el riesgo de incendio en la imagen.',
-      thumbnail: 'https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&q=80&w=800',
-      fallbackThumbnail: 'https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&q=80&w=800',
+      thumbnail: '/heroes/hero-construction.svg',
+      fallbackThumbnail: '/heroes/hero-construction.svg',
       points: 150,
       locked: stats.points < 200,
       requiredPoints: 200
@@ -216,8 +216,8 @@ export function Gamification() {
       id: 'g4',
       title: 'Desafío Normativo',
       description: 'Pon a prueba tus conocimientos sobre la Ley 16.744 y DS 594 con este quiz generado por IA.',
-      thumbnail: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=800',
-      fallbackThumbnail: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=800',
+      thumbnail: '/heroes/hero-team.svg',
+      fallbackThumbnail: '/heroes/hero-team.svg',
       points: 200,
       locked: stats.points < 300,
       requiredPoints: 300,
@@ -227,8 +227,8 @@ export function Gamification() {
       id: 'g5',
       title: 'Buzzer de Reflejos',
       description: 'Evalúa tu capacidad de respuesta y fluidez antes de iniciar el turno.',
-      thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=800',
-      fallbackThumbnail: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=800',
+      thumbnail: '/heroes/hero-team.svg',
+      fallbackThumbnail: '/heroes/hero-ergonomics.svg',
       points: 100,
       locked: false,
       requiredPoints: 0,
@@ -244,13 +244,13 @@ export function Gamification() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 shrink-0">
               <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('gamification.title', 'Gamificación')}</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('gamification.title', 'Gamificación')}</h1>
           </div>
-          <p className="text-[10px] sm:text-xs md:text-sm text-zinc-500 font-medium">{t('gamification.subtitle', 'Recompensas, Medallas y Aprendizaje Interactivo')}</p>
+          <p className="text-[10px] sm:text-xs md:text-sm text-muted-token font-medium">{t('gamification.subtitle', 'Recompensas, Medallas y Aprendizaje Interactivo')}</p>
         </div>
-        <div className="flex items-center justify-between sm:justify-end gap-4 bg-zinc-900/50 border border-white/5 rounded-2xl p-4 w-full md:w-auto">
+        <div className="flex items-center justify-between sm:justify-end gap-4 bg-surface border border-default-token rounded-2xl p-4 w-full md:w-auto">
           <div className="flex flex-col items-start sm:items-end">
-            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('gamification.points.total', 'Puntos Totales')}</span>
+            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black text-muted-token uppercase tracking-widest">{t('gamification.points.total', 'Puntos Totales')}</span>
             <span className="text-lg sm:text-xl md:text-2xl font-black text-amber-500">{stats.points.toLocaleString()} PTS</span>
           </div>
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-500/20 flex items-center justify-center border-2 border-amber-500 shrink-0">
@@ -278,7 +278,7 @@ export function Gamification() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tight">{t('gamification.dailyMission.title', 'Misión Diaria')}</h2>
+                <h2 className="text-base sm:text-lg font-black text-primary-token uppercase tracking-tight">{t('gamification.dailyMission.title', 'Misión Diaria')}</h2>
                 <span className={`${dailyChallengeCompleted ? 'bg-emerald-500' : 'bg-amber-500'} text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full transition-colors duration-500`}>
                   +150 PTS
                 </span>
@@ -312,7 +312,7 @@ export function Gamification() {
                   ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 cursor-not-allowed shadow-none'
                   : dailyProgress >= 100
                     ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20 animate-pulse'
-                    : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed shadow-none'
+                    : 'bg-elevated text-muted-token border border-default-token cursor-not-allowed shadow-none'
               }`}
             >
               {dailyChallengeCompleted ? 'Completado' : dailyProgress >= 100 ? 'Reclamar' : 'En Progreso'}
@@ -322,13 +322,13 @@ export function Gamification() {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-col sm:flex-row bg-zinc-900/50 p-1.5 rounded-2xl border border-white/10 self-start shadow-inner w-full sm:w-fit gap-1 sm:gap-0">
+      <div className="flex flex-col sm:flex-row bg-surface p-1.5 rounded-2xl border border-default-token self-start shadow-inner w-full sm:w-fit gap-1 sm:gap-0">
         <button
           onClick={() => setActiveTab('perfil')}
           className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'perfil' 
               ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' 
-              : 'text-zinc-500 hover:text-white'
+              : 'text-muted-token hover:text-primary-token'
           }`}
         >
           <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -339,7 +339,7 @@ export function Gamification() {
           className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'medals' 
               ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' 
-              : 'text-zinc-500 hover:text-white'
+              : 'text-muted-token hover:text-primary-token'
           }`}
         >
           <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -350,7 +350,7 @@ export function Gamification() {
           className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'games' 
               ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' 
-              : 'text-zinc-500 hover:text-white'
+              : 'text-muted-token hover:text-primary-token'
           }`}
         >
           <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -361,7 +361,7 @@ export function Gamification() {
           className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'ranking' 
               ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-              : 'text-zinc-500 hover:text-white'
+              : 'text-muted-token hover:text-primary-token'
           }`}
         >
           <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -379,7 +379,7 @@ export function Gamification() {
             className="space-y-8"
           >
             {/* Profile HUD */}
-            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-2xl relative overflow-hidden">
+            <div className="bg-surface rounded-3xl p-6 border border-default-token shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
                 <Shield className="w-48 h-48 text-amber-500" />
               </div>
@@ -388,19 +388,19 @@ export function Gamification() {
                 {/* Avatar & Class */}
                 <div className="flex flex-col items-center gap-4">
                   <div className="relative">
-                    <div className="w-32 h-32 rounded-2xl bg-zinc-800 border-2 border-amber-500 flex items-center justify-center overflow-hidden">
+                    <div className="w-32 h-32 rounded-2xl bg-elevated border-2 border-amber-500 flex items-center justify-center overflow-hidden">
                       {user?.photoURL ? (
                         <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-5xl font-black text-zinc-600">{user?.displayName?.[0] || 'U'}</span>
+                        <span className="text-5xl font-black text-muted-token">{user?.displayName?.[0] || 'U'}</span>
                       )}
                     </div>
-                    <div className="absolute -bottom-3 -right-3 bg-amber-500 text-zinc-900 p-2 rounded-xl shadow-lg font-black text-xs uppercase tracking-widest">
+                    <div className="absolute -bottom-3 -right-3 bg-amber-500 text-black p-2 rounded-xl shadow-lg font-black text-xs uppercase tracking-widest">
                       LVL {Math.floor(stats.points / 1000) + 1}
                     </div>
                   </div>
                   <div className="text-center">
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">{user?.displayName || 'Usuario'}</h2>
+                    <h2 className="text-xl font-black text-primary-token uppercase tracking-tight">{user?.displayName || 'Usuario'}</h2>
                     <p className="text-amber-500 font-mono text-sm uppercase tracking-widest">Guardián Novato</p>
                   </div>
                 </div>
@@ -409,10 +409,10 @@ export function Gamification() {
                 <div className="flex-1 flex flex-col justify-center space-y-6">
                   <div>
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Experiencia (XP)</span>
+                      <span className="text-xs font-black text-secondary-token uppercase tracking-widest">Experiencia (XP)</span>
                       <span className="text-sm font-black text-amber-500">{stats.points} / {(Math.floor(stats.points / 1000) + 1) * 1000}</span>
                     </div>
-                    <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
+                    <div className="h-4 bg-elevated rounded-full overflow-hidden border border-default-token">
                       <motion.div 
                         className="h-full bg-amber-500"
                         initial={{ width: 0 }}
@@ -423,20 +423,20 @@ export function Gamification() {
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                    <div className="bg-elevated rounded-xl p-4 border border-default-token text-center">
                       <Trophy className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-                      <p className="text-2xl font-black text-white">{stats.medals.length}</p>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Medallas</p>
+                      <p className="text-2xl font-black text-primary-token">{stats.medals.length}</p>
+                      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Medallas</p>
                     </div>
-                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                    <div className="bg-elevated rounded-xl p-4 border border-default-token text-center">
                       <Flame className="w-6 h-6 text-orange-500 mx-auto mb-2" />
-                      <p className="text-2xl font-black text-white">{stats.loginStreak}</p>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Racha Días</p>
+                      <p className="text-2xl font-black text-primary-token">{stats.loginStreak}</p>
+                      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Racha Días</p>
                     </div>
-                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                    <div className="bg-elevated rounded-xl p-4 border border-default-token text-center">
                       <Target className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-                      <p className="text-2xl font-black text-white">{Object.keys(stats.completedChallenges || {}).length}</p>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Misiones</p>
+                      <p className="text-2xl font-black text-primary-token">{Object.keys(stats.completedChallenges || {}).length}</p>
+                      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Misiones</p>
                     </div>
                   </div>
                 </div>
@@ -455,9 +455,9 @@ export function Gamification() {
               <div 
                 key={medal.id}
                 className={`relative overflow-hidden rounded-3xl p-6 border transition-all ${
-                  medal.unlocked 
-                    ? 'bg-zinc-900/80 border-white/10 hover:border-amber-500/30' 
-                    : 'bg-zinc-900/30 border-white/5 opacity-75'
+                  medal.unlocked
+                    ? 'bg-surface border-default-token hover:border-amber-500/30'
+                    : 'bg-surface border-default-token opacity-75'
                 }`}
               >
                 {medal.unlocked && (
@@ -466,17 +466,17 @@ export function Gamification() {
                 
                 <div className="flex items-start gap-4 mb-4 relative z-10">
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border ${
-                    medal.unlocked 
-                      ? `bg-white/5 border-white/10 ${medal.color}` 
-                      : 'bg-zinc-800 border-zinc-700 text-zinc-600'
+                    medal.unlocked
+                      ? `bg-elevated border-default-token ${medal.color}`
+                      : 'bg-elevated border-default-token text-muted-token'
                   }`}>
                     <medal.icon className="w-7 h-7" />
                   </div>
                   <div>
-                    <h3 className={`font-black uppercase tracking-tight ${medal.unlocked ? 'text-white' : 'text-zinc-500'}`}>
+                    <h3 className={`font-black uppercase tracking-tight ${medal.unlocked ? 'text-primary-token' : 'text-muted-token'}`}>
                       {medal.title}
                     </h3>
-                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                    <p className="text-xs text-muted-token mt-1 leading-relaxed">
                       {medal.description}
                     </p>
                   </div>
@@ -484,14 +484,14 @@ export function Gamification() {
 
                 <div className="space-y-2 relative z-10">
                   <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                    <span className={medal.unlocked ? 'text-amber-500' : 'text-zinc-600'}>Progreso</span>
-                    <span className={medal.unlocked ? 'text-white' : 'text-zinc-500'}>{medal.progress} / {medal.total}</span>
+                    <span className={medal.unlocked ? 'text-amber-500' : 'text-muted-token'}>Progreso</span>
+                    <span className={medal.unlocked ? 'text-primary-token' : 'text-muted-token'}>{medal.progress} / {medal.total}</span>
                   </div>
-                  <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                    <motion.div 
+                  <div className="h-2 w-full bg-elevated rounded-full overflow-hidden">
+                    <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${(medal.progress / medal.total) * 100}%` }}
-                      className={`h-full rounded-full ${medal.unlocked ? 'bg-amber-500' : 'bg-zinc-600'}`}
+                      className={`h-full rounded-full ${medal.unlocked ? 'bg-amber-500' : 'bg-muted-token'}`}
                     />
                   </div>
                 </div>
@@ -515,7 +515,7 @@ export function Gamification() {
             {games.map((game, _i) => (
               <div 
                 key={game.id}
-                className="group relative bg-zinc-900 border border-white/10 rounded-[32px] overflow-hidden hover:border-indigo-500/30 transition-all shadow-xl"
+                className="group relative bg-surface border border-default-token rounded-[32px] overflow-hidden hover:border-indigo-500/30 transition-all shadow-xl"
               >
                 <div className="relative h-48 overflow-hidden">
                   <img 
@@ -524,31 +524,31 @@ export function Gamification() {
                     onError={(e) => { e.currentTarget.src = game.fallbackThumbnail; }}
                     className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${game.locked ? 'grayscale opacity-50' : ''}`}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-surface)] via-[var(--color-surface)]/50 to-transparent" />
                   
                   {game.locked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center backdrop-blur-sm bg-black/40">
-                      <div className="w-12 h-12 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-400 border border-white/10 mb-2">
+                      <div className="w-12 h-12 rounded-full bg-elevated flex items-center justify-center text-secondary-token border border-default-token mb-2">
                         <Lock className="w-5 h-5" />
                       </div>
-                      <span className="text-white/70 font-black uppercase tracking-widest text-[10px] bg-black/60 px-3 py-1 rounded-full border border-white/10">
+                      <span className="text-primary-token/70 font-black uppercase tracking-widest text-[10px] bg-black/60 px-3 py-1 rounded-full border border-default-token">
                         Requiere {game.requiredPoints} PTS
                       </span>
                     </div>
                   )}
 
-                  <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                  <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md border border-default-token px-3 py-1.5 rounded-xl flex items-center gap-1.5">
                     <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">+{game.points} PTS</span>
+                    <span className="text-[10px] font-black text-primary-token uppercase tracking-widest">+{game.points} PTS</span>
                   </div>
                 </div>
 
                 <div className="p-6 space-y-4">
                   <div>
-                    <h3 className="text-lg font-black text-white uppercase tracking-tight group-hover:text-indigo-400 transition-colors">
+                    <h3 className="text-lg font-black text-primary-token uppercase tracking-tight group-hover:text-indigo-400 transition-colors">
                       {game.title}
                     </h3>
-                    <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+                    <p className="text-sm text-secondary-token mt-2 leading-relaxed">
                       {game.description}
                     </p>
                   </div>
@@ -557,8 +557,8 @@ export function Gamification() {
                       disabled={game.locked}
                       onClick={() => setActiveGame(game.id)}
                       className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                        game.locked 
-                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                        game.locked
+                          ? 'bg-elevated text-muted-token cursor-not-allowed'
                           : 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20'
                       }`}
                     >
@@ -579,12 +579,12 @@ export function Gamification() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 md:p-8"
+            className="bg-surface border border-default-token rounded-3xl p-6 md:p-8"
           >
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-xl font-black text-white uppercase tracking-tight">Top Guardianes</h2>
-                <p className="text-sm text-zinc-400">Los usuarios con mayor puntuación en prevención.</p>
+                <h2 className="text-xl font-black text-primary-token uppercase tracking-tight">Top Guardianes</h2>
+                <p className="text-sm text-secondary-token">Los usuarios con mayor puntuación en prevención.</p>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
                 <Crown className="w-6 h-6" />
@@ -597,8 +597,8 @@ export function Gamification() {
                   key={player.id}
                   className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
                     player.isCurrentUser 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/50' 
-                      : 'bg-zinc-800/50 border-white/5 hover:border-white/10'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/50'
+                      : 'bg-elevated border-default-token hover:border-strong-token'
                   }`}
                 >
                   <div className="flex items-center gap-4">
@@ -606,27 +606,27 @@ export function Gamification() {
                       index === 0 ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
                       index === 1 ? 'bg-zinc-300 text-zinc-800' :
                       index === 2 ? 'bg-amber-700 text-white' :
-                      'bg-zinc-800 text-zinc-500'
+                      'bg-elevated text-muted-token'
                     }`}>
                       #{index + 1}
                     </div>
                     <div>
-                      <h3 className={`font-bold ${player.isCurrentUser ? 'text-emerald-400' : 'text-white'}`}>
+                      <h3 className={`font-bold ${player.isCurrentUser ? 'text-emerald-400' : 'text-primary-token'}`}>
                         {player.name}
                       </h3>
-                      <p className="text-xs text-zinc-500">{player.role}</p>
+                      <p className="text-xs text-muted-token">{player.role}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="hidden sm:flex flex-col items-end">
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Medallas</span>
-                      <div className="flex items-center gap-1 text-zinc-300">
+                      <span className="text-[10px] font-black text-muted-token uppercase tracking-widest">Medallas</span>
+                      <div className="flex items-center gap-1 text-secondary-token">
                         <Award className="w-3.5 h-3.5 text-amber-500" />
                         <span className="font-bold">{player.medals}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Puntos</span>
+                      <span className="text-[10px] font-black text-muted-token uppercase tracking-widest">Puntos</span>
                       <div className="flex items-center gap-1 text-amber-500">
                         <Star className="w-3.5 h-3.5 fill-amber-500" />
                         <span className="font-black text-lg">{player.points.toLocaleString()}</span>
@@ -635,7 +635,7 @@ export function Gamification() {
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-12 text-zinc-500">
+                <div className="text-center py-12 text-muted-token">
                   <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin opacity-50" />
                   <p>Cargando ranking...</p>
                 </div>
@@ -677,16 +677,16 @@ export function Gamification() {
               initial={{ opacity: 0, scale: 0.9, y: 40 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className="bg-zinc-900 border border-white/10 rounded-[32px] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-surface border border-default-token rounded-[32px] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0 bg-zinc-900/50">
+              <div className="p-6 border-b border-default-token flex items-center justify-between shrink-0 bg-surface">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-500 border border-indigo-500/20">
                     <Target className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">{games.find(g => g.id === activeGame)?.title}</h2>
-                    <p className="text-sm text-zinc-400">{games.find(g => g.id === activeGame)?.description}</p>
+                    <h2 className="text-xl font-black text-primary-token uppercase tracking-tight">{games.find(g => g.id === activeGame)?.title}</h2>
+                    <p className="text-sm text-secondary-token">{games.find(g => g.id === activeGame)?.description}</p>
                   </div>
                 </div>
                 <button 
@@ -696,7 +696,7 @@ export function Gamification() {
                     setClickPos(null);
                     setFoundObjects([]);
                   }}
-                  className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                  className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center text-secondary-token hover:text-primary-token hover:bg-elevated transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -710,8 +710,8 @@ export function Gamification() {
                       return (
                         <div key={idx} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border flex items-center gap-2 ${
                           isFound 
-                            ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' 
-                            : 'bg-zinc-800 border-white/10 text-zinc-400'
+                            ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                            : 'bg-elevated border-default-token text-secondary-token'
                         }`}>
                           {isFound ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Target className="w-3.5 h-3.5" />}
                           {obj}
@@ -720,7 +720,7 @@ export function Gamification() {
                     })}
                   </div>
                 )}
-                <div className="relative rounded-2xl overflow-hidden border border-white/10 cursor-crosshair">
+                <div className="relative rounded-2xl overflow-hidden border border-default-token cursor-crosshair">
                   <img 
                     ref={imageRef}
                     src={games.find(g => g.id === activeGame)?.thumbnail.replace('w=800', 'w=1200')} 
@@ -740,9 +740,9 @@ export function Gamification() {
 
                   {validatingClick && (
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                      <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl flex flex-col items-center gap-4">
+                      <div className="bg-surface border border-default-token p-6 rounded-2xl flex flex-col items-center gap-4">
                         <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                        <p className="text-sm font-bold text-white uppercase tracking-widest">Analizando Riesgo...</p>
+                        <p className="text-sm font-bold text-primary-token uppercase tracking-widest">Analizando Riesgo...</p>
                       </div>
                     </div>
                   )}
@@ -774,12 +774,12 @@ export function Gamification() {
                             {gameResult.isRisk ? '¡Objetivo Encontrado!' : 'Sigue buscando...'}
                           </h3>
                           {gameResult.isRisk && gameResult.foundObject && (
-                            <p className="text-white font-medium mt-1">Objeto: {gameResult.foundObject}</p>
+                            <p className="text-primary-token font-medium mt-1">Objeto: {gameResult.foundObject}</p>
                           )}
                           {gameResult.isRisk && gameResult.riskDescription && (
-                            <p className="text-white font-medium mt-1">{gameResult.riskDescription}</p>
+                            <p className="text-primary-token font-medium mt-1">{gameResult.riskDescription}</p>
                           )}
-                          <p className="text-zinc-400 text-sm mt-2 leading-relaxed">{gameResult.explanation}</p>
+                          <p className="text-secondary-token text-sm mt-2 leading-relaxed">{gameResult.explanation}</p>
                           
                           {gameResult.isRisk && (
                             <div className="mt-4 inline-flex items-center gap-2 bg-amber-500/20 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-amber-500/30">

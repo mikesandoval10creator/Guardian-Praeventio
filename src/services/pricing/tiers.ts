@@ -47,7 +47,18 @@ export type WorkspaceTier =
 export interface Tier {
   id: TierId;
   nombre: string;
+  /**
+   * Max workers PER PROJECT (faena). CPHS-aligned: 25+ workers in a single
+   * faena legally requires a Comité Paritario (DS 44/2024, which counts by
+   * faena), so lower tiers cap below 25 (Cobre = 24) and push an upgrade to the
+   * tier that unlocks CPHS rather than crossing the threshold silently.
+   */
   trabajadoresMax: number;
+  /**
+   * Max SIMULTANEOUS ACTIVE projects. To open another past the cap, a tenant
+   * must close an active project or upgrade — the scale lever that drives the
+   * upsell (see the landing "N proyectos activos" framing).
+   */
   proyectosMax: number;
   clpRegular: number;
   clpIntro3mo: number;
@@ -89,12 +100,13 @@ export const TIERS: readonly Tier[] = [
     workspaceTier: 'none',
   },
   {
-    // Intermedio multi-faena: hasta 3 faenas, cada una bajo el umbral CPHS
-    // (<25), sin necesidad de Comité Paritario por faena (DS 44/2024 art. 23,
-    // que cuenta por faena). "Bueno, bonito y barato".
+    // Intermedio multi-faena: hasta 3 faenas ACTIVAS, cada una bajo el umbral
+    // CPHS (24 < 25 trabajadores por faena → sin Comité Paritario; DS 44/2024
+    // art. 23 cuenta por faena). A 25 en una faena se debe saltar a Plata, que
+    // habilita el CPHS. trabajadoresMax es POR PROYECTO. "Bueno, bonito y barato".
     id: 'cobre',
     nombre: 'Cobre',
-    trabajadoresMax: 72,
+    trabajadoresMax: 24,
     proyectosMax: 3,
     clpRegular: 9990,
     clpIntro3mo: 6990,
@@ -109,7 +121,7 @@ export const TIERS: readonly Tier[] = [
     id: 'plata',
     nombre: 'Plata',
     trabajadoresMax: 99,
-    proyectosMax: 10,
+    proyectosMax: 5,
     clpRegular: 19990,
     clpIntro3mo: 13990,
     clpAnual: 179910,
@@ -123,7 +135,7 @@ export const TIERS: readonly Tier[] = [
     id: 'oro',
     nombre: 'Oro',
     trabajadoresMax: 499,
-    proyectosMax: 50,
+    proyectosMax: 10,
     clpRegular: 79990,
     clpIntro3mo: 55990,
     clpAnual: 719910,
@@ -136,7 +148,7 @@ export const TIERS: readonly Tier[] = [
     id: 'titanio',
     nombre: 'Titanio',
     trabajadoresMax: 1999,
-    proyectosMax: 100,
+    proyectosMax: 20,
     clpRegular: 249990,
     clpIntro3mo: 174990,
     clpAnual: 2249910,
@@ -147,7 +159,7 @@ export const TIERS: readonly Tier[] = [
     id: 'platino',
     nombre: 'Platino',
     trabajadoresMax: 9999,
-    proyectosMax: 500,
+    proyectosMax: 30,
     clpRegular: 899990,
     clpIntro3mo: 629990,
     clpAnual: 8099910,
@@ -160,7 +172,7 @@ export const TIERS: readonly Tier[] = [
     id: 'diamante',
     nombre: 'Diamante',
     trabajadoresMax: Infinity,
-    proyectosMax: Infinity,
+    proyectosMax: 50,
     clpRegular: 3900000,
     clpIntro3mo: 2730000,
     clpAnual: 35100000,

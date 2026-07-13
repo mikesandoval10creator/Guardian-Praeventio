@@ -180,11 +180,11 @@ export function EvacuationDashboard() {
       </header>
 
       {!projectId ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-900/60" data-testid="evacDashboard.noProject">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-muted-token dark:border-white/10 dark:bg-zinc-900/60" data-testid="evacDashboard.noProject">
           {t('evac_dashboard.no_project', 'Seleccioná un proyecto para gestionar su evacuación.')}
         </div>
       ) : tenantLoading ? (
-        <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">
+        <div className="flex items-center justify-center py-12 text-muted-token" data-testid="evacDashboard.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : !tenantId ? (
@@ -211,7 +211,7 @@ export function EvacuationDashboard() {
           </button>
         </div>
       ) : rosterState === 'loading' || resolvingActive ? (
-        <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">
+        <div className="flex items-center justify-center py-12 text-muted-token" data-testid="evacDashboard.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : activeLookupError ? (

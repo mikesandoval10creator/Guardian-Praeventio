@@ -104,7 +104,9 @@
     "schematicBadge": "Eventos EONET activos en posición real · trazado ilustrativo",
     "eonetActive": "EONET · activo",
     "calculating": "Evaluando ruta…",
-    "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión."
+    "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión.",
+    "calmRecs": "Recomendaciones de condiciones activas",
+    "calmRecsTitle": "Recomendaciones por condición activa"
   },
   "app": {
     "name": "Praeventio Guard",
@@ -239,7 +241,8 @@
     "block_ia_coach": "IA y Coach",
     "block_innovacion": "Innovación",
     "block_administracion": "Administración",
-    "search_placeholder": "¿Qué necesitas?"
+    "search_placeholder": "¿Qué necesitas?",
+    "cargo_cog": "Carga y Estiba"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -2251,24 +2254,65 @@
     }
   },
   "landing": {
+    "dc": {
+      "nav_tagline": "Tu aplicación de prevención de riesgos",
+      "hud_ds44_sub": "✓ vigente",
+      "hud_mesh_sub": "sin señal",
+      "hud_spo2_sub": "on-device",
+      "hud_sos_sub": "· gratis",
+      "tag_free": "Gratis · siempre",
+      "tag_rag": "RAG · ley vigente",
+      "tag_private": "Privado por diseño",
+      "tag_audit": "Auditable · DS 44",
+      "toggle_monthly": "Mensual",
+      "toggle_annual": "Anual · ahorra 3 meses",
+      "slider_label": "Trabajadores por proyecto",
+      "rec_line": "{{n}} por proyecto → plan recomendado {{plan}}",
+      "legal_dprp": "Obligatorio Departamento de Prevención de Riesgos (≥100 por proyecto) · incluido desde el plan Oro",
+      "legal_cphs": "Obligatorio Comité Paritario CPHS (≥25 por proyecto) · incluido desde el plan Plata",
+      "legal_none": "A este tamaño no se exige Comité Paritario (umbral: 25 trabajadores por proyecto)",
+      "free_forever": "para siempre",
+      "per_year": "/año · IVA incl.",
+      "per_month": "/mes · IVA incl.",
+      "sub_annual": "ahorra 3 meses vs mensual",
+      "sub_intro": "intro 3 meses: {{price}}/mes",
+      "recommended_for": "Para tu dotación",
+      "outro": "Ten un buen día, cada día y así una buena vida",
+      "no_card": "Sin tarjeta · en tu idioma (ES · PT · EN) · datos en Chile",
+      "who_gratis": "1 proyecto activo · hasta 3 trabajadores",
+      "who_cobre": "3 proyectos activos · 24 trabajadores por proyecto",
+      "who_plata": "5 proyectos activos · hasta 99 trabajadores por proyecto",
+      "who_oro": "10 proyectos activos · hasta 499 trabajadores por proyecto",
+      "who_titanio": "20 proyectos activos · hasta 1.999 trabajadores por proyecto",
+      "who_platino": "30 proyectos activos · hasta 9.999 trabajadores por proyecto",
+      "who_diamante": "50 proyectos activos · trabajadores ilimitados",
+      "note_gratis": "Todas las funciones vida-crítica incluidas",
+      "note_cobre": "Bajo el umbral de CPHS (25 por proyecto)",
+      "note_plata": "Desbloquea Comité Paritario (CPHS) — requerido desde 25 trabajadores por proyecto",
+      "note_oro": "Desbloquea Depto. de Prevención — requerido desde 100 trabajadores por proyecto",
+      "note_titanio": "Sin cobros extra · SSO",
+      "note_platino": "Multi-tenant + ejecutivo de cuenta",
+      "note_diamante": "Multi-jurisdicción + residencia de datos por región"
+    },
     "skip_to_content": "Saltar al contenido",
     "meta": {
-      "title": "Guardian Praeventio — Prevención de riesgos en la palma de la mano",
-      "description": "Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA"
+      "title": "Guardian Praeventio — 5 minutos que pueden salvar tu vida",
+      "description": "Prevención de riesgos laborales que anticipa el accidente: SOS, hombre-caído, evacuación con ruteo A* y red mesh sin señal, gratis para el trabajador. Cumplimiento DS 44/2024 y Ley 16.744 con IA sobre la normativa real."
     },
     "nav": {
       "login": "Iniciar sesión",
-      "enter": "Entrar"
+      "enter": "Empezar gratis"
     },
     "hero": {
       "compliance_badge": "Cumplimiento DS 44/2024 · Ley 16.744",
-      "title_line_1": "La revolución de la",
-      "title_line_2": "prevención de riesgos",
-      "subtitle": "Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA",
-      "description": "IA, emergencias y cumplimiento normativo chileno en una sola app. Para empresas que se toman en serio la seguridad de sus trabajadores.",
-      "cta_primary": "Entrar a la app",
-      "cta_secondary": "Comenzar gratis",
-      "free_tier_note": "Gratis hasta 10 trabajadores · Sin tarjeta de crédito"
+      "title_line_1": "5 minutos que pueden",
+      "title_line_2": "salvar tu vida",
+      "subtitle": "La charla de 5 minutos que ya haces cada mañana, convertida en un sistema que anticipa el accidente que aún no ocurre.",
+      "description": "SOS, hombre-caído, evacuación con ruteo y red mesh sin señal — gratis para el trabajador, siempre. Se cobra la gestión y la escala, nunca la seguridad.",
+      "cta_primary": "Proteger a mi equipo",
+      "cta_secondary": "Cómo funciona",
+      "free_tier_note": "Funciones vida-crítica sin costo · Datos en Chile · Biometría 100% en el dispositivo",
+      "blueprint_caption": "Plano de andamio dibujándose sobre la espiral áurea — φ 1,618"
     },
     "problem": {
       "eyebrow": "El problema",
@@ -2299,7 +2343,7 @@
       },
       "iso": {
         "title": "Auditorías ISO",
-        "desc": "Checklist ISO 45001, OHSAS 18001 y reportes SUSESO generados en PDF con un clic."
+        "desc": "Checklist ISO 45001 y reportes SUSESO generados en PDF con un clic."
       },
       "teams": {
         "title": "Gestión de Equipos",
@@ -2328,37 +2372,82 @@
       }
     },
     "pricing": {
-      "title": "Planes para cada empresa",
-      "subtitle": "Escala cuando tu empresa crezca. Empieza gratis hoy.",
+      "title": "La vida no tiene precio por eso cuidamos tus metas y sueños",
+      "subtitle": "Todos los planes — incluido el gratis — llevan todas las funciones vida-crítica, multi-país ilimitado, predicciones de calendario y fallback ISO 45001. Los módulos legales se desbloquean por dotación, no por nombre de plan.",
       "popular_badge": "Popular",
       "recommended_badge": "Recomendado",
       "workers_suffix": "trabajadores",
+      "workers_line": "Hasta {{n}} trabajadores",
+      "projects_line": "Proyectos: {{n}}",
+      "annual": "o {{price}}/año · ahorra 3 meses",
       "choose_plan": "Elegir plan {{name}}",
-      "footnote": "Planes enterprise hasta 5,000 trabajadores · Precios en USD",
-      "plans": {
-        "free": {
-          "name": "Gratuito",
-          "price": "$0"
+      "footnote": "¿Más de 500 trabajadores? Planes Titanio, Platino y Diamante — hasta ilimitado. Precios mensuales en CLP.",
+      "regulatory_note": "Los tramos siguen la ley chilena: sobre 25 trabajadores por faena se exige Comité Paritario de Higiene y Seguridad (plan Plata en adelante) y sobre 100, Departamento de Prevención de Riesgos (plan Oro en adelante). SOS, emergencias y reporte de incidentes son gratis en todos los planes.",
+      "includes": {
+        "gratis": {
+          "b1": "1 proyecto, hasta 3 trabajadores",
+          "b2": "SOS y emergencias siempre gratis",
+          "b3": "Reporte de incidentes y riesgos"
         },
-        "committee": {
-          "name": "Comité",
-          "price": "$10/mes"
+        "cobre": {
+          "b1": "Hasta 3 faenas simultáneas",
+          "b2": "IA Gemini: PTS y matriz IPER",
+          "b3": "Reportes DIAT y SUSESO en PDF"
         },
-        "department": {
-          "name": "Departamento",
-          "price": "$30/mes"
+        "plata": {
+          "b1": "Comité Paritario (CPHS) integrado",
+          "b2": "Hasta 10 proyectos",
+          "b3": "Capacitaciones con certificados"
         },
-        "enterprise": {
-          "name": "Enterprise",
-          "price": "Desde $50/mes"
+        "oro": {
+          "b1": "Departamento de Prevención (DPRP)",
+          "b2": "Hasta 50 proyectos",
+          "b3": "Dashboard ejecutivo y analítica"
         }
-      }
+      },
+      "per_month": "mes"
+    },
+    "trust": {
+      "disclaimer": "Marcos normativos y organismos de referencia que Guardian te ayuda a cumplir. No implica afiliación ni respaldo de estos organismos; las decisiones las toma quien dirige el proyecto.",
+      "data_residency_badge": "Datos en Chile · Ley 19.628",
+      "audit_badge": "Auditoría inmutable",
+      "aria_label": "Marcos normativos de referencia"
+    },
+    "security": {
+      "eyebrow": "Seguridad y confianza",
+      "title": "Seguridad de nivel empresa",
+      "subtitle": "Protegemos los datos de tu gente con el mismo rigor con que cuidamos sus vidas.",
+      "residency": {
+        "title": "Datos en Chile / LATAM",
+        "desc": "Residencia de datos en la región y diseño preparado para la Ley 21.719 antes de su entrada en vigencia (01-12-2026)."
+      },
+      "encryption": {
+        "title": "Cifrado y biometría en el dispositivo",
+        "desc": "Cifrado extremo a extremo; el procesamiento biométrico ocurre 100% en el dispositivo — las cámaras y el ritmo cardíaco nunca salen del teléfono."
+      },
+      "audit": {
+        "title": "Bitácora inmutable",
+        "desc": "Cada acción que cambia un estado queda escrita en un audit log append-only: no se edita ni se borra."
+      },
+      "biometria": {
+        "title": "Biometría que no viaja",
+        "desc": "Cámara y pulso se procesan en el teléfono del trabajador y se descartan. Al servidor solo llega el semáforo."
+      },
+      "iso": {
+        "title": "ISO 45001",
+        "desc": "Gestión de seguridad y salud alineada al estándar internacional vigente, como respaldo en países sin norma local."
+      },
+      "backups": {
+        "title": "Respaldos y recuperación",
+        "desc": "Respaldos cifrados y plan de recuperación ante desastres (DR) para que la operación nunca se detenga."
+      },
+      "disclaimer": "Guardian orienta según la ley vigente y la información que tu equipo registra; la decisión final es siempre de quien dirige el proyecto."
     },
     "final_cta": {
-      "title_line_1": "Empieza hoy.",
-      "title_line_2": "Es gratis.",
-      "subtitle": "Crea tu cuenta, agrega tu empresa y cumple la normativa chilena desde el primer día.",
-      "button": "Abrir Guardian Praeventio"
+      "title_line_1": "Protege a quien lleva",
+      "title_line_2": "el pan a la mesa",
+      "subtitle": "La seguridad no debería depender de tener señal, plan pagado o suerte. Empieza gratis hoy: 5 minutos que pueden salvar una vida.",
+      "button": "Comenzar gratis"
     },
     "footer": {
       "tagline": "Prevención de riesgos en la palma de la mano.",
@@ -2371,7 +2460,74 @@
       "data_secure": "Datos seguros · Firebase",
       "copyright": "© 2026 Praeventio · Chile",
       "made_in": "Hecho en Chile"
-    }
+    },
+    "lang": {
+      "label": "Idioma",
+      "more": "Más idiomas"
+    },
+    "lam": {
+      "vida": "LÁM. 01 · VIDA",
+      "sistema": "LÁM. 02 · SISTEMA",
+      "proceso": "LÁM. 03 · PROCESO",
+      "confianza": "LÁM. 04 · CONFIANZA",
+      "planes": "Planes — se cobra la gestión, nunca la seguridad",
+      "cierre": "LÁM. 06 · GUARDIÁN"
+    },
+    "vida": {
+      "title_pre": "Lo que nunca",
+      "title_ac": "se cobra",
+      "sub": "Las funciones que salvan vidas son gratis para el trabajador, siempre. Se cobra por gestión y escala — nunca por seguridad.",
+      "free_badge": "Gratis para el trabajador, siempre",
+      "sos": {
+        "title": "SOS y hombre-caído",
+        "desc": "Ante una caída o inmovilidad, el teléfono detecta y alerta solo. La cascada no se detiene hasta que un humano confirme: notificación, correo de respaldo y llamada. La detección corre 100% en el dispositivo.",
+        "step_push": "Notificación",
+        "step_email": "Correo",
+        "step_call": "Llamada",
+        "impact": "La respuesta deja de depender de que alguien esté mirando."
+      },
+      "evac": {
+        "title": "Evacuación con ruteo A*",
+        "desc": "Sobre el plano real de tu faena, el algoritmo A* calcula la ruta más corta a la zona segura evitando los sectores bloqueados, y guía a cada persona en tiempo real.",
+        "start_label": "INICIO",
+        "exit_label": "SALIDA",
+        "impact": "El simulacro pasa a vivir en el bolsillo de cada trabajador."
+      },
+      "mesh": {
+        "title": "Red mesh sin señal",
+        "desc": "En faena sin cobertura, la alerta salta de teléfono en teléfono por Bluetooth hasta encontrar uno con señal. La emergencia no depende de una antena.",
+        "p1": "Sin cobertura, la alerta nace igual",
+        "p2": "Salta de bolsillo en bolsillo",
+        "p3": "Encuentra señal y sale al mundo",
+        "impact": "El socavón y el subterráneo dejan de ser zonas mudas."
+      }
+    },
+    "sistema": {
+      "epigraph": "«La victoria se gana antes de la batalla» — Sun Tzu",
+      "title_pre": "Conecta hechos que hoy mueren en un",
+      "title_ac": "archivador",
+      "sub": "Un casi-incidente en marzo, un extintor vencido en junio: en papel son hechos aislados; en Guardian, una causa raíz conectada. El sistema une los puntos antes del accidente — y administra tus faenas completas: equipos, plazos, documentos y cumplimiento en un solo lugar.",
+      "bio": {
+        "title": "Biometría 100% en el dispositivo",
+        "desc": "Signos vitales medidos con la cámara y los sensores del teléfono. Ni el pulso ni la imagen salen del dispositivo: se procesan y se descartan."
+      },
+      "evidence": {
+        "title": "Evidencia que no se borra",
+        "desc": "Cada registro queda en una cadena de auditoría inmutable, con autor y sello de tiempo: la prueba que exigen el DS 44 y la Ley 16.744, lista para la fiscalización. Se archiva, nunca se destruye."
+      },
+      "iper": {
+        "title": "Matriz IPER viva",
+        "desc": "Identificación de peligros y evaluación de riesgos que se actualiza con cada reporte de terreno — no una planilla que se congela después de la inducción."
+      },
+      "tag_ai": "RAG · Normativa",
+      "tag_evidence": "DS 44",
+      "tag_iper": "IPER",
+      "tag_training": "Certificados",
+      "tag_iso": "ISO 45001 · SUSESO",
+      "tag_teams": "Multi-faena",
+      "tag_dashboard": "KPI en vivo"
+    },
+    "mascot_alt": "El Guardián de Praeventio saluda"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -2457,7 +2613,10 @@
     "ai_safety_plan": "Plan de Seguridad IA",
     "ai_training": "Capacitaciones IA",
     "delete_title": "Eliminar trabajador",
-    "delete_message": "¿Estás seguro? Esta acción eliminará al trabajador y todos sus datos asociados."
+    "delete_message": "¿Estás seguro? Esta acción eliminará al trabajador y todos sus datos asociados.",
+    "archive_action": "Archivar",
+    "archive_title": "Archivar trabajador",
+    "archive_message": "El trabajador se archivará y saldrá de este proyecto. Su historial de prevención se conserva por obligación legal (Ley 16.744) y su experiencia permanece en su cuenta. La información no se elimina."
   },
   "public_demo": {
     "banner": "MODO DEMO — los datos no se persisten · sin cuenta",
@@ -2645,6 +2804,9 @@
     }
   },
   "pricingCalc": {
+    "pyme": {
+      "maturityTitle": "Madurez Preventiva PYME"
+    },
     "header": {
       "title": "Calculadora de Precios y ROI",
       "subtitle": "Estima tu plan recomendado, costo mensual, retorno y presupuesto EPP en un solo lugar."
@@ -2712,6 +2874,22 @@
       "sensitivity": "Banda de sensibilidad ±20%: {{low}}% a {{high}}%",
       "recommended": "Recomendado",
       "rationaleTitle": "Análisis comparativo"
+    },
+    "nonComp": {
+      "title": "Costo de NO cumplir",
+      "subtitle": "Exposición estimada si una fiscalización detecta el incumplimiento (Ley 16.744 · Código del Trabajo art. 477).",
+      "kind": "Tipo de incumplimiento",
+      "kind_document_missing": "Documento faltante",
+      "kind_training_overdue": "Capacitación vencida",
+      "kind_epp_expired": "EPP vencido",
+      "kind_safety_breach": "Falta grave de seguridad",
+      "kind_fatal_accident_risk": "Riesgo de accidente fatal",
+      "stoppageDays": "Días de paralización (estimado)",
+      "history": "Historial de fiscalización previa",
+      "exposure": "Exposición total estimada",
+      "fine": "Multa estimada (desde)",
+      "stoppage": "Costo de paralización",
+      "disclaimer": "Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal."
     }
   },
   "oc": {
@@ -2740,6 +2918,9 @@
     }
   },
   "incident_report": {
+    "err_queue_full": "No se pudo guardar el reporte en este dispositivo (cola llena). Anótalo y avisa a tu supervisor.",
+    "queued_body": "Sin conexión con el servidor. Tu reporte quedó guardado en este dispositivo y se enviará automáticamente al recuperar señal — no lo escribas de nuevo.",
+    "queued_title": "Guardado en este dispositivo",
     "back_emergency": "Emergencia",
     "badge": "Reportar",
     "title": "Reportar near-miss",
@@ -3064,6 +3245,16 @@
       "heading": "Catálogo HCA — {{category}}",
       "present": "Presente",
       "mark": "Marcar"
+    },
+    "failure_library": {
+      "heading": "Biblioteca de modos de falla (referencia)",
+      "loading": "Cargando biblioteca…",
+      "error": "No se pudo cargar la biblioteca de modos de falla.",
+      "empty": "Aún no hay modos de falla documentados.",
+      "total": "{{n}} modos de falla documentados",
+      "by_mode": "Por modo de falla",
+      "by_control": "Por tipo de control",
+      "by_frequency": "Por frecuencia"
     }
   },
   "root_cause": {
@@ -4323,6 +4514,94 @@
       "selectProject": "Selecciona un proyecto para gestionar el inventario de residuos."
     }
   },
+  "returnToWork": {
+    "page": {
+      "title": "Reintegro Laboral",
+      "subtitle": "Aptitud de tarea, derivación a mutualidad y reintegro progresivo — sin datos médicos (ADR 0012).",
+      "selectProject": "Selecciona un proyecto para evaluar aptitud de tarea y reintegro."
+    },
+    "panel": {
+      "aria": "Evaluación de aptitud de tarea",
+      "title": "Aptitud de tarea (reintegro)",
+      "disclaimer": "Evaluación operacional con restricciones codificadas — sin diagnóstico ni datos médicos (ADR 0012).",
+      "workerUid": "ID trabajador",
+      "taskId": "ID tarea",
+      "restriction": "Restricción vigente",
+      "conflict": "La tarea choca con",
+      "source": "Fuente de la restricción",
+      "startsAt": "Vigente desde",
+      "submit": "Evaluar aptitud",
+      "error": "No se pudo evaluar la aptitud.",
+      "violated": "Restricciones en conflicto:"
+    }
+  },
+  "pricingSimulator": {
+    "page": {
+      "title": "Simulador de Facturación",
+      "subtitle": "Estima tu factura mensual según trabajadores, proyectos y plan.",
+      "selectProject": "Selecciona un proyecto para estimar tu factura mensual."
+    },
+    "panel": {
+      "aria": "Simulador de factura mensual",
+      "title": "Simulador de factura",
+      "disclaimer": "Estimación determinística de tu factura mensual según trabajadores, proyectos y plan. Referencial.",
+      "workers": "N.º trabajadores",
+      "projects": "N.º proyectos",
+      "tier": "Plan",
+      "submit": "Estimar factura",
+      "error": "No se pudo estimar la factura.",
+      "total": "Total estimado / mes",
+      "base": "Base del plan",
+      "overage": "Excedentes",
+      "fits": "Tu uso cabe en el plan sin excedentes.",
+      "exceeds": "Tu uso excede el plan — considera un plan mayor."
+    }
+  },
+  "retaliationProtection": {
+    "page": {
+      "title": "Protección contra Represalias",
+      "subtitle": "Ley Karin 21.643 — detección de señales post-denuncia y acciones protectoras.",
+      "selectProject": "Selecciona un proyecto para analizar señales de represalia."
+    },
+    "panel": {
+      "aria": "Análisis de riesgo de represalias",
+      "title": "Riesgo de represalias post-denuncia",
+      "disclaimer": "Ley Karin 21.643 — señales observadas dentro de la ventana de evaluación (90 días por defecto).",
+      "reportFiledAt": "Fecha de la denuncia",
+      "observedAt": "Fecha de la señal",
+      "reporterUid": "ID denunciante",
+      "supervisorUid": "ID jefatura",
+      "kind": "Tipo de señal",
+      "severity": "Severidad",
+      "submit": "Analizar riesgo",
+      "error": "No se pudo analizar el riesgo.",
+      "signalCount": "Señales consideradas:",
+      "actions": "Acciones protectoras recomendadas"
+    }
+  },
+  "privacyShield": {
+    "page": {
+      "title": "Escudo de Privacidad",
+      "subtitle": "Ley 19.628 + GDPR — clasificación de datos personales, brechas y retención.",
+      "selectProject": "Selecciona un proyecto para clasificar campos de datos personales."
+    },
+    "panel": {
+      "aria": "Clasificador de datos personales",
+      "title": "Clasificación de campo de datos",
+      "disclaimer": "Ley 19.628 + GDPR — clasifica sensibilidad, retención y obligaciones de manejo por campo.",
+      "fieldPath": "Ruta del campo (ej. workers.rut)",
+      "category": "Categoría del dato",
+      "encrypted": "Cifrado en reposo",
+      "submit": "Clasificar campo",
+      "error": "No se pudo clasificar el campo.",
+      "sensitivity": "Sensibilidad:",
+      "retention": "Retención:",
+      "days": "días",
+      "consent": "Consentimiento explícito requerido",
+      "mustEncrypt": "Cifrado en reposo obligatorio",
+      "maskLogs": "Mascarado en logs obligatorio"
+    }
+  },
   "hazmatInventory": {
     "page": {
       "title": "Inventario HAZMAT",
@@ -4505,7 +4784,22 @@
       }
     }
   },
+  "emergenciaAvanzada": {
+    "sos": {
+      "location": "Ver ubicación",
+      "subtitle": "Alertas enviadas con el botón SOS. Verifica el estado de cada persona ahora.",
+      "title": "SOS de trabajadores — últimas 24 h"
+    }
+  },
   "iper": {
+    "save": {
+      "button": "Guardar evaluación",
+      "descriptionLabel": "Descripción del peligro / tarea evaluada",
+      "descriptionPlaceholder": "Ej: trabajo en altura sobre 1,8 m en andamio móvil",
+      "error": "No se pudo guardar la evaluación. Revisa tu conexión e intenta nuevamente.",
+      "noProject": "Selecciona un proyecto para poder guardar la evaluación.",
+      "success": "Evaluación guardada — ya aparece en el panorama."
+    },
     "page": {
       "title": "Matriz IPER 5x5",
       "subtitle": "Estima el nivel de riesgo (probabilidad × severidad) y el residual al aplicar controles. Es una guía — la decisión es del equipo."
@@ -5027,6 +5321,10 @@
     "pdcaClosure": "Cierre de capacitación: {{done}}/{{assigned}} trabajadores ({{pct}}%).",
     "myTrainings": "Tu microcapacitación derivada",
     "lessonFallback": "Lección del incidente",
+    "manage": {
+      "show": "Gestión PDCA (supervisor)",
+      "hide": "Ocultar gestión PDCA"
+    },
     "empty": "Sin incidentes registrados en este proyecto.",
     "emptyHint": "Buena noticia. Aquí verás la vista anual cuando haya datos, o reporta un casi-accidente para fortalecer la cultura preventiva.",
     "annualView": "Vista anual (12 meses)",
@@ -5136,5 +5434,98 @@
   "privacy": {
     "lastUpdated": "Última actualización",
     "providerData": "Datos del proveedor"
+  },
+  "skillGap": {
+    "page": {
+      "title": "Brechas de Competencias",
+      "subtitle": "Análisis de brechas, plan de entrenamiento y polivalencia de cuadrilla.",
+      "selectProject": "Selecciona un proyecto para analizar brechas de competencias."
+    },
+    "panel": {
+      "aria": "Análisis de brechas de competencias",
+      "title": "Brecha de competencia por trabajador",
+      "description": "Compara el nivel actual del trabajador contra el nivel mínimo requerido para la tarea.",
+      "workerUid": "ID trabajador",
+      "skillId": "ID competencia",
+      "currentLevel": "Nivel actual",
+      "requiredLevel": "Nivel mínimo requerido",
+      "critical": "Competencia crítica (bloquea la operación)",
+      "submit": "Analizar brechas",
+      "error": "No se pudo analizar la brecha.",
+      "noGaps": "Sin brechas: el trabajador cumple el nivel requerido.",
+      "gapLevels": "nivel(es) de brecha",
+      "criticalBadge": "Crítica",
+      "expired": "Certificación vencida"
+    }
+  },
+  "contingencySimulation": {
+    "page": {
+      "title": "Simulación de Contingencias",
+      "subtitle": "Escenarios tabletop para ensayar la respuesta a emergencias sin riesgo real.",
+      "selectProject": "Selecciona un proyecto para generar escenarios de contingencia."
+    },
+    "panel": {
+      "aria": "Generador de escenarios de contingencia",
+      "title": "Generar escenario tabletop",
+      "description": "Elige tipo y severidad — el motor arma el escenario con eventos y puntos de decisión para ensayar sin riesgo real.",
+      "kind": "Tipo de escenario",
+      "severity": "Severidad",
+      "submit": "Generar escenario",
+      "error": "No se pudo generar el escenario.",
+      "duration": "Duración estimada",
+      "staffPresent": "Personal presente",
+      "triggerEvents": "Eventos del ejercicio",
+      "decisionPoints": "Puntos de decisión",
+      "successCriteria": "Criterios de éxito"
+    }
+  },
+  "deduplication": {
+    "page": {
+      "title": "Deduplicación de Registros",
+      "subtitle": "Detecta registros duplicados (trabajadores, equipos, proyectos) y planifica su fusión.",
+      "selectProject": "Selecciona un proyecto para detectar registros duplicados."
+    },
+    "panel": {
+      "aria": "Detección de registros duplicados",
+      "title": "Detectar duplicados",
+      "description": "Compara dos registros del mismo tipo — el motor calcula la confianza de que sean el mismo.",
+      "kind": "Tipo de registro",
+      "nameA": "Registro A — nombre",
+      "emailA": "Registro A — email (opcional)",
+      "nameB": "Registro B — nombre",
+      "emailB": "Registro B — email (opcional)",
+      "submit": "Detectar duplicados",
+      "error": "No se pudo ejecutar la detección.",
+      "noDuplicates": "Sin duplicados detectados entre los registros.",
+      "confidence": "Confianza",
+      "reasons": "Coincidencias:"
+    }
+  },
+  "aiHub": {
+    "streaming": {
+      "title": "Asesor Guardian — Streaming",
+      "desc": "El Asesor ahora responde en streaming: el primer carácter aparece en ~600ms en lugar de esperar 12s por la respuesta completa. Usa Server-Sent Events vía /api/ask-guardian con stream=true.",
+      "status": "Streaming SSE activo"
+    }
+  },
+  "digitalTwin": {
+    "tabIntegration": "Integración",
+    "tabScene3d": "Escena 3D"
+  },
+  "cargo": {
+    "page_title": "Carga y Estiba",
+    "container_config": "Configuración del contenedor",
+    "dim_x": "Largo X (m)",
+    "dim_y": "Ancho Y (m)",
+    "dim_z": "Alto Z (m)",
+    "max_payload": "Carga máxima (kg)",
+    "add_item": "Agregar ítem",
+    "compute": "Calcular",
+    "items": "Ítems",
+    "mass_kg": "Masa (kg)",
+    "fragile": "Frágil",
+    "no_stack": "No apilable",
+    "no_items_placed": "No hay ítems ubicados",
+    "unplaced_title": "Sin ubicar"
   }
 }

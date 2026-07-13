@@ -28,6 +28,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import { SafetyPost, SafetySolution, NodeType } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -125,21 +126,25 @@ export function SafetyFeed() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      // 3. Save Post to Firestore
-      const postsPath = `projects/${selectedProject.id}/safety_posts`;
-      const postRef = await addDoc(collection(db, postsPath), {
-        userId: user.uid,
-        userName: user.displayName || 'Usuario',
-        userPhoto: user.photoURL,
-        content: newPost.content,
-        type: newPost.type,
-        imageUrl: imageUrl, 
-        riskNodeId,
-        likes: [],
-        comments: [],
-        createdAt: serverTimestamp(),
-        projectId: selectedProject.id
+      // 3. Save Post via audited server endpoint (replaces direct Firestore write)
+      const headers = await apiAuthHeaders();
+      const postRes = await fetch(`/api/sprint-k/${selectedProject.id}/safety-posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          content: newPost.content,
+          type: newPost.type,
+          imageUrl: imageUrl || undefined,
+        }),
       });
+
+      if (!postRes.ok) {
+        const errData = await postRes.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${postRes.status}`);
+      }
+
+      const { postId } = await postRes.json();
+      const postRef = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
 
       if (riskNodeId) {
         // Update the Risk node to link back to the post
@@ -169,13 +174,12 @@ export function SafetyFeed() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Editorial Hero */}
-      <header className="relative h-[250px] sm:h-[300px] rounded-[2rem] sm:rounded-[40px] overflow-hidden bg-zinc-900 border border-white/10 group">
+      <header className="relative h-[250px] sm:h-[300px] rounded-[2rem] sm:rounded-[40px] overflow-hidden bg-surface border border-default-token group">
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent z-10" />
         <img 
-          src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=1920" 
+          src="/heroes/hero-construction.svg"
           alt="Safety Community"
           className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700"
-          referrerPolicy="no-referrer"
         />
         <div className="relative z-20 h-full p-6 sm:p-12 flex flex-col justify-center max-w-2xl">
           <motion.div
@@ -189,10 +193,10 @@ export function SafetyFeed() {
               </div>
               <span className="text-[8px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">{t('safetyFeed.kicker', 'Comunidad Praeventio')}</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tighter leading-[0.9]">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-primary-token uppercase tracking-tighter leading-[0.9]">
               {t('safetyFeed.titlePrefix', 'El Muro del')} <span className="text-emerald-500">{t('safetyFeed.titleAccent', 'Guardián')}</span>
             </h1>
-            <p className="text-zinc-400 font-medium text-sm sm:text-lg max-w-md">
+            <p className="text-muted-token font-medium text-sm sm:text-lg max-w-md">
               {t('safetyFeed.subtitle', 'Conecta, comparte y aprende de los mejores expertos en prevención de riesgos.')}
             </p>
           </motion.div>
@@ -203,32 +207,32 @@ export function SafetyFeed() {
         {/* Main Feed */}
         <div className="lg:col-span-2 space-y-6">
           {/* Create Post */}
-          <section className="bg-zinc-900/50 border border-white/10 rounded-[32px] p-6 shadow-xl">
+          <section className="bg-surface border border-default-token rounded-[32px] p-6 shadow-xl">
             <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-zinc-800 border border-white/5 overflow-hidden flex-shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-elevated border border-default-token overflow-hidden flex-shrink-0">
                 {user?.photoURL ? (
                   <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-500">
+                  <div className="w-full h-full flex items-center justify-center text-muted-token">
                     <Users className="w-6 h-6" />
                   </div>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => {
                   if (isOnline) setIsPosting(true);
                 }}
                 disabled={!isOnline}
-                className="flex-1 bg-zinc-800/50 border border-white/5 rounded-2xl px-6 py-3 text-left text-zinc-500 hover:bg-zinc-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-elevated/50 border border-default-token rounded-2xl px-6 py-3 text-left text-muted-token hover:bg-elevated transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {!isOnline ? 'Conexión requerida para publicar' : `¿Qué momento de seguridad quieres compartir hoy, ${user?.displayName?.split(' ')[0]}?`}
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-white/5">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-default-token">
               <button
                 disabled={!isOnline}
                 onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
-                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+                className="flex items-center gap-2 text-[10px] font-black text-secondary-token uppercase tracking-widest hover:text-primary-token transition-colors disabled:opacity-40"
               >
                 <ImageIcon className="w-4 h-4 text-blue-500" />
                 <span>Imagen</span>
@@ -236,7 +240,7 @@ export function SafetyFeed() {
               <button
                 disabled={!isOnline}
                 onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
-                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+                className="flex items-center gap-2 text-[10px] font-black text-secondary-token uppercase tracking-widest hover:text-primary-token transition-colors disabled:opacity-40"
               >
                 <Zap className="w-4 h-4 text-yellow-500" />
                 <span>Momento</span>
@@ -244,7 +248,7 @@ export function SafetyFeed() {
               <button
                 disabled={!isOnline}
                 onClick={() => { setNewPost(p => ({ ...p, type: 'Tip' })); setIsPosting(true); }}
-                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+                className="flex items-center gap-2 text-[10px] font-black text-secondary-token uppercase tracking-widest hover:text-primary-token transition-colors disabled:opacity-40"
               >
                 <Lightbulb className="w-4 h-4 text-emerald-500" />
                 <span>Tip</span>
@@ -265,9 +269,9 @@ export function SafetyFeed() {
                 key={f.id}
                 onClick={() => setActiveFilter(f.id as any)}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                  activeFilter === f.id 
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                    : 'bg-zinc-900 border border-white/10 text-zinc-500 hover:text-white'
+                  activeFilter === f.id
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                    : 'bg-surface border border-default-token text-muted-token hover:text-primary-token'
                 }`}
               >
                 <f.icon className="w-3.5 h-3.5" />
@@ -280,9 +284,9 @@ export function SafetyFeed() {
           <div className="space-y-6">
             {loading ? (
               <div className="space-y-6">
-                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
-                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
-                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
+                <SkeletonCard className="bg-surface border-default-token rounded-[32px] p-6" />
+                <SkeletonCard className="bg-surface border-default-token rounded-[32px] p-6" />
+                <SkeletonCard className="bg-surface border-default-token rounded-[32px] p-6" />
               </div>
             ) : filteredPosts.map((post, i) => (
               <motion.article
@@ -290,23 +294,23 @@ export function SafetyFeed() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-zinc-900/50 border border-white/10 rounded-[32px] overflow-hidden shadow-xl hover:border-white/20 transition-all"
+                className="bg-surface border border-default-token rounded-[32px] overflow-hidden shadow-xl hover:border-strong-token transition-all"
               >
                 <div className="p-6 space-y-4">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-zinc-800 border border-white/5 overflow-hidden">
+                      <div className="w-12 h-12 rounded-2xl bg-elevated border border-default-token overflow-hidden">
                         {post.userPhoto ? (
                           <img src={post.userPhoto} alt={post.userName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-500">
+                          <div className="w-full h-full flex items-center justify-center text-muted-token">
                             <Users className="w-6 h-6" />
                           </div>
                         )}
                       </div>
                       <div>
-                        <h3 className="font-black text-white uppercase tracking-tight">{post.userName}</h3>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                        <h3 className="font-black text-primary-token uppercase tracking-tight">{post.userName}</h3>
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-token uppercase tracking-widest">
                           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                           <span className="w-1 h-1 rounded-full bg-zinc-700" />
                           <span className="text-emerald-500">{post.type}</span>
@@ -323,12 +327,12 @@ export function SafetyFeed() {
                       </div>
                     </div>
                     <div className="relative dropdown-container">
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveDropdown(activeDropdown === post.id ? null : post.id);
                         }}
-                        className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500"
+                        className="p-2 hover:bg-elevated rounded-xl transition-colors text-muted-token"
                       >
                         <MoreVertical className="w-5 h-5" />
                       </button>
@@ -339,15 +343,15 @@ export function SafetyFeed() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -10 }}
                             transition={{ duration: 0.15 }}
-                            className="absolute right-0 mt-1 w-32 bg-zinc-800 border border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                            className="absolute right-0 mt-1 w-32 bg-elevated border border-default-token rounded-xl shadow-xl z-20 overflow-hidden"
                           >
-                            <button 
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 // Handle edit
                                 setActiveDropdown(null);
                               }}
-                              className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition-colors"
+                              className="w-full text-left px-4 py-2.5 text-xs text-secondary-token hover:text-primary-token hover:bg-elevated transition-colors"
                             >
                               Editar
                             </button>
@@ -367,33 +371,33 @@ export function SafetyFeed() {
                     </div>
                   </div>
 
-                  <p className="text-zinc-300 text-sm leading-relaxed font-medium">
+                  <p className="text-secondary-token text-sm leading-relaxed font-medium">
                     {post.content}
                   </p>
 
                   {post.imageUrl && (
-                    <div className="rounded-2xl overflow-hidden border border-white/5 aspect-video">
+                    <div className="rounded-2xl overflow-hidden border border-default-token aspect-video">
                       <img src={post.imageUrl} alt="Post content" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between pt-4 border-t border-default-token">
                     <div className="flex items-center gap-6">
-                      <button 
+                      <button
                         onClick={() => handleLike(post.id, post.likes.includes(user?.uid || ''))}
                         className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                          post.likes.includes(user?.uid || '') ? 'text-red-500' : 'text-zinc-500 hover:text-white'
+                          post.likes.includes(user?.uid || '') ? 'text-red-500' : 'text-muted-token hover:text-primary-token'
                         }`}
                       >
                         <Heart className={`w-4 h-4 ${post.likes.includes(user?.uid || '') ? 'fill-current' : ''}`} />
                         <span>{post.likes.length}</span>
                       </button>
-                      <button 
+                      <button
                         onClick={() => {
                           const el = document.getElementById(`comments-${post.id}`);
                           if (el) el.classList.toggle('hidden');
                         }}
-                        className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors"
+                        className="flex items-center gap-2 text-[10px] font-black text-muted-token uppercase tracking-widest hover:text-primary-token transition-colors"
                       >
                         <MessageSquare className="w-4 h-4" />
                         <span>{post.comments.length}</span>
@@ -407,7 +411,7 @@ export function SafetyFeed() {
                           navigator.clipboard?.writeText(`${post.content}\n${window.location.href}`);
                         }
                       }}
-                      className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors"
+                      className="flex items-center gap-2 text-[10px] font-black text-muted-token uppercase tracking-widest hover:text-primary-token transition-colors"
                     >
                       <Share2 className="w-4 h-4" />
                       <span>Compartir</span>
@@ -415,17 +419,17 @@ export function SafetyFeed() {
                   </div>
                   
                   {/* Comments Section */}
-                  <div id={`comments-${post.id}`} className="hidden pt-4 border-t border-white/5 space-y-4">
+                  <div id={`comments-${post.id}`} className="hidden pt-4 border-t border-default-token space-y-4">
                     {post.comments.map((comment, idx) => (
-                      <div key={idx} className="flex gap-3 bg-white/5 p-3 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-                          <div className="w-full h-full flex items-center justify-center text-zinc-500 text-xs">
+                      <div key={idx} className="flex gap-3 bg-elevated p-3 rounded-xl">
+                        <div className="w-8 h-8 rounded-full bg-elevated overflow-hidden shrink-0">
+                          <div className="w-full h-full flex items-center justify-center text-muted-token text-xs">
                             <Users className="w-4 h-4" />
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-white">{comment.userName}</p>
-                          <p className="text-xs text-zinc-400 mt-1">{comment.text}</p>
+                          <p className="text-xs font-bold text-primary-token">{comment.userName}</p>
+                          <p className="text-xs text-muted-token mt-1">{comment.text}</p>
                         </div>
                       </div>
                     ))}
@@ -448,11 +452,11 @@ export function SafetyFeed() {
                       }}
                       className="flex gap-2 mt-2"
                     >
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         name="comment"
-                        placeholder="Escribe un comentario..." 
-                        className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        placeholder="Escribe un comentario..."
+                        className="flex-1 bg-surface border border-default-token rounded-xl px-4 py-2 text-xs text-primary-token placeholder:text-muted-token focus:outline-none focus:border-emerald-500/50 transition-colors"
                       />
                       <button type="submit" className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
                         Enviar
@@ -468,23 +472,23 @@ export function SafetyFeed() {
         {/* Sidebar */}
         <aside className="space-y-8">
           {/* Intelligent Recommendations */}
-          <section className="bg-zinc-900/50 border border-white/10 rounded-[32px] p-8 space-y-6">
+          <section className="bg-surface border border-default-token rounded-[32px] p-8 space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 border border-blue-500/20">
                 <Zap className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-black text-white uppercase tracking-tighter">Soluciones IA</h3>
+              <h3 className="text-xl font-black text-primary-token uppercase tracking-tighter">Soluciones IA</h3>
             </div>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Recomendaciones basadas en éxito</p>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Recomendaciones basadas en éxito</p>
             
             <div className="space-y-4">
               {solutions.sort((a, b) => b.successRate - a.successRate).slice(0, 3).map((sol, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-all group cursor-pointer">
+                <div key={i} className="p-4 rounded-2xl bg-elevated border border-default-token hover:border-blue-500/30 transition-all group cursor-pointer">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">{sol.title}</h4>
+                    <h4 className="text-sm font-bold text-primary-token group-hover:text-blue-400 transition-colors">{sol.title}</h4>
                     <span className="text-[10px] font-black text-emerald-500">{sol.successRate}% Éxito</span>
                   </div>
-                  <p className="text-xs text-zinc-500 line-clamp-2 mb-3 leading-relaxed">{sol.problem}</p>
+                  <p className="text-xs text-muted-token line-clamp-2 mb-3 leading-relaxed">{sol.problem}</p>
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1">
                       {sol.tags.slice(0, 2).map(tag => (
@@ -493,7 +497,7 @@ export function SafetyFeed() {
                         </span>
                       ))}
                     </div>
-                    <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{sol.implementations} usos</span>
+                    <span className="text-[9px] font-black text-muted-token uppercase tracking-widest">{sol.implementations} usos</span>
                   </div>
                 </div>
               ))}
@@ -536,13 +540,13 @@ export function SafetyFeed() {
               initial={{ opacity: 0, scale: 0.9, y: 40 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-xl overflow-hidden flex flex-col shadow-2xl"
+              className="bg-surface border border-default-token rounded-[40px] w-full max-w-xl overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Compartir Momento</h2>
-                <button 
+              <div className="p-8 border-b border-default-token flex justify-between items-center">
+                <h2 className="text-xl font-black text-primary-token uppercase tracking-tighter">Compartir Momento</h2>
+                <button
                   onClick={() => setIsPosting(false)}
-                  className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                  className="p-3 hover:bg-elevated rounded-full transition-colors text-muted-token hover:text-primary-token"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -550,7 +554,7 @@ export function SafetyFeed() {
 
               <form onSubmit={handlePost} className="p-8 space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Tipo de Contenido</label>
+                  <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">Tipo de Contenido</label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: 'SafetyMoment', label: 'Momento', icon: Zap, color: 'text-yellow-500' },
@@ -563,9 +567,9 @@ export function SafetyFeed() {
                         type="button"
                         onClick={() => setNewPost({...newPost, type: type.id as any})}
                         className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
-                          newPost.type === type.id 
-                            ? 'bg-zinc-800 border-white/20 shadow-lg' 
-                            : 'bg-zinc-900/50 border-white/5 text-zinc-500'
+                          newPost.type === type.id
+                            ? 'bg-elevated border-strong-token shadow-lg'
+                            : 'bg-surface border-default-token text-muted-token'
                         }`}
                       >
                         <type.icon className={`w-4 h-4 ${newPost.type === type.id ? type.color : ''}`} />
@@ -576,21 +580,21 @@ export function SafetyFeed() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Mensaje</label>
+                  <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">Mensaje</label>
                   <textarea
                     required
                     value={newPost.content}
                     onChange={e => setNewPost({...newPost, content: e.target.value})}
-                    className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-6 text-white focus:outline-none focus:border-emerald-500 transition-colors resize-none h-32 text-lg font-medium"
+                    className="w-full bg-surface border border-default-token rounded-2xl p-6 text-primary-token placeholder:text-muted-token focus:outline-none focus:border-emerald-500 transition-colors resize-none h-32 text-lg font-medium"
                     placeholder="Escribe aquí..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Adjuntar Imagen (Opcional)</label>
+                  <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">Adjuntar Imagen (Opcional)</label>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-white/10 rounded-2xl hover:border-emerald-500/50 transition-colors cursor-pointer bg-zinc-900/50">
-                      <div className="flex flex-col items-center gap-2 text-zinc-500">
+                    <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-default-token rounded-2xl hover:border-emerald-500/50 transition-colors cursor-pointer bg-surface">
+                      <div className="flex flex-col items-center gap-2 text-muted-token">
                         <ImageIcon className="w-6 h-6" />
                         <span className="text-xs font-bold">Haz clic para subir imagen</span>
                       </div>
@@ -611,7 +615,7 @@ export function SafetyFeed() {
                       />
                     </label>
                     {newPost.imageBase64 && (
-                      <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shrink-0">
+                      <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-default-token shrink-0">
                         <img src={newPost.imageBase64} alt="Preview" className="w-full h-full object-cover" />
                         <button 
                           type="button"

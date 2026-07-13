@@ -15,6 +15,8 @@ import {
 } from '../services/routing/routeClimateAssessment';
 import type { BBox } from '../services/external/eonet/types';
 import { eonetEventLonLat, projectToSchematic } from './climateRouteSchematic';
+import { buildCalmRecommendation } from '../services/external/recommendationBuilder';
+import { CalmRecommendationCard } from '../components/external-events/CalmRecommendationCard';
 
 // Real NASA EONET category → icon. Drives the live hazard markers plotted on
 // the route schematic (replaces the fake fixed pins removed in #939).
@@ -224,11 +226,11 @@ export function ClimateRoutes() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Route className="w-8 h-8 text-cyan-500" />
             {t('climateRoutes.title', 'Rutas Regionales')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('climateRoutes.subtitle', 'Navegación Consciente del Clima')}
           </p>
         </div>
@@ -242,31 +244,31 @@ export function ClimateRoutes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <Navigation className="w-5 h-5 text-cyan-500" />
             {t('climateRoutes.planning', 'Planificación de Ruta')}
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">{t('climateRoutes.origin', 'Origen')}</label>
+              <label className="block text-sm font-medium text-secondary mb-2">{t('climateRoutes.origin', 'Origen')}</label>
               <input
                 type="text"
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-default-token rounded-lg px-4 py-2 text-primary focus:outline-none focus:border-cyan-500"
                 placeholder={t('climateRoutes.originPlaceholder', 'Ej. Faena Norte')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">{t('climateRoutes.destination', 'Destino')}</label>
+              <label className="block text-sm font-medium text-secondary mb-2">{t('climateRoutes.destination', 'Destino')}</label>
               <input
                 type="text"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-default-token rounded-lg px-4 py-2 text-primary focus:outline-none focus:border-cyan-500"
                 placeholder={t('climateRoutes.destinationPlaceholder', 'Ej. Puerto')}
               />
             </div>
@@ -293,12 +295,12 @@ export function ClimateRoutes() {
             </Button>
           </div>
 
-          <div className="pt-4 border-t border-white/5">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <div className="pt-4 border-t border-default-token">
+            <h3 className="text-sm font-bold text-primary mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-cyan-500" />
               {t('climateRoutes.assessment', 'Evaluación Climática de Ruta')}
               {isAssessing && (
-                <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+                <Loader2 className="w-3 h-3 animate-spin text-muted-token" />
               )}
             </h3>
 
@@ -306,33 +308,33 @@ export function ClimateRoutes() {
             {assessment?.metrics && (
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {assessment.metrics.avgWindMs !== null && (
-                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5">
-                    <div className="text-[9px] text-zinc-500 uppercase">
+                  <div className="p-2 rounded-lg bg-surface border border-default-token">
+                    <div className="text-[9px] text-muted-token uppercase">
                       {t('climateRoutes.avgWind', 'Viento promedio (7d)')}
                     </div>
-                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                    <div className="text-sm font-bold text-primary flex items-center gap-1">
                       <Wind className="w-3 h-3 text-cyan-400" />
                       {(assessment.metrics.avgWindMs * 3.6).toFixed(0)} km/h
                     </div>
                   </div>
                 )}
                 {assessment.metrics.totalPrecipMm !== null && (
-                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5">
-                    <div className="text-[9px] text-zinc-500 uppercase">
+                  <div className="p-2 rounded-lg bg-surface border border-default-token">
+                    <div className="text-[9px] text-muted-token uppercase">
                       {t('climateRoutes.totalPrecip', 'Lluvia total (7d)')}
                     </div>
-                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                    <div className="text-sm font-bold text-primary flex items-center gap-1">
                       <CloudRain className="w-3 h-3 text-blue-400" />
                       {assessment.metrics.totalPrecipMm.toFixed(0)} mm
                     </div>
                   </div>
                 )}
                 {assessment.metrics.frostHourCount > 0 && (
-                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5 col-span-2">
-                    <div className="text-[9px] text-zinc-500 uppercase">
+                  <div className="p-2 rounded-lg bg-surface border border-default-token col-span-2">
+                    <div className="text-[9px] text-muted-token uppercase">
                       {t('climateRoutes.frostHours', 'Horas bajo 0°C en 7d')}
                     </div>
-                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                    <div className="text-sm font-bold text-primary flex items-center gap-1">
                       <Thermometer className="w-3 h-3 text-blue-300" />
                       {assessment.metrics.frostHourCount} h
                     </div>
@@ -366,7 +368,7 @@ export function ClimateRoutes() {
                     >
                       {reason.message}
                     </p>
-                    <p className="text-[9px] text-zinc-500 mt-1 font-mono uppercase tracking-wide">
+                    <p className="text-[9px] text-muted-token mt-1 font-mono uppercase tracking-wide">
                       {reason.source === 'NASA_POWER' && '📡 NASA POWER'}
                       {reason.source === 'EONET' && '🛰️ NASA EONET'}
                       {reason.source === 'GOOGLE_DIRECTIONS' && '🗺️ Google Directions'}
@@ -394,7 +396,7 @@ export function ClimateRoutes() {
                 )}
               </p>
             ) : (
-              <p className="text-xs text-zinc-500 italic">
+              <p className="text-xs text-muted-token italic">
                 {t(
                   'climateRoutes.calculatePrompt',
                   'Calcula una ruta para ver la evaluación NASA POWER + EONET.',
@@ -402,7 +404,7 @@ export function ClimateRoutes() {
               </p>
             )}
 
-            <p className="mt-3 text-[9px] text-zinc-500 leading-relaxed">
+            <p className="mt-3 text-[9px] text-muted-token leading-relaxed">
               {t(
                 'climateRoutes.dataSources',
                 'Fuentes: NASA POWER (clima histórico hourly, lag ~3 días) + NASA EONET (eventos extremos activos) + Google Directions. NO sustituye al servicio meteorológico nacional (DMC) ni a la información vial oficial (MOP).',
@@ -415,7 +417,7 @@ export function ClimateRoutes() {
             assessment (NASA POWER + EONET) is the left panel; this is an
             origin→destination schematic whose line color reflects the REAL
             routeStatus. No fabricated hazard pins (removed 2026-06-16). */}
-        <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-zinc-900 flex items-center justify-center">
+        <Card className="p-0 border-default-token lg:col-span-2 overflow-hidden relative min-h-[500px] bg-surface flex items-center justify-center">
           <div className="absolute top-3 left-3 z-20 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 bg-black/50 border border-white/10 px-2 py-1 rounded-md backdrop-blur-sm">
             {t('climateRoutes.schematicBadge', 'Eventos EONET activos en posición real · trazado ilustrativo')}
           </div>
@@ -486,11 +488,11 @@ export function ClimateRoutes() {
           </div>
 
           <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md border border-white/10 p-4 rounded-xl max-w-sm z-10">
-            <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+            <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
               <Route className="w-4 h-4 text-cyan-500" />
               {t('climateRoutes.analysis', 'Análisis de Ruta')}
             </h4>
-            <p className="text-xs text-zinc-300 leading-relaxed">
+            <p className="text-xs text-secondary leading-relaxed">
               {routeStatus === 'danger'
                 ? t('climateRoutes.analysisDanger', 'La ruta principal se encuentra bloqueada por condiciones climáticas extremas. Se recomienda suspender el tránsito o buscar una ruta alternativa.')
                 : routeStatus === 'warning'
@@ -500,6 +502,27 @@ export function ClimateRoutes() {
           </div>
         </Card>
       </div>
+
+      {/* Recomendaciones calmas derivadas de eventos EONET activos.
+          Una tarjeta por evento (máx. 3) — sin mencionar el organismo fuente
+          en el copy principal (directiva 4: fuente externa = dato enriquecedor
+          discreto, no autoridad de emergencia). */}
+      {(assessment?.activeEvents ?? []).length > 0 && (
+        <section aria-label={t('climateRoutes.calmRecs', 'Recomendaciones de condiciones activas')}>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-muted-token mb-2">
+            {t('climateRoutes.calmRecsTitle', 'Recomendaciones por condición activa')}
+          </h3>
+          <div className="space-y-3">
+            {(assessment?.activeEvents ?? []).slice(0, 3).map((ev) => (
+              <CalmRecommendationCard
+                key={ev.id}
+                recommendation={buildCalmRecommendation(ev)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );

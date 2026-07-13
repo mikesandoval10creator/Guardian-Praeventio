@@ -35,7 +35,7 @@ export function InhospitableGuide() {
       icon: <ThermometerSnowflake className="w-6 h-6 text-blue-400" />,
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-300">
+          <p className="text-sm text-secondary">
             La hipotermia ocurre cuando el cuerpo pierde calor más rápido de lo que puede producirlo, causando una temperatura corporal peligrosamente baja (por debajo de 35°C).
           </p>
           <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
@@ -66,7 +66,7 @@ export function InhospitableGuide() {
       icon: <Mountain className="w-6 h-6 text-amber-500" />,
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-300">
+          <p className="text-sm text-secondary">
             Ocurre por la exposición a baja presión de oxígeno a gran altitud (generalmente sobre los 2.400 metros).
           </p>
           <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
@@ -97,7 +97,7 @@ export function InhospitableGuide() {
       icon: <CloudLightning className="w-6 h-6 text-purple-500" />,
       content: (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-300">
+          <p className="text-sm text-secondary">
             Las tormentas eléctricas en zonas abiertas o de gran altitud son extremadamente peligrosas. El rayo busca el camino de menor resistencia hacia la tierra.
           </p>
           <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl">
@@ -127,11 +127,11 @@ export function InhospitableGuide() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
-            <Mountain className="w-8 h-8 text-zinc-400" />
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
+            <Mountain className="w-8 h-8 text-secondary" />
             {t('inhospitableGuide.title', 'Guía Inhóspita')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('inhospitableGuide.subtitle', 'Protocolos de Supervivencia Offline')}
           </p>
         </div>
@@ -141,9 +141,9 @@ export function InhospitableGuide() {
         </div>
       </div>
 
-      <div className="bg-zinc-800/50 border border-white/10 rounded-2xl p-4 flex items-start gap-3">
-        <Info className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-zinc-300">
+      <div className="bg-surface border border-default-token rounded-2xl p-4 flex items-start gap-3">
+        <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+        <p className="text-sm text-secondary">
           {t('inhospitableGuide.intro', 'Esta guía está diseñada para ser consultada sin conexión a internet. Contiene los protocolos críticos de supervivencia para entornos geográficos extremos.')}
         </p>
       </div>
@@ -153,18 +153,18 @@ export function InhospitableGuide() {
           <Card key={section.id} className="overflow-hidden border-white/5">
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full flex items-center justify-between p-4 sm:p-6 bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+              className="w-full flex items-center justify-between p-4 sm:p-6 bg-surface/50 hover:bg-surface transition-colors"
             >
               <div className="flex items-center gap-4">
-                <div className="p-2 bg-zinc-800 rounded-xl border border-white/5">
+                <div className="p-2 bg-elevated rounded-xl border border-default-token">
                   {section.icon}
                 </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">{section.title}</h3>
+                <h3 className="text-lg font-bold text-primary tracking-tight">{section.title}</h3>
               </div>
               {openSection === section.id ? (
-                <ChevronUp className="w-5 h-5 text-zinc-500" />
+                <ChevronUp className="w-5 h-5 text-muted-token" />
               ) : (
-                <ChevronDown className="w-5 h-5 text-zinc-500" />
+                <ChevronDown className="w-5 h-5 text-muted-token" />
               )}
             </button>
             
@@ -173,7 +173,7 @@ export function InhospitableGuide() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="border-t border-white/5 bg-zinc-900/30"
+                className="border-t border-default-token bg-surface/30"
               >
                 <div className="p-4 sm:p-6">
                   {section.content}

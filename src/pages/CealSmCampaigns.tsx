@@ -121,7 +121,7 @@ export function CealSmCampaigns() {
   if (!selectedProject) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="ceal-page-empty">
-        <p className="text-zinc-400 text-sm">
+        <p className="text-muted-token text-sm">
           {t('protocols_minsal.select_project', 'Selecciona un proyecto para gestionar el protocolo.')}
         </p>
       </div>
@@ -163,11 +163,11 @@ export function CealSmCampaigns() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" data-testid="ceal-page">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Brain className="w-8 h-8 text-violet-400" />
             {t('ceal_sm.title', 'CEAL-SM / SUSESO')}
           </h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-2">
+          <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] mt-2">
             {t('ceal_sm.subtitle', 'Vigilancia de riesgos psicosociales — Protocolo MINSAL 2022')}
           </p>
         </div>
@@ -214,13 +214,13 @@ export function CealSmCampaigns() {
       </div>
 
       {showForm && (
-        <div data-testid="ceal-create-form" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4">
-          <h3 className="text-sm font-bold text-white">
+        <div data-testid="ceal-create-form" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4">
+          <h3 className="text-sm font-bold text-primary">
             {t('ceal_sm.create_title', 'Crear campaña de evaluación')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block sm:col-span-2">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="text-xs font-bold text-secondary uppercase tracking-widest">
                 {t('ceal_sm.campaign_title', 'Título de la campaña')}
               </span>
               <input
@@ -229,11 +229,11 @@ export function CealSmCampaigns() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t('ceal_sm.campaign_title_placeholder', 'Ej: Evaluación CEAL-SM 2026 — Faena Norte')}
-                className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="mt-1 w-full bg-elevated border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="text-xs font-bold text-secondary uppercase tracking-widest">
                 {t('ceal_sm.open_at', 'Fecha de apertura')}
               </span>
               <input
@@ -245,7 +245,7 @@ export function CealSmCampaigns() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="text-xs font-bold text-secondary uppercase tracking-widest">
                 {t('ceal_sm.close_at', 'Fecha de cierre')}
               </span>
               <input
@@ -257,7 +257,7 @@ export function CealSmCampaigns() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="text-xs font-bold text-secondary uppercase tracking-widest">
                 {t('ceal_sm.total_workers', 'Dotación del centro de trabajo')}
               </span>
               <input
@@ -267,11 +267,11 @@ export function CealSmCampaigns() {
                 value={totalWorkers || ''}
                 onChange={(e) => setTotalWorkers(Number(e.target.value))}
                 placeholder={t('ceal_sm.total_workers_placeholder', 'Nº total de trabajadores/as')}
-                className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="mt-1 w-full bg-elevated border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </label>
           </div>
-          <p className="text-[10px] text-zinc-500 leading-relaxed">
+          <p className="text-[10px] text-muted-token leading-relaxed">
             {t('ceal_sm.total_workers_hint', 'La dotación es el denominador de la participación: el Protocolo exige que responda al menos el 60% para que la evaluación sea válida.')}
           </p>
           <button
@@ -292,8 +292,8 @@ export function CealSmCampaigns() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Campaign list */}
-        <div data-testid="ceal-campaign-list" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+        <div data-testid="ceal-campaign-list" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6">
+          <h3 className="text-sm font-bold text-primary mb-4 flex items-center gap-2">
             <Users className="w-4 h-4 text-violet-400" />
             {t('ceal_sm.campaigns_title', 'Campañas')}
           </h3>
@@ -302,7 +302,7 @@ export function CealSmCampaigns() {
               <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
             </div>
           ) : campaigns.length === 0 ? (
-            <p data-testid="ceal-campaigns-empty" className="text-xs text-zinc-500">
+            <p data-testid="ceal-campaigns-empty" className="text-xs text-muted-token">
               {t('ceal_sm.campaigns_empty', 'Aún no hay campañas CEAL-SM en este proyecto.')}
             </p>
           ) : (
@@ -323,12 +323,12 @@ export function CealSmCampaigns() {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-white line-clamp-1">{c.title}</span>
+                        <span className="text-xs font-bold text-primary line-clamp-1">{c.title}</span>
                         <span
                           className={`text-[10px] font-black px-2 py-0.5 rounded ${
                             c.status === 'open'
                               ? 'bg-emerald-500/10 text-emerald-400'
-                              : 'bg-zinc-700 text-zinc-300'
+                              : 'bg-elevated text-secondary'
                           }`}
                         >
                           {c.status === 'open'
@@ -336,11 +336,11 @@ export function CealSmCampaigns() {
                             : t('ceal_sm.status_closed', 'CERRADA')}
                         </span>
                       </div>
-                      <p className="text-[10px] text-zinc-500">
+                      <p className="text-[10px] text-muted-token">
                         {formatDate(c.openAt)} → {formatDate(c.closeAt)}
                       </p>
                       <div>
-                        <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
+                        <div className="flex justify-between text-[10px] text-secondary mb-1">
                           <span>
                             {t('ceal_sm.participation', 'Participación')}: {c.responseCount}/{c.totalWorkers} ({pct(c.participationRate)})
                           </span>
@@ -350,7 +350,7 @@ export function CealSmCampaigns() {
                               : t('ceal_sm.below_60', '<60%')}
                           </span>
                         </div>
-                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
                           <div
                             className={`h-full ${validityOk ? 'bg-emerald-500' : 'bg-orange-500'}`}
                             style={{ width: `${Math.min(100, participation * 100)}%` }}
@@ -366,12 +366,12 @@ export function CealSmCampaigns() {
         </div>
 
         {/* Results */}
-        <div data-testid="ceal-results-panel" className="lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4">
-          <h3 className="text-sm font-bold text-white">
+        <div data-testid="ceal-results-panel" className="lg:col-span-2 bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4">
+          <h3 className="text-sm font-bold text-primary">
             {t('ceal_sm.results_title', 'Resultados del centro de trabajo')}
           </h3>
           {!selectedId ? (
-            <p data-testid="ceal-results-none" className="text-xs text-zinc-500">
+            <p data-testid="ceal-results-none" className="text-xs text-muted-token">
               {t('ceal_sm.results_select', 'Selecciona una campaña para ver sus resultados agregados.')}
             </p>
           ) : resultsLoading ? (
@@ -412,8 +412,8 @@ export function CealSmCampaigns() {
                 >
                   {t(`ceal_sm.center_risk_${results.result.centerRisk}`)}
                 </span>
-                <span className="text-xs text-zinc-400">
-                  {t('ceal_sm.center_score', 'Puntaje del centro')}: <b className="text-white">{results.result.centerScore}</b> (−24 a +24)
+                <span className="text-xs text-secondary">
+                  {t('ceal_sm.center_score', 'Puntaje del centro')}: <b className="text-primary">{results.result.centerScore}</b> (−24 a +24)
                 </span>
                 <span
                   data-testid="ceal-validity-badge"
@@ -431,19 +431,19 @@ export function CealSmCampaigns() {
 
               {/* Semáforo por dimensión */}
               <div data-testid="ceal-semaforo" className="space-y-2">
-                <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                <h4 className="text-[10px] font-black text-muted-token uppercase tracking-widest">
                   {t('ceal_sm.semaforo_title', 'Semáforo por dimensión (% de trabajadores/as por nivel de riesgo)')}
                 </h4>
                 {results.result.dimensions.map((d) => (
                   <div key={d.dimensionId} data-testid={`ceal-dim-${d.dimensionId}`} className="space-y-1">
                     <div className="flex justify-between items-center gap-2">
-                      <span className="text-xs text-zinc-300">{d.name}</span>
-                      <span className="text-[10px] text-zinc-500 shrink-0">
+                      <span className="text-xs text-secondary">{d.name}</span>
+                      <span className="text-[10px] text-muted-token shrink-0">
                         {d.centerPoints > 0 ? `+${d.centerPoints}` : d.centerPoints} pts ·{' '}
                         {d.percentages.alto}% {t('ceal_sm.in_alto', 'en alto')}
                       </span>
                     </div>
-                    <div className="h-2.5 w-full bg-zinc-800 rounded-full overflow-hidden flex">
+                    <div className="h-2.5 w-full bg-elevated rounded-full overflow-hidden flex">
                       {(['bajo', 'medio', 'alto'] as const).map((level) => (
                         <div
                           key={level}
@@ -459,12 +459,12 @@ export function CealSmCampaigns() {
 
               {/* Acciones que exige el protocolo */}
               <div data-testid="ceal-actions">
-                <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <h4 className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                   {t('protocols_minsal.mandated_action', 'Acción que exige el protocolo')}
                 </h4>
                 <ul className="space-y-2">
                   {results.result.requiredActions.map((action, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-xs text-zinc-300 leading-relaxed">
+                    <li key={idx} className="flex items-start gap-2 text-xs text-secondary leading-relaxed">
                       <AlertTriangle className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-0.5" aria-hidden="true" />
                       {/* Engine actions are es-CL by design (Protocolo MINSAL). */}
                       <span>{action}</span>

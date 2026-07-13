@@ -1,4 +1,11 @@
 import express from "express";
+// express-async-errors monkeypatches Express 4 layer internals so that
+// async route handlers that throw (or reject) automatically forward the
+// error to next(err) → global error handler → clean 500.
+// MUST be imported right after express, before any router is constructed.
+// Without this, Express 4 silently hangs on async rejections (e.g. a
+// Firestore outage inside assertProjectMember on the SOS path).
+import 'express-async-errors';
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit
@@ -43,12 +50,9 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { stampCspNonce } from "./src/server/middleware/stampCspNonce.js";
-import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 // Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
 // hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
 // barrier; legacy `typeof` guards stay in place until Sprint 29.
-import { validate } from "./src/server/middleware/validate.js";
-import { z } from "zod";
 import adminRouter from "./src/server/routes/admin.js";
 // Sprint 23 Bucket CC — B2D admin (key management + revenue dashboards).
 import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
@@ -74,6 +78,7 @@ import projectHealthRouter from "./src/server/routes/projectHealth.js";
 // 2026-05-15 — BCN snapshot router (Biblioteca del Congreso Nacional)
 // para BunkerManager offline. Lazy data fetch + cache 1h.
 import { bcnRouter } from "./src/server/routes/bcn.js";
+import normativesRouter from "./src/server/routes/normatives.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -115,6 +120,7 @@ import emergencyRouter from "./src/server/routes/emergency.js";
 import incidentsRouter from "./src/server/routes/incidents.js";
 import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
+import documentsRouter from "./src/server/routes/documents.js";
 // Sprint 31 Bucket PP — DS 67 (Reglamento Interno) + DS 76 (Subcontratación
 // Mining) PDF generators. Mounted under /api/compliance so the URL space
 // matches Ley 19.628 endpoints (one compliance surface, not two).
@@ -345,6 +351,8 @@ import aiGuardrailsRouter from "./src/server/routes/aiGuardrails.js";
 import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
 // Behavior-Based Safety — Sprint K (anonymous observation + profile).
 import bbsRouter from "./src/server/routes/bbs.js";
+// Safety Posts — audited mural/safety_posts write endpoint (replaces client direct write).
+import safetyPostsRouter from "./src/server/routes/safetyPosts.js";
 // Critical Roles — Sprint K §271-275 (bus-factor + sustitutos + training plan).
 import criticalRolesRouter from "./src/server/routes/criticalRoles.js";
 // Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
@@ -421,6 +429,8 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
+import { setupRoleClaimsSync } from "./src/server/triggers/roleClaimsSync.js";
+import { setupAssignedSitesSync } from "./src/server/triggers/assignedSitesSync.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import { makeSystemEventAuditor, setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
 import { gracefulShutdown } from "./src/server/lifecycle.js";
@@ -518,7 +528,7 @@ try {
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // Read Firebase Config once at startup FIRST
-let firebaseConfig: any = null;
+let firebaseConfig: { projectId?: string; firestoreDatabaseId?: string } | null = null;
 try {
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
@@ -530,22 +540,56 @@ try {
 
 // Initialize Firebase Admin
 try {
+  // E2E/emulator detection. The Firestore emulator namespaces data by projectId
+  // and only serves the DEFAULT database. The test seed (tests/e2e/fixtures/
+  // seed.ts) writes under GOOGLE_CLOUD_PROJECT (= demo-test) on the default DB.
+  // To let Express read what the seed wrote, honor that projectId and skip the
+  // named-database override whenever FIRESTORE_EMULATOR_HOST is set. This is
+  // NEVER true in production (the env var is only set by the E2E harness), so
+  // the prod path below is unchanged.
+  const usingFirestoreEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+
   if (!admin.apps.length) {
-    const initConfig: any = {
-      credential: admin.credential.applicationDefault(),
-    };
-    if (firebaseConfig?.projectId) {
-      initConfig.projectId = firebaseConfig.projectId;
+    const initConfig: any = {};
+    // Under the Firestore emulator, skip applicationDefault(): with no ADC it
+    // probes the GCE metadata server on the first Firestore op and blocks ~6s
+    // (the metadata timeout) before falling back — enough to push a life-safety
+    // SOS write past the client's 7s fail-fast (and time out the E2E). The
+    // emulator needs no real credential; firebase-admin uses its emulator stub.
+    if (!usingFirestoreEmulator) {
+      initConfig.credential = admin.credential.applicationDefault();
+    }
+    // Under the Firestore emulator, initialize admin with GOOGLE_CLOUD_PROJECT —
+    // the project the E2E seed (firebase-admin) and the browser client both
+    // target — so all three share ONE emulator namespace. Using the
+    // applet-config projectId here points the server at a different (empty)
+    // emulator project, so every membership/Firestore read fails (403). In
+    // production (no emulator) the applet-config projectId stays authoritative.
+    const adminProjectId = usingFirestoreEmulator
+      ? process.env.GOOGLE_CLOUD_PROJECT || firebaseConfig?.projectId
+      : firebaseConfig?.projectId;
+    if (adminProjectId) {
+      initConfig.projectId = adminProjectId;
     }
     admin.initializeApp(initConfig);
   }
 
-  // Override admin.firestore() to always return the correct database instance
-  if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
+  // Override admin.firestore() to always return the correct database instance.
+  // Skipped under the Firestore emulator: the emulator and the E2E seed/client
+  // all use the default database, so applying the named-DB override would point
+  // the server at a different (empty) DB than where the data lives, hanging
+  // every Firestore op. In production FIRESTORE_EMULATOR_HOST is never set, so
+  // the named DB is selected exactly as before.
+  if (
+    !usingFirestoreEmulator &&
+    firebaseConfig?.firestoreDatabaseId &&
+    firebaseConfig.firestoreDatabaseId !== '(default)'
+  ) {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
 
-    const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
+    const databaseId = firebaseConfig.firestoreDatabaseId;
+    const firestoreWrapper = () => getFirestore(admin.app(), databaseId);
     Object.assign(firestoreWrapper, originalFirestore);
 
     Object.defineProperty(admin, 'firestore', {
@@ -655,6 +699,18 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   );
 });
 
+// SEO: serve robots.txt and sitemap.xml with correct MIME types so crawlers
+// read real directives instead of the SPA shell. Same pattern as .well-known:
+// explicit sendFile mounted above the Vite/SPA middleware.
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(process.cwd(), 'public/robots.txt'));
+});
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml');
+  res.sendFile(path.resolve(process.cwd(), 'public/sitemap.xml'));
+});
+
 // Public health probe for Cloud Run / Marketplace listing health checks.
 // Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
 // limiter and verifyAuth — Cloud Run probes hit this endpoint frequently
@@ -680,6 +736,7 @@ app.use("/api/maintenance", maintenanceRouter);
 // the mandated assertProjectMember gate (ProjectHealthCheck.tsx consumer
 // survived the removal and was POSTing into a 404).
 app.use("/api/projects", projectHealthRouter);
+app.use("/api/projects", documentsRouter);
 // 2026-05-15 — BCN snapshot endpoint para BunkerManager offline. Fetcha
 // leyes REALES desde la Biblioteca del Congreso Nacional. Cacheado 1h.
 // Public (no requiere auth) porque las leyes son contenido público —
@@ -755,6 +812,14 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many requests from this IP, please try again after 15 minutes",
+  // E2E full-stack: the whole Playwright suite funnels every spec's API
+  // traffic through ONE runner IP, blowing this 100/15min bucket before the
+  // alphabetically-last specs run (webauthn-challenge asserted 401 and got
+  // 429 — CI-only, since a filtered local run starts a fresh bucket). Skip
+  // ONLY under E2E_MODE outside production — the prod cap is untouched, and
+  // NODE_ENV=production + E2E_MODE=1 is already a fatal boot error
+  // (verifyAuth startup guard). Same pattern as sosLimiter (#1196).
+  skip: () => process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production',
   // Sprint 39 audit fix — Firestore-backed para multi-replica.
   store: makeRateLimitStore('api:'),
 });
@@ -940,6 +1005,11 @@ app.use('/api', wisdomCapsuleRouter);
 // and /api/invitations.
 app.use('/api/projects', projectsRouter);
 app.use('/api/invitations', invitationsRouter);
+
+// Bloque E3 — audited, server-side normatives seed (POST /api/normatives/seed).
+// Replaces the client `addDoc` seed that wrote the public legal-library
+// metadata without an audit_logs row (CLAUDE.md #3). Admin-gated, idempotent.
+app.use('/api/normatives', normativesRouter);
 
 // Round 19 R2 Phase 4 split — gamification (points/leaderboard/check-medals)
 // + AI Safety Coach (coach/chat with assertProjectMemberFromBody guard)
@@ -1164,6 +1234,7 @@ app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
 app.use('/api/sprint-k', raciMatrixRouter);
 app.use('/api/sprint-k', bbsRouter);
+app.use('/api/sprint-k', safetyPostsRouter);
 app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 app.use('/api/sprint-k', changeMgmtRouter);
@@ -1257,7 +1328,20 @@ if (process.env.NODE_ENV !== "production") {
     server: { middlewareMode: true },
     appType: "spa",
   });
-  app.use(vite.middlewares);
+  // Vite's dev middleware includes an SPA fallback that serves index.html for
+  // unmatched GETs (and 404s unmatched POSTs). Mounted before the /api + /billing
+  // routers declared later in this file, it SHADOWS every API mount that follows
+  // (GET /api/billing/* → index.html, POST → 404) — a dev/E2E-only bug, since prod
+  // (NODE_ENV=production) defers its SPA fallback to the very end (see the "SPA
+  // catch-all fallback"). Skip Vite for the server's own route namespaces so those
+  // requests fall through to the real routers below; everything else (SPA routes,
+  // /src modules, @vite client, HMR) still reaches Vite.
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/billing' || req.path.startsWith('/billing/')) {
+      return next();
+    }
+    return vite.middlewares(req, res, next);
+  });
 } else {
   // Sprint 20 13th wave Bucket C — production index.html is read once at
   // boot and cached; per-request work is just swapping the __CSP_NONCE__
@@ -1267,6 +1351,14 @@ if (process.env.NODE_ENV !== "production") {
   // (broken build), fall through to a 503 rather than serving the
   // template literal placeholder to a real browser.
   const distPath = path.join(process.cwd(), 'dist');
+  // Vite emits hashed assets under /assets/ (content hash in filename).
+  // These are immutable — safe to cache for 1 year. PSI flags missing
+  // Cache-Control on these responses; the immutable directive tells the
+  // browser it can skip revalidation entirely.
+  app.use('/assets', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    next();
+  });
   app.use(express.static(distPath, { index: false }));
 
   try {
@@ -1417,7 +1509,7 @@ if (process.env.NODE_ENV === "production") {
     // Global replace: even though there's only one __CSP_NONCE__ hit
     // today, future template additions can include the placeholder
     // anywhere and still get substituted in a single pass.
-    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    const html = stampCspNonce(INDEX_HTML_TEMPLATE, nonce);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   });
@@ -1454,6 +1546,8 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
+let roleClaimsSyncHandle: { unsubscribe: () => void } | null = null;
+let assignedSitesSyncHandle: { unsubscribe: () => void } | null = null;
 let mqttBridgeHandle: MqttBridgeHandle | null = null;
 
 // AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
@@ -1481,6 +1575,31 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       onEvent: makeSystemEventAuditor(admin.firestore(), () =>
         admin.firestore.FieldValue.serverTimestamp(),
       ),
+    });
+
+    // M-1 / F7 enabler — mirror users/{uid}.role into the `role` custom
+    // claim (Storage rules cannot read Firestore; the claim is their only
+    // role signal, and no normal flow minted it). Idempotent, self-healing
+    // on every boot (initial snapshot = natural backfill), zero Auth I/O in
+    // steady state via the claimsSync mirror stamp; lifecycle-locked claims
+    // (inactive/anonymized) are never overwritten. See roleClaimsSync.ts.
+    roleClaimsSyncHandle = setupRoleClaimsSync({
+      db: admin.firestore(),
+      auth: admin.auth(),
+      firestoreNamespace: admin.firestore,
+    });
+
+    // M-1 Fase 4 (cierre total de storage) — mirror projects/{pid}.members
+    // (+ createdBy) into each member's `assignedSiteIds` custom claim. Storage
+    // rules cannot read Firestore; this claim is memberOfSite()'s only signal
+    // and NO flow minted it (buildClaimsWithAssignedSites was orphaned), so the
+    // old escape hatch left EVERY project's files cross-tenant readable. Now
+    // storage.rules is fail-closed and this trigger makes the claim REAL.
+    // Idempotent, boot snapshot = natural backfill. See assignedSitesSync.ts.
+    assignedSitesSyncHandle = setupAssignedSitesSync({
+      db: admin.firestore(),
+      auth: admin.auth(),
+      firestoreNamespace: admin.firestore,
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).
@@ -1539,6 +1658,8 @@ process.on('SIGTERM', () => {
       () => triggersHandle?.unsubscribe(),
       () => healthHandle?.stop(),
       () => systemEngineHandle?.unsubscribe(),
+      () => roleClaimsSyncHandle?.unsubscribe(),
+      () => assignedSitesSyncHandle?.unsubscribe(),
       // Sprint 27 (audit P0 H10) — clear the env polling interval too.
       () => clearInterval(environmentalPollingHandle),
       // claude/mqtt-wire — release the MQTT bridge subscription + client.

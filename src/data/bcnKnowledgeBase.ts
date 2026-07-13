@@ -39,9 +39,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
   },
   {
     id: "ds-40",
-    title: "Decreto Supremo 40",
-    description: "Reglamento sobre prevención de riesgos profesionales.",
-    content: `El DS 44/2024 aprueba el reglamento sobre prevención de riesgos profesionales.
+    title: "Decreto Supremo 44/2024 (reemplaza al DS 40/1969, derogado 01-02-2025)",
+    description: "Reglamento sobre prevención de riesgos profesionales (DS 44/2024; ex DS 40/1969 derogado).",
+    content: `El DS 44/2024 aprueba el reglamento sobre prevención de riesgos profesionales (reemplaza al DS 40/1969, derogado desde 01-02-2025).
     - Departamento de Prevención de Riesgos: Toda empresa que ocupe a más de 100 trabajadores deberá contar con un Departamento de Prevención de Riesgos Profesionales.
     - Obligación de Informar (ODI): Los empleadores tienen la obligación de informar oportuna y convenientemente a todos sus trabajadores acerca de los riesgos que entrañan sus labores, de las medidas preventivas y de los métodos de trabajo correctos.
     - Reglamento Interno: Las empresas deben mantener al día un Reglamento Interno de Seguridad e Higiene en el Trabajo.`,
@@ -51,9 +51,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
   },
   {
     id: "ds-54",
-    title: "Decreto Supremo 54",
-    description: "Reglamento para la constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad.",
-    content: `El DS 54 regula los Comités Paritarios.
+    title: "Decreto Supremo 44/2024 — Comités Paritarios (ex DS 54/1969, derogado 01-02-2025)",
+    description: "Constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad. Materia antes regida por el DS 54/1969, hoy derogado y reemplazado por el DS 44/2024.",
+    content: `El DS 44/2024 regula hoy los Comités Paritarios (ex DS 54/1969, derogado desde 01-02-2025).
     - Constitución: En toda empresa, faena, sucursal o agencia en que trabajen más de 25 personas se organizarán Comités Paritarios de Higiene y Seguridad.
     - Composición: Estarán compuestos por tres representantes patronales y tres representantes de los trabajadores.
     - Funciones: Asesorar e instruir a los trabajadores para la correcta utilización de los instrumentos de protección; vigilar el cumplimiento, tanto por parte de las empresas como de los trabajadores, de las medidas de prevención, higiene y seguridad; investigar las causas de los accidentes del trabajo y enfermedades profesionales.`,

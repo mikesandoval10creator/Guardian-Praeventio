@@ -120,11 +120,11 @@ export function CQRSArchitecture() {
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
               <Layers className="w-8 h-8 text-fuchsia-500" aria-hidden="true" />
               {t('cqrs.title', 'Arquitectura CQRS')}
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+            <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
               {t('cqrs.subtitle', 'Event Store + Read Models — métricas en vivo')}
             </p>
           </div>
@@ -152,9 +152,9 @@ export function CQRSArchitecture() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Topología real */}
-          <Card className="p-6 border-white/5 lg:col-span-2 space-y-6">
+          <Card className="p-6 border-default-token lg:col-span-2 space-y-6">
             <div className="flex justify-between items-center flex-wrap gap-2">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
                 <Server className="w-5 h-5 text-fuchsia-500" aria-hidden="true" />
                 {t('cqrs.topologySection', 'Topología del sistema')}
               </h2>
@@ -186,10 +186,10 @@ export function CQRSArchitecture() {
               </div>
             </div>
 
-            <div className="relative h-[360px] bg-zinc-950 rounded-xl border border-white/5 p-8 flex flex-col justify-between">
+            <div className="relative h-[360px] bg-elevated rounded-xl border border-default-token p-8 flex flex-col justify-between">
               <div className="flex justify-center">
-                <div className="px-6 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white font-bold flex items-center gap-2 z-10">
-                  <Activity className="w-5 h-5 text-zinc-400" aria-hidden="true" />
+                <div className="px-6 py-3 bg-surface border border-default-token rounded-xl text-primary-token font-bold flex items-center gap-2 z-10">
+                  <Activity className="w-5 h-5 text-muted-token" aria-hidden="true" />
                   {t('cqrs.layerClients', 'Clientes (Web / Móvil)')}
                 </div>
               </div>
@@ -200,10 +200,10 @@ export function CQRSArchitecture() {
                     <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
                     {t('cqrs.commandSide', 'Command handlers')}
                   </div>
-                  <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
+                  <div className="p-4 bg-surface border border-default-token rounded-full">
                     <Database className="w-7 h-7 text-rose-500" aria-hidden="true" />
                   </div>
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-center">
+                  <span className="text-xs font-bold text-muted-token uppercase tracking-widest text-center">
                     {t('cqrs.eventStoreLabel', 'Event Store')}
                   </span>
                   <span
@@ -212,7 +212,7 @@ export function CQRSArchitecture() {
                   >
                     {metrics?.totalEvents ?? '—'}
                   </span>
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                  <span className="text-[9px] text-muted-token uppercase tracking-wider">
                     {t('cqrs.eventsLabel', 'eventos')}
                   </span>
                 </div>
@@ -222,10 +222,10 @@ export function CQRSArchitecture() {
                     <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
                     {t('cqrs.querySide', 'Query handlers')}
                   </div>
-                  <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
+                  <div className="p-4 bg-surface border border-default-token rounded-full">
                     <HardDrive className="w-7 h-7 text-emerald-500" aria-hidden="true" />
                   </div>
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-center">
+                  <span className="text-xs font-bold text-muted-token uppercase tracking-widest text-center">
                     {t('cqrs.readModelLabel', 'Read Model')}
                   </span>
                   <span
@@ -234,7 +234,7 @@ export function CQRSArchitecture() {
                   >
                     {metrics?.readModelAggregateCount ?? '—'}
                   </span>
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                  <span className="text-[9px] text-muted-token uppercase tracking-wider">
                     {t('cqrs.aggregatesLabel', 'aggregates')}
                   </span>
                 </div>
@@ -269,8 +269,8 @@ export function CQRSArchitecture() {
           </Card>
 
           {/* Métricas reales */}
-          <Card className="p-6 border-white/5 space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Activity className="w-5 h-5 text-fuchsia-500" aria-hidden="true" />
               {t('cqrs.metricsSection', 'Métricas en vivo')}
             </h2>
@@ -304,8 +304,8 @@ export function CQRSArchitecture() {
               colorClass="text-fuchsia-400"
             />
 
-            <div className="pt-2 border-t border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+            <div className="pt-2 border-t border-default-token">
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1.5">
                 {t('cqrs.eventTypesLabel', 'Tipos de evento')}
               </p>
               {metrics?.eventTypesSeen && metrics.eventTypesSeen.length > 0 ? (
@@ -316,14 +316,14 @@ export function CQRSArchitecture() {
                   {metrics.eventTypesSeen.map((t) => (
                     <li
                       key={t}
-                      className="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-400 font-mono"
+                      className="px-2 py-0.5 rounded-full bg-surface border border-default-token text-[10px] text-secondary-token font-mono"
                     >
                       {t}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs italic text-zinc-500">
+                <p className="text-xs italic text-muted-token">
                   {t(
                     'cqrs.eventTypesEmpty',
                     'Aún no hay eventos — usa "Append demo event" para empezar.',
@@ -348,8 +348,8 @@ interface MetricRowProps {
 
 function MetricRow({ testId, label, value, suffix, colorClass }: MetricRowProps) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+    <div className="p-3 rounded-xl bg-surface border border-default-token">
+      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
         {label}
       </p>
       <div className="flex items-end gap-2">
@@ -359,7 +359,7 @@ function MetricRow({ testId, label, value, suffix, colorClass }: MetricRowProps)
         >
           {value !== undefined ? value.toLocaleString() : '—'}
         </p>
-        {suffix && <p className="text-xs text-zinc-500 mb-0.5">{suffix}</p>}
+        {suffix && <p className="text-xs text-muted-token mb-0.5">{suffix}</p>}
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ export function Audits() {
             <ClipboardCheck className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-950 dark:text-white">{t('audits.title')}</h1>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-primary-token">{t('audits.title')}</h1>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('audits.subtitle')}</p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function Audits() {
           <button
             onClick={() => setView('history')}
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-              view === 'history' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+              view === 'history' ? 'bg-white dark:bg-zinc-700 text-primary-token shadow-sm' : 'text-muted-token hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             {t('audits.tab_history')}
@@ -80,7 +80,7 @@ export function Audits() {
           <button
             onClick={() => setView('inspection')}
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-              view === 'inspection' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+              view === 'inspection' ? 'bg-white dark:bg-zinc-700 text-primary-token shadow-sm' : 'text-muted-token hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             {t('audits.tab_inspection')}
@@ -88,7 +88,7 @@ export function Audits() {
           <button
             onClick={() => setView('iso')}
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-              view === 'iso' ? 'bg-indigo-500 text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+              view === 'iso' ? 'bg-indigo-500 text-white shadow-sm' : 'text-muted-token hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             {t('audits.tab_iso')}
@@ -148,13 +148,13 @@ export function Audits() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl p-3 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm"
+                  className="bg-elevated backdrop-blur-sm rounded-2xl p-3 border border-default-token shadow-sm"
                 >
                   <div className={`w-7 h-7 rounded-lg ${stat.bg} flex items-center justify-center mb-2`}>
                     <stat.icon className={`w-4 h-4 ${stat.color}`} />
                   </div>
                   <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">{stat.label}</p>
-                  <p className="text-xl font-black text-zinc-900 dark:text-white tracking-tighter">{stat.value}</p>
+                  <p className="text-xl font-black text-primary-token tracking-tighter">{stat.value}</p>
                 </motion.div>
               ))}
             </div>
@@ -168,11 +168,11 @@ export function Audits() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={t('audits.search_placeholder')}
-                  className="w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl pl-11 pr-4 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full bg-elevated backdrop-blur-sm border border-default-token rounded-xl pl-11 pr-4 py-2.5 text-xs text-primary-token focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
               </div>
-              <button className="p-2.5 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
-                <Filter className="w-4 h-4" />
+              <button aria-label="Filtrar auditorías" className="p-2.5 bg-elevated backdrop-blur-sm border border-default-token rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                <Filter aria-hidden="true" className="w-4 h-4" />
               </button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -200,7 +200,7 @@ export function Audits() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     onClick={() => setSelectedAudit(audit)}
-                    className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm group hover:border-blue-500/30 transition-all cursor-pointer"
+                    className="bg-elevated backdrop-blur-sm rounded-2xl p-4 border border-default-token shadow-sm group hover:border-blue-500/30 transition-all cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
@@ -208,7 +208,7 @@ export function Audits() {
                           <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${
                             audit.metadata.type === 'Externa' ? 'bg-indigo-500 text-white' : 
                             audit.metadata.type === 'Certificación' ? 'bg-amber-500 text-white' :
-                            'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                            'bg-zinc-100 dark:bg-zinc-800 text-secondary-token'
                           }`}>
                             {audit.metadata.type || t('audits.type_internal')}
                           </span>
@@ -218,20 +218,20 @@ export function Audits() {
                             {audit.metadata.status}
                           </span>
                         </div>
-                        <h3 className="text-sm font-black text-zinc-950 dark:text-white uppercase tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-sm font-black text-primary-token uppercase tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {audit.title}
                         </h3>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-muted-token line-clamp-2 leading-relaxed">
                           {audit.description}
                         </p>
                         <div className="flex items-center gap-4 pt-1">
                           <div className="flex items-center gap-1.5">
                             <User className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">{audit.metadata.auditor || 'N/A'}</span>
+                            <span className="text-[9px] font-bold text-secondary-token uppercase">{audit.metadata.auditor || 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">
+                            <span className="text-[9px] font-bold text-secondary-token uppercase">
                               {audit.metadata.date ? new Date(audit.metadata.date).toLocaleDateString('es-CL') : t('audits.no_date')}
                             </span>
                           </div>
@@ -239,7 +239,7 @@ export function Audits() {
                       </div>
                       <div className="flex flex-col items-end gap-3">
                         <div className="text-right">
-                          <p className="text-[10px] font-black text-zinc-900 dark:text-white tracking-tighter">{audit.metadata.score || 0}%</p>
+                          <p className="text-[10px] font-black text-primary-token tracking-tighter">{audit.metadata.score || 0}%</p>
                           <p className="text-[7px] font-bold text-zinc-400 uppercase tracking-widest">{t('audits.compliance')}</p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
@@ -248,7 +248,7 @@ export function Audits() {
                   </motion.div>
                 ))
               ) : (
-                <div className="text-center py-12 bg-white/50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                <div className="text-center py-12 bg-white/50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-default-token">
                   <ClipboardCheck className="w-12 h-12 text-zinc-200 dark:text-zinc-700 mx-auto mb-4" />
                   <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('audits.empty_title')}</p>
                   <p className="text-[10px] text-zinc-400 mt-1">{t('audits.empty_subtitle')}</p>

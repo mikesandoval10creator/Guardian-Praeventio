@@ -36,6 +36,7 @@ import {
   PlusCircle,
   ShieldCheck,
   WifiOff,
+  Wrench,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -46,9 +47,23 @@ import {
   type IncidentListItem,
   type IncidentTrendDirection,
 } from '../hooks/useIncidentTrends';
-import { useIncidentFlowStatus } from '../hooks/useIncidentFlow';
+import { useIncidentFlowStatus, type IncidentReportPayload } from '../hooks/useIncidentFlow';
 import { IncidentReportForm } from '../components/incidentFlow/IncidentReportForm';
 import { AssignedMicrotrainingCard } from '../components/incidentFlow/AssignedMicrotrainingCard';
+// Bloque D Rama 3 — LightningTrainingPlayer was a phantom mount (built +
+// render-ratchet-baselined but never JSX-rendered): the card's start button
+// stayed permanently disabled because no page ever passed `onLaunch`. The
+// player now opens as a modal from the card, closing assign→train→certify.
+import { LightningTrainingPlayer } from '../components/microtraining/LightningTrainingPlayer';
+import { useMicrotrainingCatalog } from '../hooks/useMicrotraining';
+import {
+  isPassing,
+  shouldCertify,
+  type MicroTrainingModule,
+} from '../services/microtraining/lightningTrainingService';
+import { InvestigationPanel } from '../components/incidentFlow/InvestigationPanel';
+import { LessonPublishForm } from '../components/incidentFlow/LessonPublishForm';
+import { PDCAClosePanel } from '../components/incidentFlow/PDCAClosePanel';
 
 // ────────────────────────────────────────────────────────────────────────
 // Visual helpers (puros)
@@ -96,6 +111,25 @@ const TREND_TONE: Record<IncidentTrendDirection, string> = {
   worsening: 'text-rose-600 dark:text-rose-400',
 };
 
+/** Normaliza la severidad libre del listado al union del payload de reporte. */
+function normalizeSeverity(sev: string | null): IncidentReportPayload['severity'] {
+  const s = (sev ?? '').trim().toLowerCase();
+  if (s === 'info') return 'info';
+  if (s === 'low' || s === 'baja') return 'low';
+  if (s === 'high' || s === 'alta') return 'high';
+  if (s === 'critical' || s === 'critica' || s === 'crítica') return 'critical';
+  return 'medium';
+}
+
+/** Conclusión de la investigación — alimenta <LessonPublishForm>. */
+type LessonConclusion = {
+  concludedAtIso: string;
+  rootCauseSummary: string;
+  contributingFactor?: string;
+  preventiveActions: string[];
+  closedByUid: string;
+};
+
 // ────────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────────
@@ -110,6 +144,22 @@ export function IncidentFlowHub() {
   const listResp = useIncidentList(projectId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
+  // PDCA management surfaces (investigación / lección / cierre) — colapsadas por
+  // defecto para no recargar la vista del trabajador; el supervisor las abre.
+  const [showManage, setShowManage] = useState(false);
+  // Conclusión capturada por incidente al concluir la investigación; habilita
+  // la publicación de la lección (paso Check del PDCA) con datos reales.
+  const [conclusionByIncident, setConclusionByIncident] = useState<Record<string, LessonConclusion>>({});
+  // Bloque D Rama 3 — LightningTrainingPlayer wiring. The card's onLaunch
+  // resolves a Promise with the worker's result once the player finishes (the
+  // card then POSTs the completion itself). Catalog gives the full module
+  // (content blocks) the player needs; the assignment only carries moduleId.
+  const catalogResp = useMicrotrainingCatalog(projectId);
+  const [playerState, setPlayerState] = useState<{
+    module: MicroTrainingModule;
+    workerUid: string;
+    resolve: (r: { score: number; passed: boolean; certified: boolean } | null) => void;
+  } | null>(null);
 
   const incidents = useMemo<IncidentListItem[]>(
     () => listResp.data?.incidents ?? [],
@@ -351,6 +401,56 @@ export function IncidentFlowHub() {
                         </div>
                       )}
 
+                      {/* Gestión PDCA (supervisor): investigación → conclusión →
+                          publicar lección → cierre. Monta los 3 paneles antes
+                          huérfanos (InvestigationPanel / LessonPublishForm /
+                          PDCAClosePanel). Colapsado por defecto. */}
+                      <div className="pt-1" data-testid="incident-flow-hub-manage">
+                        <button
+                          type="button"
+                          onClick={() => setShowManage((v) => !v)}
+                          aria-expanded={showManage}
+                          data-testid="incident-flow-hub-manage-toggle"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-secondary-token hover:text-primary-token"
+                        >
+                          <Wrench className="w-3.5 h-3.5" aria-hidden="true" />
+                          {showManage
+                            ? t('incidentFlowHub.manage.hide', 'Ocultar gestión PDCA')
+                            : t('incidentFlowHub.manage.show', 'Gestión PDCA (supervisor)')}
+                        </button>
+                        {showManage && (
+                          <div className="mt-2 space-y-3" data-testid="incident-flow-hub-manage-panels">
+                            <PDCAClosePanel projectId={selectedProject.id} incidentId={inc.id} />
+                            {workerUid && (
+                              <InvestigationPanel
+                                projectId={selectedProject.id}
+                                incidentId={inc.id}
+                                investigatorUid={workerUid}
+                                report={{
+                                  incidentId: inc.id,
+                                  occurredAtIso: inc.occurredAt ?? new Date().toISOString(),
+                                  description: inc.summary ?? '',
+                                  severity: normalizeSeverity(inc.severity),
+                                  location: inc.location ?? undefined,
+                                }}
+                                onConcluded={(c) =>
+                                  setConclusionByIncident((prev) => ({ ...prev, [inc.id]: c }))
+                                }
+                              />
+                            )}
+                            {conclusionByIncident[inc.id] && (
+                              <LessonPublishForm
+                                projectId={selectedProject.id}
+                                incidentId={inc.id}
+                                defaultLessonId={`lesson-${inc.id}`}
+                                conclusion={conclusionByIncident[inc.id]}
+                                defaultAudienceUids={[]}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Microcapacitaciones asignadas — monta el huérfano
                           AssignedMicrotrainingCard sobre datos reales. */}
                       {myTrainings.length > 0 && (
@@ -378,6 +478,15 @@ export function IncidentFlowHub() {
                                 assignedAtIso: a.assignedAtIso ?? new Date().toISOString(),
                                 assignedByUid: a.assignedByUid ?? a.workerUid,
                                 derivedFromLessonId: a.derivedFromLessonId ?? a.moduleId,
+                              }}
+                              onLaunch={() => {
+                                const module = catalogResp.data?.modules.find(
+                                  (m) => m.id === a.moduleId,
+                                );
+                                if (!module) return Promise.resolve(null);
+                                return new Promise((resolve) =>
+                                  setPlayerState({ module, workerUid: a.workerUid, resolve }),
+                                );
                               }}
                             />
                           ))}
@@ -451,6 +560,44 @@ export function IncidentFlowHub() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Bloque D Rama 3 — the (formerly phantom) LightningTrainingPlayer,
+          opened by AssignedMicrotrainingCard's start button. Closing without
+          finishing resolves null (the card simply re-enables). */}
+      {playerState && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4"
+          data-testid="lightning-player-modal"
+        >
+          <div className="relative w-full max-w-lg">
+            <button
+              type="button"
+              data-testid="lightning-player-close"
+              aria-label={t('common.close', 'Cerrar')}
+              onClick={() => {
+                playerState.resolve(null);
+                setPlayerState(null);
+              }}
+              className="absolute -top-3 -right-3 z-10 rounded-full bg-zinc-900 text-white w-8 h-8 flex items-center justify-center border border-white/20 hover:bg-zinc-700"
+            >
+              ×
+            </button>
+            <LightningTrainingPlayer
+              module={playerState.module}
+              workerUid={playerState.workerUid}
+              onComplete={(session) => {
+                const score = session.score ?? 0;
+                playerState.resolve({
+                  score,
+                  passed: isPassing(score),
+                  certified: shouldCertify({ ...session, score }, playerState.module),
+                });
+                setPlayerState(null);
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

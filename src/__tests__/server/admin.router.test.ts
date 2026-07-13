@@ -12,6 +12,9 @@ import request from 'supertest';
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
   roles: {} as Record<string, string | undefined>,
+  // M-1: full custom-claim objects per uid (overrides `roles` when set) so
+  // tests can pin that set-role PRESERVES non-role claims (tenantId, ...).
+  claims: {} as Record<string, Record<string, unknown> | undefined>,
   setClaims: vi.fn(async (_uid: string, _claims: unknown) => {}),
   revoke: vi.fn(async (_uid: string) => {}),
 }));
@@ -19,7 +22,7 @@ const H = vi.hoisted(() => ({
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
   const auth = {
-    getUser: async (uid: string) => ({ uid, customClaims: { role: H.roles[uid] } }),
+    getUser: async (uid: string) => ({ uid, customClaims: H.claims[uid] ?? { role: H.roles[uid] } }),
     setCustomUserClaims: (uid: string, claims: unknown) => H.setClaims(uid, claims),
     revokeRefreshTokens: (uid: string) => H.revoke(uid),
   };
@@ -74,6 +77,7 @@ beforeEach(() => {
   H.db = createFakeFirestore();
   H.roles = { admin1: 'admin', worker1: 'operario', gerente1: 'gerente' };
   H.setClaims.mockReset().mockResolvedValue(undefined as never);
+  H.claims = {};
   H.revoke.mockReset().mockResolvedValue(undefined as never);
   vi.mocked(replicateCriticalData).mockClear();
   vi.mocked(runWeeklyDigest).mockClear();
@@ -104,6 +108,23 @@ describe('POST /api/admin/set-role — privilege escalation guard', () => {
     expect(H.revoke).toHaveBeenCalledWith('u2'); // force re-auth
     const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
     expect(auditKeys.length).toBe(1);
+  });
+
+  it('M-1: set-role PRESERVES existing custom claims (tenantId survives a role change)', async () => {
+    // setCustomUserClaims OVERWRITES the whole claim object server-side; a bare
+    // { role } here would silently drop the tenant binding and re-break the 61
+    // tenant-guarded routers (audit 2026-07-02 §2). Pin the merge.
+    H.claims['u9'] = { role: 'worker', tenantId: 'tenant-u9', assignedSiteIds: ['site-1'] };
+    const res = await request(buildApp())
+      .post('/api/admin/set-role')
+      .set(asUser('admin1'))
+      .send({ uid: 'u9', role: 'prevencionista' });
+    expect(res.status).toBe(200);
+    expect(H.setClaims).toHaveBeenCalledWith('u9', {
+      role: 'prevencionista',
+      tenantId: 'tenant-u9',
+      assignedSiteIds: ['site-1'],
+    });
   });
 
   it('400 invalid uid', async () => {

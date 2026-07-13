@@ -165,10 +165,10 @@ export function LegalCalendar() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
             <CalendarDays className="w-6 h-6 text-teal-500" /> {t('legal_calendar.title', 'Calendario legal')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+          <p className="text-xs text-muted-token mt-1 max-w-2xl">
             {t(
               'legal_calendar.subtitle',
               'Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 44/2024 / Ley 16.744.',
@@ -177,11 +177,11 @@ export function LegalCalendar() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('legal_calendar.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-500">
+          <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
@@ -198,7 +198,7 @@ export function LegalCalendar() {
                 backend (and any auditor portal) sees. Honest empty/error
                 states — never fabricated rows. */}
             <section
-              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3"
+              className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-4 space-y-3"
               data-testid="legal-calendar-server-section"
               aria-label={
                 t(
@@ -208,7 +208,7 @@ export function LegalCalendar() {
               }
             >
               <header className="flex items-center justify-between gap-2">
-                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                <h2 className="text-xs font-black text-muted-token uppercase tracking-widest">
                   {t(
                     'legal_calendar.server_section.heading',
                     'Próximas obligaciones (servidor)',
@@ -216,7 +216,7 @@ export function LegalCalendar() {
                 </h2>
                 {serverUpcoming && (
                   <span
-                    className="text-[10px] font-bold text-zinc-400 tabular-nums"
+                    className="text-[10px] font-bold text-muted-token tabular-nums"
                     data-testid="legal-calendar-server-window"
                   >
                     {t('legal_calendar.server_section.window', {
@@ -229,7 +229,7 @@ export function LegalCalendar() {
 
               {serverLoading ? (
                 <div
-                  className="flex items-center gap-2 text-xs text-zinc-500"
+                  className="flex items-center gap-2 text-xs text-muted-token"
                   data-testid="legal-calendar-server-loading"
                 >
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -250,7 +250,7 @@ export function LegalCalendar() {
                 </div>
               ) : serverEntries.length === 0 ? (
                 <p
-                  className="text-xs text-zinc-500"
+                  className="text-xs text-muted-token"
                   data-testid="legal-calendar-server-empty"
                 >
                   {t(
@@ -267,13 +267,13 @@ export function LegalCalendar() {
                     <li
                       key={e.id}
                       data-testid={`legal-calendar-server-entry-${e.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-default-token px-3 py-2"
                     >
                       <span className="min-w-0">
-                        <span className="block text-xs font-bold text-zinc-900 dark:text-white truncate">
+                        <span className="block text-xs font-bold text-primary-token truncate">
                           {e.label}
                         </span>
-                        <span className="block text-[10px] text-zinc-500 truncate">
+                        <span className="block text-[10px] text-muted-token truncate">
                           {e.legalCitation}
                         </span>
                       </span>
@@ -295,11 +295,11 @@ export function LegalCalendar() {
             {/* Summary stats. */}
             {entries.length > 0 && (
               <section className="grid grid-cols-4 gap-3">
-                <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                <div className="rounded-xl border border-default-token bg-white dark:bg-zinc-900/60 p-3">
+                  <p className="text-[10px] font-black text-muted-token uppercase tracking-widest">
                     {t('legal_calendar.summary.total', 'Total')}
                   </p>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">
+                  <p className="text-2xl font-black text-primary-token">
                     {summary.totalObligations}
                   </p>
                 </div>
@@ -332,11 +332,11 @@ export function LegalCalendar() {
 
             {/* Empty state with bootstrap button. */}
             {entries.length === 0 && !loading && (
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 space-y-3 text-center">
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 space-y-3 text-center">
+                <p className="text-sm text-secondary-token">
                   {t('legal_calendar.bootstrap.title', 'Sin obligaciones cargadas para este proyecto.')}
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-token">
                   {t(
                     'legal_calendar.bootstrap.hint',
                     'Bootstrap inicializa el calendario con las obligaciones estándar (auditorías anuales, mediciones semestrales, CPHS mensual, simulacros, etc.) con fechas calculadas desde hoy.',
@@ -361,7 +361,7 @@ export function LegalCalendar() {
 
                 {/* Quick action: marcar cumplida la más próxima. */}
                 <section className="space-y-2">
-                  <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                  <h2 className="text-xs font-black text-muted-token uppercase tracking-widest">
                     {t('legal_calendar.quick_actions.heading', 'Acciones rápidas')}
                   </h2>
                   <ul className="space-y-1.5">

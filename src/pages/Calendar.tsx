@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
@@ -32,6 +32,8 @@ import { AddEventModal } from '../components/calendar/AddEventModal';
 // strings are scoped to a separate i18n sweep, not this file.
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 import { ExternalEventsPanel } from '../components/external-events/ExternalEventsPanel';
+import { ClimatePlanAdjustment } from '../components/climateAware/ClimatePlanAdjustment';
+import type { ScheduledTask, WeatherConditions } from '../services/climateAwareScheduling/climateAwareScheduling';
 import { logger } from '../utils/logger';
 
 interface Event {
@@ -319,6 +321,43 @@ export function Calendar() {
 
   const forecast = getForecast();
 
+  // ── Climate Plan Adjustment (real data from Calendar events + weather) ──
+  // Convert Calendar Event[] → ScheduledTask[] for the climate-aware engine.
+  const taskCategoryMap: Record<Event['type'], ScheduledTask['category']> = {
+    'Inspección': 'excavacion',
+    'Capacitación': 'oficina',
+    'Auditoría': 'oficina',
+    'Reunión': 'oficina',
+  };
+  const scheduledTasks: ScheduledTask[] = useMemo(
+    () =>
+      (allEvents ?? []).map((ev) => ({
+        id: ev.id,
+        category: taskCategoryMap[ev.type] ?? 'oficina',
+        scheduledHour: ev.time ? parseInt(ev.time.split(':')[0], 10) || 8 : 8,
+        outdoor: ev.type === 'Inspección',
+        workerUids: [],
+      })),
+    [allEvents],
+  );
+
+  const climateWeather: WeatherConditions | null = useMemo(() => {
+    if (!weatherData) return null;
+    return {
+      temperatureC: weatherData.temp,
+      humidityPercent: weatherData.humidity,
+      windSpeedMs: (weatherData.windSpeed ?? 0) / 3.6,
+      rainProbability:
+        weatherData.condition?.includes('lluvia') ||
+        weatherData.condition?.includes('tormenta') ||
+        weatherData.condition?.includes('chubasco')
+          ? 0.8
+          : 0.1,
+      uvIndex: weatherData.uv ?? 0,
+      visibilityKm: 10,
+    };
+  }, [weatherData]);
+
   const weekdayShort = [
     t('calendar.weekdays_short.mon'),
     t('calendar.weekdays_short.tue'),
@@ -334,7 +373,7 @@ export function Calendar() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('calendar.page.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('calendar.page.title')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('calendar.page.subtitle')}
           </p>
@@ -346,7 +385,7 @@ export function Calendar() {
               onClick={() => setViewMode('calendar')}
               aria-label={t('calendar.view_toggle.calendar')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                viewMode === 'calendar' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                viewMode === 'calendar' ? 'bg-surface text-primary-token shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -356,7 +395,7 @@ export function Calendar() {
               onClick={() => setViewMode('gantt')}
               aria-label={t('calendar.view_toggle.gantt')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                viewMode === 'gantt' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                viewMode === 'gantt' ? 'bg-surface text-primary-token shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <BarChartHorizontal className="w-4 h-4" />
@@ -365,13 +404,13 @@ export function Calendar() {
           </div>
 
           <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1 w-full sm:w-auto">
-            <button onClick={prevMonth} aria-label={t('calendar.month_nav.prev')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+            <button onClick={prevMonth} aria-label={t('calendar.month_nav.prev')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="px-2 sm:px-4 text-[10px] sm:text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest min-w-[120px] sm:min-w-[140px] text-center">
+            <span className="px-2 sm:px-4 text-[10px] sm:text-xs font-black text-primary-token uppercase tracking-widest min-w-[120px] sm:min-w-[140px] text-center">
               {format(currentDate, 'MMMM yyyy', { locale: es })}
             </span>
-            <button onClick={nextMonth} aria-label={t('calendar.month_nav.next')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+            <button onClick={nextMonth} aria-label={t('calendar.month_nav.next')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
@@ -386,7 +425,7 @@ export function Calendar() {
       </div>
 
       {/* Weather Forecast Widget */}
-      <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6 shadow-xl">
+      <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.weather.bulletin_title')}</h2>
           <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wider bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-lg">
@@ -404,11 +443,11 @@ export function Calendar() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Icon className={`w-5 h-5 ${day.alert ? 'text-red-500' : day.color}`} />
-                    <span className={`text-lg font-black ${day.alert ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white'}`}>
+                    <span className={`text-lg font-black ${day.alert ? 'text-red-600 dark:text-red-400' : 'text-primary-token'}`}>
                       {day.temp}
                     </span>
                   </div>
-                  <div className={`text-xs font-bold mt-1 ${day.alert ? 'text-red-600 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                  <div className={`text-xs font-bold mt-1 ${day.alert ? 'text-red-600 dark:text-red-400' : 'text-secondary-token'}`}>
                     {day.condition}
                   </div>
                 </div>
@@ -429,9 +468,17 @@ export function Calendar() {
         </div>
       </div>
 
+      {/* Climate Plan Adjustment — shows how today's weather affects scheduled tasks */}
+      {climateWeather && scheduledTasks.length > 0 && (
+        <ClimatePlanAdjustment
+          tasks={scheduledTasks}
+          weather={climateWeather}
+        />
+      )}
+
       {/* Main Content Area */}
       {viewMode === 'calendar' ? (
-        <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2.5rem] p-6 shadow-xl">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-[2.5rem] p-6 shadow-xl">
           <div className="grid grid-cols-7 gap-4 mb-4">
             {weekdayShort.map(day => (
               <div key={day} className="text-center text-[8px] font-black text-zinc-500 uppercase tracking-widest">
@@ -459,7 +506,7 @@ export function Calendar() {
                       <div
                         key={event.id}
                         onClick={() => setSelectedEvent(event)}
-                        className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 text-[8px] font-bold text-zinc-900 dark:text-white uppercase tracking-wider truncate cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 text-[8px] font-bold text-primary-token uppercase tracking-wider truncate cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                       >
                         {event.title}
                       </div>
@@ -472,7 +519,7 @@ export function Calendar() {
         </div>
       ) : (
         /* Gantt Chart View */
-        <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2.5rem] p-6 shadow-xl overflow-x-auto">
+        <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-[2.5rem] p-6 shadow-xl overflow-x-auto">
           <div className="min-w-[800px]">
             {/* Gantt Header */}
             <div className="flex border-b border-zinc-200 dark:border-white/10 pb-2 mb-4">
@@ -503,7 +550,7 @@ export function Calendar() {
                 return (
                   <div key={event.id} className="flex items-center group">
                     <div className="w-1/4 pr-4">
-                      <div className="text-xs font-bold text-zinc-900 dark:text-white truncate">{event.title}</div>
+                      <div className="text-xs font-bold text-primary-token truncate">{event.title}</div>
                       <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
                         {event.type}
                         {event.durationUnspecified && (
@@ -579,7 +626,7 @@ export function Calendar() {
               <div
                 key={event.id}
                 onClick={() => setSelectedEvent(event)}
-                className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 space-y-4 group hover:border-[#4db6ac]/30 transition-all cursor-pointer shadow-sm"
+                className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-3xl p-6 space-y-4 group hover:border-[#4db6ac]/30 transition-all cursor-pointer shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[8px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-md border border-[#4db6ac]/20 dark:border-[#d4af37]/20">
@@ -587,7 +634,7 @@ export function Calendar() {
                   </span>
                   <Clock className="w-4 h-4 text-zinc-500" />
                 </div>
-                <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-tight">
+                <h3 className="text-sm font-black text-primary-token uppercase tracking-tight leading-tight">
                   {event.title}
                 </h3>
                 <div className="space-y-2">

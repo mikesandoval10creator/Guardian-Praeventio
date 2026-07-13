@@ -159,6 +159,30 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
       ...result,
     });
   } catch (err) {
+    // 503 gate: adapters that have no server-side generator yet throw with
+    // code 'not_implemented_503' per CLAUDE.md #13 (anti-stub rule).
+    // We surface this as HTTP 503 Service Unavailable (not 500 — it is not
+    // a runtime failure, it is a deliberately gated capability).
+    if (
+      err instanceof Error &&
+      (err as Error & { code?: string }).code === 'not_implemented_503'
+    ) {
+      await auditServerEvent(req, `compliance.emit.${country}.${type}`, 'compliance', {
+        result: 'not_implemented',
+        message: err.message,
+      });
+      return res.status(503).json({
+        error: 'not_implemented',
+        country,
+        type,
+        message:
+          process.env.NODE_ENV === 'production'
+            ? 'Este tipo de documento no está disponible en el servidor todavía.'
+            : err.message,
+        hint: 'Use the mobile/web client which renders this document type client-side.',
+      });
+    }
+
     logger.error('[complianceEmit] generate failed', { err, country, type });
     captureRouteError(err, 'complianceEmit.generate', { country, type });
     await auditServerEvent(req, `compliance.emit.${country}.${type}`, 'compliance', {
@@ -167,7 +191,12 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     });
     return res.status(500).json({
       error: 'generation_failed',
-      message: err instanceof Error ? err.message : 'unknown',
+      message:
+        process.env.NODE_ENV === 'production'
+          ? 'Internal server error'
+          : err instanceof Error
+            ? err.message
+            : 'unknown',
     });
   }
 });
