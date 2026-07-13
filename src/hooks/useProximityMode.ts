@@ -12,8 +12,8 @@
 //
 // Wiring model (mirrors the §16.2.1 sensor-hook pattern):
 //   - Proximity source: the engine's own `ProximityPluginContract`, resolved
-//     via DI (`options.plugin`) or `loadProximityPlugin()` (see the adapter
-//     for the documented @capgo v8.1.2 event-bridge gap).
+//     via DI (`options.plugin`) or the first-party `loadProximityPlugin()`
+//     bridge in packages/capacitor-proximity.
 //   - Accelerometer source: the HOST component pushes samples from its
 //     EXISTING DeviceMotion stream via `pushAccelSample` — deliberately no
 //     second hardware listener (`useAccelerometer.stop()` calls
@@ -165,17 +165,48 @@ export function useProximityMode(
 
     let cancelled = false;
     let handle: { remove(): Promise<void> } | null = null;
+    let activePlugin: ProximityPluginContract | null = null;
+    let disableStarted = false;
+
+    const disableOnce = async (source: ProximityPluginContract) => {
+      if (disableStarted) return;
+      disableStarted = true;
+      try {
+        await source.disable();
+      } catch (err) {
+        logger.warn('useProximityMode: plugin disable failed', { err });
+      }
+    };
 
     const setup = async () => {
       const resolved = plugin === undefined ? await loadProximityPlugin() : plugin;
       if (!resolved || cancelled) return;
 
-      handle = resolved.addListener('proximityChanged', (e) => {
+      await resolved.enable();
+      activePlugin = resolved;
+      if (cancelled) {
+        await disableOnce(resolved);
+        return;
+      }
+
+      const attached = await resolved.addListener('proximityChanged', (e) => {
         if (cancelled) return;
+        if (e.state !== 'near' && e.state !== 'far') {
+          logger.warn('useProximityMode: ignored malformed proximity state', {
+            state: e.state,
+          });
+          return;
+        }
         const at = Number.isFinite(e.timestamp) ? new Date(e.timestamp) : new Date();
         proximityRef.current = { state: e.state, at: at.toISOString() };
         reclassify();
       });
+      if (cancelled) {
+        await attached.remove().catch(() => undefined);
+        await disableOnce(resolved);
+        return;
+      }
+      handle = attached;
 
       try {
         const current = await resolved.getCurrent();
@@ -187,17 +218,28 @@ export function useProximityMode(
       }
     };
 
-    setup().catch((err) => {
+    void setup().catch(async (err) => {
+      if (activePlugin) {
+        await disableOnce(activePlugin);
+      }
       // Proximity is an enhancement over life-safety flows — never throw.
       logger.warn('useProximityMode: plugin setup failed', { err });
     });
 
     return () => {
       cancelled = true;
-      if (handle) {
-        void handle.remove().catch(() => undefined);
-        handle = null;
-      }
+      const attached = handle;
+      const source = activePlugin;
+      handle = null;
+      activePlugin = null;
+      void (async () => {
+        if (attached) {
+          await attached.remove().catch(() => undefined);
+        }
+        if (source) {
+          await disableOnce(source);
+        }
+      })();
     };
   }, [enabled, plugin, reclassify]);
 

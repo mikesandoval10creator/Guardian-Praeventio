@@ -1,0 +1,53 @@
+{
+  "name": "@praeventio/capacitor-proximity",
+  "version": "0.1.0",
+  "description": "Auditable Capacitor proximity bridge for Praeventio life-safety mode detection.",
+  "main": "dist/esm/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "dist/",
+    "ios/Sources/",
+    "Package.swift",
+    "PraeventioCapacitorProximity.podspec",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE"
+  ],
+  "author": "Praeventio",
+  "license": "MIT",
+  "homepage": "https://github.com/mikesandoval10creator/Guardian-Praeventio/tree/main/packages/capacitor-proximity",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikesandoval10creator/Guardian-Praeventio.git",
+    "directory": "packages/capacitor-proximity"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^8.3.0",
+    "typescript": "~5.8.2"
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  },
+  "keywords": [
+    "capacitor",
+    "proximity",
+    "sensor",
+    "life-safety",
+    "praeventio"
+  ]
+}

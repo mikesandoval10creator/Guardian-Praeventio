@@ -13,7 +13,7 @@
 > **TRIAGE 2026-06-19** (verificado contra el código, no contra este doc): de las 86 entradas, **~9 accionables**.
 > - **REAL-NEEDED (3, construir):** `src/server/jobs/runB2dMrrSnapshot.ts:15` (cron B2D MRR; backend listo) · `src/hooks/useGeofenceWithEvents.ts` (hook real sin consumer) · Wi-Fi Direct nativo `packages/capacitor-mesh/android/.../MeshPlugin.kt:552` + `ios/.../Plugin.swift:350` (BLE ya real).
 > - **FAIL-SOFT LEGÍTIMO (3, no son deuda):** `vertexTrainer.ts` (descartado por producto) · `cloudErrorReportingAdapter.ts` (Sentry cubre) · `metricsAdapter.ts` (OTel futuro).
-> - **BLOQUEADO-EXTERNO (1):** `proximityPluginAdapter.ts:49-67` (@capgo no expone eventos near/far a JS).
+> - **RESUELTO 2026-07-13:** proximidad ahora usa `packages/capacitor-proximity` y expone `near/far` + `getCurrent()` con lifecycle auditable; validación física Android/iOS sigue como gate de release.
 > - **STALE — estas 3 entradas describen stubs YA RESUELTOS, ignorar/quitar:** "SLM ONNX returns mock" (runtime real desde 2026-06-11) · "criticalPermitValidators orphan" (ya ruteado en `workPermits.ts`) · "SystemEngineProvider orphan" (ya montado en `AppProviders.tsx`).
 > Detalle y plan en `docs/PENDIENTE.md` (dimensión C + fase T5).
 
@@ -160,10 +160,9 @@ imports en vez de batch-grep.
 - **Why stub**: no existe pipeline de ingestión IoT para sensores de incendio/humo en el repo (`telemetry_events` cubre wearables/machinery, no sensores fijos de faena).
 - **Removal criteria**: cuando exista una colección/endpoint real de telemetría de sensores de campo, cablear el panel a esa fuente y quitar esta entrada. Ver auditoría `docs/audits/AUDITORIA-END-TO-END-2026-07-02.md` §3.1 bug 8.
 
-## Proximity event bridge ausente en @capgo/capacitor-proximity (D1 wiring)
-- **File**: `src/services/proximitySensor/proximityPluginAdapter.ts:49-67` (`loadProximityPlugin()` retorna `null` en toda plataforma)
-- **Owner**: mobile (D1 islands follow-up — `TODO(sprint-D1-followup)` inline)
-- **Sprint target**: TBD — requiere trabajo nativo (extender `packages/capacitor-mesh` o fork de @capgo con `notifyListeners('proximityChanged')` + `getCurrent()`)
-- **User-visible?**: NO — sin fuente de proximidad, `useProximityMode` queda en modo `normal` con política neutra (multiplier 1.0): el umbral de caída sigue siendo exactamente 25 m/s², cero cambio de comportamiento.
-- **Why stub**: `@capgo/capacitor-proximity` v8.1.2 solo expone `enable()/disable()/getStatus()`; Android atenúa la ventana nativamente e iOS togglea `UIDevice.isProximityMonitoringEnabled` — NINGUNO puentea near/far a JS (cero `notifyListeners` en el fuente del plugin). Se rechazó usar `visibilitychange` como proxy: alimentaría un umbral de vida-seguridad con señal ambigua y el monitoreo nativo puede apagar la pantalla y pausar el stream DeviceMotion del que depende la detección de caídas.
-- **Removal criteria**: cuando exista el bridge nativo, retornar el plugin adaptado en `loadProximityPlugin()`; los pin-tests de `proximityPluginAdapter.test.ts` fallan ruidosamente para forzar el retiro de esta entrada. El resto de la cadena TS (engine → `useProximityMode` → sensorBus `device_mode` → threshold de `FallDetectionMonitor`) ya está cableada y testeada vía el contrato DI.
+## Proximity event bridge — ✅ RESUELTO 2026-07-13
+- **Implementación**: `packages/capacitor-proximity` conserva `enable()/disable()/getStatus()/getPluginVersion()` y el comportamiento de pantalla previo; agrega `proximityChanged` + `getCurrent()` en Android/iOS.
+- **Wiring**: `proximityPluginAdapter.ts` devuelve el plugin únicamente en plataforma nativa con sensor disponible. `useProximityMode` habilita, espera el handle asíncrono de Capacitor y libera listener + monitoreo incluso si el setup termina después del unmount.
+- **Evidencia automatizada**: `proximityPluginAdapter.test.ts`, `useProximityMode.test.tsx`, `FallDetectionMonitor.proximity.test.tsx`, `proximityNativeContract.test.ts`, `androidBuildWiring.test.ts` y el clasificador Java SDK-free/JUnit.
+- **Sin evidencia fabricada**: web y hardware no disponible continúan en política neutral. Estados nativos malformados se descartan.
+- **Gate físico pendiente**: las pruebas automatizadas no sustituyen dispositivo real. Antes de release móvil se debe ejecutar la matriz documentada en `packages/capacitor-proximity/README.md` sobre al menos un Android con sensor y un iPhone compatible, verificando además que DeviceMotion/fall detection continúa activo con la pantalla atenuada/apagada.

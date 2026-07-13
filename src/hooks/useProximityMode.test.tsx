@@ -33,14 +33,24 @@ type ProximityCb = (e: { state: 'near' | 'far'; timestamp: number }) => void;
 function makeFakePlugin(initial: 'near' | 'far' = 'far') {
   const listeners: ProximityCb[] = [];
   const removed: number[] = [];
+  const enabled: number[] = [];
+  const disabled: number[] = [];
   return {
     listeners,
     removed,
+    enabled,
+    disabled,
     emit(state: 'near' | 'far') {
       for (const cb of listeners) cb({ state, timestamp: Date.now() });
     },
     plugin: {
-      addListener(_event: 'proximityChanged', cb: ProximityCb) {
+      async enable() {
+        enabled.push(enabled.length);
+      },
+      async disable() {
+        disabled.push(disabled.length);
+      },
+      async addListener(_event: 'proximityChanged', cb: ProximityCb) {
         listeners.push(cb);
         const idx = listeners.length - 1;
         return {
@@ -51,7 +61,7 @@ function makeFakePlugin(initial: 'near' | 'far' = 'far') {
         };
       },
       getCurrent: async () => ({ state: initial }),
-    } satisfies ProximityPluginContract,
+    } as unknown as ProximityPluginContract,
   };
 }
 
@@ -211,6 +221,59 @@ describe('useProximityMode — engine wiring', () => {
     expect(result.current.policy.suppressAccidentalTaps).toBe(true);
   });
 
+  it('enables native monitoring before consuming readings', async () => {
+    const fake = makeFakePlugin();
+    renderHook(() => useProximityMode({ plugin: fake.plugin }));
+
+    await waitFor(() => expect(fake.listeners.length).toBe(1));
+    expect(fake.enabled).toHaveLength(1);
+  });
+
+  it('ignores malformed native states instead of creating life-safety evidence', async () => {
+    const fake = makeFakePlugin();
+    const { result } = renderHook(() => useProximityMode({ plugin: fake.plugin }));
+    await waitFor(() => expect(fake.listeners.length).toBe(1));
+
+    act(() => {
+      result.current.pushAccelSample(sampleMs2(1.0, { y: -0.95 }));
+      const callback = fake.listeners[0] as unknown as (event: unknown) => void;
+      callback({ state: 'covered-ish', timestamp: Date.now() });
+    });
+
+    expect(result.current.modeState.currentMode).toBe('normal');
+  });
+
+  it('removes a listener that resolves after unmount and disables only once', async () => {
+    let resolveListener:
+      | ((handle: { remove(): Promise<void> }) => void)
+      | undefined;
+    const remove = vi.fn(async () => undefined);
+    const enable = vi.fn(async () => undefined);
+    const disable = vi.fn(async () => undefined);
+    const delayedPlugin = {
+      enable,
+      disable,
+      addListener: vi.fn(
+        async () =>
+          new Promise<{ remove(): Promise<void> }>((resolve) => {
+            resolveListener = resolve;
+          }),
+      ),
+      getCurrent: vi.fn(async () => ({ state: 'far' as const })),
+    } as unknown as ProximityPluginContract;
+
+    const { unmount } = renderHook(() =>
+      useProximityMode({ plugin: delayedPlugin }),
+    );
+    await waitFor(() => expect(enable).toHaveBeenCalledTimes(1));
+
+    unmount();
+    resolveListener?.({ remove });
+
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    expect(disable).toHaveBeenCalledTimes(1);
+  });
+
   it('removes the plugin listener on unmount', async () => {
     const fake = makeFakePlugin();
     const { unmount } = renderHook(() =>
@@ -220,6 +283,7 @@ describe('useProximityMode — engine wiring', () => {
 
     unmount();
     await waitFor(() => expect(fake.listeners.length).toBe(0));
+    await waitFor(() => expect(fake.disabled).toHaveLength(1));
   });
 
   it('disabled → ignores plugin events and stays normal', async () => {

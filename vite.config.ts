@@ -212,6 +212,10 @@ export default defineConfig(({mode}) => {
           __dirname,
           'packages/capacitor-mesh/src/index.ts',
         ),
+        '@praeventio/capacitor-proximity': path.resolve(
+          __dirname,
+          'packages/capacitor-proximity/src/index.ts',
+        ),
         // Sprint 32 audit P0 build fix — redirect server-only error
         // tracker adapters to browser stubs in the client bundle.
         // `services/observability/index.ts` statically imports

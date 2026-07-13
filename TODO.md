@@ -23,8 +23,8 @@
 > 6 routers VIDA/LEGAL con test conductual, datos-fabricados (twinStateMapper / GamifiedHUD→
 > ZoneAtmospherePanel / Simular-IoT / PortableCurriculum). **VIGENTE**: 3 mounts fantasma
 > (SafetyMetricsDashboard/SpiDashboard/OperationalPressureGauge no renderizan en Dashboard.tsx),
-> cascarón CPHS (`CphsModule.tsx:825`), 4 PRs MiMo problemáticos, iOS mesh >512B, proximity null,
-> DTE firma, WebAuthn E2E. No abrir listas nuevas — trabajar desde PENDIENTE.md.
+> cascarón CPHS (`CphsModule.tsx:825`), 4 PRs MiMo problemáticos, iOS mesh >512B,
+> DTE firma, WebAuthn E2E. **RESUELTO 2026-07-13:** `proximity null` mediante bridge local Android/iOS (`packages/capacitor-proximity/android/src/main/java/com/praeventio/proximity/CapacitorProximityPlugin.java:18`, `packages/capacitor-proximity/ios/Sources/PraeventioCapacitorProximity/CapacitorProximityPlugin.swift:25`, `src/hooks/useProximityMode.ts:185`); validación física sigue como gate de release. No abrir listas nuevas — trabajar desde PENDIENTE.md.
 
 > **✅ Ola mergeada 2026-06-22 — hardening + DX + frontend (#1111–#1114).**
 > - **#1111 Seguridad**: V11 redacción PII en `/api/ask-guardian` (`src/server/routes/gemini.ts:422-423`, llama `redactPromptForVertex(query, 'ask-guardian')`) · V12 comparación timing-safe del secreto E2E (`src/server/middleware/verifyAuth.ts:91`, usa `safeSecretEqual` de `src/server/middleware/safeSecretEqual.ts:32`) · B24 docker-layer-cache deduplicado en `deploy.yml` · corrección honesta de cobertura E2E `~70%→real` (ya en esta nota).
@@ -1326,7 +1326,7 @@ Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nu
 - **BLE Mesh plugin Android Kotlin REAL (552 LOC GATT)** — `packages/capacitor-mesh/android/src/main/java/com/praeventio/mesh/MeshPlugin.kt`
 - **BLE Mesh plugin iOS Swift CoreBluetooth** — `packages/capacitor-mesh/ios/Plugin/Plugin.swift`
 - **Foreground Service Android (@capawesome)** — `src/services/foregroundService/guardianForegroundService.ts`
-- **capacitor-proximity sensor** — `src/services/proximitySensor/proximityModeDetector.ts`
+- **capacitor-proximity sensor + bridge near/far Android/iOS** — `packages/capacitor-proximity/` + `src/services/proximitySensor/proximityPluginAdapter.ts:10` + consumo de sensibilidad en `src/components/emergency/FallDetectionMonitor.tsx:140`
 - **SOS orchestrator + GPS breadcrumbs** — `src/services/emergency/sosOrchestrator.ts` + `src/services/emergency/gpsBreadcrumbTracker.ts` + `src/services/emergency/emergencyNumbers.ts`
 - **Mobile signing scripts + runbook + CI check** — `scripts/mobile-signing/` + `docs/runbooks/MOBILE_SIGNING.md` + `.github/workflows/mobile-signing-check.yml`
 

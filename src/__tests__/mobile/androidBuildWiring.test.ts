@@ -36,7 +36,7 @@ describe('android build wiring — life-safety plugins (B21)', () => {
     // [gradle project, why it is life-critical]
     [':praeventio-capacitor-mesh', 'offline SOS over BLE mesh'],
     [':capawesome-team-capacitor-android-foreground-service', 'lone-worker check-in FGS'],
-    [':capgo-capacitor-proximity', 'man-down proximity sensing'],
+    [':praeventio-capacitor-proximity', 'man-down proximity sensing'],
     [':capacitor-geolocation', 'SOS GPS'],
     [':capacitor-push-notifications', 'critical incident push'],
   ])('capacitor.settings.gradle includes %s (%s)', (project) => {
@@ -48,6 +48,12 @@ describe('android build wiring — life-safety plugins (B21)', () => {
     expect(settings).toContain("new File('../packages/capacitor-mesh/android')");
   });
 
+  it('proximity project points at the auditable local workspace package', () => {
+    expect(settings).toContain(
+      "new File('../packages/capacitor-proximity/android')"
+    );
+  });
+
   it('package.json declares the mesh plugin as a file: dependency', () => {
     const pkg = JSON.parse(read('package.json')) as {
       dependencies: Record<string, string>;
@@ -55,6 +61,16 @@ describe('android build wiring — life-safety plugins (B21)', () => {
     expect(pkg.dependencies['@praeventio/capacitor-mesh']).toBe(
       'file:packages/capacitor-mesh'
     );
+  });
+
+  it('package.json declares the proximity plugin as a file: dependency', () => {
+    const pkg = JSON.parse(read('package.json')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies['@praeventio/capacitor-proximity']).toBe(
+      'file:packages/capacitor-proximity'
+    );
+    expect(pkg.dependencies['@capgo/capacitor-proximity']).toBeUndefined();
   });
 });
 

@@ -1,7 +1,8 @@
 // Praeventio Guard — Sprint 49 C.3: Proximity Sensor + Mode Detection.
 //
 // Cierra C.3 del plan maestro (capacitor-proximity sensor de
-// bolsillo/casco). Plugin @capgo/capacitor-proximity instalado.
+// bolsillo/casco). Fuente nativa auditable en
+// packages/capacitor-proximity (Android/iOS).
 //
 // Política Guardian:
 //   - inPocket (sensor close + accelerometer mostly still): aumentar
@@ -216,11 +217,15 @@ export function policyForMode(mode: DeviceMode): ModePolicy {
 // ────────────────────────────────────────────────────────────────────────
 
 export interface ProximityPluginContract {
+  /** Starts native monitoring. Must be idempotent. */
+  enable(): Promise<void>;
+  /** Stops native monitoring and restores any platform screen state. */
+  disable(): Promise<void>;
   /** Suscribe a cambios de proximity. Returns un handle para unsubscribe. */
   addListener(
     eventName: 'proximityChanged',
     cb: (e: { state: 'near' | 'far'; timestamp: number }) => void,
-  ): { remove(): Promise<void> };
+  ): Promise<{ remove(): Promise<void> }>;
   /** Lectura puntual del sensor. */
   getCurrent(): Promise<{ state: 'near' | 'far' }>;
 }
