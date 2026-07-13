@@ -1,3 +1,5 @@
+import type { Express } from 'express';
+
 export type TrustProxyEnvironment = Readonly<Record<string, string | undefined>>;
 export type TrustProxySetting = false | number;
 
@@ -13,4 +15,13 @@ export function resolveTrustProxySetting(
   const hops = Number(raw);
   if (!Number.isSafeInteger(hops)) throw new Error(TRUST_PROXY_ERROR);
   return hops === 0 ? false : hops;
+}
+
+export function configureTrustProxy(
+  app: Pick<Express, 'set'>,
+  env: TrustProxyEnvironment = process.env,
+): TrustProxySetting {
+  const setting = resolveTrustProxySetting(env);
+  app.set('trust proxy', setting);
+  return setting;
 }

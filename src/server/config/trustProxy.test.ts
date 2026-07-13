@@ -1,6 +1,16 @@
+import express from 'express';
+import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import { resolveTrustProxySetting } from './trustProxy.js';
+import { ipOnlyKey } from '../middleware/limiters.js';
+import { configureTrustProxy, resolveTrustProxySetting } from './trustProxy.js';
+
+function makeProbeApp(env: Record<string, string | undefined>) {
+  const app = express();
+  configureTrustProxy(app, env);
+  app.get('/probe', (req, res) => res.json({ ip: req.ip, key: ipOnlyKey(req) }));
+  return app;
+}
 
 describe('resolveTrustProxySetting', () => {
   it('keeps direct local processes untrusted by default', () => {
@@ -27,4 +37,33 @@ describe('resolveTrustProxySetting', () => {
       );
     },
   );
+});
+
+describe('configureTrustProxy', () => {
+  it('ignores a forged forwarded address outside Cloud Run', async () => {
+    const response = await request(makeProbeApp({}))
+      .get('/probe')
+      .set('X-Forwarded-For', '198.51.100.10');
+
+    expect(response.body.ip).not.toBe('198.51.100.10');
+  });
+
+  it.each(['198.51.100.10', '203.0.113.20'])(
+    'uses distinct managed-ingress client address %s',
+    async (clientIp) => {
+      const response = await request(makeProbeApp({ K_SERVICE: 'guardian-praeventio' }))
+        .get('/probe')
+        .set('X-Forwarded-For', clientIp);
+
+      expect(response.body).toEqual({ ip: clientIp, key: clientIp });
+    },
+  );
+
+  it('ignores caller-controlled values before the trusted suffix', async () => {
+    const response = await request(makeProbeApp({ K_SERVICE: 'guardian-praeventio' }))
+      .get('/probe')
+      .set('X-Forwarded-For', '192.0.2.44, 198.51.100.10');
+
+    expect(response.body.ip).toBe('198.51.100.10');
+  });
 });

@@ -84,6 +84,22 @@ describe('server.ts route mount ordering (B1 contract)', () => {
   });
 });
 
+describe('server.ts proxy trust ordering', () => {
+  const source = readFileSync(join(process.cwd(), 'server.ts'), 'utf8');
+
+  it('configures proxy trust immediately after app creation and before middleware', () => {
+    const importIndex = source.indexOf("import { configureTrustProxy } from './src/server/config/trustProxy.js';");
+    const appIndex = source.indexOf('const app = express();');
+    const configureIndex = source.indexOf('configureTrustProxy(app);');
+    const securityMiddlewareIndex = source.indexOf('app.use(securityHeaders);');
+
+    expect(importIndex).toBeGreaterThanOrEqual(0);
+    expect(appIndex).toBeGreaterThanOrEqual(0);
+    expect(configureIndex).toBeGreaterThan(appIndex);
+    expect(securityMiddlewareIndex).toBeGreaterThan(configureIndex);
+  });
+});
+
 // B1 emergency-block audit (2026-06-01): loneWorker.ts, refuges.ts and
 // restrictedZones.ts were implemented + unit-tested (on standalone express
 // apps) but NEVER mounted in server.ts, so the real consumers — useLoneWorker,
