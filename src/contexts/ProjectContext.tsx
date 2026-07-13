@@ -304,10 +304,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setFetchedProjects(newProjects);
       setError(null);
 
-      // Auto-select first project if none selected
-      if (newProjects.length > 0 && !selectedProject) {
-        setSelectedProject(newProjects[0]);
-      }
+      // Reconcile against the CURRENT state. Reading `selectedProject` directly
+      // here captured the value from subscription time (usually null), so every
+      // later snapshot could silently send the user back to the first project.
+      // Besides preserving the selected id, use the object from this snapshot
+      // so consumers receive refreshed project fields. If access was revoked or
+      // the project was deleted, fall back to the first project still allowed.
+      setSelectedProject((currentProject) => {
+        if (newProjects.length === 0) return null;
+        if (!currentProject) return newProjects[0] ?? null;
+        return newProjects.find(project => project.id === currentProject.id) ?? newProjects[0] ?? null;
+      });
 
       setLoading(false);
     }, (err) => {

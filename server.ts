@@ -50,12 +50,9 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { stampCspNonce } from "./src/server/middleware/stampCspNonce.js";
-import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 // Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
 // hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
 // barrier; legacy `typeof` guards stay in place until Sprint 29.
-import { validate } from "./src/server/middleware/validate.js";
-import { z } from "zod";
 import adminRouter from "./src/server/routes/admin.js";
 // Sprint 23 Bucket CC — B2D admin (key management + revenue dashboards).
 import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
@@ -123,6 +120,7 @@ import emergencyRouter from "./src/server/routes/emergency.js";
 import incidentsRouter from "./src/server/routes/incidents.js";
 import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
+import documentsRouter from "./src/server/routes/documents.js";
 // Sprint 31 Bucket PP — DS 67 (Reglamento Interno) + DS 76 (Subcontratación
 // Mining) PDF generators. Mounted under /api/compliance so the URL space
 // matches Ley 19.628 endpoints (one compliance surface, not two).
@@ -530,7 +528,7 @@ try {
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // Read Firebase Config once at startup FIRST
-let firebaseConfig: any = null;
+let firebaseConfig: { projectId?: string; firestoreDatabaseId?: string } | null = null;
 try {
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
@@ -590,7 +588,8 @@ try {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
 
-    const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
+    const databaseId = firebaseConfig.firestoreDatabaseId;
+    const firestoreWrapper = () => getFirestore(admin.app(), databaseId);
     Object.assign(firestoreWrapper, originalFirestore);
 
     Object.defineProperty(admin, 'firestore', {
@@ -700,6 +699,18 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   );
 });
 
+// SEO: serve robots.txt and sitemap.xml with correct MIME types so crawlers
+// read real directives instead of the SPA shell. Same pattern as .well-known:
+// explicit sendFile mounted above the Vite/SPA middleware.
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(process.cwd(), 'public/robots.txt'));
+});
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml');
+  res.sendFile(path.resolve(process.cwd(), 'public/sitemap.xml'));
+});
+
 // Public health probe for Cloud Run / Marketplace listing health checks.
 // Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
 // limiter and verifyAuth — Cloud Run probes hit this endpoint frequently
@@ -725,6 +736,7 @@ app.use("/api/maintenance", maintenanceRouter);
 // the mandated assertProjectMember gate (ProjectHealthCheck.tsx consumer
 // survived the removal and was POSTing into a 404).
 app.use("/api/projects", projectHealthRouter);
+app.use("/api/projects", documentsRouter);
 // 2026-05-15 — BCN snapshot endpoint para BunkerManager offline. Fetcha
 // leyes REALES desde la Biblioteca del Congreso Nacional. Cacheado 1h.
 // Public (no requiere auth) porque las leyes son contenido público —
@@ -1339,6 +1351,14 @@ if (process.env.NODE_ENV !== "production") {
   // (broken build), fall through to a 503 rather than serving the
   // template literal placeholder to a real browser.
   const distPath = path.join(process.cwd(), 'dist');
+  // Vite emits hashed assets under /assets/ (content hash in filename).
+  // These are immutable — safe to cache for 1 year. PSI flags missing
+  // Cache-Control on these responses; the immutable directive tells the
+  // browser it can skip revalidation entirely.
+  app.use('/assets', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    next();
+  });
   app.use(express.static(distPath, { index: false }));
 
   try {
@@ -1489,7 +1509,7 @@ if (process.env.NODE_ENV === "production") {
     // Global replace: even though there's only one __CSP_NONCE__ hit
     // today, future template additions can include the placeholder
     // anywhere and still get substituted in a single pass.
-    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    const html = stampCspNonce(INDEX_HTML_TEMPLATE, nonce);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   });

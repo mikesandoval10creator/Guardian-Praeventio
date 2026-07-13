@@ -180,7 +180,7 @@ describe('POST /:projectId/safety-posts', () => {
     const db = H.db!;
     const postsSnap = await db.collection(`projects/${PROJECT_ID}/safety_posts`).get();
     expect(postsSnap.size).toBe(1);
-    const postData = postsSnap.docs[0].data();
+    const postData = postsSnap.docs[0]!.data()!;
     expect(postData.content).toBe('Usar casco en zona de altura');
     expect(postData.type).toBe('SafetyMoment');
     expect(postData.userId).toBe(MEMBER_UID);
@@ -211,7 +211,7 @@ describe('POST /:projectId/safety-posts', () => {
 
     const db = H.db!;
     const postsSnap = await db.collection(`projects/${PROJECT_ID}/safety_posts`).get();
-    expect(postsSnap.docs[0].data().imageUrl).toBe('https://storage.example.com/photo.jpg');
+    expect(postsSnap.docs[0]!.data()!.imageUrl).toBe('https://storage.example.com/photo.jpg');
     expect((auditCalls[0][3] as Record<string, unknown>).hasImage).toBe(true);
   });
 
@@ -225,6 +225,6 @@ describe('POST /:projectId/safety-posts', () => {
 
     const db = H.db!;
     const postsSnap = await db.collection(`projects/${PROJECT_ID}/safety_posts`).get();
-    expect(postsSnap.docs[0].data().content).toBe('Contenido con espacios');
+    expect(postsSnap.docs[0]!.data()!.content).toBe('Contenido con espacios');
   });
 });

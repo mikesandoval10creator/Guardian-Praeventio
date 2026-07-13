@@ -56,6 +56,9 @@ import {
 } from '../hooks/useMicrotraining';
 import type { RiskCategory } from '../services/microtraining/lightningTrainingService';
 import { SpacedRepetitionReviewQueue } from '../components/spacedRepetition/SpacedRepetitionReviewQueue';
+import { SafetyCapsules } from '../components/safety/SafetyCapsules';
+import { OnboardingTrackProgressPanel } from '../components/roleOnboarding/OnboardingTrackProgressPanel';
+import type { OnboardingTrack, UserOnboardingProgress, OnboardingStatus } from '../services/roleOnboarding/roleOnboardingTracks';
 
 interface QuizQuestion {
   question: string;
@@ -518,6 +521,11 @@ export function Training() {
           />
         </section>
       )}
+
+      {/* Wire SafetyCapsules — AI-generated micro-training capsules.
+          Self-contained (own state + Gemini call). Placed here so workers
+          see personalized safety content alongside their training sessions. */}
+      <SafetyCapsules />
 
       <CsvImportExportModal
         isOpen={isCsvModalOpen}
@@ -1280,6 +1288,42 @@ export function Training() {
           />
         </div>
       )}
+
+      {/* Wire OnboardingTrackProgressPanel — role-based onboarding track
+          progress visualization. Renders with a placeholder track until real
+          roleOnboarding data is wired from the user's profile. */}
+      {user && (() => {
+        const placeholderTrack: OnboardingTrack = {
+          role: 'worker',
+          trackId: 'track_v1_worker',
+          steps: [],
+          estimatedTotalMinutes: 0,
+          completionThresholdPct: 80,
+        };
+        const placeholderProgress: UserOnboardingProgress = {
+          userUid: user.uid,
+          role: 'worker',
+          completedStepIds: [],
+          startedAt: new Date().toISOString(),
+        };
+        const placeholderStatus: OnboardingStatus = {
+          trackId: 'track_v1_worker',
+          totalSteps: 0,
+          completedSteps: 0,
+          completedPct: 0,
+          blockedSteps: 0,
+          canOperate: false,
+          remainingMinutes: 0,
+          trackCompleted: false,
+        };
+        return (
+          <OnboardingTrackProgressPanel
+            track={placeholderTrack}
+            progress={placeholderProgress}
+            status={placeholderStatus}
+          />
+        );
+      })()}
 
       {adTrainingTitle && (
         <PostTrainingAdModal

@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**197 routers montados · 702 rutas detectadas.**
+**200 routers montados · 706 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -211,6 +211,12 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/mesh.ts` → `/api/mesh`
 - `GET /api/mesh/key`
+
+### `src/server/routes/normatives.ts` → `/api/normatives`
+- `POST /api/normatives/seed`
+
+### `src/server/routes/documents.ts` → `/api/projects`
+- `POST /api/projects/:projectId/documents`
 
 ### `src/server/routes/projectHealth.ts` → `/api/projects`
 - `POST /api/projects/:projectId/health-check`
@@ -971,6 +977,9 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/safety-performance/safety-plan`
 - `GET /api/sprint-k/:projectId/safety-performance/spi-report`
 
+### `src/server/routes/safetyPosts.ts` → `/api/sprint-k`
+- `POST /api/sprint-k/:projectId/safety-posts`
+
 ### `src/server/routes/safetyTalks.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/safety-talks/suggest`
 
@@ -1099,6 +1108,7 @@ clave ver `docs/api-routes.md`.
 - `POST /api/zettelkasten/nl-query`
 - `POST /api/zettelkasten/risk-control-suggestions`
 - `POST /api/zettelkasten/backlinks`
+- `POST /api/zettelkasten/structured-query`
 
 ### `src/server/routes/restrictedZones.ts` → `/api/zones`
 - `POST /api/zones/define`

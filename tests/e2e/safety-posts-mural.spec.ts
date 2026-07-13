@@ -109,7 +109,6 @@ test.describe('Safety Posts — mural audited write', () => {
     // Exercise the mural page load + verify a server-written post appears in the client feed.
     await loginAsTestUser(page, USER);
     const seed = await seedProject({ supervisorUid: USER.uid });
-    const db = emulatorDb();
 
     try {
       // First, create a post via the API directly.

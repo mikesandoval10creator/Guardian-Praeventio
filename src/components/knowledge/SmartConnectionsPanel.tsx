@@ -8,6 +8,7 @@ import {
   Building2,
   Shield,
   GraduationCap,
+  Scale,
   type LucideProps,
 } from 'lucide-react';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
@@ -25,6 +26,8 @@ const ICON_MAP: Record<string, IconComponent> = {
   Building2,
   Shield,
   GraduationCap,
+  Scale,
+  Sparkles,
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +152,12 @@ export function SmartConnectionsPanel() {
                         <p className="mt-0.5 text-[9px] text-zinc-500 dark:text-zinc-400 leading-snug line-clamp-2">
                           {action.description}
                         </p>
+                        {/* Legal citation from detection engine */}
+                        {action.rationale && (
+                          <p className="mt-0.5 text-[8px] text-emerald-600 dark:text-emerald-400 leading-snug line-clamp-2 italic">
+                            ⚖ {action.rationale}
+                          </p>
+                        )}
                       </div>
                     </button>
                   </li>
@@ -191,7 +200,7 @@ export function SmartConnectionsPanel() {
               {smartActions.length}
             </span>
             <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
-              Acciones IA
+              Detección Legal
             </span>
           </motion.button>
         )}

@@ -13,7 +13,7 @@
 //     agrupadas por severity (critical / warning / info).
 //   - Auto-refresh opcional cada 60s.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckCircle2,
@@ -26,6 +26,7 @@ import {
 
 import { useProject } from '../contexts/ProjectContext';
 import { ConsistencyAuditCard } from '../components/consistency/ConsistencyAuditCard';
+import { DeviationRadarPanel } from '../components/governance/DeviationRadarPanel';
 import {
   runConsistencyAudit,
   summarizeConsistencyAudit,
@@ -33,6 +34,12 @@ import {
   type ConsistencyState,
 } from '../services/consistency/consistencyAuditor';
 import { buildConsistencyStateFromFirestore } from '../services/consistency/consistencyStateBuilder';
+import {
+  buildNormalizationRadar,
+  type NormalizationPattern,
+} from '../services/governance/deviationNormalizationRadar';
+import { subscribeExceptions } from '../services/exceptions/exceptionStore';
+import type { ExceptionRecord } from '../services/exceptions/exceptionEngine';
 import { logger } from '../utils/logger';
 
 // Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep ConsistencyAudit.
@@ -46,6 +53,36 @@ export function ConsistencyAudit() {
   const [lastRunAt, setLastRunAt] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [exceptions, setExceptions] = useState<ExceptionRecord[]>([]);
+
+  // Live subscription a todas las excepciones del proyecto (no solo activas)
+  // para alimentar el radar de normalización.
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      setExceptions([]);
+      return undefined;
+    }
+    const unsub = subscribeExceptions(
+      selectedProject.id,
+      (items) => setExceptions(items),
+      (err) => {
+        logger.warn('exception_subscribe_failed', { err: err.message });
+        setExceptions([]);
+      },
+      500,
+    );
+    return unsub;
+  }, [selectedProject?.id]);
+
+  // Patrones de normalización derivados de excepciones reales.
+  const radarPatterns: NormalizationPattern[] = useMemo(
+    () =>
+      buildNormalizationRadar({
+        exceptions,
+        now: new Date().toISOString(),
+      }),
+    [exceptions],
+  );
 
   const runAudit = useCallback(async () => {
     if (!selectedProject?.id) {
@@ -222,6 +259,9 @@ export function ConsistencyAudit() {
             ) : issues.length > 0 ? (
               <ConsistencyAuditCard inconsistencies={issues} />
             ) : null}
+
+            {/* Radar de normalización de desvíos — datos reales de excepciones. */}
+            <DeviationRadarPanel patterns={radarPatterns} />
 
             {/* Botón refresh inferior si ya hay resultados. */}
             {state && !loading && (

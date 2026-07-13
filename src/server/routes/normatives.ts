@@ -38,7 +38,7 @@ function sentryCapture(
   try {
     getErrorTracker().captureException(
       err instanceof Error ? err : new Error(String(err)),
-      context as any,
+      context as never,
     );
   } catch (e) {
     logger.warn?.('observability_capture_failed', { message: (e as Error)?.message });
