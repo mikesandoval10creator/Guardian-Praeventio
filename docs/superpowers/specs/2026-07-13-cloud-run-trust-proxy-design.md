@@ -50,7 +50,7 @@ application helper:
 - `TRUST_PROXY_HOPS=0`: disable proxy trust explicitly.
 - `TRUST_PROXY_HOPS=<positive integer>`: trust exactly that many hops for a
   deployment whose topology has been verified.
-- Missing, negative, fractional, or non-numeric values: throw during startup so
+- Empty, negative, fractional, or non-numeric explicit values: throw during startup so
   production cannot boot with an ambiguous security boundary.
 
 `server.ts` will call the helper immediately after `express()` and before
