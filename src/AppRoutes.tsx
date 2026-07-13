@@ -59,6 +59,7 @@ const SystemHealth = lazy(() => import('./pages/SystemHealth').then(module => ({
 const Help = lazy(() => import('./pages/Help').then(module => ({ default: module.Help })));
 const PublicNodeView = lazy(() => import('./pages/PublicNodeView').then(module => ({ default: module.PublicNodeView })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const Projects = lazy(() => import('./pages/Projects').then(module => ({ default: module.Projects })));
 const Login = lazy(() => import('./pages/Login'));
 const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: module.Splash })));
 const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
@@ -107,7 +108,7 @@ const WorkerReadiness = lazy(() => import('./pages/WorkerReadiness').then(module
 // Sprint K §276-277
 const LeadershipDecisions = lazy(() => import('./pages/LeadershipDecisions').then(module => ({ default: module.LeadershipDecisions })));
 // Sprint K §69-71
-const DrivingSafety = lazy(() => import('./pages/DrivingSafety').then(module => ({ default: module.DrivingSafety })));
+const SafeDriving = lazy(() => import('./pages/SafeDriving').then(module => ({ default: module.SafeDriving })));
 // Sprint K §211-213
 const ConfidentialReports = lazy(() => import('./pages/ConfidentialReports').then(module => ({ default: module.ConfidentialReports })));
 // F.29
@@ -134,6 +135,7 @@ const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(modu
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
 // Sprint K §171-179
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(module => ({ default: module.PricingCalculator })));
+const PricingSimulatorPage = lazy(() => import('./pages/PricingSimulatorPage').then(module => ({ default: module.PricingSimulatorPage })));
 const OcSugerida = lazy(() => import('./pages/OcSugerida').then(module => ({ default: module.OcSugerida })));
 const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
@@ -237,7 +239,7 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
               <Route path="leadership-decisions" element={<LeadershipDecisions />} />
-              <Route path="driving-safety" element={<DrivingSafety />} />
+              <Route path="driving-safety" element={<SafeDriving />} />
               <Route path="confidential-reports" element={<ConfidentialReports />} />
               <Route path="incident-trends" element={<IncidentTrends />} />
               <Route path="apprenticeship" element={<Apprenticeship />} />
@@ -357,6 +359,7 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
                     <Route path="pricing/retry" element={<Pricing />} />
                     {/* Sprint K §171-179 — Pricing Calculator + OC sugerida (lazy). */}
                     <Route path="pricing-calculator" element={<PricingCalculator />} />
+                    <Route path="pricing-simulator" element={<PricingSimulatorPage />} />
                     <Route path="oc-sugerida" element={<OcSugerida />} />
                     <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />
@@ -394,7 +397,7 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
                     <Route path="leadership-decisions" element={<LeadershipDecisions />} />
-                    <Route path="driving-safety" element={<DrivingSafety />} />
+                    <Route path="driving-safety" element={<SafeDriving />} />
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
                     <Route path="incident-trends" element={<IncidentTrends />} />
                     <Route path="apprenticeship" element={<Apprenticeship />} />
@@ -403,6 +406,7 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
                     <Route path="import-data" element={<ImportData />} />
+                    <Route path="projects" element={<Projects />} />
                     <Route path="project-setup" element={<ProjectSetup />} />
                     {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
                     <Route path="findings-heatmap" element={<FindingsHeatMap />} />
