@@ -207,7 +207,15 @@ service firebase.storage {
     // Worker personal vault — strictly per-uid private (self-service uploads).
     // Kept from the prior rules; the only uid-keyed namespace.
     match /workers/{uid}/{allPaths=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == uid && isUnder(50 * 1024 * 1024);
+      // GPT audit 2026-07-12: the combined `read, write` rule gated on
+      // isUnder(), which reads request.resource.size — that is the INCOMING
+      // (write) resource, null on a read/delete. So the owner could neither
+      // READ nor DELETE their own vault files (only uploads, where
+      // request.resource exists, worked). Split by operation: read + delete
+      // never touch request.resource; only create/update enforce the size cap.
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn() && request.auth.uid == uid && isUnder(50 * 1024 * 1024);
+      allow delete: if isSignedIn() && request.auth.uid == uid;
     }
 
     // Default-deny: every other path is explicitly closed.

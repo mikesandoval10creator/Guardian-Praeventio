@@ -210,6 +210,7 @@ async function signTransactionInfo(payload: Record<string, any>): Promise<string
 interface OuterArgs {
   notificationType: string;
   notificationUUID?: string;
+  subtype?: string;
   transactionInfo?: Record<string, any>;
   renewalInfo?: Record<string, any>;
 }
@@ -226,6 +227,7 @@ async function signOuter(args: OuterArgs): Promise<string> {
   const payload = {
     notificationType: args.notificationType,
     notificationUUID: args.notificationUUID ?? randomBytes(8).toString('hex'),
+    ...(args.subtype ? { subtype: args.subtype } : {}),
     data,
   };
   return new SignJWT(payload)
@@ -366,6 +368,7 @@ describe('POST /api/billing/webhook/apple', () => {
     expect(user.subscription.status).toBe('active');
     expect(user.subscription.expiryDate).toBe(new Date(expiresMs).toISOString());
     expect(user.subscription.provider).toBe('app-store');
+    expect(user.subscription.paymentMethod).toBe('app-store');
     expect(user.subscription.appleOriginalTransactionId).toBe('orig-A');
     // Idempotency lock landed.
     expect(fs.store.get('processed_apple_ssn/uuid-subscribed-1')?.status).toBe('done');
@@ -406,6 +409,32 @@ describe('POST /api/billing/webhook/apple', () => {
     const user = fs.store.get('users/uid-B');
     expect(user.subscription.status).toBe('active');
     expect(user.subscription.expiryDate).toBe(new Date(newExpiryMs).toISOString());
+  });
+
+  it('DID_FAIL_TO_RENEW preserves access during an explicit Apple grace period', async () => {
+    fs.store.set('users/uid-grace', {
+      subscription: { appleAppAccountToken: 'aat-grace', planId: 'oro' },
+    });
+    const graceEndMs = Date.parse('2030-02-01T00:00:00Z');
+    const jws = await signOuter({
+      notificationType: 'DID_FAIL_TO_RENEW',
+      subtype: 'GRACE_PERIOD',
+      notificationUUID: 'uuid-grace-1',
+      transactionInfo: {
+        appAccountToken: 'aat-grace',
+        originalTransactionId: 'orig-grace',
+        expiresDate: Date.parse('2030-01-01T00:00:00Z'),
+      },
+      renewalInfo: { gracePeriodExpiresDate: graceEndMs },
+    });
+    const res = await request(handle.app)
+      .post('/api/billing/webhook/apple')
+      .send({ signedPayload: jws });
+    expect(res.status).toBe(200);
+    expect(res.body.action).toBe('grace');
+    const subscription = fs.store.get('users/uid-grace').subscription;
+    expect(subscription.status).toBe('grace_period');
+    expect(subscription.gracePeriodEnd).toBe(new Date(graceEndMs).toISOString());
   });
 
   it('REFUND revokes the entitlement', async () => {

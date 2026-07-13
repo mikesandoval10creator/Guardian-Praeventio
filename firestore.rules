@@ -1906,7 +1906,23 @@ service cloud.firestore {
           'description', 'assignedUids', 'status', 'date',
           'crewId', 'processId', 'projectId', 'completedAt'
         ])
-        && incoming().status in ['pending', 'doing', 'done'];
+        // Immutable identity — a task can never move project/crew/process.
+        // Audit L3 (2026-07-11): the rule gated only on membership in the
+        // EXISTING project, so a member could rewrite projectId and shove the
+        // task into another project (cross-project leak). crewId/processId
+        // were likewise free to change. Pin all three.
+        && incoming().projectId == resource.data.projectId
+        && incoming().get('crewId', null) == resource.data.get('crewId', null)
+        && incoming().get('processId', null) == resource.data.get('processId', null)
+        // Forward-only status pipeline: pending → doing → done. Same-state is
+        // allowed (editing description/assignees without a status change);
+        // walking backwards (done → pending/doing, doing → pending) is denied.
+        && incoming().status in ['pending', 'doing', 'done']
+        && (
+          incoming().status == resource.data.status
+          || (resource.data.status == 'pending' && incoming().status in ['doing', 'done'])
+          || (resource.data.status == 'doing' && incoming().status == 'done')
+        );
       allow delete: if false;
     }
 

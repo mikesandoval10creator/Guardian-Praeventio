@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
@@ -47,6 +47,8 @@ import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper
 import { buildWebhookCurlCommand } from '../components/telemetry/webhookCommand';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
+import { usgsEarthquakeAdapter } from '../services/external';
+import { processProjectSeismicEvent } from '../services/emergency/seismicEmergencyPolicy';
 
 export function Telemetry() {
   const { t } = useTranslation();
@@ -68,6 +70,7 @@ export function Telemetry() {
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
   const { toasts, show: showToast, dismiss } = useToast();
+  const triggeredEarthquakeKeys = useRef(new Set<string>());
 
 
   // Bucket B.3 — Dike hydrostatic monitor (DS 248/2007, Resolución 1500 SERNAGEOMIN).
@@ -129,9 +132,20 @@ export function Telemetry() {
     }
   };
 
-  // Default coordinates (Santiago, Chile) if project doesn't have specific ones
-  const lat = -33.4569;
-  const lon = -70.6483;
+  // Life-safety rules must use the selected faena's real coordinates. Falling
+  // back to Santiago would make a project elsewhere inherit Santiago alerts.
+  const projectCoordinates = selectedProject?.coordinates ?? selectedProject?.geo;
+  const projectLat = projectCoordinates?.lat;
+  const projectLng = projectCoordinates?.lng;
+  const projectLocation = useMemo(() => {
+    if (
+      !Number.isFinite(projectLat) ||
+      !Number.isFinite(projectLng)
+    ) {
+      return null;
+    }
+    return { lat: projectLat as number, lng: projectLng as number };
+  }, [projectLat, projectLng]);
 
   const weather = environment?.weather;
 
@@ -440,24 +454,48 @@ export function Telemetry() {
       }
       setLoading(true);
       try {
-        // Fetch Earthquakes (Chile)
-        const eqResponse = await fetch('https://api.gael.cloud/general/public/sismos');
-        if (eqResponse.ok) {
-          const eqData = await eqResponse.json();
-          setEarthquakes(eqData.slice(0, 5)); // Get latest 5
+        // The Chilean feed remains the read-only source for the latest-events
+        // panel. It lacks reliable epicentre coordinates, so it must never
+        // drive a project-scoped emergency by itself.
+        try {
+          const eqResponse = await fetch('https://api.gael.cloud/general/public/sismos');
+          if (eqResponse.ok) {
+            const eqData: unknown = await eqResponse.json();
+            if (Array.isArray(eqData)) {
+              setEarthquakes(eqData.slice(0, 5) as Earthquake[]);
+            }
+          }
+        } catch (error) {
+          logger.warn('Telemetry: Chilean earthquake display feed failed', { error });
+        }
 
-          // Check for recent strong earthquakes
-          const strongEQ = eqData.find((eq: Earthquake) => parseFloat(eq.Magnitud) >= 5.0);
-          if (strongEQ) {
-            setAlerts(prev => {
-              const msg = `Sismo de magnitud ${strongEQ.Magnitud} detectado en ${strongEQ.RefGeografica}. Protocolo de evacuación en evaluación.`;
-              return prev.includes(msg) ? prev : [...prev, msg];
+        const projectId = selectedProject?.id;
+        if (projectId && projectLocation) {
+          try {
+            const seismicEvent = await processProjectSeismicEvent({
+              feed: usgsEarthquakeAdapter,
+              projectLocation,
+              projectId,
+              triggeredKeys: triggeredEarthquakeKeys.current,
+              triggerEmergency,
             });
 
-            // Trigger emergency if magnitude >= 6.0
-            if (parseFloat(strongEQ.Magnitud) >= 6.0) {
-              triggerEmergency('sismo');
+            if (seismicEvent) {
+              const alertMessage =
+                `Sismo de magnitud ${seismicEvent.magnitude.toFixed(1)} a ` +
+                `${Math.round(seismicEvent.distanceKm)} km de la faena, en ` +
+                `${seismicEvent.place}. Protocolo de evacuación en evaluación.`;
+              setAlerts(previous =>
+                previous.includes(alertMessage)
+                  ? previous
+                  : [...previous, alertMessage],
+              );
             }
+          } catch (error) {
+            logger.error('Telemetry: project seismic safety feed failed', {
+              error,
+              projectId,
+            });
           }
         }
       } catch (error) {
@@ -471,7 +509,7 @@ export function Telemetry() {
     // Refresh every 5 minutes
     const interval = setInterval(fetchTelemetryData, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [lat, lon, isOnline]);
+  }, [isOnline, projectLocation, selectedProject?.id, triggerEmergency]);
 
   // Check weather alerts
   // Codex P2 (PR #304): wind and temp are independent on the weather

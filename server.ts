@@ -14,6 +14,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // transaction Firestore por increment. Ver
 // src/server/rateLimit/firestoreRateLimitStore.ts.
 import { makeFirestoreRateLimitStore } from "./src/server/rateLimit/firestoreRateLimitStore.js";
+import { configureTrustProxy } from './src/server/config/trustProxy.js';
 // vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installedimport path from "path";
 import path from "path";
 import cookieParser from "cookie-parser";
@@ -613,6 +614,7 @@ try {
 // /api/billing/verify and /api/billing/webhook handlers consume it.
 
 const app = express();
+configureTrustProxy(app);
 const PORT = Number(process.env.PORT) || 57335;
 
 // `safeSecretEqual` extracted to src/server/middleware/safeSecretEqual.ts in

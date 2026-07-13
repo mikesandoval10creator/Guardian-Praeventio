@@ -41,9 +41,14 @@ const GeofenceCrossedPayload = z.object({
   zoneName: z.string(),
   zoneType: z.enum(['HAZMAT', 'DANGER', 'RESTRICTED']),
   direction: z.enum(['enter', 'exit']),
-  lat: z.number(),
-  lng: z.number(),
-});
+  // Optional only for legacy/injected events without a location fix. Never
+  // synthesize (0,0): consumers must distinguish "unknown" from a real point.
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+}).refine(
+  payload => (payload.lat === undefined) === (payload.lng === undefined),
+  { message: 'lat and lng must be provided together' },
+);
 
 const CountdownExpiredPayload = z.object({
   workerId: z.string().min(1),

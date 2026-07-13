@@ -41,8 +41,16 @@ function buildApp(minPlan: Parameters<typeof requireTier>[0]) {
   return app;
 }
 
+const seedSubscription = (uid: string, subscription: Record<string, unknown>) =>
+  H.db!._seed(`users/${uid}`, { subscription });
+
 const seedPlan = (uid: string, planId: unknown) =>
-  H.db!._seed(`users/${uid}`, planId === undefined ? {} : { subscription: { planId } });
+  H.db!._seed(
+    `users/${uid}`,
+    planId === undefined
+      ? {}
+      : { subscription: { planId, status: 'active', paymentMethod: 'webpay' } },
+  );
 
 beforeEach(() => {
   H.db = createFakeFirestore();
@@ -81,6 +89,43 @@ describe('requireTier', () => {
     const res = await request(buildApp('cobre')).get('/gated').set('x-test-uid', 'u1');
     expect(res.status).toBe(402);
     expect(res.body.currentPlan).toBe('free');
+  });
+
+  it.each(['expired', 'revoked'])('402 when a paid subscription is %s', async (status) => {
+    seedSubscription('u1', { planId: 'diamante', status, paymentMethod: 'webpay' });
+    const res = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({ error: 'upgrade_required', currentPlan: 'free' });
+  });
+
+  it('402 when an active subscription expiry is in the past', async () => {
+    seedSubscription('u1', {
+      planId: 'diamante',
+      status: 'active',
+      provider: 'app-store',
+      expiryDate: '2020-01-01T00:00:00.000Z',
+    });
+    const res = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(402);
+    expect(res.body.currentPlan).toBe('free');
+  });
+
+  it('402 when a paid subscription has no lifecycle status or provider', async () => {
+    seedSubscription('u1', { planId: 'diamante' });
+    const res = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(402);
+    expect(res.body.currentPlan).toBe('free');
+  });
+
+  it('200 during an explicit unexpired grace period', async () => {
+    seedSubscription('u1', {
+      planId: 'oro',
+      status: 'grace_period',
+      provider: 'app-store',
+      gracePeriodEnd: '2999-01-01T00:00:00.000Z',
+    });
+    const res = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(200);
   });
 
   it('honours a legacy plan alias (premium → oro, rank 3)', async () => {
@@ -135,6 +180,16 @@ describe('requireTier report-only (enforce: false)', () => {
       expect.objectContaining({ requiredPlan: 'titanio', currentPlan: 'plata' }),
     );
   });
+
+  it.each(['expired', 'revoked'])(
+    'still blocks an explicitly %s paid entitlement because report-only covers tier rollout, not billing lifecycle',
+    async (status) => {
+      seedSubscription('u1', { planId: 'diamante', status, paymentMethod: 'webpay' });
+      const res = await request(buildAppRO('titanio')).get('/gated').set('x-test-uid', 'u1');
+      expect(res.status).toBe(402);
+      expect(res.body.currentPlan).toBe('free');
+    },
+  );
 
   it('serves through when the plan lookup throws (no fail-closed in report-only)', async () => {
     seedPlan('u1', 'plata');
