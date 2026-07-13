@@ -122,8 +122,36 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     expect(res.status).toBe(403);
   });
 
+  it('409 when a matching paid invoice has no verifiable payment provider', async () => {
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      lineItems: [{ tierId: 'oro' }],
+    });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('unverifiable_payment_provider');
+  });
+
   it('200 upgrades on a matching paid invoice (lineItems) + writes user doc + awaits audit', async () => {
-    seedInvoice('inv1', { createdBy: 'u1', status: 'paid', lineItems: [{ tierId: 'oro' }] });
+    H.db!._seed('users/u1', {
+      subscription: {
+        planId: 'plata',
+        status: 'expired',
+        provider: 'app-store',
+        expiryDate: '2020-01-01T00:00:00.000Z',
+        gracePeriodEnd: '2020-01-02T00:00:00.000Z',
+      },
+    });
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      lineItems: [{ tierId: 'oro' }],
+    });
     const res = await request(buildApp())
       .post(URL)
       .set('x-test-uid', 'u1')
@@ -133,11 +161,20 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     const user = (await H.db!.collection('users').doc('u1').get()).data() as Record<string, any>;
     expect(user.subscription.planId).toBe('oro');
     expect(user.subscription.status).toBe('active');
+    expect(user.subscription.paymentMethod).toBe('webpay');
+    expect(user.subscription.provider).toBe('webpay');
+    expect(user.subscription.expiryDate).toBeNull();
+    expect(user.subscription.gracePeriodEnd).toBeNull();
     expect(H.audit).toHaveBeenCalledTimes(1);
   });
 
   it('200 (non-blocking): a post-upgrade audit failure must NOT 500 the already-applied upgrade (CLAUDE.md #14)', async () => {
-    seedInvoice('inv1', { createdBy: 'u1', status: 'paid', lineItems: [{ tierId: 'oro' }] });
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      lineItems: [{ tierId: 'oro' }],
+    });
     // The plan write at the top of the handler already succeeded; the audit
     // call comes AFTER it. If the audit backend is down, the user must still
     // see success (they paid + the plan was applied) — else they think the
@@ -162,7 +199,12 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
   });
 
   it('200 also accepts the legacy top-level tierId schema', async () => {
-    seedInvoice('inv2', { createdBy: 'u1', status: 'paid', tierId: 'titanio' });
+    seedInvoice('inv2', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'manual-transfer',
+      tierId: 'titanio',
+    });
     const res = await request(buildApp())
       .post(URL)
       .set('x-test-uid', 'u1')
@@ -170,5 +212,7 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     expect(res.status).toBe(200);
     const user = (await H.db!.collection('users').doc('u1').get()).data() as Record<string, any>;
     expect(user.subscription.planId).toBe('titanio');
+    expect(user.subscription.paymentMethod).toBe('manual');
+    expect(user.subscription.provider).toBe('manual');
   });
 });

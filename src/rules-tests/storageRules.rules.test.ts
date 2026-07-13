@@ -231,9 +231,24 @@ describe('workers/{uid}/** — strictly per-uid private', () => {
   it('the owner can upload to their own vault', async () => {
     await assertSucceeds(uploadBytes(r(storageOf(OWNER), `workers/${OWNER}/cert.pdf`), BYTES, { contentType: 'application/pdf' }));
   });
+  // GPT audit 2026-07-12: the combined `read, write` rule gated on
+  // isUnder(), which reads request.resource.size — null on a GET → the
+  // owner could NOT read their own files. Read must not depend on the
+  // incoming (write-only) resource.
+  it('the owner can READ their own vault file', async () => {
+    await seed(`workers/${OWNER}/cert.pdf`, 'application/pdf');
+    await assertSucceeds(getBytes(r(storageOf(OWNER), `workers/${OWNER}/cert.pdf`)));
+  });
+  it('the owner can DELETE their own vault file (write split preserves delete)', async () => {
+    await seed(`workers/${OWNER}/old.pdf`, 'application/pdf');
+    await assertSucceeds(deleteObject(r(storageOf(OWNER), `workers/${OWNER}/old.pdf`)));
+  });
   it('another user cannot read the owner vault', async () => {
     await seed(`workers/${OWNER}/cert.pdf`, 'application/pdf');
     await assertFails(getBytes(r(storageOf(OUTSIDER), `workers/${OWNER}/cert.pdf`)));
+  });
+  it('another user cannot upload into the owner vault', async () => {
+    await assertFails(uploadBytes(r(storageOf(OUTSIDER), `workers/${OWNER}/hack.pdf`), BYTES, { contentType: 'application/pdf' }));
   });
 });
 

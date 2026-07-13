@@ -33,6 +33,7 @@ import {
   subscriptionPlanMatchesPaidTier,
   resolveInvoiceCycle,
 } from "../../services/pricing/subscriptionPlan.js";
+import { normalizeSubscriptionProvider } from "../../services/pricing/subscriptionEntitlement.js";
 
 export const subscriptionRouter = Router();
 
@@ -58,6 +59,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   // Capture the SAME invoice that matched the requested plan so we persist its
   // cycle (not the first paid invoice's) onto the subscription doc.
   let paidInvoiceData: Record<string, unknown> | null = null;
+  let paidPaymentMethod: unknown = null;
   try {
     const paidInvoices = await db
       .collection("invoices")
@@ -75,12 +77,14 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
       if (lineItem?.tierId) {
         paidTierId = lineItem.tierId;
         paidInvoiceData = data;
+        paidPaymentMethod = data?.paymentMethod;
         return true;
       }
       // Legacy schema: top-level tierId
       if (subscriptionPlanMatchesPaidTier(planId, data?.tierId)) {
         paidTierId = data.tierId;
         paidInvoiceData = data;
+        paidPaymentMethod = data?.paymentMethod;
         return true;
       }
       return false;
@@ -108,6 +112,12 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
     logger.warn("billing_cycle_defaulted", { uid, rail: "subscription-upgrade" });
   }
 
+  const paymentMethod = normalizeSubscriptionProvider(paidPaymentMethod);
+  if (!paymentMethod) {
+    logger.error("subscription_upgrade_unverifiable_provider", undefined, { uid, planId });
+    return res.status(409).json({ error: "unverifiable_payment_provider" });
+  }
+
   // Payment exists — update via Admin SDK (bypasses client rules).
   try {
     await db.collection("users").doc(uid).set(
@@ -117,6 +127,10 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
           planId: normalizedPlanId,
           tierId: paidTierId ?? normalizedPlanId,
           status: "active",
+          paymentMethod,
+          provider: paymentMethod,
+          expiryDate: null,
+          gracePeriodEnd: null,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           cycle,
         },
