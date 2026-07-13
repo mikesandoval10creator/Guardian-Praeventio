@@ -142,7 +142,7 @@
     "framer-motion": "^12.42.2",
     "fuse.js": "^7.4.2",
     "gantt-task-react": "^0.3.9",
-    "googleapis": "^171.4.0",
+    "googleapis": "^173.0.0",
     "gsap": "^3.15.0",
     "helmet": "^8.2.0",
     "html2canvas": "^1.4.1",
