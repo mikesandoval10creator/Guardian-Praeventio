@@ -1,8 +1,8 @@
 // Praeventio Guard — server-side subscription tier gate (directive #11).
 //
 // CLAUDE.md #11: "Tier-gating enforcement always lives server-side. Frontend
-// gating in SubscriptionContext is UX-only; the canonical rank check is reading
-// `users/{uid}.subscription.planId` and comparing against the plan ranks."
+// gating in SubscriptionContext is UX-only; the canonical check reads the full
+// `users/{uid}.subscription` lifecycle and then compares the effective plan."
 //
 // This middleware is that canonical server check. Mount it AFTER `verifyAuth`
 // (it needs the verified `req.user.uid`) on any route whose feature is gated to
@@ -33,41 +33,44 @@ import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
 import {
   planMeetsMinimum,
-  normalizeSubscriptionPlanId,
   type SubscriptionPlan,
 } from '../../services/pricing/subscriptionPlan.js';
+import {
+  evaluateSubscriptionEntitlement,
+  isInvalidPaidEntitlement,
+} from '../../services/pricing/subscriptionEntitlement.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from './captureRouteError.js';
 
 /**
- * Read the caller's authoritative subscription plan from
- * `users/{uid}.subscription.planId` (falling back to the legacy top-level
- * `subscriptionPlan` mirror). Returns `null` only when the lookup THROWS — a
- * doc that simply has no plan resolves to `'free'` upstream via planRank.
+ * Read the caller's complete authoritative subscription record. The shared
+ * entitlement evaluator validates its plan, status, provider, expiry, and
+ * grace period. The legacy top-level plan mirror is not authoritative.
  */
-async function readCallerPlanId(uid: string): Promise<unknown> {
+async function readCallerSubscription(uid: string): Promise<unknown> {
   const snap = await admin.firestore().collection('users').doc(uid).get();
   if (!snap.exists) return undefined;
   const data = snap.data() ?? {};
-  const fromSub = (data.subscription as { planId?: unknown } | undefined)?.planId;
-  return fromSub ?? (data as { subscriptionPlan?: unknown }).subscriptionPlan;
+  return data.subscription;
 }
 
 /**
- * Public reader for a user's authoritative subscription plan id — for
+ * Public reader for a user's effective, lifecycle-validated plan id — for
  * scale-gate evaluation OUTSIDE the requireTier middleware (e.g. checking a
  * project OWNER's plan when a different member invites a teammate). Returns
- * `undefined` when the user/plan is absent; THROWS on a Firestore error so the
- * caller picks its own posture (report-only swallows; enforce fails closed).
+ * Returns `free` when the user or a valid entitlement is absent; THROWS on a
+ * Firestore error so the caller picks its own posture.
  */
-export async function readSubscriptionPlanId(uid: string): Promise<unknown> {
-  return readCallerPlanId(uid);
+export async function readSubscriptionPlanId(uid: string): Promise<SubscriptionPlan> {
+  return evaluateSubscriptionEntitlement(await readCallerSubscription(uid)).effectivePlan;
 }
 
 export interface RequireTierOptions {
   /**
-   * When `false`, the gate is REPORT-ONLY: a caller below `minPlan` is logged
-   * as `tier_gate_would_block` and the request proceeds (next()). This is the
+   * When `false`, tier ranking is REPORT-ONLY: a valid caller below `minPlan`
+   * is logged as `tier_gate_would_block` and the request proceeds (next()).
+   * Invalid paid lifecycle records are always denied; report-only must never
+   * turn an expired or revoked entitlement back on. This is the
    * safe rollout phase 1 (TIER-GATING-SERVER-SIDE-SPEC.md §4) — it validates
    * the route→tier table in prod WITHOUT risking a mis-indexed paid customer
    * being denied. Defaults to `true` (enforce: a direct `requireTier('x')`
@@ -92,9 +95,9 @@ export function requireTier(minPlan: SubscriptionPlan, opts: RequireTierOptions 
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    let planId: unknown;
+    let subscription: unknown;
     try {
-      planId = await readCallerPlanId(uid);
+      subscription = await readCallerSubscription(uid);
     } catch (err) {
       // Could not verify the plan. Enforce → fail-CLOSED (deny). Report-only →
       // don't penalize a paying user for a transient Firestore blip; log + pass.
@@ -107,9 +110,10 @@ export function requireTier(minPlan: SubscriptionPlan, opts: RequireTierOptions 
       res.status(403).json({ error: 'tier_check_failed' });
       return;
     }
-    if (!planMeetsMinimum(planId, minPlan)) {
-      const currentPlan = normalizeSubscriptionPlanId(planId) ?? 'free';
-      if (!enforce) {
+    const entitlement = evaluateSubscriptionEntitlement(subscription);
+    const currentPlan = entitlement.effectivePlan;
+    if (!planMeetsMinimum(currentPlan, minPlan)) {
+      if (!enforce && !isInvalidPaidEntitlement(entitlement)) {
         // Report-only: surface the would-block as a demand signal + table
         // validation, but let the request through.
         logger.warn('tier_gate_would_block', {
@@ -117,11 +121,18 @@ export function requireTier(minPlan: SubscriptionPlan, opts: RequireTierOptions 
           route: opts.route,
           requiredPlan: minPlan,
           currentPlan,
+          entitlementReason: entitlement.reason,
         });
         next();
         return;
       }
-      logger.warn('tier_gate_blocked', { uid, route: opts.route, requiredPlan: minPlan, currentPlan });
+      logger.warn('tier_gate_blocked', {
+        uid,
+        route: opts.route,
+        requiredPlan: minPlan,
+        currentPlan,
+        entitlementReason: entitlement.reason,
+      });
       res.status(402).json({
         error: 'upgrade_required',
         requiredPlan: minPlan,

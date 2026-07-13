@@ -686,6 +686,7 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     expect(user.subscription.status).toBe('active');
     expect(user.subscription.tierId).toBe('comite-paritario');
     expect(user.subscription.paymentMethod).toBe('manual');
+    expect(user.subscription.provider).toBe('manual');
     expect(user.subscription.lastInvoiceId).toBe('inv-b2b-1');
     // Cycle is now persisted on the subscription doc; this invoice has no
     // structured cycle (legacy shape) so it falls back to the safe default.
@@ -1170,6 +1171,7 @@ describe('POST /api/billing/khipu/webhook', () => {
     expect(user.subscription.status).toBe('active');
     expect(user.subscription.tierId).toBe('comite-paritario');
     expect(user.subscription.paymentMethod).toBe('khipu');
+    expect(user.subscription.provider).toBe('khipu');
     expect(user.subscription.lastInvoiceId).toBe('inv-khipu-1');
   });
 
