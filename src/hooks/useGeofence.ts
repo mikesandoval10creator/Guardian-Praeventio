@@ -10,6 +10,11 @@ export interface GeofenceZone {
   coordinates: number[][][]; // GeoJSON Polygon coordinates
 }
 
+export interface GeofencePosition {
+  lat: number;
+  lng: number;
+}
+
 // Module-level shared AudioContext — mobile browsers (iOS Safari, Chrome Android)
 // reject `new AudioContext()` outside a user-gesture stack frame. We instantiate
 // lazily on the first user pointerdown anywhere in the document, so by the time
@@ -117,14 +122,17 @@ export type GeofencePermissionState =
 
 export function useGeofence(
   zones: GeofenceZone[],
-  onZoneEntry?: (zones: GeofenceZone[]) => void,
+  onZonesChanged?: (
+    activeZones: GeofenceZone[],
+    position: GeofencePosition,
+  ) => void,
 ) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeZones, setActiveZones] = useState<GeofenceZone[]>([]);
   const [permissionState, setPermissionState] =
     useState<GeofencePermissionState>('pending');
-  const onZoneEntryRef = useRef(onZoneEntry);
-  onZoneEntryRef.current = onZoneEntry;
+  const onZonesChangedRef = useRef(onZonesChanged);
+  onZonesChangedRef.current = onZonesChanged;
   // Track which zone IDs the worker is currently inside to avoid repeated alarms
   const insideZoneIdsRef = useRef<Set<string>>(new Set());
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
@@ -175,7 +183,8 @@ export function useGeofence(
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        setCurrentLocation({ lat: latitude, lng: longitude });
+        const observedPosition = { lat: latitude, lng: longitude };
+        setCurrentLocation(observedPosition);
         setPermissionState('granted');
 
         const userPoint = point([longitude, latitude]);
@@ -200,8 +209,12 @@ export function useGeofence(
 
         if (justEntered.length > 0) {
           void playZoneAlarm();
-          onZoneEntryRef.current?.(justEntered);
         }
+
+        // Report every evaluated GPS tick, not only entries. The event wrapper
+        // needs the complete active-zone set to detect exits and the exact
+        // position that produced the transition.
+        onZonesChangedRef.current?.(insideZones, observedPosition);
       },
       (err) => {
         // Sprint 29 (audit H27) — surface PERMISSION_DENIED so el trabajador

@@ -57,6 +57,51 @@ describe('SystemEvent schema', () => {
     expect(new Set(ALL_EVENT_TYPES).size).toBe(ALL_EVENT_TYPES.length);
   });
 
+  it('accepts a geofence crossing without invented coordinates when no fix exists', () => {
+    const parsed = SystemEventSchema.safeParse({
+      id: 'event-geofence-no-fix',
+      tenantId: 'tenant-A',
+      projectId: 'project-A',
+      actorUid: 'worker-1',
+      ts: Date.now(),
+      idempotencyKey: 'geo:worker-1:zone-1:enter:1',
+      type: 'geofence_crossed',
+      payload: {
+        workerId: 'worker-1',
+        projectId: 'project-A',
+        zoneId: 'zone-1',
+        zoneName: 'Zona 1',
+        zoneType: 'HAZMAT',
+        direction: 'enter',
+      },
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects a partial geofence coordinate pair', () => {
+    const base = {
+      id: 'event-geofence-partial-fix',
+      tenantId: 'tenant-A',
+      projectId: 'project-A',
+      actorUid: 'worker-1',
+      ts: Date.now(),
+      idempotencyKey: 'geo:worker-1:zone-1:enter:2',
+      type: 'geofence_crossed',
+      payload: {
+        workerId: 'worker-1',
+        projectId: 'project-A',
+        zoneId: 'zone-1',
+        zoneName: 'Zona 1',
+        zoneType: 'HAZMAT',
+        direction: 'enter',
+        lat: -33.4489,
+      },
+    };
+
+    expect(SystemEventSchema.safeParse(base).success).toBe(false);
+  });
+
   it('accepts every documented event type with a minimal payload', () => {
     const cases: Array<[string, Record<string, unknown>]> = [
       ['sos_triggered', { workerId: 'w', projectId: 'p', emergencyType: 'fall', origin: 'fall_detection' }],
