@@ -28,9 +28,21 @@ export function isRtlLocale(tag: string | null | undefined): boolean {
 }
 
 /**
- * Apply the correct `dir` attribute on `<html>` for the given locale.
- * Idempotent: calling it twice with the same locale is a no-op. Safe to
- * call from SSR / tests where `document` may be undefined.
+ * Map an i18next locale tag to the BCP-47 value that should appear on the
+ * `<html lang>` attribute. The i18n system uses bare `'es'` for the
+ * Spanish-CL baseline, but SEO/a11y benefit from the full region subtag
+ * (`es-CL`).
+ */
+export function toHtmlLang(tag: string | null | undefined): string | null {
+  if (!tag) return null;
+  if (tag === 'es') return 'es-CL';
+  return tag;
+}
+
+/**
+ * Apply the correct `dir` and `lang` attributes on `<html>` for the given
+ * locale. Idempotent: calling it twice with the same locale is a no-op.
+ * Safe to call from SSR / tests where `document` may be undefined.
  */
 export function applyHtmlDir(tag: string | null | undefined): void {
   if (typeof document === 'undefined') return;
@@ -38,7 +50,8 @@ export function applyHtmlDir(tag: string | null | undefined): void {
   if (document.documentElement.getAttribute('dir') !== dir) {
     document.documentElement.setAttribute('dir', dir);
   }
-  if (tag && document.documentElement.getAttribute('lang') !== tag) {
-    document.documentElement.setAttribute('lang', tag);
+  const htmlLang = toHtmlLang(tag);
+  if (htmlLang && document.documentElement.getAttribute('lang') !== htmlLang) {
+    document.documentElement.setAttribute('lang', htmlLang);
   }
 }
