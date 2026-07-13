@@ -288,7 +288,7 @@ export async function countryFromCoordsAsync(
     `https://maps.googleapis.com/maps/api/geocode/json` +
     `?latlng=${latStr},${lngStr}&key=${encodeURIComponent(apiKey)}`;
 
-  let res: Response;
+  let res: Response | undefined;
   try {
     res = await fetch(url, options?.signal ? { signal: options.signal } : undefined);
   } catch (err) {
@@ -302,7 +302,7 @@ export async function countryFromCoordsAsync(
     return countryFromCoords(lat, lng) ?? 'ISO';
   }
 
-  if (!res.ok) {
+  if (!res || !res.ok) {
     return countryFromCoords(lat, lng) ?? 'ISO';
   }
 
