@@ -10,7 +10,11 @@
 
 import { useCallback, useRef } from 'react';
 
-import { useGeofence, type GeofenceZone } from './useGeofence';
+import {
+  useGeofence,
+  type GeofencePosition,
+  type GeofenceZone,
+} from './useGeofence';
 import { buildEnvelope, emit } from '../services/systemEngine/eventLog';
 import { logger } from '../utils/logger';
 
@@ -30,32 +34,31 @@ export function useGeofenceWithEvents(
   const insideRef = useRef<Set<string>>(new Set());
 
   const wrapped = useCallback(
-    (entered: GeofenceZone[]) => {
-      const enteredIds = new Set(entered.map((z) => z.id));
+    (activeZones: GeofenceZone[], position?: GeofencePosition) => {
+      const activeIds = new Set(activeZones.map((zone) => zone.id));
       const previouslyInside = insideRef.current;
+      const newlyEntered = activeZones.filter(zone => !previouslyInside.has(zone.id));
 
       // Detect new entries (not previously inside).
-      for (const zone of entered) {
-        if (previouslyInside.has(zone.id)) continue;
-
-        emitGeofenceCrossed(zone, 'enter', opts).catch((err) =>
+      for (const zone of newlyEntered) {
+        emitGeofenceCrossed(zone, 'enter', opts, position).catch((err) =>
           logger.warn('useGeofenceWithEvents: enter emit failed', { err: String(err) }),
         );
       }
 
       // Detect exits (previously inside but no longer).
       for (const previousId of previouslyInside) {
-        if (enteredIds.has(previousId)) continue;
+        if (activeIds.has(previousId)) continue;
         const previousZone = zones.find((z) => z.id === previousId);
         if (previousZone) {
-          emitGeofenceCrossed(previousZone, 'exit', opts).catch((err) =>
+          emitGeofenceCrossed(previousZone, 'exit', opts, position).catch((err) =>
             logger.warn('useGeofenceWithEvents: exit emit failed', { err: String(err) }),
           );
         }
       }
 
-      insideRef.current = new Set([...enteredIds]);
-      onEntryRef.current?.(entered);
+      insideRef.current = new Set(activeIds);
+      if (newlyEntered.length > 0) onEntryRef.current?.(newlyEntered);
     },
     [opts, zones],
   );
@@ -67,6 +70,7 @@ async function emitGeofenceCrossed(
   zone: GeofenceZone,
   direction: 'enter' | 'exit',
   opts: UseGeofenceWithEventsOptions,
+  position?: GeofencePosition,
 ): Promise<void> {
   await emit({
     ...buildEnvelope({
@@ -83,12 +87,7 @@ async function emitGeofenceCrossed(
       zoneName: zone.name,
       zoneType: zone.type,
       direction,
-      lat: 0, // populated when caller knows; see TODO below
-      lng: 0,
+      ...(position ? { lat: position.lat, lng: position.lng } : {}),
     },
   });
 }
-
-// TODO: thread the worker's last-known lat/lng through useGeofence so the
-// payload carries it. For now we omit and the policy doesn't depend on
-// the precise coordinate to escalate (the zoneId is enough).
