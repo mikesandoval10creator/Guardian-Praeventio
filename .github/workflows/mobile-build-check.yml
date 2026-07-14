@@ -78,6 +78,20 @@ jobs:
           grep -q "export default" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'export default'"; exit 1; }
           echo "capacitor.config.ts parses + carries appId/appName"
 
+      # The dev server (http://10.0.2.2:5173 — the Android-emulator host alias)
+      # must NEVER reach the store. `cap sync` bakes the RESOLVED config into
+      # android/app/src/main/assets/capacitor.config.json, which ships inside the
+      # APK; syncing without NODE_ENV=production embeds the dev url + cleartext
+      # and the app opens BLANK on a real device.
+      #
+      # Two layers: the vitest gate `src/__tests__/mobile/storeBuildConfig.test.ts`
+      # pins the config LOGIC (prod => no server block) and runs in the Tests
+      # shards; this step pins the built ARTIFACT. No `cap sync` runs here yet
+      # (the Android build is local — ADR-0006), so the guard SKIPs cleanly; it
+      # is wired now so the future Gradle job inherits it for free.
+      - name: Store-build guard (dev server never embedded)
+        run: npm run guard:store-build
+
       # Sprint 21+: agregar android-build job real con Gradle + signing.
       # Sketch:
       #   - run: npx cap add android  (once android/ is committed, drop this)
