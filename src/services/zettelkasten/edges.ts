@@ -174,6 +174,14 @@ export interface EdgeStore {
   findOutgoing(nodeId: string, tenantId: string, type?: EdgeType): Promise<ZkEdge[]>;
   /** Find all edges where `toNodeId === nodeId`. */
   findIncoming(nodeId: string, tenantId: string, type?: EdgeType): Promise<ZkEdge[]>;
+  /**
+   * ZK-5 — list a tenant's edges (capped) so a caller can project them onto a
+   * node set it already holds. Deliberately NOT filtered by `projectId`: that
+   * field is OPTIONAL on `ZkEdge` (only set when both endpoints share a
+   * project), so a projectId query would silently drop legacy edges. The
+   * caller filters by its own node set instead.
+   */
+  listByTenant(tenantId: string, limit?: number): Promise<ZkEdge[]>;
 }
 
 export class EdgeValidationError extends Error {

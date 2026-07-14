@@ -39,6 +39,10 @@ function buildInMemoryStore(): EdgeStore & { _all(): ZkEdge[] } {
           (!type || e.type === type),
       );
     },
+    async listByTenant(tenantId, limit) {
+      const all = Array.from(byId.values()).filter((e) => e.tenantId === tenantId);
+      return typeof limit === 'number' && limit > 0 ? all.slice(0, limit) : all;
+    },
     _all: () => Array.from(byId.values()),
   };
 }

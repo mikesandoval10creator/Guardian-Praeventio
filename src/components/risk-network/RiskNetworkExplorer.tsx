@@ -17,9 +17,34 @@ import {
   Brain
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useProject } from '../../contexts/ProjectContext';
+import { apiAuthHeaders } from '../../lib/apiAuth';
+
+// Alpha41 ZK-5 — the TYPED edges the Zettelkasten flows persist
+// (causes / mitigates / requires …) were invisible here: the graph only drew
+// `node.connections`, an untyped `string[]` with no type and no direction.
+// `/api/zettelkasten/edges` returns them already translated to the node ids
+// this explorer holds (an edge references the raw zkNodeId while the client
+// keys its nodes by the Firestore doc id — that mismatch is why they never
+// showed up).
+interface TypedEdge {
+  source: string;
+  target: string;
+  type: string;
+}
+
+const EDGE_STYLE: Record<string, { color: string; label: string }> = {
+  causes: { color: '#f43f5e', label: 'Causa' },
+  mitigates: { color: '#10b981', label: 'Mitiga' },
+  requires: { color: '#3b82f6', label: 'Requiere' },
+};
+const OTHER_EDGE_COLOR = '#a1a1aa';
+const UNTYPED_LINK_COLOR = 'rgba(255, 255, 255, 0.1)';
 
 export function RiskNetworkExplorer() {
   const { nodes, stats, loading } = useUniversalKnowledge();
+  const { selectedProject } = useProject();
+  const [typedEdges, setTypedEdges] = useState<TypedEdge[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
@@ -35,6 +60,35 @@ export function RiskNetworkExplorer() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // ZK-5 — pull this project's TYPED edges. Non-fatal on failure: the graph
+  // still renders the untyped `connections`, so a flaky call never blanks it.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setTypedEdges([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await apiAuthHeaders();
+        const res = await fetch('/api/zettelkasten/edges', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ projectId }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { edges?: TypedEdge[] };
+        if (!cancelled) setTypedEdges(Array.isArray(data.edges) ? data.edges : []);
+      } catch {
+        // Silent: untyped connections remain the fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id]);
+
   const graphData = useMemo(() => {
     const filteredNodes = nodes.filter(n => {
       const matchesSearch = n.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
@@ -43,14 +97,27 @@ export function RiskNetworkExplorer() {
       return matchesSearch && matchesType;
     });
 
-    const links: { source: string; target: string }[] = [];
+    const links: { source: string; target: string; type?: string }[] = [];
     const nodeIds = new Set(filteredNodes.map(n => n.id));
 
+    // Typed, DIRECTED edges first — they carry the semantics (causes /
+    // mitigates / requires) that `connections` cannot express.
+    const typedPairs = new Set<string>();
+    typedEdges.forEach(e => {
+      if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) return;
+      links.push({ source: e.source, target: e.target, type: e.type });
+      // `connections` is stored on BOTH endpoints, so suppress the mirror pair
+      // as well — otherwise each typed edge would be drawn twice.
+      typedPairs.add(`${e.source}|${e.target}`);
+      typedPairs.add(`${e.target}|${e.source}`);
+    });
+
+    // Untyped `connections` fill in whatever the typed graph doesn't cover.
     filteredNodes.forEach(node => {
       node.connections.forEach(targetId => {
-        if (nodeIds.has(targetId)) {
-          links.push({ source: node.id, target: targetId });
-        }
+        if (!nodeIds.has(targetId)) return;
+        if (typedPairs.has(`${node.id}|${targetId}`)) return;
+        links.push({ source: node.id, target: targetId });
       });
     });
 
@@ -64,7 +131,7 @@ export function RiskNetworkExplorer() {
       })),
       links
     };
-  }, [nodes, searchTerm, filterType]);
+  }, [nodes, debouncedSearchTerm, filterType, typedEdges]);
 
   // Stop simulation after 3 seconds to save battery
   useEffect(() => {
@@ -139,8 +206,20 @@ export function RiskNetworkExplorer() {
           nodeLabel="name"
           nodeColor="color"
           nodeRelSize={6}
-          linkWidth={1}
-          linkColor={() => 'rgba(255, 255, 255, 0.1)'}
+          // ZK-5 — typed edges render with their semantic colour, a thicker
+          // stroke and a directional arrow (from → to). Untyped `connections`
+          // keep the old faint, arrow-less style so the two never look alike.
+          linkWidth={(l: any) => (l.type ? 2 : 1)}
+          linkColor={(l: any) =>
+            l.type
+              ? (EDGE_STYLE[l.type]?.color ?? OTHER_EDGE_COLOR)
+              : UNTYPED_LINK_COLOR
+          }
+          linkDirectionalArrowLength={(l: any) => (l.type ? 4 : 0)}
+          linkDirectionalArrowRelPos={1}
+          linkLabel={(l: any) =>
+            l.type ? (EDGE_STYLE[l.type]?.label ?? l.type) : ''
+          }
           nodeCanvasObject={(node: any, ctx, globalScale) => {
             const label = node.name;
             const fontSize = 12 / globalScale;
@@ -180,6 +259,23 @@ export function RiskNetworkExplorer() {
               </div>
             ))}
           </div>
+
+          {/* ZK-5 — typed-edge legend. Only rendered once the project actually
+              has typed edges, so projects without them see no dead UI. */}
+          {typedEdges.length > 0 && (
+            <div className="pt-2 mt-1 border-t border-zinc-200 dark:border-white/10">
+              <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2">Relaciones</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {Object.entries(EDGE_STYLE).map(([type, style]) => (
+                  <div key={type} className="flex items-center gap-2">
+                    <div className="w-4 h-0.5 rounded" style={{ backgroundColor: style.color }} />
+                    <span className="text-[8px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">{style.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[8px] font-bold text-zinc-400 dark:text-zinc-500 mt-1.5">La flecha indica el sentido</p>
+            </div>
+          )}
         </div>
 
         {/* Node Detail Sidebar */}

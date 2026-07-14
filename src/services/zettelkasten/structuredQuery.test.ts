@@ -41,6 +41,10 @@ function buildInMemoryStore(): EdgeStore {
           (!type || e.type === type),
       );
     },
+    async listByTenant(tenantId, limit) {
+      const all = Array.from(byId.values()).filter((e) => e.tenantId === tenantId);
+      return typeof limit === 'number' && limit > 0 ? all.slice(0, limit) : all;
+    },
   };
 }
 

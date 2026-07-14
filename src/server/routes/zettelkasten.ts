@@ -650,4 +650,90 @@ router.post(
   },
 );
 
+// ── POST /edges ───────────────────────────────────────────────────────
+//
+// Alpha41 ZK-5 — surface the project's TYPED edges to the graph explorer.
+// `RiskNetworkExplorer` drew its links from `node.connections` (an untyped
+// `string[]`), so the `zettelkasten_edges` the flows persist — carrying the
+// edge TYPE (causes / mitigates / requires …) and DIRECTION (from → to) —
+// were invisible in the UI.
+//
+// The reason they never lined up: an edge references the **zkNodeId** (the
+// canonical node's inner `id` FIELD), while the client keys its nodes by the
+// Firestore **doc id** (`{tenantId}_{projectId}_{zkNodeId}` once materialized).
+// So we scan the project's nodes once, build `zkNodeId → docId`, and emit only
+// the edges whose BOTH endpoints live in this project — already translated to
+// the ids the explorer holds. Same reconciliation as /structured-query.
+const EDGES_NODE_SCAN_LIMIT = 2000;
+const EDGES_SCAN_LIMIT = 5000;
+
+const edgesSchema = z.object({
+  projectId: z.string().min(1).max(256),
+});
+
+router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
+  const callerUid = req.user?.uid;
+  if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+  const { projectId } = req.body as z.infer<typeof edgesSchema>;
+  const db = admin.firestore();
+
+  try {
+    await assertProjectMember(callerUid, projectId, db);
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    throw err;
+  }
+
+  // Edges are tenant-scoped; resolve the logical tenant from the project doc.
+  let tenantId: string | null = null;
+  try {
+    const snap = await db.collection('projects').doc(projectId).get();
+    const data = snap.exists
+      ? (snap.data() as { tenantId?: string } | undefined)
+      : undefined;
+    if (typeof data?.tenantId === 'string' && data.tenantId.length > 0) {
+      tenantId = data.tenantId;
+    }
+  } catch (err) {
+    logger.warn('zettelkasten_edges_tenant_resolve_failed', { err: String(err) });
+  }
+  if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
+
+  try {
+    const nodesSnap = await db
+      .collection('nodes')
+      .where('projectId', '==', projectId)
+      .limit(EDGES_NODE_SCAN_LIMIT)
+      .get();
+
+    const docIdByZkId = new Map<string, string>();
+    for (const doc of nodesSnap.docs) {
+      const data = doc.data() as Record<string, unknown> | undefined;
+      const zkId =
+        typeof data?.id === 'string' && data.id.length > 0 ? data.id : doc.id;
+      docIdByZkId.set(zkId, doc.id);
+    }
+
+    const store = buildEdgeStore(db);
+    const all = await store.listByTenant(tenantId, EDGES_SCAN_LIMIT);
+
+    const edges = all.flatMap((e) => {
+      const source = docIdByZkId.get(e.fromNodeId);
+      const target = docIdByZkId.get(e.toNodeId);
+      // Drop edges with an endpoint outside this project (cross-project, or a
+      // node not materialized yet): the explorer has no node to attach them to.
+      if (!source || !target) return [];
+      return [{ source, target, type: e.type }];
+    });
+
+    return res.json({ edges });
+  } catch (err) {
+    logger.error?.('zettelkasten_edges_failed', { err: String(err) });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 export default router;
