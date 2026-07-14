@@ -50,7 +50,7 @@
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
     "cap:build:android": "npm run build && npx cap sync android",
     "guard:store-build": "node scripts/check-store-build-config.cjs",
-    "mobile:build:android": "npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
+    "mobile:build:android": "npm run build && npx cap sync android && npm run guard:store-build && cd android && ./gradlew bundleRelease",
     "mobile:build:ios": "npm run build && npx cap sync ios && cd ios/App && pod install",
     "mobile:release:android": "bundle exec fastlane android internal",
     "mobile:release:ios": "cd ios/App && bundle exec fastlane ios testflight",
