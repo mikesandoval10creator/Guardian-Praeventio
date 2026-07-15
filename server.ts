@@ -217,6 +217,8 @@ import stoppageRouter from "./src/server/routes/stoppage.js";
 import inboxRouter from "./src/server/routes/inbox.js";
 // F.19 Photo Evidence — metadata + linkage endpoints (bytes upload via Storage).
 import photoEvidenceRouter from "./src/server/routes/photoEvidence.js";
+// Audited worker mutations (server-side traceability of critical mutations).
+import workersRouter from "./src/server/routes/workers.js";
 // F.28 Explainability — stateless "porque..." rationale endpoint.
 import explainabilityRouter from "./src/server/routes/explainability.js";
 // F.30 Aggregate Telemetry — privacy-preserving event aggregation for dashboards.
@@ -1164,6 +1166,7 @@ app.use('/api/sprint-k', incidentFlowRouter);
 app.use('/api/sprint-k', stoppageRouter);
 app.use('/api/sprint-k', inboxRouter);
 app.use('/api/sprint-k', photoEvidenceRouter);
+app.use('/api', workersRouter);
 app.use('/api/sprint-k', explainabilityRouter);
 app.use('/api/sprint-k', aggregateTelemetryRouter);
 app.use('/api/sprint-k', signaleticsRouter);
