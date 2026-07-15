@@ -15,6 +15,13 @@ export interface GeofencePosition {
   lng: number;
 }
 
+export interface GeofenceTransition {
+  previousZoneIds: ReadonlySet<string>;
+  currentZoneIds: ReadonlySet<string>;
+  enteredZones: readonly GeofenceZone[];
+  exitedZones: readonly GeofenceZone[];
+}
+
 // Module-level shared AudioContext — mobile browsers (iOS Safari, Chrome Android)
 // reject `new AudioContext()` outside a user-gesture stack frame. We instantiate
 // lazily on the first user pointerdown anywhere in the document, so by the time
@@ -125,6 +132,7 @@ export function useGeofence(
   onZonesChanged?: (
     activeZones: GeofenceZone[],
     position: GeofencePosition,
+    transition: GeofenceTransition,
   ) => void,
 ) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -133,8 +141,9 @@ export function useGeofence(
     useState<GeofencePermissionState>('pending');
   const onZonesChangedRef = useRef(onZonesChanged);
   onZonesChangedRef.current = onZonesChanged;
-  // Track which zone IDs the worker is currently inside to avoid repeated alarms
-  const insideZoneIdsRef = useRef<Set<string>>(new Set());
+  // Retain complete zone objects so exits remain auditable even when a zone is
+  // removed from the current configuration before the next GPS observation.
+  const insideZonesRef = useRef<GeofenceZone[]>([]);
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
   // even though the effect re-subscription is keyed on a hash of zone ids only.
   const zonesRef = useRef<GeofenceZone[]>(zones);
@@ -150,7 +159,7 @@ export function useGeofence(
   // directly, watchPosition would tear down and resubscribe on every render —
   // wasteful, and on resub the very first geolocation callback would treat
   // every currently-occupied zone as a "just entered" event because
-  // insideZoneIdsRef still holds the previous set BUT the user expects no
+  // insideZonesRef still holds the previous set BUT the user expects no
   // alarm on a no-op rerender. We could clear the ref on resub, but that
   // would *also* miss legitimate transitions when the zones list genuinely
   // changes membership.
@@ -202,19 +211,30 @@ export function useGeofence(
         setActiveZones(insideZones);
 
         // Fire alarm only on zone ENTRY (transition from outside â†’ inside)
-        const prevIds = insideZoneIdsRef.current;
-        const newIds = new Set(insideZones.map((z) => z.id));
-        const justEntered = insideZones.filter((z) => !prevIds.has(z.id));
-        insideZoneIdsRef.current = newIds;
+        const previousZones = insideZonesRef.current;
+        const previousZoneIds = new Set(previousZones.map((zone) => zone.id));
+        const currentZoneIds = new Set(insideZones.map((zone) => zone.id));
+        const enteredZones = insideZones.filter(
+          (zone) => !previousZoneIds.has(zone.id),
+        );
+        const exitedZones = previousZones.filter(
+          (zone) => !currentZoneIds.has(zone.id),
+        );
+        insideZonesRef.current = insideZones;
 
-        if (justEntered.length > 0) {
+        if (enteredZones.length > 0) {
           void playZoneAlarm();
         }
 
         // Report every evaluated GPS tick, not only entries. The event wrapper
         // needs the complete active-zone set to detect exits and the exact
         // position that produced the transition.
-        onZonesChangedRef.current?.(insideZones, observedPosition);
+        onZonesChangedRef.current?.(insideZones, observedPosition, {
+          previousZoneIds,
+          currentZoneIds,
+          enteredZones,
+          exitedZones,
+        });
       },
       (err) => {
         // Sprint 29 (audit H27) — surface PERMISSION_DENIED so el trabajador
