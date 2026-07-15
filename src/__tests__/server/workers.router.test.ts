@@ -62,7 +62,6 @@ function seedWorker() {
     projectId: PROJECT,
   });
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function auditRows(): any[] {
   return Object.entries(H.db!._dump())
     .filter(([k]) => k.startsWith('audit_logs/'))
@@ -117,6 +116,8 @@ describe('PATCH /api/projects/:projectId/workers/:workerId', () => {
       .send({ role: 'Capataz' });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('worker_not_found');
+    // A no-op (nothing edited) must not leave a phantom audit row.
+    expect(auditRows()).toHaveLength(0);
   });
 
   it('200 updates whitelisted fields, stamps updatedAt, and writes an audit row', async () => {
