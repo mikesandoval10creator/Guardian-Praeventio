@@ -49,8 +49,6 @@ export interface ComplianceWebAuthnAssertion {
 }
 
 export interface ComplianceSignResult {
-  /** Goes into the POST body's `signature` field. */
-  signature: ComplianceSignature;
   /** Goes into the POST body's `webauthnAssertion` field. */
   webauthnAssertion: ComplianceWebAuthnAssertion;
 }
@@ -80,9 +78,6 @@ function base64ToBytes(b64: string): Uint8Array {
  * @throws Error — the sign-challenge endpoint failed or returned a bad body.
  */
 export async function requestComplianceSignature(
-  payloadHashHex: string,
-  signerUid: string,
-  signerRut: string,
   opts: { signChallengeUrl: string; authHeader: string | null },
 ): Promise<ComplianceSignResult> {
   if (!isWebAuthnSupported()) {
@@ -131,14 +126,6 @@ export async function requestComplianceSignature(
   const signatureB64 = bufferToBase64url(response.signature);
 
   return {
-    signature: {
-      signerUid,
-      signerRut,
-      signedAt: new Date().toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64,
-      payloadHashHex,
-    },
     webauthnAssertion: {
       challengeId,
       credentialId: credential.id,

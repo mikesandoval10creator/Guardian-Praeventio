@@ -85,6 +85,11 @@ vi.mock('../../services/suseso/susesoService.js', () => ({
   verifyFolio: (...args: unknown[]) => mockVerifyFolio(...args),
   submitToMutualidad: (...args: unknown[]) => mockSubmitToMutualidad(...args),
   folioToDocId: (folio: string) => folio.toLowerCase(),
+  renderSusesoUnsignedPayload: vi.fn(async () => ({
+    pdfBytes: new Uint8Array([37, 80, 68, 70]),
+    payloadHashHex: 'a'.repeat(64),
+    payloadRendererVersion: 1,
+  })),
 }));
 
 // WebAuthn helpers — mocked so the sign path can exercise both the
@@ -92,7 +97,7 @@ vi.mock('../../services/suseso/susesoService.js', () => ({
 const mockVerifyWebAuthnAssertion = vi.fn();
 const mockGenerateChallenge = vi.fn();
 const mockStoreChallenge = vi.fn();
-const mockBuildWebAuthnDb = vi.fn(() => ({}));
+const mockBuildWebAuthnDb = vi.fn(() => ({ now: () => 1_700_000_000_000 }));
 const mockBuildWebAuthnCredentialsDb = vi.fn(() => ({}));
 
 vi.mock('../../server/auth/webauthnAssertion.js', () => ({
@@ -173,8 +178,9 @@ const kmsSignature = {
 };
 
 // ─── beforeEach ───────────────────────────────────────────────────────────
-beforeEach(() => {
+beforeEach(async () => {
   H.db = createFakeFirestore();
+  await H.db.doc('users/u1').set({ rut: '12.345.678-5' });
   mockCreateSusesoForm.mockReset();
   mockSignForm.mockReset();
   mockVerifyFolio.mockReset();
@@ -467,72 +473,14 @@ describe('POST /api/suseso/form/:id/sign (kms-sign-rsa)', () => {
     expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
   });
 
-  it('200 happy path — kms-sign-rsa does not need webauthnAssertion', async () => {
-    const signedForm = { ...fakeForm, signature: kmsSignature };
-    mockSignForm.mockResolvedValueOnce(signedForm);
-
-    const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/sign`)
-      .set('x-test-uid', 'u1')
-      .send(signBody);
-
-    expect(res.status).toBe(200);
-    const body = res.body as Record<string, unknown>;
-    expect(body.form).toBeDefined();
-    const form = body.form as Record<string, unknown>;
-    expect(form.signature).toBeDefined();
-  });
-
-  it('200 kms-sign-rsa writes an audit_logs entry', async () => {
-    const signedForm = { ...fakeForm, signature: kmsSignature };
-    mockSignForm.mockResolvedValueOnce(signedForm);
-
-    await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/sign`)
-      .set('x-test-uid', 'u1')
-      .send(signBody);
-
-    const logs = await H.db!.collection('audit_logs').get();
-    const signLog = logs.docs.find(
-      (d) => (d.data() as Record<string, unknown>).action === 'suseso.form_signed',
-    )?.data() as Record<string, unknown> | undefined;
-    expect(signLog).toBeDefined();
-    expect(signLog?.module).toBe('suseso');
-    expect(signLog?.userId).toBe('u1');
-  });
-
-  it('400 suseso_sign_failed when signForm throws (form not found)', async () => {
-    mockSignForm.mockRejectedValueOnce(new Error(`Form not found: ${TENANT}/${FORM_ID}`));
+  it('rejects a browser-supplied KMS signature instead of persisting fabricated evidence', async () => {
     const res = await request(buildApp())
       .post(`/api/suseso/form/${FORM_ID}/sign`)
       .set('x-test-uid', 'u1')
       .send(signBody);
     expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe('suseso_sign_failed');
-  });
-
-  it('400 suseso_sign_failed when form already signed (immutability invariant)', async () => {
-    mockSignForm.mockRejectedValueOnce(
-      new Error('Form already signed — re-signing requires a new folio.'),
-    );
-    const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/sign`)
-      .set('x-test-uid', 'u1')
-      .send(signBody);
-    expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe('suseso_sign_failed');
-    const detail = (res.body as Record<string, unknown>).detail as string;
-    expect(detail).toMatch(/re-signing/);
-  });
-
-  it('DIRECTIVE: sign does NOT call submitToMutualidad (no auto-push to SUSESO)', async () => {
-    const signedForm = { ...fakeForm, signature: kmsSignature };
-    mockSignForm.mockResolvedValueOnce(signedForm);
-    await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/sign`)
-      .set('x-test-uid', 'u1')
-      .send(signBody);
-    expect(mockSubmitToMutualidad).not.toHaveBeenCalled();
+    expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
+    expect(mockSignForm).not.toHaveBeenCalled();
   });
 });
 
@@ -540,6 +488,13 @@ describe('POST /api/suseso/form/:id/sign (kms-sign-rsa)', () => {
 // POST /api/suseso/form/:id/sign  (webauthn-ecdsa-p256 branch)
 // ═══════════════════════════════════════════════════════════════════════════
 describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
+  beforeEach(async () => {
+    await H.db!.doc(`tenants/${TENANT}/suseso_forms/${FORM_ID}`).set({
+      ...fakeForm,
+      payloadHashHex: 'a'.repeat(64),
+      payloadRendererVersion: 1,
+    });
+  });
   const webauthnSig = {
     signerUid: 'u1',
     signerRut: '13.333.333-3',
@@ -559,28 +514,42 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
     clientExtensionResults: {},
   };
 
+  const boundIntent = {
+    version: 1,
+    purpose: 'compliance-document-sign',
+    tenantId: TENANT,
+    formId: FORM_ID,
+    documentKind: 'suseso',
+    action: 'sign',
+    payloadHashHex: 'a'.repeat(64),
+    signerUid: 'u1',
+    signerRut: '12.345.678-5',
+    issuedAtMs: 1_700_000_000_000,
+    expiresAtMs: 1_700_000_300_000,
+    nonceB64u: 'AQIDBA',
+  } as const;
+
   it('400 when webauthnAssertion is missing for webauthn algorithm', async () => {
     const res = await request(buildApp())
       .post(`/api/suseso/form/${FORM_ID}/sign`)
       .set('x-test-uid', 'u1')
-      .send({ tenantId: TENANT, signature: webauthnSig }); // no webauthnAssertion
+      .send({ tenantId: TENANT });
     expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe(
-      'suseso_sign_webauthn_assertion_required',
-    );
+    expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
   });
 
-  it('403 when signerUid does not match caller uid (anti-impersonation)', async () => {
+  it('rejects all client-controlled identity, date, hash and algorithm fields', async () => {
     const res = await request(buildApp())
       .post(`/api/suseso/form/${FORM_ID}/sign`)
-      .set('x-test-uid', 'u2') // caller is u2
+      .set('x-test-uid', 'u1')
       .send({
         tenantId: TENANT,
-        signature: { ...webauthnSig, signerUid: 'u1' }, // but signerUid says u1
+        signature: { ...webauthnSig, signerUid: 'someone-else' },
         webauthnAssertion,
       });
-    expect(res.status).toBe(403);
-    expect((res.body as Record<string, unknown>).error).toBe('suseso_sign_uid_mismatch');
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
+    expect(mockVerifyWebAuthnAssertion).not.toHaveBeenCalled();
   });
 
   it('401 when WebAuthn verification fails (bad signature)', async () => {
@@ -593,7 +562,6 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
       .set('x-test-uid', 'u1')
       .send({
         tenantId: TENANT,
-        signature: webauthnSig,
         webauthnAssertion,
       });
     expect(res.status).toBe(401);
@@ -605,22 +573,38 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
   });
 
   it('200 when WebAuthn verification passes — form gets signed', async () => {
-    mockVerifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
-    const signedForm = { ...fakeForm, signature: webauthnSig };
-    mockSignForm.mockResolvedValueOnce(signedForm);
+    mockVerifyWebAuthnAssertion.mockImplementationOnce(async (input) => {
+      expect(input.challengeMetadataValidator(boundIntent)).toBe(true);
+      return {
+        verified: true,
+        verifiedCredentialId: webauthnAssertion.credentialId,
+        challengeMetadata: boundIntent,
+      };
+    });
+    mockSignForm.mockImplementationOnce(async (_tenantId, _formId, signature) => ({
+      ...fakeForm,
+      signature,
+    }));
 
     const res = await request(buildApp())
       .post(`/api/suseso/form/${FORM_ID}/sign`)
       .set('x-test-uid', 'u1')
       .send({
         tenantId: TENANT,
-        signature: webauthnSig,
         webauthnAssertion,
       });
 
     expect(res.status).toBe(200);
     const form = (res.body as Record<string, unknown>).form as Record<string, unknown>;
     expect(form.signature).toBeDefined();
+    expect(form.signature).toMatchObject({
+      signerUid: 'u1',
+      signerRut: '12.345.678-5',
+      payloadHashHex: 'a'.repeat(64),
+      signatureB64: webauthnAssertion.signature,
+      verificationVersion: 1,
+    });
+    expect(mockSubmitToMutualidad).not.toHaveBeenCalled();
   });
 });
 
@@ -628,6 +612,13 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
 // GET /api/suseso/form/:id/sign-challenge
 // ═══════════════════════════════════════════════════════════════════════════
 describe('GET /api/suseso/form/:id/sign-challenge', () => {
+  beforeEach(async () => {
+    await H.db!.doc(`tenants/${TENANT}/suseso_forms/${FORM_ID}`).set({
+      ...fakeForm,
+      payloadHashHex: 'a'.repeat(64),
+      payloadRendererVersion: 1,
+    });
+  });
   it('401 without a token', async () => {
     const res = await request(buildApp())
       .get(`/api/suseso/form/${FORM_ID}/sign-challenge`);

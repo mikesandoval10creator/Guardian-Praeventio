@@ -65,6 +65,11 @@ vi.mock('../../services/compliance/ds67/ds67Service.js', () => ({
   })),
   signForm: vi.fn(async () => ({ folio: 'DS67-2026-000001' })),
   ds67FolioToDocId: (f: string) => f,
+  renderDs67UnsignedPayload: vi.fn(async () => ({
+    pdfBytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+    payloadHashHex: 'a'.repeat(64),
+    payloadRendererVersion: 1,
+  })),
 }));
 vi.mock('../../services/compliance/ds76/ds76Service.js', () => ({
   createDs76Form: vi.fn(async () => ({
@@ -74,6 +79,11 @@ vi.mock('../../services/compliance/ds76/ds76Service.js', () => ({
   })),
   signForm: vi.fn(async () => ({ folio: 'DS76-2026-000001' })),
   ds76FolioToDocId: (f: string) => f,
+  renderDs76UnsignedPayload: vi.fn(async () => ({
+    pdfBytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+    payloadHashHex: 'a'.repeat(64),
+    payloadRendererVersion: 1,
+  })),
 }));
 vi.mock('../../utils/ds67Certificate.js', () => ({
   generateDs67Pdf: () => new Uint8Array([0x25, 0x50, 0x44, 0x46]),
@@ -87,7 +97,30 @@ vi.mock('firebase-admin', () => ({
     firestore: () => ({
       runTransaction: (fn: (tx: unknown) => Promise<unknown>) =>
         fn({ get: async () => ({ exists: false }), set: () => undefined }),
-      collection: () => ({ doc: () => ({ collection: () => ({ doc: () => ({ set: async () => undefined, get: async () => ({ exists: false }), update: async () => undefined }) }) }) }),
+      collection: (name: string) => ({
+        doc: () => name === 'users'
+          ? {
+              get: async () => ({
+                exists: true,
+                data: () => ({ rut: '12.345.678-5' }),
+              }),
+            }
+          : {
+              collection: () => ({
+                doc: () => ({
+                  set: async () => undefined,
+                  get: async () => ({
+                    exists: true,
+                    data: () => ({
+                      payloadHashHex: 'a'.repeat(64),
+                      payloadRendererVersion: 1,
+                    }),
+                  }),
+                  update: async () => undefined,
+                }),
+              }),
+            },
+      }),
       doc: () => ({ set: () => undefined }),
     }),
   },
@@ -242,17 +275,31 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
   for (const ds of ['ds67', 'ds76'] as const) {
     describe(`POST /api/compliance/${ds}/:formId/sign`, () => {
       const url = `/api/compliance/${ds}/F-1/sign`;
+      const boundIntent = {
+        version: 1,
+        purpose: 'compliance-document-sign',
+        tenantId: 't-1',
+        formId: 'F-1',
+        documentKind: ds,
+        action: 'sign',
+        payloadHashHex: 'a'.repeat(64),
+        signerUid: 'doctor-uid',
+        signerRut: '12.345.678-5',
+        issuedAtMs: 1_700_000_000_000,
+        expiresAtMs: 1_700_000_300_000,
+        nonceB64u: 'AQIDBA',
+      } as const;
 
       it('400 when algorithm=webauthn but webauthnAssertion is absent', async () => {
         const res = await request(buildApp())
           .post(url)
           .send({ tenantId: 't-1', signature: baseSig });
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe(`${ds}_sign_webauthn_assertion_required`);
+        expect(res.body.error).toBe('invalid_payload');
         expect(verifyAssertionMock).not.toHaveBeenCalled();
       });
 
-      it('403 when signerUid does not match the authenticated caller', async () => {
+      it('rejects client-controlled signer identity, date, hash and algorithm', async () => {
         const res = await request(buildApp())
           .post(url)
           .send({
@@ -260,8 +307,8 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
             signature: { ...baseSig, signerUid: 'someone-else' },
             webauthnAssertion: assertion,
           });
-        expect(res.status).toBe(403);
-        expect(res.body.error).toBe(`${ds}_sign_uid_mismatch`);
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('invalid_payload');
         expect(verifyAssertionMock).not.toHaveBeenCalled();
       });
 
@@ -272,7 +319,7 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
         });
         const res = await request(buildApp())
           .post(url)
-          .send({ tenantId: 't-1', signature: baseSig, webauthnAssertion: assertion });
+          .send({ tenantId: 't-1', webauthnAssertion: assertion });
         expect(res.status).toBe(401);
         expect(res.body.error).toBe(`${ds}_sign_webauthn_failed`);
         expect(res.body.reason).toBe('signature_invalid');
@@ -280,14 +327,18 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
       });
 
       it('200 when the assertion verifies — persists + audits the sign', async () => {
-        verifyAssertionMock.mockResolvedValue({
-          verified: true,
-          newCounter: 1,
-          verifiedCredentialId: 'cred-1',
+        verifyAssertionMock.mockImplementation(async (input) => {
+          expect(input.challengeMetadataValidator(boundIntent)).toBe(true);
+          return {
+            verified: true,
+            newCounter: 1,
+            verifiedCredentialId: 'cred-1',
+            challengeMetadata: boundIntent,
+          };
         });
         const res = await request(buildApp())
           .post(url)
-          .send({ tenantId: 't-1', signature: baseSig, webauthnAssertion: assertion });
+          .send({ tenantId: 't-1', webauthnAssertion: assertion });
         expect(res.status).toBe(200);
         expect(verifyAssertionMock).toHaveBeenCalledTimes(1);
         expect(auditMock).toHaveBeenCalledWith(
@@ -298,11 +349,12 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
         );
       });
 
-      it('200 with kms-sign-rsa requires no assertion (backward compat)', async () => {
+      it('rejects browser-supplied kms-sign-rsa evidence', async () => {
         const res = await request(buildApp())
           .post(url)
           .send({ tenantId: 't-1', signature: { ...baseSig, algorithm: 'kms-sign-rsa' } });
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('invalid_payload');
         expect(verifyAssertionMock).not.toHaveBeenCalled();
       });
     });

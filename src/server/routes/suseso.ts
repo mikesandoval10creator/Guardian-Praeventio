@@ -29,10 +29,25 @@ import {
   verifyFolio,
   submitToMutualidad,
   folioToDocId,
+  renderSusesoUnsignedPayload,
   type MinimalFormStore,
 } from '../../services/suseso/susesoService.js';
 import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
 import type { SusesoForm, SusesoSignature } from '../../services/suseso/types.js';
+import {
+  ComplianceSigningFlowError,
+  completeComplianceWebAuthnSigning,
+  issueComplianceWebAuthnChallenge,
+  type ComplianceSigningDocuments,
+} from '../services/complianceWebAuthnSigning.js';
+import {
+  ComplianceSignerIdentityError,
+  resolveHumanComplianceSigner,
+} from '../services/complianceSignerIdentity.js';
+import {
+  generateWebAuthnChallenge,
+  storeWebAuthnChallenge,
+} from '../../services/auth/webauthnChallenge.js';
 
 const router = Router();
 
@@ -94,6 +109,50 @@ function buildFormStore(): MinimalFormStore {
   };
 }
 
+function buildSigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
+  const formStore = buildFormStore();
+  return {
+    loadForm: () => formStore.loadForm(tenantId, formId),
+    renderUnsignedPayload: async (form) =>
+      renderSusesoUnsignedPayload(form as SusesoForm),
+    persistLegacyDigest: async (payloadHashHex, payloadRendererVersion) => {
+      const current = await formStore.loadForm(tenantId, formId);
+      if (!current || current.signature) {
+        throw new ComplianceSigningFlowError(current ? 'already_signed' : 'not_found');
+      }
+      await formStore.saveForm(tenantId, formId, {
+        ...current,
+        payloadHashHex,
+        payloadRendererVersion,
+      });
+    },
+  };
+}
+
+async function resolveRouteSigner(uid: string) {
+  return resolveHumanComplianceSigner(uid, {
+    async loadSignerProfile(profileUid) {
+      const snap = await admin.firestore().collection('users').doc(profileUid).get();
+      return snap.exists ? (snap.data() as Record<string, unknown>) : null;
+    },
+  });
+}
+
+function sendSigningError(res: Parameters<typeof callerTenantOr403>[1], err: unknown) {
+  if (err instanceof ComplianceSignerIdentityError) {
+    return res.status(422).json({ error: err.code });
+  }
+  if (err instanceof ComplianceSigningFlowError) {
+    if (err.code === 'not_found') return res.status(404).json({ error: err.code });
+    if (err.code === 'webauthn_failed') {
+      return res.status(401).json({ error: 'suseso_sign_webauthn_failed', reason: err.reason });
+    }
+    return res.status(409).json({ error: err.code });
+  }
+  const detail = err instanceof Error ? err.message : 'unknown';
+  return res.status(400).json({ error: 'suseso_sign_failed', detail });
+}
+
 // â”€â”€â”€ Schemas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const createFormSchema = z.object({
@@ -123,34 +182,26 @@ const createFormSchema = z.object({
   }),
 });
 
+const webauthnAssertionSchema = z.object({
+  challengeId: z.string().min(1),
+  credentialId: z.string().min(1),
+  rawId: z.string().min(1),
+  clientDataJSON: z.string().min(1),
+  authenticatorData: z.string().min(1),
+  signature: z.string().min(1),
+  type: z.literal('public-key'),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+
 const signSchema = z.object({
   tenantId: z.string().min(1),
-  signature: z.object({
-    signerUid: z.string().min(1),
-    signerRut: z.string().min(1),
-    signedAt: z.string().min(1),
-    algorithm: z.enum(['webauthn-ecdsa-p256', 'kms-sign-rsa']),
-    signatureB64: z.string().min(1),
-    payloadHashHex: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
   // 2026-05-15 (Regla #3): WebAuthn assertion completa. Cuando
   // algorithm === 'webauthn-ecdsa-p256', estos campos son obligatorios y
   // el server ejecuta la ceremonia end-to-end (challenge consume + crypto
   // verify + counter monotonicity). Sin esto, una signature WebAuthn
   // shape-valid se podía persistir sin validación criptográfica.
-  webauthnAssertion: z
-    .object({
-      challengeId: z.string().min(1),
-      credentialId: z.string().min(1),
-      rawId: z.string().min(1),
-      clientDataJSON: z.string().min(1),
-      authenticatorData: z.string().min(1),
-      signature: z.string().min(1),
-      type: z.literal('public-key'),
-      clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
-    })
-    .optional(),
-});
+  webauthnAssertion: webauthnAssertionSchema,
+}).strict();
 
 const submitSchema = z.object({ tenantId: z.string().min(1) });
 
@@ -204,67 +255,35 @@ router.post(
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId: bodyTenantId, signature, webauthnAssertion } =
+    const { tenantId: bodyTenantId, webauthnAssertion } =
       req.validated as z.infer<typeof signSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
     const callerUid = req.user!.uid;
     try {
-      // 2026-05-15 (Regla #3): SI algorithm === 'webauthn-ecdsa-p256',
-      // ejecutamos la ceremonia WebAuthn end-to-end antes de persistir.
-      // Sin esto, una signature shape-valid se persistía sin verificación
-      // criptográfica — exactamente lo que el TODO §7 advertía.
-      if (signature.algorithm === 'webauthn-ecdsa-p256') {
-        if (!webauthnAssertion) {
-          return res.status(400).json({
-            error: 'suseso_sign_webauthn_assertion_required',
-            detail:
-              'algorithm=webauthn-ecdsa-p256 requiere campo webauthnAssertion con challengeId/credentialId/clientDataJSON/authenticatorData/signature/rawId/type',
-          });
-        }
-        // El signerUid de la signature debe coincidir con el uid del caller
-        // (no permitimos firmar como otro user).
-        if (signature.signerUid !== callerUid) {
-          return res.status(403).json({
-            error: 'suseso_sign_uid_mismatch',
-            detail: 'signerUid no coincide con el usuario autenticado',
-          });
-        }
-        const { verifyWebAuthnAssertion } = await import(
-          '../auth/webauthnAssertion.js'
-        );
-        const { buildWebAuthnDb } = await import('./curriculum.js');
-        const { buildWebAuthnCredentialsDb } = await import('./curriculum.js');
-        const verdict = await verifyWebAuthnAssertion({
-          uid: callerUid,
-          credentialId: webauthnAssertion.credentialId,
-          rawId: webauthnAssertion.rawId,
-          clientDataJSON: webauthnAssertion.clientDataJSON,
-          authenticatorData: webauthnAssertion.authenticatorData,
-          signature: webauthnAssertion.signature,
-          clientExtensionResults: webauthnAssertion.clientExtensionResults,
-          type: webauthnAssertion.type,
-          challengeId: webauthnAssertion.challengeId,
-          expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
-          expectedRpId: getWebauthnRpId(),
-          challengesDb: buildWebAuthnDb(),
-          credentialsDb: buildWebAuthnCredentialsDb(),
-        });
-        if (!verdict.verified) {
-          logger.warn('suseso_form_sign_webauthn_failed', {
+      const signature = await completeComplianceWebAuthnSigning({
+        uid: callerUid,
+        tenantId,
+        formId: req.params.id,
+        documentKind: 'suseso',
+        assertion: webauthnAssertion,
+      }, {
+        documents: buildSigningDocuments(tenantId, req.params.id),
+        resolveSigner: resolveRouteSigner,
+        verifyAssertion: async (validateMetadata) => {
+          const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+          const { buildWebAuthnDb, buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+          return verifyWebAuthnAssertion({
             uid: callerUid,
-            formId: req.params.id,
-            reason: verdict.reason,
+            ...webauthnAssertion,
+            expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+            expectedRpId: getWebauthnRpId(),
+            challengesDb: buildWebAuthnDb(),
+            credentialsDb: buildWebAuthnCredentialsDb(),
+            challengeMetadataValidator: validateMetadata,
           });
-          return res.status(401).json({
-            error: 'suseso_sign_webauthn_failed',
-            reason: verdict.reason,
-          });
-        }
-        // Verificación exitosa — el signatureB64 que viene en el body
-        // debe coincidir con el que el authenticator firmó (es la misma
-        // base64). Ya verificamos crypto; ahora persistimos.
-      }
+        },
+      });
 
       const updated = await signForm(
         tenantId,
@@ -276,7 +295,7 @@ router.post(
       const auditOk = await auditServerEvent(req, 'suseso.form_signed', 'suseso', {
         folio: updated.folio,
         algorithm: signature.algorithm,
-        webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
+        webauthnVerified: true,
       });
       if (!auditOk) {
         captureRouteError(new Error('audit_write_failed'), 'suseso.audit', {
@@ -286,9 +305,11 @@ router.post(
       }
       return res.json({ form: updated });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'unknown';
-      logger.warn('suseso_form_sign_failed', { err: msg });
-      return res.status(400).json({ error: 'suseso_sign_failed', detail: msg });
+      logger.warn('suseso_form_sign_failed', {
+        formId: req.params.id,
+        reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
+      });
+      return sendSigningError(res, err);
     }
   },
 );
@@ -299,22 +320,44 @@ router.post(
 // llamar `/sign` después de la ceremonia biométrica.
 router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
+  const tenantId = callerTenantOr403(req, res, req.query.tenantId);
+  if (tenantId === null) return;
   try {
-    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
-      '../../services/auth/webauthnChallenge.js'
-    );
     const { buildWebAuthnDb } = await import('./curriculum.js');
-    const { challengeId, challenge } = generateWebAuthnChallenge();
-    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
-    res.json({
-      challengeId,
-      challenge: Buffer.from(challenge).toString('base64'),
+    const challengesDb = buildWebAuthnDb();
+    const issued = await issueComplianceWebAuthnChallenge({
+      uid: callerUid,
+      tenantId,
       formId: req.params.id,
+      documentKind: 'suseso',
+    }, {
+      documents: buildSigningDocuments(tenantId, req.params.id),
+      resolveSigner: resolveRouteSigner,
+      newChallengeId: () => generateWebAuthnChallenge().challengeId,
+      storeChallenge: (uid, challengeId, challenge, options) =>
+        storeWebAuthnChallenge(uid, challengeId, challenge, challengesDb, options),
+      now: challengesDb.now,
+    });
+    res.json({
+      challengeId: issued.challengeId,
+      challenge: Buffer.from(issued.challenge).toString('base64'),
+      formId: req.params.id,
+      payloadHashHex: issued.intent.payloadHashHex,
       rpId: getWebauthnRpId(),
     });
   } catch (err) {
-    logger.error('suseso_sign_challenge_failed', { err: String(err) });
-    res.status(500).json({ error: 'suseso_sign_challenge_failed' });
+    logger.warn('suseso_sign_challenge_failed', {
+      formId: req.params.id,
+      reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
+    });
+    if (
+      err instanceof ComplianceSigningFlowError ||
+      err instanceof ComplianceSignerIdentityError
+    ) {
+      sendSigningError(res, err);
+    } else {
+      res.status(500).json({ error: 'suseso_sign_challenge_failed' });
+    }
   }
 });
 
