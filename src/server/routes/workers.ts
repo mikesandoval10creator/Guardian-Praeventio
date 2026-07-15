@@ -18,7 +18,6 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
-import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -27,6 +26,9 @@ import {
 } from '../../services/auth/projectMembership.js';
 
 const router = Router();
+
+/** Thrown inside the transaction when the worker doc is absent → maps to 404. */
+class WorkerNotFoundError extends Error {}
 
 // Only these fields may be mutated through the endpoint. `projectId`, `id`,
 // `nodeId`, `joinedAt` and any server/compliance field are intentionally NOT
@@ -63,33 +65,49 @@ router.patch(
       throw err;
     }
 
+    const db = admin.firestore();
+    const ref = db
+      .collection('projects')
+      .doc(projectId)
+      .collection('workers')
+      .doc(workerId);
+    const patch = { ...patchIn, updatedAt: new Date().toISOString() };
+    const reqUser = req.user as { uid?: string; email?: string | null };
+
     try {
-      const db = admin.firestore();
-      const ref = db
-        .collection('projects')
-        .doc(projectId)
-        .collection('workers')
-        .doc(workerId);
-      const snap = await ref.get();
-      if (!snap.exists) {
-        return res.status(404).json({ error: 'worker_not_found' });
-      }
-
-      const patch = { ...patchIn, updatedAt: new Date().toISOString() };
-      await ref.update(patch);
-
-      await auditServerEvent(
-        req,
-        'workers.update',
-        'workers',
-        { workerId, fields: Object.keys(patchIn) },
-        { projectId },
-      );
+      // The worker edit and its audit row commit in ONE transaction — both land
+      // or neither. This is deliberately STRICTER than the CLAUDE.md #14
+      // "audit failure is non-blocking" default: a worker PII record is legal
+      // evidence (Ley 16.744), so a successful (200) edit must NEVER exist
+      // without an immutable audit_logs trace. If the audit write fails, the
+      // whole transaction aborts and the edit is rolled back (500) rather than
+      // leaving an untraced mutation. Identity is stamped from the verified
+      // token, never the client body.
+      const before = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new WorkerNotFoundError();
+        tx.update(ref, patch);
+        tx.set(db.collection('audit_logs').doc(), {
+          action: 'workers.update',
+          module: 'workers',
+          details: { workerId, fields: Object.keys(patchIn) },
+          userId: reqUser?.uid ?? callerUid,
+          userEmail: reqUser?.email ?? null,
+          projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+        return snap.data();
+      });
 
       return res
         .status(200)
-        .json({ worker: { id: workerId, ...snap.data(), ...patch } });
+        .json({ worker: { id: workerId, ...before, ...patch } });
     } catch (err) {
+      if (err instanceof WorkerNotFoundError) {
+        return res.status(404).json({ error: 'worker_not_found' });
+      }
       logger.error?.('workers.update.error', err);
       captureRouteError(err, 'workers.update');
       return res.status(500).json({ error: 'internal_error' });
