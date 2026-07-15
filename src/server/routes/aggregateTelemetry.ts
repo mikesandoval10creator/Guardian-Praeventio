@@ -23,6 +23,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { isAdminRole } from '../../types/roles.js';
 import {
   aggregateFeed,
   computeVelocities,
@@ -134,12 +135,18 @@ router.get(
       return res.status(400).json({ error: 'projects_query_required' });
     }
 
-    // Tenant-rollup is sensitive — admin-only. We re-use the same
-    // membership check by requiring the caller to be a member of EVERY
-    // requested project (so a leaked uid from one project can't see
-    // others' aggregates).
     const db = admin.firestore();
+
+    // Tenant-rollup is admin-only. The header comment claimed this but nothing
+    // enforced it — any project member could call it. Fetch fresh custom claims
+    // (the ID token could be stale) and require an admin role.
+    const callerRecord = await admin.auth().getUser(callerUid);
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: 'forbidden_admin_only' });
+    }
+
     for (const pid of projectIds) {
+      // Membership: a leaked uid from one project can't see others' aggregates.
       try {
         await assertProjectMember(callerUid, pid, db);
       } catch (err) {
@@ -149,6 +156,16 @@ router.get(
             .json({ error: 'forbidden', projectId: pid });
         }
         throw err;
+      }
+      // Tenant ownership: `tenantId` comes from the URL and is used to build the
+      // Firestore read paths below. Without this, a caller could pass their own
+      // projects alongside an ARBITRARY tenantId and read another tenant's
+      // namespace. Pin every project to the requested tenant.
+      const realTenant = await resolveTenantId(callerUid, pid, db);
+      if (realTenant !== tenantId) {
+        return res
+          .status(403)
+          .json({ error: 'tenant_project_mismatch', projectId: pid });
       }
     }
 

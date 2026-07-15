@@ -23,11 +23,16 @@ import request from 'supertest';
 
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  role: 'admin' as string | undefined,
 }));
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  return adminMock(() => H.db!);
+  return adminMock(() => H.db!, {
+    verifyIdToken: async () => ({ uid: 'test' }),
+    // Tenant-rollup is admin-only; the caller's role drives the guard.
+    getUser: async (uid: string) => ({ uid, customClaims: { role: H.role } }),
+  });
 });
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
@@ -62,6 +67,7 @@ function isoDaysAgo(days: number): string {
 }
 
 beforeEach(() => {
+  H.role = 'admin'; // default: rollup tests assume an admin caller
   H.db = createFakeFirestore();
   // Caller u1 is a member of project p1 (tenant t1). p2 exists, excludes u1.
   H.db!._seed('projects/p1', { members: ['u1'], createdBy: 'owner', tenantId: 't1' });
@@ -227,6 +233,26 @@ describe('GET /tenants/:tenantId/telemetry/rollup', () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
     expect(res.body.projectId).toBe('p2');
+  });
+
+  it('403 admin-only: a non-admin member cannot roll up the tenant', async () => {
+    H.role = 'supervisor'; // member of p1 but not an admin
+    const res = await request(buildApp())
+      .get(`${url}?projects=p1`)
+      .set(uid);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_admin_only');
+  });
+
+  it('403 SECURITY: an admin cannot roll up own projects under an arbitrary tenant', async () => {
+    // p1 really belongs to tenant t1; the caller requests tenant t99 with their
+    // own project p1. Membership passes, but the project is not owned by t99.
+    const res = await request(buildApp())
+      .get('/api/tenants/t99/telemetry/rollup?projects=p1')
+      .set(uid);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_project_mismatch');
+    expect(res.body.projectId).toBe('p1');
   });
 
   it('200 rolls up multiple member projects and re-derives the totals', async () => {
