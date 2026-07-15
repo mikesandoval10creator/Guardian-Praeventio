@@ -20,6 +20,11 @@ import {
 } from '../services/sensorBus/manDownCorrelation';
 import { getBatterySnapshot } from '../services/battery/batteryAdvisor';
 
+// Republish battery evidence one minute before the correlation window closes so
+// a downed worker's battery state stays fresh for the engine. Module-scoped: it
+// derives only from a compile-time constant, so it is never a hook dependency.
+const BATTERY_REPUBLISH_MS = BATTERY_EVIDENCE_WINDOW_MS - 60_000;
+
 interface ManDownOptions {
   onManDownConfirmed?: (impactData: { userId?: string; userName?: string; timestamp: string }) => void;
 }
@@ -161,7 +166,6 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   // ── sensorBus wiring (TODO.md §16.2.1) ────────────────────────────────
   // Battery evidence republish cadence: stay fresh inside the engine's
   // 5-min evidence window with 1 min of slack.
-  const BATTERY_REPUBLISH_MS = BATTERY_EVIDENCE_WINDOW_MS - 60_000;
   const lastBatteryPublishRef = useRef(0);
 
   // Publishes the current battery snapshot to the sensor bus so the
@@ -410,6 +414,19 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     }
   }, [isActive, sensorData.acceleration, isAlerting, MOVEMENT_THRESHOLD]);
 
+  // Latest-closure refs: the detection interval below is long-lived (keyed only
+  // on isActive/selectedProject/user/threshold so it isn't torn down every
+  // render). Calling triggerAlert/publishBatteryEvidence directly would capture
+  // a STALE closure — notably triggerAlert reads sensorData.acceleration for the
+  // black box, so a captured version would record acceleration from when the
+  // effect last ran, not from the impact. Route both through refs kept current.
+  const triggerAlertRef = useRef(triggerAlert);
+  const publishBatteryEvidenceRef = useRef(publishBatteryEvidence);
+  useEffect(() => {
+    triggerAlertRef.current = triggerAlert;
+    publishBatteryEvidenceRef.current = publishBatteryEvidence;
+  });
+
   useEffect(() => {
     if (!isActive) return undefined;
 
@@ -418,7 +435,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       // Keep the battery evidence fresh inside the engine's window.
       if (now - lastBatteryPublishRef.current >= BATTERY_REPUBLISH_MS) {
         lastBatteryPublishRef.current = now;
-        void publishBatteryEvidence();
+        void publishBatteryEvidenceRef.current();
       }
       if (now - lastMovementTime.current > INACTIVITY_THRESHOLD && !isAlertingRef.current) {
         // §16.2.1: publish sustained immobility FIRST so both the bus's own
@@ -464,7 +481,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         countdownRef.current = setInterval(() => {
           setCountdown(prev => {
             if (prev <= 1) {
-              triggerAlert();
+              triggerAlertRef.current();
               if (countdownRef.current) clearInterval(countdownRef.current);
               return 0;
             }
