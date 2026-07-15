@@ -38,7 +38,12 @@ const COLLECTION = 'webauthn_challenges';
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const CHALLENGE_BYTES = 32;
 
-export type ConsumeReason = 'unknown' | 'expired' | 'consumed' | 'mismatch';
+export type ConsumeReason =
+  | 'unknown'
+  | 'expired'
+  | 'consumed'
+  | 'mismatch'
+  | 'metadata_mismatch';
 
 export interface MinimalChallengesDb {
   collection(name: string): {
@@ -86,6 +91,54 @@ export function generateWebAuthnChallenge(): GeneratedChallenge {
 export interface StoreOptions {
   /** Override the default 5-minute TTL. Useful for testing. */
   ttlMs?: number;
+  /** Immutable context bound to this challenge (for example a signing intent). */
+  metadata?: unknown;
+}
+
+export interface ConsumeOptions {
+  /** Fail closed unless stored metadata matches the authoritative context. */
+  validateMetadata?: (metadata: unknown) => boolean;
+}
+
+export type ConsumeResult<TMetadata = unknown> =
+  | { valid: true; metadata?: TMetadata }
+  | { valid: false; reason: ConsumeReason };
+
+function canonicalizeMetadata(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('challenge metadata numbers must be finite');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeMetadata).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError('challenge metadata must contain plain JSON objects');
+    }
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys
+      .map((key) => {
+        if (record[key] === undefined) {
+          throw new TypeError('challenge metadata cannot contain undefined');
+        }
+        return `${JSON.stringify(key)}:${canonicalizeMetadata(record[key])}`;
+      })
+      .join(',')}}`;
+  }
+  throw new TypeError('challenge metadata must be JSON serializable');
+}
+
+function snapshotMetadata(value: unknown): unknown {
+  return JSON.parse(canonicalizeMetadata(value)) as unknown;
+}
+
+function metadataDigest(value: unknown): string {
+  return crypto.createHash('sha256').update(canonicalizeMetadata(value), 'utf8').digest('hex');
 }
 
 /**
@@ -102,7 +155,7 @@ export async function storeWebAuthnChallenge(
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const now = db.now();
   const docId = `${uid}_${challengeId}`;
-  await db.collection(COLLECTION).doc(docId).set({
+  const record: Record<string, unknown> = {
     uid,
     challengeId,
     challengeB64: Buffer.from(challenge).toString('base64'),
@@ -110,7 +163,13 @@ export async function storeWebAuthnChallenge(
     expiresAt: now + ttlMs,
     consumed: false,
     consumedAt: null,
-  });
+  };
+  if (options.metadata !== undefined) {
+    const metadata = snapshotMetadata(options.metadata);
+    record.metadata = metadata;
+    record.metadataSha256Hex = metadataDigest(metadata);
+  }
+  await db.collection(COLLECTION).doc(docId).set(record);
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -129,12 +188,13 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
  * reason='consumed'. The production adapter implements `updateIf` via
  * a Firestore transaction with a `consumed === false` precondition.
  */
-export async function consumeWebAuthnChallenge(
+export async function consumeWebAuthnChallenge<TMetadata = unknown>(
   uid: string,
   challengeId: string,
   providedChallenge: Uint8Array,
   db: MinimalChallengesDb,
-): Promise<{ valid: true } | { valid: false; reason: ConsumeReason }> {
+  options: ConsumeOptions = {},
+): Promise<ConsumeResult<TMetadata>> {
   const docId = `${uid}_${challengeId}`;
   const ref = db.collection(COLLECTION).doc(docId);
   const snap = await ref.get();
@@ -164,14 +224,51 @@ export async function consumeWebAuthnChallenge(
     return { valid: false, reason: 'mismatch' };
   }
 
+  let metadata: unknown;
+  let expectedMetadataDigest: string | undefined;
+  if (data.metadata !== undefined || data.metadataSha256Hex !== undefined) {
+    metadata = data.metadata;
+    expectedMetadataDigest = String(data.metadataSha256Hex ?? '');
+    let actualMetadataDigest: string;
+    try {
+      actualMetadataDigest = metadataDigest(metadata);
+    } catch {
+      return { valid: false, reason: 'metadata_mismatch' };
+    }
+    if (
+      !/^[0-9a-f]{64}$/.test(expectedMetadataDigest) ||
+      actualMetadataDigest !== expectedMetadataDigest
+    ) {
+      return { valid: false, reason: 'metadata_mismatch' };
+    }
+  }
+  if (options.validateMetadata && !options.validateMetadata(metadata)) {
+    return { valid: false, reason: 'metadata_mismatch' };
+  }
+
   // Atomic mark-consumed. The precondition guards against a concurrent
   // consume() winning the race and flipping consumed:false → true.
   const ok = await ref.updateIf(
-    (cur) => !!cur && cur.consumed === false,
+    (cur) => {
+      if (!cur || cur.consumed !== false) return false;
+      if (expectedMetadataDigest === undefined) {
+        return cur.metadata === undefined && cur.metadataSha256Hex === undefined;
+      }
+      try {
+        return (
+          cur.metadataSha256Hex === expectedMetadataDigest &&
+          metadataDigest(cur.metadata) === expectedMetadataDigest
+        );
+      } catch {
+        return false;
+      }
+    },
     { consumed: true, consumedAt: db.now() },
   );
   if (!ok) {
     return { valid: false, reason: 'consumed' };
   }
-  return { valid: true };
+  return metadata === undefined
+    ? { valid: true }
+    : { valid: true, metadata: metadata as TMetadata };
 }

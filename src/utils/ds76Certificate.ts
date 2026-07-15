@@ -5,6 +5,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { configureDeterministicPdf, formatChileDateTime } from './deterministicPdf.js';
 import type { Ds76Form } from '../services/compliance/ds76/types.js';
 
 const W = 210;
@@ -13,6 +14,7 @@ const M = 18;
 
 export function generateDs76Pdf(form: Ds76Form): Uint8Array {
   const doc = new jsPDF('portrait', 'mm', 'a4');
+  configureDeterministicPdf(doc, form.folio, form.createdAt);
   drawHeader(doc);
   drawTitle(doc, form);
   let y = drawPartiesBlock(doc, form);
@@ -67,7 +69,7 @@ function drawTitle(doc: jsPDF, form: Ds76Form): void {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`Folio: ${form.folio}`, M, 51);
-  doc.text(`Emitido: ${new Date(form.createdAt).toLocaleString('es-CL')}`, W - M, 51, {
+  doc.text(`Emitido: ${formatChileDateTime(form.createdAt)}`, W - M, 51, {
     align: 'right',
   });
 }
@@ -195,7 +197,7 @@ function drawSignatureBlock(doc: jsPDF, form: Ds76Form, yIn: number): void {
     doc.text(`RUT firmante: ${form.signature.signerRut}`, M, y + 12);
     doc.text(`Algoritmo: ${form.signature.algorithm}`, M, y + 17);
     doc.text(
-      `Firmado: ${new Date(form.signature.signedAt).toLocaleString('es-CL')}`,
+      `Firmado: ${formatChileDateTime(form.signature.signedAt)}`,
       M,
       y + 22,
     );

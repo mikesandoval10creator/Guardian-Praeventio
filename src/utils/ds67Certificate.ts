@@ -10,6 +10,11 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  configureDeterministicPdf,
+  formatChileDate,
+  formatChileDateTime,
+} from './deterministicPdf.js';
 import type { Ds67Form } from '../services/compliance/ds67/types.js';
 
 const W = 210;
@@ -19,6 +24,7 @@ const M = 18;
 /** Build the PDF and return raw bytes. */
 export function generateDs67Pdf(form: Ds67Form): Uint8Array {
   const doc = new jsPDF('portrait', 'mm', 'a4');
+  configureDeterministicPdf(doc, form.folio, form.createdAt);
   drawHeader(doc);
   drawTitle(doc, form);
   let y = drawCompanyBlock(doc, form);
@@ -78,7 +84,7 @@ function drawTitle(doc: jsPDF, form: Ds67Form): void {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`Folio: ${form.folio}`, M, 51);
-  doc.text(`Emitido: ${new Date(form.createdAt).toLocaleString('es-CL')}`, W - M, 51, {
+  doc.text(`Emitido: ${formatChileDateTime(form.createdAt)}`, W - M, 51, {
     align: 'right',
   });
 }
@@ -195,7 +201,7 @@ function drawValidityBlock(doc: jsPDF, form: Ds67Form, yIn: number): number {
   labelize(
     doc,
     'DESDE',
-    form.effectiveFrom ? new Date(form.effectiveFrom).toLocaleDateString('es-CL') : '—',
+    form.effectiveFrom ? formatChileDate(form.effectiveFrom) : '—',
     M,
     y + 2,
   );
@@ -203,7 +209,7 @@ function drawValidityBlock(doc: jsPDF, form: Ds67Form, yIn: number): number {
     doc,
     'HASTA',
     form.effectiveUntil
-      ? new Date(form.effectiveUntil).toLocaleDateString('es-CL')
+      ? formatChileDate(form.effectiveUntil)
       : 'Indefinida',
     M + 110,
     y + 2,
@@ -228,7 +234,7 @@ function drawSignatureBlock(doc: jsPDF, form: Ds67Form, yIn: number): void {
     doc.text(`RUT firmante: ${form.signature.signerRut}`, M, y + 12);
     doc.text(`Algoritmo: ${form.signature.algorithm}`, M, y + 17);
     doc.text(
-      `Firmado: ${new Date(form.signature.signedAt).toLocaleString('es-CL')}`,
+      `Firmado: ${formatChileDateTime(form.signature.signedAt)}`,
       M,
       y + 22,
     );

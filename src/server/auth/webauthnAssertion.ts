@@ -57,6 +57,8 @@ export interface WebAuthnAssertionInput {
   challengesDb: MinimalWebAuthnChallengesDb;
   /** Inyección para tests. En prod usar `buildWebAuthnCredentialsDb()`. */
   credentialsDb: MinimalCredentialsDb;
+  /** Optional fail-closed validator for a challenge bound to server context. */
+  challengeMetadataValidator?: (metadata: unknown) => boolean;
 }
 
 export type WebAuthnAssertionFailureReason =
@@ -66,6 +68,7 @@ export type WebAuthnAssertionFailureReason =
   | 'challenge_expired'
   | 'challenge_not_found'
   | 'challenge_mismatch'
+  | 'challenge_context_mismatch'
   | 'unknown_credential'
   | 'credential_owned_by_other_uid'
   | 'signature_invalid'
@@ -79,6 +82,8 @@ export interface WebAuthnAssertionResult {
   newCounter?: number;
   /** Solo si `verified === true` — credentialId verificado. */
   verifiedCredentialId?: string;
+  /** Validated immutable challenge context, when the issuer stored one. */
+  challengeMetadata?: unknown;
 }
 
 /**
@@ -137,6 +142,7 @@ export async function verifyWebAuthnAssertion(
     input.challengeId,
     providedChallenge,
     input.challengesDb,
+    { validateMetadata: input.challengeMetadataValidator },
   );
   if (challengeResult.valid === false) {
     // ConsumeReason = 'unknown' | 'expired' | 'consumed' | 'mismatch'
@@ -146,6 +152,8 @@ export async function verifyWebAuthnAssertion(
         ? 'challenge_not_found'
         : raw === 'expired'
           ? 'challenge_expired'
+          : raw === 'metadata_mismatch'
+            ? 'challenge_context_mismatch'
           : raw === 'mismatch'
             ? 'challenge_mismatch'
             : 'challenge_invalid';
@@ -214,9 +222,13 @@ export async function verifyWebAuthnAssertion(
   }
   await updateCounter(input.credentialId, newCounter, input.credentialsDb);
 
-  return {
+  const result: WebAuthnAssertionResult = {
     verified: true,
     newCounter,
     verifiedCredentialId: input.credentialId,
   };
+  if (challengeResult.metadata !== undefined) {
+    result.challengeMetadata = challengeResult.metadata;
+  }
+  return result;
 }

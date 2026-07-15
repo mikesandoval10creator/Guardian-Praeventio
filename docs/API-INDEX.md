@@ -8,11 +8,14 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**201 routers montados · 708 rutas detectadas.**
+**202 routers montados · 708 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
 - `GET /api/audit-log`
+
+### `src/server/routes/complianceKmsSigning.ts` → `/api`
+- _(no inline route decls found — router.route() chain or sub-router)_
 
 ### `src/server/routes/externalAuditPortal.ts` → `/api`
 - `POST /api/audit-portal/create`

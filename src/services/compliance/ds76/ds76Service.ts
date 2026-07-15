@@ -108,6 +108,28 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+export interface Ds76UnsignedPayload {
+  pdfBytes: Uint8Array;
+  payloadHashHex: string;
+  payloadRendererVersion: 1;
+}
+
+/** Rebuild the exact unsigned bytes covered by a DS-76 signature. */
+export async function renderDs76UnsignedPayload(
+  form: Ds76Form,
+): Promise<Ds76UnsignedPayload> {
+  const unsignedForm: Ds76Form = { ...form };
+  delete unsignedForm.signature;
+  delete unsignedForm.payloadHashHex;
+  delete unsignedForm.payloadRendererVersion;
+  const pdfBytes = generateDs76Pdf(unsignedForm);
+  return {
+    pdfBytes,
+    payloadHashHex: await sha256Hex(pdfBytes),
+    payloadRendererVersion: 1,
+  };
+}
+
 export interface CreateDs76Input {
   tenantId: string;
   principalCompanyName: string;
@@ -163,11 +185,12 @@ export async function createDs76Form(
     createdAt: now.toISOString(),
   };
 
-  const pdfBytes = generateDs76Pdf(form);
-  const payloadHashHex = await sha256Hex(pdfBytes);
+  const payload = await renderDs76UnsignedPayload(form);
+  form.payloadHashHex = payload.payloadHashHex;
+  form.payloadRendererVersion = payload.payloadRendererVersion;
 
   await deps.formStore.saveForm(input.tenantId, ds76FolioToDocId(folio), form);
-  return { form, pdfBytes, payloadHashHex };
+  return { form, pdfBytes: payload.pdfBytes, payloadHashHex: payload.payloadHashHex };
 }
 
 export async function signForm(

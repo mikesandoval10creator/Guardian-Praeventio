@@ -78,16 +78,13 @@ interface BuilderResult {
  * is generalized.
  */
 async function requestSignature(
-  payloadHashHex: string,
-  signerUid: string,
-  signerRut: string,
   signChallengeUrl: string,
   authHeader: string | null,
 ) {
   const { requestComplianceSignature } = await import(
     '../../services/auth/webauthnComplianceSign'
   );
-  return requestComplianceSignature(payloadHashHex, signerUid, signerRut, {
+  return requestComplianceSignature({
     signChallengeUrl,
     authHeader,
   });
@@ -173,9 +170,6 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       if (!authHeader) throw new Error('No estás autenticado.');
       const formId = folioToDocId(result.form.folio);
       const sig = await requestSignature(
-        result.payloadHashHex,
-        reportedBy.uid,
-        reportedBy.rut,
         `/api/suseso/form/${encodeURIComponent(formId)}/sign-challenge`,
         authHeader,
       );
@@ -187,7 +181,6 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
         },
         body: JSON.stringify({
           tenantId,
-          signature: sig.signature,
           webauthnAssertion: sig.webauthnAssertion,
         }),
       });

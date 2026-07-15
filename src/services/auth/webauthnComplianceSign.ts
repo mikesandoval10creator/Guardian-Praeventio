@@ -5,7 +5,7 @@
 //   1. GET <signChallengeUrl> → { challengeId, challenge } — a server-issued,
 //      single-use challenge stored in `webauthn_challenges`.
 //   2. navigator.credentials.get({ challenge }) → biometric assertion.
-//   3. Return the form `signature` block PLUS the complete `webauthnAssertion`
+//   3. Return only the complete `webauthnAssertion`
 //      (credentialId, rawId, clientDataJSON, authenticatorData, signature,
 //      clientExtensionResults) so the server runs `verifyWebAuthnAssertion`
 //      end-to-end (consume challenge + crypto verify + counter monotonicity)
@@ -26,7 +26,7 @@ import {
 
 export type ComplianceSignAlgorithm = 'webauthn-ecdsa-p256' | 'kms-sign-rsa';
 
-/** The form `signature` block persisted on the DS/SUSESO document. */
+/** @deprecated Persisted signature evidence is constructed by the server. */
 export interface ComplianceSignature {
   signerUid: string;
   signerRut: string;
@@ -49,8 +49,6 @@ export interface ComplianceWebAuthnAssertion {
 }
 
 export interface ComplianceSignResult {
-  /** Goes into the POST body's `signature` field. */
-  signature: ComplianceSignature;
   /** Goes into the POST body's `webauthnAssertion` field. */
   webauthnAssertion: ComplianceWebAuthnAssertion;
 }
@@ -72,17 +70,14 @@ function base64ToBytes(b64: string): Uint8Array {
 
 /**
  * Run the WebAuthn signing ceremony against a SERVER-issued challenge and
- * return the form `signature` block + the full `webauthnAssertion` for
- * server-side verification.
+ * return the full `webauthnAssertion` for server-side verification. Signer
+ * identity, time, payload hash and persisted evidence are server-owned.
  *
  * @throws WebAuthnNotSupportedError — no platform authenticator / security key.
  * @throws WebAuthnCancelledError — the user dismissed the native prompt.
  * @throws Error — the sign-challenge endpoint failed or returned a bad body.
  */
 export async function requestComplianceSignature(
-  payloadHashHex: string,
-  signerUid: string,
-  signerRut: string,
   opts: { signChallengeUrl: string; authHeader: string | null },
 ): Promise<ComplianceSignResult> {
   if (!isWebAuthnSupported()) {
@@ -131,14 +126,6 @@ export async function requestComplianceSignature(
   const signatureB64 = bufferToBase64url(response.signature);
 
   return {
-    signature: {
-      signerUid,
-      signerRut,
-      signedAt: new Date().toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64,
-      payloadHashHex,
-    },
     webauthnAssertion: {
       challengeId,
       credentialId: credential.id,

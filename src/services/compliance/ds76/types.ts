@@ -9,7 +9,9 @@
 //
 // Folio shape: `DS76-${year}-${slug}-${seq:06d}`.
 
-export interface Ds76Signature {
+import type { ComplianceSignatureAuditFields } from '../complianceSignature.js';
+
+export interface Ds76Signature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;
@@ -20,6 +22,11 @@ export interface Ds76Signature {
 
 export interface Ds76Form {
   folio: string;
+
+  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  payloadHashHex?: string;
+  /** Versioned byte-rendering contract used to reproduce the digest. */
+  payloadRendererVersion?: 1;
 
   // Identificación
   tenantId: string;

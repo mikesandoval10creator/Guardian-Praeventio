@@ -48,16 +48,13 @@ interface Props {
 }
 
 async function requestSignature(
-  payloadHashHex: string,
-  signerUid: string,
-  signerRut: string,
   signChallengeUrl: string,
   authHeader: string | null,
 ) {
   const { requestComplianceSignature } = await import(
     '../../services/auth/webauthnComplianceSign'
   );
-  return requestComplianceSignature(payloadHashHex, signerUid, signerRut, {
+  return requestComplianceSignature({
     signChallengeUrl,
     authHeader,
   });
@@ -82,7 +79,7 @@ function parseTrainingItems(s: string): Array<{ topic: string; hours: number }> 
     .filter((x): x is { topic: string; hours: number } => x !== null);
 }
 
-export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
+export const Ds76Builder: React.FC<Props> = ({ tenantId }) => {
   const [state, setState] = useState<BuilderState>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,9 +138,6 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
       if (!authHeader) throw new Error('No estás autenticado.');
       const formId = ds76FolioToDocId(result.form.folio);
       const sig = await requestSignature(
-        result.payloadHashHex,
-        reportedBy.uid,
-        reportedBy.rut,
         `/api/compliance/ds76/${encodeURIComponent(formId)}/sign-challenge`,
         authHeader,
       );
@@ -157,7 +151,6 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
           },
           body: JSON.stringify({
             tenantId,
-            signature: sig.signature,
             webauthnAssertion: sig.webauthnAssertion,
           }),
         },

@@ -11,7 +11,9 @@
 // Folio format: `DS67-${year}-${tenantSlug}-${seq:06d}` — same shape as
 // SUSESO so audit-log greps work uniformly.
 
-export interface Ds67Signature {
+import type { ComplianceSignatureAuditFields } from '../complianceSignature.js';
+
+export interface Ds67Signature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;
@@ -31,6 +33,11 @@ export interface Ds67Signature {
 export interface Ds67Form {
   /** `DS67-${year}-${slug}-${seq}`. */
   folio: string;
+
+  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  payloadHashHex?: string;
+  /** Versioned byte-rendering contract used to reproduce the digest. */
+  payloadRendererVersion?: 1;
 
   // Identificación
   tenantId: string;

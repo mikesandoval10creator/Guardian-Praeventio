@@ -788,7 +788,7 @@ export function Settings() {
     try {
       const authHeader = await apiAuthHeader();
       // 2FA: sign a server-issued challenge with the registered authenticator.
-      const sig = await requestComplianceSignature('', user.uid, '', {
+      const sig = await requestComplianceSignature({
         signChallengeUrl: '/api/auth/webauthn/challenge',
         authHeader,
       });

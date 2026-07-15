@@ -10,6 +10,7 @@ import {
   submitToMutualidad,
   buildVerificationUrl,
   folioToDocId,
+  renderSusesoUnsignedPayload,
   type MinimalFormStore,
 } from './susesoService';
 import type { SusesoForm, SusesoSignature } from './types';
@@ -108,7 +109,34 @@ describe('createSusesoForm', () => {
     expect(result.form.folio).toBe('DIAT-2026-praevent-000001');
     expect(result.pdfBytes.length).toBeGreaterThan(1000);
     expect(result.payloadHashHex).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.form.payloadHashHex).toBe(result.payloadHashHex);
+    expect(result.form.payloadRendererVersion).toBe(1);
     expect(result.qrCodeUrl).toBe('/api/suseso/verify/DIAT-2026-praevent-000001');
+  });
+
+  it('recomputes the authoritative unsigned digest and ignores signature evidence', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form, payloadHashHex } = await createSusesoForm(baseInput, {
+      folioStore,
+      formStore,
+      now: () => new Date('2026-05-04T15:00:00.000Z'),
+    });
+    const signedView: SusesoForm = {
+      ...form,
+      signature: {
+        signerUid: 'attacker-controlled-view',
+        signerRut: '1-9',
+        signedAt: '2099-01-01T00:00:00.000Z',
+        algorithm: 'kms-sign-rsa',
+        signatureB64: 'different-evidence',
+        payloadHashHex: 'f'.repeat(64),
+      },
+    };
+
+    const recomputed = await renderSusesoUnsignedPayload(signedView);
+    expect(recomputed.payloadHashHex).toBe(payloadHashHex);
+    expect(recomputed.payloadRendererVersion).toBe(1);
   });
 
   it('persists the form so it can be loaded back', async () => {

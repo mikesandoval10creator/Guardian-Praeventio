@@ -82,7 +82,9 @@ export interface SusesoReporter {
  * signature page is appended (so the verifier can reproduce the hash
  * deterministically by stripping the last page).
  */
-export interface SusesoSignature {
+import type { ComplianceSignatureAuditFields } from '../compliance/complianceSignature.js';
+
+export interface SusesoSignature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;
@@ -109,6 +111,11 @@ export interface SusesoForm {
    * (tenantId, year, kind) — see folioGenerator.ts.
    */
   folio: string;
+
+  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  payloadHashHex?: string;
+  /** Versioned byte-rendering contract used to reproduce the digest. */
+  payloadRendererVersion?: 1;
 
   // Worker
   workerRut: string;

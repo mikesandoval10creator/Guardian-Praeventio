@@ -71,7 +71,7 @@ Cada dominio se mide:
 | **i18n** | 91% | ⬆️ +46pp | 109/119 páginas con `useTranslation`; **quedan 10 páginas** |
 | **Health Vault (ADR 0012)** | 85% | ⬆️ +10pp | Disclaimer + QR sharing OK; `health_vault`/`health_vault_shares` owner-gated (#762, `firestore.rules:329/346`) + re-validación por-archivo (#780) |
 | **CPHS Comité Paritario** | 80% | ⬆️ +30pp | Service + UI card (#265); falta endpoint admin |
-| **DIAT/DIEP SUSESO** | 75% | ⬆️ +15pp | PDF real + folio + firma; **falta** WebAuthn ceremony real |
+| **DIAT/DIEP SUSESO** | 90% | ⬆️ +30pp | PDF determinista + folio + WebAuthn vinculado al documento; falta verificación pública QR end-to-end |
 | **Mesh BLE/WiFi Direct** | 80% | ⬆️ +10pp | Plugin Android Kotlin **real (552 LOC)** + iOS Swift; **consumer cableado** (`MeshProvider.tsx:110`→`AppProviders.tsx:139`). Pendiente: firma de paquetes (`meshPacket.ts:237` `unsigned-dev`) |
 | **PWA / Offline / Sync** | 92% | ⬆️ +2pp | SW models cache + outbox engine (#245-246) |
 | **Native plugins (HealthKit/HealthConnect)** | 40% | ⬆️ +10pp | Foundation; **bloqueado** por keystores |
@@ -1556,7 +1556,7 @@ Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nu
 
 | # | Item | Esfuerzo | Plan técnico breve |
 |---|---|---|---|
-| 12 | 3 STUB_REPLACE_WITH_WEBAUTHN_ASSERTION en compliance builders (`Ds76Builder`, `Ds67Builder`, `SusesoFormBuilder`) | M 2d | Reusar `src/server/auth/webauthnAssertion.ts` (mismo wire que SUSESO sign en §7) |
+| 12 | ✅ RESUELTO 2026-07-14 — WebAuthn real en `Ds76Builder`, `Ds67Builder`, `SusesoFormBuilder` | — | Assertion completa; hash, identidad, fecha y evidencia construidos por el servidor |
 | 13 | §2.14 SusesoApiClient → server proxy admin | M 2d | Endpoint `POST /api/admin/suseso/submit` + verifyAuth + tenant scope; remover import frontend |
 | 14 | §2.15 Zettelkasten canonical materializer | M 3d | Definir `nodes` como canónica; cron job que materialice `zettelkasten_nodes` + `tenants/{tid}/zettelkasten_nodes` → `nodes` |
 | 15 | §2.16 B2D Climate Open-Meteo + USGS + OpenAQ real | M 2d | 3 fetchers + cache 1h + fallback determinístico actual como último recurso |
