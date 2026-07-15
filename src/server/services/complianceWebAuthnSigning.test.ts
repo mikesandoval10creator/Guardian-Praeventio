@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ComplianceSigningFlowError,
   completeComplianceWebAuthnSigning,
+  completeComplianceKmsSigning,
   issueComplianceWebAuthnChallenge,
   type ComplianceSignableForm,
 } from './complianceWebAuthnSigning.js';
@@ -156,5 +157,34 @@ describe('completeComplianceWebAuthnSigning', () => {
       documents: adapter(), resolveSigner: async () => signer,
       verifyAssertion: async () => ({ verified: false, reason: 'signature_invalid' }),
     })).rejects.toMatchObject({ code: 'webauthn_failed', reason: 'signature_invalid' });
+  });
+});
+
+describe('completeComplianceKmsSigning', () => {
+  it('signs the exact reproduced PDF bytes and returns server-built machine evidence', async () => {
+    const signPayload = vi.fn(async () => ({ signatureB64: 'kms-signature', keyVersion: 'key/7' }));
+    const signature = await completeComplianceKmsSigning({
+      uid: 'kms-signer', tenantId: 'tenant-1', formId: 'form-1', documentKind: 'suseso',
+    }, {
+      documents: adapter(),
+      resolveSigner: async () => ({ uid: 'kms-signer', rut: '12.345.678-5', kind: 'kms' }),
+      signPayload,
+      now: () => new Date('2026-07-14T23:00:00.000Z'),
+    });
+    expect(signPayload).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
+    expect(signature).toMatchObject({
+      algorithm: 'kms-sign-rsa', signatureB64: 'kms-signature',
+      payloadHashHex: HASH, signerUid: 'kms-signer', kmsKeyVersion: 'key/7',
+    });
+  });
+
+  it('rejects a human signer before calling KMS', async () => {
+    const signPayload = vi.fn();
+    await expect(completeComplianceKmsSigning({
+      uid: 'user-1', tenantId: 'tenant-1', formId: 'form-1', documentKind: 'ds67',
+    }, {
+      documents: adapter(), resolveSigner: async () => signer, signPayload,
+    })).rejects.toThrow(/KMS/);
+    expect(signPayload).not.toHaveBeenCalled();
   });
 });

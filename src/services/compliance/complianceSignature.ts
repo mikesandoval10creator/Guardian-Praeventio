@@ -1,4 +1,7 @@
-import type { ComplianceSigningIntentV1 } from '../auth/complianceSigningIntent.js';
+import type {
+  ComplianceSigningContext,
+  ComplianceSigningIntentV1,
+} from '../auth/complianceSigningIntent.js';
 
 /** Optional on persisted models only so legacy signatures remain readable. */
 export interface ComplianceSignatureAuditFields {
@@ -9,6 +12,7 @@ export interface ComplianceSignatureAuditFields {
   clientDataJSONB64u?: string;
   authenticatorDataB64u?: string;
   kmsKeyVersion?: string;
+  signingContext?: ComplianceSigningContext;
 }
 
 export interface WebAuthnComplianceAssertionEvidence {
@@ -38,6 +42,18 @@ export interface VerifiedWebAuthnComplianceSignature extends ComplianceSignature
   rawId: string;
   clientDataJSONB64u: string;
   authenticatorDataB64u: string;
+}
+
+export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAuditFields {
+  signerUid: string;
+  signerRut: string;
+  signedAt: string;
+  algorithm: 'kms-sign-rsa';
+  signatureB64: string;
+  payloadHashHex: string;
+  verificationVersion: 1;
+  signingContext: ComplianceSigningContext;
+  kmsKeyVersion: string;
 }
 
 export function buildWebAuthnComplianceSignature(input: {
@@ -86,5 +102,42 @@ export function buildWebAuthnComplianceSignature(input: {
     rawId: assertion.rawId,
     clientDataJSONB64u: assertion.clientDataJSON,
     authenticatorDataB64u: assertion.authenticatorData,
+  };
+}
+
+export function buildKmsComplianceSignature(input: {
+  context: ComplianceSigningContext;
+  signer: TrustedComplianceSigner;
+  signatureB64: string;
+  keyVersion: string;
+  now?: () => Date;
+}): VerifiedKmsComplianceSignature {
+  const { context, signer } = input;
+  if (signer.kind !== 'kms') {
+    throw new TypeError('KMS compliance signatures require a configured KMS signer');
+  }
+  if (context.signerUid !== signer.uid || context.signerRut !== signer.rut) {
+    throw new TypeError('configured KMS signer does not match the authoritative context');
+  }
+  if (!input.signatureB64 || !input.keyVersion) {
+    throw new TypeError('verified KMS signature and key version are required');
+  }
+  if (!/^[0-9a-f]{64}$/.test(context.payloadHashHex)) {
+    throw new TypeError('KMS signing context payload hash is invalid');
+  }
+  const signedAtDate = (input.now ?? (() => new Date()))();
+  if (!(signedAtDate instanceof Date) || Number.isNaN(signedAtDate.getTime())) {
+    throw new TypeError('server signing clock returned an invalid date');
+  }
+  return {
+    signerUid: signer.uid,
+    signerRut: signer.rut,
+    signedAt: signedAtDate.toISOString(),
+    algorithm: 'kms-sign-rsa',
+    signatureB64: input.signatureB64,
+    payloadHashHex: context.payloadHashHex,
+    verificationVersion: 1,
+    signingContext: { ...context },
+    kmsKeyVersion: input.keyVersion,
   };
 }

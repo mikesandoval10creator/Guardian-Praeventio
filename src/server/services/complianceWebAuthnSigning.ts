@@ -7,8 +7,10 @@ import {
 } from '../../services/auth/complianceSigningIntent.js';
 import {
   buildWebAuthnComplianceSignature,
+  buildKmsComplianceSignature,
   type TrustedComplianceSigner,
   type VerifiedWebAuthnComplianceSignature,
+  type VerifiedKmsComplianceSignature,
 } from '../../services/compliance/complianceSignature.js';
 
 export type ComplianceSigningFlowErrorCode =
@@ -67,6 +69,7 @@ export interface ComplianceWebAuthnAssertion {
 interface PreparedSigningContext {
   signer: TrustedComplianceSigner;
   context: ComplianceSigningContext;
+  payload: ComplianceUnsignedPayload;
 }
 
 async function prepareSigningContext(
@@ -101,6 +104,7 @@ async function prepareSigningContext(
       signerUid: signer.uid,
       signerRut: signer.rut,
     },
+    payload,
   };
 }
 
@@ -175,6 +179,29 @@ export async function completeComplianceWebAuthnSigning(
     signer: prepared.signer,
     assertion: target.assertion,
     verifiedCredentialId: verdict.verifiedCredentialId,
+    now: deps.now,
+  });
+}
+
+export async function completeComplianceKmsSigning(
+  target: ComplianceSigningTarget,
+  deps: {
+    documents: ComplianceSigningDocuments;
+    resolveSigner(uid: string): Promise<TrustedComplianceSigner>;
+    signPayload(payload: Uint8Array): Promise<{ signatureB64: string; keyVersion: string }>;
+    now?: () => Date;
+  },
+): Promise<VerifiedKmsComplianceSignature> {
+  const prepared = await prepareSigningContext(target, deps.documents, deps.resolveSigner);
+  if (prepared.signer.kind !== 'kms') {
+    throw new TypeError('KMS signing requires the configured machine identity');
+  }
+  const kmsEvidence = await deps.signPayload(prepared.payload.pdfBytes);
+  return buildKmsComplianceSignature({
+    context: prepared.context,
+    signer: prepared.signer,
+    signatureB64: kmsEvidence.signatureB64,
+    keyVersion: kmsEvidence.keyVersion,
     now: deps.now,
   });
 }

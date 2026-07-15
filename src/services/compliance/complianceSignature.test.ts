@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ComplianceSigningIntentV1 } from '../auth/complianceSigningIntent.js';
-import { buildWebAuthnComplianceSignature } from './complianceSignature.js';
+import {
+  buildKmsComplianceSignature,
+  buildWebAuthnComplianceSignature,
+} from './complianceSignature.js';
 
 const intent: ComplianceSigningIntentV1 = {
   version: 1,
@@ -73,6 +76,40 @@ describe('buildWebAuthnComplianceSignature', () => {
       assertion,
       verifiedCredentialId: 'credential-1',
       now: () => new Date('invalid'),
+    })).toThrow();
+  });
+});
+
+describe('buildKmsComplianceSignature', () => {
+  it('constructs machine evidence from trusted context and locally verified KMS output', () => {
+    const signature = buildKmsComplianceSignature({
+      context: {
+        tenantId: intent.tenantId, formId: intent.formId, documentKind: intent.documentKind,
+        payloadHashHex: intent.payloadHashHex, signerUid: 'kms-signer', signerRut: '12.345.678-5',
+      },
+      signer: { uid: 'kms-signer', rut: '12.345.678-5', kind: 'kms' },
+      signatureB64: 'kms-signature',
+      keyVersion: 'projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/7',
+      now: () => new Date('2026-07-14T23:00:00.000Z'),
+    });
+    expect(signature).toMatchObject({
+      signerUid: 'kms-signer', signerRut: '12.345.678-5',
+      signedAt: '2026-07-14T23:00:00.000Z', algorithm: 'kms-sign-rsa',
+      signatureB64: 'kms-signature', payloadHashHex: intent.payloadHashHex,
+      verificationVersion: 1,
+      kmsKeyVersion: 'projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/7',
+    });
+    expect(signature.signingContext?.formId).toBe(intent.formId);
+  });
+
+  it('rejects a human identity on the KMS path', () => {
+    expect(() => buildKmsComplianceSignature({
+      context: {
+        tenantId: intent.tenantId, formId: intent.formId, documentKind: intent.documentKind,
+        payloadHashHex: intent.payloadHashHex, signerUid: 'user-1', signerRut: intent.signerRut,
+      },
+      signer: { uid: 'user-1', rut: intent.signerRut, kind: 'human' },
+      signatureB64: 'kms-signature', keyVersion: 'key/1',
     })).toThrow();
   });
 });

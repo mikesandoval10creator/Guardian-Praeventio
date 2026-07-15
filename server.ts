@@ -126,6 +126,7 @@ import documentsRouter from "./src/server/routes/documents.js";
 // Mining) PDF generators. Mounted under /api/compliance so the URL space
 // matches Ley 19.628 endpoints (one compliance surface, not two).
 import ds67ds76Router from "./src/server/routes/ds67ds76.js";
+import complianceKmsSigningRouter from "./src/server/routes/complianceKmsSigning.js";
 // Épica B1 (capa 2) — DS 67 cotización-adicional simulator over the real
 // siniestralidad of the project (pure engine + incident aggregation).
 import ds67SimulatorRouter from "./src/server/routes/ds67.js";
@@ -1080,6 +1081,10 @@ app.use('/api/compliance', complianceRouter);
 // Sprint 31 Bucket PP — DS 67 + DS 76 PDF reglamento generators. Same
 // /api/compliance surface; the routes are namespaced under /ds67 and /ds76.
 app.use('/api/compliance', ds67ds76Router);
+
+// Private regulatory signing surface. This router is mounted exactly once
+// under /api and is never mirrored under /api/public/suseso.
+app.use('/api', complianceKmsSigningRouter);
 
 // Épica B1 — DS 67 siniestralidad simulator (read-only compute). Routes are
 // namespaced under /:projectId/ds67/simulator/* — no clash with the /ds67
