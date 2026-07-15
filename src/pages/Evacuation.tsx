@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
@@ -177,6 +177,14 @@ export function Evacuation() {
     }
   };
 
+  // Latest-closure ref: the auto-recalc effects below fire on event/node changes,
+  // not on selectedProject. Calling runDynamicCalculation directly would capture a
+  // stale selectedProject and recompute the evacuation route for the WRONG faena.
+  const runDynamicCalculationRef = useRef(runDynamicCalculation);
+  useEffect(() => {
+    runDynamicCalculationRef.current = runDynamicCalculation;
+  });
+
   // Auto-recalculate if a new critical event occurs
   useEffect(() => {
     if (recentEvents && recentEvents.length > 0) {
@@ -186,11 +194,11 @@ export function Evacuation() {
         const now = new Date();
         if (!lastRecalculation || (now.getTime() - lastRecalculation.getTime() > 30000)) {
           logger.info('Triggering automatic route recalculation due to critical IoT event', { latestEvent });
-          runDynamicCalculation(`Evento Crítico IoT: ${latestEvent.source} - ${latestEvent.metric}`);
+          runDynamicCalculationRef.current(`Evento Crítico IoT: ${latestEvent.source} - ${latestEvent.metric}`);
         }
       }
     }
-  }, [recentEvents]);
+  }, [recentEvents, lastRecalculation]);
 
   const handleGenerateEmergencyPlan = async () => {
     // Brecha B — antes: `if (!isOnline) return`. Ahora delegamos al
@@ -299,10 +307,10 @@ export function Evacuation() {
       // Only recalculate if it's been at least 10 seconds since the last one to avoid spamming on load
       const now = new Date();
       if (!lastRecalculation || (now.getTime() - lastRecalculation.getTime() > 10000)) {
-        runDynamicCalculation("Actualización de Red Neuronal (Nuevos Nodos)");
+        runDynamicCalculationRef.current("Actualización de Red Neuronal (Nuevos Nodos)");
       }
     }
-  }, [incidentNodes.length, emergencyNodes.length]);
+  }, [incidentNodes.length, emergencyNodes.length, nodes.length, lastRecalculation]);
 
   // Audit 2026-07-02 §3.1 bug 9: 'capacity'/'time' per route ('120
   // personas', '2.5 min', etc.) were invented literals with no real source
