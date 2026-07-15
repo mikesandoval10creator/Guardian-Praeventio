@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**200 routers montados · 707 rutas detectadas.**
+**201 routers montados · 708 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -77,6 +77,9 @@ clave ver `docs/api-routes.md`.
 - `GET /api/wisdom-capsule/stats`
 - `GET /api/wisdom-capsule/today`
 - `POST /api/wisdom-capsule/ack`
+
+### `src/server/routes/workers.ts` → `/api`
+- `PATCH /api/projects/:projectId/workers/:workerId`
 
 ### `src/server/routes/account.ts` → `/api/account`
 - `POST /api/account/anonymize`

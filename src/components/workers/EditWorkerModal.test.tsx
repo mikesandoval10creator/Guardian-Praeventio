@@ -16,6 +16,10 @@ vi.mock('../../services/firebase', () => ({
   OperationType: { CREATE: 'create', UPDATE: 'update', DELETE: 'delete' },
 }));
 
+vi.mock('../../lib/apiAuth', () => ({
+  apiAuthHeaders: async () => ({ Authorization: 'Bearer test' }),
+}));
+
 vi.mock('../../hooks/useOnlineStatus', () => ({ useOnlineStatus: () => true }));
 vi.mock('../../hooks/useToast', () => ({
   useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
@@ -66,7 +70,9 @@ describe('EditWorkerModal', () => {
     expect(screen.getByDisplayValue('ana@x.com')).toBeInTheDocument();
   });
 
-  it('calls updateDoc on submit and invokes onClose', async () => {
+  it('PATCHes the audited endpoint on submit and invokes onClose', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
     const onClose = vi.fn();
     render(
       <EditWorkerModal isOpen={true} onClose={onClose} worker={worker} projectId="p-1" />,
@@ -74,7 +80,13 @@ describe('EditWorkerModal', () => {
     const form = document.querySelector('form');
     expect(form).toBeTruthy();
     fireEvent.submit(form!);
-    await waitFor(() => expect(updateDocMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Audited path, not a direct client write.
+    expect(updateDocMock).not.toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/projects/p-1/workers/w-1');
+    expect(init.method).toBe('PATCH');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+    vi.unstubAllGlobals();
   });
 });

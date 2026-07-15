@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Loader2 } from 'lucide-react';
 import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../services/firebase';
+import { apiAuthHeaders } from '../../lib/apiAuth';
 import { Worker } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useToast } from '../../hooks/useToast';
@@ -46,19 +47,37 @@ export function EditWorkerModal({ isOpen, onClose, worker, projectId }: EditWork
     setLoading(true);
 
     try {
-      const path = projectId ? `projects/${projectId}/workers` : 'workers';
-      const workerRef = doc(db, path, worker.id);
-
       if (!isOnline) {
         showToast('No hay conexión. La edición requiere conexión a internet.', 'warning');
         setLoading(false);
         return;
       }
 
-      await updateDoc(workerRef, {
-        ...formData,
-        updatedAt: new Date().toISOString()
-      });
+      if (projectId) {
+        // Audited server path: server-side traceability of critical mutations.
+        // The worker doc is PII; the endpoint stamps updatedAt + writes an
+        // immutable audit_logs row that a client updateDoc can't guarantee.
+        const res = await fetch(
+          `/api/projects/${projectId}/workers/${worker.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(await apiAuthHeaders()),
+            },
+            body: JSON.stringify(formData),
+          },
+        );
+        if (!res.ok) throw new Error(`worker_update_failed_${res.status}`);
+      } else {
+        // ponytail: legacy global `workers` collection has no project scope and
+        // no audited endpoint yet (tracked in DIRECT-WRITES-INVENTORY). Keep the
+        // direct write so project-less edits don't regress.
+        await updateDoc(doc(db, 'workers', worker.id), {
+          ...formData,
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       onClose();
     } catch (error) {
