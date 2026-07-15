@@ -62,7 +62,8 @@ function seedWorker() {
     projectId: PROJECT,
   });
 }
-function auditRows() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function auditRows(): any[] {
   return Object.entries(H.db!._dump())
     .filter(([k]) => k.startsWith('audit_logs/'))
     .map(([, v]) => v);

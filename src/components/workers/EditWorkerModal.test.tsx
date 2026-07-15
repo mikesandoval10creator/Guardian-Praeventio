@@ -83,7 +83,7 @@ describe('EditWorkerModal', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     // Audited path, not a direct client write.
     expect(updateDocMock).not.toHaveBeenCalled();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/projects/p-1/workers/w-1');
     expect(init.method).toBe('PATCH');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
