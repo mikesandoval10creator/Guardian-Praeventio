@@ -11,7 +11,9 @@
 // Folio format: `DS67-${year}-${tenantSlug}-${seq:06d}` — same shape as
 // SUSESO so audit-log greps work uniformly.
 
-export interface Ds67Signature {
+import type { ComplianceSignatureAuditFields } from '../complianceSignature.js';
+
+export interface Ds67Signature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;

@@ -82,7 +82,9 @@ export interface SusesoReporter {
  * signature page is appended (so the verifier can reproduce the hash
  * deterministically by stripping the last page).
  */
-export interface SusesoSignature {
+import type { ComplianceSignatureAuditFields } from '../compliance/complianceSignature.js';
+
+export interface SusesoSignature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;

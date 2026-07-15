@@ -9,7 +9,9 @@
 //
 // Folio shape: `DS76-${year}-${slug}-${seq:06d}`.
 
-export interface Ds76Signature {
+import type { ComplianceSignatureAuditFields } from '../complianceSignature.js';
+
+export interface Ds76Signature extends ComplianceSignatureAuditFields {
   signerUid: string;
   signerRut: string;
   signedAt: string;
