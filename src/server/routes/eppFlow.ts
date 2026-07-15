@@ -152,6 +152,16 @@ function buildFirestoreEdgeStore(): EdgeStore {
       const snap = await q.get();
       return snap.docs.map((d) => d.data() as ZkEdge);
     },
+    // ZK-5 — required by the EdgeStore contract. NOTE: this whole object is a
+    // duplicate of `buildEdgeStore` (services/zettelkasten/edgeStoreFirestore),
+    // which exists precisely so routes share ONE materialization. Collapsing
+    // this copy into it is a separate cleanup.
+    async listByTenant(tenantId, limit) {
+      let q: FirebaseFirestore.Query = col(tenantId);
+      if (typeof limit === 'number' && limit > 0) q = q.limit(limit);
+      const snap = await q.get();
+      return snap.docs.map((d) => d.data() as ZkEdge);
+    },
   };
 }
 

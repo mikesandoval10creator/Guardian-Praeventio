@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**200 routers montados · 706 rutas detectadas.**
+**200 routers montados · 707 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -1109,6 +1109,7 @@ clave ver `docs/api-routes.md`.
 - `POST /api/zettelkasten/risk-control-suggestions`
 - `POST /api/zettelkasten/backlinks`
 - `POST /api/zettelkasten/structured-query`
+- `POST /api/zettelkasten/edges`
 
 ### `src/server/routes/restrictedZones.ts` → `/api/zones`
 - `POST /api/zones/define`
