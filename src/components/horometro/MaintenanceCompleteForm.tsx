@@ -7,6 +7,7 @@
 // cerramos. Esto cumple la directiva founder "firma biometrica = sello
 // legal" + ADR Round 18 R6 (sensitive flows).
 
+import { randomId } from '../../utils/randomId';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -102,7 +103,7 @@ export function MaintenanceCompleteForm({
       // 2. POST al backend.
       const idemKey = generateIdempotencyKey
         ? generateIdempotencyKey()
-        : `${task.id}-complete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        : `${task.id}-complete-${Date.now()}-${randomId()}`;
       const res = await completeMaintenanceTaskRequest(
         projectId,
         task.id,

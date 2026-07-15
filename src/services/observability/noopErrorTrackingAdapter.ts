@@ -29,6 +29,7 @@
 // client bundler — Vite would otherwise rewrite it to a browser-external
 // stub that fails to export AsyncLocalStorage. Vitest runs in Node and
 // resolves this file normally, so tests see the real AsyncLocalStorage.
+import { randomId } from '../../utils/randomId';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logger } from '../../utils/logger';
 import type {
@@ -46,7 +47,7 @@ import type {
  * Not cryptographically random — this is dev/CI plumbing, not a token.
  */
 function noopEventId(): string {
-  return `noop-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `noop-${Date.now().toString(36)}-${randomId()}`;
 }
 
 /**

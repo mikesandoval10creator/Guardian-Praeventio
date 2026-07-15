@@ -29,6 +29,7 @@
 //     default executor is a noop that fails — production wires the
 //     real Firestore executor from `OfflineSyncManager.tsx`.
 
+import { randomId } from '../../utils/randomId';
 import { get, set } from 'idb-keyval';
 import { logger } from '../../utils/logger';
 
@@ -108,7 +109,7 @@ function makeOpId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return (crypto as Crypto).randomUUID();
   }
-  return `op_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return `op_${Date.now().toString(36)}_${randomId()}`;
 }
 
 export class OfflineSyncStateMachine {

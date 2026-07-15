@@ -23,6 +23,7 @@
  *     `streamTokens=true`)
  */
 
+import { randomId } from '../../../utils/randomId';
 import {
   isWorkerRequest,
   type AbortRequest,
@@ -89,7 +90,7 @@ export interface WorkerCoreOptions {
  * disponible.
  */
 function newModelHandle(modelId: string): string {
-  const rnd = Math.random().toString(36).slice(2, 10);
+  const rnd = randomId();
   const ts = Date.now().toString(36);
   return `${modelId}::${ts}::${rnd}`;
 }

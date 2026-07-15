@@ -23,6 +23,7 @@
 // Directivas del producto: reportar SIEMPRE suma (cultura positiva); la app
 // recomienda y da info para decidir, nunca bloquea ni transfiere pánico.
 
+import { randomId } from '../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -191,7 +192,7 @@ export function IncidentFlowHub() {
   // Se regenera cada vez que el panel de reporte cambia de visibilidad para que
   // un segundo reporte no reuse el incidentId del anterior.
   const newIncidentId = useMemo(
-    () => `inc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    () => `inc-${Date.now()}-${randomId()}`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [showReport],
   );

@@ -36,6 +36,7 @@
  * captured as a Sentry breadcrumb and `track()` resolves anyway.
  */
 
+import { randomId } from '../../utils/randomId';
 import type {
   CommonProperties,
   Event,
@@ -200,7 +201,7 @@ function newId(): string {
   if (c && typeof c.randomUUID === 'function') {
     return c.randomUUID();
   }
-  return `aq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return `aq_${Date.now().toString(36)}_${randomId()}`;
 }
 
 /**

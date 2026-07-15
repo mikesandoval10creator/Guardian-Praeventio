@@ -28,6 +28,7 @@
 //
 // Reglas Directiva #2: NUNCA bloquea operación. Sólo informa.
 
+import { randomId } from '../../utils/randomId';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Calculator,
@@ -221,7 +222,7 @@ export function CostSimulator({
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
-          : `scenario-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+          : `scenario-${Date.now()}-${randomId()}`;
       const result = await savePreventionScenario(
         projectId,
         {

@@ -21,6 +21,7 @@
 // su cuenta. Las recomendaciones de fuentes externas se citan discreto
 // en el modal de detalle, sin transferir panic-mode al usuario.
 
+import { randomId } from '../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Activity, WifiOff, Plus, X, ArrowRight, AlertCircle } from 'lucide-react';
@@ -73,7 +74,7 @@ const ORIGIN_LABEL: Record<PdcaOrigin, string> = {
 
 function generateId(prefix: string): string {
   const t = Date.now().toString(36);
-  const r = Math.random().toString(36).slice(2, 8);
+  const r = randomId();
   return `${prefix}_${t}_${r}`;
 }
 

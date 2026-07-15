@@ -46,6 +46,7 @@
  *   - It does not show toasts. The hook + component above this layer do.
  */
 
+import { randomId } from '../../utils/randomId';
 import type { ReconciliationResult } from './reconciliation';
 
 /**
@@ -195,7 +196,7 @@ function defaultRunId(): string {
   if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
     return cryptoApi.randomUUID();
   }
-  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `run-${Date.now()}-${randomId()}`;
 }
 
 function resolveStorage(

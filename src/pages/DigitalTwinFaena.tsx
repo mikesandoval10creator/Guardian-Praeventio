@@ -1,3 +1,4 @@
+import { randomId } from '../utils/randomId';
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -261,7 +262,7 @@ export function DigitalTwinFaena() {
     // posición exacta bajo el cursor (requiere ref al canvas R3F).
     const now = Date.now();
     const newObjBase = {
-      id: `placed_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `placed_${now}_${randomId()}`,
       kind: kind as PlacedObjectKind,
       lifecycle: 'planning' as const,
       createdAt: now,

@@ -17,6 +17,7 @@
 // Determinístico. No-bloqueante. NUNCA un trabajador queda atado a una
 // observación negativa sin oportunidad de reconocimiento.
 
+import { randomId } from '../utils/randomId';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Award, WifiOff, Sparkles, PlusCircle, MoreHorizontal } from 'lucide-react';
@@ -300,7 +301,7 @@ function NewObservationForm({ projectId, onClose, onSaved }: NewObservationFormP
         id:
           typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
-            : `po_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            : `po_${Date.now()}_${randomId()}`,
         // Codex P2 round 2 PR #320 (line 250): always a real Worker.id
         // (UID), never the search query string. The picker above gates
         // submission via `valid` until a worker is actually selected.

@@ -12,6 +12,7 @@
 //     con notas + uid distinto del saliente.
 //   - Lista historial de los últimos shifts con badge urgentes/pending.
 
+import { randomId } from '../utils/randomId';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -151,7 +152,7 @@ export function ShiftHandover() {
     }
     try {
       const shift = startShift({
-        id: `shift_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: `shift_${Date.now()}_${randomId()}`,
         projectId: selectedProject.id,
         kind: shiftKind,
         supervisorUid: user.uid,

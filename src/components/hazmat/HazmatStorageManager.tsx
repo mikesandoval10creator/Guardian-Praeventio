@@ -10,6 +10,7 @@
 // los mutadores remotos. La persistencia (Firestore/IDB) la decide el
 // caller a través de `onChange` — este componente solo orquesta UI.
 
+import { randomId } from '../../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -75,7 +76,7 @@ function newItemId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return `hzm_${crypto.randomUUID()}`;
   }
-  return `hzm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  return `hzm_${Date.now()}_${randomId()}`;
 }
 
 interface DraftItem {

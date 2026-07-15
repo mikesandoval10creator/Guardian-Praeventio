@@ -7,6 +7,7 @@
 // unit tests and offline-first paths; production callers pass a Firestore-
 // backed `CrewStore` adapter.
 
+import { randomId } from '../../utils/randomId';
 import type { Crew, XpReason } from '../../types/organic';
 // 16th wave (Bucket B) analytics: wire `cuadrilla.created` and
 // `cuadrilla.member.added` at the persistence seam so every caller (UI,
@@ -52,7 +53,7 @@ function genId(prefix: string): string {
   // back to a timestamp-based id for very old runtimes.
   const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
   if (g.crypto?.randomUUID) return `${prefix}-${g.crypto.randomUUID()}`;
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Date.now()}-${randomId()}`;
 }
 
 export async function createCrew(

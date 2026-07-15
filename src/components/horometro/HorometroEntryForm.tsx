@@ -9,6 +9,7 @@
 // Paleta teal #4db6ac primary + dark-mode first. Mirror del estilo de
 // PreUseChecklistMobile.
 
+import { randomId } from '../../utils/randomId';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Gauge, Loader2, AlertTriangle, Wrench } from 'lucide-react';
@@ -57,7 +58,7 @@ export function HorometroEntryForm({
     try {
       const idemKey = generateIdempotencyKey
         ? generateIdempotencyKey()
-        : `${equipment.id}-${hoursNum}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        : `${equipment.id}-${hoursNum}-${Date.now()}-${randomId()}`;
       const res = await recordHorometroReading(
         projectId,
         {

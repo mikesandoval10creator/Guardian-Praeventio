@@ -24,6 +24,7 @@
 //     de evidencia opcional (≤4000 chars). El verifierUid lo deriva el
 //     servidor del caller autenticado, así que la UI nunca lo manda.
 
+import { randomId } from '../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Layers, WifiOff, Plus, X, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
@@ -318,7 +319,7 @@ export function EngineeringControls() {
     setFormSubmitting(true);
     setFormError(null);
     try {
-      const id = `engctrl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const id = `engctrl_${Date.now()}_${randomId()}`;
       await createEngineeringControl(projectId, {
         id,
         level: formLevel,

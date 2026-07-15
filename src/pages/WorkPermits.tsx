@@ -19,6 +19,7 @@
 //      del kind (vía `checklistForPermitKind`).
 //   4. Acciones por permiso: firmar (sign) y cerrar (close con razón).
 
+import { randomId } from '../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, WifiOff, Plus, X } from 'lucide-react';
@@ -116,7 +117,7 @@ export function WorkPermits() {
     setFormSubmitting(true);
     setFormError(null);
     try {
-      const id = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const id = `wp_${Date.now()}_${randomId()}`;
       // Codex P1 #1: do NOT send a pre-attested checklist. The server
       // ignores the body's checklist and seeds the canonical unchecked
       // template; we omit the field entirely so the contract is obvious.

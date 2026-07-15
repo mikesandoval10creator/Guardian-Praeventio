@@ -24,6 +24,7 @@
 // los command handlers y refresca las métricas. Es una demo del flujo,
 // pero los números son del store REAL, NO Math.random().
 
+import { randomId } from '../utils/randomId';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -46,7 +47,7 @@ import {
 } from '../services/cqrs/incidents/incidentSystem';
 
 function generateDemoId(): string {
-  return `demo-inc-${Math.random().toString(36).slice(2, 10)}`;
+  return `demo-inc-${randomId()}`;
 }
 
 export function CQRSArchitecture() {

@@ -19,6 +19,7 @@
 //   - Nunca bloquea operación: este es un instrumento de gobierno
 //     (ISO 31000 risk-flow), no un gate operacional.
 
+import { randomId } from '../utils/randomId';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertOctagon, WifiOff, Plus, X } from 'lucide-react';
@@ -69,7 +70,7 @@ function RegisterForm({ onSubmit, onClose }: RegisterFormProps) {
     setSubmitting(true);
     try {
       await onSubmit({
-        id: `rr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: `rr-${Date.now()}-${randomId()}`,
         hazard,
         category,
         riskKind,

@@ -1,3 +1,4 @@
+import { randomId } from '../utils/randomId';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -148,7 +149,7 @@ export function DEAZones() {
     const completedOk = isChecklistComplete(checklist);
     const performedAt = new Date().toISOString().split('T')[0];
     const inspection: DeaInspection = {
-      id: `ins-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `ins-${Date.now()}-${randomId()}`,
       deaId: selectedDEA.id,
       performedAt,
       performedByUid: user.uid,
@@ -206,7 +207,7 @@ export function DEAZones() {
       return;
     }
 
-    const id = `dea-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `dea-${Date.now()}-${randomId()}`;
     const today = new Date().toISOString().split('T')[0];
     const newDea: Dea = {
       id,

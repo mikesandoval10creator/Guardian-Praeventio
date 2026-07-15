@@ -11,6 +11,7 @@
 // prevencionista no pierde contexto de la lista al revisar un
 // simulacro individual).
 
+import { randomId } from '../utils/randomId';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -347,7 +348,7 @@ export function DrillsManager() {
     // planner creía que el simulacro estaba guardado. Ahora propaga
     // para que `NewDrillModal` muestre el banner inline y reintente.
     try {
-      const id = `drill_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const id = `drill_${Date.now()}_${randomId()}`;
       await planDrill(projectId, { id, ...payload });
       logger.info('drills.plan.created', { projectId, id, kind: payload.kind });
       setShowNewModal(false);

@@ -34,6 +34,7 @@
 //   5. **Errores aislados**: si un callback lanza, no rompe al resto. Se
 //      loguea con `logger.warn` siguiendo el patrón de eventLog.ts.
 
+import { randomId } from '../../utils/randomId';
 import { logger } from '../../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ export function buildEvent<TPayload>(input: {
   const ts = input.ts ?? Date.now();
   const id =
     input.id ??
-    `evt-${ts}-${Math.random().toString(36).slice(2, 8)}`;
+    `evt-${ts}-${randomId()}`;
   return {
     type: input.type,
     ts,
