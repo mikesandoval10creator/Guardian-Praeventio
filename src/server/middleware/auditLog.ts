@@ -76,6 +76,9 @@ export async function auditServerEvent(
       userId,
       userEmail,
       projectId: options.projectId ?? null,
+      // Trust level: server-emitted events are the authoritative ones. Client
+      // telemetry via POST /api/audit-log is stamped source:'client'.
+      source: 'server',
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,

@@ -38,6 +38,24 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
+// Authoritative legal/compliance actions are emitted ONLY by server code via
+// auditServerEvent (which stamps source:'server'). This client endpoint is for
+// client-declared telemetry (source:'client'); it must never be able to forge
+// one of these into the same audit_logs collection that compliance reports and
+// dashboards treat as authoritative. Closed, server-only catalog — reject on
+// match. (Client-declared safety events like `safety.iper.matrix.signed` are
+// out of scope here and tracked for a separate server-side migration.)
+const SERVER_ONLY_ACTIONS = new Set<string>([
+  'compliance.approved',
+  'compliance.rejected',
+  'document.signed',
+  'signature.verified',
+  'kms.sign',
+  'kms.signed',
+  'workers.create',
+  'workers.update',
+]);
+
 // idempotencyKey(): a queued audit entry that the offline outbox retries carries
 // the same Idempotency-Key (= clientEventId) on each flush; the middleware replays
 // the cached 2xx WITHOUT re-running the handler, so a reconnect drain can never
@@ -52,6 +70,11 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
   }
   if (typeof mod !== 'string' || mod.length === 0 || mod.length > 64) {
     return res.status(400).json({ error: 'Invalid module' });
+  }
+
+  // Trust boundary: a client cannot self-declare an authoritative legal event.
+  if (SERVER_ONLY_ACTIONS.has(action)) {
+    return res.status(403).json({ error: 'reserved_action' });
   }
   if (
     projectId !== undefined &&
@@ -85,6 +108,9 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
       userId: callerUid,
       userEmail: callerEmail,
       projectId: projectId ?? null,
+      // Trust level: this endpoint only ever records client-declared telemetry.
+      // Authoritative consumers filter on source:'server'.
+      source: 'client',
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
