@@ -18,6 +18,10 @@ const h = vi.hoisted(() => ({
   where: vi.fn(() => ({})),
   serverTimestamp: vi.fn(() => 'TS'),
   isNativePlatform: vi.fn(() => false),
+  checkPermissions: vi.fn(),
+  requestPermissions: vi.fn(),
+  nativeWatchPosition: vi.fn(),
+  clearWatch: vi.fn(),
 }));
 
 vi.mock('../contexts/ProjectContext', () => ({
@@ -42,10 +46,10 @@ vi.mock('@capacitor/core', () => ({
 }));
 vi.mock('@capacitor/geolocation', () => ({
   Geolocation: {
-    checkPermissions: vi.fn(),
-    requestPermissions: vi.fn(),
-    watchPosition: vi.fn(),
-    clearWatch: vi.fn(),
+    checkPermissions: h.checkPermissions,
+    requestPermissions: h.requestPermissions,
+    watchPosition: h.nativeWatchPosition,
+    clearWatch: h.clearWatch,
   },
 }));
 vi.mock('../utils/logger', () => ({
@@ -58,11 +62,22 @@ import { useSensorBus } from '../services/sensorBus/sensorBus';
 type PositionCb = (position: { coords: { latitude: number; longitude: number; accuracy: number } }) => void;
 
 let watchCb: PositionCb | null = null;
+let webWatchPosition: ReturnType<typeof vi.fn>;
+let webClearWatch: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   useSensorBus.getState().reset();
   watchCb = null;
+  h.isNativePlatform.mockReturnValue(false);
+  h.checkPermissions.mockResolvedValue({ location: 'granted' });
+  h.requestPermissions.mockResolvedValue({ location: 'granted' });
+  h.nativeWatchPosition.mockResolvedValue('native-watch-1');
+  webWatchPosition = vi.fn((ok: PositionCb) => {
+    watchCb = ok;
+    return 7;
+  });
+  webClearWatch = vi.fn();
   // Worker has Art. 22 (no fixed schedule) → tracking is always on.
   h.getDocs.mockResolvedValue({
     empty: false,
@@ -71,11 +86,8 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: {
-      watchPosition: vi.fn((ok: PositionCb) => {
-        watchCb = ok;
-        return 7;
-      }),
-      clearWatch: vi.fn(),
+      watchPosition: webWatchPosition,
+      clearWatch: webClearWatch,
     },
   });
 });
@@ -85,6 +97,66 @@ afterEach(() => {
 });
 
 describe('useGeolocationTracking — sensorBus wiring', () => {
+  it('owns exactly one web watcher and clears that watcher once on unmount', async () => {
+    const { result, unmount } = renderHook(() => useGeolocationTracking());
+
+    await waitFor(() => expect(result.current.isTracking).toBe(true));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(webWatchPosition).toHaveBeenCalledTimes(1);
+
+    unmount();
+    await waitFor(() => expect(webClearWatch).toHaveBeenCalledTimes(1));
+    expect(webClearWatch).toHaveBeenCalledWith(7);
+  });
+
+  it('does not create another watcher when the five-minute schedule check runs', async () => {
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const { result, unmount } = renderHook(() => useGeolocationTracking());
+    await waitFor(() => expect(result.current.isTracking).toBe(true));
+
+    const scheduleCheck = intervalSpy.mock.calls.find(
+      ([, delay]) => delay === 5 * 60 * 1000,
+    )?.[0] as (() => void) | undefined;
+    expect(scheduleCheck).toBeTypeOf('function');
+
+    await act(async () => {
+      scheduleCheck!();
+      scheduleCheck!();
+      await Promise.resolve();
+    });
+
+    expect(webWatchPosition).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('clears a native watcher that finishes starting after unmount', async () => {
+    h.isNativePlatform.mockReturnValue(true);
+    let resolveWatch!: (watchId: string) => void;
+    h.nativeWatchPosition.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveWatch = resolve;
+      }),
+    );
+
+    const { unmount } = renderHook(() => useGeolocationTracking());
+    await waitFor(() => expect(h.nativeWatchPosition).toHaveBeenCalledTimes(1));
+    unmount();
+
+    await act(async () => {
+      resolveWatch('late-native-watch');
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(h.clearWatch).toHaveBeenCalledWith({ id: 'late-native-watch' }),
+    );
+    expect(h.clearWatch).toHaveBeenCalledTimes(1);
+  });
+
   it("publishes a 'gps' reading to the bus on each accepted position fix", async () => {
     const { unmount } = renderHook(() => useGeolocationTracking());
     await waitFor(() => expect(watchCb).not.toBeNull());
