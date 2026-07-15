@@ -110,7 +110,11 @@ function cloudRunMetrics() {
 // ─────────────────────────── Health probe ───────────────────────────
 async function healthDeepProbe() {
   const url = process.env.HEALTH_DEEP_URL || 'https://praeventio-api.run.app/api/health/deep';
-  const r = await fetchJson(url);
+  // /api/health/deep is ops-authenticated (shared HEALTH_DEEP_TOKEN secret) so an
+  // anonymous caller can't drain quotas or probe internal state. Send it.
+  const token = process.env.HEALTH_DEEP_TOKEN;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const r = await fetchJson(url, headers);
   return { url, ok: r.ok, status: r.status || null, body: r.json || r.raw || null, err: r.err || null };
 }
 
