@@ -35,6 +35,10 @@ import {
   type MinimalDs76FormStore,
 } from '../../services/compliance/ds76/ds76Service.js';
 import type { Ds76Form, Ds76Signature } from '../../services/compliance/ds76/types.js';
+import {
+  attachComplianceSignatureAtomically,
+  persistComplianceDigestAtomically,
+} from '../services/firestoreComplianceDocument.js';
 
 type KmsDocumentKind = 'suseso' | 'ds67' | 'ds76';
 type SignedDocument = SusesoForm | Ds67Form | Ds76Form;
@@ -68,7 +72,12 @@ function buildDocuments(
       return renderDs76UnsignedPayload(form as Ds76Form);
     },
     async persistLegacyDigest(payloadHashHex, payloadRendererVersion) {
-      await ref.update({ payloadHashHex, payloadRendererVersion });
+      await persistComplianceDigestAtomically(
+        admin.firestore(),
+        ref,
+        payloadHashHex,
+        payloadRendererVersion,
+      );
     },
   };
 }
@@ -89,14 +98,11 @@ function buildAtomicStore(kind: KmsDocumentKind) {
       signature: SusesoSignature | Ds67Signature | Ds76Signature,
     ) {
       const ref = documentRef(kind, tenantId, formId);
-      return fs.runTransaction(async (tx) => {
-        const snap = await tx.get(ref);
-        if (!snap.exists) throw new ComplianceSigningFlowError('not_found');
-        const current = snap.data() as SignedDocument;
-        if (current.signature) throw new ComplianceSigningFlowError('already_signed');
-        tx.update(ref, { signature });
-        return { ...current, signature } as SignedDocument;
-      });
+      return attachComplianceSignatureAtomically<SignedDocument, typeof signature>(
+        fs,
+        ref,
+        signature,
+      );
     },
   };
 }

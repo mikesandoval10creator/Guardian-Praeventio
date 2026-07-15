@@ -58,6 +58,10 @@ import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
 } from '../../services/auth/webauthnChallenge.js';
+import {
+  attachComplianceSignatureAtomically,
+  persistComplianceDigestAtomically,
+} from '../services/firestoreComplianceDocument.js';
 
 const router = Router();
 
@@ -103,9 +107,11 @@ function buildDs67FormStore(): MinimalDs67FormStore {
     },
     async attachSignature(tenantId, formId, signature) {
       const ref = formsPath(tenantId).doc(formId);
-      await ref.update({ signature });
-      const snap = await ref.get();
-      return snap.data() as Ds67Form;
+      return attachComplianceSignatureAtomically<Ds67Form, Ds67Signature>(
+        fs,
+        ref,
+        signature,
+      );
     },
   };
 }
@@ -128,43 +134,37 @@ function buildDs76FormStore(): MinimalDs76FormStore {
     },
     async attachSignature(tenantId, formId, signature) {
       const ref = formsPath(tenantId).doc(formId);
-      await ref.update({ signature });
-      const snap = await ref.get();
-      return snap.data() as Ds76Form;
+      return attachComplianceSignatureAtomically<Ds76Form, Ds76Signature>(
+        fs,
+        ref,
+        signature,
+      );
     },
   };
 }
 
 function buildDs67SigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
+  const fs = admin.firestore();
   const formStore = buildDs67FormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
     renderUnsignedPayload: async (form) => renderDs67UnsignedPayload(form as Ds67Form),
     persistLegacyDigest: async (payloadHashHex, payloadRendererVersion) => {
-      const current = await formStore.loadForm(tenantId, formId);
-      if (!current || current.signature) {
-        throw new ComplianceSigningFlowError(current ? 'already_signed' : 'not_found');
-      }
-      await formStore.saveForm(tenantId, formId, {
-        ...current, payloadHashHex, payloadRendererVersion,
-      });
+      const ref = fs.collection('tenants').doc(tenantId).collection('ds67_forms').doc(formId);
+      await persistComplianceDigestAtomically(fs, ref, payloadHashHex, payloadRendererVersion);
     },
   };
 }
 
 function buildDs76SigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
+  const fs = admin.firestore();
   const formStore = buildDs76FormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
     renderUnsignedPayload: async (form) => renderDs76UnsignedPayload(form as Ds76Form),
     persistLegacyDigest: async (payloadHashHex, payloadRendererVersion) => {
-      const current = await formStore.loadForm(tenantId, formId);
-      if (!current || current.signature) {
-        throw new ComplianceSigningFlowError(current ? 'already_signed' : 'not_found');
-      }
-      await formStore.saveForm(tenantId, formId, {
-        ...current, payloadHashHex, payloadRendererVersion,
-      });
+      const ref = fs.collection('tenants').doc(tenantId).collection('ds76_forms').doc(formId);
+      await persistComplianceDigestAtomically(fs, ref, payloadHashHex, payloadRendererVersion);
     },
   };
 }

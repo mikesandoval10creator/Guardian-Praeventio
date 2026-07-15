@@ -56,6 +56,38 @@ export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAudit
   kmsKeyVersion: string;
 }
 
+export type ComplianceSignatureEvidenceClass = 'bound-evidence-v1' | 'legacy-unverifiable';
+
+/**
+ * Classifies stored evidence without pretending to re-run cryptographic
+ * verification. Legacy rows stay readable but must never be presented as a
+ * verified v1 signature.
+ */
+export function classifyStoredComplianceSignatureEvidence(
+  value: unknown,
+): ComplianceSignatureEvidenceClass {
+  if (!value || typeof value !== 'object') return 'legacy-unverifiable';
+  const signature = value as Record<string, unknown>;
+  if (signature.verificationVersion !== 1 || typeof signature.signatureB64 !== 'string') {
+    return 'legacy-unverifiable';
+  }
+  if (signature.algorithm === 'webauthn-ecdsa-p256') {
+    return signature.signingIntent &&
+      typeof signature.credentialId === 'string' &&
+      typeof signature.rawId === 'string' &&
+      typeof signature.clientDataJSONB64u === 'string' &&
+      typeof signature.authenticatorDataB64u === 'string'
+      ? 'bound-evidence-v1'
+      : 'legacy-unverifiable';
+  }
+  if (signature.algorithm === 'kms-sign-rsa') {
+    return signature.signingContext && typeof signature.kmsKeyVersion === 'string'
+      ? 'bound-evidence-v1'
+      : 'legacy-unverifiable';
+  }
+  return 'legacy-unverifiable';
+}
+
 export function buildWebAuthnComplianceSignature(input: {
   intent: ComplianceSigningIntentV1;
   signer: TrustedComplianceSigner;

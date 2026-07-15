@@ -48,6 +48,10 @@ import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
 } from '../../services/auth/webauthnChallenge.js';
+import {
+  attachComplianceSignatureAtomically,
+  persistComplianceDigestAtomically,
+} from '../services/firestoreComplianceDocument.js';
 
 const router = Router();
 
@@ -102,29 +106,25 @@ function buildFormStore(): MinimalFormStore {
     },
     async attachSignature(tenantId, formId, signature) {
       const ref = formsPath(tenantId).doc(formId);
-      await ref.update({ signature });
-      const snap = await ref.get();
-      return snap.data() as SusesoForm;
+      return attachComplianceSignatureAtomically<SusesoForm, SusesoSignature>(
+        fs,
+        ref,
+        signature,
+      );
     },
   };
 }
 
 function buildSigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
+  const fs = admin.firestore();
   const formStore = buildFormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
     renderUnsignedPayload: async (form) =>
       renderSusesoUnsignedPayload(form as SusesoForm),
     persistLegacyDigest: async (payloadHashHex, payloadRendererVersion) => {
-      const current = await formStore.loadForm(tenantId, formId);
-      if (!current || current.signature) {
-        throw new ComplianceSigningFlowError(current ? 'already_signed' : 'not_found');
-      }
-      await formStore.saveForm(tenantId, formId, {
-        ...current,
-        payloadHashHex,
-        payloadRendererVersion,
-      });
+      const ref = fs.collection('tenants').doc(tenantId).collection('suseso_forms').doc(formId);
+      await persistComplianceDigestAtomically(fs, ref, payloadHashHex, payloadRendererVersion);
     },
   };
 }

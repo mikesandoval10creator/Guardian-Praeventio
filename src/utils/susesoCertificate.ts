@@ -19,7 +19,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { configureDeterministicPdf } from './deterministicPdf.js';
+import { configureDeterministicPdf, formatChileDateTime } from './deterministicPdf.js';
 import type {
   SusesoForm,
   SusesoFormKind,
@@ -157,7 +157,7 @@ function drawTitle(doc: jsPDF, form: SusesoForm): void {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`Folio: ${form.folio}`, M, 53);
-  doc.text(`Emitido: ${new Date(form.createdAt).toLocaleString('es-CL')}`, W - M, 53, {
+  doc.text(`Emitido: ${formatChileDateTime(form.createdAt)}`, W - M, 53, {
     align: 'right',
   });
 }
@@ -214,7 +214,7 @@ function drawIncidentBlock(doc: jsPDF, form: SusesoForm, y: number): number {
   const descLines = doc.splitTextToSize(form.incidentDescription || '—', W - M * 2 - 8);
   const height = 30 + Math.max(0, descLines.length - 1) * 4;
   sectionBox(doc, 'HECHOS DEL INCIDENTE', y, height);
-  labelize(doc, 'FECHA Y HORA', new Date(form.incidentDate).toLocaleString('es-CL'), M + 4, y + 13);
+  labelize(doc, 'FECHA Y HORA', formatChileDateTime(form.incidentDate), M + 4, y + 13);
   labelize(doc, 'LUGAR', form.incidentLocation, M + 110, y + 13);
 
   doc.setFont('helvetica', 'normal');
@@ -306,7 +306,7 @@ function drawSignatureBlock(
   doc.setFontSize(8);
   if (form.signature) {
     doc.text(`Algoritmo: ${form.signature.algorithm}`, W / 2 + 5, y + 12);
-    doc.text(`Firmado: ${new Date(form.signature.signedAt).toLocaleString('es-CL')}`, W / 2 + 5, y + 17);
+    doc.text(`Firmado: ${formatChileDateTime(form.signature.signedAt)}`, W / 2 + 5, y + 17);
     doc.text(`Hash: ${form.signature.payloadHashHex.slice(0, 24)}…`, W / 2 + 5, y + 22);
   } else {
     doc.setTextColor(180, 70, 70);

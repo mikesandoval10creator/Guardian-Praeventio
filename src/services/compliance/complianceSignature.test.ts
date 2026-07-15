@@ -3,6 +3,7 @@ import type { ComplianceSigningIntentV1 } from '../auth/complianceSigningIntent.
 import {
   buildKmsComplianceSignature,
   buildWebAuthnComplianceSignature,
+  classifyStoredComplianceSignatureEvidence,
 } from './complianceSignature.js';
 
 const intent: ComplianceSigningIntentV1 = {
@@ -111,5 +112,30 @@ describe('buildKmsComplianceSignature', () => {
       signer: { uid: 'user-1', rut: intent.signerRut, kind: 'human' },
       signatureB64: 'kms-signature', keyVersion: 'key/1',
     })).toThrow();
+  });
+});
+
+describe('classifyStoredComplianceSignatureEvidence', () => {
+  it('distinguishes new bound evidence from readable legacy signatures', () => {
+    const bound = buildWebAuthnComplianceSignature({
+      intent,
+      signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
+      assertion,
+      verifiedCredentialId: 'credential-1',
+    });
+    expect(classifyStoredComplianceSignatureEvidence(bound)).toBe('bound-evidence-v1');
+    expect(classifyStoredComplianceSignatureEvidence({
+      signerUid: 'legacy-user',
+      algorithm: 'webauthn-ecdsa-p256',
+      signatureB64: 'legacy-value',
+    })).toBe('legacy-unverifiable');
+  });
+
+  it('does not classify incomplete v1-shaped evidence as bound', () => {
+    expect(classifyStoredComplianceSignatureEvidence({
+      verificationVersion: 1,
+      algorithm: 'webauthn-ecdsa-p256',
+      signingIntent: intent,
+    })).toBe('legacy-unverifiable');
   });
 });
