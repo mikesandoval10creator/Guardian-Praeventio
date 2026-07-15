@@ -107,6 +107,29 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+export interface SusesoUnsignedPayload {
+  pdfBytes: Uint8Array;
+  payloadHashHex: string;
+  payloadRendererVersion: 1;
+}
+
+/** Rebuild the exact unsigned bytes covered by a SUSESO signature. */
+export async function renderSusesoUnsignedPayload(
+  form: SusesoForm,
+): Promise<SusesoUnsignedPayload> {
+  const unsignedForm: SusesoForm = { ...form };
+  delete unsignedForm.signature;
+  delete unsignedForm.submittedAt;
+  delete unsignedForm.payloadHashHex;
+  delete unsignedForm.payloadRendererVersion;
+  const pdfBytes = generateSusesoPdf(unsignedForm);
+  return {
+    pdfBytes,
+    payloadHashHex: await sha256Hex(pdfBytes),
+    payloadRendererVersion: 1,
+  };
+}
+
 /**
  * Build a deterministic Firestore doc id from a folio. Folios are
  * already globally unique within the (tenantId, year, kind) space, so
@@ -180,8 +203,9 @@ export async function createSusesoForm(
   };
 
   // 4. Render the PDF + hash.
-  const pdfBytes = generateSusesoPdf(form);
-  const payloadHashHex = await sha256Hex(pdfBytes);
+  const payload = await renderSusesoUnsignedPayload(form);
+  form.payloadHashHex = payload.payloadHashHex;
+  form.payloadRendererVersion = payload.payloadRendererVersion;
 
   // 5. Persist.
   const formId = folioToDocId(folio);
@@ -189,8 +213,8 @@ export async function createSusesoForm(
 
   return {
     form,
-    pdfBytes,
-    payloadHashHex,
+    pdfBytes: payload.pdfBytes,
+    payloadHashHex: payload.payloadHashHex,
     qrCodeUrl: buildVerificationUrl(folio, deps.publicBaseUrl),
   };
 }

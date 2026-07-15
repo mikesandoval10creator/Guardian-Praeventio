@@ -19,6 +19,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { configureDeterministicPdf } from './deterministicPdf.js';
 import type {
   SusesoForm,
   SusesoFormKind,
@@ -77,6 +78,7 @@ export function generateSusesoPdf(
   options: SusesoPdfOptions = {},
 ): Uint8Array {
   const doc = new jsPDF('portrait', 'mm', 'a4');
+  configureDeterministicPdf(doc, form.folio, form.createdAt);
   drawHeader(doc, form.kind);
   drawTitle(doc, form);
   let y = drawWorkerBlock(doc, form);

@@ -10,6 +10,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { configureDeterministicPdf } from './deterministicPdf.js';
 import type { Ds67Form } from '../services/compliance/ds67/types.js';
 
 const W = 210;
@@ -19,6 +20,7 @@ const M = 18;
 /** Build the PDF and return raw bytes. */
 export function generateDs67Pdf(form: Ds67Form): Uint8Array {
   const doc = new jsPDF('portrait', 'mm', 'a4');
+  configureDeterministicPdf(doc, form.folio, form.createdAt);
   drawHeader(doc);
   drawTitle(doc, form);
   let y = drawCompanyBlock(doc, form);

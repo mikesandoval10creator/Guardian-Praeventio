@@ -143,6 +143,28 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+export interface Ds67UnsignedPayload {
+  pdfBytes: Uint8Array;
+  payloadHashHex: string;
+  payloadRendererVersion: 1;
+}
+
+/** Rebuild the exact unsigned bytes covered by a DS-67 signature. */
+export async function renderDs67UnsignedPayload(
+  form: Ds67Form,
+): Promise<Ds67UnsignedPayload> {
+  const unsignedForm: Ds67Form = { ...form };
+  delete unsignedForm.signature;
+  delete unsignedForm.payloadHashHex;
+  delete unsignedForm.payloadRendererVersion;
+  const pdfBytes = generateDs67Pdf(unsignedForm);
+  return {
+    pdfBytes,
+    payloadHashHex: await sha256Hex(pdfBytes),
+    payloadRendererVersion: 1,
+  };
+}
+
 // ─── createDs67Form ─────────────────────────────────────────────────────────
 
 export interface CreateDs67Input {
@@ -203,13 +225,14 @@ export async function createDs67Form(
     createdAt: now.toISOString(),
   };
 
-  const pdfBytes = generateDs67Pdf(form);
-  const payloadHashHex = await sha256Hex(pdfBytes);
+  const payload = await renderDs67UnsignedPayload(form);
+  form.payloadHashHex = payload.payloadHashHex;
+  form.payloadRendererVersion = payload.payloadRendererVersion;
 
   const formId = ds67FolioToDocId(folio);
   await deps.formStore.saveForm(input.tenantId, formId, form);
 
-  return { form, pdfBytes, payloadHashHex };
+  return { form, pdfBytes: payload.pdfBytes, payloadHashHex: payload.payloadHashHex };
 }
 
 /**

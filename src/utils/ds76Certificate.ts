@@ -5,6 +5,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { configureDeterministicPdf } from './deterministicPdf.js';
 import type { Ds76Form } from '../services/compliance/ds76/types.js';
 
 const W = 210;
@@ -13,6 +14,7 @@ const M = 18;
 
 export function generateDs76Pdf(form: Ds76Form): Uint8Array {
   const doc = new jsPDF('portrait', 'mm', 'a4');
+  configureDeterministicPdf(doc, form.folio, form.createdAt);
   drawHeader(doc);
   drawTitle(doc, form);
   let y = drawPartiesBlock(doc, form);

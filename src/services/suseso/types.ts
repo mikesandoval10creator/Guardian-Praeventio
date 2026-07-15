@@ -110,6 +110,11 @@ export interface SusesoForm {
    */
   folio: string;
 
+  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  payloadHashHex?: string;
+  /** Versioned byte-rendering contract used to reproduce the digest. */
+  payloadRendererVersion?: 1;
+
   // Worker
   workerRut: string;
   workerFullName: string;

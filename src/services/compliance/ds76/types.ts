@@ -21,6 +21,11 @@ export interface Ds76Signature {
 export interface Ds76Form {
   folio: string;
 
+  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  payloadHashHex?: string;
+  /** Versioned byte-rendering contract used to reproduce the digest. */
+  payloadRendererVersion?: 1;
+
   // Identificación
   tenantId: string;
   // Empresa principal (mandante)

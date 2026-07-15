@@ -10,6 +10,7 @@ import {
   formatDs67Folio,
   parseDs67Folio,
   ds67FolioToDocId,
+  renderDs67UnsignedPayload,
   type MinimalDs67FormStore,
 } from './ds67Service';
 import type { Ds67Form, Ds67Signature } from './types';
@@ -114,6 +115,27 @@ describe('createDs67Form', () => {
     // PDF magic bytes: %PDF-
     expect(String.fromCharCode(...result.pdfBytes.slice(0, 4))).toBe('%PDF');
     expect(result.payloadHashHex).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.form.payloadHashHex).toBe(result.payloadHashHex);
+    expect(result.form.payloadRendererVersion).toBe(1);
+  });
+
+  it('recomputes the authoritative unsigned digest independently of signature evidence', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form, payloadHashHex } = await createDs67Form(baseInput, {
+      folioStore,
+      formStore,
+      now: () => new Date('2026-05-04T15:00:00.000Z'),
+    });
+    const signedView: Ds67Form = {
+      ...form,
+      signature: {
+        signerUid: 'other', signerRut: '1-9', signedAt: '2099-01-01T00:00:00.000Z',
+        algorithm: 'kms-sign-rsa', signatureB64: 'other', payloadHashHex: 'f'.repeat(64),
+      },
+    };
+
+    expect((await renderDs67UnsignedPayload(signedView)).payloadHashHex).toBe(payloadHashHex);
   });
 
   it('persists the form so it can be loaded back', async () => {
