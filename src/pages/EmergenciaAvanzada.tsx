@@ -143,6 +143,11 @@ export function EmergenciaAvanzada() {
         setChatError('No se pudo cargar el canal de emergencia. Verifica tu conexión o permisos.');
       },
     );
+    // Subscribe by project id, not the selectedProject object: re-subscribing on
+    // every context re-render (new object identity, same faena) would tear down
+    // and rebuild the Firestore listener, briefly dropping the emergency channel.
+    // id is the immutable identity of the faena, so the closure never goes stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject?.id]);
 
   // Real-time worker safety statuses
@@ -171,6 +176,10 @@ export function EmergenciaAvanzada() {
         setSafetyError('No se pudo cargar el estado de seguridad del personal. Verifica tu conexión o permisos.');
       },
     );
+    // Same faena-id subscription granularity as the chat effect above — depend on
+    // the immutable id, not the object identity, so the worker-safety listener
+    // isn't needlessly rebuilt on unrelated context updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject?.id]);
 
   // B.3 (VIDA) — worker SOS alerts. The SOS button posts to the server,
@@ -211,6 +220,10 @@ export function EmergenciaAvanzada() {
         logger.error('EmergenciaAvanzada: emergency_alerts subscribe failed', { err });
       },
     );
+    // id/tenantId are immutable per project, so subscribing by id keeps the SOS
+    // listener bound to the current faena without rebuilding it on every context
+    // re-render (a rebuild could briefly miss a fresh worker SOS).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject?.id]);
 
   useEffect(() => {
