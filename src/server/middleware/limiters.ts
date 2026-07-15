@@ -183,6 +183,20 @@ export const webauthnVerifyLimiter = rateLimit({
   message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
 });
 
+// /api/health/deep fans out to Firestore + KMS + Gemini + Resend + Open-Meteo on
+// every call. Public + unlimited it was a cost/quota-drain and internal-state
+// probe vector. The route now requires an admin token; this caps even an
+// authenticated admin to a sane diagnostics cadence. Mounted AFTER verifyAuth so
+// the key is the uid (falls back to ip/anonymous defensively).
+export const healthDeepLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1-minute sliding window
+  max: 6, // 6 deep probes per uid per window
+  keyGenerator: uidOrIpKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_deep_health_probes', retryAfterMs: 60_000 },
+});
+
 // Round 20 R5 — per-uid rate limiter for the WebAuthn registration
 // ceremony (POST /api/auth/webauthn/register/options + /verify). Tighter
 // than `webauthnVerifyLimiter` (5/min) because registration is a rare

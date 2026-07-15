@@ -18,8 +18,10 @@
 // Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
 // (oauth/gemini) deferred to Round 17/18.
 
-import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import crypto from 'node:crypto';
 import admin from 'firebase-admin';
+import { healthDeepLimiter } from '../middleware/limiters.js';
 
 const router = Router();
 
@@ -327,7 +329,38 @@ export async function runDeepHealth(probes: ProbeMap = DEFAULT_PROBES) {
   return { allHealthy, checks };
 }
 
-router.get('/health/deep', async (_req, res) => {
+// Ops guard for the deep fan-out. This endpoint is consumed by automated
+// monitoring (scripts/canary-monitor.cjs), not a user session, so it
+// authenticates with a shared ops secret (HEALTH_DEEP_TOKEN) rather than a
+// Firebase token. Fail closed: if the secret isn't configured the deep probe is
+// disabled (503) rather than left open. Constant-time compare avoids leaking the
+// secret through timing.
+function requireOpsToken(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const expected = process.env.HEALTH_DEEP_TOKEN;
+  if (!expected) {
+    res.status(503).json({ error: 'deep_health_disabled' });
+    return;
+  }
+  const header = req.header('authorization') ?? '';
+  const provided = header.startsWith('Bearer ') ? header.slice(7) : '';
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  next();
+}
+
+// /health/deep runs the real dependency fan-out (Firestore, KMS, Gemini, Resend,
+// Open-Meteo). It is NOT public: anonymous callers used to drain quotas/cost and
+// probe internal state. Require the ops token + a rate limit. The minimal public
+// probe stays at GET /health above (Cloud Run liveness).
+router.get('/health/deep', healthDeepLimiter, requireOpsToken, async (_req, res) => {
   const { allHealthy, checks } = await runDeepHealth();
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? 'healthy' : 'degraded',
