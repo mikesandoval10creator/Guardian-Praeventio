@@ -440,6 +440,18 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.body.calendarPreWarn).toMatchObject({ scanned: 0, warned: 0 });
   });
 
+  it('200 — ejecuta resilience-health con agregación estricta', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(H.runResilienceHealthAlertCron).toHaveBeenCalledWith(
+      expect.objectContaining({ overallPolicy: 'strict' }),
+    );
+  });
+
   it('200 — resilience-health sub-job throws: fault isolation', async () => {
     H.runResilienceHealthAlertCron.mockRejectedValueOnce(new Error('health boom'));
 

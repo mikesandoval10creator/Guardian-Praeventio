@@ -150,6 +150,34 @@ describe('runResilienceHealthAlertCron', () => {
     expect(alertWrites[0]!.path).toBe('health_alerts/2026-05-14');
   });
 
+  it('strict: una caída aislada de Firestore es crítica y notifica a operaciones', async () => {
+    const { db, writes } = buildFakeDb();
+    const notifyOps = vi.fn().mockResolvedValue(undefined);
+
+    const result = await runResilienceHealthAlertCron({
+      db,
+      now: fixedNow,
+      overallPolicy: 'strict',
+      notifyOps,
+      checkers: {
+        firestore: criticalChecker('firestore'),
+        network: healthyChecker('network'),
+      },
+    });
+
+    expect(result.overallStatus).toBe('critical');
+    expect(result.report.subsystems).toContainEqual(
+      expect.objectContaining({ id: 'firestore', status: 'critical' }),
+    );
+    expect(notifyOps).toHaveBeenCalledTimes(1);
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ overallStatus: 'critical' }),
+    );
+    expect(
+      writes.filter((write) => write.path.startsWith('health_alerts/')),
+    ).toHaveLength(1);
+  });
+
   it('critical pero ya alertado hoy: NO re-dispara FCM (idempotency)', async () => {
     const { db } = buildFakeDb({ existingAlertIds: ['2026-05-14'] });
     const notifyOps = vi.fn();
