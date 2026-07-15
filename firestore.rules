@@ -1044,16 +1044,25 @@ service cloud.firestore {
         allow delete: if isAdmin() || isSupervisor();
       }
       // shifts — creator field: `supervisorUid`.
-      //   ShiftRecord.supervisorUid identifies the supervisor who opened the
-      //   shift. On create: supervisorUid MUST equal the caller's uid (a
-      //   supervisor cannot open a shift attributing it to another person).
+      //   A shift is a supervisory record (opens/closes a turno, carries the
+      //   handover log). Only an authorized supervisor role may create or mutate
+      //   one — a plain worker (project member) must NOT be able to open a shift
+      //   in their own name or edit someone else's notes/timestamps/handover.
+      //   isSupervisor() = supervisor/prevencionista/director_obra/medico_ocupacional;
+      //   isAdmin() = admin/gerente.
+      //   On create: supervisorUid MUST equal the caller's uid (a supervisor
+      //   cannot open a shift attributing it to another person).
       //   On update: supervisorUid MUST stay immutable (acknowledgedByUid is a
       //   DIFFERENT field — the incoming supervisor — and is freely mutable).
-      //   Pattern mirrors safety_talks_given / lone_worker_sessions.
+      //   Full server-authoritative transition flow (incoming≠outgoing ack,
+      //   per-transition immutability) is a follow-up; this closes the worker
+      //   privilege-escalation at the rules layer.
       match /shifts/{shiftId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && (isSupervisor() || isAdmin())
           && incoming().supervisorUid == request.auth.uid;
         allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && (isSupervisor() || isAdmin())
           && incoming().supervisorUid == existing().supervisorUid;
         allow delete: if isAdmin() || isSupervisor();
       }

@@ -302,13 +302,26 @@ describe('projectScopedStores firestore.rules', () => {
     });
   });
 
-  // shifts — V2 anti-spoof: supervisorUid must equal request.auth.uid on create;
-  // immutable on update. delete is allowed for admin OR supervisor.
-  describe('shifts (member-gated, supervisorUid anti-spoof)', () => {
-    it('member can create with their own supervisorUid', async () => {
+  // shifts — V3 supervisor-role-gated: only isSupervisor()/isAdmin() may create
+  // or mutate a shift; supervisorUid must equal the caller uid on create and stay
+  // immutable on update. A plain worker is denied (privilege-escalation fix).
+  describe('shifts (supervisor-role-gated, anti-spoof)', () => {
+    it('SECURITY: a worker (non-supervisor) member CANNOT create a shift', async () => {
       const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
-      await assertSucceeds(
+      await assertFails(
         setDoc(ref(db, 'shifts', 'sh-s1'), {
+          supervisorUid: MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('a supervisor member can create with their own supervisorUid', async () => {
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('supervisor')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'shifts', 'sh-sup1'), {
           supervisorUid: MEMBER,
           kind: 'morning',
           startedAt: '2026-06-22T06:00:00Z',
@@ -329,7 +342,7 @@ describe('projectScopedStores firestore.rules', () => {
         }),
       );
     });
-    it('member can update keeping supervisorUid unchanged', async () => {
+    it('SECURITY: a worker member CANNOT update a shift (close it / edit notes)', async () => {
       await seed('shifts', 'sh-s3', {
         supervisorUid: MEMBER,
         kind: 'morning',
@@ -338,8 +351,28 @@ describe('projectScopedStores firestore.rules', () => {
         handoverNotes: [],
       });
       const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
-      await assertSucceeds(
+      await assertFails(
         setDoc(ref(db, 'shifts', 'sh-s3'), {
+          supervisorUid: MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          endedAt: '2026-06-22T14:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('a supervisor member can update keeping supervisorUid unchanged', async () => {
+      await seed('shifts', 'sh-sup3', {
+        supervisorUid: MEMBER,
+        kind: 'morning',
+        startedAt: '2026-06-22T06:00:00Z',
+        logEntries: [],
+        handoverNotes: [],
+      });
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('supervisor')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'shifts', 'sh-sup3'), {
           supervisorUid: MEMBER,
           kind: 'morning',
           startedAt: '2026-06-22T06:00:00Z',
