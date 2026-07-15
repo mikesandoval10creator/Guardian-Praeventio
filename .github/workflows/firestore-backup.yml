@@ -46,6 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked verifier dependencies
+        run: npm ci --ignore-scripts
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
@@ -61,7 +70,7 @@ jobs:
           DATE=$(date -u +%Y-%m-%d)
           LABEL="${{ github.event.inputs.label }}"
           if [ -n "$LABEL" ]; then
-            SAFE_LABEL=$(echo "$LABEL" | tr -c '[:alnum:]_-' '_')
+            SAFE_LABEL=$(printf '%s' "$LABEL" | tr -c '[:alnum:]_-' '_')
             FOLDER="${DATE}-${SAFE_LABEL}"
           else
             FOLDER="$DATE"
@@ -76,18 +85,6 @@ jobs:
           gcloud firestore export \
             "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
             --project="${{ secrets.GCP_PROJECT }}"
-
-      - name: Verify export
-        run: |
-          set -euo pipefail
-          # The managed export writes a top-level metadata file plus per-collection
-          # subfolders. Listing should yield at least one entry; fail loudly if not.
-          OUT=$(gsutil ls "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/")
-          echo "$OUT"
-          if [ -z "$OUT" ]; then
-            echo "::error::Export folder is empty after gcloud firestore export."
-            exit 1
-          fi
 
       - name: Write manifest
         run: |
@@ -105,6 +102,15 @@ jobs:
           EOF
           gsutil cp /tmp/manifest.json \
             "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/manifest.json"
+
+      - name: Verify export integrity
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT }}
+          GCS_BACKUP_BUCKET: gs://${{ secrets.BACKUP_BUCKET }}
+        run: |
+          node scripts/test-backup-integrity.cjs \
+            --backup-uri="gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
+            --max-age-hours=2
 
       - name: Notify on failure
         if: failure()

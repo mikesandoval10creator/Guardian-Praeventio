@@ -12,7 +12,7 @@
  *   node scripts/backup-firestore.cjs --collections=audit_logs,medical_exams \
  *     --label=before-migration
  *
- * Output: gs://praeventio-backups/firestore-export-YYYY-MM-DD-HHMM/
+ * Output: gs://praeventio-backups/firestore/YYYY-MM-DD-HHMM[-label]/
  *         (managed export format readable by `gcloud firestore import`)
  *
  * Implementation note:
@@ -43,8 +43,12 @@
 const admin = require('firebase-admin');
 const { v1 } = require('@google-cloud/firestore');
 const { Storage } = require('@google-cloud/storage');
+const {
+  buildCanonicalExportUri,
+  parseGsUri,
+} = require('./firestore-backup-layout.cjs');
 
-const SCRIPT_VERSION = '1.0.0';
+const SCRIPT_VERSION = '1.1.0';
 const DEFAULT_BUCKET = 'gs://praeventio-backups';
 // Cloud Scheduler -> Cloud Run job has a 60-min execution window by default.
 // We poll the LRO up to 50 minutes to leave headroom for startup + manifest.
@@ -86,27 +90,6 @@ function fail(msg, code = 1) {
 
 // ---- helpers ---------------------------------------------------------------
 
-function isoTimestampSlug() {
-  // 2026-04-28T03:14:09.123Z -> 2026-04-28-0314
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return (
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
-    `-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`
-  );
-}
-
-function parseGsUri(uri) {
-  // gs://bucket/optional/prefix -> { bucket, prefix }
-  if (!uri.startsWith('gs://')) {
-    throw new Error(`Invalid GCS URI: ${uri} (must start with gs://)`);
-  }
-  const without = uri.slice('gs://'.length);
-  const slash = without.indexOf('/');
-  if (slash === -1) return { bucket: without, prefix: '' };
-  return { bucket: without.slice(0, slash), prefix: without.slice(slash + 1) };
-}
-
 async function approxCount(db, collectionId) {
   // Best-effort sampled count. Limit to 1000 for speed; we do NOT rely on
   // this for correctness — just for the manifest's human-readable summary.
@@ -138,16 +121,10 @@ async function approxCount(db, collectionId) {
     );
   }
   const bucketUri = process.env.GCS_BACKUP_BUCKET || DEFAULT_BUCKET;
-  const { bucket: bucketName, prefix: bucketPrefix } = parseGsUri(bucketUri);
 
   // 2. Build the timestamped output URI.
-  const slug = isoTimestampSlug();
-  const folderName = label
-    ? `firestore-export-${slug}-${label.replace(/[^a-zA-Z0-9_-]/g, '_')}`
-    : `firestore-export-${slug}`;
-  const outputUriPrefix = bucketPrefix
-    ? `gs://${bucketName}/${bucketPrefix.replace(/\/$/, '')}/${folderName}`
-    : `gs://${bucketName}/${folderName}`;
+  const backupStartedAt = new Date();
+  const outputUriPrefix = buildCanonicalExportUri(bucketUri, backupStartedAt, label);
 
   log(`project=${projectId}`);
   log(`outputUriPrefix=${outputUriPrefix}`);
@@ -187,12 +164,14 @@ async function approxCount(db, collectionId) {
 
   log('starting exportDocuments()…');
   let operationResult;
+  let operationName = null;
   try {
     const [operation] = await client.exportDocuments({
       name: databaseName,
       outputUriPrefix,
       collectionIds: collections, // empty array == all
     });
+    operationName = operation.name || null;
     log(`operation started: ${operation.name}`);
 
     // Race the LRO promise against a hard timeout.
@@ -232,6 +211,7 @@ async function approxCount(db, collectionId) {
       timestamp: new Date().toISOString(),
       project: projectId,
       database: '(default)',
+      operationName,
       outputUriPrefix: finalOutputUri,
       collectionIds: collections,
       collectionCounts,
@@ -247,8 +227,7 @@ async function approxCount(db, collectionId) {
       });
     log(`wrote manifest gs://${manifestBucket}/${manifestPath}`);
   } catch (e) {
-    // Manifest failure is NOT fatal — the export itself is durable.
-    warn(`failed to write manifest.json: ${e && e.message ? e.message : e}`);
+    fail(`failed to write manifest.json: ${e && e.message ? e.message : e}`, 2);
   }
 
   log('SUCCESS');
