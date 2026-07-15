@@ -270,6 +270,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
           }),
         },
         checkerTimeoutMs: 4_000,
+        overallPolicy: 'strict',
         notifyOps: async (report) => {
           // Recolectar FCM tokens de admins globales (claim role='admin').
           // Estrategia: query users where customClaims.role='admin' usaria
