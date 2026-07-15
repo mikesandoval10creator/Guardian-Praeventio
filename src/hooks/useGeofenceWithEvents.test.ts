@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import type { GeofenceTransition } from './useGeofence';
 
 interface Position {
   lat: number;
@@ -18,12 +19,20 @@ interface Position {
 // Capture the active-zone callback that useGeofenceWithEvents passes into the
 // low-level useGeofence (stubbed here — GPS is covered by its own hook test).
 let capturedOnZonesChanged:
-  | ((zones: unknown[], position?: Position) => void)
+  | ((
+      zones: unknown[],
+      position: Position | undefined,
+      transition: GeofenceTransition,
+    ) => void)
   | null = null;
 vi.mock('./useGeofence', () => ({
   useGeofence: (
     _zones: unknown,
-    onZonesChanged: (zones: unknown[], position?: Position) => void,
+    onZonesChanged: (
+      zones: unknown[],
+      position: Position | undefined,
+      transition: GeofenceTransition,
+    ) => void,
   ) => {
     capturedOnZonesChanged = onZonesChanged;
     return { currentLocation: null, activeZones: [], permissionState: 'granted' };
@@ -49,6 +58,22 @@ const OPTS = { tenantId: 't1', projectId: 'p1', workerId: 'w1' };
 const ENTER_POSITION = { lat: -33.4489, lng: -70.6693 };
 const EXIT_POSITION = { lat: -33.45, lng: -70.67 };
 
+type Zone = ReturnType<typeof zone>;
+
+function transition(
+  previousIds: string[],
+  currentIds: string[],
+  enteredZones: Zone[],
+  exitedZones: Zone[],
+): GeofenceTransition {
+  return {
+    previousZoneIds: new Set(previousIds),
+    currentZoneIds: new Set(currentIds),
+    enteredZones,
+    exitedZones,
+  };
+}
+
 describe('useGeofenceWithEvents — escalation emit wiring', () => {
   beforeEach(() => {
     capturedOnZonesChanged = null;
@@ -57,10 +82,15 @@ describe('useGeofenceWithEvents — escalation emit wiring', () => {
 
   it('emits geofence_crossed "enter" with real GPS + forwards the new entry', async () => {
     const onEntry = vi.fn();
-    renderHook(() => useGeofenceWithEvents([zone('z1')], OPTS, onEntry));
+    const z1 = zone('z1');
+    renderHook(() => useGeofenceWithEvents([z1], OPTS, onEntry));
     expect(capturedOnZonesChanged).toBeTruthy();
 
-    capturedOnZonesChanged!([zone('z1')], ENTER_POSITION);
+    capturedOnZonesChanged!(
+      [z1],
+      ENTER_POSITION,
+      transition([], ['z1'], [z1], []),
+    );
     await Promise.resolve();
 
     expect(emitMock).toHaveBeenCalledTimes(1);
@@ -74,28 +104,46 @@ describe('useGeofenceWithEvents — escalation emit wiring', () => {
       lat: ENTER_POSITION.lat,
       lng: ENTER_POSITION.lng,
     });
-    expect(onEntry).toHaveBeenCalledWith([zone('z1')]);
+    expect(onEntry).toHaveBeenCalledWith([z1]);
   });
 
   it('does NOT re-emit "enter" for a zone the worker is still inside', async () => {
-    renderHook(() => useGeofenceWithEvents([zone('z1')], OPTS));
-    capturedOnZonesChanged!([zone('z1')], ENTER_POSITION);
+    const z1 = zone('z1');
+    renderHook(() => useGeofenceWithEvents([z1], OPTS));
+    capturedOnZonesChanged!(
+      [z1],
+      ENTER_POSITION,
+      transition([], ['z1'], [z1], []),
+    );
     await Promise.resolve();
     emitMock.mockClear();
 
     // Still inside z1 on the next geofence tick → no new emit.
-    capturedOnZonesChanged!([zone('z1')], ENTER_POSITION);
+    capturedOnZonesChanged!(
+      [z1],
+      ENTER_POSITION,
+      transition(['z1'], ['z1'], [], []),
+    );
     await Promise.resolve();
     expect(emitMock).not.toHaveBeenCalled();
   });
 
   it('emits "exit" once with the position observed outside the zone', async () => {
-    renderHook(() => useGeofenceWithEvents([zone('z1')], OPTS));
-    capturedOnZonesChanged!([zone('z1')], ENTER_POSITION); // enter
+    const z1 = zone('z1');
+    renderHook(() => useGeofenceWithEvents([z1], OPTS));
+    capturedOnZonesChanged!(
+      [z1],
+      ENTER_POSITION,
+      transition([], ['z1'], [z1], []),
+    );
     await Promise.resolve();
     emitMock.mockClear();
 
-    capturedOnZonesChanged!([], EXIT_POSITION); // left the zone
+    capturedOnZonesChanged!(
+      [],
+      EXIT_POSITION,
+      transition(['z1'], [], [], [z1]),
+    );
     await Promise.resolve();
 
     expect(emitMock).toHaveBeenCalledTimes(1);
@@ -109,10 +157,59 @@ describe('useGeofenceWithEvents — escalation emit wiring', () => {
     });
   });
 
-  it('omits coordinates when an injected caller has no location fix', async () => {
-    renderHook(() => useGeofenceWithEvents([zone('z1')], OPTS));
+  it('emits both sides of a direct crossing from one transition', async () => {
+    const z1 = zone('z1');
+    const z2 = zone('z2');
+    renderHook(() => useGeofenceWithEvents([z1, z2], OPTS));
 
-    capturedOnZonesChanged!([zone('z1')]);
+    capturedOnZonesChanged!(
+      [z2],
+      ENTER_POSITION,
+      transition(['z1'], ['z2'], [z2], [z1]),
+    );
+    await Promise.resolve();
+
+    expect(emitMock).toHaveBeenCalledTimes(2);
+    const payloads = emitMock.mock.calls.map(
+      ([event]) => (event as { payload: Record<string, unknown> }).payload,
+    );
+    expect(payloads).toEqual([
+      expect.objectContaining({ zoneId: 'z2', direction: 'enter' }),
+      expect.objectContaining({ zoneId: 'z1', direction: 'exit' }),
+    ]);
+  });
+
+  it('emits an exit using retained metadata after a zone is removed', async () => {
+    const removedZone = zone('removed');
+    renderHook(() => useGeofenceWithEvents([], OPTS));
+
+    capturedOnZonesChanged!(
+      [],
+      EXIT_POSITION,
+      transition(['removed'], [], [], [removedZone]),
+    );
+    await Promise.resolve();
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    const event = emitMock.mock.calls[0]![0] as {
+      payload: Record<string, unknown>;
+    };
+    expect(event.payload).toMatchObject({
+      zoneId: 'removed',
+      zoneName: 'Zona removed',
+      direction: 'exit',
+    });
+  });
+
+  it('omits coordinates when an injected caller has no location fix', async () => {
+    const z1 = zone('z1');
+    renderHook(() => useGeofenceWithEvents([z1], OPTS));
+
+    capturedOnZonesChanged!(
+      [z1],
+      undefined,
+      transition([], ['z1'], [z1], []),
+    );
     await Promise.resolve();
 
     const ev = emitMock.mock.calls[0]![0] as { payload: Record<string, unknown> };

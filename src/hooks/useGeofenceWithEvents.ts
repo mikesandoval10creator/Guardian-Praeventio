@@ -13,6 +13,7 @@ import { useCallback, useRef } from 'react';
 import {
   useGeofence,
   type GeofencePosition,
+  type GeofenceTransition,
   type GeofenceZone,
 } from './useGeofence';
 import { buildEnvelope, emit } from '../services/systemEngine/eventLog';
@@ -31,36 +32,30 @@ export function useGeofenceWithEvents(
 ) {
   const onEntryRef = useRef(onZoneEntry);
   onEntryRef.current = onZoneEntry;
-  const insideRef = useRef<Set<string>>(new Set());
 
   const wrapped = useCallback(
-    (activeZones: GeofenceZone[], position?: GeofencePosition) => {
-      const activeIds = new Set(activeZones.map((zone) => zone.id));
-      const previouslyInside = insideRef.current;
-      const newlyEntered = activeZones.filter(zone => !previouslyInside.has(zone.id));
-
-      // Detect new entries (not previously inside).
-      for (const zone of newlyEntered) {
+    (
+      _activeZones: GeofenceZone[],
+      position: GeofencePosition | undefined,
+      transition: GeofenceTransition,
+    ) => {
+      for (const zone of transition.enteredZones) {
         emitGeofenceCrossed(zone, 'enter', opts, position).catch((err) =>
           logger.warn('useGeofenceWithEvents: enter emit failed', { err: String(err) }),
         );
       }
 
-      // Detect exits (previously inside but no longer).
-      for (const previousId of previouslyInside) {
-        if (activeIds.has(previousId)) continue;
-        const previousZone = zones.find((z) => z.id === previousId);
-        if (previousZone) {
-          emitGeofenceCrossed(previousZone, 'exit', opts, position).catch((err) =>
-            logger.warn('useGeofenceWithEvents: exit emit failed', { err: String(err) }),
-          );
-        }
+      for (const zone of transition.exitedZones) {
+        emitGeofenceCrossed(zone, 'exit', opts, position).catch((err) =>
+          logger.warn('useGeofenceWithEvents: exit emit failed', { err: String(err) }),
+        );
       }
 
-      insideRef.current = new Set(activeIds);
-      if (newlyEntered.length > 0) onEntryRef.current?.(newlyEntered);
+      if (transition.enteredZones.length > 0) {
+        onEntryRef.current?.([...transition.enteredZones]);
+      }
     },
-    [opts, zones],
+    [opts],
   );
 
   return useGeofence(zones, wrapped);
