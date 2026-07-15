@@ -254,7 +254,12 @@
     "back_home": "Volver al inicio",
     "no_session": "Sin sesión activa",
     "session_expired": "Tu sesión expiró",
-    "consent_notice": "Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad."
+    "consent_notice": "Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad.",
+    "signin_methods": "Métodos de inicio de sesión",
+    "biometric_enroll_reason": "Registra tu biometría para próximos ingresos",
+    "biometric_failed": "La verificación biométrica falló.",
+    "biometric_login_prompt": "Confirma tu identidad",
+    "login_failed": "No se pudo iniciar sesión. Inténtalo de nuevo."
   },
   "common": {
     "loading": "Cargando...",
