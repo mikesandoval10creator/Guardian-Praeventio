@@ -28,6 +28,7 @@
 import type admin from 'firebase-admin';
 import {
   buildResilienceHealthReport,
+  type MonitorOptions,
   type ResilienceCheckers,
   type ResilienceHealthReport,
 } from '../../services/observability/resilienceHealthMonitor.js';
@@ -49,6 +50,8 @@ export interface ResilienceHealthAlertDeps {
   persistAllReports?: boolean;
   /** Timeout por checker (ms). Default 3000. */
   checkerTimeoutMs?: number;
+  /** Política de agregación; si se omite, el monitor conserva su default. */
+  overallPolicy?: MonitorOptions['overallPolicy'];
 }
 
 export interface ResilienceHealthAlertResult {
@@ -85,6 +88,7 @@ export async function runResilienceHealthAlertCron(
   const report = await buildResilienceHealthReport(deps.checkers, {
     nowMs: () => now().getTime(),
     checkerTimeoutMs: deps.checkerTimeoutMs,
+    overallPolicy: deps.overallPolicy,
   });
 
   // ── 1) Persist (no-op si persistAll=false y status no es critical) ──
