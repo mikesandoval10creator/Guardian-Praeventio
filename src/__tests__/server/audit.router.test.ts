@@ -102,6 +102,29 @@ describe('POST /api/audit-log (write trail)', () => {
     expect(stored.userId).toBe('w1'); // not 'attacker-spoof'
     expect(stored.action).toBe('sign_in');
   });
+
+  it('403 SECURITY: a client cannot forge an authoritative server-only action', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({ action: 'compliance.approved', module: 'compliance' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('reserved_action');
+    // The forged legal event never reaches audit_logs.
+    const all = await H.db!.collection('audit_logs').get();
+    expect(all.docs.length).toBe(0);
+  });
+
+  it('200 stamps source:client so reports can separate telemetry from authoritative events', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({ action: 'sign_in', module: 'auth' });
+    expect(res.status).toBe(200);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, unknown>;
+    expect(stored.source).toBe('client');
+  });
 });
 
 describe('GET /api/audit-log (read trail)', () => {
