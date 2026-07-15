@@ -115,6 +115,26 @@ describe('storeWebAuthnChallenge', () => {
     expect(doc!.data.challengeB64).toBe(Buffer.from(challenge).toString('base64'));
     expect(doc!.data.expiresAt).toBeGreaterThan(Date.now());
   });
+
+  it('stores an immutable metadata snapshot and integrity digest', async () => {
+    const { db, store } = makeFakeDb();
+    const metadata = {
+      purpose: 'compliance-document-sign',
+      intent: { tenantId: 'tenant-1', formId: 'form-1' },
+    };
+
+    await storeWebAuthnChallenge('uid-meta', 'cid-meta', new Uint8Array([1]), db, {
+      metadata,
+    });
+    metadata.intent.formId = 'mutated-after-store';
+
+    const saved = store.get('uid-meta_cid-meta')!.data;
+    expect(saved.metadata).toEqual({
+      purpose: 'compliance-document-sign',
+      intent: { tenantId: 'tenant-1', formId: 'form-1' },
+    });
+    expect(saved.metadataSha256Hex).toMatch(/^[0-9a-f]{64}$/);
+  });
 });
 
 describe('consumeWebAuthnChallenge', () => {
@@ -124,6 +144,54 @@ describe('consumeWebAuthnChallenge', () => {
     await storeWebAuthnChallenge('uid-2', 'cid-B', challenge, db);
     const out = await consumeWebAuthnChallenge('uid-2', 'cid-B', challenge, db);
     expect(out.valid).toBe(true);
+  });
+
+  it('returns validated metadata after atomic consumption', async () => {
+    const { db } = makeFakeDb();
+    const challenge = new Uint8Array([8, 8, 8]);
+    const metadata = { purpose: 'compliance-document-sign', formId: 'form-1' };
+    await storeWebAuthnChallenge('uid-bound', 'cid-bound', challenge, db, { metadata });
+
+    const out = await consumeWebAuthnChallenge('uid-bound', 'cid-bound', challenge, db, {
+      validateMetadata: (value) =>
+        typeof value === 'object' && value !== null &&
+        (value as Record<string, unknown>).formId === 'form-1',
+    });
+
+    expect(out).toEqual({ valid: true, metadata });
+  });
+
+  it('rejects the wrong document context without consuming the challenge', async () => {
+    const { db, store } = makeFakeDb();
+    const challenge = new Uint8Array([6, 6, 6]);
+    await storeWebAuthnChallenge('uid-context', 'cid-context', challenge, db, {
+      metadata: { formId: 'form-A' },
+    });
+
+    const out = await consumeWebAuthnChallenge('uid-context', 'cid-context', challenge, db, {
+      validateMetadata: (value) =>
+        typeof value === 'object' && value !== null &&
+        (value as Record<string, unknown>).formId === 'form-B',
+    });
+
+    expect(out).toEqual({ valid: false, reason: 'metadata_mismatch' });
+    expect(store.get('uid-context_cid-context')!.data.consumed).toBe(false);
+  });
+
+  it('rejects metadata changed after storage even when the challenge bytes match', async () => {
+    const { db, store } = makeFakeDb();
+    const challenge = new Uint8Array([4, 4, 4]);
+    await storeWebAuthnChallenge('uid-tamper', 'cid-tamper', challenge, db, {
+      metadata: { formId: 'form-A' },
+    });
+    store.get('uid-tamper_cid-tamper')!.data.metadata = { formId: 'form-B' };
+
+    const out = await consumeWebAuthnChallenge('uid-tamper', 'cid-tamper', challenge, db, {
+      validateMetadata: () => true,
+    });
+
+    expect(out).toEqual({ valid: false, reason: 'metadata_mismatch' });
+    expect(store.get('uid-tamper_cid-tamper')!.data.consumed).toBe(false);
   });
 
   it('rejects with reason=unknown when the challengeId does not exist', async () => {

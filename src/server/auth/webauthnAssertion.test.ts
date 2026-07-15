@@ -6,6 +6,7 @@
 // — los tests cubren TODOS los failure paths sin tener que generar
 // assertions WebAuthn reales (que requieren hardware authenticator).
 
+import crypto from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock @simplewebauthn/server para evitar pull de @peculiar/asn1-rsa
@@ -188,6 +189,44 @@ function consumableChallengesDb() {
   } as any;
 }
 
+function boundChallengesDb(metadata: Record<string, unknown>) {
+  const metadataSha256Hex = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(metadata), 'utf8')
+    .digest('hex');
+  let consumed = false;
+  return {
+    now: () => 1000,
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({
+            expiresAt: 100000,
+            consumed,
+            challengeB64: CHALLENGE_B64,
+            metadata,
+            metadataSha256Hex,
+          }),
+        }),
+        updateIf: async (precondition: (value: Record<string, unknown>) => boolean) => {
+          const current = {
+            expiresAt: 100000,
+            consumed,
+            challengeB64: CHALLENGE_B64,
+            metadata,
+            metadataSha256Hex,
+          };
+          if (!precondition(current)) return false;
+          consumed = true;
+          return true;
+        },
+        set: async () => undefined,
+      }),
+    }),
+  } as any;
+}
+
 function credentialsDbWithCounter(storedCounter: number) {
   return {
     now: () => 1000,
@@ -275,6 +314,47 @@ describe('verifyWebAuthnAssertion — counter clone-detection (Layer 5)', () => 
       verified: true,
       newCounter: 0,
       verifiedCredentialId: 'cred-abc',
+    });
+  });
+});
+
+describe('verifyWebAuthnAssertion — bound challenge metadata', () => {
+  it('rejects a challenge issued for another authoritative context before crypto', async () => {
+    mockVerify.mockClear();
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: boundChallengesDb({ formId: 'form-A' }),
+      credentialsDb: credentialsDbWithCounter(0),
+      challengeMetadataValidator: (metadata) =>
+        typeof metadata === 'object' && metadata !== null &&
+        (metadata as Record<string, unknown>).formId === 'form-B',
+    });
+
+    expect(result).toEqual({ verified: false, reason: 'challenge_context_mismatch' });
+    expect(mockVerify).not.toHaveBeenCalled();
+  });
+
+  it('returns the validated metadata with successful cryptographic evidence', async () => {
+    const metadata = { formId: 'form-A' };
+    mockVerify.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 1 },
+    } as any);
+
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: boundChallengesDb(metadata),
+      credentialsDb: credentialsDbWithCounter(0),
+      challengeMetadataValidator: (value) =>
+        typeof value === 'object' && value !== null &&
+        (value as Record<string, unknown>).formId === 'form-A',
+    });
+
+    expect(result).toEqual({
+      verified: true,
+      newCounter: 1,
+      verifiedCredentialId: 'cred-abc',
+      challengeMetadata: metadata,
     });
   });
 });
