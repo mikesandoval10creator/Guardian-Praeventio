@@ -78,7 +78,7 @@ Cada dominio se mide:
 | **Photogrammetry (COLMAP / Modal)** | 75% | ⬆️ +15pp | Worker Cloud Run real (325 LOC); falta deploy |
 | **Digital Twin (3D mesh + AR)** | 80% | ⬆️ +15pp | InstancedMesh + Rapier + WebXR foundation (D.1+E.1) |
 | **CQRS / Event Store** | 75% | ⬆️ +75pp | Real productivo (#261) — Event Store + aggregates + read model |
-| **Bernoulli generators** | 50% | ⬆️ +5pp | Mayoría sin UI consumer; StructuralCalc va a logger.info, no Firestore |
+| **Bernoulli generators** | 90% | ⬆️ +40pp | 14/15 generadores con consumidor de UI (auditoría F1, 2026-07-10). `StructuralCalculator.tsx:107` SÍ persiste a Firestore (`writeNodesDebounced`) — el `logger.info` es adicional, no un reemplazo. Único sin UI: `generateStructuralWindNode` (se sirve por `predictiveAlerts/structuralLoadProbe.ts`) |
 | **Telemetry / Wearables** | 75% | ⬆️ +5pp | Telemetry.tsx real; WearablesPanel sigue UI-only |
 | **Tests** | 75% | ⬆️ +5pp | **10029 passing / 0 failed** (§2.11, 2026-05-19); 1.247 archivos test; cobertura co-located ~54%, 20 skip/fixme (medir oficial con `vitest --coverage`) |
 | **Stryker mutation** | 72% global | — | Limiters todavía 3% por Windows crash |

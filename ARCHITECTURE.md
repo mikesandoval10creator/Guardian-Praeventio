@@ -113,6 +113,24 @@ src/services/ragService.ts      # vector search sobre normativa
 src/services/ai/                # destino post-split (gemini/{domain}.ts)
 ```
 
+### Zettelkasten (`src/services/zettelkasten`)
+Grafo de conocimiento del dominio: nodos tipados que los módulos generan como
+efecto de su cálculo (no es un módulo que el usuario abre). 72 archivos, 40
+consumidores.
+```
+bernoulli/            # 15 generadores de nodos físicos (venturi minero, succión de
+                      #   andamio, fuga de gas, hidrante, dique…). 14/15 tienen
+                      #   consumidor de UI; generateStructuralWindNode solo se sirve
+                      #   por la ruta paralela predictiveAlerts/structuralLoadProbe.ts
+                      #   (candidato a consolidación).
+families/             # registries por familia (clima, EPP, normativa, incidentes…)
+persistence/          # writeNode / writeNodesDebounced → Firestore (dual-write:
+                      #   logger.info + persistencia; el log NO reemplaza la escritura)
+canonical/            # materialización a nodes/{tenantId}_{projectId}_{zkNodeId}
+edges.ts              # aristas tipadas (requires/mitigates/causes…) por tenant
+```
+Servidor: `src/server/routes/zettelkasten.ts` + `src/server/triggers/zettelkastenMaterializer.ts`.
+
 ---
 
 ## 3. Data flows críticos
