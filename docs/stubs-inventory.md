@@ -70,13 +70,13 @@
 - **Bug FIXED 2026-05-29 (PR fix/system-engine-active-emergency-bug)**: `hasActiveEmergency` estaba hardcoded `() => false` (líneas 129+147 del decide-context), lo que anulaba el anti-cascade guard de geofenceToSos (re-disparaba un SOS aun con emergencia activa). Ahora lee el estado real vía `emergencyActiveRef` ← `useEmergency().isEmergencyActive`. El guard en sí ya está tested en `__tests__/policies/geofenceToSos.test.ts`.
 - **Removal criteria (WIRE)**: (1) resolver fuente client-side de `tenantId`, (2) envolver en `AppProviders.tsx` dentro de `SensorProvider` (junto a `MeshProvider` — ahí todos los deps: emergency/subscription/notification/sensor/project/firebase están presentes), (3) integration test del provider montado. O DEPRECATE si se decide.
 
-## useGeofenceWithEvents wire pendiente
+## useGeofenceWithEvents — RESUELTO 2026-06-14
 - **File**: `src/hooks/useGeofenceWithEvents.ts`
 - **Owner**: HOOKS_TRIAGE B10
-- **Sprint target**: TBD (Sprint admin)
-- **User-visible?**: NO — wrapper especializado sin consumer
-- **Why orphan**: documentado en `docs/audits/HOOKS_TRIAGE.md` como "WIRE pendiente — futuro panel admin de geocercas"
-- **Removal criteria (WIRE)**: cuando se construya el admin panel de geocercas.
+- **User-visible?**: SÍ — `GeofenceAlert` lo usa para la protección activa del trabajador.
+- **Wiring real**: `src/components/emergency/GeofenceAlert.tsx` importa y monta `useGeofenceWithEvents`; el wrapper alimenta eventos `geofence_crossed` al SystemEngine.
+- **Evidence**: `src/components/emergency/GeofenceAlert.test.tsx`, `src/hooks/useGeofenceWithEvents.test.ts` y `src/services/systemEngine/__tests__/policies/geofenceToSos.test.ts` cubren consumidor, emisión y política de escalamiento.
+- **Resolution**: ya no es stub ni huérfano; conservar esta entrada como registro histórico evita que auditorías futuras intenten volver a cablearlo.
 
 ## capacitor-mesh Android/iOS stubs
 - **File**: `packages/capacitor-mesh/android/src/main/java/.../MeshPlugin.kt:552` + `packages/capacitor-mesh/ios/Sources/.../Plugin.swift:350`
