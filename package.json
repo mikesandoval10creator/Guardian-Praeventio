@@ -24,6 +24,7 @@
     "lint:fix": "eslint . --fix && eslint firestore.rules --fix",
     "lint:rules": "eslint firestore.rules",
     "test": "vitest run",
+    "test:backup-integrity": "node scripts/test-backup-integrity.test.cjs",
     "test:ci": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run --test-timeout=30000",
     "test:coverage": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run --coverage --test-timeout=30000",
     "test:rules": "firebase emulators:exec --only firestore,storage --project praeventio-rules-test \"vitest run --config vitest.rules.config.ts\"",
