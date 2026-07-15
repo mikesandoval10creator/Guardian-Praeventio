@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -76,13 +76,21 @@ export function FallDetectionMonitor() {
    * — losing the modal because Firestore is unreachable would be worse
    * than a silent persistence failure (the user already saw the prompt).
    */
-  const dispatchFallEmergency = (originLabel: 'countdown_expired' | 'user_requested') => {
-    void Promise.resolve()
-      .then(() => triggerEmergency(EMERGENCY_TYPE_FALL, selectedProject?.id))
-      .catch((err) => {
-        logger.error('FallDetectionMonitor: triggerEmergency failed', { err, originLabel });
-      });
-  };
+  // Memoized so the countdown effect can depend on it without going stale:
+  // it closes over `selectedProject`, and a fall SOS dispatched to the wrong
+  // faena (a project switched mid-countdown) would page the wrong site's
+  // supervisors — the same wrong-faena class as the ProjectContext re-selection
+  // bug (#1253). Deps are the exact values it reads.
+  const dispatchFallEmergency = useCallback(
+    (originLabel: 'countdown_expired' | 'user_requested') => {
+      void Promise.resolve()
+        .then(() => triggerEmergency(EMERGENCY_TYPE_FALL, selectedProject?.id))
+        .catch((err) => {
+          logger.error('FallDetectionMonitor: triggerEmergency failed', { err, originLabel });
+        });
+    },
+    [triggerEmergency, selectedProject],
+  );
 
   const handleFallDetected = () => {
     if (!showModal) {
@@ -179,7 +187,7 @@ export function FallDetectionMonitor() {
       setShowModal(false);
     }
     return () => clearTimeout(timer);
-  }, [showModal, countdown, addNotification]);
+  }, [showModal, countdown, addNotification, dispatchFallEmergency]);
 
   const handleImOk = () => {
     setShowModal(false);
