@@ -254,7 +254,12 @@
     "back_home": "Back to home",
     "no_session": "No active session",
     "session_expired": "Your session expired",
-    "consent_notice": "By signing in, you accept our awareness network and security protocols."
+    "consent_notice": "By signing in, you accept our awareness network and security protocols.",
+    "signin_methods": "Sign-in methods",
+    "biometric_enroll_reason": "Enroll your biometrics for faster sign-in next time",
+    "biometric_failed": "Biometric verification failed.",
+    "biometric_login_prompt": "Confirm your identity",
+    "login_failed": "Couldn't sign in. Please try again."
   },
   "common": {
     "loading": "Loading...",
