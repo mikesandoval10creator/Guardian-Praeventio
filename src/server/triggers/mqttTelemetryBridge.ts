@@ -393,6 +393,7 @@ export interface MessageHandlerDeps {
 
 export type MessageOutcome =
   | { outcome: 'persisted'; telemetryId: string | null }
+  | { outcome: 'failed'; telemetryId: string | null }
   | { outcome: 'rejected'; reason: string }
   | { outcome: 'error' };
 
@@ -451,6 +452,16 @@ export function makeMqttMessageHandler(deps: MessageHandlerDeps) {
         db: deps.db,
         messaging: deps.messaging,
       });
+      if (result.persistFailed) {
+        // Anti-silent-loss: the telemetry row did NOT land in Firestore. Surface
+        // it as 'failed' (not 'persisted') so metrics/observability can alert and
+        // a future dead-letter can retry. The bridge already logged + Sentry'd.
+        logger.warn('mqtt_bridge_persist_failed', {
+          tenantId: ctx.tenantId,
+          deviceId: ctx.deviceId,
+        });
+        return { outcome: 'failed', telemetryId: result.telemetryId };
+      }
       return { outcome: 'persisted', telemetryId: result.telemetryId };
     } catch (err) {
       // bridgeMqttToFirestore already swallows step errors; this is the

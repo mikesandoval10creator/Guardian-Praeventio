@@ -94,6 +94,10 @@ export interface BridgeResult {
   alertId: string | null;
   notified: number;
   failed: number;
+  /** True when a REQUIRED telemetry persist was attempted and threw. The bridge
+   *  swallows the error (observability never breaks the rail), but the caller
+   *  MUST NOT report 'persisted' — that would mask silent data loss. */
+  persistFailed: boolean;
 }
 
 /**
@@ -113,6 +117,7 @@ export async function bridgeMqttToFirestore(
     alertId: null,
     notified: 0,
     failed: 0,
+    persistFailed: false,
   };
 
   const db = ctx.db ?? admin.firestore();
@@ -143,6 +148,9 @@ export async function bridgeMqttToFirestore(
       });
       result.telemetryId = telRef.id;
     } catch (err: any) {
+      // Required persist failed → the sample is lost from Firestore. Flag it so
+      // the caller reports 'failed', not 'persisted' (anti-silent-loss).
+      result.persistFailed = true;
       logger.error('iot_bridge_telemetry_write_failed', err, {
         tenantId: ctx.tenantId,
         deviceId: sample.deviceId,
