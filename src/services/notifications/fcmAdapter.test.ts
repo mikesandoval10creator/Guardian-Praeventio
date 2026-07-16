@@ -40,7 +40,7 @@ afterEach(() => {
 describe('fcmAdapter.sendToTokens', () => {
   it('returns a zeroed result when given an empty token list (no SDK call)', async () => {
     const result = await fcmAdapter.sendToTokens([], { title: 'x', body: 'y' });
-    expect(result).toEqual({ successCount: 0, failureCount: 0, failedTokens: [] });
+    expect(result).toEqual({ successCount: 0, failureCount: 0, failedTokens: [], invalidTokens: [] });
     expect(sendEachForMulticastMock).not.toHaveBeenCalled();
   });
 
@@ -75,6 +75,7 @@ describe('fcmAdapter.sendToTokens', () => {
       successCount: 2,
       failureCount: 0,
       failedTokens: [],
+      invalidTokens: [],
     });
   });
 
@@ -97,6 +98,50 @@ describe('fcmAdapter.sendToTokens', () => {
     expect(result.successCount).toBe(1);
     expect(result.failureCount).toBe(2);
     expect(result.failedTokens).toEqual(['stale', 'invalid']);
+    // Both codes are definitive → both are prunable.
+    expect(result.invalidTokens).toEqual(['stale', 'invalid']);
+  });
+
+  it('classifies only DEFINITIVE FCM errors as invalid — a temporary failure is not pruned', async () => {
+    sendEachForMulticastMock.mockResolvedValueOnce({
+      successCount: 1,
+      failureCount: 2,
+      responses: [
+        { success: true, messageId: 'm1' },
+        { success: false, error: { code: 'messaging/server-unavailable' } }, // temporary
+        { success: false, error: { code: 'messaging/registration-token-not-registered' } }, // definitive
+      ],
+    });
+
+    const result = await fcmAdapter.sendToTokens(['live', 'transient', 'dead'], {
+      title: 't',
+      body: 'b',
+    });
+
+    expect(result.failedTokens).toEqual(['transient', 'dead']);
+    // The transient token must survive; only the unregistered one is prunable.
+    expect(result.invalidTokens).toEqual(['dead']);
+  });
+
+  it('batches fan-outs above the 500-token FCM cap into multiple multicast calls', async () => {
+    const tokens = Array.from({ length: 1200 }, (_, i) => `t${i}`);
+    const okChunk = (n: number) => ({
+      successCount: n,
+      failureCount: 0,
+      responses: Array.from({ length: n }, (_, i) => ({ success: true, messageId: `m${i}` })),
+    });
+    sendEachForMulticastMock
+      .mockResolvedValueOnce(okChunk(500))
+      .mockResolvedValueOnce(okChunk(500))
+      .mockResolvedValueOnce(okChunk(200));
+
+    const result = await fcmAdapter.sendToTokens(tokens, { title: 't', body: 'b' });
+
+    // 1200 → 500 + 500 + 200 = 3 SDK calls, aggregated.
+    expect(sendEachForMulticastMock).toHaveBeenCalledTimes(3);
+    expect(sendEachForMulticastMock.mock.calls[0][0].tokens).toHaveLength(500);
+    expect(sendEachForMulticastMock.mock.calls[2][0].tokens).toHaveLength(200);
+    expect(result.successCount).toBe(1200);
   });
 
   it('omits the data field when not provided (FCM rejects undefined data)', async () => {

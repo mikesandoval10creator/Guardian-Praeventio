@@ -51,6 +51,7 @@ import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendar
 // Sprint 56 follow-up — resilience health alert cron.
 import { runResilienceHealthAlertCron } from '../jobs/runResilienceHealthAlert.js';
 import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
+import { pruneFcmTokens } from '../../services/notifications/pruneFcmTokens.js';
 // Sprint E backend debt (2026-05-16) — B2D MRR monthly snapshot.
 // El B2dAdminPanel hace render de la serie temporal MRR; sin este job
 // solo aparece el punto del mes actual. Endpoint dedicado para Cloud
@@ -306,7 +307,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
             .filter((s) => s.status === 'critical')
             .map((s) => s.id)
             .join(', ');
-          await fcmAdapter.sendToTokens(adminTokens, {
+          const sendResult = await fcmAdapter.sendToTokens(adminTokens, {
             title: '⚠️ Praeventio: subsistema crítico',
             body: `Estado: critical. Subsistemas: ${criticalSubsystems || 'n/a'}`,
             data: {
@@ -316,6 +317,9 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
               generatedAt: report.generatedAt,
             },
           });
+          // Prune tokens FCM reported as permanently dead so the admin
+          // fcmTokens[] arrays don't grow unbounded. Best-effort.
+          await pruneFcmTokens(admin.firestore(), sendResult.invalidTokens);
         },
       });
       resilienceHealth = {

@@ -38,12 +38,28 @@ export interface FcmNotification {
 }
 
 /** Result of a multicast send. `failedTokens` lists the *exact* tokens that
- *  failed (in input order, not response order — we map by index). */
+ *  failed (in input order, not response order — we map by index).
+ *  `invalidTokens` is the subset of `failedTokens` that FCM reported as
+ *  DEFINITIVELY dead (unregistered / malformed) — safe to prune from
+ *  `users/{uid}.fcmTokens`. Temporary failures (server-unavailable, quota) are
+ *  in `failedTokens` but NOT `invalidTokens`, so a transient outage never
+ *  deletes a live device's token. */
 export interface FcmSendResult {
   successCount: number;
   failureCount: number;
   failedTokens: string[];
+  invalidTokens: string[];
 }
+
+/** FCM error codes that mean the token is permanently dead — prune these. */
+const DEFINITIVE_INVALID_CODES: ReadonlySet<string> = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+  'messaging/invalid-argument',
+]);
+
+/** FCM caps sendEachForMulticast at 500 tokens per call. */
+const FCM_MULTICAST_MAX = 500;
 
 /** Distinguishes infra/SDK errors from caller-side validation errors. */
 export class FcmAdapterError extends Error {
@@ -81,34 +97,47 @@ export const fcmAdapter = {
     notification: FcmNotification,
   ): Promise<FcmSendResult> {
     if (!Array.isArray(tokens) || tokens.length === 0) {
-      return { successCount: 0, failureCount: 0, failedTokens: [] };
+      return { successCount: 0, failureCount: 0, failedTokens: [], invalidTokens: [] };
     }
 
-    let response;
-    try {
-      response = await getMessaging().sendEachForMulticast({
-        tokens,
-        ...buildBaseMessage(notification),
-      });
-    } catch (err) {
-      throw new FcmAdapterError(
-        `FCM multicast failed: ${(err as Error)?.message ?? 'unknown'}`,
-        err,
-      );
-    }
-
+    const base = buildBaseMessage(notification);
+    let successCount = 0;
+    let failureCount = 0;
     const failedTokens: string[] = [];
-    response.responses.forEach((resp: any, idx: number) => {
-      if (!resp.success) {
-        failedTokens.push(tokens[idx]);
-      }
-    });
+    const invalidTokens: string[] = [];
 
-    return {
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-      failedTokens,
-    };
+    // Batch by the FCM 500-token multicast cap so a large fan-out doesn't throw.
+    for (let i = 0; i < tokens.length; i += FCM_MULTICAST_MAX) {
+      const chunk = tokens.slice(i, i + FCM_MULTICAST_MAX);
+      let response;
+      try {
+        response = await getMessaging().sendEachForMulticast({
+          tokens: chunk,
+          ...base,
+        });
+      } catch (err) {
+        throw new FcmAdapterError(
+          `FCM multicast failed: ${(err as Error)?.message ?? 'unknown'}`,
+          err,
+        );
+      }
+
+      successCount += response.successCount;
+      failureCount += response.failureCount;
+      response.responses.forEach((resp: any, idx: number) => {
+        if (resp.success) return;
+        const token = chunk[idx];
+        failedTokens.push(token);
+        // Only prune tokens FCM says are permanently dead — a temporary error
+        // (server-unavailable, quota) must never delete a live device's token.
+        const code: unknown = resp.error?.code;
+        if (typeof code === 'string' && DEFINITIVE_INVALID_CODES.has(code)) {
+          invalidTokens.push(token);
+        }
+      });
+    }
+
+    return { successCount, failureCount, failedTokens, invalidTokens };
   },
 
   /**
