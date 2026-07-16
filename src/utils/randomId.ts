@@ -1,9 +1,10 @@
 /**
- * Generates a cryptographically secure random UUID, falling back to a
- * Math.random-based ID if `crypto.randomUUID` is unavailable. The
- * fallback is intentionally NOT cryptographically secure — it's only
- * for environments where the modern API is missing (very old jsdom
- * versions in test runs, IE-style fallbacks).
+ * Generates a cryptographically secure random UUID. If `crypto.randomUUID`
+ * is unavailable it falls back to a `crypto.getRandomValues`-based id (still
+ * crypto-random, far wider support), and only if WebCrypto is entirely absent
+ * to a monotonic counter — never Math.random (CLAUDE.md #15). The fallback is
+ * prefixed `fallback-` so it stays visible in logs/audits; it's only reached in
+ * environments missing the modern API (very old jsdom in test runs, etc.).
  *
  * Code that previously inlined `typeof crypto !== 'undefined' &&
  * crypto?.randomUUID ? crypto.randomUUID() : ...fallback` should
@@ -26,11 +27,26 @@
  *   detect costs one branch and removes a class of "undefined is not a
  *   function" crashes that previously surfaced only in production.
  */
+// Monotonic per-runtime counter — only used by the last-resort fallback (no
+// WebCrypto at all) to guarantee two consecutive ids differ without Math.random.
+let fallbackCounter = 0;
+
 export function randomId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // Math.random fallback — NOT cryptographically secure. Only used
-  // when running in environments without the WebCrypto API.
-  return 'fallback-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+  // Degraded path (no crypto.randomUUID). Prefer crypto.getRandomValues — it has
+  // far wider support, so the id stays crypto-random; only when WebCrypto is
+  // entirely absent do we fall to a monotonic counter. Either way it is prefixed
+  // `fallback-` so logs/audits surface that randomUUID was unavailable. We do NOT
+  // use Math.random (CLAUDE.md #15 — and it keeps CodeQL's insecure-randomness
+  // data-flow clean for every randomId() caller).
+  let rand: string;
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    rand = Array.from(bytes, (b) => b.toString(36)).join('');
+  } else {
+    rand = (fallbackCounter++).toString(36);
+  }
+  return 'fallback-' + rand + '-' + Date.now().toString(36);
 }
