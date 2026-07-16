@@ -133,6 +133,10 @@ jobs:
             # Release traceability (#18): tag every prod Sentry event with the
             # exact deployed commit so errors map back to a revision/source.
             SENTRY_RELEASE=${{ github.sha }}
+            # Route explicit captureRouteError()/getErrorTracker() through Sentry
+            # (not the noop default) for grouping/dedup/alerts — pairs with the
+            # SENTRY_DSN secret below.
+            ERROR_TRACKER=sentry
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
             SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL
