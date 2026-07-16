@@ -420,6 +420,37 @@ describe('makeMqttMessageHandler', () => {
   const telemetryDocs = () =>
     Object.entries(H.db!._dump()).filter(([k]) => k.startsWith('telemetry_events/'));
 
+  it('ANTI-SILENT-LOSS: reports outcome "failed" (not "persisted") when the telemetry write fails', async () => {
+    const real = H.db! as unknown as { collection: (n: string) => any };
+    const failingDb = {
+      collection: (n: string) => {
+        const col = real.collection(n);
+        if (n === 'telemetry_events') {
+          return {
+            ...col,
+            add: async () => {
+              throw new Error('firestore unavailable');
+            },
+          };
+        }
+        return col;
+      },
+    } as unknown as FirebaseFirestore.Firestore;
+    const h = makeMqttMessageHandler({
+      db: failingDb,
+      messaging: {} as never,
+      gate: makeDeviceGate({ db: failingDb }),
+      nowMs: () => NOW,
+    });
+    const out = await h(
+      wireSample({ zoneId: 'zona-estanque-3' }) as unknown as TelemetrySample,
+      ctx(),
+    );
+    // The row never landed — the handler must NOT claim it persisted.
+    expect(out.outcome).toBe('failed');
+    expect(telemetryDocs()).toHaveLength(0);
+  });
+
   it('persists a registered device reading into top-level telemetry_events with zoneId', async () => {
     const out = await handler()(
       wireSample({ zoneId: 'zona-estanque-3' }) as unknown as TelemetrySample,

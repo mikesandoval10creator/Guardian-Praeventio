@@ -97,6 +97,37 @@ describe('bridgeMqttToFirestore', () => {
     vi.mocked(sendToProjectSupervisors).mockClear();
   });
 
+  it('SILENT-LOSS: flags persistFailed and keeps telemetryId null when the write throws', async () => {
+    const db = {
+      collection: () => ({
+        add: async () => {
+          throw new Error('firestore unavailable');
+        },
+        doc: () => ({
+          collection: () => ({ add: async () => ({ id: 'x' }) }),
+          set: async () => undefined,
+        }),
+      }),
+    } as unknown as FirebaseFirestore.Firestore;
+    const sample: TelemetrySample = {
+      deviceId: 'dev-loss',
+      timestamp: 1_700_000_000_000,
+      metric: 'gas_co_ppm', // gas metric → ALWAYS persists → write is attempted
+      value: 30,
+      unit: 'ppm',
+      kind: 'gas-sensor',
+    };
+    const result = await bridgeMqttToFirestore(sample, {
+      tenantId: 't1',
+      projectId: 'p1',
+      db,
+      messaging: {} as any,
+    });
+    // The sample never reached Firestore — must be reported as a failure.
+    expect(result.persistFailed).toBe(true);
+    expect(result.telemetryId).toBeNull();
+  });
+
   it('writes a single TOP-LEVEL telemetry_events row (ingest schema) for a warning-level sample', async () => {
     const { db, writes } = makeMemDb();
     const sample: TelemetrySample = {
