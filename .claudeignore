@@ -1,0 +1,3 @@
+# Keep large generated graph out of Claude Code prompt cache (52MB writes
+# would force a full context re-upload each turn).
+graphify-out/

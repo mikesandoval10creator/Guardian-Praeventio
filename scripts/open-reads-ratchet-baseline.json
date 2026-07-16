@@ -1,0 +1,11 @@
+{
+  "comment": "Deliberate anonymous-read collections (allow read: if true) in firestore.rules. Each MUST be justified inline (no PII, write-gated, rules-tested). Gate: scripts/check-open-reads-ratchet.cjs (lint:rules + pre-commit + src/__tests__/scripts/openReadsRatchet.test.ts). Regenerate: --write.",
+  "rule": "@firebase/security-rules/no-open-reads",
+  "allowed_count": 4,
+  "allowed": [
+    "/community_glossary/{termId}",
+    "/dea_locations/{deaLocationId}",
+    "/global_templates/{templateId}",
+    "/normatives/{normativeId}"
+  ]
+}

@@ -1,0 +1,22 @@
+# graphify indexing excludes — keep the graph to real source concepts.
+# Same syntax as .gitignore. graphify indexes some git-ignored build output
+# anyway (Capacitor-synced web bundles), so exclude compiled/generated assets
+# here explicitly — otherwise minified vendor chunks dominate the god-node
+# rankings (`__`, `_`, `_()`) and inject bogus INFERRED edges.
+
+# Capacitor / native web-build mirrors (compiled output, not source)
+android/app/src/main/assets/public/
+ios/App/App/public/
+
+# Build + coverage + test artifacts
+dist/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Minified bundles anywhere
+*.min.js
+
+# graphify's own output
+graphify-out/

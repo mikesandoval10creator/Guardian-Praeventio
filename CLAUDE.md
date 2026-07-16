@@ -258,6 +258,19 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     baseline-touching PRs clear — see workflow for flip-to-required TODO).
     Applies to AI-agent PRs (MiMo) too — see
     the MiMo workflow note below.
+25. **Open-reads allowlist ratchet.** `allow read: if true` in
+    `firestore.rules` cannot be eslint-disabled per line (the plugin's parser
+    exposes no comments to ESLint). The deliberate anonymous-read collections
+    (`normatives`, `dea_locations`, `community_glossary`, `global_templates` —
+    §UX-anonymous 2026-05-21 + ADR 0021) are pinned in
+    `scripts/open-reads-ratchet-baseline.json`. `npm run lint:rules` (wrapper
+    `scripts/check-open-reads-ratchet.cjs`) enforces STRICT equality: a NEW
+    open read — or a stale baseline entry — is a HARD FAIL (exit 1), not a
+    warning. A new anonymous-read collection requires inline justification
+    (no PII, write-gated, ≥5 rules tests, `security_spec.md`) before
+    regenerating with `--write`. Raw ESLint output: `npm run lint:rules:raw`.
+    Enforced by `.husky/pre-commit` and the CI vitest gate
+    `src/__tests__/scripts/openReadsRatchet.test.ts`.
 
 ## Testing notes specific to this repo
 
