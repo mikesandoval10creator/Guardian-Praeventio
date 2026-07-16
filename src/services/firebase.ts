@@ -271,6 +271,23 @@ export const logOut = async () => {
   try {
     if (uid) localStorage.removeItem('praeventio_first_login_' + uid);
   } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
+  // Wipe this device's crypto material (encrypted KV + device KEK) so the next
+  // account on a shared faena device cannot inherit it. Dynamically imported to
+  // keep the crypto modules out of the eager firebase chunk.
+  try {
+    const { clearDeviceSecrets } = await import('./security/clearDeviceSecrets');
+    const cleared = await clearDeviceSecrets();
+    if (!cleared.storeCleared || !cleared.kekDeleted) {
+      logger.warn('[firebase.logOut] device secrets only partially cleared', {
+        storeCleared: cleared.storeCleared,
+        kekDeleted: cleared.kekDeleted,
+      });
+    }
+  } catch (err) {
+    // Never block sign-out on cleanup — a session left open is worse than a
+    // failed wipe.
+    logger.warn('[firebase.logOut] clearDeviceSecrets failed (non-fatal)', { err });
+  }
   return signOut(auth);
 };
 
