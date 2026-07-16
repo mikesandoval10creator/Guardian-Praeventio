@@ -25,6 +25,7 @@ import session from "express-session";
 // backed by Firestore (collection `_sessions`). Ver
 // src/server/sessionStore/firestoreSessionStore.ts.
 import { makeFirestoreSessionStore } from "./src/server/sessionStore/firestoreSessionStore.js";
+import { resolveSessionStore } from "./src/server/sessionStore/resolveSessionStore.js";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { Resend } from "resend";
@@ -885,21 +886,23 @@ app.use(cookieParser());
 // caen en pods distintos.
 let sessionStore: session.Store | undefined;
 try {
-  if (admin.apps.length > 0) {
-    sessionStore = makeFirestoreSessionStore(admin.firestore());
-    // eslint-disable-next-line no-console
-    console.log('✅ Session store: Firestore (multi-instance safe)');
-  } else if (process.env.NODE_ENV === 'production') {
-
-    console.error('FATAL: Firebase Admin not initialized — cannot use MemoryStore in production.');
-    process.exit(1);
-  } else {
-
-    console.warn('⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)');
-  }
+  // In production a store-init failure (or missing Admin) is fail-closed: the
+  // resolver throws and we refuse to boot rather than silently degrade to
+  // MemoryStore (which loses OAuth state across Cloud Run instances).
+  sessionStore = resolveSessionStore({
+    isProduction: process.env.NODE_ENV === 'production',
+    adminInitialized: admin.apps.length > 0,
+    makeStore: () => makeFirestoreSessionStore(admin.firestore()),
+  });
+  // eslint-disable-next-line no-console
+  console.log(
+    sessionStore
+      ? '✅ Session store: Firestore (multi-instance safe)'
+      : '⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)',
+  );
 } catch (err) {
-
-  console.warn('Session store init failed, falling back to MemoryStore:', err);
+  console.error('FATAL:', (err as Error)?.message ?? err);
+  process.exit(1);
 }
 
 app.use(session({
