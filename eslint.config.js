@@ -26,6 +26,8 @@ export default [
   {
     ignores: [
       'node_modules/**',
+      // Agent scratch output (worktrees + agents-output) — no es código fuente.
+      '.claude/**',
       'dist/**',
       'build/**',
       'out/**',
@@ -171,6 +173,24 @@ export default [
     files: ['firestore.rules'],
     rules: {
       // Custom rules específicas a firestore.rules van aquí.
+      //
+      // KNOWN/EXPECTED: exactly 4× `no-open-reads` warnings — `normatives`,
+      // `dea_locations`, `community_glossary`, `global_templates`. All four
+      // are DELIBERATE anonymous-read collections (§UX-anonymous 2026-05-21
+      // Instagram-model + ADR 0021 life-safety public AED map), each
+      // justified inline in firestore.rules and exercised by rules tests
+      // (e.g. src/rules-tests/deaLocations.rules.test.ts).
+      //
+      // They CANNOT be suppressed per-line: the plugin's parseForESLint
+      // (v0.0.2) returns an ESTree stub with `comments: []`, so ESLint never
+      // sees inline `eslint-disable` directives in .rules files.
+      //
+      // Do NOT set `no-open-reads` to "off" — the warning feeds the
+      // open-reads allowlist ratchet (scripts/check-open-reads-ratchet.cjs,
+      // baseline scripts/open-reads-ratchet-baseline.json, CLAUDE.md #25):
+      // `npm run lint:rules` filters the 4 baselined collections and turns
+      // any NEW open read into a HARD FAIL (exit 1) — stronger than warn.
+      // Raw, unfiltered ESLint output: `npm run lint:rules:raw`.
     },
   },
 ];
