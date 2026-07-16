@@ -229,6 +229,33 @@ describe('encryptedOfflineQueue — basic round-trip', () => {
     expect(serialized.includes('fractura cúbito')).toBe(false);
     expect(serialized.includes('PHI')).toBe(false);
   });
+
+  it('persisted record does NOT carry the plaintext query prompt', async () => {
+    // The prompt is where the medical/emergency PII actually lives: a worker
+    // types "me aplastó la mano la prensa", or a diagnosis, into it. The
+    // assertion above only ever put PHI in the RESPONSE (`SAMPLE_QUERY` is the
+    // inert 'sample prompt'), so the at-rest leak check never exercised it.
+    const id = await enqueueSession(
+      { prompt: 'PHI-PROMPT: trabajador con fractura expuesta de tibia' },
+      SAMPLE_RESPONSE,
+    );
+    const raw = (await rawGet(id)) as Record<string, unknown>;
+
+    const serialized = JSON.stringify(raw);
+    expect(serialized.includes('PHI-PROMPT')).toBe(false);
+    expect(serialized.includes('fractura expuesta')).toBe(false);
+    // The plaintext `query` field must be gone, replaced by an envelope.
+    expect(raw.query).toBeUndefined();
+    expect(raw.queryEnvelope).toBeDefined();
+  });
+
+  it('round-trips the query prompt through encryption', async () => {
+    const prompt = 'trabajador con fractura expuesta de tibia';
+    await enqueueSession({ prompt }, SAMPLE_RESPONSE);
+
+    const pending = await listPending();
+    expect(pending[0].query.prompt).toBe(prompt);
+  });
 });
 
 describe('encryptedOfflineQueue — tampering and KEK availability', () => {
