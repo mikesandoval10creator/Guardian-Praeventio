@@ -37,6 +37,23 @@ const ERROR_TRACKER_KEYS: ReadonlySet<ErrorTrackingAdapterName> =
   new Set<ErrorTrackingAdapterName>(['sentry', 'cloud-error-reporting', 'noop']);
 
 /**
+ * Resolve the error-tracker NAME from env (pure — no adapter/isAvailable logic).
+ * When `ERROR_TRACKER` is unset it defaults to `sentry` if a `SENTRY_DSN` is
+ * configured (deploy wiring the DSN implies intent), else `noop`. An explicit
+ * `ERROR_TRACKER` always wins; unknown values resolve to `noop`.
+ */
+export function resolveErrorTrackerName(env: {
+  ERROR_TRACKER?: string;
+  SENTRY_DSN?: string;
+}): ErrorTrackingAdapterName {
+  const fallback = env.SENTRY_DSN ? 'sentry' : 'noop';
+  const raw = (env.ERROR_TRACKER ?? fallback).toLowerCase().trim();
+  return ERROR_TRACKER_KEYS.has(raw as ErrorTrackingAdapterName)
+    ? (raw as ErrorTrackingAdapterName)
+    : 'noop';
+}
+
+/**
  * Resolve the active error tracker from `ERROR_TRACKER` env var.
  *
  * IMPORTANT — fall-back policy:
@@ -57,10 +74,7 @@ const ERROR_TRACKER_KEYS: ReadonlySet<ErrorTrackingAdapterName> =
  * Run logs can spot the misconfiguration.
  */
 export function getErrorTracker(): ErrorTrackingAdapter {
-  const raw = (process.env.ERROR_TRACKER ?? 'noop').toLowerCase().trim();
-  const key: ErrorTrackingAdapterName = ERROR_TRACKER_KEYS.has(raw as ErrorTrackingAdapterName)
-    ? (raw as ErrorTrackingAdapterName)
-    : 'noop';
+  const key = resolveErrorTrackerName(process.env);
 
   let chosen: ErrorTrackingAdapter;
   switch (key) {

@@ -27,7 +27,7 @@ import {
   noopMetricsAdapter,
   prometheusAdapter,
 } from './metricsAdapter';
-import { getErrorTracker, getMetrics } from './index';
+import { getErrorTracker, getMetrics, resolveErrorTrackerName } from './index';
 import { ObservabilityNotImplementedError } from './types';
 
 describe('sentryAdapter (real SDK; coarse smoke checks)', () => {
@@ -199,6 +199,30 @@ describe('noopErrorTrackingAdapter', () => {
     // in context produces an event id and does not crash; uid is undefined.
     const id = noopErrorTrackingAdapter.captureException(new Error('boom'));
     expect(id).toMatch(/^noop-/);
+  });
+});
+
+describe('resolveErrorTrackerName (pure selection)', () => {
+  it('defaults to sentry when ERROR_TRACKER is unset but SENTRY_DSN is configured', () => {
+    expect(
+      resolveErrorTrackerName({ SENTRY_DSN: 'https://k@o0.ingest.sentry.io/1' }),
+    ).toBe('sentry');
+  });
+
+  it('defaults to noop when neither ERROR_TRACKER nor SENTRY_DSN is set', () => {
+    expect(resolveErrorTrackerName({})).toBe('noop');
+  });
+
+  it('an explicit ERROR_TRACKER wins over the SENTRY_DSN default', () => {
+    expect(resolveErrorTrackerName({ ERROR_TRACKER: 'noop', SENTRY_DSN: 'x' })).toBe('noop');
+  });
+
+  it('respects an explicit ERROR_TRACKER=sentry (the deploy default)', () => {
+    expect(resolveErrorTrackerName({ ERROR_TRACKER: 'sentry' })).toBe('sentry');
+  });
+
+  it('unknown values resolve to noop', () => {
+    expect(resolveErrorTrackerName({ ERROR_TRACKER: 'bogus', SENTRY_DSN: 'x' })).toBe('noop');
   });
 });
 
