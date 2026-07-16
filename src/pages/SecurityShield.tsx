@@ -44,7 +44,15 @@ import {
 } from '../services/security/encryptedKvStore';
 import { useFirebase } from '../contexts/FirebaseContext';
 
-const MFA_STORAGE_KEY = 'mfa:totp:record:v1';
+// Pre-2026-07 this was a single fixed key shared by every account on the
+// device, so the next user to log in inherited the previous user's enrollment.
+// The record is now stored per uid, and the userUid inside the record is
+// checked against the authenticated user before it is trusted.
+const MFA_STORAGE_KEY_LEGACY = 'mfa:totp:record:v1';
+
+function mfaStorageKey(uid: string): string {
+  return `${MFA_STORAGE_KEY_LEGACY}:${uid}`;
+}
 
 type ViewState =
   | 'loading'
@@ -64,24 +72,51 @@ export function SecurityShield() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
 
-  // Carga el record persistido al montar.
+  // Carga el record persistido del usuario autenticado. Depende de `user`:
+  // on a shared device the component can outlive a sign-out/sign-in, and a
+  // mount-only effect would keep showing the previous account's enrollment.
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      // A legacy unscoped record belongs to whoever enrolled last on this
+      // device. It can't be attributed to anyone safely, so it is destroyed
+      // rather than migrated — adopting an MFA secret we can't tie to the
+      // current user is the very bug this replaces.
       try {
-        const stored = (await getEncrypted(MFA_STORAGE_KEY)) as
+        await deleteEncrypted(MFA_STORAGE_KEY_LEGACY);
+      } catch {
+        /* best-effort purge — never block the page on it */
+      }
+      if (!user) {
+        if (!cancelled) setView('not-enrolled');
+        return;
+      }
+      try {
+        const stored = (await getEncrypted(mfaStorageKey(user.uid))) as
           | TotpEnrolledRecord
           | null;
-        if (stored && stored.status === 'enrolled') {
+        if (cancelled) return;
+        // Defense in depth: the uid inside the record is the authority, not
+        // the key it was found under.
+        if (
+          stored &&
+          stored.status === 'enrolled' &&
+          stored.userUid === user.uid
+        ) {
           setRecord(stored);
           setView('enrolled');
         } else {
+          setRecord(null);
           setView('not-enrolled');
         }
       } catch {
-        setView('not-enrolled');
+        if (!cancelled) setView('not-enrolled');
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleStartEnrollment = useCallback(() => {
     setError(null);
@@ -103,10 +138,10 @@ export function SecurityShield() {
 
   const handleConfirmCode = useCallback(async () => {
     setError(null);
-    if (!draft) return;
+    if (!draft || !user) return;
     try {
       const newRecord = confirmEnrollment({ draft, userCode: verifyInput });
-      await setEncrypted(MFA_STORAGE_KEY, newRecord);
+      await setEncrypted(mfaStorageKey(user.uid), newRecord);
       setRecord(newRecord);
       setView('enrolled');
       setSuccess(
@@ -124,7 +159,7 @@ export function SecurityShield() {
         setError(err instanceof Error ? err.message : String(err));
       }
     }
-  }, [draft, verifyInput, t]);
+  }, [draft, verifyInput, t, user]);
 
   const handleStartDisable = useCallback(() => {
     setError(null);
@@ -135,7 +170,7 @@ export function SecurityShield() {
 
   const handleConfirmDisable = useCallback(async () => {
     setError(null);
-    if (!record) return;
+    if (!record || !user) return;
     const ok = disableEnrollment({ record, userCode: verifyInput });
     if (!ok) {
       setError(
@@ -146,13 +181,13 @@ export function SecurityShield() {
       );
       return;
     }
-    await deleteEncrypted(MFA_STORAGE_KEY);
+    await deleteEncrypted(mfaStorageKey(user.uid));
     setRecord(null);
     setDraft(null);
     setView('not-enrolled');
     setSuccess(t('mfa.successDisabled', 'MFA desactivada.') as string);
     setVerifyInput('');
-  }, [record, verifyInput, t]);
+  }, [record, verifyInput, t, user]);
 
   const handleCancelEnrollment = useCallback(() => {
     setDraft(null);
