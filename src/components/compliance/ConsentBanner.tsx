@@ -8,13 +8,19 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { auth } from '../../services/firebase';
+import { ShieldCheck, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { PROCESSING_ACTIVITIES } from '../../services/compliance/ley19628';
 import { apiAuthHeader } from '../../lib/apiAuth';
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
 const LOCAL_FLAG_KEY = 'pg.consentBanner.dismissed.v1';
+
+const PURPOSE_LABELS: Record<string, string> = {
+  core_service: 'Servicio principal',
+  analytics: 'Analítica de uso',
+  marketing: 'Comunicaciones de marketing',
+  research_anonymized: 'Investigación anonimizada',
+};
 
 interface ConsentToggleState {
   analytics: boolean;
@@ -32,6 +38,7 @@ export function ConsentBanner() {
   });
   const [showActivities, setShowActivities] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [failedPurposes, setFailedPurposes] = useState<string[]>([]);
   const [toggles, setToggles] = useState<ConsentToggleState>({
     analytics: true,
     marketing: false,
@@ -74,6 +81,7 @@ export function ConsentBanner() {
 
   const handleAccept = async () => {
     setSubmitting(true);
+    setFailedPurposes([]);
     try {
       // §2.20 (2026-05-23) — apiAuthHeader unified.
       const authHeader = await apiAuthHeader();
@@ -92,15 +100,32 @@ export function ConsentBanner() {
           legalBasis: 'consent',
         },
       ];
+      // A purpose the server rejected is a decision that was NOT recorded.
+      // Keep the banner open and name it, rather than telling the user their
+      // choices are saved when they are not (Ley 19.628 — consent must be
+      // demonstrable).
+      const failed: string[] = [];
       for (const s of submissions) {
-        await fetch('/api/compliance/consent', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authHeader ? { 'Authorization': authHeader } : {}),
-          },
-          body: JSON.stringify({ ...s, textVersion: CONSENT_TEXT_VERSION }),
-        });
+        try {
+          const res = await fetch('/api/compliance/consent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authHeader ? { 'Authorization': authHeader } : {}),
+            },
+            body: JSON.stringify({ ...s, textVersion: CONSENT_TEXT_VERSION }),
+          });
+          if (!res.ok) failed.push(s.purpose);
+        } catch {
+          failed.push(s.purpose);
+        }
+      }
+      if (failed.length > 0) {
+        // ponytail: per-purpose retry, not a server-side atomic transaction.
+        // Re-submitting is an idempotent upsert, so retry re-sends all four.
+        // Upgrade to a single batched endpoint if partial state ever matters.
+        setFailedPurposes(failed);
+        return;
       }
       try {
         localStorage.setItem(LOCAL_FLAG_KEY, '1');
@@ -156,19 +181,19 @@ export function ConsentBanner() {
             <div className="mt-5 space-y-3">
               <CoreServiceRow />
               <ToggleRow
-                label="Analítica de uso"
+                label={PURPOSE_LABELS.analytics}
                 description="Métricas anónimas para mejorar la plataforma."
                 checked={toggles.analytics}
                 onChange={(v) => setToggles((t) => ({ ...t, analytics: v }))}
               />
               <ToggleRow
-                label="Comunicaciones de marketing"
+                label={PURPOSE_LABELS.marketing}
                 description="Novedades, capacitaciones y eventos. Sin presión comercial."
                 checked={toggles.marketing}
                 onChange={(v) => setToggles((t) => ({ ...t, marketing: v }))}
               />
               <ToggleRow
-                label="Investigación anonimizada"
+                label={PURPOSE_LABELS.research_anonymized}
                 description="Datos pseudonimizados para investigación académica en prevención."
                 checked={toggles.research_anonymized}
                 onChange={(v) =>
@@ -176,6 +201,28 @@ export function ConsentBanner() {
                 }
               />
             </div>
+
+            {failedPurposes.length > 0 && (
+              <div
+                role="alert"
+                className="mt-4 flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <div>
+                  <div className="font-semibold text-amber-200">
+                    No pudimos registrar {failedPurposes.length === 1 ? 'esta finalidad' : 'estas finalidades'}:
+                  </div>
+                  <ul className="mt-1 list-inside list-disc text-amber-100">
+                    {failedPurposes.map((p) => (
+                      <li key={p}>{PURPOSE_LABELS[p] ?? p}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 text-amber-100/80">
+                    Tus decisiones no quedaron guardadas. Vuelve a intentarlo.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5">
               <button
