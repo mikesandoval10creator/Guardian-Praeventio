@@ -20,6 +20,7 @@
 // (era para flujo server-side basado en `videoUri`). Solución: extendemos
 // la interface con un sub-input `OnDeviceJobInput` que sí incluye `File`.
 
+import { randomId } from '../../../utils/randomId';
 import { storage, ref as storageRef, uploadBytes, getDownloadURL } from '../../firebase';
 import {
   reconstructFromVideo,
@@ -247,7 +248,7 @@ export function createOnDeviceReconstructionAdapter(): OnDeviceReconstructionAda
 /** Construye un jobId determinista basado en timestamp + random suffix. */
 function generateJobId(): string {
   const ts = Date.now().toString(36);
-  const rand = Math.random().toString(36).slice(2, 10);
+  const rand = randomId();
   return `ondev_${ts}_${rand}`;
 }
 

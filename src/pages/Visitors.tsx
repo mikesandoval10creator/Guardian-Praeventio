@@ -20,6 +20,7 @@
 // Determinístico. Sin LLM. Los recordatorios y los textos son traducibles
 // via i18n (`visitors.*`).
 
+import { randomId } from '../utils/randomId';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -99,7 +100,7 @@ async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
 }
 
 function newIdempotencyKey(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${Date.now()}-${randomId()}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Sprint 15 — Task persistence layer.
 
+import { randomId } from '../../utils/randomId';
 import type { Task } from '../../types/organic';
 
 export interface TaskStore {
@@ -38,7 +39,7 @@ export function createMemoryTaskStore(): TaskStore {
 function genId(): string {
   const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
   if (g.crypto?.randomUUID) return `task-${g.crypto.randomUUID()}`;
-  return `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `task-${Date.now()}-${randomId()}`;
 }
 
 export async function createTask(

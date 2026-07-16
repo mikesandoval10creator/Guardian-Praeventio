@@ -18,6 +18,7 @@
 //
 // Paleta: teal #4db6ac primary + dark-mode-first. Mirrors EvacuationQRScanner.
 
+import { randomId } from '../../utils/randomId';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -130,7 +131,7 @@ export function PreUseChecklistMobile({
       });
       const idemKey = generateIdempotencyKey
         ? generateIdempotencyKey()
-        : `${equipment.id}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        : `${equipment.id}-${Date.now()}-${randomId()}`;
       const res = await submitPreUseChecklist(
         projectId,
         equipment.id,

@@ -16,6 +16,7 @@
  * the user's storage quota.
  */
 
+import { randomId } from '../../utils/randomId';
 import { openDB, type IDBPDatabase } from 'idb';
 
 import type { Event, EventName } from './types';
@@ -74,7 +75,7 @@ function newId(): string {
   if (c && typeof c.randomUUID === 'function') {
     return c.randomUUID();
   }
-  return `aq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return `aq_${Date.now().toString(36)}_${randomId()}`;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { randomId } from '../../utils/randomId';
 // Praeventio Guard — Sprint 43 Fase F.5: Firma Recepción Digital con QR.
 //
 // Cierra Plan F.5 "Firma de Recepción Digital con QR (EPP, charlas,
@@ -161,7 +162,7 @@ function defaultSessionId(): string {
       .join('');
   }
   // Last-resort (Node without webcrypto — shouldn't hit in modern runtimes).
-  return `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `s-${Date.now()}-${randomId()}`;
 }
 
 export function createAckSession(

@@ -12,6 +12,7 @@
 // the server. Browser surfaces should also wire @sentry/react via
 // `src/lib/sentry.ts` for proper client telemetry.
 
+import { randomId } from '../../utils/randomId';
 import { logger } from '../../utils/logger';
 import type {
   Breadcrumb,
@@ -21,7 +22,7 @@ import type {
 } from './types';
 
 function noopEventId(): string {
-  return `noop-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `noop-${Date.now().toString(36)}-${randomId()}`;
 }
 
 // Browser-only "ALS shim" — single mutable slot. Browsers are

@@ -29,6 +29,7 @@
 //   • This keeps incident creation logic in the existing emergency
 //     pipeline; commuteSession only contributes a label.
 
+import { randomId } from '../../utils/randomId';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   db,
@@ -227,7 +228,7 @@ export function useCommuteSession(
       if (!tenantId || !projectId) {
         throw new Error('useCommuteSession: tenantId and projectId required to start');
       }
-      const sessionId = `cs_${now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const sessionId = `cs_${now()}_${randomId()}`;
       const startedAt = now();
       const session: CommuteSession = {
         id: sessionId,

@@ -1,3 +1,4 @@
+import { randomId } from '../../utils/randomId';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Volume2, VolumeX, X, MessageSquare, Loader2, ShieldCheck, Sparkles, Send, WifiOff, Ear } from 'lucide-react';
@@ -294,7 +295,7 @@ export function GuardianVoiceAssistant() {
                 status: 'Pendiente',
                 priority: functionCall.severity === 'Crítica' || functionCall.severity === 'Alta' ? 'Alta' : 'Media',
                 tasks: actionPlan.correctiveActions.map((action: any) => ({
-                  id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  id: `task-${Date.now()}-${randomId()}`,
                   description: action.action,
                   status: 'Pendiente',
                   priority: action.priority

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Sprint 15 — Process lifecycle + positive XP economy.
 
+import { randomId } from '../../utils/randomId';
 import type { Process, ProcessType, ProcessStatus } from '../../types/organic';
 import { awardCrewXp, type CrewStore } from './crewService';
 
@@ -79,7 +80,7 @@ export function computeProcessCloseXp(
 function genId(): string {
   const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
   if (g.crypto?.randomUUID) return `proc-${g.crypto.randomUUID()}`;
-  return `proc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `proc-${Date.now()}-${randomId()}`;
 }
 
 export async function startProcess(

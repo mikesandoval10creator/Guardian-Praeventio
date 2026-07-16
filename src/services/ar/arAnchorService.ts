@@ -1,3 +1,4 @@
+import { randomId } from '../../utils/randomId';
 // SPDX-License-Identifier: MIT
 //
 // AR Anchor Service — tipos + lógica de negocio para anclas AR
@@ -192,7 +193,7 @@ export function distanceM(a: BaseAnchor, b: BaseAnchor): number {
  */
 export function newAnchorId(kind: AnchorKind): string {
   const ts = Date.now().toString(36);
-  const rnd = Math.random().toString(36).slice(2, 8);
+  const rnd = randomId();
   return `ar-${kind}-${ts}-${rnd}`;
 }
 

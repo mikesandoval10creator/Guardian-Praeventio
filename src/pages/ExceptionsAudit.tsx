@@ -16,6 +16,7 @@
 // control normal exige documentar mitigación alternativa por escrito
 // + auditor habilitado. El sistema FUERZA el formato.
 
+import { randomId } from '../utils/randomId';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -132,7 +133,7 @@ export function ExceptionsAudit() {
     setFeedback(null);
     try {
       const record = createException({
-        id: `exc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: `exc_${Date.now()}_${randomId()}`,
         domain,
         subjectRef: { kind: subjectKind, id: subjectId.trim() || 'unspecified' },
         reason,

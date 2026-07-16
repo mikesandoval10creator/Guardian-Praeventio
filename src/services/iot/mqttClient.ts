@@ -17,6 +17,7 @@
 //     llegan a Firestore — el resto se descarta en el cliente).
 
 import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
+import { randomId } from '../../utils/randomId';
 
 export interface MqttSensorEvent {
   /** Topic donde llegó. */
@@ -107,7 +108,9 @@ export class PraeventioMqttClient {
     const opts: IClientOptions = {
       clientId:
         this.config.clientId ??
-        `praeventio-${Math.random().toString(36).slice(2, 10)}`,
+        // crypto id (CLAUDE.md #15), trimmed to respect the MQTT 3.1 client-id
+        // length limit (23 chars): 'praeventio-' (11) + 12 hex.
+        `praeventio-${randomId().replace(/-/g, '').slice(0, 12)}`,
       reconnectPeriod: this.config.reconnectPeriodMs ?? 5000,
       connectTimeout: this.config.connectTimeoutMs ?? 30000,
       username: this.config.username,

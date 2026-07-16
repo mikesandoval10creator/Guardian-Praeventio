@@ -11,6 +11,7 @@
 //
 // Paleta: teal #4db6ac primary. Modo light + dark con tokens semánticos.
 
+import { randomId } from '../../utils/randomId';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
@@ -310,7 +311,7 @@ function RegisterFormModal({
         criticality,
         requiresPreUseChecklist: requiresPreUse,
       };
-      const idemKey = `register-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const idemKey = `register-${Date.now()}-${randomId()}`;
       const res = await registerEquipmentQr(projectId, input, idemKey);
       onRegistered(res);
     } catch (err) {
