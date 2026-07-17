@@ -16,6 +16,26 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { resolveNotificationDeepLink } from '../services/notifications/notificationDeepLink';
+import { DEEP_LINK_EVENT_NAME } from '../components/shared/DeepLinkHandler';
+
+/**
+ * Turn a tapped push notification into an in-app navigation. Reuses the same
+ * `praeventio:deep-link` CustomEvent bridge that native Universal/App Links
+ * use, so <DeepLinkHandler> performs the authenticated React Router navigation
+ * (and its project-mismatch fallback) from one place. Total + defensive: a
+ * malformed payload resolves to the safe fallback rather than throwing inside
+ * the native event callback.
+ */
+export function dispatchNotificationDeepLink(
+  data: Record<string, string> | undefined | null,
+): void {
+  if (typeof window === 'undefined') return;
+  const { url, projectId } = resolveNotificationDeepLink(data);
+  window.dispatchEvent(
+    new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url, projectId } }),
+  );
+}
 
 export interface RegisterTokenDeps {
   /** Resolves the Firebase ID token for the current user, or null if unauth. */
@@ -172,8 +192,19 @@ export function usePushNotifications() {
           logger.debug('Push notification received', { notification });
         });
 
-        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          logger.debug('Push action performed', { notification });
+        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+          logger.debug('Push action performed', { action });
+          // [P1][VIDA] A tapped critical push MUST open the emergency/alert it
+          // refers to — not just log. Resolve the deep link by alert type and
+          // hand it to <DeepLinkHandler> via the shared CustomEvent bridge.
+          try {
+            const data = (action?.notification?.data ?? undefined) as
+              | Record<string, string>
+              | undefined;
+            dispatchNotificationDeepLink(data);
+          } catch (err) {
+            logger.warn('Push action deep-link dispatch failed', { err });
+          }
         });
       } else {
         const messaging = await getMessagingInstance();
