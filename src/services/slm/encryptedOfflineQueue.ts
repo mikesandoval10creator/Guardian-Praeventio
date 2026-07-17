@@ -125,9 +125,14 @@ export interface QueuedSession {
 }
 
 /**
- * Persisted shape on disk. The `response` field is REPLACED by
- * `responseEnvelope` — a `BrowserEnvelope` whose plaintext is
- * `JSON.stringify(response)`.
+ * Persisted shape on disk. The `query` and `response` fields are REPLACED
+ * by `queryEnvelope` / `responseEnvelope` — `BrowserEnvelope`s whose
+ * plaintexts are `JSON.stringify(query)` and `JSON.stringify(response)`.
+ *
+ * The QUERY is encrypted too, not just the response: the prompt is where
+ * the sensitive text originates — emergency questions, incident
+ * descriptions, medical details a worker types in. Leaving it in the clear
+ * defeats the point of encrypting the answer that quotes it back.
  *
  * `encryptionVersion` is the sentinel that distinguishes post-migration
  * records from legacy plaintext ones. Migration reads any record without
@@ -135,7 +140,7 @@ export interface QueuedSession {
  */
 interface EncryptedRecord {
   id: string;
-  query: SLMQuery;
+  queryEnvelope: BrowserEnvelope;
   responseEnvelope: BrowserEnvelope;
   createdAt: number;
   reconciled: boolean;
@@ -296,7 +301,9 @@ function isEncryptedRecord(r: StoredRecord): r is EncryptedRecord {
   return (
     r.encryptionVersion === ENCRYPTION_VERSION &&
     typeof r.responseEnvelope === 'object' &&
-    r.responseEnvelope !== null
+    r.responseEnvelope !== null &&
+    typeof r.queryEnvelope === 'object' &&
+    r.queryEnvelope !== null
   );
 }
 
@@ -328,9 +335,11 @@ export async function enqueueSession(
     canonicalForHmac({ id, query, response, createdAt }),
   );
 
-  // Encrypt response → envelope.
+  // Encrypt query + response → envelopes.
+  let queryEnvelope: BrowserEnvelope;
   let responseEnvelope: BrowserEnvelope;
   try {
+    queryEnvelope = await encryptEnvelope(JSON.stringify(query), kek, id);
     responseEnvelope = await encryptEnvelope(JSON.stringify(response), kek, id);
   } catch (err) {
     throw asUnavailable('BAD_ENVELOPE', err);
@@ -338,7 +347,7 @@ export async function enqueueSession(
 
   const record: EncryptedRecord = {
     id,
-    query,
+    queryEnvelope,
     responseEnvelope,
     createdAt,
     reconciled: false,
@@ -386,28 +395,33 @@ async function decryptOne(
     );
   }
   try {
+    validateEnvelope(record.queryEnvelope);
     validateEnvelope(record.responseEnvelope);
   } catch (err) {
     throw asUnavailable('BAD_ENVELOPE', err);
   }
-  let plaintext: string;
+  let queryPlaintext: string;
+  let responsePlaintext: string;
   try {
-    plaintext = await decryptEnvelope(record.responseEnvelope, kek);
+    queryPlaintext = await decryptEnvelope(record.queryEnvelope, kek);
+    responsePlaintext = await decryptEnvelope(record.responseEnvelope, kek);
   } catch (err) {
     // Preserve the underlying `DECRYPT_FAIL` semantic — the caller may
     // want to drop the record + raise a Sentry alert (tamper signal)
     // rather than retry.
     throw asUnavailable('BAD_ENVELOPE', err);
   }
+  let query: SLMQuery;
   let response: SLMResponse;
   try {
-    response = JSON.parse(plaintext) as SLMResponse;
+    query = JSON.parse(queryPlaintext) as SLMQuery;
+    response = JSON.parse(responsePlaintext) as SLMResponse;
   } catch (err) {
     throw asUnavailable('BAD_RECORD', err);
   }
   return {
     id: record.id,
-    query: record.query,
+    query,
     response,
     createdAt: record.createdAt,
     reconciled: record.reconciled,
@@ -550,18 +564,20 @@ export async function migrateLegacyQueueEntries(): Promise<MigrationResult> {
       continue;
     }
     try {
-      const envelope = await encryptEnvelope(
-        JSON.stringify(rec.response),
-        kek,
-        rec.id,
-      );
+      const [queryEnvelope, responseEnvelope] = await Promise.all([
+        encryptEnvelope(JSON.stringify(rec.query), kek, rec.id),
+        encryptEnvelope(JSON.stringify(rec.response), kek, rec.id),
+      ]);
+      // `put` REPLACES the whole record, so omitting `query`/`response` is
+      // what actually removes the plaintext from disk — the legacy fields
+      // are not carried over.
       const migrated: EncryptedRecord = {
         id: rec.id,
-        query: rec.query,
         createdAt: rec.createdAt,
         reconciled: rec.reconciled,
         hmac: rec.hmac,
-        responseEnvelope: envelope,
+        queryEnvelope,
+        responseEnvelope,
         encryptionVersion: ENCRYPTION_VERSION,
       };
       await db.put(STORE_NAME, migrated);
