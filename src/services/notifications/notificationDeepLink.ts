@@ -13,11 +13,18 @@
 //     (a drift-guard test pins the SW copy against this module).
 //
 // The `data` map is exactly what the server sends via FCM (string→string,
-// FCM rejects non-string values). Known producers:
-//   • SOS:        { projectId, alertId, type: 'sos', uid }   emergency.ts
-//   • Emergency:  { projectId, emergencyType, timestamp }    emergency.ts
-//   • Incident:   { projectId, incidentId, ... }             background triggers
-//   • Other/soft: { projectId, nodeId }                      knowledge/system
+// FCM rejects non-string values). Verified producers (file:line):
+//   • SOS:       { projectId, alertId, type: 'sos', uid }   emergency.ts:325
+//   • Emergency: { projectId, emergencyType, timestamp }    emergency.ts:504
+//   • Critical incident: { projectId, nodeId }              backgroundTriggers.ts:309
+//     (nodeId is a `nodes` doc — the incident node IncidentBundle is keyed by)
+//
+// Route targets are the screens that actually CONSUME each id:
+//   • SOS / emergency  → /emergencia-avanzada (subscribes to
+//     tenants/{tid}/emergency_alerts + emergency_events; EmergenciaAvanzada.tsx).
+//     NOT /emergency — that page is a planning dashboard that reads no alertId.
+//   • incident node    → /incidents/{nodeId}/bundle (IncidentBundle.tsx keys its
+//     bundle + photo-evidence queries off this id).
 
 export interface ResolvedNotificationLink {
   /**
@@ -74,23 +81,25 @@ export function resolveNotificationDeepLink(
   const alertId = str(data.alertId);
   if (data.type === 'sos' || alertId) {
     return {
-      url: withQuery('/emergency', [['alertId', alertId], project, source]),
+      url: withQuery('/emergencia-avanzada', [['alertId', alertId], project, source]),
       projectId,
     };
   }
 
   // Automatic emergency (climate / geofence / hazmat zone) — carries a type
-  // but no per-alert document id.
+  // but no per-alert document id. Same dashboard as SOS.
   const emergencyType = str(data.emergencyType);
   if (emergencyType) {
     return {
-      url: withQuery('/emergency', [['emergencyType', emergencyType], project, source]),
+      url: withQuery('/emergencia-avanzada', [['emergencyType', emergencyType], project, source]),
       projectId,
     };
   }
 
-  // Incident notification — open that incident's bundle by id.
-  const incidentId = str(data.incidentId);
+  // Critical-incident notification — open that incident node's evidence bundle.
+  // The server sends `nodeId` (a `nodes` doc); `incidentId` is accepted as a
+  // forward-compatible alias. IncidentBundle keys its queries off this id.
+  const incidentId = str(data.nodeId) ?? str(data.incidentId);
   if (incidentId) {
     return {
       url: withQuery(`/incidents/${encodeURIComponent(incidentId)}/bundle`, [project, source]),

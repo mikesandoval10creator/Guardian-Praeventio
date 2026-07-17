@@ -70,6 +70,16 @@ vi.mock('../contexts/FirebaseContext', () => ({
   }),
 }));
 
+// Deep-link plumbing: the page reads ?query via useSearchParams and realigns
+// the project via useDeepLinkProjectSync (unit-tested separately). Neutralize
+// both so this de-fabrication suite stays focused on its own concern.
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [new URLSearchParams('')],
+}));
+vi.mock('../hooks/useDeepLinkProjectSync', () => ({
+  useDeepLinkProjectSync: () => ({ status: 'idle', targetProjectId: null }),
+}));
+
 // The component calls useSeismicMonitor(lat, lng); the mock ignores the args
 // (no test asserts them) — a plain zero-arg call keeps tsc happy (TS2556:
 // spreading unknown[] into the zero-arg vi.fn is not assignable).

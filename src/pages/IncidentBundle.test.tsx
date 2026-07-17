@@ -41,6 +41,12 @@ let mockUseBundle: {
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
 }));
+// The deep-link project realignment is unit-tested in useDeepLinkProjectSync.test;
+// here we neutralize it so these render tests stay focused on the bundle wrapper.
+const mockProjectSyncStatus = 'idle';
+vi.mock('../hooks/useDeepLinkProjectSync', () => ({
+  useDeepLinkProjectSync: () => ({ status: mockProjectSyncStatus, targetProjectId: null }),
+}));
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));

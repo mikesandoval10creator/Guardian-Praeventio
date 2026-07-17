@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { resolveNotificationDeepLink } from './notificationDeepLink';
 
 describe('resolveNotificationDeepLink', () => {
-  it('routes an SOS alert to the emergency screen carrying alertId + projectId', () => {
+  it('routes an SOS alert to the emergency dashboard carrying alertId + projectId', () => {
     const { url, projectId } = resolveNotificationDeepLink({
       projectId: 'proj-1',
       alertId: 'alert-9',
@@ -19,42 +19,49 @@ describe('resolveNotificationDeepLink', () => {
       uid: 'user-7',
     });
     expect(projectId).toBe('proj-1');
-    // path is the emergency screen
-    expect(url.startsWith('/emergency?')).toBe(true);
+    // The screen that actually subscribes to emergency_alerts — NOT /emergency.
+    expect(url.startsWith('/emergencia-avanzada?')).toBe(true);
     const qs = new URLSearchParams(url.split('?')[1]);
     expect(qs.get('alertId')).toBe('alert-9');
     expect(qs.get('projectId')).toBe('proj-1');
     expect(qs.get('source')).toBe('push');
   });
 
-  it('routes a climate/geofence emergency (emergencyType) to the emergency screen', () => {
+  it('routes a climate/geofence emergency (emergencyType) to the emergency dashboard', () => {
     const { url } = resolveNotificationDeepLink({
       projectId: 'proj-2',
       emergencyType: 'hazmat_zone',
       timestamp: '2026-07-17T00:00:00.000Z',
     });
-    expect(url.startsWith('/emergency?')).toBe(true);
+    expect(url.startsWith('/emergencia-avanzada?')).toBe(true);
     const qs = new URLSearchParams(url.split('?')[1]);
     expect(qs.get('emergencyType')).toBe('hazmat_zone');
     expect(qs.get('projectId')).toBe('proj-2');
     expect(qs.get('source')).toBe('push');
   });
 
-  it('routes an incident notification to that incident bundle by ID', () => {
+  it('routes a critical-incident notification (nodeId) to that incident bundle', () => {
+    // This is the ACTUAL payload backgroundTriggers.ts:309 emits.
     const { url, projectId } = resolveNotificationDeepLink({
       projectId: 'proj-3',
-      incidentId: 'inc-42',
+      nodeId: 'node-42',
     });
     expect(projectId).toBe('proj-3');
-    expect(url.startsWith('/incidents/inc-42/bundle')).toBe(true);
+    expect(url.startsWith('/incidents/node-42/bundle')).toBe(true);
     const qs = new URLSearchParams(url.split('?')[1] ?? '');
+    expect(qs.get('projectId')).toBe('proj-3');
     expect(qs.get('source')).toBe('push');
+  });
+
+  it('accepts incidentId as a forward-compatible alias for the incident bundle', () => {
+    const { url } = resolveNotificationDeepLink({ projectId: 'p', incidentId: 'inc-42' });
+    expect(url.startsWith('/incidents/inc-42/bundle')).toBe(true);
   });
 
   it('falls back to a safe in-app screen for unknown/soft notifications', () => {
     const { url, projectId } = resolveNotificationDeepLink({
       projectId: 'proj-4',
-      nodeId: 'node-1',
+      someUnknownField: 'x',
     });
     // Unknown type must never crash nor open the wrong emergency.
     expect(url.startsWith('/notifications')).toBe(true);
@@ -78,7 +85,7 @@ describe('resolveNotificationDeepLink', () => {
       alertId: 'https://evil.example/steal',
       type: 'sos',
     });
-    expect(url.startsWith('/emergency')).toBe(true);
+    expect(url.startsWith('/emergencia-avanzada')).toBe(true);
     expect(/^https?:\/\//i.test(url)).toBe(false);
     // the hostile value is carried only as an encoded query param
     const qs = new URLSearchParams(url.split('?')[1]);

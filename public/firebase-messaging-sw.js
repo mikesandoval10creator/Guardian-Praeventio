@@ -41,18 +41,37 @@ function resolveNotificationDeepLinkPath(data) {
   var project = ['projectId', projectId];
   var alertId = typeof d.alertId === 'string' && d.alertId ? d.alertId : '';
   if (d.type === 'sos' || alertId) {
-    return '/emergency' + qs([['alertId', alertId], project, source]);
+    return '/emergencia-avanzada' + qs([['alertId', alertId], project, source]);
   }
   var emergencyType =
     typeof d.emergencyType === 'string' && d.emergencyType ? d.emergencyType : '';
   if (emergencyType) {
-    return '/emergency' + qs([['emergencyType', emergencyType], project, source]);
+    return '/emergencia-avanzada' + qs([['emergencyType', emergencyType], project, source]);
   }
-  var incidentId = typeof d.incidentId === 'string' && d.incidentId ? d.incidentId : '';
+  var incidentId =
+    typeof d.nodeId === 'string' && d.nodeId
+      ? d.nodeId
+      : typeof d.incidentId === 'string' && d.incidentId
+        ? d.incidentId
+        : '';
   if (incidentId) {
     return '/incidents/' + encodeURIComponent(incidentId) + '/bundle' + qs([project, source]);
   }
   return '/notifications' + qs([project, source]);
+}
+
+// Firebase auto-displays "notification" messages and stashes the ORIGINAL
+// payload under Notification.data.FCM_MSG; our own onBackgroundMessage sets
+// data directly. Unwrap either shape so the resolver always sees projectId /
+// alertId / nodeId regardless of which copy the user tapped.
+function unwrapNotificationData(raw) {
+  if (raw && typeof raw === 'object') {
+    if (raw.FCM_MSG && raw.FCM_MSG.data && typeof raw.FCM_MSG.data === 'object') {
+      return raw.FCM_MSG.data;
+    }
+    return raw;
+  }
+  return {};
 }
 
 // [P1][VIDA] notificationclick — WITHOUT this, tapping a critical push in the
@@ -61,7 +80,7 @@ function resolveNotificationDeepLinkPath(data) {
 // when no notifications exist, and independent of the FCM-init guard below.
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  var data = (event.notification && event.notification.data) || {};
+  var data = unwrapNotificationData(event.notification && event.notification.data);
   var path = resolveNotificationDeepLinkPath(data);
   event.waitUntil(
     self.clients

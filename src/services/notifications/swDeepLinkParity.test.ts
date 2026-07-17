@@ -18,19 +18,18 @@ const swPath = path.resolve(
   '../../../public/firebase-messaging-sw.js',
 );
 
-/** Pull the inlined `resolveNotificationDeepLinkPath` out of the SW file and
+/** Pull a named top-level `function <name>(...) { ... }` out of the SW file and
  *  build a callable from it (the SW's top-level `importScripts` can't run in
  *  Node, so we can't just require the whole file). */
-function loadSwResolver(): (data: unknown) => string {
+function loadSwFunction<T>(name: string): T {
   const src = readFileSync(swPath, 'utf8');
-  const match = src.match(
-    /function resolveNotificationDeepLinkPath\(data\) \{[\s\S]*?\n\}/,
-  );
+  const re = new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`);
+  const match = src.match(re);
   if (!match) {
-    throw new Error('resolveNotificationDeepLinkPath not found in service worker');
+    throw new Error(`${name} not found in service worker`);
   }
-  const factory = new Function(`${match[0]}\nreturn resolveNotificationDeepLinkPath;`);
-  return factory() as (data: unknown) => string;
+  const factory = new Function(`${match[0]}\nreturn ${name};`);
+  return factory() as T;
 }
 
 const CASES: Array<Record<string, string>> = [
@@ -43,9 +42,38 @@ const CASES: Array<Record<string, string>> = [
 ];
 
 describe('service worker deep-link parity', () => {
-  const swResolve = loadSwResolver();
+  const swResolve = loadSwFunction<(data: unknown) => string>(
+    'resolveNotificationDeepLinkPath',
+  );
 
   it.each(CASES)('SW path matches TS contract for %o', (data) => {
     expect(swResolve(data)).toBe(resolveNotificationDeepLink(data).url);
+  });
+});
+
+describe('service worker unwrapNotificationData', () => {
+  const unwrap = loadSwFunction<(raw: unknown) => Record<string, string>>(
+    'unwrapNotificationData',
+  );
+  const swResolve = loadSwFunction<(data: unknown) => string>(
+    'resolveNotificationDeepLinkPath',
+  );
+
+  it('unwraps Firebase auto-display FCM_MSG so the resolver sees the real data', () => {
+    const original = { projectId: 'p1', alertId: 'a1', type: 'sos' };
+    const wrapped = { FCM_MSG: { data: original } };
+    expect(unwrap(wrapped)).toEqual(original);
+    // and the resolved path matches the TS contract for the unwrapped data
+    expect(swResolve(unwrap(wrapped))).toBe(resolveNotificationDeepLink(original).url);
+  });
+
+  it('passes raw (already-unwrapped) data through untouched', () => {
+    const raw = { projectId: 'p2', nodeId: 'n9' };
+    expect(unwrap(raw)).toEqual(raw);
+  });
+
+  it('returns an empty object for missing/invalid data', () => {
+    expect(unwrap(undefined)).toEqual({});
+    expect(unwrap(null)).toEqual({});
   });
 });

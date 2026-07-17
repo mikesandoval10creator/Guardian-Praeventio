@@ -49,6 +49,16 @@ vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: { uid: 'u1', email: 'u1@test.com' }, isAdmin: true }),
 }));
 
+// Deep-link plumbing: configurable ?query and a neutralized realignment hook
+// (its own logic is unit-tested in useDeepLinkProjectSync.test).
+let mockSearchParams = new URLSearchParams('');
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [mockSearchParams],
+}));
+vi.mock('../hooks/useDeepLinkProjectSync', () => ({
+  useDeepLinkProjectSync: () => ({ status: 'idle', targetProjectId: null }),
+}));
+
 vi.mock('../hooks/useAcousticSOS', () => ({
   useAcousticSOS: () => ({ isActive: false, start: vi.fn(), stop: vi.fn() }),
 }));
@@ -122,6 +132,9 @@ const sosDoc = (
 beforeEach(() => {
   snapshotHandlers.clear();
   mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA' };
+  mockSearchParams = new URLSearchParams('');
+  // jsdom doesn't implement scrollIntoView; the deep-link focus effect calls it.
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
@@ -149,6 +162,19 @@ describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
     expect(screen.getByText('a1@faena.cl')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Ver ubicación' }) as HTMLAnchorElement;
     expect(link.href).toContain('google.com/maps?q=-33.45,-70.66');
+  });
+
+  it('highlights the deep-linked SOS row when arrived from a push (?alertId)', () => {
+    mockSearchParams = new URLSearchParams('alertId=a2&source=push');
+    render(<EmergenciaAvanzada />);
+    const push = snapshotHandlers.get('tenants/tA/emergency_alerts');
+    act(() => push!({ docs: [sosDoc('a1'), sosDoc('a2', { geo: null })] }));
+
+    const focused = screen
+      .getAllByTestId('sos-alert-row')
+      .filter((r) => r.getAttribute('data-focused') === 'true');
+    expect(focused).toHaveLength(1);
+    expect(focused[0].textContent).toContain('a2@faena.cl');
   });
 
   it('filters stale alerts (>24 h) and hides the banner when nothing is recent', () => {

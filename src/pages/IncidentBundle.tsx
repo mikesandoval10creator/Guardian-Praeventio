@@ -17,6 +17,7 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Folder, WifiOff, FileQuestion } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useDeepLinkProjectSync } from '../hooks/useDeepLinkProjectSync';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useIncidentBundle } from '../hooks/useIncidentBundle';
 import { IncidentEvidenceBundleCard } from '../components/incidentBundle/IncidentEvidenceBundleCard';
@@ -33,6 +34,10 @@ import { logger } from '../utils/logger';
 export function IncidentBundle() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  // [P1][VIDA] When reached from a push notification for another project,
+  // realign the active project BEFORE querying the bundle — otherwise the
+  // bundle is fetched against the wrong project and never found.
+  const { status: projectSyncStatus } = useDeepLinkProjectSync();
   const isOnline = useOnlineStatus();
   const { incidentId } = useParams<{ incidentId: string }>();
   const projectId = selectedProject?.id ?? null;
@@ -92,6 +97,31 @@ export function IncidentBundle() {
             {t(
               'incidentBundle.page.noId',
               'Falta el ID del incidente en la URL.',
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (projectSyncStatus === 'not-member') {
+    return (
+      <div
+        className="flex-1 w-full p-4 sm:p-6 max-w-4xl mx-auto"
+        data-testid="incident-bundle-page-not-member"
+      >
+        <div className="rounded-2xl border border-default-token bg-surface p-8 text-center">
+          <FileQuestion
+            className="w-12 h-12 mx-auto mb-4 text-secondary-token"
+            aria-hidden="true"
+          />
+          <h1 className="text-lg font-black text-primary-token uppercase tracking-tight">
+            {t('incidentBundle.page.title', 'Expediente de incidente')}
+          </h1>
+          <p className="mt-2 text-sm text-secondary-token">
+            {t(
+              'incidentBundle.page.notMember',
+              'Este incidente pertenece a un proyecto al que ya no tienes acceso.',
             )}
           </p>
         </div>
