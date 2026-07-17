@@ -4690,6 +4690,7 @@
     "page": {
       "error": "Could not build the case file: {{msg}}",
       "noId": "The incident ID is missing from the URL.",
+      "notMember": "This incident belongs to a project you no longer have access to.",
       "selectProject": "Select a project to build the case file.",
       "subtitle": "Automatic bundle for regulatory inspection · Incident {{id}}",
       "title": "Incident case file"

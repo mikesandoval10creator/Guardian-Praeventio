@@ -16,6 +16,26 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { resolveNotificationDeepLink } from '../services/notifications/notificationDeepLink';
+import { DEEP_LINK_EVENT_NAME } from '../components/shared/DeepLinkHandler';
+
+/**
+ * Turn a tapped push notification into an in-app navigation. Reuses the same
+ * `praeventio:deep-link` CustomEvent bridge that native Universal/App Links
+ * use, so <DeepLinkHandler> performs the authenticated React Router navigation
+ * (and its project-mismatch fallback) from one place. Total + defensive: a
+ * malformed payload resolves to the safe fallback rather than throwing inside
+ * the native event callback.
+ */
+export function dispatchNotificationDeepLink(
+  data: Record<string, string> | undefined | null,
+): void {
+  if (typeof window === 'undefined') return;
+  const { url, projectId } = resolveNotificationDeepLink(data);
+  window.dispatchEvent(
+    new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url, projectId } }),
+  );
+}
 
 export interface RegisterTokenDeps {
   /** Resolves the Firebase ID token for the current user, or null if unauth. */
@@ -167,14 +187,11 @@ export function usePushNotifications() {
           logger.error('Push registration error', { error });
           setRegistrationError('native_registration_error');
         });
-
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          logger.debug('Push notification received', { notification });
-        });
-
-        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          logger.debug('Push action performed', { notification });
-        });
+        // NOTE: the tap handler (`pushNotificationActionPerformed`) is NOT
+        // registered here. It is installed on mount (see effect below) so it
+        // survives launches where permission is already granted and
+        // requestPermission() is never called — otherwise a notification that
+        // cold-starts the app would have no handler.
       } else {
         const messaging = await getMessagingInstance();
         if (!messaging) {
@@ -234,20 +251,55 @@ export function usePushNotifications() {
     let unsubscribe: (() => void) | undefined;
 
     const setupMessaging = async () => {
-      if (!Capacitor.isNativePlatform()) {
-        const messaging = await getMessagingInstance();
-        if (!messaging) return;
-
-        unsubscribe = onMessage(messaging, (payload) => {
-          logger.debug('FCM message received', { payload });
-          if (payload.notification) {
-            new Notification(payload.notification.title || 'New Notification', {
-              body: payload.notification.body,
-              icon: '/vite.svg',
-            });
+      if (Capacitor.isNativePlatform()) {
+        // [P1][VIDA] Install the tap handler at mount, independent of the
+        // permission-request flow, so a notification that cold-starts or
+        // resumes the app (permission already granted, requestPermission never
+        // called) still navigates to the referenced emergency.
+        await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          logger.debug('Push notification received', { notification });
+        });
+        await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+          logger.debug('Push action performed', { action });
+          try {
+            const data = (action?.notification?.data ?? undefined) as
+              | Record<string, string>
+              | undefined;
+            dispatchNotificationDeepLink(data);
+          } catch (err) {
+            logger.warn('Push action deep-link dispatch failed', { err });
           }
         });
+        return;
       }
+
+      const messaging = await getMessagingInstance();
+      if (!messaging) return;
+
+      unsubscribe = onMessage(messaging, (payload) => {
+        logger.debug('FCM message received', { payload });
+        // [P1][VIDA] Foreground web push: the SW's notificationclick does NOT
+        // fire for a page-level Notification, so carry `payload.data` and wire
+        // an onclick that deep-links through the same resolver. Without this a
+        // tapped foreground notification was a no-op.
+        if (payload.notification && typeof Notification !== 'undefined') {
+          const n = new Notification(payload.notification.title || 'Praeventio Guard', {
+            body: payload.notification.body,
+            icon: '/icon.svg',
+            data: payload.data,
+          });
+          n.onclick = (ev) => {
+            ev.preventDefault();
+            try {
+              window.focus();
+            } catch {
+              /* focus may throw in some browsers — navigation still proceeds */
+            }
+            dispatchNotificationDeepLink(payload.data as Record<string, string> | undefined);
+            n.close();
+          };
+        }
+      });
     };
 
     setupMessaging();

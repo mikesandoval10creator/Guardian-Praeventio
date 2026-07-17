@@ -6,9 +6,11 @@ import {
   CheckCircle2, ArrowRight, Send, Loader2, UserCheck, UserX,
   Zap, Clock, RefreshCw, XCircle, Mic, MicOff,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { useAcousticSOS } from "../hooks/useAcousticSOS";
 import { Card } from "../components/shared/Card";
 import { useProject } from "../contexts/ProjectContext";
+import { useDeepLinkProjectSync } from "../hooks/useDeepLinkProjectSync";
 import { useFirebase } from "../contexts/FirebaseContext";
 import { useSeismicMonitor, Earthquake } from "../hooks/useSeismicMonitor";
 import { useFirestoreCollection } from "../hooks/useFirestoreCollection";
@@ -68,6 +70,14 @@ interface ChatMessage {
 export function EmergenciaAvanzada() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  // [P1][VIDA] When reached from a push notification for another faena, select
+  // that project before the SOS/alerts listeners bind — otherwise the
+  // supervisor sees the wrong project's emergencies.
+  useDeepLinkProjectSync();
+  const [searchParams] = useSearchParams();
+  // The specific SOS this notification was about (deep link ?alertId=...).
+  const focusedAlertId = searchParams.get('alertId');
+  const focusedAlertRef = useRef<HTMLDivElement | null>(null);
   const { user, isAdmin } = useFirebase();
   const [activeTab, setActiveTab] = useState<"map" | "comms" | "resources">("map");
   const [chatInput, setChatInput] = useState("");
@@ -229,6 +239,15 @@ export function EmergenciaAvanzada() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // [P1][VIDA] Scroll the deep-linked SOS into view once it arrives in the
+  // (async) alerts snapshot, so the supervisor lands directly on the person
+  // who triggered it instead of scanning the list.
+  useEffect(() => {
+    if (!focusedAlertId) return;
+    if (!sosAlerts.some((a) => a.id === focusedAlertId)) return;
+    focusedAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusedAlertId, sosAlerts]);
 
   const triggerEmergency = async () => {
     if (!selectedProject || !user) return;
@@ -468,11 +487,19 @@ export function EmergenciaAvanzada() {
               </span>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {sosAlerts.map(a => (
+              {sosAlerts.map(a => {
+                const isFocused = focusedAlertId === a.id;
+                return (
                 <div
                   key={a.id}
+                  ref={isFocused ? focusedAlertRef : undefined}
                   data-testid="sos-alert-row"
-                  className="p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 flex items-center justify-between gap-3"
+                  data-focused={isFocused ? 'true' : undefined}
+                  className={`p-2.5 rounded-lg bg-rose-500/5 border flex items-center justify-between gap-3 ${
+                    isFocused
+                      ? 'border-rose-500 ring-2 ring-rose-500/60'
+                      : 'border-rose-500/20'
+                  }`}
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-primary-token truncate">
@@ -491,7 +518,8 @@ export function EmergenciaAvanzada() {
                     </a>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}

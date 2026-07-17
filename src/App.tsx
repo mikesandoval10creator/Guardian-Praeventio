@@ -41,6 +41,11 @@ const AppRoutes = lazy(() => import('./AppRoutes'));
  */
 function computeSkipLanding(): boolean {
   return (
+    // [P1][VIDA] A cold notification tap opens a fresh window at the deep link
+    // (e.g. /emergencia-avanzada?...&source=push). Without this, prod boots
+    // with hasEntered=false and renders LandingPage instead of the emergency.
+    // Every push deep link carries `source=push`, so scope the bypass to that.
+    window.location.search.includes('source=push') ||
     window.location.pathname.startsWith('/invite') ||
     window.location.pathname.startsWith('/public') ||
     window.location.pathname.startsWith('/curriculum/referee') ||

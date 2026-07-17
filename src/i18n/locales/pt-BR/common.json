@@ -4690,6 +4690,7 @@
     "page": {
       "error": "Não foi possível montar o dossiê: {{msg}}",
       "noId": "Falta o ID do incidente na URL.",
+      "notMember": "Este incidente pertence a um projeto ao qual você não tem mais acesso.",
       "selectProject": "Selecione um projeto para montar o dossiê.",
       "subtitle": "Pacote automático para fiscalização · Incidente {{id}}",
       "title": "Dossiê do incidente"

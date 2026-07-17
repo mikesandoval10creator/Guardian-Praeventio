@@ -4690,6 +4690,7 @@
     "page": {
       "error": "No se pudo construir el expediente: {{msg}}",
       "noId": "Falta el ID del incidente en la URL.",
+      "notMember": "Este incidente pertenece a un proyecto al que ya no tienes acceso.",
       "selectProject": "Selecciona un proyecto para construir el expediente.",
       "subtitle": "Bundle automático para fiscalización · Incidente {{id}}",
       "title": "Expediente de incidente"
