@@ -295,21 +295,33 @@ export function setupBackgroundTriggers(
               }
               const tokens = Array.from(tokenSet);
 
-              if (tokens.length === 0) {
-                await complete();
-                return;
+              // [P0][VIDA] Delivery verification. `sendEachForMulticast`
+              // RESOLVES even when every token is stale/unregistered — it
+              // reports per-token failures in the BatchResponse, it does NOT
+              // throw. Completing the claim on a resolved-but-undelivered send
+              // left the alert permanently `_criticalAlertSentAt` and never
+              // retried (nobody was told a worker was in danger). Count real
+              // deliveries, use the CPHS email as a second channel below, and
+              // only complete() when at least ONE channel reached a human;
+              // otherwise throw so the catch releases the claim for a later
+              // snapshot / lease-expiry retry. A supervisor with an email but
+              // no push token (tokens.length === 0) must still get the email —
+              // hence no early complete() here.
+              let fcmSuccess = 0;
+              if (tokens.length > 0) {
+                const fcmResult = await messaging.sendEachForMulticast({
+                  tokens,
+                  notification: {
+                    title: `⚠️ Incidente ${data.metadata?.severity || 'Crítico'}`,
+                    body: `${data.title || 'Nuevo incidente'} — ${data.metadata?.location || 'Ver detalles en la app'}`,
+                  },
+                  data: { projectId: data.projectId, nodeId: change.doc.id },
+                  android: { priority: 'high' },
+                });
+                fcmSuccess = fcmResult?.successCount ?? 0;
               }
 
-              await messaging.sendEachForMulticast({
-                tokens,
-                notification: {
-                  title: `⚠️ Incidente ${data.metadata?.severity || 'Crítico'}`,
-                  body: `${data.title || 'Nuevo incidente'} — ${data.metadata?.location || 'Ver detalles en la app'}`,
-                },
-                data: { projectId: data.projectId, nodeId: change.doc.id },
-                android: { priority: 'high' },
-              });
-
+              let emailDelivered = false;
               const emailRecipients = tokenDocs
                 .map((d) => d.data()?.email as string | undefined)
                 .filter((e): e is string => !!e && e.includes('@'));
@@ -335,17 +347,36 @@ export function setupBackgroundTriggers(
                   timeZone: 'America/Santiago',
                 });
                 const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5"><div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)"><div style="background:#09090b;padding:24px 32px"><span style="font-size:20px;font-weight:900;color:#10b981">GUARDIAN</span><span style="font-size:20px;font-weight:900;color:#fff"> PRAEVENTIO</span></div><div style="padding:32px"><div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px"><span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase">⚠ Alerta CPHS — ${severity}</span></div><h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${data.title || 'Nuevo incidente crítico'}</h2><p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${data.description || ''}</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;font-weight:600">${projectName}</td></tr><tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;font-weight:600">${date}</td></tr></table><p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Aviso automático generado por Guardian Praeventio para el Comité Paritario.</p></div></div></body></html>`;
-                await resend.emails
+                emailDelivered = await resend.emails
                   .send({
                     from: 'Praeventio Guard <noreply@praeventio.net>',
                     to: emailRecipients,
                     subject: `[CPHS ${projectName}] Incidente ${severity}: ${data.title || 'Nuevo incidente'}`,
                     html,
                   })
-                  .catch((e: unknown) =>
-                    logger.warn('cphs_email_delivery_failed', { err: e instanceof Error ? e.message : String(e) }),
-                  );
+                  .then(() => true)
+                  .catch((e: unknown) => {
+                    logger.warn('cphs_email_delivery_failed', { err: e instanceof Error ? e.message : String(e) });
+                    return false;
+                  });
               }
+
+              // ponytail: no attempt cap — for life-safety we keep retrying
+              // (each failure is Sentry-captured in the catch) rather than
+              // ever marking an undelivered critical alert as sent. Add a cap
+              // + operator escalation only if retry noise becomes a real problem.
+              if (fcmSuccess === 0 && !emailDelivered) {
+                throw new Error(
+                  `critical_alert_undelivered nodeId=${change.doc.id} fcm=${fcmSuccess}/${tokens.length} email=${emailDelivered}`,
+                );
+              }
+
+              logger.info('critical_alert_delivered', {
+                nodeId: change.doc.id,
+                fcmDelivered: fcmSuccess,
+                fcmAttempted: tokens.length,
+                emailDelivered,
+              });
               await complete();
             } catch (err) {
               logger.error('fcm_push_failed', err, { trigger: 'criticalIncidentNotify' });

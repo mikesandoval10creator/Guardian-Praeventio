@@ -328,6 +328,134 @@ describe('setupBackgroundTriggers', () => {
     );
   });
 
+  // [P0][VIDA] Delivery verification. sendEachForMulticast RESOLVES even when
+  // every token is stale/unregistered (per-token failures live in the
+  // BatchResponse, it does NOT throw). Marking _criticalAlertSentAt on a
+  // resolved-but-undelivered send left the alert permanently "sent" and never
+  // retried — nobody was told a worker was in danger. These pin the contract:
+  // complete only when at least ONE channel (FCM or CPHS email) reached a human.
+  const criticalSnap = (id: string, ref: any) => ({
+    docChanges: () => [
+      {
+        type: 'added',
+        doc: {
+          id,
+          ref,
+          data: () => ({ metadata: { severity: 'Crítica' }, projectId: 'p1' }),
+        },
+      },
+    ],
+  });
+
+  it('does NOT mark sent and releases for retry when every FCM token fails (no email)', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    messaging.sendEachForMulticast.mockResolvedValue({ successCount: 0, failureCount: 1 });
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { fcmToken: 'tok-dead' } }, // delivery fails, no email on file
+      }),
+      messaging,
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+    });
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    captured.find((c) => c.type === 'incidents')!.next(criticalSnap('n-dead', ref));
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).toHaveBeenCalledTimes(1);
+    const patches = ref.update.mock.calls.map((c) => c[0]);
+    // Never completed:
+    expect(patches.some((p) => '_criticalAlertSentAt' in p)).toBe(false);
+    // Released with the failure reason so a later snapshot/lease-expiry retries:
+    expect(patches.some((p) => '_criticalAlertLastError' in p)).toBe(true);
+  });
+
+  it('marks sent when at least one FCM token succeeds (partial delivery)', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    messaging.sendEachForMulticast.mockResolvedValue({ successCount: 1, failureCount: 1 });
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { fcmTokens: ['tok-ok', 'tok-dead'] } },
+      }),
+      messaging,
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+    });
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    captured.find((c) => c.type === 'incidents')!.next(criticalSnap('n-partial', ref));
+    await new Promise((r) => setImmediate(r));
+
+    const patches = ref.update.mock.calls.map((c) => c[0]);
+    expect(patches.some((p) => p._criticalAlertSentAt === '__SERVER_TS__')).toBe(true);
+  });
+
+  it('falls back to the CPHS email and marks sent when a supervisor has no push token', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    const resend = makeFakeResend(); // send resolves
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { email: 'sup@obra.cl' } }, // email only, no push token
+        projects: { p1: { name: 'Obra Norte' } },
+      }),
+      messaging,
+      resend,
+      firestoreNamespace: fakeFirestoreNamespace,
+      resendApiKey: 'test-key',
+    });
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    captured.find((c) => c.type === 'incidents')!.next(criticalSnap('n-email', ref));
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).not.toHaveBeenCalled(); // no tokens to send to
+    expect(resend.emails.send).toHaveBeenCalledTimes(1);
+    const patches = ref.update.mock.calls.map((c) => c[0]);
+    expect(patches.some((p) => p._criticalAlertSentAt === '__SERVER_TS__')).toBe(true);
+  });
+
+  it('does NOT mark sent when there are no push tokens and the email fails', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    const resend = makeFakeResend();
+    resend.emails.send.mockRejectedValue(new Error('resend 500'));
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [{ id: 'u1', role: 'supervisor' }],
+        users: { u1: { email: 'sup@obra.cl' } },
+        projects: { p1: { name: 'Obra Norte' } },
+      }),
+      messaging,
+      resend,
+      firestoreNamespace: fakeFirestoreNamespace,
+      resendApiKey: 'test-key',
+    });
+    const ref = {
+      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    captured.find((c) => c.type === 'incidents')!.next(criticalSnap('n-noone', ref));
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).not.toHaveBeenCalled();
+    const patches = ref.update.mock.calls.map((c) => c[0]);
+    expect(patches.some((p) => '_criticalAlertSentAt' in p)).toBe(false);
+    expect(patches.some((p) => '_criticalAlertLastError' in p)).toBe(true);
+  });
+
   // AUDIT-2026-06 B19/B23 — mobile push was broken in prod: the app
   // registers device tokens via POST /api/push/register-token, which
   // arrayUnions into users/{uid}.fcmTokens[] (canonical, multi-device),
