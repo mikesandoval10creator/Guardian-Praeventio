@@ -41,7 +41,7 @@ vi.mock('framer-motion', () => ({
   },
 }));
 
-let mockProject: { id: string; name: string; tenantId?: string } | null = null;
+let mockProject: { id: string; name: string; tenantId?: string; country?: string } | null = null;
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockProject }),
 }));
@@ -190,5 +190,17 @@ describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
 
     act(() => push!({ docs: [] }));
     expect(screen.queryByTestId('sos-alerts-banner')).not.toBeInTheDocument();
+  });
+
+  it('shows one-tap authority numbers on the emergency dashboard (region from project)', () => {
+    mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA', country: 'CL' };
+    render(<EmergenciaAvanzada />);
+    const panel = screen.getByTestId('emergency-authority-panel');
+    const hrefs = Array.from(panel.querySelectorAll('a[href^="tel:"]')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(hrefs).toContain('tel:131');
+    expect(hrefs).toContain('tel:132');
+    expect(hrefs).toContain('tel:133');
   });
 });
