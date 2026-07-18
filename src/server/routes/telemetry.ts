@@ -69,6 +69,28 @@ async function lookupTenantIotSecret(tenantId: string): Promise<string | null> {
   }
 }
 
+/**
+ * [P0][seguridad] Does `projectId` belong to `tenantId`? Cryptographic ingest
+ * auth (per-tenant HMAC or the shared env secret) proves the CALLER, not which
+ * PROJECT it may write into — so a device authenticated for tenant A could
+ * otherwise stamp telemetry into tenant B's project (poisoning confined-space
+ * gas gates, evacuation, alerts). Fail-closed: a missing project, a tenant
+ * mismatch, or any error returns false so the caller rejects the write.
+ */
+async function projectBelongsToTenant(
+  projectId: string,
+  tenantId: string,
+): Promise<boolean> {
+  try {
+    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    if (!snap.exists) return false;
+    return snap.data()?.tenantId === tenantId;
+  } catch (err: any) {
+    logger.warn('telemetry_project_lookup_failed', { projectId, tenantId, message: err?.message });
+    return false;
+  }
+}
+
 const router = Router();
 
 router.post('/telemetry/ingest', async (req, res) => {
@@ -184,6 +206,28 @@ router.post('/telemetry/ingest', async (req, res) => {
       ? rawZoneId
       : null;
 
+  // [P0][seguridad] projectId authorization. Authentication proved the caller,
+  // NOT which project it may write into. An explicit projectId must belong to
+  // the request's tenant scope — reject a mismatch (or a specific project with
+  // no tenant scope at all) with 403 so tenant A can't stamp telemetry into
+  // tenant B's project. `global` (or no projectId) stays unscoped as before.
+  const requestedProjectId =
+    typeof projectId === 'string' && projectId.length > 0 && projectId !== 'global'
+      ? projectId
+      : null;
+  if (requestedProjectId) {
+    if (!tenantId) {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: projectId requires a tenant scope' });
+    }
+    if (!(await projectBelongsToTenant(requestedProjectId, tenantId))) {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: project does not belong to this tenant' });
+    }
+  }
+
   try {
     const db = admin.firestore();
 
@@ -201,7 +245,10 @@ router.post('/telemetry/ingest', async (req, res) => {
       status: finalStatus,
       threatLevel,
       aiValidation: validation,
-      projectId: projectId || 'global',
+      projectId: requestedProjectId ?? 'global',
+      // [P0][datos] Stamp the tenant scope so downstream reads/aggregations can
+      // filter by tenant instead of trusting a client-supplied field later.
+      tenantId: tenantId ?? null,
       zoneId,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
