@@ -15,6 +15,7 @@ import { auth } from '../../services/firebase';
 import { analytics } from '../../services/analytics';
 import type { ProcesoTemplate } from '../../services/analytics';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromBody } from '../../lib/humanError';
 
 // NOTE: ProcessType values are stable identifiers persisted to Firestore.
 // Only the display labels are localised via processTypeLabel below.
@@ -101,7 +102,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error ?? `Error ${res.status}`);
+        setError(humanErrorFromBody(j, res.status));
         setSubmitting(false);
         return;
       }

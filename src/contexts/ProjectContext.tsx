@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { humanErrorFromBody } from '../lib/humanError';
 import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
@@ -237,7 +238,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       });
       if (!response.ok) {
         const detail = await response.json().catch(() => ({}));
-        throw new Error((detail as { error?: string }).error ?? `Error ${response.status}`);
+        throw new Error(humanErrorFromBody(detail, response.status));
       }
       const { projectId } = (await response.json()) as { projectId: string };
 

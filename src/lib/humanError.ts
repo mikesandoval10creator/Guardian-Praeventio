@@ -114,23 +114,32 @@ function codeOf(err: unknown): string {
  * Only call when `res.ok` is false — it consumes the body.
  */
 export async function humanErrorFromResponse(res: Response): Promise<string> {
-  let code = '';
-  let serverText = '';
+  let body: unknown = null;
   try {
-    const body: unknown = await res.json();
-    const b = body as { error?: unknown; message?: unknown } | null;
-    if (typeof b?.error === 'string') code = b.error;
-    if (typeof b?.message === 'string') serverText = b.message;
+    body = await res.json();
   } catch {
-    // Empty or non-JSON body — fall through to the status sentence.
+    // Empty or non-JSON body — the status alone drives the message.
   }
+  return humanErrorFromBody(body, res.status);
+}
+
+/**
+ * Same as `humanErrorFromResponse` for callers that ALREADY consumed the body
+ * (the very common `const j = await res.json().catch(() => ({}))` shape). A
+ * Response body can only be read once, so those sites need this entry point.
+ */
+export function humanErrorFromBody(body: unknown, status: number): string {
+  const b = body as { error?: unknown; message?: unknown } | null;
+  const code = typeof b?.error === 'string' ? b.error : '';
+  const serverText = typeof b?.message === 'string' ? b.message : '';
+
   const mapped = MESSAGE_BY_CODE[code];
   if (mapped) return mapped;
   // A server `message` that is already a human sentence is worth showing;
   // a machine token is not.
   if (serverText && !isMachineText(serverText)) return serverText;
   if (code && !isMachineText(code)) return code;
-  return messageByStatus(res.status);
+  return messageByStatus(status);
 }
 
 /**
