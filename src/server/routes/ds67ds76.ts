@@ -22,6 +22,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { callerTenantOr403 } from '../auth/callerTenant.js';
+import { callerHasRegulatoryRole } from '../auth/regulatoryRole.js';
 import { getWebauthnRpId } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -262,6 +263,9 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
   // tenantId is authoritative from the verified token — never the body (B5).
   const tenantId = callerTenantOr403(req, res, validated.tenantId);
   if (tenantId === null) return;
+  // [P0][compliance] Tenant membership is not authorisation — creating a
+  // regulatory filing requires a prevention/management role.
+  if (!callerHasRegulatoryRole(req, res)) return;
   const input = { ...validated, tenantId };
   try {
     const result = await createDs67Form(input, {
@@ -371,6 +375,8 @@ router.post(
       req.validated as z.infer<typeof signSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
+    // [P0][compliance] Signing binds the company's name to the filing.
+    if (!callerHasRegulatoryRole(req, res)) return;
     const callerUid = req.user!.uid;
     try {
       const signature = await completeComplianceWebAuthnSigning({
@@ -424,6 +430,9 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
   // tenantId is authoritative from the verified token — never the body (B5).
   const tenantId = callerTenantOr403(req, res, validated.tenantId);
   if (tenantId === null) return;
+  // [P0][compliance] Tenant membership is not authorisation — creating a
+  // regulatory filing requires a prevention/management role.
+  if (!callerHasRegulatoryRole(req, res)) return;
   const input = { ...validated, tenantId };
   try {
     const result = await createDs76Form(input, {
@@ -526,6 +535,8 @@ router.post(
       req.validated as z.infer<typeof signSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
+    // [P0][compliance] Signing binds the company's name to the filing.
+    if (!callerHasRegulatoryRole(req, res)) return;
     const callerUid = req.user!.uid;
     try {
       const signature = await completeComplianceWebAuthnSigning({

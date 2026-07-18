@@ -38,7 +38,11 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
-    const role = req.header('x-test-role') ?? 'worker';
+    // [P0][compliance] create/sign/submit are now role-gated (regulatory
+    // filings). Default the shim to an AUTHORISED role so the existing
+    // behaviour tests keep exercising the handler; the authz tests set
+    // `x-test-role` explicitly (e.g. 'worker') to assert the 403.
+    const role = req.header('x-test-role') ?? 'prevencionista';
     (req as Request & { user: Record<string, unknown> }).user = {
       uid,
       role,
@@ -742,6 +746,71 @@ describe('POST /api/suseso/form/:id/submit', () => {
     expect(res.status).toBe(400);
     const detail = (res.body as Record<string, unknown>).detail as string;
     expect(detail).toMatch(/unsigned/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// [P0][compliance] Role gate on create / sign / submit.
+// Tenant membership is NOT authorisation: an operario/contratista of the tenant
+// must not be able to file, sign or submit a regulatory document on the
+// company's behalf. (mark-submitted was already gated; these three were not.)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('regulatory role gate — create / sign / submit', () => {
+  const UNAUTHORISED = ['worker', 'operario', 'contratista'];
+
+  for (const role of UNAUTHORISED) {
+    it(`403 forbidden_role creating a form as "${role}"`, async () => {
+      const res = await request(buildApp())
+        .post('/api/suseso/form')
+        .set('x-test-uid', 'u1')
+        .set('x-test-role', role)
+        .send(validFormBody);
+      expect(res.status).toBe(403);
+      expect((res.body as Record<string, unknown>).error).toBe('forbidden_role');
+    });
+  }
+
+  it('403 forbidden_role signing a form as "worker"', async () => {
+    // Payload must PASS signSchema (validate() runs before the handler), so the
+    // 403 proves the ROLE gate rejected it — not the shape validator.
+    const res = await request(buildApp())
+      .post(`/api/suseso/form/${FORM_ID}/sign`)
+      .set('x-test-uid', 'u1')
+      .set('x-test-role', 'worker')
+      .send({
+        tenantId: TENANT,
+        webauthnAssertion: {
+          challengeId: 'ch-1',
+          credentialId: 'cred-1',
+          rawId: 'cmF3SWQ=',
+          clientDataJSON: 'eyJ0eXBlIjoicHVibGljLWtleS1nZXQifQ==',
+          authenticatorData: 'YXV0aERhdGE=',
+          signature: 'd2ViYXV0aG5zaWduZWQ=',
+          type: 'public-key',
+          clientExtensionResults: {},
+        },
+      });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('forbidden_role');
+  });
+
+  it('403 forbidden_role submitting a form as "worker"', async () => {
+    const res = await request(buildApp())
+      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .set('x-test-uid', 'u1')
+      .set('x-test-role', 'worker')
+      .send({ tenantId: TENANT });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('forbidden_role');
+  });
+
+  it('prevencionista (a prevention officer) IS allowed to create', async () => {
+    const res = await request(buildApp())
+      .post('/api/suseso/form')
+      .set('x-test-uid', 'u1')
+      .set('x-test-role', 'prevencionista')
+      .send(validFormBody);
+    expect(res.status).not.toBe(403);
   });
 });
 
