@@ -17,6 +17,7 @@ import type { Process } from '../../types/organic';
 import { computeProcessCloseXp, baseXpForProcessType } from '../../services/organic/processService';
 import { auth } from '../../services/firebase';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromBody } from '../../lib/humanError';
 
 export interface CloseProcessModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error ?? `Error ${res.status}`);
+        setError(humanErrorFromBody(j, res.status));
         setSubmitting(false);
         return;
       }

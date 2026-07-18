@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Users } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromBody } from '../../lib/humanError';
 
 export interface CreateCrewModalProps {
   isOpen: boolean;
@@ -63,7 +64,7 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error ?? `Error ${res.status}`);
+        setError(humanErrorFromBody(j, res.status));
         setSubmitting(false);
         return;
       }
