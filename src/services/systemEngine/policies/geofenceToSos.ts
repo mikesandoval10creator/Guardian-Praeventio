@@ -42,14 +42,6 @@ export const geofenceToSosPolicy: Policy<'geofence_crossed'> = {
           reason: `Worker entered ${zoneType} zone "${zoneName}"`,
         },
         {
-          kind: 'notify_contacts',
-          workerId,
-          projectId,
-          channel: ['fcm', 'email'],
-          subject: `[ALERTA ${zoneType}] ${zoneName}`,
-          body: `Trabajador ingresó a zona ${zoneType.toLowerCase()} "${zoneName}". Se ha disparado el protocolo de emergencia.`,
-        },
-        {
           kind: 'audit',
           action: 'systemEngine.geofence_to_sos.escalated',
           resourceId: zoneId,
