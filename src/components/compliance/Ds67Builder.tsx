@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { auth } from '../../services/firebase';
 import { ds67FolioToDocId } from '../../services/compliance/ds67/ds67Service';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { regulatoryErrorMessage } from './regulatoryErrorMessage';
 
 interface BuilderState {
   companyName: string;
@@ -111,7 +112,7 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
         },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await regulatoryErrorMessage(res));
       setResult((await res.json()) as BuilderResult);
       setSigned(false);
     } catch (e) {
@@ -148,7 +149,7 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
           }),
         },
       );
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await regulatoryErrorMessage(res));
       setSigned(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error desconocido');
