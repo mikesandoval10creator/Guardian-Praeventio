@@ -433,7 +433,12 @@ export function EmergenciaAvanzada() {
       {/* [P0][VIDA] One-tap authority call numbers — high on the page so a
           responder sees it immediately, before/alongside the SOS list. */}
       <EmergencyAuthorityCallPanel
-        regionCode={selectedProject?.country ?? 'CL'}
+        regionCode={selectedProject?.country}
+        coords={
+          selectedProject?.coordinates
+            ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
+            : undefined
+        }
         workerCoords={
           focusedAlertId
             ? sosAlerts.find((a) => a.id === focusedAlertId)?.geo ?? null
