@@ -23,9 +23,15 @@ import request from 'supertest';
 
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, _res: Response, next: NextFunction) => {
-    (req as Request & { user: { uid: string; email: string; tenantId?: string } }).user = {
+    (req as Request & {
+      user: { uid: string; email: string; tenantId?: string; role?: string };
+    }).user = {
       uid: 'doctor-uid',
       email: 'doctor@example.com',
+      // [P0][compliance] DS-67/76 create+sign are now role-gated. Default to an
+      // AUTHORISED role so the behaviour tests keep exercising the handler;
+      // authz tests override with x-test-role (e.g. 'worker') to assert 403.
+      role: req.header('x-test-role') ?? 'prevencionista',
       // B5: tenantId now comes from the verified token. Default to the tenant
       // the test bodies use ('t-1'); cross-tenant tests override via header.
       tenantId: req.header('x-test-tenant') ?? 't-1',
@@ -246,6 +252,33 @@ describe('ds67ds76 router — audit failure surfacing (P0 fix, Codex P2 contract
 
 // §2.9 — server-side WebAuthn verification gate. Previously the sign endpoints
 // persisted any client-supplied signatureB64 with NO cryptographic check.
+// [P0][compliance] Creating a DS-67/DS-76 filing is role-gated: an
+// operario/contratista of the tenant must not be able to file on the company's
+// behalf just because they belong to the tenant.
+describe('ds67ds76 router — regulatory role gate on create', () => {
+  for (const [ds, body] of [
+    ['ds67', validDs67Body],
+    ['ds76', validDs76Body],
+  ] as const) {
+    it(`403 forbidden_role creating ${ds} as "worker"`, async () => {
+      const res = await request(buildApp())
+        .post(`/api/compliance/${ds}`)
+        .set('x-test-role', 'worker')
+        .send(body);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('forbidden_role');
+    });
+
+    it(`prevencionista IS allowed to create ${ds}`, async () => {
+      const res = await request(buildApp())
+        .post(`/api/compliance/${ds}`)
+        .set('x-test-role', 'prevencionista')
+        .send(body);
+      expect(res.status).not.toBe(403);
+    });
+  }
+});
+
 describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
   const baseSig = {
     signerUid: 'doctor-uid', // matches the mocked verifyAuth caller
@@ -309,6 +342,18 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
           });
         expect(res.status).toBe(400);
         expect(res.body.error).toBe('invalid_payload');
+        expect(verifyAssertionMock).not.toHaveBeenCalled();
+      });
+
+      // [P0][compliance] Role gate: tenant membership is not authorisation.
+      // Payload PASSES the schema, so a 403 proves the ROLE gate rejected it.
+      it('403 forbidden_role when the caller is a "worker"', async () => {
+        const res = await request(buildApp())
+          .post(url)
+          .set('x-test-role', 'worker')
+          .send({ tenantId: 't-1', webauthnAssertion: assertion });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('forbidden_role');
         expect(verifyAssertionMock).not.toHaveBeenCalled();
       });
 

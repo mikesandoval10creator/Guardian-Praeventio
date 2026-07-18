@@ -21,6 +21,7 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { susesoVerifyLimiter } from '../middleware/limiters.js';
 import { callerTenantOr403 } from '../auth/callerTenant.js';
+import { callerHasRegulatoryRole } from '../auth/regulatoryRole.js';
 import { getWebauthnRpId } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -212,6 +213,9 @@ router.post('/form', verifyAuth, validate(createFormSchema), async (req, res) =>
   // tenantId is authoritative from the verified token — never the body.
   const tenantId = callerTenantOr403(req, res, validated.tenantId);
   if (tenantId === null) return;
+  // [P0][compliance] Tenant membership is not authorisation — creating a
+  // regulatory filing requires a prevention/management role.
+  if (!callerHasRegulatoryRole(req, res)) return;
   const input = { ...validated, tenantId };
   try {
     const result = await createSusesoForm(input, {
@@ -259,6 +263,8 @@ router.post(
       req.validated as z.infer<typeof signSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
+    // [P0][compliance] Signing binds the company's name to the filing.
+    if (!callerHasRegulatoryRole(req, res)) return;
     const callerUid = req.user!.uid;
     try {
       const signature = await completeComplianceWebAuthnSigning({
@@ -369,6 +375,8 @@ router.post(
     const { tenantId: bodyTenantId } = req.validated as z.infer<typeof submitSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
+    // [P0][compliance] Submitting sends the filing to the mutualidad.
+    if (!callerHasRegulatoryRole(req, res)) return;
     try {
       const updated = await submitToMutualidad(tenantId, req.params.id, {
         formStore: buildFormStore(),

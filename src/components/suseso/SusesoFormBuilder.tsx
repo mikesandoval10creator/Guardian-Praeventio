@@ -29,6 +29,7 @@ import type {
 } from '../../services/suseso/types';
 import { folioToDocId } from '../../services/suseso/susesoService';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromResponse, humanErrorMessage } from '../../lib/humanError';
 
 interface BuilderState {
   kind: SusesoFormKind;
@@ -149,12 +150,12 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
         },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await humanErrorFromResponse(res));
       const data = (await res.json()) as BuilderResult;
       setResult(data);
       setSigned(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido');
+      setError(humanErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -184,10 +185,10 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
           webauthnAssertion: sig.webauthnAssertion,
         }),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) throw new Error(await humanErrorFromResponse(res));
       setSigned(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido');
+      setError(humanErrorMessage(e));
     } finally {
       setBusy(false);
     }
