@@ -21,6 +21,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // Allowed types in the inline node-creation form. We restrict this to the
 // concepts that make sense to author manually from the Manager tab; richer
@@ -175,7 +177,7 @@ export function RiskNetworkManager() {
         setErrors({ title: 'No se pudo crear el nodo. Verifica tu sesión y conexión.' });
       }
     } catch (err) {
-      setErrors({ title: err instanceof Error ? err.message : 'Error desconocido al crear el nodo.' });
+      setErrors({ title: humanErrorMessage(err instanceof Error ? err.message : 'Error desconocido al crear el nodo.') });
     } finally {
       setIsSubmitting(false);
     }

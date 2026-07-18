@@ -11,6 +11,7 @@
 // no project, error).
 
 import { useEffect, useMemo, useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Inbox as InboxIcon, WifiOff } from 'lucide-react';
@@ -239,7 +240,7 @@ export function Inbox() {
           role="alert"
         >
           {t('inbox.page.error', 'No se pudo cargar la bandeja: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

@@ -26,6 +26,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const containerStyle = {
   width: '100%',
@@ -251,14 +253,14 @@ export function CoastalEmergencyMap() {
                     : t('coastalEmergency.alertTitle', 'Alerta de Tsunami Emitida (SHOA)')}
             </h2>
             <p className="text-sm text-blue-300/80 mt-1">
-              {notifyStatus === 'sent'
+              {humanErrorMessage(notifyStatus === 'sent'
                 ? t(
                     'coastalEmergency.alertBody',
                     'Evacuar inmediatamente a cota 30 (Zona Segura). Tiempo estimado de arribo: 15 minutos. FCM push enviado.',
                   )
                 : notifyStatus === 'error'
                   ? notifyError
-                  : t('coastalEmergency.connecting', 'Conectando con servidor de emergencia...')}
+                  : t('coastalEmergency.connecting', 'Conectando con servidor de emergencia...'))}
             </p>
             {notifyStatus === 'sent' && (
               <div className="mt-4">

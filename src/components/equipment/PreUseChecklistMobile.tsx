@@ -40,6 +40,8 @@ import type {
   PreUseChecklistItem,
   PreUseResponse,
 } from '../../services/equipment/equipmentQrService';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 
@@ -141,7 +143,7 @@ export function PreUseChecklistMobile({
       setResult(res);
       onSubmitted?.(res);
     } catch (err) {
-      setServerError((err as Error).message ?? 'unknown_error');
+      setServerError(humanErrorMessage((err as Error).message ?? 'unknown_error'));
     } finally {
       setBusy(false);
     }
@@ -350,7 +352,7 @@ export function PreUseChecklistMobile({
             className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-sm"
             data-testid="preuse-server-error"
           >
-            {serverError}
+            {humanErrorMessage(serverError)}
           </div>
         )}
       </div>

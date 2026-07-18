@@ -11,6 +11,8 @@ import { db, collection, onSnapshot, query, orderBy, limit, serverTimestamp, han
 import { updateDoc, doc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { moderatePostContent } from '../utils/contentModeration';
 import { apiAuthHeaders } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface PostComment {
   id: string;
@@ -256,7 +258,7 @@ export function MuralDinamico() {
               className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl"
             >
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
-              <p className="text-xs text-rose-200 leading-relaxed">{moderationError}</p>
+              <p className="text-xs text-rose-200 leading-relaxed">{humanErrorMessage(moderationError)}</p>
             </div>
           )}
 
@@ -427,7 +429,7 @@ export function MuralDinamico() {
                   {commentError[post.id] && (
                     <p className="text-[11px] text-rose-400 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
-                      {commentError[post.id]}
+                      {humanErrorMessage(commentError[post.id])}
                     </p>
                   )}
                 </div>

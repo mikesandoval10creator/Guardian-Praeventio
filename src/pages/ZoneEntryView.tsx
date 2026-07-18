@@ -50,6 +50,8 @@ import {
   type ZoneEntryResult,
 } from '../services/zones/restrictedZonesEngine';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 type LogState =
   | { kind: 'idle' }
@@ -107,7 +109,7 @@ export function ZoneEntryView() {
         logger.error('zone_entry_view zones fetch failed', {
           err: String(err),
         });
-        setLoadError(err.message);
+        setLoadError(humanErrorMessage(err.message));
         setLoading(false);
       });
     return () => {
@@ -263,7 +265,7 @@ export function ZoneEntryView() {
         )}
         {loadError && (
           <p className="text-xs text-rose-500 font-bold" data-testid="zone-entry-load-error">
-            {loadError}
+            {humanErrorMessage(loadError)}
           </p>
         )}
         {!loading && !loadError && zones.length === 0 && (

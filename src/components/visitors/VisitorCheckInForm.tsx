@@ -10,6 +10,8 @@ import {
   validateCheckIn,
   type VisitorKind,
 } from '../../services/visitors/visitorAccessService.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface VisitorCheckInFormProps {
   /** Hosts internos disponibles para asignar. */
@@ -82,7 +84,7 @@ export function VisitorCheckInForm({
       setOrganization('');
       setNotes('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'submit_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +212,7 @@ export function VisitorCheckInForm({
           className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded flex items-center gap-1"
         >
           <AlertCircle className="w-3 h-3" aria-hidden="true" />
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

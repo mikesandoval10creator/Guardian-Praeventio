@@ -44,6 +44,8 @@ import {
   type WarehouseObjectAnchor,
 } from '../../services/ar/arAnchorService';
 import { Warehouse, X, Plus, AlertTriangle, Layers, CheckCircle2 } from 'lucide-react';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // Objetos placeables — match con ArKind de ArViewLink.tsx
 const PLACEABLE_OBJECTS: Array<{
@@ -254,7 +256,7 @@ export function ARWarehouseScene({ onExit }: ARWarehouseSceneProps) {
       )}
       {error && (
         <div className="pointer-events-none m-4 bg-rose-900/70 rounded-xl p-3 text-xs text-rose-100">
-          Error: {error.message}
+          Error: {humanErrorMessage(error.message)}
         </div>
       )}
       {saving && (
@@ -264,7 +266,7 @@ export function ARWarehouseScene({ onExit }: ARWarehouseSceneProps) {
       )}
       {saveError && (
         <div className="pointer-events-none m-4 bg-rose-900/70 rounded-xl p-2 text-xs text-rose-100">
-          {saveError}
+          {humanErrorMessage(saveError)}
         </div>
       )}
 

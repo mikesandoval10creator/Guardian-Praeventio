@@ -19,6 +19,8 @@ import { Activity, AlertTriangle, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useResilienceHealth } from '../hooks/useResilienceHealth';
 import { ResilienceHealthDashboard } from '../components/observability/ResilienceHealthDashboard';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function SystemHealth() {
   const { t } = useTranslation();
@@ -69,7 +71,7 @@ export function SystemHealth() {
               {t('systemHealth.errorTitle', 'No se pudo medir la salud')}
             </p>
             <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5 font-mono">
-              {error}
+              {humanErrorMessage(error)}
             </p>
             <button
               type="button"

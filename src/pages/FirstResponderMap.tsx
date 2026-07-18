@@ -30,6 +30,8 @@ import type {
   DispatchCandidate,
   IncidentKind,
 } from '../services/firstResponderMap/firstResponderMap';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const INCIDENT_KINDS: { value: IncidentKind; label: string }[] = [
   { value: 'medical_emergency', label: 'Emergencia médica' },
@@ -71,7 +73,7 @@ export function FirstResponderMap() {
       setResponders(res.responders);
       setCoverageGaps(res.coverageGaps);
     } catch (err) {
-      setFeedError((err as Error).message || 'feed_error');
+      setFeedError(humanErrorMessage((err as Error).message || 'feed_error'));
       setResponders([]);
       setCoverageGaps([]);
     } finally {
@@ -99,7 +101,7 @@ export function FirstResponderMap() {
       });
       setPlan(res.plan);
     } catch (err) {
-      setNotice(`No se pudo construir el plan de despacho: ${(err as Error).message}`);
+      setNotice(humanErrorMessage(`No se pudo construir el plan de despacho: ${(err as Error).message}`));
     } finally {
       setBuilding(false);
     }
@@ -121,7 +123,7 @@ export function FirstResponderMap() {
         });
         setNotice(text);
       } catch (err) {
-        setNotice(`No se pudo registrar el despacho: ${(err as Error).message}`);
+        setNotice(humanErrorMessage(`No se pudo registrar el despacho: ${(err as Error).message}`));
       }
     },
     [projectId, user],
@@ -203,7 +205,7 @@ export function FirstResponderMap() {
 
           {feedError && (
             <p className="text-xs text-rose-600 dark:text-rose-400" data-testid="first-responder-feed-error">
-              {t('firstResponder.feedError', 'No se pudo cargar la cobertura')}: {feedError}
+              {t('firstResponder.feedError', 'No se pudo cargar la cobertura')}: {humanErrorMessage(feedError)}
             </p>
           )}
 

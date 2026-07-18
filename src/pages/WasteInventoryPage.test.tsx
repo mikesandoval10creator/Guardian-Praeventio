@@ -144,7 +144,7 @@ describe('<WasteInventoryPage /> (gestión ambiental — residuos)', () => {
     render(<WasteInventoryPage />);
     const err = screen.getByTestId('waste-inventory-error');
     expect(err).toBeInTheDocument();
-    expect(err).toHaveTextContent('http_500');
+    expect(err).toHaveTextContent(/servidor tuvo un problema/i);
   });
 
   it('renderiza el panel con el inventario real computado por el motor', () => {

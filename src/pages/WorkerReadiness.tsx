@@ -30,6 +30,7 @@
 //     perder señales.
 
 import { useMemo, useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { UserCheck, WifiOff, AlertTriangle, ListChecks, Lightbulb } from 'lucide-react';
 import { where } from 'firebase/firestore';
@@ -349,7 +350,7 @@ export function WorkerReadiness() {
           {t(
             'workerReadiness.error',
             'No se pudo calcular el score: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

@@ -38,6 +38,8 @@ import {
   runKekRotation,
   type KekRotationResult,
 } from '../../services/security/kekRotationOrchestrator';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface KekRotationPanelProps {
   /** Lookup de fechas custom para tests deterministicos. */
@@ -126,7 +128,7 @@ export function KekRotationPanel({
       onRotationComplete?.(r);
       await refreshState();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
       setPhase('failed');
       await refreshState();
     }
@@ -378,7 +380,7 @@ export function KekRotationPanel({
             {t('kek.errorTitle', 'Error en la rotación')}
           </p>
           <p className="text-[11px] mt-0.5 text-rose-700 dark:text-rose-300 font-mono">
-            {error}
+            {humanErrorMessage(error)}
           </p>
         </div>
       )}

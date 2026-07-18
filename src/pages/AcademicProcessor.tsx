@@ -6,6 +6,8 @@ import { Card, Button } from '../components/shared/Card';
 import { extractAcademicSummary } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function AcademicProcessor() {
   const { t } = useTranslation();
@@ -89,7 +91,7 @@ export function AcademicProcessor() {
           {error && (
             <div className="p-4 bg-rose-100 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl text-rose-600 dark:text-rose-400 text-sm flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 shrink-0" />
-              <p>{error}</p>
+              <p>{humanErrorMessage(error)}</p>
             </div>
           )}
 

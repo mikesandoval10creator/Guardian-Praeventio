@@ -181,7 +181,7 @@ describe('<QrSignature /> page wrapper (Fase F.5)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('qr-signature-error')).toBeInTheDocument();
     });
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   describe('PIN fallback (firma por PIN sin biometría)', () => {

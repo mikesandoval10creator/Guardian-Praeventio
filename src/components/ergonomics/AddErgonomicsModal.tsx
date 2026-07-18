@@ -21,6 +21,8 @@ import { recordErgonomicAssessment } from '../../services/safety/ergonomicAssess
 import { crossesLegalThreshold } from '../../services/safety/ergonomicLegalTrigger';
 import { dispatchLegalTrigger } from '../../services/safety/dispatchLegalTrigger';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface AddErgonomicsModalProps {
   isOpen: boolean;
@@ -391,7 +393,7 @@ export function AddErgonomicsModal({
       close();
     } catch (err) {
       logger.error('ergonomic_assessment_save_failed', err);
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la evaluación.');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'No se pudo guardar la evaluación.'));
     } finally {
       setLoading(false);
     }
@@ -979,7 +981,7 @@ export function AddErgonomicsModal({
               {error && (
                 <div role="alert" className="flex items-start gap-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-300">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+                  <span>{humanErrorMessage(error)}</span>
                 </div>
               )}
             </div>

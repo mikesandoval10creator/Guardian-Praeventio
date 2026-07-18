@@ -47,6 +47,8 @@ import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import type { Visitor } from '../services/visitorControl/visitorRegistry';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -419,7 +421,7 @@ function InductionAck({
             role="alert"
             data-testid="visitor-ack-error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </div>
         )}
         <div className="flex justify-end gap-2 pt-1">
@@ -660,7 +662,7 @@ export function Visitors() {
           role="alert"
           data-testid="visitors-error"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

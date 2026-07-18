@@ -35,6 +35,8 @@ import type {
   EquipmentCriticality,
   EquipmentStatus,
 } from '../../services/equipment/equipmentQrService';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 
@@ -87,7 +89,7 @@ export function EquipmentAdminPanel({
         const res = await listEquipmentBySite(projectId, { status: statusFilter });
         if (!cancelled) setEquipment(res.equipment);
       } catch (err) {
-        if (!cancelled) setListError((err as Error).message ?? 'list_failed');
+        if (!cancelled) setListError(humanErrorMessage((err as Error).message ?? 'list_failed'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -171,7 +173,7 @@ export function EquipmentAdminPanel({
             <p className="text-sm font-bold">
               {t('equipmentAdmin.listError', 'No se pudo cargar el inventario')}
             </p>
-            <p className="text-xs opacity-80">{listError}</p>
+            <p className="text-xs opacity-80">{humanErrorMessage(listError)}</p>
             <button
               type="button"
               onClick={() => setRefetchTick((n) => n + 1)}
@@ -315,7 +317,7 @@ function RegisterFormModal({
       const res = await registerEquipmentQr(projectId, input, idemKey);
       onRegistered(res);
     } catch (err) {
-      setError((err as Error).message ?? 'register_failed');
+      setError(humanErrorMessage((err as Error).message ?? 'register_failed'));
     } finally {
       setBusy(false);
     }
@@ -448,7 +450,7 @@ function RegisterFormModal({
             className="text-xs text-rose-500"
             data-testid="equipment-admin-register-error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </div>
         )}
 

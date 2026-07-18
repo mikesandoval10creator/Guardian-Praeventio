@@ -138,7 +138,7 @@ describe('<CphsDraftMinute /> page wrapper (Fase F.7)', () => {
     expect(
       screen.getByTestId('cphs-draft-minute-error'),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza secciones del draft cuando hay data', () => {

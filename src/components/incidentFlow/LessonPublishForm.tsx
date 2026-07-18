@@ -12,6 +12,8 @@ import {
   publishLesson,
   type PublishLessonPayload,
 } from '../../hooks/useIncidentFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface LessonPublishFormProps {
   projectId: string;
@@ -79,7 +81,7 @@ export function LessonPublishForm({
       setSuccess(true);
       onSuccess?.(lessonId.trim());
     } catch (err) {
-      setErrorMsg((err as Error).message);
+      setErrorMsg(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +188,7 @@ export function LessonPublishForm({
           data-testid="lesson-error"
           role="alert"
         >
-          {errorMsg}
+          {humanErrorMessage(errorMsg)}
         </div>
       )}
 

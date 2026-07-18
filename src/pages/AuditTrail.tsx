@@ -7,6 +7,8 @@ import { auth } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Codex fake fix §2.2 (2026-05-15): antes esta página mostraba 5 entradas
 // hardcoded tras `setTimeout(1500)`. Esto era false-completeness peligrosa
@@ -185,7 +187,7 @@ export function AuditTrail() {
                   <td colSpan={5} className="p-8 text-center" data-testid="audit-error">
                     <div className="flex flex-col items-center justify-center text-amber-400">
                       <AlertCircle className="w-8 h-8 mb-2" />
-                      <p className="font-bold">{error}</p>
+                      <p className="font-bold">{humanErrorMessage(error)}</p>
                     </div>
                   </td>
                 </tr>

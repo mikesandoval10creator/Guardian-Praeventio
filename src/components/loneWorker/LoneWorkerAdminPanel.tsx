@@ -29,6 +29,8 @@ import {
   fetchLoneWorkerAdminOverview,
   type AdminOverviewEntry,
 } from '../../hooks/useLoneWorker';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface LoneWorkerAdminPanelProps {
   projectId: string;
@@ -97,7 +99,7 @@ export function LoneWorkerAdminPanel({
       });
       setOverview(data);
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setLoading(false);
     }
@@ -183,7 +185,7 @@ export function LoneWorkerAdminPanel({
           data-testid="loneWorker.admin.error"
           role="alert"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

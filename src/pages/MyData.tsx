@@ -32,6 +32,8 @@ import { apiAuthHeader } from '../lib/apiAuth';
 // ocupacional, etc.) DEBE renderizar el disclaimer "Praeventio nunca
 // diagnostica" en banner/card/compact.
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
 
@@ -169,7 +171,7 @@ export function MyData() {
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
           <AlertTriangle className="mt-0.5 h-4 w-4" />
-          <div>{error}</div>
+          <div>{humanErrorMessage(error)}</div>
         </div>
       )}
       {info && (

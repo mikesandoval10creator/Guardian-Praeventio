@@ -40,6 +40,7 @@ import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
+import { humanErrorFromBody } from '../lib/humanError';
 
 export function Workers() {
   const { t } = useTranslation();
@@ -86,7 +87,7 @@ export function Workers() {
       );
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error((detail as { error?: string }).error ?? `Error ${res.status}`);
+        throw new Error(humanErrorFromBody(detail, res.status));
       }
     } catch (error) {
       logger.error('Error archiving worker:', error);

@@ -15,6 +15,7 @@
 // recomendar).
 
 import { useTranslation } from 'react-i18next';
+import { humanErrorMessage } from '../lib/humanError';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -110,7 +111,7 @@ export function RepeatingRisks() {
           {t(
             'riskRadar.page.error',
             'No se pudo cargar el radar: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

@@ -25,6 +25,8 @@ import {
   CEAL_ITEM_CODES,
 } from '../services/protocols/cealSmDefinition';
 import type { CealAnswers } from '../services/protocols/cealSm';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function CealSmResponder() {
   const { t } = useTranslation();
@@ -276,7 +278,7 @@ export function CealSmResponder() {
                 </button>
               </div>
               {error && (
-                <p data-testid="ceal-responder-error" className="text-xs text-rose-400">{error}</p>
+                <p data-testid="ceal-responder-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
               )}
             </div>
           )}

@@ -126,7 +126,7 @@ describe('StartProcessModal', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /iniciar/i }));
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/kaboom/);
+      expect(screen.getByRole('alert')).toHaveTextContent(/No pudimos completar la acción/i);
     });
   });
 });

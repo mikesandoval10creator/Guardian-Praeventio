@@ -15,6 +15,8 @@ import { Wand2, Loader2, Plus, AlertTriangle } from 'lucide-react';
 import { extractMeetingActionItems } from '../../hooks/useMeetingPack';
 import type { ActionItemSuggestion } from '../../services/meetingPack/meetingPackBuilder';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface ExtractedAcuerdo {
   descripcion: string;
@@ -86,7 +88,7 @@ export function MeetingActionItemExtractor({ projectId, onAdd }: Props) {
 
       {error && (
         <div className="text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1" data-testid="meeting-action-error">
-          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {error}
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {humanErrorMessage(error)}
         </div>
       )}
 

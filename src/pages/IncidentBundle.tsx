@@ -13,6 +13,7 @@
 // La generación PDF se queda para sub-PR (depende `pdfkit`).
 
 import { useCallback } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Folder, WifiOff, FileQuestion } from 'lucide-react';
@@ -202,7 +203,7 @@ export function IncidentBundle() {
           role="alert"
         >
           {t('incidentBundle.page.error', 'No se pudo construir el expediente: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

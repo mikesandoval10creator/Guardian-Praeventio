@@ -14,6 +14,7 @@
 //   - Summary cards: total / overdue / en ventana de alerta.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
@@ -244,7 +245,7 @@ export function LegalCalendar() {
                   <span>
                     {t('legal_calendar.server_section.error', {
                       defaultValue: 'No se pudieron cargar: {{msg}}',
-                      msg: serverError,
+                      msg: humanErrorMessage(serverError),
                     })}
                   </span>
                 </div>

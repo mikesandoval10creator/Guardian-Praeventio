@@ -36,6 +36,8 @@ import {
   type MqttSensorEvent,
   type EdgeFilterPredicate,
 } from '../services/iot/mqttClient';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const DEFAULT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
 const DEFAULT_TOPIC = 'praeventio/demo/#';
@@ -111,7 +113,7 @@ export function IoTEdgeFiltering() {
       await c.subscribe(topic, 0);
       setMetrics(c.getMetrics());
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     }
   }, [brokerUrl, topic, edgeFilter]);
 
@@ -133,7 +135,7 @@ export function IoTEdgeFiltering() {
       await clientRef.current.publish(publishTopic, publishPayload, 0);
       setMetrics(clientRef.current.getMetrics());
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     }
   }, [publishTopic, publishPayload]);
 
@@ -211,7 +213,7 @@ export function IoTEdgeFiltering() {
               className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
               aria-hidden="true"
             />
-            <p className="text-xs text-rose-300 font-mono break-all">{error}</p>
+            <p className="text-xs text-rose-300 font-mono break-all">{humanErrorMessage(error)}</p>
           </div>
         )}
 

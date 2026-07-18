@@ -17,6 +17,8 @@ import {
   useContractorPerformance,
   captureContractorExposure,
 } from '../../hooks/useContractorPerformance';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface ContractorPerformanceDashboardProps {
   projectId: string | null;
@@ -84,12 +86,12 @@ export function ContractorPerformanceDashboard({
       refetch();
     } catch (err) {
       setSaveError(
-        err instanceof Error && err.message
+        humanErrorMessage(err instanceof Error && err.message
           ? `${t('contractorPerf.errSavePrefix', 'No se pudo guardar')}: ${err.message}`
           : (t(
               'contractorPerf.errSave',
               'No se pudieron guardar las horas-hombre. Intenta nuevamente.',
-            ) as string),
+            ) as string)),
       );
     } finally {
       setSaving(false);
@@ -215,7 +217,7 @@ export function ContractorPerformanceDashboard({
             data-testid="contractor-perf-save-error"
             className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
           >
-            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" /> {saveError}
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" /> {humanErrorMessage(saveError)}
           </div>
         )}
       </div>
@@ -232,7 +234,7 @@ export function ContractorPerformanceDashboard({
           data-testid="contractor-perf-load-error"
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
         >
-          {t('contractorPerf.loadError', 'No se pudo cargar el desempeño')} ({error.message}).
+          {t('contractorPerf.loadError', 'No se pudo cargar el desempeño')} ({humanErrorMessage(error.message)}).
         </div>
       )}
 

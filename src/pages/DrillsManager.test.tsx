@@ -178,7 +178,9 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
     expect(
       screen.getByTestId('drills-manager-error'),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByTestId('drills-manager-error')).toHaveTextContent(
+      /(conectar|conexión) con el servidor/i,
+    );
   });
 
   it('renderiza la lista de simulacros planificados', () => {
@@ -299,7 +301,9 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
         screen.getByTestId('drills-detail-execute-error'),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByTestId('drills-detail-execute-error')).toHaveTextContent(
+      /(conectar|conexión) con el servidor/i,
+    );
     // Modal sigue abierto — el usuario no perdió lo que escribió.
     expect(screen.getByTestId('drills-detail-modal')).toBeInTheDocument();
   });
@@ -341,7 +345,9 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
         screen.getByTestId('drills-new-plan-error'),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/Unauthorized/i)).toBeInTheDocument();
+    expect(screen.getByTestId('drills-new-plan-error')).toHaveTextContent(
+      /sesión no es válida/i,
+    );
     // Modal sigue abierto — no se cerró en silencio.
     expect(screen.getByTestId('drills-new-modal')).toBeInTheDocument();
   });

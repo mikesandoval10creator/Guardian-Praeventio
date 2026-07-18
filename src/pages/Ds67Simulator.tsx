@@ -41,6 +41,8 @@ import {
   formatClp,
   type Ds67InvalidityBand,
 } from '../services/compliance/ds67Simulator';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ── es-CL labels for the legal invalidity bands (DS 67 art. 2 j)) ────────
 
@@ -155,9 +157,9 @@ export function Ds67Simulator() {
       setResponse(r);
     } catch (err) {
       setFormError(
-        err instanceof Error && err.message
+        humanErrorMessage(err instanceof Error && err.message
           ? `No se pudo simular: ${err.message}`
-          : 'No se pudo simular. Intenta nuevamente.',
+          : 'No se pudo simular. Intenta nuevamente.'),
       );
     } finally {
       setSubmitting(false);
@@ -354,7 +356,7 @@ export function Ds67Simulator() {
           data-testid="ds67-sim-error"
           className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
         >
-          <AlertCircle className="h-4 w-4 shrink-0" /> {formError}
+          <AlertCircle className="h-4 w-4 shrink-0" /> {humanErrorMessage(formError)}
         </div>
       ) : null}
 

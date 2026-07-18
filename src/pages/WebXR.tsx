@@ -25,6 +25,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logAuditAction } from '../services/auditService';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface ChecklistItem {
   id: string;
@@ -171,7 +173,7 @@ function WebXRInner() {
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-lg flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5" /> {error}
+          <AlertTriangle className="w-5 h-5" /> {humanErrorMessage(error)}
         </div>
       )}
 

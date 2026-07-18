@@ -42,6 +42,8 @@ import {
   type WorkPermitChecklist,
 } from '../services/workPermits/workPermitEngine';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const KIND_OPTIONS: ReadonlyArray<{ kind: WorkPermitKind; labelKey: string; labelFallback: string }> = [
   { kind: 'altura', labelKey: 'permits.kind.altura', labelFallback: 'Altura' },
@@ -140,8 +142,10 @@ export function WorkPermits() {
     } catch (err) {
       logger.error('workPermits.create.failed', err);
       setFormError(
-        (err as Error).message ||
-          (t('permits.form.errorCreate', 'No se pudo crear el permiso.') as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t('permits.form.errorCreate', 'No se pudo crear el permiso.') as string),
+        ),
       );
     } finally {
       setFormSubmitting(false);
@@ -344,7 +348,7 @@ export function WorkPermits() {
               data-testid="work-permits-form.error"
               role="alert"
             >
-              {formError}
+              {humanErrorMessage(formError)}
             </p>
           )}
 
@@ -428,7 +432,7 @@ export function WorkPermits() {
           role="alert"
         >
           {t('permits.page.error', 'No se pudieron cargar los permisos: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

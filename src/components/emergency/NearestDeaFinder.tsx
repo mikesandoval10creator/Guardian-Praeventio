@@ -13,6 +13,8 @@ import {
   type Dea,
   type DeaStatus,
 } from '../../services/dea/deaService';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const STATUS_LABEL: Record<DeaStatus, { label: string; cls: string }> = {
   operational: { label: 'Operativo', cls: 'text-emerald-400' },
@@ -82,7 +84,7 @@ export function NearestDeaFinder({ deas }: { deas: Dea[] }) {
         {t('deaZones.nearest.findBtn', 'Buscar el DEA más cercano')}
       </button>
 
-      {error && <p className="mt-3 text-sm text-amber-400">{error}</p>}
+      {error && <p className="mt-3 text-sm text-amber-400">{humanErrorMessage(error)}</p>}
 
       {result && status && (
         <div className="mt-4 rounded-xl bg-white/5 p-4" data-testid="nearest-dea-result">

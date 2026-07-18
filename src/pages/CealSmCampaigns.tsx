@@ -35,6 +35,8 @@ import {
   type CealResultsResponse,
 } from '../hooks/useCealSm';
 import type { CealRiskLevel } from '../services/protocols/cealSmDefinition';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const RISK_BADGE: Record<CealRiskLevel, string> = {
   bajo: 'bg-emerald-500/10 text-emerald-400',
@@ -285,7 +287,7 @@ export function CealSmCampaigns() {
             {t('ceal_sm.create', 'Crear campaña')}
           </button>
           {error && (
-            <p data-testid="ceal-error" className="text-xs text-rose-400">{error}</p>
+            <p data-testid="ceal-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
           )}
         </div>
       )}

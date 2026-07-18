@@ -9,6 +9,7 @@ import { Tooltip } from './Tooltip';
 import { getPendingActions, removeSyncedAction, SyncAction, syncWithFirebase } from '../../utils/pwa-offline';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
 
 interface SyncCenterModalProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
         }
         setFailedActions(prev => ({
           ...prev,
-          [action.id!]: errorMessage
+          [action.id!]: humanErrorMessage(errorMessage)
         }));
       }
     };

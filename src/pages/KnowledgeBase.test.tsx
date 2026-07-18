@@ -143,7 +143,7 @@ describe('<KnowledgeBase /> page wrapper (§185-190)', () => {
     };
     render(<KnowledgeBase />);
     expect(screen.getByTestId('knowledge-base-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza resultados de búsqueda y propaga el search query al hook', () => {

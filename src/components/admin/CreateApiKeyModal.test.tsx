@@ -120,7 +120,7 @@ describe('CreateApiKeyModal', () => {
     await user.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/quota exceeded/i)).toBeInTheDocument();
+        expect(screen.getByText(/límite del plan/i)).toBeInTheDocument();
     });
   });
 });

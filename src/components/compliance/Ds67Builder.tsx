@@ -296,7 +296,7 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
 
       {error && (
         <div className="text-red-600 text-sm border border-red-300 bg-red-50 px-3 py-2 rounded">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

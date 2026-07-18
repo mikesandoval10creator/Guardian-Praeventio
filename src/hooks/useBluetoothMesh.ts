@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 // no auth context, so events publish under the LOCAL_DEVICE_UID sentinel —
 // the correlation engine attributes them to the local worker.
 import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface BluetoothDevice {
   id: string;
@@ -149,7 +151,7 @@ export function useBluetoothMesh() {
         // User cancelled or no devices found — NOT disconnection evidence
         // (web picker dismissal is a user gesture, not radio state).
       } else {
-        setError(err.message || 'Error al escanear dispositivos Bluetooth.');
+        setError(humanErrorMessage(err.message || 'Error al escanear dispositivos Bluetooth.'));
         // §16.2.1: a failed scan (adapter off/unavailable) means we cannot
         // see peers — counts as disconnection evidence on the bus.
         publishSensorEvent({

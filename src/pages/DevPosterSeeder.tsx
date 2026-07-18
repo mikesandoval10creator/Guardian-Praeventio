@@ -53,6 +53,8 @@ import {
   closePosterMatcher,
 } from '../services/ar/posterMatcher';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 /**
  * Status del proceso de seeding para un poster individual.
@@ -385,7 +387,7 @@ export function DevPosterSeeder() {
           {globalError && (
             <div className="mt-3 bg-rose-900/50 border border-rose-500/30 rounded-lg p-3 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
-              <p className="text-xs text-rose-200">{globalError}</p>
+              <p className="text-xs text-rose-200">{humanErrorMessage(globalError)}</p>
             </div>
           )}
         </Card>

@@ -12,6 +12,9 @@ import { useTranslation } from 'react-i18next';
 import { X, Users } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromBody } from '../../lib/humanError';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface CreateCrewModalProps {
   isOpen: boolean;
@@ -63,7 +66,7 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error ?? `Error ${res.status}`);
+        setError(humanErrorFromBody(j, res.status));
         setSubmitting(false);
         return;
       }
@@ -73,7 +76,7 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
       setDescription('');
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? t('crews.error_network', 'Error de red'));
+      setError(humanErrorMessage(err?.message ?? t('crews.error_network', 'Error de red')));
     } finally {
       setSubmitting(false);
     }
@@ -141,7 +144,7 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
 
             {error && (
               <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
-                {error}
+                {humanErrorMessage(error)}
               </p>
             )}
           </div>

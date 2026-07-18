@@ -238,7 +238,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
         </div>
       )}
       {error && (
-        <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+        <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{humanErrorMessage(error)}</p>
       )}
       <button
         type="submit"
@@ -299,7 +299,7 @@ export function SignMinutesButton({ meeting, uid, onSign, ceremony }: SignMinute
       const result = await (ceremony ?? defaultCeremony)();
       await onSign(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al firmar');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'Error al firmar'));
     } finally {
       setBusy(false);
     }
@@ -317,7 +317,7 @@ export function SignMinutesButton({ meeting, uid, onSign, ceremony }: SignMinute
         <PenTool className="w-4 h-4" />
         {alreadySigned ? 'Firmada' : busy ? 'Firmando…' : 'Firmar Acta'}
       </button>
-      {error && <p role="alert" className="text-xs text-rose-500">{error}</p>}
+      {error && <p role="alert" className="text-xs text-rose-500">{humanErrorMessage(error)}</p>}
     </div>
   );
 }
@@ -606,6 +606,8 @@ import {
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useProjectRoster } from '../hooks/useProjectRoster';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 /**
  * Adapter: the Firebase Web SDK exposes free functions
@@ -750,7 +752,7 @@ export function CphsModulePageContainer({ buildDb, ceremony }: CphsModulePageDep
       }
       setMeetingsByCommittee(byId);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Error cargando comités');
+      setLoadError(humanErrorMessage(err instanceof Error ? err.message : 'Error cargando comités'));
     }
   }, [projectId, dbRef]);
 
@@ -820,7 +822,7 @@ export function CphsModulePageContainer({ buildDb, ceremony }: CphsModulePageDep
     <>
       {loadError && (
         <p role="alert" className="text-xs text-rose-500 px-6 pt-4">
-          {loadError}
+          {humanErrorMessage(loadError)}
         </p>
       )}
       <CphsModule

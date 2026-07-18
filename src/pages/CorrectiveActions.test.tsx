@@ -210,6 +210,6 @@ describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
     };
     render(<CorrectiveActions />);
     expect(screen.getByTestId('corrective-actions-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 });

@@ -52,6 +52,8 @@ import {
   type RoiLevel,
 } from '../../hooks/usePreventionCost';
 import type { IncompletionKind } from '../../services/costCalculator/preventionCostCalculator';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // ── Static option lists ─────────────────────────────────────────────────
 
@@ -207,7 +209,7 @@ export function CostSimulator({
       setSimulation(sim);
     } catch (err) {
       setSimulation(null);
-      setError(err instanceof Error ? err.message : 'simulation_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'simulation_failed'));
     } finally {
       setIsSimulating(false);
     }
@@ -237,7 +239,7 @@ export function CostSimulator({
       setScenarioName('');
       setScenarioDescription('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'save_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'save_failed'));
     } finally {
       setIsSaving(false);
     }
@@ -657,7 +659,7 @@ export function CostSimulator({
             role="alert"
             data-testid="costSimulator.error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </span>
         )}
       </div>
