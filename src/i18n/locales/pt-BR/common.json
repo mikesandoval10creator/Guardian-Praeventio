@@ -5536,5 +5536,13 @@
     "no_stack": "Não empilhável",
     "no_items_placed": "Nenhum item posicionado",
     "unplaced_title": "Não posicionados"
+  },
+  "emergencyAuthority": {
+    "title": "Chamar serviços de emergência",
+    "medical": "Ambulância",
+    "fire": "Corpo de bombeiros",
+    "police": "Polícia",
+    "universal": "Número universal",
+    "location": "Localização do trabalhador"
   }
 }

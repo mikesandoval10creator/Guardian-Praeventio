@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { geofenceToSosPolicy } from '../../policies/geofenceToSos';
 import type { EventOfType } from '../../eventTypes';
-import type { PolicyContext } from '../../policies/policy.types';
+import type { Action, PolicyContext } from '../../policies/policy.types';
 
 const mkEvent = (
   overrides: Partial<EventOfType<'geofence_crossed'>['payload']> = {},
@@ -37,7 +37,20 @@ describe('geofenceToSos policy', () => {
   it('escalates HAZMAT enter to a SOS', async () => {
     const actions = await geofenceToSosPolicy.evaluate(mkEvent(), ctx);
     expect(actions.find((a) => a.kind === 'trigger_emergency')).toBeDefined();
-    expect(actions.find((a) => a.kind === 'notify_contacts')).toBeDefined();
+  });
+
+  it('escalates HAZMAT entry without the removed notify_contacts action', () => {
+    const actions = geofenceToSosPolicy.evaluate(
+      { type: 'geofence_crossed', payload: {
+        workerId: 'w1', projectId: 'p1', zoneId: 'z1', zoneName: 'Bodega Cl2',
+        zoneType: 'HAZMAT', direction: 'enter',
+      } } as any,
+      { hasActiveEmergency: () => false } as any,
+    );
+    const kinds = (actions as Action[]).map((a) => a.kind);
+    expect(kinds).toContain('trigger_emergency');
+    expect(kinds).toContain('audit');
+    expect(kinds).not.toContain('notify_contacts');
   });
 
   it('escalates RESTRICTED enter to a SOS with unauthorized_zone type', async () => {

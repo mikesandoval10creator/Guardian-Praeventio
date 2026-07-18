@@ -41,7 +41,7 @@ vi.mock('framer-motion', () => ({
   },
 }));
 
-let mockProject: { id: string; name: string; tenantId?: string } | null = null;
+let mockProject: { id: string; name: string; tenantId?: string; country?: string } | null = null;
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockProject }),
 }));
@@ -190,5 +190,36 @@ describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
 
     act(() => push!({ docs: [] }));
     expect(screen.queryByTestId('sos-alerts-banner')).not.toBeInTheDocument();
+  });
+
+  it('shows one-tap authority numbers on the emergency dashboard (region from project)', () => {
+    mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA', country: 'CL' };
+    render(<EmergenciaAvanzada />);
+    const panel = screen.getByTestId('emergency-authority-panel');
+    const hrefs = Array.from(panel.querySelectorAll('a[href^="tel:"]')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(hrefs).toContain('tel:131');
+    expect(hrefs).toContain('tel:132');
+    expect(hrefs).toContain('tel:133');
+  });
+
+  it('falls back to GPS coords (not CL) when the project has no country set', () => {
+    // Faena in Argentina with no `country` field — the pre-fix hardcoded
+    // `?? 'CL'` would show Chilean 131/132/133 here, which is wrong and
+    // dangerous for a life-safety panel.
+    mockProject = {
+      id: 'p1',
+      name: 'Faena Norte',
+      tenantId: 'tA',
+      coordinates: { lat: -34.6, lng: -58.4 },
+    } as unknown as typeof mockProject;
+    render(<EmergenciaAvanzada />);
+    const panel = screen.getByTestId('emergency-authority-panel');
+    const hrefs = Array.from(panel.querySelectorAll('a[href^="tel:"]')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(hrefs).toContain('tel:107');
+    expect(hrefs).not.toContain('tel:131');
   });
 });

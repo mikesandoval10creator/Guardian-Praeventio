@@ -22,6 +22,7 @@ import { Worker } from "../types";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
 import { Tooltip } from "../components/shared/Tooltip";
 import { logger } from "../utils/logger";
+import { EmergencyAuthorityCallPanel } from "../components/emergency/EmergencyAuthorityCallPanel";
 
 interface EmergencyEvent {
   id: string;
@@ -428,6 +429,22 @@ export function EmergenciaAvanzada() {
           )}
         </div>
       </div>
+
+      {/* [P0][VIDA] One-tap authority call numbers — high on the page so a
+          responder sees it immediately, before/alongside the SOS list. */}
+      <EmergencyAuthorityCallPanel
+        regionCode={selectedProject?.country}
+        coords={
+          selectedProject?.coordinates
+            ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
+            : undefined
+        }
+        workerCoords={
+          focusedAlertId
+            ? sosAlerts.find((a) => a.id === focusedAlertId)?.geo ?? null
+            : null
+        }
+      />
 
       {/* Active emergency banner */}
       <AnimatePresence>

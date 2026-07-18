@@ -80,17 +80,6 @@ async function dispatch(action: Action): Promise<void> {
       });
       return;
 
-    case 'notify_contacts':
-      // Cross-cutting — left to the brigade fan-out path that already exists
-      // in EmergencyContext. The executor publishes a derived event so the
-      // server-side trigger picks it up. Avoids re-implementing FCM here.
-      logger.info('systemEngine.executor: notify_contacts deferred to server fan-out', {
-        workerId: action.workerId,
-        projectId: action.projectId,
-        channels: action.channel,
-      });
-      return;
-
     case 'invalidate_context':
       switch (action.contextName) {
         case 'subscription': await bindings.invalidateSubscription?.(); return;

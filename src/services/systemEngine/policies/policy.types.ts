@@ -26,7 +26,6 @@ export interface PolicyContext {
 
 export type Action =
   | TriggerEmergencyAction
-  | NotifyContactsAction
   | InvalidateContextAction
   | RefreshFeatureFlagsAction
   | NotifyUserAction
@@ -38,15 +37,6 @@ export interface TriggerEmergencyAction {
   emergencyType: string;
   projectId: string;
   reason: string;
-}
-
-export interface NotifyContactsAction {
-  kind: 'notify_contacts';
-  workerId: string;
-  projectId: string;
-  channel: ('fcm' | 'email' | 'sms')[];
-  subject: string;
-  body: string;
 }
 
 export interface InvalidateContextAction {
