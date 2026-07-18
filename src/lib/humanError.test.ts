@@ -95,6 +95,11 @@ describe('humanErrorFromResponse', () => {
 });
 
 describe('humanErrorMessage', () => {
+  it('passes a direct human string through unchanged', () => {
+    const message = 'Geolocalización no disponible en este dispositivo.';
+    expect(humanErrorMessage(message)).toBe(message);
+  });
+
   it('translates a Firebase code', () => {
     const msg = humanErrorMessage({ code: 'permission-denied', message: 'whatever' });
     expect(msg).toMatch(/no tienes permiso/i);

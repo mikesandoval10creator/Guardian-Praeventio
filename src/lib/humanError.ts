@@ -152,7 +152,10 @@ export function humanErrorMessage(err: unknown): string {
   const code = codeOf(err);
   if (code && MESSAGE_BY_CODE[code]) return MESSAGE_BY_CODE[code];
 
-  const raw = (err as { message?: unknown } | null)?.message;
+  const raw =
+    typeof err === 'string'
+      ? err
+      : (err as { message?: unknown } | null)?.message;
   const text = typeof raw === 'string' ? raw.trim() : '';
   if (!text) return GENERIC;
 
@@ -171,6 +174,10 @@ export function humanErrorMessage(err: unknown): string {
   if (/network ?error|failed to fetch|load failed/i.test(text)) {
     return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo nuevamente.';
   }
+
+  // A short direct string is usually a label/token, not enough guidance for
+  // the person using the app. Error objects keep their existing domain copy.
+  if (typeof err === 'string' && text.length <= 20) return GENERIC;
 
   // Already a human sentence — leave it exactly as the caller wrote it.
   return text;
