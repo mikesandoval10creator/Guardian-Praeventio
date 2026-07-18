@@ -179,7 +179,7 @@ describe('<WorkPermits /> page wrapper (Fase F.15)', () => {
     };
     render(<WorkPermits />);
     expect(screen.getByTestId('work-permits-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renders the list of permits and shows the offline chip when offline', () => {

@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import type { Process } from '../types/organic';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface ProcessesResponse {
   processes: Process[];
@@ -62,7 +64,7 @@ export function useProjectProcesses(projectId: string | null): {
       .catch((err: unknown) => {
         if (!cancelled) {
           setProcesses([]);
-          setError(err instanceof Error ? err.message : 'error');
+          setError(humanErrorMessage(err instanceof Error ? err.message : 'error'));
         }
       })
       .finally(() => {

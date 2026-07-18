@@ -3,6 +3,8 @@ import { Volume2, AlertTriangle, Mic, MicOff, Activity } from 'lucide-react';
 import { Card } from '../shared/Card';
 import { motion } from 'framer-motion';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export function NoiseMonitor() {
   const [isListening, setIsListening] = useState(false);
@@ -110,7 +112,7 @@ export function NoiseMonitor() {
 
       {error && (
         <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-400">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

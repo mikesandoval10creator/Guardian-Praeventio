@@ -146,7 +146,7 @@ describe('<ResidualRisk /> page wrapper (Sprint K §296-301)', () => {
     };
     render(<ResidualRisk />);
     expect(screen.getByTestId('residual-risk-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('lista riesgos accepted y pending con los testids correctos', () => {

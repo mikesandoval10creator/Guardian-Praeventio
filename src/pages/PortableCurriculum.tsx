@@ -17,6 +17,8 @@ import {
 } from '../services/curriculum/historyAggregator';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ── Round 17 (R5) — wires the Firestore reads documented in Round 16 (R1).
 //
@@ -270,7 +272,7 @@ export function PortableCurriculum() {
       const data = await res.json();
       setClaims(Array.isArray(data?.claims) ? data.claims : []);
     } catch (err: any) {
-      setClaimsError(err?.message || 'Error al cargar los claims.');
+      setClaimsError(humanErrorMessage(err?.message || 'Error al cargar los claims.'));
     } finally {
       setClaimsLoading(false);
     }
@@ -548,7 +550,7 @@ export function PortableCurriculum() {
         )}
         {claimsError && (
           <Card className="p-4 text-xs text-rose-500 bg-rose-500/5 border-rose-500/20">
-            {claimsError}
+            {humanErrorMessage(claimsError)}
           </Card>
         )}
         {!claimsLoading && claims.length === 0 && !claimsError && !showForm && (

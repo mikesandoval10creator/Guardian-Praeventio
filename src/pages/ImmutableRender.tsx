@@ -45,6 +45,8 @@ import {
   type ImmutablePdfKind,
 } from '../services/immutable/pdfImmutableService';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface VerificationOutcome {
   valid: boolean;
@@ -151,7 +153,7 @@ export function ImmutableRender() {
       });
       setRenderedArtifact(artifact);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       setIsRendering(false);
     }
@@ -188,7 +190,7 @@ export function ImmutableRender() {
         sizeBytes: uploadedBytes.length,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     }
   }, [renderedArtifact]);
 
@@ -247,7 +249,7 @@ export function ImmutableRender() {
               className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
               aria-hidden="true"
             />
-            <p className="text-xs text-rose-300 font-mono">{error}</p>
+            <p className="text-xs text-rose-300 font-mono">{humanErrorMessage(error)}</p>
           </div>
         )}
 

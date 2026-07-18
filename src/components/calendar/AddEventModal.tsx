@@ -8,6 +8,8 @@ import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -159,7 +161,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                     >
                       <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                       <p className="text-xs sm:text-sm font-medium leading-relaxed">
-                        {conflictError}
+                        {humanErrorMessage(conflictError)}
                       </p>
                     </motion.div>
                   )}

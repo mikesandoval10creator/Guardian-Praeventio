@@ -29,6 +29,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { AddAuditModal } from './AddAuditModal';
 import { AuditDetailModal } from './AuditDetailModal';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // ---------------------------------------------------------------------------
 // ISO 45001 conditional checklist definition
@@ -192,7 +194,7 @@ function ISOChecklist() {
         </div>
         <div className="flex flex-col items-end gap-2 mt-3">
           {saveError && (
-            <p className="text-[10px] font-bold text-rose-500 text-right max-w-xs">{saveError}</p>
+            <p className="text-[10px] font-bold text-rose-500 text-right max-w-xs">{humanErrorMessage(saveError)}</p>
           )}
           <div className="flex gap-2">
             {saveError && (

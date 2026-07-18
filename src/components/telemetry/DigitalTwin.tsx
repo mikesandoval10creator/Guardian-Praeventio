@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere, Cylinder, Text, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { MapPin, Activity, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // Instanced Workers for high performance
 function InstancedWorkers({ workers }: { workers: WorkerData[] }) {
@@ -244,7 +246,7 @@ export function DigitalTwin({
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 gap-3">
             <AlertTriangle className="w-10 h-10 text-rose-500" />
             <p className="text-sm font-bold text-rose-300">No se pudo cargar el digital twin</p>
-            <p className="text-xs text-zinc-500 max-w-md">{errorMessage}</p>
+            <p className="text-xs text-zinc-500 max-w-md">{humanErrorMessage(errorMessage)}</p>
           </div>
         ) : isLoading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 gap-3">

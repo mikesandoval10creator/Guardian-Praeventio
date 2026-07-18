@@ -29,6 +29,15 @@ describe('user-facing error guard', () => {
     ]);
   });
 
+  it('flags raw errors interpolated through a translation call', () => {
+    expect(
+      scan("const view = <p>{t('load.error', 'Falló: {{msg}}', { msg: error.message })}</p>;"),
+    ).toMatchObject([{ kind: 'raw-jsx-error' }]);
+    expect(
+      scan("const view = <p>{t('load.error', 'Falló: {{msg}}', { msg: error.message }) as string}</p>;"),
+    ).toMatchObject([{ kind: 'raw-jsx-error' }]);
+  });
+
   it('flags a caught message assigned directly to visible state', () => {
     expect(
       scan('setError(err instanceof Error ? err.message : String(err));'),
@@ -37,6 +46,9 @@ describe('user-facing error guard', () => {
 
   it('flags a visible HTTP status template', () => {
     expect(scan('setNotice(`Error ${response.status}`);')).toMatchObject([
+      { kind: 'visible-machine-status' },
+    ]);
+    expect(scan('const view = <p>{`HTTP ${response.status}`}</p>;')).toMatchObject([
       { kind: 'visible-machine-status' },
     ]);
   });
@@ -55,6 +67,12 @@ describe('user-facing error guard', () => {
     expect(scan('throw new Error(`http_${res.status}`);')).toEqual([]);
   });
 
+  it('allows an Error object to stay typed in state until the render boundary', () => {
+    expect(scan('setError(err);')).toEqual([]);
+    expect(scan('setError(err as Error);')).toEqual([]);
+    expect(scan('setState({ data: null, error: err as Error });')).toEqual([]);
+  });
+
   it('still detects direct notification APIs', () => {
     expect(scan('toast.error(err.message);')).toMatchObject([
       { kind: 'raw-error-state' },
@@ -62,6 +80,17 @@ describe('user-facing error guard', () => {
     expect(scan('showToast(String(error));')).toMatchObject([
       { kind: 'raw-error-state' },
     ]);
+    expect(scan('toast.error(err);')).toMatchObject([
+      { kind: 'raw-error-state' },
+    ]);
+  });
+
+  it('allows a technical code used only to choose already-human copy', () => {
+    expect(
+      scan(
+        "setError(err instanceof Error && err.message === 'forbidden_role' ? 'No tienes permiso para continuar.' : 'No pudimos crear el registro.');",
+      ),
+    ).toEqual([]);
   });
 
   it('reports stable file and line evidence', () => {

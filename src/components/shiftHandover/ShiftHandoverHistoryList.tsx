@@ -26,6 +26,8 @@ import {
   fetchShiftHandoverHistory,
   type ShiftHandoverEntry,
 } from '../../hooks/useShiftHandover';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface ShiftHandoverHistoryListProps {
   projectId: string;
@@ -76,7 +78,7 @@ export function ShiftHandoverHistoryList({
       setEntries(res.shifts);
       setPage(0);
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setLoading(false);
     }
@@ -145,7 +147,7 @@ export function ShiftHandoverHistoryList({
           role="alert"
           data-testid="shift-handover-history-error"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

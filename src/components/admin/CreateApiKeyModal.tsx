@@ -11,6 +11,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface CreateApiKeyModalProps {
   open: boolean;
@@ -112,7 +114,7 @@ export function CreateApiKeyModal({ open, onClose, onSubmit }: CreateApiKeyModal
       });
       setIssuedKey(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'Error desconocido'));
     } finally {
       setSubmitting(false);
     }
@@ -164,7 +166,7 @@ export function CreateApiKeyModal({ open, onClose, onSubmit }: CreateApiKeyModal
               />
               <span>Copié la API key y entiendo que no podré recuperarla.</span>
             </label>
-            {error && <p className="text-xs text-rose-600">{error}</p>}
+            {error && <p className="text-xs text-rose-600">{humanErrorMessage(error)}</p>}
             <button
               type="button"
               onClick={handleClose}
@@ -245,7 +247,7 @@ export function CreateApiKeyModal({ open, onClose, onSubmit }: CreateApiKeyModal
               />
             </div>
 
-            {error && <p className="text-xs text-rose-600">{error}</p>}
+            {error && <p className="text-xs text-rose-600">{humanErrorMessage(error)}</p>}
 
             <div className="flex justify-end gap-2">
               <button

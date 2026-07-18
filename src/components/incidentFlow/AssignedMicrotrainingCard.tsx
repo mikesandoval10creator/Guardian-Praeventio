@@ -16,6 +16,8 @@ import {
   completeMicrotraining,
   type CompleteMicrotrainingPayload,
 } from '../../hooks/useIncidentFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface AssignedMicrotrainingCardProps {
   projectId: string;
@@ -76,7 +78,7 @@ export function AssignedMicrotrainingCard({
       setCertified(result.certified);
       setFinished(true);
     } catch (err) {
-      setErrorMsg((err as Error).message);
+      setErrorMsg(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -167,7 +169,7 @@ export function AssignedMicrotrainingCard({
           data-testid="assigned-error"
           role="alert"
         >
-          {errorMsg}
+          {humanErrorMessage(errorMsg)}
         </div>
       )}
     </article>

@@ -16,6 +16,8 @@ import { analytics } from '../../services/analytics';
 import type { ProcesoTemplate } from '../../services/analytics';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { humanErrorFromBody } from '../../lib/humanError';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // NOTE: ProcessType values are stable identifiers persisted to Firestore.
 // Only the display labels are localised via processTypeLabel below.
@@ -141,7 +143,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
       setPlannedEndDate('');
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? t('processes.error_network', 'Error de red'));
+      setError(humanErrorMessage(err?.message ?? t('processes.error_network', 'Error de red')));
     } finally {
       setSubmitting(false);
     }
@@ -226,7 +228,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
             </label>
 
             {error && (
-              <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+              <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 

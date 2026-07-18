@@ -23,6 +23,7 @@
 // alineación con la spec F.26 visible al cliente.)
 
 import type { ReactElement } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { Award, WifiOff, Sparkles, TrendingUp } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -272,7 +273,7 @@ export function MaturityIndicator(): ReactElement {
           {t(
             'maturity.page.error',
             'No se pudo calcular el índice de madurez: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

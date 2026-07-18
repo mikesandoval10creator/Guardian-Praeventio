@@ -29,6 +29,8 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { calculateIper, type IperInput, type IperResult } from '../services/protocols/iper';
 import { recordIperAssessment } from '../services/safety/iperAssessments';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const INITIAL_INPUT: IperInput = { probability: 3, severity: 3 };
 
@@ -184,7 +186,7 @@ export function MatrizIper() {
 
         {saveError && (
           <p data-testid="iper-save-error" className="text-xs text-rose-600">
-            {saveError}
+            {humanErrorMessage(saveError)}
           </p>
         )}
       </section>

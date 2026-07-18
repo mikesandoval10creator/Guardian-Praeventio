@@ -70,6 +70,8 @@ import {
   Play,
   BookOpen,
 } from 'lucide-react';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const SCAN_INTERVAL_MS = 250; // 4 escaneos por segundo
 const DEBOUNCE_AFTER_MATCH_MS = 5000; // no re-matchear el mismo poster por 5s
@@ -580,7 +582,7 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
                   <p className="text-sm font-bold text-rose-100">
                     No pudimos abrir la cámara
                   </p>
-                  <p className="text-xs text-rose-200/80 mt-1">{cameraError}</p>
+                  <p className="text-xs text-rose-200/80 mt-1">{humanErrorMessage(cameraError)}</p>
                   <p className="text-[10px] text-rose-200/60 mt-2">
                     Verifica permisos del navegador. En iOS Safari, asegúrate de
                     estar usando HTTPS y de no haber bloqueado el sitio.
@@ -619,7 +621,7 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
                   <p className="text-sm font-bold text-rose-100">
                     No pudimos cargar el matcher IA
                   </p>
-                  <p className="text-xs text-rose-200/80 mt-1">{matcherError}</p>
+                  <p className="text-xs text-rose-200/80 mt-1">{humanErrorMessage(matcherError)}</p>
                   <p className="text-[10px] text-rose-200/60 mt-2">
                     Verifica conexión a Internet o asegúrate de tener los
                     modelos MediaPipe locales en /models/mediapipe/. La cámara

@@ -14,6 +14,7 @@
 // (validateClosureReadiness) determina el porcentaje de readiness.
 
 import { useCallback, useMemo, useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { Briefcase, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -317,7 +318,7 @@ export function ProjectClosure() {
           role="alert"
         >
           {t('closure.page.error', 'No se pudo cargar el cierre: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

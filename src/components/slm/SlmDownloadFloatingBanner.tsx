@@ -29,6 +29,8 @@ import { Cpu, Pause, Play, RefreshCw, Loader2 } from 'lucide-react';
 import { useSlmAcquisition, type DownloadPhase } from '../../hooks/useSlmAcquisition';
 import { formatBytesHuman } from '../../services/slm/slmAcquisitionService';
 import { SlmAcquisitionPrompt } from './SlmAcquisitionPrompt';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface SlmDownloadFloatingBannerProps {
   /**
@@ -181,7 +183,7 @@ function SlmDownloadFloatingBannerInner({ acquisition: own }: InnerProps) {
             data-testid="slm-floating-banner-error"
             className="mt-2 text-[10px] text-rose-700 dark:text-rose-300"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
 

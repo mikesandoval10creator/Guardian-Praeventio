@@ -27,6 +27,8 @@ import {
   type GateLevel,
   type OverrideInput,
 } from '../services/softBlocking/requirementGate';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export interface ActiveSoftBlock {
   /** Identifica el contexto del bloqueo (ej. una actividad / cuadrilla). */
@@ -360,7 +362,7 @@ function OverrideForm({ decision, onCancel, onConfirm }: OverrideFormProps) {
       </div>
       {error && (
         <p className="text-xs text-rose-600 dark:text-rose-400" data-testid="soft-block-form-error">
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
       <div className="flex gap-2 justify-end">

@@ -219,7 +219,7 @@ describe('<EmergencyBrigade /> page wrapper (§74-78)', () => {
     expect(
       screen.getByTestId('emergency-brigade-error'),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza la brigada completa con banner verde', () => {

@@ -43,6 +43,6 @@ describe('<MentalLoadSurveyForm />', () => {
     render(<MentalLoadSurveyForm workerUid="w1" onSubmit={onSubmit} />);
     fireEvent.submit(screen.getByTestId('mental-load-survey-form'));
     const err = await screen.findByTestId('mental-load-error');
-    expect(err).toHaveTextContent('quota_exceeded');
+    expect(err).toHaveTextContent(/límite del plan/i);
   });
 });

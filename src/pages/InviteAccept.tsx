@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Loader2, AlertTriangle, LogIn, CheckCircle2, UserCheck } from 'lucide-react';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { signInWithGoogle, auth } from '../services/firebase';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface InviteInfo {
   projectName: string;
@@ -72,7 +74,7 @@ export function InviteAccept() {
       setAccepted(true);
       setTimeout(() => navigate('/projects'), 2500);
     } catch (err: any) {
-      setAcceptError(err.message || 'Error desconocido');
+      setAcceptError(humanErrorMessage(err.message || 'Error desconocido'));
     } finally {
       setAccepting(false);
     }
@@ -124,7 +126,7 @@ export function InviteAccept() {
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
                 <p className="text-sm font-bold text-primary-token">{t('inviteAccept.unavailable', 'Invitación no disponible')}</p>
-                <p className="text-xs text-muted-token">{infoError}</p>
+                <p className="text-xs text-muted-token">{humanErrorMessage(infoError)}</p>
                 <button onClick={() => navigate('/')} className="mt-2 text-xs font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
                   Ir al Inicio
                 </button>
@@ -163,7 +165,7 @@ export function InviteAccept() {
                 {acceptError && (
                   <div data-testid="invite-accept-error" className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    {acceptError}
+                    {humanErrorMessage(acceptError)}
                   </div>
                 )}
 

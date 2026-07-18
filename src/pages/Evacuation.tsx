@@ -46,6 +46,8 @@ import { get } from 'idb-keyval';
 // estructurado que el SLM no puede reemplazar sin riesgo de schema
 // drift — fallback queda fuera de scope.
 import { useSlmOffline } from '../hooks/useSlmOffline';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const containerStyle = {
   width: '100%',
@@ -482,7 +484,7 @@ export function Evacuation() {
               )}
               {saveError && (
                 <p className="mt-2 text-[11px] text-rose-300 text-right" role="alert">
-                  {saveError}
+                  {humanErrorMessage(saveError)}
                 </p>
               )}
             </motion.div>

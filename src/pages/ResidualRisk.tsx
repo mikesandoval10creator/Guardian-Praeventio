@@ -20,6 +20,7 @@
 //     (ISO 31000 risk-flow), no un gate operacional.
 
 import { randomId } from '../utils/randomId';
+import { humanErrorMessage } from '../lib/humanError';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertOctagon, WifiOff, Plus, X } from 'lucide-react';
@@ -387,7 +388,7 @@ export function ResidualRisk() {
           {t(
             'residualRisk.page.error',
             'No se pudieron cargar los riesgos residuales: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

@@ -22,6 +22,8 @@ import {
 import type {
   MaintenanceTask,
 } from '../../services/maintenance/maintenanceScheduler';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 
@@ -86,7 +88,7 @@ export function MaintenanceTaskList({
       })
       .catch((err: Error) => {
         if (!cancelled) {
-          setState({ kind: 'error', message: err.message ?? 'load_failed' });
+          setState({ kind: 'error', message: humanErrorMessage(err.message ?? 'load_failed') });
         }
       });
     return () => {

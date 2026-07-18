@@ -72,7 +72,7 @@ describe('<ReturnToWorkPanel />', () => {
     fireEvent.click(screen.getByTestId('return-to-work-submit'));
 
     const error = await screen.findByTestId('return-to-work-error');
-    expect(error).toHaveTextContent('http_403');
+    expect(error).toHaveTextContent(/no tienes permiso/i);
     expect(screen.queryByTestId('return-to-work-result')).toBeNull();
   });
 });

@@ -19,6 +19,8 @@ import type {
   TaskFitAssessment,
   WorkerRestriction,
 } from '../../services/returnToWork/returnToWorkPlanner';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface ReturnToWorkPanelProps {
   projectId: string;
@@ -102,7 +104,7 @@ export function ReturnToWorkPanel({ projectId }: ReturnToWorkPanelProps) {
       setAssessment(res.assessment);
     } catch (err) {
       setAssessment(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -232,7 +234,7 @@ export function ReturnToWorkPanel({ projectId }: ReturnToWorkPanelProps) {
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('returnToWork.panel.error', 'No se pudo evaluar la aptitud.')} ({error})</span>
+          <span>{t('returnToWork.panel.error', 'No se pudo evaluar la aptitud.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

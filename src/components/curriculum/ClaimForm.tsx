@@ -25,6 +25,8 @@ import { auth } from '../../services/firebase';
 import { useBiometricAuth } from '../../hooks/useBiometricAuth';
 import type { ClaimCategory } from '../../services/curriculum/claims';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const CATEGORY_LABELS: Record<ClaimCategory, string> = {
   experience: 'Experiencia laboral',
@@ -78,7 +80,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
     setError(null);
     const validationError = validate();
     if (validationError) {
-      setError(validationError);
+      setError(humanErrorMessage(validationError));
       return;
     }
     if (!user || !auth.currentUser) {
@@ -130,7 +132,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       setSuccess(true);
       onCreated?.(data.claimId);
     } catch (err: any) {
-      setError(err?.message || t('curriculum.error_unknown', 'Error desconocido al crear el claim.'));
+      setError(humanErrorMessage(err?.message || t('curriculum.error_unknown', 'Error desconocido al crear el claim.')));
     } finally {
       setSubmitting(false);
     }
@@ -248,7 +250,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
         {error && (
           <div className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            {error}
+            {humanErrorMessage(error)}
           </div>
         )}
 

@@ -32,6 +32,8 @@ import {
   type HazmatClass,
 } from '../../services/hazmat/hazmatInventory.js';
 import { HazmatCompatibilityAlert } from './HazmatCompatibilityAlert.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface HazmatStorageManagerProps {
   /** Inventario actual del sitio. */
@@ -604,7 +606,7 @@ export function HazmatStorageManager({
                 role="alert"
               >
                 <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-                {formError}
+                {humanErrorMessage(formError)}
               </p>
             )}
 

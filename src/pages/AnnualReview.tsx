@@ -54,6 +54,8 @@ import { PreventiveObjectivesPanel } from '../components/annualReview/Preventive
 import { composeAllAudiences, type ComposeAllAudiencesResponse } from '../hooks/useMultiRoleSummary';
 import type { ProjectSnapshot } from '../services/multiRoleSummary/roleSummaryComposer';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const CURRENT_YEAR_UTC = new Date().getUTCFullYear();
 // Year selector range: current year ±2 (small window keeps the UI legible).
@@ -285,7 +287,7 @@ export function AnnualReview() {
       logger.info('annualReview.objective.added', { year, id: newObj.id });
     } catch (err) {
       logger.error('annualReview.objective.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -322,7 +324,7 @@ export function AnnualReview() {
       logger.info('annualReview.evidence.attached', { year });
     } catch (err) {
       logger.error('annualReview.evidence.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -356,7 +358,7 @@ export function AnnualReview() {
       logger.info('annualReview.concluded', { year });
     } catch (err) {
       logger.error('annualReview.conclude.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -379,7 +381,7 @@ export function AnnualReview() {
       logger.info('annualReview.initialized', { year });
     } catch (err) {
       logger.error('annualReview.init.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -472,7 +474,7 @@ export function AnnualReview() {
           data-testid="annual-review-action-error"
           role="alert"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

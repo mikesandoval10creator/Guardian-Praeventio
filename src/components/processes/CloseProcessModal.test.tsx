@@ -104,7 +104,7 @@ describe('CloseProcessModal', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: /cerrar y celebrar/i }));
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/already terminal/);
+      expect(screen.getByRole('alert')).toHaveTextContent(/No pudimos completar la acción/i);
     });
     expect(onClose).not.toHaveBeenCalled();
   });

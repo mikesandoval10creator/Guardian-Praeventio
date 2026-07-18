@@ -17,6 +17,8 @@ import type {
   SkillGap,
   SkillProficiencyLevel,
 } from '../../services/skillGap/skillGapAnalyzer';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface SkillGapPanelProps {
   projectId: string;
@@ -72,7 +74,7 @@ export function SkillGapPanel({ projectId }: SkillGapPanelProps) {
       setGaps(res.gaps);
     } catch (err) {
       setGaps(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -185,7 +187,7 @@ export function SkillGapPanel({ projectId }: SkillGapPanelProps) {
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('skillGap.panel.error', 'No se pudo analizar la brecha.')} ({error})</span>
+          <span>{t('skillGap.panel.error', 'No se pudo analizar la brecha.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

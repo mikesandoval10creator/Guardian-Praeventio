@@ -26,6 +26,8 @@ import type {
   PresetApplication,
 } from '../../services/industryRules/industryRuleEngine';
 import { IndustryNormsSummary } from './IndustryNormsSummary';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // ───────────────────────── State machine ─────────────────────────
 
@@ -464,7 +466,7 @@ function SelectStep({
           role="alert"
           className="text-xs text-red-600 dark:text-red-300"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
       {!loading && !error && (
@@ -534,7 +536,7 @@ function ReviewStep({
           role="alert"
           className="text-xs text-red-600 dark:text-red-300"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
       {!loading && !error && preset && <IndustryNormsSummary preset={preset} />}

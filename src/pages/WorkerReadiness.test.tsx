@@ -163,7 +163,7 @@ describe('<WorkerReadiness /> page wrapper (Fase F.16)', () => {
       target: { value: 'w-1' },
     });
     expect(screen.getByTestId('worker-readiness-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza score alto: muestra valor, nivel y barras, SIN banner de atención', () => {

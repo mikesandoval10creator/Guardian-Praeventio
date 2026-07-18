@@ -104,6 +104,6 @@ describe('<SifPrecursors />', () => {
     recordSifExecutiveReview.mockRejectedValueOnce(new Error('forbidden'));
     render(<SifPrecursors />);
     fireEvent.click(screen.getByTestId('sif-review-sif-1'));
-    await waitFor(() => expect(screen.getByTestId('sifPage.feedback').textContent).toMatch(/forbidden/));
+    await waitFor(() => expect(screen.getByTestId('sifPage.feedback').textContent).toMatch(/no tienes permiso/i));
   });
 });

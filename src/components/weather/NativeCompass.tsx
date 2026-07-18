@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Compass, Navigation, WifiOff } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useNativeCompass } from '../../hooks/useNativeCompass';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface NativeCompassProps {
   className?: string;
@@ -80,7 +82,7 @@ export function NativeCompass({ className }: NativeCompassProps) {
 
           {error && (
             <p className="text-[10px]" style={{ color: 'var(--accent-hazard)' }}>
-              {error}
+              {humanErrorMessage(error)}
             </p>
           )}
 

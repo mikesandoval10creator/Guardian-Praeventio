@@ -25,6 +25,8 @@ import {
   WebAuthnNotSupportedError,
 } from '../../services/auth/webauthnClient';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface WebAuthnCredentialRow {
   credentialId: string;
@@ -280,7 +282,7 @@ export function WebAuthnKeysSection({
             className="text-xs text-rose-500 flex items-center gap-1"
           >
             <ShieldCheck className="w-3 h-3" />
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
       </div>

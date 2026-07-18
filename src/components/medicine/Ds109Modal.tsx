@@ -29,6 +29,8 @@ import { NodeType } from '../../types';
 import { logAuditAction } from '../../services/auditService';
 import { useProject } from '../../contexts/ProjectContext';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface Ds109ModalProps {
   isOpen: boolean;
@@ -285,7 +287,7 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
       setData(emptyInput());
       onClose();
     } catch (err) {
-      setError(`Error al generar DS 109: ${String(err)}`);
+      setError(humanErrorMessage(`Error al generar DS 109: ${String(err)}`));
     } finally {
       setGenerating(false);
     }
@@ -544,7 +546,7 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
 
           {error && (
             <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-700 dark:text-rose-400">
-              {error}
+              {humanErrorMessage(error)}
             </div>
           )}
 

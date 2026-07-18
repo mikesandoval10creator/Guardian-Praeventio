@@ -13,6 +13,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ScanLine, Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { humanErrorMessage } from '../../lib/humanError';
 import { logger } from '../../utils/logger';
 import {
   lookupEquipmentByQr,
@@ -91,7 +92,7 @@ export function EquipmentQRScannerEntry({
         if (!cancelled) {
           setPhase({
             kind: 'error',
-            message: (err as Error).message ?? 'lookup_failed',
+            message: humanErrorMessage((err as Error).message ?? 'lookup_failed'),
           });
         }
       }

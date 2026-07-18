@@ -141,7 +141,7 @@ describe('ARPosterScanner', () => {
     await waitFor(() => {
       expect(screen.getByText(/No pudimos abrir la cámara/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Permission denied/i)).toBeTruthy();
+    expect(screen.getByText(/no tienes permiso/i)).toBeTruthy();
   });
 
   // El path de error del matcher (Codex #4) está cubierto a nivel

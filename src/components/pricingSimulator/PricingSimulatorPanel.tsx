@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next';
 import { Calculator, AlertTriangle } from 'lucide-react';
 import { estimateBillFor } from '../../hooks/usePricingSimulator';
 import type { BillEstimate, Tier } from '../../services/pricingSimulator/pricingSimulator';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface PricingSimulatorPanelProps {
   projectId: string;
@@ -65,7 +67,7 @@ export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps)
       setEstimate(res.estimate);
     } catch (err) {
       setEstimate(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -156,7 +158,7 @@ export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps)
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('pricingSimulator.panel.error', 'No se pudo estimar la factura.')} ({error})</span>
+          <span>{t('pricingSimulator.panel.error', 'No se pudo estimar la factura.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

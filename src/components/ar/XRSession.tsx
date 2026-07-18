@@ -24,6 +24,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 /** Mínimos tipos WebXR (sin agregar @types/webxr al package.json). */
 type XRReferenceSpaceType = 'viewer' | 'local' | 'local-floor' | 'bounded-floor' | 'unbounded';
@@ -116,7 +118,7 @@ export function XRSession({
           domOverlay: { root: overlayRef.current },
         })) as unknown as XRSessionInstance;
       } catch (err) {
-        setError(`No se pudo iniciar AR: ${(err as Error).message}`);
+        setError(humanErrorMessage(`No se pudo iniciar AR: ${(err as Error).message}`));
         return;
       }
       if (cancelled || !session) return;
@@ -247,7 +249,7 @@ export function XRSession({
     >
       {error && (
         <div className="pointer-events-auto absolute top-4 left-4 right-4 mx-auto max-w-md bg-rose-900/90 border border-rose-500/50 text-rose-100 rounded-xl p-3 text-sm">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
       {/* Children render OVER the camera feed. pointer-events-auto re-enabled

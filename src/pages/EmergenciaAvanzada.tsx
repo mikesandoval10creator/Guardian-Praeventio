@@ -23,6 +23,8 @@ import { ConfirmDialog } from "../components/shared/ConfirmDialog";
 import { Tooltip } from "../components/shared/Tooltip";
 import { logger } from "../utils/logger";
 import { EmergencyAuthorityCallPanel } from "../components/emergency/EmergencyAuthorityCallPanel";
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface EmergencyEvent {
   id: string;
@@ -710,7 +712,7 @@ export function EmergenciaAvanzada() {
                   className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
                 >
                   <XCircle className="w-4 h-4 shrink-0" />
-                  {chatError}
+                  {humanErrorMessage(chatError)}
                 </div>
               )}
               <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-subtle-token p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
@@ -770,7 +772,7 @@ export function EmergenciaAvanzada() {
                   className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold"
                 >
                   <XCircle className="w-4 h-4 shrink-0" />
-                  {safetyError}
+                  {humanErrorMessage(safetyError)}
                 </div>
               )}
               {safetyError ? null : !workers || workers.length === 0 ? (

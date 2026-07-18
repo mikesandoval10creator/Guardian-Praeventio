@@ -45,6 +45,8 @@ import {
   getIncidentSystem,
   type CqrsDashboardMetrics,
 } from '../services/cqrs/incidents/incidentSystem';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 function generateDemoId(): string {
   return `demo-inc-${randomId()}`;
@@ -64,7 +66,7 @@ export function CQRSArchitecture() {
       const m = await getIncidentSystem().getDashboardMetrics();
       setMetrics(m);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       setLoading(false);
     }
@@ -100,7 +102,7 @@ export function CQRSArchitecture() {
       });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       setAppending(false);
     }
@@ -147,7 +149,7 @@ export function CQRSArchitecture() {
               className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
               aria-hidden="true"
             />
-            <p className="text-xs text-rose-300 font-mono">{error}</p>
+            <p className="text-xs text-rose-300 font-mono">{humanErrorMessage(error)}</p>
           </div>
         )}
 

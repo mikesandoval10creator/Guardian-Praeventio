@@ -9,6 +9,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { WasteInventoryPanel } from '../components/environmental/WasteInventoryPanel';
 import { useWasteInventory } from '../hooks/useWaste';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function WasteInventoryPage() {
   const { t } = useTranslation();
@@ -64,7 +66,7 @@ export function WasteInventoryPage() {
 
       {error && (
         <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400" data-testid="waste-inventory-error" role="alert">
-          {error.message}
+          {humanErrorMessage(error.message)}
         </div>
       )}
 

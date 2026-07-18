@@ -18,6 +18,8 @@ import {
   type RecordHorometroReadingResponse,
 } from '../../hooks/useHorometro';
 import type { Equipment } from '../../services/equipment/equipmentQrService';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 
@@ -72,7 +74,7 @@ export function HorometroEntryForm({
       setResult(res);
       onSubmitted?.(res);
     } catch (err) {
-      setError((err as Error).message ?? 'unknown_error');
+      setError(humanErrorMessage((err as Error).message ?? 'unknown_error'));
     } finally {
       setBusy(false);
     }
@@ -228,7 +230,7 @@ export function HorometroEntryForm({
             data-testid="horometro-server-error"
           >
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </div>
         )}
       </div>

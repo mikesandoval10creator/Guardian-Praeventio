@@ -43,6 +43,8 @@ import {
   deleteEncrypted,
 } from '../services/security/encryptedKvStore';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Pre-2026-07 this was a single fixed key shared by every account on the
 // device, so the next user to log in inherited the previous user's enrollment.
@@ -154,9 +156,9 @@ export function SecurityShield() {
       setShowRecoveryCodes(true);
     } catch (err) {
       if (err instanceof TotpEnrollmentError) {
-        setError(err.message);
+        setError(humanErrorMessage(err.message));
       } else {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
       }
     }
   }, [draft, verifyInput, t, user]);
@@ -265,7 +267,7 @@ export function SecurityShield() {
             className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
             aria-hidden="true"
           />
-          <p className="text-xs text-rose-300">{error}</p>
+          <p className="text-xs text-rose-300">{humanErrorMessage(error)}</p>
         </div>
       )}
 

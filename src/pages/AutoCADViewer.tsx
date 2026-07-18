@@ -10,6 +10,8 @@ import {
   type DrawableEntity,
   type AdapterBounds,
 } from '../services/cad/dxfAdapter';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Sprint 17a — MIT-only CAD viewer. AutoCAD is an Autodesk trademark; we
 // drop the brand from user-facing copy and avoid GPL contamination from
@@ -96,7 +98,7 @@ export function AutoCADViewer() {
         bounds: computeAdapterBounds(drawables),
       });
     } catch (err: any) {
-      setParseError(err?.message ?? 'Error al procesar archivo');
+      setParseError(humanErrorMessage(err?.message ?? 'Error al procesar archivo'));
       setParsed(null);
     } finally {
       setIsParsing(false);
@@ -268,7 +270,7 @@ export function AutoCADViewer() {
             <div className="flex flex-col items-center justify-center text-center p-8">
               <AlertTriangle className="w-16 h-16 text-rose-500 mb-4" />
               <h3 className="text-lg font-bold text-rose-500 mb-2">{t('autocad.errorTitle', 'Error al procesar')}</h3>
-              <p className="text-sm text-muted-token max-w-md">{parseError}</p>
+              <p className="text-sm text-muted-token max-w-md">{humanErrorMessage(parseError)}</p>
               <button onClick={reset} className="mt-4 px-4 py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest hover:bg-zinc-700">
                 {t('autocad.retry', 'Reintentar')}
               </button>

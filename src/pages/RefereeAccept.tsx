@@ -26,6 +26,8 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Loader2, AlertTriangle, CheckCircle2, Fingerprint, X, UserCheck } from 'lucide-react';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface RefereePreview {
   claimText: string;
@@ -108,7 +110,7 @@ export function RefereeAccept() {
       if (!res.ok) throw new Error(data?.error || 'No se pudo registrar tu respuesta.');
       setSubmitted(method === 'decline' ? 'declined' : 'signed');
     } catch (err: any) {
-      setSubmitError(err?.message || 'Error desconocido.');
+      setSubmitError(humanErrorMessage(err?.message || 'Error desconocido.'));
     } finally {
       setSubmitting(null);
     }
@@ -145,7 +147,7 @@ export function RefereeAccept() {
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
                 <p className="text-sm font-bold text-primary-token">{t('refereeAccept.linkUnavailable', 'Enlace no disponible')}</p>
-                <p className="text-xs text-muted-token">{loadError}</p>
+                <p className="text-xs text-muted-token">{humanErrorMessage(loadError)}</p>
               </div>
             )}
 
@@ -212,7 +214,7 @@ export function RefereeAccept() {
                 {submitError && (
                   <div className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    {submitError}
+                    {humanErrorMessage(submitError)}
                   </div>
                 )}
 

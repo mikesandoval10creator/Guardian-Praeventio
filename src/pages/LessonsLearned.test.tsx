@@ -287,7 +287,7 @@ describe('<LessonsLearned /> page wrapper (Fase F.12)', () => {
     };
     render(<LessonsLearned />);
     expect(screen.getByTestId('lessons-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   // Mount regression: <LessonSuggestionsCard /> must render inside
