@@ -46,6 +46,8 @@ import { logger } from '../utils/logger';
 import { analytics } from '../services/analytics';
 import { IapAdapter, iapAdapter, type BillingProvider } from '../services/billing/iapAdapter';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Sprint 21 Bucket T — payments now route through `IapAdapter`. Web keeps the
 // existing Webpay/MP/Khipu surface; Android/iOS hit the store rails (Google
@@ -1197,7 +1199,7 @@ function PricingInner() {
               {t('pricing.checkout.error_default')}
             </p>
             <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-              {checkoutError}
+              {humanErrorMessage(checkoutError)}
             </p>
           </div>
           <button

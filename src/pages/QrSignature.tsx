@@ -22,6 +22,7 @@
 // La empresa firma + entrega el documento a la autoridad por su cuenta.
 
 import { useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { ScanLine, WifiOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -360,7 +361,7 @@ export function QrSignature() {
           role="alert"
         >
           {t('qrSig.page.error', 'No se pudo procesar la firma: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

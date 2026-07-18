@@ -32,6 +32,8 @@ import {
   listProtocolAssessments,
   type ProtocolAssessment,
 } from '../hooks/useProtocols';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const RISK_BADGE: Record<PrexorResult['riskLevel'], string> = {
   bajo: 'bg-emerald-500/10 text-emerald-500',
@@ -348,7 +350,7 @@ export function PrexorEvaluation() {
               <p data-testid="prexor-status" className="text-xs text-emerald-400">{status}</p>
             )}
             {error && (
-              <p data-testid="prexor-error" className="text-xs text-rose-400">{error}</p>
+              <p data-testid="prexor-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 

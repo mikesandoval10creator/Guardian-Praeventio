@@ -13,6 +13,8 @@ import { logger } from '../../utils/logger';
 import { calculateIper, type IperInput } from '../../services/protocols/iper';
 import { recordIperAssessment } from '../../services/safety/iperAssessments';
 import { IPERCMatrix, LEVEL_TO_CRITICIDAD } from './IPERCMatrix';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface AiAdvice {
   recomendaciones: string[];
@@ -267,7 +269,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       setSaved(true);
     } catch (err) {
       logger.error('Error saving nodes', err);
-      setError(err instanceof Error ? err.message : t('iperc.error_save', 'No se pudo guardar la matriz IPER.'));
+      setError(humanErrorMessage(err instanceof Error ? err.message : t('iperc.error_save', 'No se pudo guardar la matriz IPER.')));
     } finally {
       setLoadingAi(false);
     }
@@ -388,7 +390,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
         {error && (
           <div role="alert" className="flex items-start gap-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </div>
         )}
 

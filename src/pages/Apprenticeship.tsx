@@ -62,6 +62,8 @@ import type {
   AuthorizationLevel,
 } from '../services/apprenticeship/apprenticeshipProgressService';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Static visual helpers
@@ -287,7 +289,7 @@ export function Apprenticeship() {
           {t(
             'apprenticeship.page.error',
             'No se pudo cargar el programa: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}
@@ -666,11 +668,13 @@ function RegisterApprenticeModal({
     } catch (err) {
       logger.error('apprenticeship.register.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'apprenticeship.register.errorSubmit',
-            'No se pudo registrar el aprendiz.',
-          ) as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t(
+              'apprenticeship.register.errorSubmit',
+              'No se pudo registrar el aprendiz.',
+            ) as string),
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -769,7 +773,7 @@ function RegisterApprenticeModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 
@@ -858,11 +862,13 @@ function AuthorizeApprenticeModal({
     } catch (err) {
       logger.error('apprenticeship.authorize.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'apprenticeship.authorize.errorSubmit',
-            'No se pudo autorizar.',
-          ) as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t(
+              'apprenticeship.authorize.errorSubmit',
+              'No se pudo autorizar.',
+            ) as string),
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -967,7 +973,7 @@ function AuthorizeApprenticeModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 
@@ -1068,11 +1074,13 @@ function RecordExposureModal({
     } catch (err) {
       logger.error('apprenticeship.expose.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'apprenticeship.expose.errorSubmit',
-            'No se pudo registrar la exposición.',
-          ) as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t(
+              'apprenticeship.expose.errorSubmit',
+              'No se pudo registrar la exposición.',
+            ) as string),
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -1203,7 +1211,7 @@ function RecordExposureModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 

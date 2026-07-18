@@ -44,6 +44,8 @@ import {
   type CulturePulseHistoryPoint,
 } from '../hooks/useCulturePulse';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ─────────────────────────────────────────────────────────────────────
 // Color band — directiva de marca del usuario:
@@ -276,7 +278,7 @@ function ScheduleSurveyModal({
       onClose();
     } catch (err) {
       logger.error('culturePulse.schedule.failed', err);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setSubmitting(false);
     }
@@ -349,7 +351,7 @@ function ScheduleSurveyModal({
             role="alert"
             data-testid="culture-pulse-modal-error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
         <div className="mt-4 flex items-center justify-end gap-2">
@@ -426,7 +428,7 @@ function RespondModal({
       onClose();
     } catch (err) {
       logger.error('culturePulse.respond.failed', err);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setSubmitting(false);
     }
@@ -515,7 +517,7 @@ function RespondModal({
             role="alert"
             data-testid="culture-pulse-respond-error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
         <div className="mt-4 flex items-center justify-end gap-2">
@@ -666,7 +668,7 @@ export function CulturePulse(): ReactElement {
           role="alert"
         >
           {t('culturePulse.page.error', 'No se pudo cargar el pulso: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

@@ -36,6 +36,8 @@ import {
   EvacuationAlreadyActiveError,
 } from '../../hooks/useEvacuationHeadcount.js';
 import { EvacuationQRScanner } from './EvacuationQRScanner.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // Paleta usuario — teal primary, gold/petroleum acentos.
 const TEAL = '#4db6ac';
@@ -121,7 +123,7 @@ export function EvacuationDashboard({
         // so a null here is a genuine vanished-resume, not a normal close-out.
         setStaleResume(next === null);
       },
-      (err) => setError(err.message ?? 'subscription_error'),
+      (err) => setError(humanErrorMessage(err.message ?? 'subscription_error')),
     );
     return () => unsub();
   }, [drillId, tenantId, projectId]);
@@ -367,7 +369,7 @@ export function EvacuationDashboard({
             className="text-xs text-rose-600 dark:text-rose-300 font-bold"
             data-testid="evacuation-dashboard-error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
       </section>
@@ -525,7 +527,7 @@ export function EvacuationDashboard({
           className="text-xs text-rose-600 dark:text-rose-300 font-bold"
           data-testid={`evacuation-dashboard-error-${drill.id}`}
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

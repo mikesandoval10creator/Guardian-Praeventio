@@ -20,6 +20,8 @@ import type {
   PinSignItemKind,
   PinSignedAcknowledgement,
 } from '../../services/pinSign/pinSignService';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface PinSignModalProps {
   isOpen: boolean;
@@ -90,9 +92,9 @@ export function PinSignModal({
       }
     } catch (err) {
       setError(
-        err instanceof Error
+        humanErrorMessage(err instanceof Error
           ? err.message
-          : (t('pinSign.errors.unknown', 'Error desconocido.') as string),
+          : (t('pinSign.errors.unknown', 'Error desconocido.') as string)),
       );
     } finally {
       setSubmitting(false);
@@ -169,7 +171,7 @@ export function PinSignModal({
             className="flex items-start gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-700 dark:text-rose-300"
           >
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </div>
         )}
 

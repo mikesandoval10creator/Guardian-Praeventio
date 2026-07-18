@@ -29,6 +29,8 @@ import {
   listProtocolAssessments,
   type ProtocolAssessment,
 } from '../hooks/useProtocols';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const FACTORS: TmertFactor[] = ['repetitividad', 'fuerza', 'posturaForzada', 'otros'];
 const CONDITIONS = ['A', 'B', 'C'] as const;
@@ -297,7 +299,7 @@ export function TmertEvaluation() {
               <p data-testid="tmert-status" className="text-xs text-emerald-400">{status}</p>
             )}
             {error && (
-              <p data-testid="tmert-error" className="text-xs text-rose-400">{error}</p>
+              <p data-testid="tmert-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 

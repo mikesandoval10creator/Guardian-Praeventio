@@ -26,6 +26,8 @@ import {
 import type {
   MaintenanceTask,
 } from '../../services/maintenance/maintenanceScheduler';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 const MIN_NOTES_CHARS = 20;
@@ -118,7 +120,7 @@ export function MaintenanceCompleteForm({
       setResult(res);
       onCompleted?.(res);
     } catch (err) {
-      setError((err as Error).message ?? 'unknown_error');
+      setError(humanErrorMessage((err as Error).message ?? 'unknown_error'));
     } finally {
       setBusy(false);
       setSigning(false);
@@ -287,7 +289,7 @@ export function MaintenanceCompleteForm({
             data-testid="maintenance-complete-error"
           >
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </div>
         )}
       </div>

@@ -32,6 +32,8 @@ import {
   getHealthFacadeNative,
   type HealthMetric,
 } from '../services/health/healthFacadeNative';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export type HealthSource =
   | 'healthkit'
@@ -250,7 +252,7 @@ export function useHealthMetrics(
       setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: err instanceof Error ? err.message : 'sync-failed',
+        error: humanErrorMessage(err instanceof Error ? err.message : 'sync-failed'),
       }));
     }
   }, []);
@@ -277,7 +279,7 @@ export function useHealthMetrics(
     } catch (err) {
       setState((prev) => ({
         ...prev,
-        error: err instanceof Error ? err.message : 'permissions-error',
+        error: humanErrorMessage(err instanceof Error ? err.message : 'permissions-error'),
       }));
       return false;
     }

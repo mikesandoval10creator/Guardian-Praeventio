@@ -38,6 +38,8 @@ import {
   type ApiRowError,
 } from '../../services/etl/organicCsvSync';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface CsvImportExportModalProps {
   isOpen: boolean;
@@ -214,7 +216,7 @@ export function CsvImportExportModal({
       setPhase('input');
     } catch (err) {
       logger.error('[CsvImportExportModal] export failed', { err });
-      setExportError(`No se pudo exportar: ${(err as Error).message}`);
+      setExportError(humanErrorMessage(`No se pudo exportar: ${(err as Error).message}`));
       setPhase('input');
     } finally {
       setBusy(false);
@@ -313,7 +315,7 @@ export function CsvImportExportModal({
                   {exportError && (
                     <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{exportError}</span>
+                      <span>{humanErrorMessage(exportError)}</span>
                     </div>
                   )}
                 </>

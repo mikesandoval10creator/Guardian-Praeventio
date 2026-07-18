@@ -160,7 +160,7 @@ describe('<MaturityIndicator /> page wrapper (Fase F.26)', () => {
     };
     render(<MaturityIndicator />);
     expect(screen.getByTestId('maturity-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza nivel 1 (Reactivo) con tokens rose', () => {

@@ -30,6 +30,8 @@ import { useWorkerPings } from '../../hooks/useWorkerPings';
 import { VectorialEvacuationMap } from './VectorialEvacuationMap';
 import { EvacuationGridMap } from './EvacuationGridMap';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 // Conservative evacuation walking pace (m/s) — brisk but accounts for stress,
 // debris and congestion. Used only for an ETA estimate, clearly labelled.
@@ -194,7 +196,7 @@ export function DynamicEvacuationMap() {
           ) : geoError ? (
             <div className="text-center space-y-3 p-4">
               <XCircle className="w-10 h-10 text-rose-500 mx-auto" />
-              <p className="text-xs sm:text-sm font-bold text-rose-500">{geoError}</p>
+              <p className="text-xs sm:text-sm font-bold text-rose-500">{humanErrorMessage(geoError)}</p>
             </div>
           ) : !hasGeometry || !bounds ? (
             // Honest empty state — no fabricated floor plan.

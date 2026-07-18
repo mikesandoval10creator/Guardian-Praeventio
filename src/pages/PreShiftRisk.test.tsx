@@ -198,6 +198,6 @@ describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
     };
     render(<PreShiftRisk />);
     expect(screen.getByTestId('pre-shift-risk-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 });

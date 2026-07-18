@@ -3,6 +3,8 @@ import { AlertTriangle, Wifi, ShieldAlert, Settings } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { captureEmergencyError } from '../../lib/sentry';
 import i18n from '../../i18n';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface Props {
   children: ReactNode;
@@ -107,7 +109,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <details className="w-full mb-5 text-left">
               <summary className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 cursor-pointer mb-2">Ver detalle técnico</summary>
               <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-3 overflow-auto max-h-32">
-                <pre className="text-[9px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{errorMessage}</pre>
+                <pre className="text-[9px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{humanErrorMessage(errorMessage)}</pre>
               </div>
             </details>
             <div className="flex flex-col gap-2 w-full">

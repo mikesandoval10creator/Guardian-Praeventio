@@ -14,6 +14,8 @@ import type {
   ClassificationReport,
   PiiCategory,
 } from '../../services/privacyShield/piiClassifier';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface PrivacyShieldPanelProps {
   projectId: string;
@@ -79,7 +81,7 @@ export function PrivacyShieldPanel({ projectId }: PrivacyShieldPanelProps) {
       setReport(res.report);
     } catch (err) {
       setReport(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -165,7 +167,7 @@ export function PrivacyShieldPanel({ projectId }: PrivacyShieldPanelProps) {
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('privacyShield.panel.error', 'No se pudo clasificar el campo.')} ({error})</span>
+          <span>{t('privacyShield.panel.error', 'No se pudo clasificar el campo.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

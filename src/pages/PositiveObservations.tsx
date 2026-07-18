@@ -39,6 +39,8 @@ import type {
 } from '../services/positiveObservations/positiveObservationsService';
 import type { Worker } from '../types';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Kind metadata for UI (label + icon color)
@@ -427,7 +429,7 @@ function NewObservationForm({ projectId, onClose, onSaved }: NewObservationFormP
           data-testid="positive-obs-form-error"
           role="alert"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
       <div className="flex items-center justify-end gap-2 pt-1">
@@ -718,7 +720,7 @@ export function PositiveObservations() {
           role="alert"
         >
           {t('positiveObs.page.error', 'No se pudieron cargar las observaciones: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

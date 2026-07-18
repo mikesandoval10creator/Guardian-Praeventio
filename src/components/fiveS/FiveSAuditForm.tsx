@@ -13,6 +13,8 @@ import {
   type FiveSAuditReport,
   type FiveSDimension,
 } from '../../services/fiveS/fiveSAudit.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface FiveSAuditFormProps {
   zoneId: string;
@@ -69,7 +71,7 @@ export function FiveSAuditForm({ zoneId, onSubmit }: FiveSAuditFormProps) {
       const report = buildFiveSAuditReport(zoneId, responses);
       await onSubmit(report);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'submit_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -138,7 +140,7 @@ export function FiveSAuditForm({ zoneId, onSubmit }: FiveSAuditFormProps) {
           data-testid="five-s-error"
           className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

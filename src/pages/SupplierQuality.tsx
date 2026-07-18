@@ -29,6 +29,8 @@ import {
 } from '../hooks/useSuppliers';
 import { SupplierComparator } from '../components/suppliers/SupplierComparator';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const RISK_FILTERS: ReadonlyArray<SupplierRiskFilter> = ['all', 'low', 'medium', 'high'];
 
@@ -146,7 +148,7 @@ export function SupplierQuality() {
       refetch();
     } catch (err) {
       logger.error('suppliers.register.failed', err);
-      setSubmitError((err as Error).message || tr('suppliers.form.error', 'No se pudo registrar.'));
+      setSubmitError(humanErrorMessage((err as Error).message || tr('suppliers.form.error', 'No se pudo registrar.')));
     } finally {
       setSubmitting(false);
     }
@@ -292,7 +294,7 @@ export function SupplierQuality() {
               data-testid="suppliers-form-error"
               role="alert"
             >
-              {submitError}
+              {humanErrorMessage(submitError)}
             </p>
           )}
           <div className="flex gap-2 justify-end">
@@ -336,7 +338,7 @@ export function SupplierQuality() {
           role="alert"
         >
           {t('suppliers.page.error', 'No se pudieron cargar los proveedores: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           }) as string}
         </div>
       )}
@@ -424,7 +426,7 @@ export function SupplierQuality() {
             role="alert"
           >
             {tr('suppliers.ranking.error', 'No se pudo cargar el ranking:')}{' '}
-            {rankingError.message}
+            {humanErrorMessage(rankingError.message)}
           </div>
         )}
         {!rankingLoading && !rankingError && (

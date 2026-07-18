@@ -22,6 +22,7 @@
 // la firma vive en el módulo CPHS principal.
 
 import { useTranslation } from 'react-i18next';
+import { humanErrorMessage } from '../lib/humanError';
 import { Link } from 'react-router-dom';
 import {
   FileText,
@@ -160,7 +161,7 @@ export function CphsDraftMinute() {
           {t(
             'cphsDraft.page.error',
             'No se pudo generar la minuta: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

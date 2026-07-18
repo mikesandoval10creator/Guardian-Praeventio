@@ -198,7 +198,7 @@ describe('<LegalCalendar /> server-backed upcoming section', () => {
 
     const errBox = await screen.findByTestId('legal-calendar-server-error');
     expect(errBox).toBeInTheDocument();
-    expect(errBox).toHaveTextContent(/forbidden/i);
+    expect(errBox).toHaveTextContent(/no tienes permiso/i);
 
     expect(
       screen.queryByTestId('legal-calendar-server-list'),

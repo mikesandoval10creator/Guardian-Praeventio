@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTopRisks } from '../../hooks/useRiskRanking';
 import { TopRisksWidget } from './TopRisksWidget';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface TopRisksDashboardCardProps {
   /** Top-N count. Default 10. */
@@ -77,7 +79,7 @@ export function TopRisksDashboardCard({
               {t('top_risks.error', 'No se pudo cargar el ranking de riesgos.')}
             </p>
             <p className="text-[10px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 truncate">
-              {error.message}
+              {humanErrorMessage(error.message)}
             </p>
             <button
               type="button"

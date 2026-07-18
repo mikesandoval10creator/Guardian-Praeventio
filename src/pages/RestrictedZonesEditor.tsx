@@ -34,6 +34,8 @@ import {
 import type { RestrictedZone, ZoneKind } from '../services/zones/restrictedZonesEngine';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const SANTIAGO_CENTER = { lat: -33.45, lng: -70.66 };
 const containerStyle: React.CSSProperties = { width: '100%', height: '100%' };
@@ -188,7 +190,7 @@ export function RestrictedZonesEditor() {
       logger.warn('RestrictedZonesEditor: define failed', { err: String(err) });
       setFeedback({
         kind: 'error',
-        msg: err instanceof Error ? err.message : t('zone_editor.err_save', 'No se pudo guardar la zona.'),
+        msg: humanErrorMessage(err instanceof Error ? err.message : t('zone_editor.err_save', 'No se pudo guardar la zona.')),
       });
     } finally {
       setSaving(false);

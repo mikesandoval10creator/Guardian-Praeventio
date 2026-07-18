@@ -22,6 +22,7 @@
 // usuario: nunca empujar a APIs gubernamentales).
 
 import { useMemo, useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
@@ -762,7 +763,7 @@ export function EmergencyBrigade() {
           role="alert"
         >
           {t('brigade.page.error', 'No se pudo cargar la brigada: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

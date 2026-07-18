@@ -18,6 +18,8 @@ import { computeProcessCloseXp, baseXpForProcessType } from '../../services/orga
 import { auth } from '../../services/firebase';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { humanErrorFromBody } from '../../lib/humanError';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface CloseProcessModalProps {
   isOpen: boolean;
@@ -88,7 +90,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
       onClosed?.(j.xpAwarded ?? previewXp);
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? t('processes.error_network', 'Error de red'));
+      setError(humanErrorMessage(err?.message ?? t('processes.error_network', 'Error de red')));
     } finally {
       setSubmitting(false);
     }
@@ -157,7 +159,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
             )}
 
             {error && (
-              <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+              <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 

@@ -11,6 +11,8 @@ import {
   type MentalLoadSurvey,
   type MentalLoadScore,
 } from '../../services/mentalLoad/mentalLoadTracker.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface MentalLoadSurveyFormProps {
   workerUid: string;
@@ -77,7 +79,7 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
       // result stay visible so the worker can see what drove the verdict and
       // adjust from there — no dissociation between inputs and the shown result.
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'submit_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -134,7 +136,7 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
           data-testid="mental-load-error"
           className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

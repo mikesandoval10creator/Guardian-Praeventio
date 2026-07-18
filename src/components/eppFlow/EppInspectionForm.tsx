@@ -31,6 +31,8 @@ import type {
   SupplierCatalogEntry,
   PurchaseOrderDraft,
 } from '../../services/financialAnalytics/purchaseOrderSuggester';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface EppInspectionFormProps {
   projectId: string;
@@ -331,7 +333,7 @@ export function EppInspectionForm({
           data-testid="epp-inspection-error"
           className="rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-100"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

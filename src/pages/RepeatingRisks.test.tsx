@@ -184,7 +184,7 @@ describe('<RepeatingRisks /> page wrapper (Fase F.13)', () => {
     };
     render(<RepeatingRisks />);
     expect(screen.getByTestId('repeating-risks-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('muestra el chip offline cuando isOnline=false', () => {

@@ -153,7 +153,7 @@ describe('<PdcaModule /> page wrapper (Sprint K §195-200)', () => {
     };
     render(<PdcaModule />);
     expect(screen.getByTestId('pdca-module-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza el kanban con 4 columnas (P/D/C/A) y agrupa ciclos por fase', () => {

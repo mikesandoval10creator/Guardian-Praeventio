@@ -393,7 +393,7 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded px-3 py-2 text-sm">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

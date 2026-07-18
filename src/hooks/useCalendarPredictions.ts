@@ -14,6 +14,8 @@ import {
 } from '../services/zettelkasten/climateRiskCoupling';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface UseCalendarPredictionsResult {
   predictions: PredictedActivity[];
@@ -144,7 +146,7 @@ export function useCalendarPredictions(): UseCalendarPredictionsResult {
       setClimateRisks(newClimate);
     } catch (err) {
       logger.error('useCalendarPredictions.refresh failed', err);
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'Error desconocido'));
       setPredictions([]);
       setClimateRisks([]);
     } finally {

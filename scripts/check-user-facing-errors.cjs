@@ -64,6 +64,14 @@ function expressionContainsRawError(node) {
   if (ts.isParenthesizedExpression(node)) {
     return expressionContainsRawError(node.expression);
   }
+  if (
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isNonNullExpression(node) ||
+    ts.isSatisfiesExpression(node)
+  ) {
+    return expressionContainsRawError(node.expression);
+  }
   if (ts.isIdentifier(node)) return isErrorLikeName(node.text);
   if (ts.isPropertyAccessExpression(node)) {
     return node.name.text === 'message' && expressionContainsRawError(node.expression);
@@ -85,9 +93,18 @@ function expressionContainsRawError(node) {
   if (ts.isTemplateExpression(node)) {
     return node.templateSpans.some((span) => expressionContainsRawError(span.expression));
   }
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.some((property) =>
+      ts.isPropertyAssignment(property) &&
+      expressionContainsRawError(property.initializer),
+    );
+  }
   if (ts.isCallExpression(node)) {
     const name = calleeName(node.expression);
     if (name === 'String') return node.arguments.some(expressionContainsRawError);
+    if (/^(?:t|tr)$/.test(name)) {
+      return node.arguments.some(expressionContainsRawError);
+    }
   }
   return false;
 }
@@ -147,6 +164,68 @@ function isVisibleStateCall(node) {
   return false;
 }
 
+function isDirectNotificationCall(node) {
+  if (!ts.isCallExpression(node)) return false;
+  if (ts.isIdentifier(node.expression)) {
+    return /^(?:showToast|enqueueSnackbar|notify)$/.test(node.expression.text);
+  }
+  if (!ts.isPropertyAccessExpression(node.expression)) return false;
+  const owner = node.expression.expression.getText();
+  return /^(?:toast|notify|notifications)$/i.test(owner);
+}
+
+function propertyName(node) {
+  if (ts.isIdentifier(node) || ts.isStringLiteral(node)) return node.text;
+  return '';
+}
+
+function isBareErrorObject(node) {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return ts.isIdentifier(current) && /^(?:err|error)$/i.test(current.text);
+}
+
+function visibleStateContainsRaw(node, sourceFile) {
+  if (!node || isHumanizerCall(node)) return false;
+  if (ts.isParenthesizedExpression(node)) {
+    return visibleStateContainsRaw(node.expression, sourceFile);
+  }
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+    return !ts.isBlock(node.body) && visibleStateContainsRaw(node.body, sourceFile);
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.some((property) => {
+      if (!ts.isPropertyAssignment(property)) return false;
+      const name = propertyName(property.name);
+      if (ts.isComputedPropertyName(property.name)) {
+        return expressionContainsRawError(property.initializer);
+      }
+      if (/(?:error|err|message|msg|title)$/i.test(name)) {
+        if (/^(?:error|err)$/i.test(name) && isBareErrorObject(property.initializer)) {
+          return false;
+        }
+        return (
+          expressionContainsRawError(property.initializer) ||
+          containsVisibleMachineStatus(property.initializer, sourceFile)
+        );
+      }
+      return visibleStateContainsRaw(property.initializer, sourceFile);
+    });
+  }
+  // Keep a bare Error object typed in state. The JSX rule guards the point
+  // where it could become text. Derived strings still need humanization here.
+  if (isBareErrorObject(node)) return false;
+  return expressionContainsRawError(node);
+}
+
 function scanSource(source, key = 'inline.tsx') {
   const sourceFile = ts.createSourceFile(
     key,
@@ -176,10 +255,13 @@ function scanSource(source, key = 'inline.tsx') {
     if (
       ts.isJsxExpression(node) &&
       !ts.isJsxAttribute(node.parent) &&
-      node.expression &&
-      expressionContainsRawError(node.expression)
+      node.expression
     ) {
-      add(node, 'raw-jsx-error');
+      if (expressionContainsRawError(node.expression)) {
+        add(node, 'raw-jsx-error');
+      } else if (containsVisibleMachineStatus(node.expression, sourceFile)) {
+        add(node, 'visible-machine-status');
+      }
     }
 
     if (isVisibleStateCall(node)) {
@@ -187,7 +269,11 @@ function scanSource(source, key = 'inline.tsx') {
         if (isHumanizerCall(argument)) continue;
         if (containsVisibleMachineStatus(argument, sourceFile)) {
           add(argument, 'visible-machine-status');
-        } else if (containsRawCaughtMessage(argument)) {
+        } else if (
+          isDirectNotificationCall(node)
+            ? expressionContainsRawError(argument)
+            : visibleStateContainsRaw(argument, sourceFile)
+        ) {
           add(argument, 'raw-error-state');
         }
       }

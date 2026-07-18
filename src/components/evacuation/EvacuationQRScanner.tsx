@@ -18,6 +18,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, QrCode, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const TEAL = '#4db6ac';
 
@@ -199,7 +201,7 @@ export function EvacuationQRScanner({
                 className="text-[11px] text-rose-300 mt-3 text-center font-bold"
                 data-testid="evacuation-qr-parse-error"
               >
-                {parseError}
+                {humanErrorMessage(parseError)}
               </p>
             )}
           </div>

@@ -150,7 +150,7 @@ describe('<SlmManagerScreen />', () => {
       },
     };
     render(<SlmManagerScreen />);
-    expect(screen.getByTestId('slm-manager-error')).toHaveTextContent('Timeout');
+    expect(screen.getByTestId('slm-manager-error')).toHaveTextContent(/tardó demasiado/i);
     fireEvent.click(screen.getByTestId('slm-manager-retry'));
     expect(currentHookValue.retry).toHaveBeenCalled();
   });

@@ -53,6 +53,8 @@ import {
   markStoppagePreconditionFulfilledApi,
 } from '../hooks/useStoppage';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Plan 2026-05-23 §Fase B.6 — i18n sweep. Strings derivados via t() con
 // fallback Spanish (que sigue siendo el default visible si no hay locale
@@ -286,7 +288,7 @@ export function StoppageMonitor() {
                 className="rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-700 p-3 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2"
               >
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-                <span>{subError}</span>
+                <span>{humanErrorMessage(subError)}</span>
               </div>
             )}
 
