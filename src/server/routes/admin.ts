@@ -194,6 +194,10 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Requires admin role to revoke access' });
     }
 
+    // [P0][seguridad] The target must share the caller's tenant — an admin of
+    // company A cannot revoke sessions of a user in company B.
+    if (!(await assertTargetInCallerTenant(res, callerUid, targetUid))) return undefined;
+
     // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
     await admin.auth().revokeRefreshTokens(targetUid);
 
@@ -278,6 +282,10 @@ router.post('/webauthn/revoke', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid credentialId' });
   }
 
+  // [P0][seguridad] The target must share the caller's tenant — an admin of
+  // company A cannot wipe the MFA credentials of a user in company B.
+  if (!(await assertTargetInCallerTenant(res, callerUid, targetUid))) return undefined;
+
   try {
     const credsDb = buildCredentialsDb();
 
@@ -340,6 +348,10 @@ router.post('/set-role', verifyAuth, async (req, res) => {
     if (!isValidRole(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
+
+    // [P0][seguridad] The target must share the caller's tenant — an admin of
+    // company A cannot change the role of (or escalate) a user in company B.
+    if (!(await assertTargetInCallerTenant(res, callerUid, uid))) return undefined;
 
     // Capture the existing role + FULL claim set before mutation. M-1: we MUST
     // preserve existing custom claims (notably `tenantId`) — setCustomUserClaims
@@ -647,6 +659,52 @@ async function assertAdminCaller(req: any, res: any): Promise<boolean> {
   const callerRecord = await admin.auth().getUser(callerUid);
   if (!isAdminRole(callerRecord.customClaims?.role)) {
     res.status(403).json({ error: 'Forbidden: Requires admin role' });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * [P0][seguridad] Tenant-intersection guard for admin operations that act on a
+ * TARGET uid (set-role, revoke-access, webauthn/revoke). An `admin`/`gerente`
+ * is a COMPANY admin scoped to a tenant, NOT a platform operator — so acting on
+ * another user's account MUST stay inside the caller's tenant. Without this, an
+ * admin of company A who learns a UID in company B could revoke their sessions,
+ * wipe their MFA, or change their role (potentially to global admin). Reads
+ * BOTH tenants from the server-authoritative Auth custom claims (never the
+ * request body/token). Returns true if allowed; otherwise writes a 403 and
+ * returns false.
+ *
+ * Denies when the caller carries no tenant claim — there is no global
+ * `platform_admin` role yet (separating one from tenant-scoped admin is the
+ * task's follow-up); until then a tenant-less caller cannot act on anyone. Also
+ * denies when the target's tenant is missing or differs from the caller's.
+ */
+async function assertTargetInCallerTenant(
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+  callerUid: string,
+  targetUid: string,
+): Promise<boolean> {
+  let callerTenantId: unknown;
+  let targetTenantId: unknown;
+  try {
+    const [callerRecord, targetRecord] = await Promise.all([
+      admin.auth().getUser(callerUid),
+      admin.auth().getUser(targetUid),
+    ]);
+    callerTenantId = callerRecord.customClaims?.tenantId;
+    targetTenantId = targetRecord.customClaims?.tenantId;
+  } catch {
+    // Unknown target (getUser threw) — deny without confirming existence.
+    res.status(403).json({ error: 'Forbidden: target user is not in your tenant' });
+    return false;
+  }
+  if (typeof callerTenantId !== 'string' || callerTenantId.length === 0) {
+    res.status(403).json({ error: 'Forbidden: caller has no tenant scope' });
+    return false;
+  }
+  if (targetTenantId !== callerTenantId) {
+    res.status(403).json({ error: 'Forbidden: target user is not in your tenant' });
     return false;
   }
   return true;

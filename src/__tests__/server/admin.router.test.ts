@@ -15,6 +15,11 @@ const H = vi.hoisted(() => ({
   // M-1: full custom-claim objects per uid (overrides `roles` when set) so
   // tests can pin that set-role PRESERVES non-role claims (tenantId, ...).
   claims: {} as Record<string, Record<string, unknown> | undefined>,
+  // [P0][seguridad] Admin ops on a target uid now require caller + target to
+  // share a tenant. Any uid not pinned in `claims` gets this default tenant, so
+  // the standard "admin operates on a peer" cases stay same-tenant; cross-tenant
+  // cases pin a target in a DIFFERENT tenant via `claims`.
+  defaultTenant: 'tenant-A',
   setClaims: vi.fn(async (_uid: string, _claims: unknown) => {}),
   revoke: vi.fn(async (_uid: string) => {}),
 }));
@@ -22,7 +27,10 @@ const H = vi.hoisted(() => ({
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
   const auth = {
-    getUser: async (uid: string) => ({ uid, customClaims: H.claims[uid] ?? { role: H.roles[uid] } }),
+    getUser: async (uid: string) => ({
+      uid,
+      customClaims: H.claims[uid] ?? { role: H.roles[uid], tenantId: H.defaultTenant },
+    }),
     setCustomUserClaims: (uid: string, claims: unknown) => H.setClaims(uid, claims),
     revokeRefreshTokens: (uid: string) => H.revoke(uid),
   };
@@ -104,7 +112,9 @@ describe('POST /api/admin/set-role — privilege escalation guard', () => {
       .set(asUser('admin1'))
       .send({ uid: 'u2', role: 'prevencionista' });
     expect(res.status).toBe(200);
-    expect(H.setClaims).toHaveBeenCalledWith('u2', { role: 'prevencionista' });
+    // set-role preserves the target's existing claims (incl. the default
+    // tenant the getUser mock returns) and layers the new role on top.
+    expect(H.setClaims).toHaveBeenCalledWith('u2', { role: 'prevencionista', tenantId: 'tenant-A' });
     expect(H.revoke).toHaveBeenCalledWith('u2'); // force re-auth
     const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
     expect(auditKeys.length).toBe(1);
@@ -114,7 +124,9 @@ describe('POST /api/admin/set-role — privilege escalation guard', () => {
     // setCustomUserClaims OVERWRITES the whole claim object server-side; a bare
     // { role } here would silently drop the tenant binding and re-break the 61
     // tenant-guarded routers (audit 2026-07-02 §2). Pin the merge.
-    H.claims['u9'] = { role: 'worker', tenantId: 'tenant-u9', assignedSiteIds: ['site-1'] };
+    // Same tenant as the admin caller (tenant-A) so the tenant guard allows the
+    // op; the point of this test is that assignedSiteIds + tenantId SURVIVE.
+    H.claims['u9'] = { role: 'worker', tenantId: 'tenant-A', assignedSiteIds: ['site-1'] };
     const res = await request(buildApp())
       .post('/api/admin/set-role')
       .set(asUser('admin1'))
@@ -122,7 +134,7 @@ describe('POST /api/admin/set-role — privilege escalation guard', () => {
     expect(res.status).toBe(200);
     expect(H.setClaims).toHaveBeenCalledWith('u9', {
       role: 'prevencionista',
-      tenantId: 'tenant-u9',
+      tenantId: 'tenant-A',
       assignedSiteIds: ['site-1'],
     });
   });
@@ -148,6 +160,63 @@ describe('POST /api/admin/set-role — privilege escalation guard', () => {
       .set(asUser('worker1'))
       .send({ uid: 'u2', role: 'supreme_overlord' });
     expect(workerBadRole.status).toBe(403);
+  });
+});
+
+// ===========================================================================
+// [P0][seguridad] Tenant intersection — an admin/gerente is a COMPANY admin,
+// not a platform operator. Every op on a TARGET uid must stay in the caller's
+// tenant, so admin-of-A cannot revoke/escalate/wipe-MFA a user in tenant B.
+// ===========================================================================
+describe('admin ops enforce tenant intersection on the target uid', () => {
+  it('set-role: 403 when the target belongs to a different tenant (no claim mutation)', async () => {
+    H.claims['victim-b'] = { role: 'operario', tenantId: 'tenant-B' };
+    const res = await request(buildApp())
+      .post('/api/admin/set-role')
+      .set(asUser('admin1')) // admin1 → tenant-A (default)
+      .send({ uid: 'victim-b', role: 'admin' });
+    expect(res.status).toBe(403);
+    expect(H.setClaims).not.toHaveBeenCalled();
+    expect(H.revoke).not.toHaveBeenCalled();
+  });
+
+  it('revoke-access: 403 when the target belongs to a different tenant (no revoke)', async () => {
+    H.claims['victim-b'] = { role: 'operario', tenantId: 'tenant-B' };
+    const res = await request(buildApp())
+      .post('/api/admin/revoke-access')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'victim-b' });
+    expect(res.status).toBe(403);
+    expect(H.revoke).not.toHaveBeenCalled();
+    expect(H.db!._store.has('user_sessions/victim-b')).toBe(false);
+  });
+
+  it('webauthn/revoke: 403 when the target belongs to a different tenant (keys untouched)', async () => {
+    H.claims['victim-b'] = { role: 'operario', tenantId: 'tenant-B' };
+    H.db!._seed('webauthn_credentials/b-key', {
+      credentialId: 'b-key', uid: 'victim-b', publicKey: 'cHVi', counter: 0,
+      transports: ['internal'], registeredAt: 1, lastUsedAt: null,
+    });
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'victim-b' });
+    expect(res.status).toBe(403);
+    expect(H.db!._store.has('webauthn_credentials/b-key')).toBe(true);
+    expect(H.revoke).not.toHaveBeenCalled();
+  });
+
+  it('set-role: 403 when the CALLER has no tenant claim (no global platform admin yet)', async () => {
+    // An admin whose claims OMIT tenantId cannot act on anyone — there is no
+    // global platform_admin role, so a tenant-less admin is not a super-operator.
+    H.claims['rootless-admin'] = { role: 'admin' };
+    H.claims['u2'] = { role: 'worker', tenantId: 'tenant-A' };
+    const res = await request(buildApp())
+      .post('/api/admin/set-role')
+      .set(asUser('rootless-admin'))
+      .send({ uid: 'u2', role: 'admin' });
+    expect(res.status).toBe(403);
+    expect(H.setClaims).not.toHaveBeenCalled();
   });
 });
 
