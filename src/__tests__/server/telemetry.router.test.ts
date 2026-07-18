@@ -261,6 +261,73 @@ describe('POST /api/telemetry/ingest — per-tenant HMAC (x-iot-signature)', () 
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// POST /api/telemetry/ingest — projectId authorization (tenant intersection)
+// [P0][seguridad] auth proves the caller, NOT which project it may write into.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('POST /api/telemetry/ingest — projectId belongs-to-tenant guard', () => {
+  it('per-tenant: 200 when the projectId belongs to the authenticated tenant', async () => {
+    seedTenantSecret(); // tenants/tenant-A
+    H.db!._seed('projects/proj-A', { tenantId: TENANT_ID });
+    const body = { tenantId: TENANT_ID, projectId: 'proj-A', ...validPayload };
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-signature', signCanonical(TENANT_SECRET, body))
+      .send(body);
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.projectId).toBe('proj-A');
+    expect(stored.tenantId).toBe(TENANT_ID);
+  });
+
+  it('per-tenant: 403 when the projectId belongs to a DIFFERENT tenant (no row)', async () => {
+    // Device is cryptographically authenticated for tenant A, but points the
+    // write at a project owned by tenant B. This is the core cross-tenant hole.
+    seedTenantSecret(); // tenants/tenant-A + its secret
+    H.db!._seed('projects/proj-B', { tenantId: 'tenant-B' });
+    const body = { tenantId: TENANT_ID, projectId: 'proj-B', ...validPayload };
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-signature', signCanonical(TENANT_SECRET, body))
+      .send(body);
+    expect(res.status).toBe(403);
+    expect((res.body as { error: string }).error).toMatch(/does not belong/i);
+    expect(eventRows()).toHaveLength(0);
+  });
+
+  it('per-tenant: 403 (fail-closed) when the projectId does not exist', async () => {
+    seedTenantSecret();
+    const body = { tenantId: TENANT_ID, projectId: 'ghost-project', ...validPayload };
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-signature', signCanonical(TENANT_SECRET, body))
+      .send(body);
+    expect(res.status).toBe(403);
+    expect(eventRows()).toHaveLength(0);
+  });
+
+  it('env fallback: 403 when a specific projectId is given with NO tenant scope', async () => {
+    // The shared env secret authenticates but carries no tenant — a specific
+    // project cannot be authorized, so it is rejected (only `global` is allowed).
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, projectId: 'proj-A' }); // no tenantId anywhere
+    expect(res.status).toBe(403);
+    expect((res.body as { error: string }).error).toMatch(/tenant scope/i);
+    expect(eventRows()).toHaveLength(0);
+  });
+
+  it('env fallback: 200 with no projectId writes the unscoped `global` bucket', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send(validPayload);
+    expect(res.status).toBe(200);
+    expect(eventRows()[0][1].projectId).toBe('global');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // POST /api/telemetry/ingest — env shared-secret fallback path
 // ══════════════════════════════════════════════════════════════════════════════
 describe('POST /api/telemetry/ingest — env shared-secret fallback', () => {
@@ -382,9 +449,13 @@ describe('POST /api/telemetry/ingest — autoValidateTelemetry integration', () 
       suggestedAction: 'inspect',
     } as never);
 
+    // [P0][seguridad] a specific projectId now requires a tenant scope that owns
+    // it — seed the owning project + declare the tenant.
+    H.db!._seed('projects/proj-7', { tenantId: TENANT_ID });
     const res = await request(buildApp())
       .post('/api/telemetry/ingest')
       .set('x-iot-secret', ENV_SECRET)
+      .set('x-tenant-id', TENANT_ID)
       .send({ ...validPayload, status: 'normal', projectId: 'proj-7' });
     expect(res.status).toBe(200);
 
@@ -392,6 +463,7 @@ describe('POST /api/telemetry/ingest — autoValidateTelemetry integration', () 
     expect(stored.status).toBe('alert'); // anomaly overrides the body status
     expect(stored.threatLevel).toBe('High');
     expect(stored.projectId).toBe('proj-7');
+    expect(stored.tenantId).toBe(TENANT_ID); // [P0][datos] tenant stamped
     expect((res.body as { aiValidation: { isAnomalous: boolean } }).aiValidation.isAnomalous).toBe(
       true,
     );
@@ -401,9 +473,11 @@ describe('POST /api/telemetry/ingest — autoValidateTelemetry integration', () 
   // telemetry to permits via `zoneId`. The ingest persists it when present so
   // the workPermits gas gate can query `projectId + zoneId + timestamp`.
   it('persists a valid zoneId so readings can be joined to work-permit zones', async () => {
+    H.db!._seed('projects/proj-7', { tenantId: TENANT_ID });
     const res = await request(buildApp())
       .post('/api/telemetry/ingest')
       .set('x-iot-secret', ENV_SECRET)
+      .set('x-tenant-id', TENANT_ID)
       .send({ ...validPayload, projectId: 'proj-7', zoneId: 'zona-7' });
     expect(res.status).toBe(200);
     const stored = eventRows()[0][1];
