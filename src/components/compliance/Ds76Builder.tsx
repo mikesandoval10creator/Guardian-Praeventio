@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { auth } from '../../services/firebase';
 import { ds76FolioToDocId } from '../../services/compliance/ds76/ds76Service';
 import { apiAuthHeader } from '../../lib/apiAuth';
-import { regulatoryErrorMessage } from './regulatoryErrorMessage';
+import { humanErrorFromResponse, humanErrorMessage } from '../../lib/humanError';
 
 interface BuilderState {
   principalCompanyName: string;
@@ -119,11 +119,11 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId }) => {
         },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await regulatoryErrorMessage(res));
+      if (!res.ok) throw new Error(await humanErrorFromResponse(res));
       setResult((await res.json()) as BuilderResult);
       setSigned(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido');
+      setError(humanErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -156,10 +156,10 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId }) => {
           }),
         },
       );
-      if (!res.ok) throw new Error(await regulatoryErrorMessage(res));
+      if (!res.ok) throw new Error(await humanErrorFromResponse(res));
       setSigned(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido');
+      setError(humanErrorMessage(e));
     } finally {
       setBusy(false);
     }
