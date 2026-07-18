@@ -32,7 +32,7 @@ import {
   reconcileOfflineSessions,
   type ReconciliationResult,
 } from './reconciliation';
-import type { QueuedSession } from './offlineQueue';
+import type { QueuedSession } from './encryptedOfflineQueue';
 import { writeNodes } from '../zettelkasten/persistence/writeNode';
 import type { RiskNodePayload } from '../zettelkasten/types';
 

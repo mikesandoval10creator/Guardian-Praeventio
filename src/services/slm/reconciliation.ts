@@ -44,8 +44,9 @@ import {
   deleteSession,
   listPending,
   markReconciled,
+  migrateLegacyQueueEntries,
   type QueuedSession,
-} from './offlineQueue';
+} from './encryptedOfflineQueue';
 import { verifyPayload } from './hmac';
 import { withSentryScope } from '../observability/sentryInstrumentation';
 
@@ -144,6 +145,12 @@ export async function reconcileOfflineSessions(
 async function reconcileOfflineSessionsImpl(
   opts: ReconcileOptions,
 ): Promise<ReconciliationResult> {
+  // Privacy [P1]: the encrypted queue's listPending() throws on any legacy
+  // plaintext row (it can't decrypt one). Migrate first — this both unblocks
+  // the drain AND is what actually wipes the plaintext query/response from
+  // disk (put() replaces the record without the legacy fields). Idempotent
+  // and a cheap no-op once the store is fully encrypted.
+  await migrateLegacyQueueEntries();
   const pending = await listPending();
   const result: ReconciliationResult = {
     attempted: pending.length,

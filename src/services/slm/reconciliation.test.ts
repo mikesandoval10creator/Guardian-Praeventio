@@ -21,8 +21,23 @@
 
 import 'fake-indexeddb/auto';
 import { IDBFactory as FDBFactory } from 'fake-indexeddb';
+import { webcrypto } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The encrypted queue's AES-GCM path needs a real `crypto.subtle`. Pin the
+// Node-native webcrypto before the SUT imports the queue.
+Object.defineProperty(globalThis, 'crypto', {
+  value: webcrypto,
+  configurable: true,
+  writable: true,
+});
+
+// `enqueueSession` fires `slm.queue.grew` from a fire-and-forget analytics
+// import; stub it so the test process doesn't boot the real IDB-backed queue.
+vi.mock('../analytics', () => ({
+  analytics: { track: vi.fn(async () => {}), flush: vi.fn(async () => {}) },
+}));
 
 // Hoisted Sentry mock so we can assert on `captureMessage` /
 // `addBreadcrumb` without the real SDK in scope. The real wrapper
@@ -48,12 +63,13 @@ vi.mock('@sentry/core', () => {
 
 import * as Sentry from '@sentry/core';
 
+import { __resetDeviceKekForTests } from '../security/deviceKek';
 import { __resetSessionKeyForTesting } from './hmac';
 import {
-  __resetOfflineQueueForTests,
+  __resetEncryptedOfflineQueueForTests,
   enqueueSession,
   listPending,
-} from './offlineQueue';
+} from './encryptedOfflineQueue';
 import {
   reconcileOfflineSessions,
   type ZettelkastenWriteFn,
@@ -100,13 +116,16 @@ const SAMPLE_RESPONSE: SLMResponse = {
 beforeEach(() => {
   (globalThis as { indexedDB: IDBFactory }).indexedDB = new FDBFactory();
   vi.stubGlobal('sessionStorage', createSessionStorageMock());
-  __resetOfflineQueueForTests();
+  vi.stubGlobal('localStorage', createSessionStorageMock());
+  __resetEncryptedOfflineQueueForTests();
+  __resetDeviceKekForTests();
   __resetSessionKeyForTesting();
   vi.clearAllMocks();
 });
 
 afterEach(() => {
-  __resetOfflineQueueForTests();
+  __resetEncryptedOfflineQueueForTests();
+  __resetDeviceKekForTests();
   __resetSessionKeyForTesting();
   vi.unstubAllGlobals();
 });
@@ -231,10 +250,17 @@ describe('SLM reconciliation (reconciliation.ts)', () => {
         const store = tx.objectStore('offline_sessions');
         const getReq = store.get(id);
         getReq.onsuccess = () => {
+          // The record is now encrypted at rest (queryEnvelope /
+          // responseEnvelope), so there is no plaintext `query.prompt` to
+          // tamper. Instead forge the top-level app-level HMAC tag while
+          // leaving the envelopes intact: the record still DECRYPTS fine, but
+          // the reconciler's HMAC check over the decrypted (query, response)
+          // no longer matches → the tampered row must be dropped with a
+          // Sentry warning.
           const rec = getReq.result as Record<string, unknown> & {
-            query: { prompt: string };
+            hmac: string;
           };
-          rec.query.prompt = 'attacker-controlled-prompt';
+          rec.hmac = 'attacker-forged-hmac-tag';
           store.put(rec);
         };
         tx.oncomplete = () => {

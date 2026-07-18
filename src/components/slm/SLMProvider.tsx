@@ -56,7 +56,11 @@ import React, {
 // the user hasn't even consented to AI features. Loading them on
 // demand defers the cost until the first AI feature is actually used.
 type SlmAdapterModule = typeof import('../../services/slm/slmAdapter');
-type OfflineQueueModule = typeof import('../../services/slm/offlineQueue');
+// Privacy [P1]: the ENCRYPTED queue is the single source of truth (same
+// IndexedDB store as the legacy plaintext module). Reading via the plaintext
+// module here would split-brain against the encrypted writes the barrel now
+// makes from Asesor/AsesorChat.
+type OfflineQueueModule = typeof import('../../services/slm/encryptedOfflineQueue');
 
 let slmAdapterPromise: Promise<SlmAdapterModule> | null = null;
 let offlineQueuePromise: Promise<OfflineQueueModule> | null = null;
@@ -70,7 +74,7 @@ async function getSlmAdapter(): Promise<SlmAdapterModule> {
 
 async function getOfflineQueue(): Promise<OfflineQueueModule> {
   if (!offlineQueuePromise) {
-    offlineQueuePromise = import('../../services/slm/offlineQueue');
+    offlineQueuePromise = import('../../services/slm/encryptedOfflineQueue');
   }
   return offlineQueuePromise;
 }
@@ -152,7 +156,12 @@ export function SLMProvider({ children }: SLMProviderProps): React.ReactElement 
    *  at its previous value rather than crashing the shell. */
   const refreshPending = useCallback(async (): Promise<void> => {
     try {
-      const { listPending } = await getOfflineQueue();
+      const { listPending, migrateLegacyQueueEntries } = await getOfflineQueue();
+      // Privacy [P1]: migrate any legacy plaintext rows before listing.
+      // listPending() on the encrypted queue throws if it finds one, and
+      // migrating here clears the plaintext from disk proactively (before a
+      // reconnect/drain) — the badge poll is app-wide and runs while offline.
+      await migrateLegacyQueueEntries();
       const pending = await listPending();
       if (!mountedRef.current) return;
       setPendingCount(pending.length);
