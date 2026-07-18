@@ -17,8 +17,18 @@
 
 import 'fake-indexeddb/auto';
 import { IDBFactory as FDBFactory } from 'fake-indexeddb';
+import { webcrypto } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The encrypted queue's AES-GCM path needs a real `crypto.subtle`. Pin the
+// Node-native webcrypto before the SUT imports the queue (mirrors
+// encryptedOfflineQueue.test.ts).
+Object.defineProperty(globalThis, 'crypto', {
+  value: webcrypto,
+  configurable: true,
+  writable: true,
+});
 
 // Mock writeNodes BEFORE importing the runner so the runner picks up the
 // mocked module. The factory returns a vi.fn() the tests can configure
@@ -27,16 +37,40 @@ vi.mock('../zettelkasten/persistence/writeNode', () => ({
   writeNodes: vi.fn(),
 }));
 
+// `enqueueSession` fires `slm.queue.grew` from a fire-and-forget analytics
+// import; stub it so the test process doesn't boot the real IDB-backed
+// analytics queue.
+vi.mock('../analytics', () => ({
+  analytics: { track: vi.fn(async () => {}), flush: vi.fn(async () => {}) },
+}));
+
+import { __resetDeviceKekForTests } from '../security/deviceKek';
 import {
-  __resetOfflineQueueForTests,
+  __resetEncryptedOfflineQueueForTests,
   enqueueSession,
   listPending,
-} from './offlineQueue';
+} from './encryptedOfflineQueue';
+import { __resetSessionKeyForTesting } from './hmac';
 import { runReconciliation } from './reconciliationRunner';
 import { writeNodes } from '../zettelkasten/persistence/writeNode';
 import type { SLMResponse } from './types';
 
 const mockedWriteNodes = vi.mocked(writeNodes);
+
+/** Minimal in-memory Storage stub (sessionStorage/localStorage). */
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: () => store.clear(),
+    getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+    key: (i: number) => Array.from(store.keys())[i] ?? null,
+    removeItem: (k: string) => store.delete(k),
+    setItem: (k: string, v: string) => store.set(k, String(v)),
+  };
+}
 
 const SAMPLE_RESPONSE: SLMResponse = {
   text: 'sample SLM output',
@@ -47,12 +81,19 @@ const SAMPLE_RESPONSE: SLMResponse = {
 
 beforeEach(() => {
   (globalThis as { indexedDB: IDBFactory }).indexedDB = new FDBFactory();
-  __resetOfflineQueueForTests();
+  vi.stubGlobal('sessionStorage', createStorageMock());
+  vi.stubGlobal('localStorage', createStorageMock());
+  __resetEncryptedOfflineQueueForTests();
+  __resetDeviceKekForTests();
+  __resetSessionKeyForTesting();
   mockedWriteNodes.mockReset();
 });
 
 afterEach(() => {
-  __resetOfflineQueueForTests();
+  __resetEncryptedOfflineQueueForTests();
+  __resetDeviceKekForTests();
+  __resetSessionKeyForTesting();
+  vi.unstubAllGlobals();
 });
 
 describe('SLM reconciliationRunner', () => {

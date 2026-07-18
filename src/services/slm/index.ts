@@ -79,13 +79,19 @@ export type { OrchestratorOptions } from './orchestrator';
 // T-1.4: IndexedDB-backed offline session queue. Captures (query,
 // response) pairs while offline so they can be replayed once
 // connectivity returns.
+// Privacy [P1]: consumers now read/write the ENCRYPTED queue so a worker's
+// prompt (emergency query, medical description) never lands in IndexedDB as
+// plaintext. Same store (`praeventio-slm/offline_sessions`) + identical API
+// surface; records carry queryEnvelope + responseEnvelope (AES-GCM). Legacy
+// plaintext rows are migrated on the drain path (see reconciliation.ts) and
+// on the badge poll (see SLMProvider).
 export {
   enqueueSession,
   listPending,
   markReconciled,
   clearReconciled,
-} from './offlineQueue';
-export type { QueuedSession } from './offlineQueue';
+} from './encryptedOfflineQueue';
+export type { QueuedSession } from './encryptedOfflineQueue';
 
 // T-1.4: Reconciliation pass — drains the queue into the Zettelkasten
 // via a caller-supplied write function (kept injectable to avoid a

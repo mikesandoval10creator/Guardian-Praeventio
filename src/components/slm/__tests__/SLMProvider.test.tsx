@@ -18,8 +18,16 @@ vi.mock('../../../services/slm/slmAdapter', () => ({
   getActiveModelId: vi.fn(() => null),
 }));
 
-vi.mock('../../../services/slm/offlineQueue', () => ({
+vi.mock('../../../services/slm/encryptedOfflineQueue', () => ({
   listPending: vi.fn(async () => []),
+  // refreshPending migrates legacy plaintext rows before listing; the SUT
+  // awaits this, so the mock must resolve (a no-op migration result here).
+  migrateLegacyQueueEntries: vi.fn(async () => ({
+    scanned: 0,
+    migrated: 0,
+    skipped: 0,
+    failed: 0,
+  })),
 }));
 
 import {
@@ -28,7 +36,7 @@ import {
   useSLM,
 } from '../SLMProvider';
 import { ensureSlmReady, getActiveModelId } from '../../../services/slm/slmAdapter';
-import { listPending } from '../../../services/slm/offlineQueue';
+import { listPending } from '../../../services/slm/encryptedOfflineQueue';
 
 /** Tiny consumer that surfaces the context state to the DOM for assertion. */
 function Probe() {
