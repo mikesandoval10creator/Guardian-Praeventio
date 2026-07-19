@@ -21,6 +21,8 @@ import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { DriverScoringTabs } from '../components/drivingSafety/DriverScoringTabs';
 import { VehicleDocsTab } from '../components/drivingSafety/VehicleDocsTab';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const containerStyle = {
   width: '100%',
@@ -404,7 +406,7 @@ export function SafeDriving() {
                 className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-sm flex items-start gap-2"
               >
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{error}</span>
+                <span>{humanErrorMessage(error)}</span>
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">

@@ -31,6 +31,8 @@ import {
   type MachineryAnchor,
 } from '../../services/ar/arAnchorService';
 import { Cpu, MapPin, Plus, X, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface CreateAnchorDraft {
   position: XRSessionAnchorPose;
@@ -224,7 +226,7 @@ export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
       )}
       {error && (
         <div className="pointer-events-none m-4 bg-rose-900/70 rounded-xl p-3 text-xs text-rose-100">
-          Error cargando anclas: {error.message}
+          Error cargando anclas: {humanErrorMessage(error.message)}
         </div>
       )}
 
@@ -310,7 +312,7 @@ export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
           />
 
           {saveError && (
-            <p className="text-[10px] text-rose-300 mb-2">{saveError}</p>
+            <p className="text-[10px] text-rose-300 mb-2">{humanErrorMessage(saveError)}</p>
           )}
 
           <div className="flex gap-2 mt-3">

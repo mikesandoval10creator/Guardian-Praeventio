@@ -20,6 +20,8 @@ import { db, doc, getDoc, collection, query, where, getDocs } from '../services/
 import { RiskNode, NodeType } from '../types';
 import { getNodeIcon, getNodeBadgeClass } from '../utils/nodeTypeUtils';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function PublicNodeView() {
   const { t } = useTranslation();
@@ -107,7 +109,7 @@ export function PublicNodeView() {
           </div>
           <h1 className="text-2xl font-black text-primary-token uppercase tracking-tighter">{t('publicNode.accessDenied', 'Acceso Denegado')}</h1>
           <p className="text-muted-token text-sm leading-relaxed">
-            {error || t('publicNode.notAvailable', 'El recurso solicitado no está disponible o ha sido restringido.')}
+            {humanErrorMessage(error || t('publicNode.notAvailable', 'El recurso solicitado no está disponible o ha sido restringido.'))}
           </p>
           <Link to="/" className="inline-flex items-center gap-2 text-emerald-500 font-black text-[10px] uppercase tracking-widest hover:text-emerald-400 transition-colors">
             <ArrowLeft className="w-4 h-4" />

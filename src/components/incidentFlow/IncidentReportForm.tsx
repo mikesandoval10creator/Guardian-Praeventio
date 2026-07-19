@@ -16,6 +16,8 @@ import {
   reportIncident,
   type IncidentReportPayload,
 } from '../../hooks/useIncidentFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const SEVERITY_OPTIONS = [
   { value: 'low', labelKey: 'incidentFlow.severity.low', labelDefault: 'Bajo', tone: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
@@ -190,7 +192,7 @@ export function IncidentReportForm({
           data-testid="incident-error"
           role="alert"
         >
-          {errorMsg}
+          {humanErrorMessage(errorMsg)}
         </div>
       )}
 

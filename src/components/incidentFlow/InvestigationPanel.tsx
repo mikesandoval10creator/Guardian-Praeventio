@@ -20,6 +20,8 @@ import {
   type ConcludeInvestigationPayload,
   type IncidentReportPayload,
 } from '../../hooks/useIncidentFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 type Tab = 'testimonies' | 'rootCause' | 'conclude';
 
@@ -84,7 +86,7 @@ export function InvestigationPanel({
       setTab('rootCause');
       onOpened?.();
     } catch (err) {
-      setErrorMsg((err as Error).message);
+      setErrorMsg(humanErrorMessage((err as Error).message));
     } finally {
       setOpenSubmitting(false);
     }
@@ -121,7 +123,7 @@ export function InvestigationPanel({
         closedByUid: investigatorUid,
       });
     } catch (err) {
-      setErrorMsg((err as Error).message);
+      setErrorMsg(humanErrorMessage((err as Error).message));
     } finally {
       setConcludeSubmitting(false);
     }
@@ -337,7 +339,7 @@ export function InvestigationPanel({
           data-testid="investigation-error"
           role="alert"
         >
-          {errorMsg}
+          {humanErrorMessage(errorMsg)}
         </div>
       )}
     </section>

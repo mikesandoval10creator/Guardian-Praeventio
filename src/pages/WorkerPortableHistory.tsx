@@ -58,6 +58,8 @@ import {
   serializeAsJson,
   type WorkerData,
 } from '../services/workerHistory/portableHistoryExporter';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface ConsentDraft {
   allowsPortableExport: boolean;
@@ -185,7 +187,7 @@ export function WorkerPortableHistory() {
       });
     } catch (err) {
       logger.error('portableHistory.consent.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -228,7 +230,7 @@ export function WorkerPortableHistory() {
       });
     } catch (err) {
       logger.error('portableHistory.export.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setBusy(false);
     }
@@ -397,7 +399,7 @@ export function WorkerPortableHistory() {
           data-testid="portable-history-error"
           role="alert"
         >
-          {renderError}
+          {humanErrorMessage(renderError)}
         </div>
       )}
 

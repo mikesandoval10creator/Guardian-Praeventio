@@ -29,6 +29,8 @@ import {
   BENCHMARK_LTIFR,
 } from '../services/safetyMetrics/osha';
 import { useSpiReport, captureSafetyPlan } from '../hooks/useSpiReport';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 /** Current month as 'YYYY-MM' for the default period. */
 function currentPeriod(): string {
@@ -113,9 +115,9 @@ export function SafetyMetrics() {
       refetchPressure();
     } catch (err) {
       setWfError(
-        err instanceof Error && err.message
+        humanErrorMessage(err instanceof Error && err.message
           ? `No se pudo guardar: ${err.message}`
-          : 'No se pudo guardar los datos de dotación. Intenta nuevamente.',
+          : 'No se pudo guardar los datos de dotación. Intenta nuevamente.'),
       );
     } finally {
       setWfSaving(false);
@@ -160,9 +162,9 @@ export function SafetyMetrics() {
       spiRefetch();
     } catch (err) {
       setPlanError(
-        err instanceof Error && err.message
+        humanErrorMessage(err instanceof Error && err.message
           ? `No se pudo guardar: ${err.message}`
-          : 'No se pudo guardar el plan del período. Intenta nuevamente.',
+          : 'No se pudo guardar el plan del período. Intenta nuevamente.'),
       );
     } finally {
       setPlanSaving(false);
@@ -187,9 +189,9 @@ export function SafetyMetrics() {
       refetch();
     } catch (err) {
       setSaveError(
-        err instanceof Error && err.message
+        humanErrorMessage(err instanceof Error && err.message
           ? `No se pudo guardar: ${err.message}`
-          : 'No se pudo guardar las horas-hombre. Intenta nuevamente.',
+          : 'No se pudo guardar las horas-hombre. Intenta nuevamente.'),
       );
     } finally {
       setSaving(false);
@@ -289,7 +291,7 @@ export function SafetyMetrics() {
             data-testid="safety-metrics-save-error"
             className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
           >
-            <AlertCircle className="h-4 w-4 shrink-0" /> {saveError}
+            <AlertCircle className="h-4 w-4 shrink-0" /> {humanErrorMessage(saveError)}
           </div>
         )}
       </section>
@@ -306,7 +308,7 @@ export function SafetyMetrics() {
           data-testid="safety-metrics-load-error"
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
         >
-          No se pudieron cargar las métricas ({error.message}).
+          No se pudieron cargar las métricas ({humanErrorMessage(error.message)}).
         </div>
       )}
 
@@ -356,7 +358,7 @@ export function SafetyMetrics() {
             data-testid="safety-trend-load-error"
             className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
           >
-            No se pudo cargar la tendencia ({trendError.message}).
+            No se pudo cargar la tendencia ({humanErrorMessage(trendError.message)}).
           </div>
         )}
 
@@ -474,7 +476,7 @@ export function SafetyMetrics() {
               data-testid="workforce-save-error"
               className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
             >
-              <AlertCircle className="h-4 w-4 shrink-0" /> {wfError}
+              <AlertCircle className="h-4 w-4 shrink-0" /> {humanErrorMessage(wfError)}
             </div>
           )}
         </div>
@@ -490,7 +492,7 @@ export function SafetyMetrics() {
             data-testid="operational-pressure-load-error"
             className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
           >
-            No se pudo cargar la presión operacional ({pressureError.message}).
+            No se pudo cargar la presión operacional ({humanErrorMessage(pressureError.message)}).
           </div>
         )}
 
@@ -587,7 +589,7 @@ export function SafetyMetrics() {
               data-testid="spi-plan-error"
               className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
             >
-              <AlertCircle className="h-4 w-4 shrink-0" /> {planError}
+              <AlertCircle className="h-4 w-4 shrink-0" /> {humanErrorMessage(planError)}
             </div>
           )}
         </div>
@@ -603,7 +605,7 @@ export function SafetyMetrics() {
             data-testid="spi-load-error"
             className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
           >
-            No se pudo cargar el SPI ({spiError.message}).
+            No se pudo cargar el SPI ({humanErrorMessage(spiError.message)}).
           </div>
         )}
 

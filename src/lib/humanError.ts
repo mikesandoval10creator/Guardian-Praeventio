@@ -36,6 +36,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   invalid_uid: 'No pudimos identificar tu usuario. Vuelve a iniciar sesión.',
   invalid_tenant: 'No pudimos identificar tu empresa. Vuelve a iniciar sesión.',
   invalid_project: 'El proyecto seleccionado no es válido. Elige un proyecto e inténtalo de nuevo.',
+  invalid_projectId: 'El proyecto seleccionado no es válido. Vuelve a elegirlo e inténtalo nuevamente.',
 
   // ── Existencia ────────────────────────────────────────────────────────
   not_found: 'No encontramos lo que buscabas. Es posible que se haya eliminado.',
@@ -54,6 +55,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   // ── Conflicto / estado ────────────────────────────────────────────────
   'failed-precondition': 'La operación no se puede completar en el estado actual. Actualiza la página y revisa los datos.',
   aborted: 'La operación se interrumpió porque otra persona modificó los mismos datos. Actualiza y vuelve a intentarlo.',
+  folio_conflict: 'Ese folio ya existe. Actualiza el listado y revisa el registro antes de volver a intentarlo.',
   cancelled: 'La operación se canceló antes de completarse. Puedes volver a intentarlo.',
   internal: 'El servidor tuvo un problema y no pudo completar la acción. Inténtalo en unos minutos.',
 };
@@ -114,23 +116,32 @@ function codeOf(err: unknown): string {
  * Only call when `res.ok` is false — it consumes the body.
  */
 export async function humanErrorFromResponse(res: Response): Promise<string> {
-  let code = '';
-  let serverText = '';
+  let body: unknown = null;
   try {
-    const body: unknown = await res.json();
-    const b = body as { error?: unknown; message?: unknown } | null;
-    if (typeof b?.error === 'string') code = b.error;
-    if (typeof b?.message === 'string') serverText = b.message;
+    body = await res.json();
   } catch {
-    // Empty or non-JSON body — fall through to the status sentence.
+    // Empty or non-JSON body — the status alone drives the message.
   }
+  return humanErrorFromBody(body, res.status);
+}
+
+/**
+ * Same as `humanErrorFromResponse` for callers that ALREADY consumed the body
+ * (the very common `const j = await res.json().catch(() => ({}))` shape). A
+ * Response body can only be read once, so those sites need this entry point.
+ */
+export function humanErrorFromBody(body: unknown, status: number): string {
+  const b = body as { error?: unknown; message?: unknown } | null;
+  const code = typeof b?.error === 'string' ? b.error : '';
+  const serverText = typeof b?.message === 'string' ? b.message : '';
+
   const mapped = MESSAGE_BY_CODE[code];
   if (mapped) return mapped;
   // A server `message` that is already a human sentence is worth showing;
   // a machine token is not.
   if (serverText && !isMachineText(serverText)) return serverText;
   if (code && !isMachineText(code)) return code;
-  return messageByStatus(res.status);
+  return messageByStatus(status);
 }
 
 /**
@@ -143,12 +154,39 @@ export function humanErrorMessage(err: unknown): string {
   const code = codeOf(err);
   if (code && MESSAGE_BY_CODE[code]) return MESSAGE_BY_CODE[code];
 
-  const raw = (err as { message?: unknown } | null)?.message;
+  const raw =
+    typeof err === 'string'
+      ? err
+      : (err as { message?: unknown } | null)?.message;
   const text = typeof raw === 'string' ? raw.trim() : '';
   if (!text) return GENERIC;
 
   // A code that arrived as the message ("forbidden_role").
   if (MESSAGE_BY_CODE[text]) return MESSAGE_BY_CODE[text];
+
+  // A machine code is often prefixed with friendly-looking copy
+  // (`No se pudo guardar: forbidden_role`). The prefix must not make the
+  // technical suffix eligible for display. Prefer the precise mapped action.
+  for (const [candidate, message] of Object.entries(MESSAGE_BY_CODE)) {
+    const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const embedded = new RegExp(
+      `(^|[^a-z0-9_-])${escaped}($|[^a-z0-9_-])`,
+      'i',
+    );
+    if (embedded.test(text)) return message;
+  }
+
+  // Likewise, a status embedded in a sentence is still a status. Restrict a
+  // bare number to HTTP error ranges so years and domain measurements survive.
+  const statusMatch = text.match(
+    /(?:\b(?:error|http|status)[\s_:-]*([1-5]\d{2})\b|\b([45]\d{2})\b)/i,
+  );
+  if (statusMatch) {
+    return messageByStatus(Number(statusMatch[1] ?? statusMatch[2]));
+  }
+
+  // Unmapped snake_case tokens are contract identifiers, not prose.
+  if (/\b[a-z0-9]+(?:_[a-z0-9]+)+\b/i.test(text)) return GENERIC;
   if (isMachineText(text)) return GENERIC;
 
   // The Firebase SDK's English permission message reaches users verbatim
@@ -156,12 +194,25 @@ export function humanErrorMessage(err: unknown): string {
   if (/missing or insufficient permissions/i.test(text)) {
     return MESSAGE_BY_CODE['permission-denied'];
   }
+  if (/permission denied/i.test(text)) {
+    return MESSAGE_BY_CODE['permission-denied'];
+  }
+  if (/quota (?:has been )?exceeded/i.test(text)) {
+    return MESSAGE_BY_CODE.quota_exceeded;
+  }
+  if (/\btimeout\b/i.test(text)) {
+    return MESSAGE_BY_CODE['deadline-exceeded'];
+  }
   if (/client is offline|failed to get document because the client is offline/i.test(text)) {
     return MESSAGE_BY_CODE.unavailable;
   }
-  if (/network ?error|failed to fetch|load failed/i.test(text)) {
+  if (/network ?error|network (?:is )?down|failed to fetch|load failed/i.test(text)) {
     return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo nuevamente.';
   }
+
+  // A short direct string is usually a label/token, not enough guidance for
+  // the person using the app. Error objects keep their existing domain copy.
+  if (typeof err === 'string' && text.length <= 20) return GENERIC;
 
   // Already a human sentence — leave it exactly as the caller wrote it.
   return text;

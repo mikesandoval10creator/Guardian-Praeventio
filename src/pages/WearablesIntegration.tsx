@@ -50,6 +50,8 @@ import {
   type SleepSample,
   type CaloriesSample,
 } from '../services/health';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface VitalsAggregate {
   /** Latest heart rate sample BPM. */
@@ -117,7 +119,7 @@ export function WearablesIntegration() {
       }
     } catch (err) {
       setPermissionState('denied');
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     }
   }, [adapter]);
 
@@ -175,7 +177,7 @@ export function WearablesIntegration() {
       const downsampled = downsampleHr(hr, 60);
       setHrSeries(downsampled);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       setSyncing(false);
     }
@@ -248,7 +250,7 @@ export function WearablesIntegration() {
             className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
             aria-hidden="true"
           />
-          <p className="text-xs text-rose-300 font-mono">{error}</p>
+          <p className="text-xs text-rose-300 font-mono">{humanErrorMessage(error)}</p>
         </div>
       )}
 

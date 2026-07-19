@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { useWeakControls } from '../../hooks/useRiskRanking';
 import { WeakControlsWidget } from './WeakControlsWidget';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface WeakControlsDashboardCardProps {
   /** Top-N count. Default 10. */
@@ -72,7 +74,7 @@ export function WeakControlsDashboardCard({
               {t('weak_controls.error', 'No se pudieron cargar los controles débiles.')}
             </p>
             <p className="text-[10px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 truncate">
-              {error.message}
+              {humanErrorMessage(error.message)}
             </p>
             <button
               type="button"

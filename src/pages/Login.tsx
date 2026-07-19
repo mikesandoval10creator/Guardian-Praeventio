@@ -10,6 +10,8 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { analytics, userIdHash } from '../services/analytics';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // localStorage flag: set ONLY after a server-persisted WebAuthn credential
 // exists (registerCredential succeeded). Drives whether we offer the
@@ -264,7 +266,7 @@ export default function Login() {
                 aria-live="assertive"
                 className="mt-4 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs text-center font-medium"
               >
-                {authError}
+                {humanErrorMessage(authError)}
               </p>
             )}
 

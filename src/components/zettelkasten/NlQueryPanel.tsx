@@ -13,6 +13,8 @@ import { Search, Loader2, FileWarning, BookOpen, Network, ArrowRight } from 'luc
 import { useProject } from '../../contexts/ProjectContext';
 import { logger } from '../../utils/logger';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface IncidentSearchHit {
   incidentId: string;
@@ -320,7 +322,7 @@ export const NlQueryPanel: React.FC = () => {
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
           <FileWarning className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
-          <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>
+          <p className="text-xs text-rose-700 dark:text-rose-300">{humanErrorMessage(error)}</p>
         </div>
       )}
 

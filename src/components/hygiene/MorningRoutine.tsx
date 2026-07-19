@@ -16,6 +16,8 @@ import {
 import { awardPoints } from '../../services/gamificationService';
 import { useProject } from '../../contexts/ProjectContext';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 /**
  * Sprint 25 — Bucket SS.3: persist a morning check-in summary at
@@ -368,7 +370,7 @@ export function MorningRoutine() {
                 data-testid="morning-routine-error"
                 className="text-xs text-rose-400 text-center"
               >
-                {persistError}
+                {humanErrorMessage(persistError)}
               </p>
             )}
           </motion.div>

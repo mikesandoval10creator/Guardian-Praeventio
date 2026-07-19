@@ -33,6 +33,8 @@ import {
   type AcquisitionStatus,
   type NetworkAdvisory,
 } from '../services/slm/slmAcquisitionService';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export interface UseSlmAcquisitionOptions {
   /** Override which model to acquire. Defaults to DEFAULT_MODEL_ID. */
@@ -243,7 +245,7 @@ export function useSlmAcquisition(
       setNetworkAdvisory(detectNetworkAdvisory());
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     }
   }, [modelId]);
 

@@ -147,7 +147,7 @@ describe('<Apprenticeship /> page wrapper (Sprint K §244-250)', () => {
     };
     render(<Apprenticeship />);
     expect(screen.getByTestId('apprenticeship-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza la lista de aprendices con nivel y progreso', () => {

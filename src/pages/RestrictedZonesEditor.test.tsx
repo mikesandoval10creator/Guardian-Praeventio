@@ -146,7 +146,7 @@ describe('<RestrictedZonesEditor />', () => {
     fireEvent.change(screen.getByTestId('zoneEditor.name'), { target: { value: 'Zona X' } });
     fireEvent.click(screen.getByTestId('zoneEditor.save'));
     await waitFor(() =>
-      expect(screen.getByTestId('zoneEditor.feedback').textContent).toMatch(/forbidden_role/),
+      expect(screen.getByTestId('zoneEditor.feedback').textContent).toMatch(/rol autorizado/i),
     );
   });
 });

@@ -20,6 +20,8 @@ import {
   listPendingEppOrders,
   type PendingOrder,
 } from '../../hooks/useEppFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface PendingPurchaseOrdersPanelProps {
   projectId: string;
@@ -49,7 +51,7 @@ export function PendingPurchaseOrdersPanel({
       const r = await listPendingEppOrders(projectId);
       setOrders(r.orders);
     } catch (err) {
-      setError((err as Error)?.message ?? 'Error cargando OC pendientes.');
+      setError(humanErrorMessage((err as Error)?.message ?? 'Error cargando OC pendientes.'));
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export function PendingPurchaseOrdersPanel({
           data-testid="pending-orders-error"
           className="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-100"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

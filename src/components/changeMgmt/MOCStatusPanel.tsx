@@ -23,6 +23,8 @@ import type {
   ChangeAcknowledgementSummary,
 } from '../../services/changeMgmt/operationalChangeService';
 import { closeMoc, useMocList } from '../../hooks/useOperationalChange';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface MOCStatusPanelProps {
   projectId: string;
@@ -89,7 +91,7 @@ export function MOCStatusPanel({
         role="alert"
         data-testid="moc.panel.error"
       >
-        Error al cargar MOCs: {error.message}
+        Error al cargar MOCs: {humanErrorMessage(error.message)}
       </div>
     );
   }
@@ -153,7 +155,7 @@ export function MOCStatusPanel({
           role="alert"
           data-testid="moc.panel.closeError"
         >
-          {closeError}
+          {humanErrorMessage(closeError)}
         </p>
       )}
 

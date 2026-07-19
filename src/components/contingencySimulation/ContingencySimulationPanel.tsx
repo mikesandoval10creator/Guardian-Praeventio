@@ -18,6 +18,8 @@ import type {
   ScenarioKind,
   ScenarioSeverity,
 } from '../../services/contingencySimulation/contingencyScenarioBuilder';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface ContingencySimulationPanelProps {
   projectId: string;
@@ -63,7 +65,7 @@ export function ContingencySimulationPanel({ projectId }: ContingencySimulationP
       setScenario(res.scenario);
     } catch (err) {
       setScenario(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -139,7 +141,7 @@ export function ContingencySimulationPanel({ projectId }: ContingencySimulationP
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('contingencySimulation.panel.error', 'No se pudo generar el escenario.')} ({error})</span>
+          <span>{t('contingencySimulation.panel.error', 'No se pudo generar el escenario.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

@@ -46,6 +46,8 @@ import {
   enqueueIncidentReport,
   registerIncidentFlushOnReconnect,
 } from '../services/incidents/incidentOutbox';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 type IncidentEventType = 'near_miss' | 'incident' | 'post_mortem';
 type IncidentSeverity = 'low' | 'med' | 'high' | 'critical';
@@ -215,7 +217,7 @@ export function IncidentReport() {
         } catch {
           /* keep raw */
         }
-        setError(parsed.error ?? `HTTP ${res.status}`);
+        setError(humanErrorMessage(parsed.error ?? `HTTP ${res.status}`));
         return;
       }
       const data = (await res.json()) as ReportResponse;
@@ -296,7 +298,7 @@ export function IncidentReport() {
       {error && (
         <div data-testid="incident-error-banner" className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
+          <span>{humanErrorMessage(error)}</span>
         </div>
       )}
 

@@ -54,6 +54,8 @@ import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { auth } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Provider catalog
@@ -188,7 +190,7 @@ export function SSOConfig() {
         //   - auth/popup-blocked
         //   - auth/operation-not-allowed (provider NO existe en Firebase Console)
         //   - auth/account-exists-with-different-credential
-        setError(err instanceof Error ? err.message : String(err));
+        setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
       } finally {
         setSigningIn(false);
       }
@@ -208,7 +210,7 @@ export function SSOConfig() {
       const methods = await fetchSignInMethodsForEmail(auth, emailToCheck.trim());
       setDiscoveredMethods(methods);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       setCheckingMethods(false);
     }
@@ -266,7 +268,7 @@ export function SSOConfig() {
               className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
               aria-hidden="true"
             />
-            <p className="text-xs text-rose-300 font-mono break-all">{error}</p>
+            <p className="text-xs text-rose-300 font-mono break-all">{humanErrorMessage(error)}</p>
           </div>
         )}
 

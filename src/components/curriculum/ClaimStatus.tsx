@@ -15,6 +15,8 @@ import { CheckCircle2, Clock, AlertTriangle, XCircle, Mail, Send, Loader2 } from
 import { auth } from '../../services/firebase';
 import type { CurriculumClaim, RefereeSlot, ClaimStatus as TStatus } from '../../services/curriculum/claims';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const STATUS_META: Record<TStatus, { tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
   pending_referees: {
@@ -88,7 +90,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
         });
       }, 30_000);
     } catch (err: any) {
-      setResendError(err?.message || t('curriculum.error_unknown_short', 'Error desconocido.'));
+      setResendError(humanErrorMessage(err?.message || t('curriculum.error_unknown_short', 'Error desconocido.')));
     } finally {
       setResendIndex(null);
     }
@@ -165,7 +167,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
       {resendError && (
         <div className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-500/10 border border-rose-500/20 rounded-xl p-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          {resendError}
+          {humanErrorMessage(resendError)}
         </div>
       )}
 

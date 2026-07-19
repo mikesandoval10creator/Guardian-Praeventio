@@ -91,7 +91,7 @@ describe('<RetaliationProtectionPanel />', () => {
     fireEvent.click(screen.getByTestId('retaliation-protection-submit'));
 
     const error = await screen.findByTestId('retaliation-protection-error');
-    expect(error).toHaveTextContent('http_400');
+    expect(error).toHaveTextContent(/Faltan datos obligatorios/i);
     expect(recommendMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId('retaliation-protection-result')).toBeNull();
   });

@@ -26,6 +26,8 @@ import {
 import type { Stoppage } from '../../services/stoppage/stoppageEngine';
 import { useBiometricAuth } from '../../hooks/useBiometricAuth';
 import { resumeStoppage as resumeStoppageRequest } from '../../hooks/useStoppage';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface StoppageResumeModalProps {
   /** Open state — parent controls visibility. */
@@ -324,7 +326,7 @@ export function StoppageResumeModal({
               data-testid="stoppage.resumeModal.error"
               className="rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-100"
             >
-              {error}
+              {humanErrorMessage(error)}
             </div>
           )}
 

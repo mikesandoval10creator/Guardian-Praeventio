@@ -24,6 +24,8 @@ import {
 } from '../../services/ergonomics/landmarksToScore';
 import { calculateReba } from '../../services/ergonomics/reba';
 import { calculateRula } from '../../services/ergonomics/rula';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface AIPostureAnalysisModalProps {
   isOpen: boolean;
@@ -409,7 +411,7 @@ export function AIPostureAnalysisModal({
                       </p>
                       {poseError && (
                         <p className="text-xs text-rose-500">
-                          MediaPipe error previo: {poseError}
+                          MediaPipe error previo: {humanErrorMessage(poseError)}
                         </p>
                       )}
                     </>

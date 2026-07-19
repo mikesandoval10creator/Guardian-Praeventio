@@ -148,7 +148,7 @@ describe('<CulturePulse /> page wrapper (Sprint K §61-63)', () => {
     };
     render(<CulturePulse />);
     expect(screen.getByTestId('culture-pulse-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza el gauge con índice bajo (banda rose)', () => {

@@ -30,6 +30,8 @@ import { NodeType } from '../../types';
 import { logAuditAction } from '../../services/auditService';
 import { useProject } from '../../contexts/ProjectContext';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface Ds67ModalProps {
   isOpen: boolean;
@@ -247,7 +249,7 @@ export function Ds67Modal({ isOpen, onClose }: Ds67ModalProps) {
       setData(emptyInput());
       onClose();
     } catch (err) {
-      setError(`Error al generar DS 67: ${String(err)}`);
+      setError(humanErrorMessage(`Error al generar DS 67: ${String(err)}`));
     } finally {
       setGenerating(false);
     }
@@ -458,7 +460,7 @@ export function Ds67Modal({ isOpen, onClose }: Ds67ModalProps) {
 
           {error && (
             <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-700 dark:text-rose-400">
-              {error}
+              {humanErrorMessage(error)}
             </div>
           )}
 

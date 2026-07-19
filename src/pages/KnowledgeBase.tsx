@@ -47,6 +47,8 @@ import {
   type KbSourceType,
 } from '../hooks/useKnowledgeBase';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 type TLite = (key: string, fallback?: string) => string;
 
@@ -149,7 +151,7 @@ export function KnowledgeBase() {
       refetch();
     } catch (err) {
       logger.error?.('knowledgeBase.create.failed', err);
-      setMutationError((err as Error).message);
+      setMutationError(humanErrorMessage((err as Error).message));
     }
   };
 
@@ -161,7 +163,7 @@ export function KnowledgeBase() {
       refetch();
     } catch (err) {
       logger.error?.('knowledgeBase.use.failed', err);
-      setMutationError((err as Error).message);
+      setMutationError(humanErrorMessage((err as Error).message));
     }
   };
 
@@ -174,7 +176,7 @@ export function KnowledgeBase() {
       refetch();
     } catch (err) {
       logger.error?.('knowledgeBase.flagObsolete.failed', err);
-      setMutationError((err as Error).message);
+      setMutationError(humanErrorMessage((err as Error).message));
     }
   };
 
@@ -319,7 +321,7 @@ export function KnowledgeBase() {
           data-testid="knowledge-base-mutation-error"
           role="alert"
         >
-          {mutationError}
+          {humanErrorMessage(mutationError)}
         </div>
       )}
 
@@ -341,7 +343,7 @@ export function KnowledgeBase() {
           {t(
             'knowledgeBase.page.error',
             'No se pudo cargar la base de conocimiento: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

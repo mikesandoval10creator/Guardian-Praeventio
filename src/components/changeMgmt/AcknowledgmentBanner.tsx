@@ -24,6 +24,8 @@ import {
 import type { OperationalChange } from '../../services/changeMgmt/operationalChangeService';
 import { useBiometricAuth } from '../../hooks/useBiometricAuth';
 import { acknowledgeMoc } from '../../hooks/useOperationalChange';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const IMPACT_LABEL: Record<OperationalChange['impact'], string> = {
   low: 'Bajo',
@@ -203,7 +205,7 @@ export function AcknowledgmentBanner({
           role="alert"
           data-testid="moc.banner.error"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

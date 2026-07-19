@@ -48,6 +48,8 @@ import { DrillResultReviewCard } from '../components/drillsManager/DrillResultRe
 import { DrillsCompliancePanel } from '../components/drillsManager/DrillsCompliancePanel';
 import type { DrillResult, DrillReadinessReport } from '../services/drillsManager/drillsManager';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Static visual helpers
@@ -560,7 +562,7 @@ export function DrillsManager() {
           {t(
             'drills.page.error',
             'No se pudieron cargar los simulacros: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}
@@ -948,7 +950,7 @@ function DrillDetailModal(props: {
                   {t(
                     'drills.page.executeError',
                     'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
-                    { msg: executeError },
+                    { msg: humanErrorMessage(executeError) },
                   )}
                 </p>
               </div>
@@ -1247,7 +1249,7 @@ function NewDrillModal(props: {
                   {t(
                     'drills.new.planError',
                     'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
-                    { msg: planError },
+                    { msg: humanErrorMessage(planError) },
                   )}
                 </p>
               </div>

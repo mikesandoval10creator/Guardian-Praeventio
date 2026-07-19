@@ -7,6 +7,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function DocumentViewer() {
   const { t } = useTranslation();
@@ -55,7 +57,7 @@ export function DocumentViewer() {
         <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-black text-primary-token uppercase tracking-tighter mb-2">{t('documentViewer.errorTitle', 'Error')}</h2>
-          <p className="text-secondary-token">{error || t('documentViewer.notFound', 'Documento no encontrado')}</p>
+          <p className="text-secondary-token">{humanErrorMessage(error || t('documentViewer.notFound', 'Documento no encontrado'))}</p>
           <button
             onClick={() => navigate('/documents')}
             className="mt-6 px-6 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-primary-token rounded-xl text-sm font-bold transition-colors"

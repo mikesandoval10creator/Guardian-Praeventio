@@ -144,7 +144,7 @@ describe('<WorkerPortableHistory /> page wrapper (Sprint 42 F.18)', () => {
     };
     render(<WorkerPortableHistory />);
     expect(screen.getByTestId('portable-history-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('renderiza el bundle con todas las secciones (sin consent → RUT redactado)', () => {

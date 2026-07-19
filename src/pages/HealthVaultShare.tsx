@@ -13,6 +13,8 @@ import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { useFirebase } from '../contexts/FirebaseContext';
 import type { VaultShareScope } from '../services/health/vaultShare';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface CreatedShare {
   tokenId: string;
@@ -114,7 +116,7 @@ export function HealthVaultShare() {
       const data = (await res.json()) as CreatedShare;
       setCreatedShare(data);
     } catch (err: any) {
-      setError(err?.message ?? 'unknown_error');
+      setError(humanErrorMessage(err?.message ?? 'unknown_error'));
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +212,7 @@ export function HealthVaultShare() {
 
             {error && (
               <p role="alert" className="text-sm text-red-700 dark:text-red-400">
-                Error: {error}
+                Error: {humanErrorMessage(error)}
               </p>
             )}
 

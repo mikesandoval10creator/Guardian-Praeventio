@@ -79,7 +79,7 @@ describe('<ContingencySimulationPanel />', () => {
     fireEvent.click(screen.getByTestId('contingency-simulation-submit'));
 
     const error = await screen.findByTestId('contingency-simulation-error');
-    expect(error).toHaveTextContent('http_500');
+    expect(error).toHaveTextContent(/servidor tuvo un problema/i);
     expect(screen.queryByTestId('contingency-simulation-result')).toBeNull();
   });
 });
