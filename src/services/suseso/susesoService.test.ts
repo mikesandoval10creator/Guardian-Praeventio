@@ -134,7 +134,7 @@ describe('createSusesoForm', () => {
     expect(result.payloadHashHex).toMatch(/^[0-9a-f]{64}$/);
     expect(result.form.payloadHashHex).toBe(result.payloadHashHex);
     expect(result.form.payloadRendererVersion).toBe(1);
-    expect(result.qrCodeUrl).toBe('/api/suseso/verify/DIAT-2026-praevent-000001');
+    expect(result.qrCodeUrl).toBe('/verificar/DIAT-2026-praevent-000001');
   });
 
   it('recomputes the authoritative unsigned digest and ignores signature evidence', async () => {
@@ -467,13 +467,13 @@ describe('submitToMutualidad', () => {
 describe('buildVerificationUrl + folioToDocId', () => {
   it('builds a relative URL by default', () => {
     expect(buildVerificationUrl('DIAT-2026-praevent-000001')).toBe(
-      '/api/suseso/verify/DIAT-2026-praevent-000001',
+      '/verificar/DIAT-2026-praevent-000001',
     );
   });
   it('honors a public base URL', () => {
     expect(
       buildVerificationUrl('DIEP-2026-praevent-000099', 'https://praeventio.app'),
-    ).toBe('https://praeventio.app/api/suseso/verify/DIEP-2026-praevent-000099');
+    ).toBe('https://praeventio.app/verificar/DIEP-2026-praevent-000099');
   });
   it('lowercases the doc id', () => {
     expect(folioToDocId('DIAT-2026-praevent-000001')).toBe(

@@ -151,13 +151,19 @@ export function folioToDocId(folio: string): string {
 /**
  * Build the QR payload URL. The QR should be small enough that any
  * phone camera reads it, so we keep ONLY the folio in the URL — the
- * public verifier endpoint loads the rest.
+ * public verifier page loads the rest.
+ *
+ * Points at the human page (`/verificar/:folio`), NOT at
+ * `/api/suseso/verify/:folio`: whoever scans this is a fiscalizador or a
+ * worker holding a printed DIAT/DIEP, and a phone camera opening raw JSON
+ * reads as "this document is broken". The API endpoint is unchanged and
+ * remains the integration surface.
  *
  * `baseUrl` defaults to relative path, but server-side renders may
  * need an absolute URL — we leave that decision to the caller.
  */
 export function buildVerificationUrl(folio: string, baseUrl = ''): string {
-  return `${baseUrl}/api/suseso/verify/${encodeURIComponent(folio)}`;
+  return `${baseUrl}/verificar/${encodeURIComponent(folio)}`;
 }
 
 /**

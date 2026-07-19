@@ -164,6 +164,7 @@ const HealthVaultShare = lazy(() => import('./pages/HealthVaultShare').then(modu
 const HealthVaultViewer = lazy(() => import('./pages/HealthVaultViewer').then(module => ({ default: module.HealthVaultViewer })));
 // Sprint 30 Bucket LL
 const PublicDemo = lazy(() => import('./pages/PublicDemo').then(module => ({ default: module.PublicDemo })));
+const VerificarFolio = lazy(() => import('./pages/VerificarFolio').then(module => ({ default: module.VerificarFolio })));
 // Sprint 55 Fase F.14
 const FindingsHeatMap = lazy(() => import('./pages/FindingsHeatMap').then(module => ({ default: module.FindingsHeatMap })));
 // Sprint 55 Fase F.17
@@ -327,6 +328,10 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
                   <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
+                  {/* Public SUSESO folio verifier (no auth): the QR printed on
+                      a DIAT/DIEP points here. A fiscalizador has no account,
+                      and previously the QR opened the raw JSON API response. */}
+                  <Route path="/verificar/:folio" element={<VerificarFolio />} />
                   {/* Sprint 30 Bucket LL — public demo (no auth). */}
                   <Route path="/demo" element={<PublicDemo />} />
                   <Route
