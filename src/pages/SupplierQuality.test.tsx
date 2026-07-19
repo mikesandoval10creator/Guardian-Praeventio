@@ -206,7 +206,7 @@ describe('<SupplierQuality /> page wrapper (Sprint K §90-91)', () => {
     mockHook = { data: null, loading: false, error: new Error('Network down') };
     render(<SupplierQuality />);
     expect(screen.getByTestId('suppliers-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('4. renderiza lista con risk badge + score + RUT + servicios', () => {
@@ -324,7 +324,7 @@ describe('<SupplierQuality /> page wrapper (Sprint K §90-91)', () => {
     };
     render(<SupplierQuality />);
     expect(screen.getByTestId('suppliers-ranking-error')).toBeInTheDocument();
-    expect(screen.getByText(/ranking_down/i)).toBeInTheDocument();
+    expect(screen.getByText(/No pudimos completar la acción/i)).toBeInTheDocument();
     // En error NO se monta el comparador (evita render vacío engañoso).
     expect(screen.queryByTestId('supplier-comparator')).not.toBeInTheDocument();
   });

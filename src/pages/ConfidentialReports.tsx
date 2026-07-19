@@ -64,6 +64,8 @@ import {
 import { logger } from '../utils/logger';
 import { ConfidentialReportInbox } from '../components/confidentialReports/ConfidentialReportInbox';
 import type { ConfidentialReport, ConfidentialReportKind, ReportStatus } from '../services/confidentialReports/confidentialReportsService';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Visual helpers
@@ -872,11 +874,13 @@ function NewReportModal({ projectId, uid, onClose, onSuccess }: NewReportModalPr
     } catch (err) {
       logger.error('confidentialReport.submit.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'confidentialReports.modal.errorSubmit',
-            'No se pudo enviar el reporte.',
-          ) as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t(
+              'confidentialReports.modal.errorSubmit',
+              'No se pudo enviar el reporte.',
+            ) as string),
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -1071,7 +1075,7 @@ function NewReportModal({ projectId, uid, onClose, onSuccess }: NewReportModalPr
                 role="alert"
               >
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
+                <span>{humanErrorMessage(error)}</span>
               </p>
             )}
 
@@ -1134,7 +1138,7 @@ function RespondModal({ projectId, report, onClose, onSuccess }: RespondModalPro
       onSuccess();
     } catch (err) {
       logger.error('confidentialReport.respond.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -1187,7 +1191,7 @@ function RespondModal({ projectId, report, onClose, onSuccess }: RespondModalPro
             className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 text-xs text-rose-600 dark:text-rose-400"
             role="alert"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
 
@@ -1254,7 +1258,7 @@ function CloseModal({ projectId, report, onClose, onSuccess }: CloseModalProps) 
       onSuccess();
     } catch (err) {
       logger.error('confidentialReport.close.failed', err);
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -1342,7 +1346,7 @@ function CloseModal({ projectId, report, onClose, onSuccess }: CloseModalProps) 
             className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 text-xs text-rose-600 dark:text-rose-400"
             role="alert"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
 

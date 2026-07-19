@@ -131,7 +131,7 @@ describe('<NewEntryForm />', () => {
     );
     fireEvent.submit(screen.getByTestId('sitebook-new-entry-form'));
     const err = await screen.findByTestId('sitebook-error');
-    expect(err).toHaveTextContent('folio_conflict');
+    expect(err).toHaveTextContent(/folio ya existe/i);
   });
 
   it('onCancel dispara al click cancelar', async () => {

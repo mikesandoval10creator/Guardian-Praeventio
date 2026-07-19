@@ -77,7 +77,7 @@ describe('<SkillGapPanel />', () => {
     fireEvent.click(screen.getByTestId('skill-gap-submit'));
 
     const error = await screen.findByTestId('skill-gap-error');
-    expect(error).toHaveTextContent('http_403');
+    expect(error).toHaveTextContent(/no tienes permiso/i);
     expect(screen.queryByTestId('skill-gap-result')).toBeNull();
   });
 });

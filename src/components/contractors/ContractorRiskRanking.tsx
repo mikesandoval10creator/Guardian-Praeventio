@@ -16,6 +16,8 @@ import {
   type ContractorInjuryRates,
 } from '../../services/contractors/contractorKpiService.js';
 import { ContractorRankingTable } from './ContractorRankingTable.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface ContractorRiskRankingProps {
   projectId: string | null;
@@ -83,7 +85,7 @@ export function ContractorRiskRanking({
         data-testid="contractor-ranking-error"
         className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-xs text-amber-700 dark:text-amber-400"
       >
-        {t('contractorRanking.error', 'No se pudo cargar el ranking')} ({error.message}).
+        {t('contractorRanking.error', 'No se pudo cargar el ranking')} ({humanErrorMessage(error.message)}).
       </div>
     );
   }

@@ -136,6 +136,6 @@ describe('<Inbox /> page wrapper (Fase F.8)', () => {
     };
     renderWithRouter(<Inbox />);
     expect(screen.getByTestId('inbox-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 });

@@ -5,6 +5,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 interface HealthResult {
   complianceScore?: number;
@@ -109,7 +111,7 @@ export function ProjectHealthCheck() {
 
       {error && (
         <p className="text-xs text-red-500 mb-2 flex items-center gap-1">
-          <AlertTriangle className="w-3 h-3 shrink-0" /> {error}
+          <AlertTriangle className="w-3 h-3 shrink-0" /> {humanErrorMessage(error)}
         </p>
       )}
 

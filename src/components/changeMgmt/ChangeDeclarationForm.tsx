@@ -31,6 +31,8 @@ import type {
   ChangeImpact,
 } from '../../services/changeMgmt/operationalChangeService';
 import { declareMoc, type DeclareMocInput } from '../../hooks/useOperationalChange';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const KIND_OPTIONS: ReadonlyArray<{ value: ChangeKind; label: string }> = [
   { value: 'supervisor', label: 'Supervisor' },
@@ -429,7 +431,7 @@ export function ChangeDeclarationForm({
           role="alert"
           data-testid="moc.form.error"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

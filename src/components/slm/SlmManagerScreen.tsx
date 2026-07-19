@@ -44,6 +44,8 @@ import {
 } from '../../services/slm/slmAcquisitionService';
 import { deleteCachedModel } from '../../services/slm/cache/modelCache';
 import type { ModelDescriptor } from '../../services/slm/types';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface SlmManagerScreenProps {
   /**
@@ -174,7 +176,7 @@ export function SlmManagerScreen({ allowedModelIds }: SlmManagerScreenProps) {
                   data-testid="slm-manager-error"
                   className="mt-1 text-[10px] text-rose-700 dark:text-rose-300"
                 >
-                  {error}
+                  {humanErrorMessage(error)}
                 </p>
               )}
               <div className="mt-2 flex gap-2">

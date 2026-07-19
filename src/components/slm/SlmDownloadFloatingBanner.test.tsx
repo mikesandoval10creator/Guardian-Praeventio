@@ -98,7 +98,7 @@ describe('<SlmDownloadFloatingBanner />', () => {
     const acq = makeAcq({ downloadPhase: 'failed', error: 'NetworkError' });
     render(<SlmDownloadFloatingBanner acquisition={acq} />);
     expect(screen.getByTestId('slm-floating-banner-error')).toHaveTextContent(
-      'NetworkError',
+      /conectar con el servidor/i,
     );
     fireEvent.click(screen.getByTestId('slm-floating-banner-retry'));
     expect(acq.retry).toHaveBeenCalled();

@@ -13,6 +13,8 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { auth } from '../services/firebase';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 type ImportKind = 'workers' | 'epp' | 'trainings' | 'incidents' | 'projects' | 'risks';
 
@@ -148,7 +150,7 @@ export function ImportData() {
       setSummary(data);
       setStep('review');
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setLoading(false);
     }
@@ -189,7 +191,7 @@ export function ImportData() {
       setCommitResult(data);
       setStep('done');
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setLoading(false);
     }
@@ -250,7 +252,7 @@ export function ImportData() {
           role="alert"
           className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
         >
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 
@@ -376,7 +378,7 @@ export function ImportData() {
                       <tr key={`${err.rowNumber}-${err.column}-${i}`} className="border-t">
                         <td className="px-3 py-2 font-mono text-xs">{err.rowNumber}</td>
                         <td className="px-3 py-2 font-mono text-xs">{err.column}</td>
-                        <td className="px-3 py-2">{err.message}</td>
+                        <td className="px-3 py-2">{humanErrorMessage(err.message)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -54,6 +54,8 @@ import type {
 import { scoreDecisionImpact } from '../services/leadership/supervisionDecisionTrail';
 import { LeadershipTrailCard } from '../components/leadership/LeadershipTrailCard';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Static visual helpers
@@ -642,11 +644,13 @@ function RecordDecisionModal({
     } catch (err) {
       logger.error('leadership.decision.record.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'leadershipDecisions.modal.errorSubmit',
-            'No se pudo registrar la decisión.',
-          ) as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t(
+              'leadershipDecisions.modal.errorSubmit',
+              'No se pudo registrar la decisión.',
+            ) as string),
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -744,7 +748,7 @@ function RecordDecisionModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 

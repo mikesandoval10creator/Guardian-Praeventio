@@ -39,6 +39,8 @@ import {
   listProtocolAssessments,
   type ProtocolAssessment,
 } from '../hooks/useProtocols';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Badge styling keyed by Grado de Exposición (Tabla 7-1; 0 = bajo 50% LPP).
 const GRADE_BADGE: Record<PlanesiResult['exposureGrade'], string> = {
@@ -365,7 +367,7 @@ export function PlanesiEvaluation() {
               <p data-testid="planesi-status" className="text-xs text-emerald-400">{status}</p>
             )}
             {error && (
-              <p data-testid="planesi-error" className="text-xs text-rose-400">{error}</p>
+              <p data-testid="planesi-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 

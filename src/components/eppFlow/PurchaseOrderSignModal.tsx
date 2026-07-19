@@ -26,6 +26,8 @@ import {
   downloadEppOrderPdf,
   type PendingOrder,
 } from '../../hooks/useEppFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface PurchaseOrderSignModalProps {
   open: boolean;
@@ -239,7 +241,7 @@ export function PurchaseOrderSignModal({
               data-testid="oc-sign-modal-error"
               className="rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-100"
             >
-              {error}
+              {humanErrorMessage(error)}
             </div>
           )}
 

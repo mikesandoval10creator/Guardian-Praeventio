@@ -142,7 +142,7 @@ describe('<IncidentReport /> — B.1 offline outbox', () => {
     fillAndSubmit();
 
     await waitFor(() => expect(screen.getByTestId('incident-error-banner')).toBeInTheDocument());
-    expect(screen.getByText('invalid_projectId')).toBeInTheDocument();
+    expect(screen.getByText(/proyecto seleccionado no es válido/i)).toBeInTheDocument();
     expect(enqueueMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId('incident-queued-banner')).not.toBeInTheDocument();
   });

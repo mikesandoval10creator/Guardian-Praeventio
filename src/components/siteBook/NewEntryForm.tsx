@@ -11,6 +11,8 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, X } from 'lucide-react';
 import type { SiteBookEntryKind } from '../../services/siteBook/siteBookService.js';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface NewEntryFormProps {
   projectId: string;
@@ -92,7 +94,7 @@ export function NewEntryForm({
       setLocation('');
       setInvolvedUids('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'submit_failed');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -206,7 +208,7 @@ export function NewEntryForm({
           data-testid="sitebook-error"
           className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

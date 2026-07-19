@@ -64,6 +64,8 @@ import {
   type PendingInspection,
   type PendingObservation,
 } from '../services/inspections/inspectionOutbox';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Hard-coded checklist templates (Sprint F.6 launch set).
@@ -733,7 +735,7 @@ export function OfflineInspection() {
                 className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400"
                 role="alert"
               >
-                {createError}
+                {humanErrorMessage(createError)}
               </div>
             )}
             <div className="flex items-center gap-2 justify-end">
@@ -1114,7 +1116,7 @@ function InspectionDetailModal({
                 role="alert"
                 data-testid="offline-inspection-detail-error"
               >
-                {obsError}
+                {humanErrorMessage(obsError)}
               </div>
             )}
             <div className="flex items-center justify-end gap-2">

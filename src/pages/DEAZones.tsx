@@ -29,6 +29,8 @@ import {
   type DeaStatus,
 } from '../services/dea/deaService';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // 2026-05-15 (Sprint C): wire real a Firestore.
 //
@@ -510,7 +512,7 @@ export function DEAZones() {
 
               {errorMessage && (
                 <p className="text-sm text-rose-400" role="alert">
-                  {errorMessage}
+                  {humanErrorMessage(errorMessage)}
                 </p>
               )}
 
@@ -661,7 +663,7 @@ export function DEAZones() {
 
               {errorMessage && (
                 <p className="text-sm text-rose-400" role="alert">
-                  {errorMessage}
+                  {humanErrorMessage(errorMessage)}
                 </p>
               )}
 

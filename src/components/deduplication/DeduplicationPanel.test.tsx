@@ -79,7 +79,7 @@ describe('<DeduplicationPanel />', () => {
     fireEvent.click(screen.getByTestId('deduplication-submit'));
 
     const error = await screen.findByTestId('deduplication-error');
-    expect(error).toHaveTextContent('http_401');
+    expect(error).toHaveTextContent(/sesión expiró/i);
     expect(screen.queryByTestId('deduplication-result')).toBeNull();
   });
 });

@@ -9,6 +9,8 @@ import { generateMedicalIllustration } from '../../services/geminiService';
 import { MedicalIcon } from '../medical/MedicalIcon';
 import { CatalogBrowser } from './CatalogBrowser';
 import { anatomy, anatomyMeta, type AnatomyEntry } from '../../data/medical';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface AnatomyTopic {
   id: string;
@@ -134,7 +136,7 @@ export function AnatomyLibrary() {
         setCache(prev => [{ topicId: topic.id, src, generatedAt: Date.now() }, ...prev.filter(c => c.topicId !== topic.id)]);
       }
     } catch (err: any) {
-      setError(`${topic.label}: ${err?.message ?? 'error'}`);
+      setError(humanErrorMessage(`${topic.label}: ${err?.message ?? 'error'}`));
     } finally {
       setGenerating(null);
     }
@@ -164,7 +166,7 @@ export function AnatomyLibrary() {
 
       {error && (
         <div className="mx-5 mt-3 p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

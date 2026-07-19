@@ -18,6 +18,8 @@ import type {
   MatchReason,
   RecordKind,
 } from '../../services/deduplication/recordDeduplicator';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface DeduplicationPanelProps {
   projectId: string;
@@ -95,7 +97,7 @@ export function DeduplicationPanel({ projectId }: DeduplicationPanelProps) {
       setCandidates(res.candidates);
     } catch (err) {
       setCandidates(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -208,7 +210,7 @@ export function DeduplicationPanel({ projectId }: DeduplicationPanelProps) {
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('deduplication.panel.error', 'No se pudo ejecutar la detección.')} ({error})</span>
+          <span>{t('deduplication.panel.error', 'No se pudo ejecutar la detección.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

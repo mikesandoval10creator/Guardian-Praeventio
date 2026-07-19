@@ -34,6 +34,7 @@
 //     un riskCategory, el conteo refleja el resultado real del filtro.
 
 import { useState } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, WifiOff, Tag, Layers, Calendar, FileText } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -311,7 +312,7 @@ export function LessonsLearned() {
           role="alert"
         >
           {t('lessons.page.error', 'No se pudieron cargar las lecciones: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

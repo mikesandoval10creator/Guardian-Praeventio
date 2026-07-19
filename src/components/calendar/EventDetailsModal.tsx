@@ -9,6 +9,8 @@ import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'fi
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface Event {
   id: string;
@@ -198,7 +200,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                       >
                         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                         <p className="text-xs sm:text-sm font-medium leading-relaxed">
-                          {conflictError}
+                          {humanErrorMessage(conflictError)}
                         </p>
                       </motion.div>
                     )}

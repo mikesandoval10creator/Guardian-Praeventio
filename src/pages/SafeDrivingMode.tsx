@@ -11,6 +11,8 @@ import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { setActiveCommuteSession } from '../services/driving/commuteSession';
 import { WeatherBulletin } from '../components/WeatherBulletin';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Mapa vivo del modo conducción hands-free. Mismo patrón de carga que
 // SafeDriving.tsx (un solo loader compartido vía getMapLoaderConfig) — el mapa
@@ -387,7 +389,7 @@ export function SafeDrivingMode() {
           >
             <div className="flex items-center gap-3 text-rose-300 text-sm font-bold">
               <AlertTriangle className="w-5 h-5 shrink-0" />
-              <span>{reportError}</span>
+              <span>{humanErrorMessage(reportError)}</span>
             </div>
             <button
               onClick={retrySaveReport}
@@ -450,7 +452,7 @@ export function SafeDrivingMode() {
           </span>
         </button>
         {commuteError && (
-          <p role="alert" className="text-amber-400 text-sm text-center font-bold -mt-2">{commuteError}</p>
+          <p role="alert" className="text-amber-400 text-sm text-center font-bold -mt-2">{humanErrorMessage(commuteError)}</p>
         )}
 
         {/* Emergency Button (Massive) */}

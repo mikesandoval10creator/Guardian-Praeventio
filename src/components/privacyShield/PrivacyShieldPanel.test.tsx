@@ -68,7 +68,7 @@ describe('<PrivacyShieldPanel />', () => {
     fireEvent.click(screen.getByTestId('privacy-shield-submit'));
 
     const error = await screen.findByTestId('privacy-shield-error');
-    expect(error).toHaveTextContent('http_500');
+    expect(error).toHaveTextContent(/servidor tuvo un problema/i);
     expect(screen.queryByTestId('privacy-shield-result')).toBeNull();
   });
 });

@@ -40,6 +40,8 @@ import {
 } from '../../hooks/useExternalAuditPortal';
 import { randomId } from '../../utils/randomId';
 import { ExternalAuditPortalCard } from './ExternalAuditPortalCard';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface PortalManagerProps {
   /** Project ids that can be assigned in scope. Provided by parent dashboard. */
@@ -138,7 +140,7 @@ export function PortalManager({
       const { portals: rows } = await listExternalAuditPortals({ limit: 100 });
       setPortals(rows);
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setLoading(false);
     }
@@ -179,7 +181,7 @@ export function PortalManager({
         });
         setAccessLog(logs);
       } catch (err) {
-        setError((err as Error).message);
+        setError(humanErrorMessage((err as Error).message));
       } finally {
         setAccessLogLoading(false);
       }
@@ -272,7 +274,7 @@ export function PortalManager({
           role="alert"
           data-testid="portalManager.error"
         >
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 
@@ -577,7 +579,7 @@ function CreatePortalDialog({
       );
       onCreated(portal);
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -736,7 +738,7 @@ function CreatePortalDialog({
             role="alert"
             data-testid="portalManager.createDialog.error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
 
@@ -796,7 +798,7 @@ function RevokeDialog({
       );
       onRevoked();
     } catch (err) {
-      setError((err as Error).message);
+      setError(humanErrorMessage((err as Error).message));
     } finally {
       setSubmitting(false);
     }
@@ -839,7 +841,7 @@ function RevokeDialog({
             role="alert"
             data-testid="portalManager.revokeDialog.error"
           >
-            {error}
+            {humanErrorMessage(error)}
           </p>
         )}
         <footer className="flex items-center justify-end gap-2">

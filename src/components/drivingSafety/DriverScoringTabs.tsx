@@ -49,6 +49,8 @@ import {
 } from '../../hooks/useDrivingSafety';
 import { DriverScoreCard } from './DriverScoreCard';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export type DriverScoringTab = 'conductores' | 'ranking' | 'rutas';
 
@@ -707,7 +709,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
       onSuccess();
     } catch (err) {
       logger.error('drivingSafety.route.register.failed', err);
-      setError((err as Error).message || 'No se pudo registrar la ruta.');
+      setError(humanErrorMessage((err as Error).message || 'No se pudo registrar la ruta.'));
     } finally {
       setSubmitting(false);
     }
@@ -869,7 +871,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 
@@ -934,7 +936,7 @@ function FlagAlertModal({
       onSuccess();
     } catch (err) {
       logger.error('drivingSafety.route.alert.failed', err);
-      setError((err as Error).message || 'No se pudo registrar la alerta.');
+      setError(humanErrorMessage((err as Error).message || 'No se pudo registrar la alerta.'));
     } finally {
       setSubmitting(false);
     }
@@ -1003,7 +1005,7 @@ function FlagAlertModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 
@@ -1086,7 +1088,7 @@ function JourneyModal({
     } catch (err) {
       logger.error('drivingSafety.journey.failed', err);
       setError(
-        (err as Error).message || 'No se pudo registrar el viaje.',
+        humanErrorMessage((err as Error).message || 'No se pudo registrar el viaje.'),
       );
     } finally {
       setSubmitting(false);
@@ -1184,7 +1186,7 @@ function JourneyModal({
             role="alert"
           >
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{humanErrorMessage(error)}</span>
           </p>
         )}
 

@@ -21,6 +21,9 @@ import { db, auth } from '../../services/firebase';
 import { CloseProcessModal } from './CloseProcessModal';
 import { analytics } from '../../services/analytics';
 import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorFromBody } from '../../lib/humanError';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 export interface ProcessDetailModalProps {
   isOpen: boolean;
@@ -117,7 +120,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error ?? `Error ${res.status}`);
+        setError(humanErrorFromBody(j, res.status));
       } else {
         // 13th wave analytics: a `paused` transition is the canonical
         // tarea/proceso escalation signal — the worker can't progress
@@ -154,7 +157,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
         onStatusChanged?.({ ...process, status: next });
       }
     } catch (err: any) {
-      setError(err?.message ?? 'Error de red');
+      setError(humanErrorMessage(err?.message ?? 'Error de red'));
     } finally {
       setBusy(null);
     }
@@ -243,7 +246,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
               )}
             </section>
 
-            {error && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+            {error && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{humanErrorMessage(error)}</p>}
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-zinc-200 dark:border-zinc-800">

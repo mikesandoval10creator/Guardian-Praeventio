@@ -20,6 +20,8 @@ import {
   recordSifMandanteNotification,
 } from '../hooks/useSif';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function SifPrecursors() {
   const { t } = useTranslation();
@@ -43,7 +45,7 @@ export function SifPrecursors() {
         logger.warn('sif_page.review_failed', { err: String(err) });
         setFeedback({
           kind: 'error',
-          msg: err instanceof Error ? err.message : t('sif_page.action_failed', 'No se pudo registrar la acción.'),
+          msg: humanErrorMessage(err instanceof Error ? err.message : t('sif_page.action_failed', 'No se pudo registrar la acción.')),
         });
       } finally {
         setBusy(false);
@@ -65,7 +67,7 @@ export function SifPrecursors() {
         logger.warn('sif_page.notify_failed', { err: String(err) });
         setFeedback({
           kind: 'error',
-          msg: err instanceof Error ? err.message : t('sif_page.action_failed', 'No se pudo registrar la acción.'),
+          msg: humanErrorMessage(err instanceof Error ? err.message : t('sif_page.action_failed', 'No se pudo registrar la acción.')),
         });
       } finally {
         setBusy(false);

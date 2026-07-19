@@ -35,6 +35,8 @@ import {
   type ResilienceCheckers,
   type ResilienceHealthReport,
 } from '../services/observability/resilienceHealthMonitor';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000; // 5 min
 
@@ -185,7 +187,7 @@ export function useResilienceHealth(
       setReport(r);
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(err instanceof Error ? err.message : String(err));
+      setError(humanErrorMessage(err instanceof Error ? err.message : String(err)));
     } finally {
       if (mountedRef.current) setLoading(false);
     }

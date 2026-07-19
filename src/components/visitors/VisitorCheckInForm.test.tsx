@@ -56,7 +56,7 @@ describe('<VisitorCheckInForm />', () => {
     await user.type(screen.getByTestId('visitor-organization'), 'Org');
     fireEvent.submit(screen.getByTestId('visitor-checkin-form'));
     const err = await screen.findByTestId('visitor-error');
-    expect(err).toHaveTextContent('quota_exceeded');
+    expect(err).toHaveTextContent(/límite del plan/i);
   });
 
   it('onCancel dispara', () => {

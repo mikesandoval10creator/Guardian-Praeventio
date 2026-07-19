@@ -40,6 +40,8 @@ import {
   type HeatCell,
   type Severity,
 } from '../services/heatmap/findingsHeatmapBuilder';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Severity → color token (consistente con el sistema 4-modos).
 const SEVERITY_COLORS: Record<Severity, string> = {
@@ -295,7 +297,7 @@ export function FindingsHeatMap({ findings: findingsOverride }: FindingsHeatMapP
           <AlertTriangle className="w-4 h-4 text-rose-500" aria-hidden="true" />
           <p className="text-sm font-bold text-rose-700 dark:text-rose-400">
             {t('findingsHeatMap.error', 'No se pudieron cargar los hallazgos.')}{' '}
-            {fetchError.message}
+            {humanErrorMessage(fetchError.message)}
           </p>
         </div>
       )}

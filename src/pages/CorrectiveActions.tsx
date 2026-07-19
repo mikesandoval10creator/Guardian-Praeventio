@@ -19,6 +19,7 @@
 // campos PDCA poblados desde el origen y pasan through sin cambios.
 
 import { useMemo } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useTranslation } from 'react-i18next';
 import { ListChecks, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -274,7 +275,7 @@ export function CorrectiveActions() {
           role="alert"
         >
           {t('caCenter.page.error', 'No se pudieron cargar las acciones: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

@@ -95,6 +95,11 @@ describe('humanErrorFromResponse', () => {
 });
 
 describe('humanErrorMessage', () => {
+  it('passes a direct human string through unchanged', () => {
+    const message = 'Geolocalización no disponible en este dispositivo.';
+    expect(humanErrorMessage(message)).toBe(message);
+  });
+
   it('translates a Firebase code', () => {
     const msg = humanErrorMessage({ code: 'permission-denied', message: 'whatever' });
     expect(msg).toMatch(/no tienes permiso/i);
@@ -128,9 +133,30 @@ describe('humanErrorMessage', () => {
 
   it('replaces a machine token that arrived as the message', () => {
     expect(humanErrorMessage(new Error('forbidden_role'))).toMatch(/rol autorizado/i);
-    expect(humanErrorMessage(new Error('http_500'))).toBe(
-      'No pudimos completar la acción. Revisa los datos e inténtalo nuevamente.',
+    expect(humanErrorMessage(new Error('http_500'))).toMatch(
+      /servidor tuvo un problema/i,
     );
+  });
+
+  it('removes machine details embedded inside a friendly prefix', () => {
+    expect(humanErrorMessage('No se pudo guardar: forbidden_role')).toMatch(
+      /rol autorizado/i,
+    );
+    expect(humanErrorMessage('No se pudo completar: HTTP 503')).toMatch(
+      /servidor tuvo un problema/i,
+    );
+    expect(humanErrorMessage('Error al sincronizar: submit_failed')).not.toMatch(
+      /submit_failed/i,
+    );
+  });
+
+  it('translates common machine-like phrases and domain codes', () => {
+    expect(humanErrorMessage('quota exceeded')).toMatch(/límite del plan/i);
+    expect(humanErrorMessage('Permission denied')).toMatch(/no tienes permiso/i);
+    expect(humanErrorMessage('Network down')).toMatch(/conectar con el servidor/i);
+    expect(humanErrorMessage('Timeout')).toMatch(/tardó demasiado/i);
+    expect(humanErrorMessage('invalid_projectId')).toMatch(/proyecto seleccionado/i);
+    expect(humanErrorMessage('folio_conflict')).toMatch(/folio ya existe/i);
   });
 
   it('handles a missing/!Error value without throwing', () => {

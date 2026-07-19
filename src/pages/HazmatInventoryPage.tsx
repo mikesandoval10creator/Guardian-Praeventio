@@ -18,6 +18,8 @@ import {
 } from '../hooks/useHazmatInventory';
 import type { HazmatItem } from '../services/hazmat/hazmatInventory';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 export function HazmatInventoryPage() {
   const { t } = useTranslation();
@@ -131,7 +133,7 @@ export function HazmatInventoryPage() {
 
       {error && (
         <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400" data-testid="hazmat-inventory-error" role="alert">
-          {error}
+          {humanErrorMessage(error)}
         </div>
       )}
 

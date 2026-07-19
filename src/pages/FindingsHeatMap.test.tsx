@@ -123,7 +123,7 @@ describe('<FindingsHeatMap /> (Fase F.14)', () => {
     };
     render(<FindingsHeatMap />);
     expect(screen.getByTestId('findings-heatmap-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('empty-state honesto cuando el proyecto no tiene observaciones georreferenciadas', () => {

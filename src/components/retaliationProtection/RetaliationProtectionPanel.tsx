@@ -20,6 +20,8 @@ import type {
   RetaliationRiskAssessment,
   RetaliationSignal,
 } from '../../services/retaliationProtection/retaliationDetector';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface RetaliationProtectionPanelProps {
   projectId: string;
@@ -103,7 +105,7 @@ export function RetaliationProtectionPanel({ projectId }: RetaliationProtectionP
       setResult({ assessment, actions });
     } catch (err) {
       setResult(null);
-      setError(err instanceof Error ? err.message : 'unknown_error');
+      setError(humanErrorMessage(err instanceof Error ? err.message : 'unknown_error'));
     } finally {
       setLoading(false);
     }
@@ -231,7 +233,7 @@ export function RetaliationProtectionPanel({ projectId }: RetaliationProtectionP
           role="alert"
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{t('retaliationProtection.panel.error', 'No se pudo analizar el riesgo.')} ({error})</span>
+          <span>{t('retaliationProtection.panel.error', 'No se pudo analizar el riesgo.')} ({humanErrorMessage(error)})</span>
         </div>
       )}
 

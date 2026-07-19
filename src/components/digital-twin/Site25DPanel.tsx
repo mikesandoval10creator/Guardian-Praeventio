@@ -36,6 +36,8 @@ import { HazmatWindOverlay } from './HazmatWindOverlay';
 import { RiskNodeMarkers } from './RiskNodeMarkers';
 import { getMapLoaderConfig } from '../maps/mapConfig';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 const SANTIAGO_CENTER = { lat: -33.45, lng: -70.66 };
 
@@ -379,7 +381,7 @@ function Site25DPanelInner(): React.ReactElement {
           </p>
         )}
         {saveError && (
-          <p className="mt-2 text-[10px] text-rose-400 font-bold">{saveError}</p>
+          <p className="mt-2 text-[10px] text-rose-400 font-bold">{humanErrorMessage(saveError)}</p>
         )}
         {!projectId && (
           <p className="mt-2 text-[10px] text-amber-400 font-bold">

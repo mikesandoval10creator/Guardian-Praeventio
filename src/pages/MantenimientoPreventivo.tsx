@@ -29,6 +29,8 @@ import {
   getHorometerStatus,
   type HorometerStatusResponse,
 } from '../hooks/useHorometro';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // Carga el estado REAL del horómetro del equipo (horas acumuladas vs. ciclo
 // de mantención) desde GET /horometro/equipment/:eqId/status y lo renderiza
@@ -60,7 +62,7 @@ function HorometerStatusSection({
         if (!cancelled) setState({ kind: 'loaded', data });
       })
       .catch((err: Error) => {
-        if (!cancelled) setState({ kind: 'error', message: err.message ?? 'load_failed' });
+        if (!cancelled) setState({ kind: 'error', message: humanErrorMessage(err.message ?? 'load_failed') });
       });
     return () => {
       cancelled = true;

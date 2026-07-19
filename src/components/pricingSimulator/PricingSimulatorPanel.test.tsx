@@ -76,7 +76,7 @@ describe('<PricingSimulatorPanel />', () => {
     fireEvent.click(screen.getByTestId('pricing-simulator-submit'));
 
     const error = await screen.findByTestId('pricing-simulator-error');
-    expect(error).toHaveTextContent('http_403');
+    expect(error).toHaveTextContent(/no tienes permiso/i);
     expect(screen.queryByTestId('pricing-simulator-result')).toBeNull();
   });
 });

@@ -41,6 +41,8 @@ import {
   type PdcaOrigin,
 } from '../hooks/usePdca';
 import { logger } from '../utils/logger';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 const STAGE_ORDER: PdcaStage[] = ['plan', 'do', 'check', 'act'];
 
@@ -255,7 +257,7 @@ function CycleDetailModal({
                 role="alert"
                 data-testid="pdca-advance-error"
               >
-                {error}
+                {humanErrorMessage(error)}
               </div>
             )}
             <button
@@ -494,7 +496,7 @@ function NewCycleModal({
               role="alert"
               data-testid="pdca-new-error"
             >
-              {error}
+              {humanErrorMessage(error)}
             </div>
           )}
 
@@ -709,7 +711,7 @@ export function PdcaModule() {
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
           <span>
             {t('pdca.page.error', 'No se pudieron cargar los ciclos: {{msg}}', {
-              msg: error.message,
+              msg: humanErrorMessage(error),
             })}
           </span>
         </div>

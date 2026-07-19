@@ -41,6 +41,8 @@ import {
 import { logger } from '../utils/logger';
 import { EngineeringInventoryCard } from '../components/engineeringControls/EngineeringInventoryCard';
 import type { EngineeringControl } from '../services/engineeringControls/engineeringControlsInventory';
+import { humanErrorMessage } from '../lib/humanError';
+
 
 // ────────────────────────────────────────────────────────────────────────
 // Hierarchy metadata (ISO 31000 / 45001 §8.1.2)
@@ -340,8 +342,10 @@ export function EngineeringControls() {
     } catch (err) {
       logger.error('engineeringControls.create.failed', err);
       setFormError(
-        (err as Error).message ||
-          (t('engCtrl.form.errorCreate', 'No se pudo crear el control.') as string),
+        humanErrorMessage(
+          (err as Error).message ||
+            (t('engCtrl.form.errorCreate', 'No se pudo crear el control.') as string),
+        ),
       );
     } finally {
       setFormSubmitting(false);
@@ -687,7 +691,7 @@ export function EngineeringControls() {
               role="alert"
               data-testid="engineering-controls-form-error"
             >
-              {formError}
+              {humanErrorMessage(formError)}
             </p>
           )}
           <div className="flex justify-end gap-2">
@@ -729,7 +733,7 @@ export function EngineeringControls() {
           role="alert"
         >
           {t('engCtrl.page.error', 'No se pudieron cargar los controles: {{msg}}', {
-            msg: error.message,
+            msg: humanErrorMessage(error),
           })}
         </div>
       )}

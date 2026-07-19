@@ -13,6 +13,7 @@
 // equipos, incidentes, score global).
 
 import type { ReactNode } from 'react';
+import { humanErrorMessage } from '../lib/humanError';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -234,7 +235,7 @@ export function PreShiftRisk() {
           {t(
             'preShiftRisk.page.error',
             'No se pudo cargar el panel: {{msg}}',
-            { msg: error.message },
+            { msg: humanErrorMessage(error) },
           )}
         </div>
       )}

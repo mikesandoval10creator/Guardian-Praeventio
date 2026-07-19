@@ -245,7 +245,7 @@ describe('<ProjectClosure /> page wrapper (Sprint K §131-138)', () => {
     };
     render(<ProjectClosure />);
     expect(screen.getByTestId('project-closure-error')).toBeInTheDocument();
-    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
   it('readiness 0% con bloqueadores muestra el botón finalize deshabilitado', () => {

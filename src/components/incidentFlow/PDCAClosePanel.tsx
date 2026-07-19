@@ -18,6 +18,8 @@ import {
   GaugeCircle,
 } from 'lucide-react';
 import { useIncidentFlowStatus, type PdcaStatus } from '../../hooks/useIncidentFlow';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface PDCAClosePanelProps {
   projectId: string;
@@ -126,7 +128,7 @@ export function PDCAClosePanel({
         role="alert"
       >
         <p className="text-xs text-rose-700 dark:text-rose-300">
-          {error.message}
+          {humanErrorMessage(error.message)}
         </p>
       </section>
     );

@@ -33,6 +33,8 @@ import type {
   ZoneKind,
 } from '../../services/zones/restrictedZonesEngine';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
+
 
 interface RestrictedZonesMapOverlayProps {
   projectId: string;
@@ -144,7 +146,7 @@ export function RestrictedZonesMapOverlay({
       .catch((err: Error) => {
         if (cancelled) return;
         logger.error('restricted_zones overlay fetch failed', { err: String(err) });
-        setError(err.message);
+        setError(humanErrorMessage(err.message));
         setLoading(false);
       });
     return () => {
@@ -294,7 +296,7 @@ export function RestrictedZonesMapOverlay({
           </p>
         )}
         {error && (
-          <p className="text-[10px] text-rose-400 font-bold">{error}</p>
+          <p className="text-[10px] text-rose-400 font-bold">{humanErrorMessage(error)}</p>
         )}
         {!loading && !error && zones.length === 0 && (
           <p className="text-[10px] text-zinc-400">
