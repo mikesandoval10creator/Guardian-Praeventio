@@ -15,6 +15,7 @@ import {
 } from './susesoService';
 import type { SusesoForm, SusesoSignature } from './types';
 import type { MinimalFolioStore } from './folioGenerator';
+import { buildKmsComplianceSignature } from '../compliance/complianceSignature';
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -95,6 +96,21 @@ const baseInput = {
   reportedBy: { uid: 'u1', rut: '14.444.444-K', fullName: 'Carlos' },
 };
 
+function buildBoundSusesoSignature(form: SusesoForm): SusesoSignature {
+  const formId = folioToDocId(form.folio);
+  const payloadHashHex = form.payloadHashHex!;
+  return buildKmsComplianceSignature({
+    context: {
+      tenantId: 'praeventio', formId, documentKind: 'suseso', payloadHashHex,
+      signerUid: 'kms-signer', signerRut: '14.444.444-K',
+    },
+    signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
+    signatureB64: 'server-verified-signature',
+    keyVersion: 'key/7',
+    publicKeyPem: 'server-verified-public-key',
+  });
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('createSusesoForm', () => {
@@ -172,7 +188,7 @@ describe('createSusesoForm', () => {
 });
 
 describe('signForm', () => {
-  const validSig: SusesoSignature = {
+  const fabricatedSig: SusesoSignature = {
     signerUid: 'u1',
     signerRut: '14.444.444-K',
     signedAt: '2026-05-04T16:00:00.000Z',
@@ -181,27 +197,37 @@ describe('signForm', () => {
     payloadHashHex: 'a'.repeat(64),
   };
 
-  it('attaches a signature to an unsigned form', async () => {
+  it('attaches server-built bound evidence to an unsigned form', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
     const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
     const signed = await signForm(
       'praeventio',
       folioToDocId(form.folio),
-      validSig,
+      buildBoundSusesoSignature(form),
       { formStore },
     );
     expect(signed.signature).toBeDefined();
-    expect(signed.signature?.algorithm).toBe('webauthn-ecdsa-p256');
+    expect(signed.signature?.algorithm).toBe('kms-sign-rsa');
+  });
+
+  it('rejects fabricated AAAA evidence at the service boundary', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    await expect(signForm(
+      'praeventio', folioToDocId(form.folio), fabricatedSig, { formStore },
+    )).rejects.toThrow(/bound compliance evidence/i);
   });
 
   it('refuses to re-sign an already-signed form', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
     const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
-    await signForm('praeventio', folioToDocId(form.folio), validSig, { formStore });
+    const signature = buildBoundSusesoSignature(form);
+    await signForm('praeventio', folioToDocId(form.folio), signature, { formStore });
     await expect(
-      signForm('praeventio', folioToDocId(form.folio), validSig, { formStore }),
+      signForm('praeventio', folioToDocId(form.folio), signature, { formStore }),
     ).rejects.toThrow(/already signed/);
   });
 
@@ -213,7 +239,7 @@ describe('signForm', () => {
       signForm(
         'praeventio',
         folioToDocId(form.folio),
-        { ...validSig, payloadHashHex: 'xyz' },
+        { ...fabricatedSig, payloadHashHex: 'xyz' },
         { formStore },
       ),
     ).rejects.toThrow(/64-char lowercase hex/);
@@ -222,7 +248,7 @@ describe('signForm', () => {
   it('throws on missing form', async () => {
     const formStore = buildFormStore();
     await expect(
-      signForm('praeventio', 'nope', validSig, { formStore }),
+      signForm('praeventio', 'nope', fabricatedSig, { formStore }),
     ).rejects.toThrow(/not found/);
   });
 });
@@ -258,14 +284,7 @@ describe('verifyFolio', () => {
     await signForm(
       'praeventio',
       folioToDocId(form.folio),
-      {
-        signerUid: 'u1',
-        signerRut: '14.444.444-K',
-        signedAt: '2026-05-04T16:00:00.000Z',
-        algorithm: 'webauthn-ecdsa-p256',
-        signatureB64: 'BBBB',
-        payloadHashHex: 'b'.repeat(64),
-      },
+      buildBoundSusesoSignature(form),
       { formStore },
     );
     const r = await verifyFolio(form.folio, { formStore });
@@ -294,14 +313,7 @@ describe('submitToMutualidad', () => {
     await signForm(
       'praeventio',
       folioToDocId(form.folio),
-      {
-        signerUid: 'u1',
-        signerRut: '14.444.444-K',
-        signedAt: '2026-05-04T16:00:00.000Z',
-        algorithm: 'webauthn-ecdsa-p256',
-        signatureB64: 'CCCC',
-        payloadHashHex: 'c'.repeat(64),
-      },
+      buildBoundSusesoSignature(form),
       { formStore },
     );
     const submitted = await submitToMutualidad(

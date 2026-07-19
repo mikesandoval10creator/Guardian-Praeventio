@@ -15,6 +15,7 @@ import {
 } from './ds76Service';
 import type { Ds76Form, Ds76Signature } from './types';
 import type { MinimalFolioStore } from '../../suseso/folioGenerator';
+import { buildKmsComplianceSignature } from '../complianceSignature';
 
 function buildFolioStore(): MinimalFolioStore {
   const data = new Map<string, { lastSeq: number }>();
@@ -174,7 +175,7 @@ describe('createDs76Form', () => {
 });
 
 describe('signForm + listVersions', () => {
-  const validSig: Ds76Signature = {
+  const fabricatedSig: Ds76Signature = {
     signerUid: 'u1',
     signerRut: '14.444.444-K',
     signedAt: '2026-05-04T16:00:00.000Z',
@@ -183,15 +184,39 @@ describe('signForm + listVersions', () => {
     payloadHashHex: 'a'.repeat(64),
   };
 
+  function boundSignature(form: Ds76Form): Ds76Signature {
+    const formId = ds76FolioToDocId(form.folio);
+    const payloadHashHex = form.payloadHashHex!;
+    return buildKmsComplianceSignature({
+      context: {
+        tenantId: 'praeventio', formId, documentKind: 'ds76', payloadHashHex,
+        signerUid: 'kms-signer', signerRut: '14.444.444-K',
+      },
+      signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
+      signatureB64: 'server-verified-signature', keyVersion: 'key/7',
+      publicKeyPem: 'server-verified-public-key',
+    });
+  }
+
   it('attaches signature and refuses re-sign', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
     const { form } = await createDs76Form(baseInput, { folioStore, formStore });
     const fid = ds76FolioToDocId(form.folio);
-    await signForm('praeventio', fid, validSig, { formStore });
+    const signature = boundSignature(form);
+    await signForm('praeventio', fid, signature, { formStore });
     await expect(
-      signForm('praeventio', fid, validSig, { formStore }),
+      signForm('praeventio', fid, signature, { formStore }),
     ).rejects.toThrow(/already signed/);
+  });
+
+  it('rejects fabricated AAAA evidence at the service boundary', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createDs76Form(baseInput, { folioStore, formStore });
+    await expect(signForm(
+      'praeventio', ds76FolioToDocId(form.folio), fabricatedSig, { formStore },
+    )).rejects.toThrow(/bound compliance evidence/i);
   });
 
   it('listVersions returns all forms for tenant', async () => {

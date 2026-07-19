@@ -39,6 +39,7 @@ import {
   parseFolio,
 } from './folioGenerator.js';
 import { generateSusesoPdf } from '../../utils/susesoCertificate.js';
+import { matchesPersistedComplianceSignatureContext } from '../compliance/complianceSignature.js';
 
 /**
  * Tiny Firestore-shaped contract used by this service. Tests pass an
@@ -248,6 +249,19 @@ export async function signForm(
   }
   if (!/^[0-9a-f]{64}$/.test(signature.payloadHashHex)) {
     throw new Error('payloadHashHex must be a 64-char lowercase hex digest.');
+  }
+  if (
+    !existing.payloadHashHex ||
+    !matchesPersistedComplianceSignatureContext(signature, {
+      tenantId,
+      formId,
+      documentKind: 'suseso',
+      payloadHashHex: existing.payloadHashHex,
+      signerUid: signature.signerUid,
+      signerRut: signature.signerRut,
+    })
+  ) {
+    throw new Error('Signature must contain bound compliance evidence for this form.');
   }
   return deps.formStore.attachSignature(tenantId, formId, signature);
 }
