@@ -29,6 +29,11 @@ const assertion = {
   authenticatorData: 'authenticator-data-b64u',
   signature: 'authenticator-signature-b64u',
 };
+const archiveAttestation = {
+  version: 1 as const,
+  keyId: 'test-archive-key',
+  macB64u: 'a'.repeat(43),
+};
 
 describe('buildWebAuthnComplianceSignature', () => {
   it('constructs all legal and audit fields from verified server evidence', () => {
@@ -157,7 +162,10 @@ describe('classifyStoredComplianceSignatureEvidence', () => {
         rpId: 'app.praeventio.net',
       },
     });
-    expect(classifyStoredComplianceSignatureEvidence(bound)).toBe('self-contained-evidence-v2');
+    expect(classifyStoredComplianceSignatureEvidence({
+      ...bound,
+      archiveAttestation,
+    })).toBe('self-contained-evidence-v2');
     expect(classifyStoredComplianceSignatureEvidence({
       signerUid: 'legacy-user',
       algorithm: 'webauthn-ecdsa-p256',
@@ -184,6 +192,34 @@ describe('classifyStoredComplianceSignatureEvidence', () => {
       clientDataJSONB64u: assertion.clientDataJSON,
       authenticatorDataB64u: assertion.authenticatorData,
     })).toBe('bound-evidence-v1');
+  });
+
+  it('does not claim KMS v1 authenticates mutable signer metadata', () => {
+    expect(classifyStoredComplianceSignatureEvidence({
+      verificationVersion: 1,
+      algorithm: 'kms-sign-rsa',
+      signatureB64: 'historical-signature',
+      signingContext: {
+        tenantId: 'tenant-1', formId: 'form-1', documentKind: 'suseso',
+        payloadHashHex: intent.payloadHashHex, signerUid: 'kms', signerRut: intent.signerRut,
+      },
+      kmsKeyVersion: 'key/1',
+    })).toBe('legacy-unverifiable');
+  });
+
+  it('classifies a v2 row without archive provenance as unverifiable legacy', () => {
+    const unattested = buildWebAuthnComplianceSignature({
+      intent,
+      signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
+      assertion,
+      verifiedCredentialId: 'credential-1',
+      verificationKey: {
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
+    });
+    expect(classifyStoredComplianceSignatureEvidence(unattested)).toBe('legacy-unverifiable');
   });
 
   it('rejects v2 evidence whose key snapshot is incomplete or inconsistent', () => {
@@ -217,7 +253,8 @@ describe('matchesPersistedComplianceSignatureContext', () => {
     signerRut: intent.signerRut,
   };
 
-  const signature = buildWebAuthnComplianceSignature({
+  const signature = {
+    ...buildWebAuthnComplianceSignature({
     intent,
     signer: { uid: intent.signerUid, rut: intent.signerRut, kind: 'human' },
     assertion,
@@ -227,7 +264,9 @@ describe('matchesPersistedComplianceSignatureContext', () => {
       origin: 'https://app.praeventio.net',
       rpId: 'app.praeventio.net',
     },
-  });
+    }),
+    archiveAttestation,
+  };
 
   it('accepts only the exact authoritative signing context', () => {
     expect(matchesPersistedComplianceSignatureContext(signature, context)).toBe(true);

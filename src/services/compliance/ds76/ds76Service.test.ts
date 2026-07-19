@@ -187,7 +187,8 @@ describe('signForm + listVersions', () => {
   function boundSignature(form: Ds76Form): Ds76Signature {
     const formId = ds76FolioToDocId(form.folio);
     const payloadHashHex = form.payloadHashHex!;
-    return buildKmsComplianceSignature({
+    return {
+      ...buildKmsComplianceSignature({
       context: {
         tenantId: 'praeventio', formId, documentKind: 'ds76', payloadHashHex,
         signerUid: 'kms-signer', signerRut: '14.444.444-K',
@@ -195,7 +196,11 @@ describe('signForm + listVersions', () => {
       signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
       signatureB64: 'server-verified-signature', keyVersion: 'key/7',
       publicKeyPem: 'server-verified-public-key',
-    });
+      }),
+      archiveAttestation: {
+        version: 1, keyId: 'service-boundary-test', macB64u: 'a'.repeat(43),
+      },
+    };
   }
 
   it('attaches signature and refuses re-sign', async () => {

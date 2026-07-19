@@ -101,7 +101,8 @@ const baseInput = {
 function buildBoundSusesoSignature(form: SusesoForm): SusesoSignature {
   const formId = folioToDocId(form.folio);
   const payloadHashHex = form.payloadHashHex!;
-  return buildKmsComplianceSignature({
+  return {
+    ...buildKmsComplianceSignature({
     context: {
       tenantId: 'praeventio', formId, documentKind: 'suseso', payloadHashHex,
       signerUid: 'kms-signer', signerRut: '14.444.444-K',
@@ -110,7 +111,11 @@ function buildBoundSusesoSignature(form: SusesoForm): SusesoSignature {
     signatureB64: 'server-verified-signature',
     keyVersion: 'key/7',
     publicKeyPem: 'server-verified-public-key',
-  });
+    }),
+    archiveAttestation: {
+      version: 1, keyId: 'service-boundary-test', macB64u: 'a'.repeat(43),
+    },
+  };
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -220,6 +225,19 @@ describe('signForm', () => {
     await expect(signForm(
       'praeventio', folioToDocId(form.folio), fabricatedSig, { formStore },
     )).rejects.toThrow(/bound compliance evidence/i);
+  });
+
+  it('rejects v2 evidence that reached persistence without archive attestation', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    const { archiveAttestation: _missing, ...unattested } = buildBoundSusesoSignature(form);
+    await expect(signForm(
+      'praeventio',
+      folioToDocId(form.folio),
+      unattested,
+      { formStore },
+    )).rejects.toThrow(/bound compliance evidence/);
   });
 
   it('refuses to re-sign an already-signed form', async () => {

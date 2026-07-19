@@ -130,6 +130,10 @@ jobs:
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
             WEBAUTHN_RP_ID=app.praeventio.net
+            # Stable public key ID for the current archive HMAC. The matching
+            # secret keyring is mounted from Secret Manager below and retains
+            # previous key IDs for historical verification.
+            COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID=archive-2026-07
             # Release traceability (#18): tag every prod Sentry event with the
             # exact deployed commit so errors map back to a revision/source.
             SENTRY_RELEASE=${{ github.sha }}
@@ -158,6 +162,7 @@ jobs:
           # Manager, so mount it from there (a real entry below, NOT a comment).
           secrets: |
             KMS_KEY_RESOURCE_NAME=KMS_KEY_RESOURCE_NAME:latest
+            COMPLIANCE_EVIDENCE_ATTESTATION_KEYS=COMPLIANCE_EVIDENCE_ATTESTATION_KEYS:latest
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest
             RESEND_API_KEY=RESEND_API_KEY:latest

@@ -66,6 +66,7 @@ export interface VerifiedWebAuthnComplianceSignature extends ComplianceSignature
   clientDataJSONB64u: string;
   authenticatorDataB64u: string;
   verificationKey: Extract<ComplianceVerificationKey, { kind: 'webauthn-cose' }>;
+  archiveAttestation: ComplianceArchiveAttestation;
 }
 
 export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAuditFields {
@@ -79,7 +80,17 @@ export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAudit
   signingContext: ComplianceSigningContext;
   kmsKeyVersion: string;
   verificationKey: Extract<ComplianceVerificationKey, { kind: 'kms-rsa-pem' }>;
+  archiveAttestation: ComplianceArchiveAttestation;
 }
+
+export type UnattestedWebAuthnComplianceSignature = Omit<
+  VerifiedWebAuthnComplianceSignature,
+  'archiveAttestation'
+>;
+export type UnattestedKmsComplianceSignature = Omit<
+  VerifiedKmsComplianceSignature,
+  'archiveAttestation'
+>;
 
 export type ComplianceSignatureEvidenceClass =
   | 'self-contained-evidence-v2'
@@ -136,6 +147,14 @@ function hasKmsEvidence(signature: Record<string, unknown>): boolean {
   return Boolean(signature.signingContext) && isNonEmptyString(signature.kmsKeyVersion);
 }
 
+function hasArchiveAttestation(signature: Record<string, unknown>): boolean {
+  const attestation = signature.archiveAttestation as Record<string, unknown> | undefined;
+  return attestation?.version === 1 &&
+    isNonEmptyString(attestation.keyId) &&
+    typeof attestation.macB64u === 'string' &&
+    /^[A-Za-z0-9_-]{43}$/.test(attestation.macB64u);
+}
+
 /**
  * Classifies stored evidence without pretending to re-run cryptographic
  * verification. Legacy rows stay readable but must never be presented as a
@@ -155,6 +174,7 @@ export function classifyStoredComplianceSignatureEvidence(
   if (signature.algorithm === 'webauthn-ecdsa-p256') {
     if (!hasWebAuthnEvidence(signature)) return 'legacy-unverifiable';
     if (signature.verificationVersion === 1) return 'bound-evidence-v1';
+    if (!hasArchiveAttestation(signature)) return 'legacy-unverifiable';
     const key = signature.verificationKey as Record<string, unknown> | undefined;
     return key?.kind === 'webauthn-cose' &&
       key.credentialId === signature.credentialId &&
@@ -166,7 +186,11 @@ export function classifyStoredComplianceSignatureEvidence(
   }
   if (signature.algorithm === 'kms-sign-rsa') {
     if (!hasKmsEvidence(signature)) return 'legacy-unverifiable';
-    if (signature.verificationVersion === 1) return 'bound-evidence-v1';
+    // Historical KMS v1 signed only PDF bytes. Its stored UID/RUT could be
+    // rewritten without invalidating the signature, so it cannot authenticate
+    // the legal signer identity and must never be presented as verified.
+    if (signature.verificationVersion === 1) return 'legacy-unverifiable';
+    if (!hasArchiveAttestation(signature)) return 'legacy-unverifiable';
     const key = signature.verificationKey as Record<string, unknown> | undefined;
     return key?.kind === 'kms-rsa-pem' &&
       key.keyVersion === signature.kmsKeyVersion &&
@@ -226,7 +250,7 @@ export function buildWebAuthnComplianceSignature(input: {
     rpId: string;
   };
   now?: () => Date;
-}): VerifiedWebAuthnComplianceSignature {
+}): UnattestedWebAuthnComplianceSignature {
   const { intent, signer, assertion, verifiedCredentialId } = input;
   if (signer.kind !== 'human') {
     throw new TypeError('WebAuthn compliance signatures require a human signer');
@@ -290,7 +314,7 @@ export function buildKmsComplianceSignature(input: {
   keyVersion: string;
   publicKeyPem: string;
   now?: () => Date;
-}): VerifiedKmsComplianceSignature {
+}): UnattestedKmsComplianceSignature {
   const { context, signer } = input;
   if (signer.kind !== 'kms') {
     throw new TypeError('KMS compliance signatures require a configured KMS signer');

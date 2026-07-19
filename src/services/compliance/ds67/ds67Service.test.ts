@@ -182,7 +182,8 @@ describe('signForm', () => {
   function boundSignature(form: Ds67Form): Ds67Signature {
     const formId = ds67FolioToDocId(form.folio);
     const payloadHashHex = form.payloadHashHex!;
-    return buildKmsComplianceSignature({
+    return {
+      ...buildKmsComplianceSignature({
       context: {
         tenantId: 'praeventio', formId, documentKind: 'ds67', payloadHashHex,
         signerUid: 'kms-signer', signerRut: '14.444.444-K',
@@ -190,7 +191,11 @@ describe('signForm', () => {
       signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
       signatureB64: 'server-verified-signature', keyVersion: 'key/7',
       publicKeyPem: 'server-verified-public-key',
-    });
+      }),
+      archiveAttestation: {
+        version: 1, keyId: 'service-boundary-test', macB64u: 'a'.repeat(43),
+      },
+    };
   }
 
   it('attaches signature to unsigned form', async () => {

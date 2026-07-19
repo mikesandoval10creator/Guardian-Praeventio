@@ -249,7 +249,7 @@ describe('verifyPersistedComplianceSignature', () => {
     })).resolves.toEqual({ status: 'verified' });
   });
 
-  it('keeps v1 KMS evidence compatible with the historical PDF-byte signature', async () => {
+  it('does not claim historical KMS v1 authenticates mutable UID/RUT metadata', async () => {
     const { context, evidence, publicKeyPem, privateKeyPem } = kmsFixture();
     const legacyV1 = {
       ...evidence,
@@ -268,7 +268,7 @@ describe('verifyPersistedComplianceSignature', () => {
       signature: legacyV1,
     }, {
       resolveKmsPublicKey: async () => ({ publicKeyPem }),
-    })).resolves.toEqual({ status: 'verified' });
+    })).resolves.toEqual({ status: 'unverifiable', reason: 'legacy_unverifiable' });
   });
 
   it('does not claim validity when historical key evidence is unavailable', async () => {

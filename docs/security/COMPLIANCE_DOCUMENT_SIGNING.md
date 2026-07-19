@@ -13,10 +13,12 @@ pública verificada, además del contexto exacto de firma. Esto permite comproba
 el documento después de revocar una passkey o rotar una clave KMS, sin depender
 de que la credencial operativa siga activa.
 
-Los registros v1 conservan verificación compatible mientras la clave referida
-siga disponible en el registro de credenciales o en KMS. Las firmas anteriores
-sin contexto o evidencia suficiente siguen siendo legibles, pero se clasifican
-como `legacy-unverifiable`: nunca se presentan como válidas retroactivamente.
+Los registros WebAuthn v1 conservan verificación compatible mientras la
+credencial referida siga disponible. KMS v1 firmaba solo los bytes del PDF y no
+autenticaba UID/RUT; por ello se clasifica como `legacy-unverifiable` en vez de
+mostrar una identidad legal mutable como válida. Las demás firmas anteriores
+sin contexto o evidencia suficiente siguen siendo legibles, pero nunca se
+presentan como válidas retroactivamente.
 
 ## Flujo WebAuthn humano
 

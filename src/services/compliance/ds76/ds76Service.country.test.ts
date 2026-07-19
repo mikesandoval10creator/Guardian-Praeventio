@@ -13,6 +13,7 @@ import {
 } from './ds76Service';
 import { JurisdictionNotSupportedError } from '../ds67/ds67Service';
 import type { Ds76Form, Ds76Signature } from './types';
+import { buildKmsComplianceSignature } from '../complianceSignature';
 import type { MinimalFolioStore } from '../../suseso/folioGenerator';
 
 function buildFolioStore(): MinimalFolioStore {
@@ -83,14 +84,32 @@ const baseInput = {
   susesoFiscalizationRecord: 'Última fiscalización: 2026-04-15.',
 };
 
-function buildSig(payloadHashHex: string): Ds76Signature {
+// signForm now requires BOUND evidence carrying an archive attestation (a
+// hand-rolled minimal signature is classified `legacy-unverifiable` and
+// rejected). These tests are about the COUNTRY gate, not signature shape, so
+// they hand it a properly bound signature — same shape as the sibling
+// ds76Service.test.ts helper.
+function buildSig(formId: string, payloadHashHex: string): Ds76Signature {
   return {
-    signerUid: 'uid-1',
-    signerRut: '11.111.111-1',
-    signedAt: '2026-05-05T00:00:00.000Z',
-    algorithm: 'webauthn-ecdsa-p256',
-    signatureB64: 'AAAA',
-    payloadHashHex,
+    ...buildKmsComplianceSignature({
+      context: {
+        tenantId: baseInput.tenantId,
+        formId,
+        documentKind: 'ds76',
+        payloadHashHex,
+        signerUid: 'kms-signer',
+        signerRut: '14.444.444-K',
+      },
+      signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
+      signatureB64: 'server-verified-signature',
+      keyVersion: 'key/7',
+      publicKeyPem: 'server-verified-public-key',
+    }),
+    archiveAttestation: {
+      version: 1,
+      keyId: 'country-gate-test',
+      macB64u: 'a'.repeat(43),
+    },
   };
 }
 
@@ -107,7 +126,7 @@ describe('DS-76 signForm — country gate (Sprint 33 W6)', () => {
     const signed = await signForm(
       baseInput.tenantId,
       formId,
-      buildSig(payloadHashHex),
+      buildSig(formId, payloadHashHex),
       { formStore, resolveCountry: async () => 'CL' },
     );
     expect(signed.signature).toBeDefined();
@@ -123,7 +142,7 @@ describe('DS-76 signForm — country gate (Sprint 33 W6)', () => {
     const formId = ds76FolioToDocId(form.folio);
 
     await expect(
-      signForm(baseInput.tenantId, formId, buildSig(payloadHashHex), {
+      signForm(baseInput.tenantId, formId, buildSig(formId, payloadHashHex), {
         formStore,
         resolveCountry: async () => 'PE',
       }),
@@ -152,7 +171,7 @@ describe('DS-76 signForm — country gate (Sprint 33 W6)', () => {
       const signed = await signForm(
         baseInput.tenantId,
         formId,
-        buildSig(payloadHashHex),
+        buildSig(formId, payloadHashHex),
         {
           formStore,
           resolveCountry: async () => {
@@ -165,8 +184,9 @@ describe('DS-76 signForm — country gate (Sprint 33 W6)', () => {
       const firstCall = warnSpy.mock.calls[0]!.join(' ');
       expect(firstCall).toMatch(/resolveCountry threw/);
 
-      // Sanity: doesn't throw the typed error in fallback.
-      expect(signed.signature?.signerUid).toBe('uid-1');
+      // Sanity: doesn't throw the typed error in fallback. (Signer is the KMS
+      // identity the bound fixture above signs with.)
+      expect(signed.signature?.signerUid).toBe('kms-signer');
       // Suppress unused-import lint by referencing the symbol.
       expect(JurisdictionNotSupportedError.name).toBe(
         'JurisdictionNotSupportedError',

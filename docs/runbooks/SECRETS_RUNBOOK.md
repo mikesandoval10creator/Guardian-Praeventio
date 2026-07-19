@@ -204,7 +204,8 @@ secrets are wired into `deploy.yml`.
   tener al menos 32 bytes. El JSON completo es sensible y va en Secret Manager.
 - **Dónde se usa**: `src/server/services/complianceEvidenceAttestation.ts`;
   el preflight de producción en `src/server/kmsPreflight.ts` falla cerrado si
-  falta o es inválido.
+  falta o es inválido. El workflow de deploy monta el secreto de Secret Manager
+  `COMPLIANCE_EVIDENCE_ATTESTATION_KEYS` y fija el ID actual.
 - **Cómo rotarlo**: agregar la clave nueva sin borrar las anteriores, desplegar
   con su ID como `CURRENT_KEY_ID` y confirmar firmas/verificación. Retirar una
   clave histórica impide verificar los documentos que la referencian, por lo
