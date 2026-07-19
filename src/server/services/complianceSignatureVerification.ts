@@ -143,6 +143,16 @@ async function verifyWebAuthn(
 
   try {
     const parsed = parseAuthenticatorData(authenticatorData);
+    // SHA-256 here is MANDATED by the WebAuthn spec, not a hashing choice:
+    // authenticatorData carries `rpIdHash = SHA-256(rpId)` (W3C WebAuthn §6.1),
+    // so the verifier must recompute exactly that to compare. `rpId` is a public
+    // domain name ("app.praeventio.net"), NOT a credential or a password — a
+    // slow KDF (bcrypt/scrypt/argon2) would produce a different digest and break
+    // verification outright.
+    //
+    // CodeQL flags this as `js/insufficient-password-hash` because the value
+    // reaches here from `resolveWebAuthnKey` and its taint heuristic reads
+    // "…Key" as credential material. False positive — see the note above.
     const expectedRpIdHash = crypto.createHash('sha256').update(resolved.rpId).digest();
     if (!equalBytes(parsed.rpIdHash, expectedRpIdHash) || !parsed.flags.up || !parsed.flags.uv) {
       return { status: 'invalid', reason: 'signature_invalid' };
