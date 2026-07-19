@@ -19,6 +19,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import qrcodeGenerator from 'qrcode-generator';
 import { configureDeterministicPdf, formatChileDateTime } from './deterministicPdf.js';
 import type {
   SusesoForm,
@@ -55,13 +56,21 @@ const CLASSIFICATION_LABELS: Record<SusesoIncidentClassification, string> = {
 };
 
 /**
- * Optional rendering options. The QR data URL must be passed in by the
- * caller (we keep this generator dep-free of `qrcode` so the same code
- * works in browser + node test environments).
+ * Optional rendering options.
+ *
+ * The QR is drawn as vector squares from the encoder's module matrix, NOT
+ * embedded as a raster image. That is a deliberate byte-determinism
+ * choice: these PDF bytes are the payload a compliance signature covers,
+ * so verification has to reproduce them exactly, years later. A PNG
+ * encoder can change its output across library versions; the module
+ * matrix is fixed by the QR specification for a given text and EC level.
  */
 export interface SusesoPdfOptions {
-  /** Logo data-URL or omitted to fall back to the "P" placeholder. */
-  qrCodeDataUrl?: string;
+  /**
+   * Text the verification QR encodes — the absolute `/verificar/{folio}`
+   * URL. Omit for renderer v1, which draws no QR.
+   */
+  qrText?: string;
 }
 
 /**
@@ -86,7 +95,7 @@ export function generateSusesoPdf(
   y = drawIncidentBlock(doc, form, y);
   y = drawTipificationBlock(doc, form, y);
   y = drawWitnessesBlock(doc, form, y);
-  drawSignatureBlock(doc, form, y, options.qrCodeDataUrl);
+  drawSignatureBlock(doc, form, y, options.qrText);
   drawFooter(doc, form);
 
   // jsPDF's `output('arraybuffer')` returns an ArrayBuffer; wrap in
@@ -111,7 +120,7 @@ export function downloadSusesoPdf(
   y = drawIncidentBlock(doc, form, y);
   y = drawTipificationBlock(doc, form, y);
   y = drawWitnessesBlock(doc, form, y);
-  drawSignatureBlock(doc, form, y, options.qrCodeDataUrl);
+  drawSignatureBlock(doc, form, y, options.qrText);
   drawFooter(doc, form);
   const safe = (s: string) => s.replace(/[^a-zA-Z0-9]+/g, '_');
   doc.save(`${form.kind}_${form.folio}_${safe(form.workerFullName)}.pdf`);
@@ -277,7 +286,7 @@ function drawSignatureBlock(
   doc: jsPDF,
   form: SusesoForm,
   yIn: number,
-  qrCodeDataUrl: string | undefined,
+  qrText: string | undefined,
 ): void {
   const y = Math.max(yIn, H - 65);
   doc.setDrawColor(180, 180, 180);
@@ -313,15 +322,45 @@ function drawSignatureBlock(
     doc.text('PENDIENTE DE FIRMA', W / 2 + 5, y + 12);
   }
 
-  // QR code (folio verification)
-  if (qrCodeDataUrl) {
-    try {
-      doc.addImage(qrCodeDataUrl, 'PNG', W - M - 28, y + 4, 24, 24);
-      doc.setTextColor(120, 120, 120);
-      doc.setFontSize(6);
-      doc.text('Verificación de folio', W - M - 16, y + 32, { align: 'center' });
-    } catch {
-      /* QR rendering is best-effort; never fail the PDF for it. */
+  // QR code (folio verification) — renderer v2 only.
+  //
+  // NOT best-effort: in v2 these squares are inside the signed bytes, so
+  // silently skipping them would produce a PDF whose digest cannot match
+  // the one recorded at signing time. A failure here must surface.
+  if (qrText) {
+    drawQrCode(doc, qrText, W - M - 28, y + 4, 24);
+    doc.setTextColor(120, 120, 120);
+    doc.setFontSize(6);
+    doc.text('Verificación de folio', W - M - 16, y + 32, { align: 'center' });
+  }
+}
+
+/**
+ * Draw a QR as filled vector squares, top-left at (x, y), fitted to
+ * `size` mm. See `SusesoPdfOptions` for why this is not a raster image.
+ *
+ * Error correction level M: the printed declaration can pick up smudges
+ * and folds in a worksite, and M tolerates ~15% damage while keeping the
+ * matrix small enough to stay scannable at 24mm.
+ */
+function drawQrCode(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  const qr = qrcodeGenerator(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const count = qr.getModuleCount();
+  const cell = size / count;
+  doc.setFillColor(20, 20, 20);
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) {
+        doc.rect(x + col * cell, y + row * cell, cell, cell, 'F');
+      }
     }
   }
 }

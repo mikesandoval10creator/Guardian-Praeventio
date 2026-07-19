@@ -42,13 +42,19 @@ export interface ComplianceSignableForm {
 export interface ComplianceUnsignedPayload {
   pdfBytes: Uint8Array;
   payloadHashHex: string;
-  payloadRendererVersion: 1;
+  /**
+   * Which byte-rendering contract produced `pdfBytes`. Per-document, not
+   * global: DS 67 / DS 76 still emit v1, SUSESO emits v2 (its body now
+   * carries the verification QR). Verification renders at the version
+   * stored on the document, so signatures survive a renderer bump.
+   */
+  payloadRendererVersion: 1 | 2;
 }
 
 export interface ComplianceSigningDocuments {
   loadForm(): Promise<ComplianceSignableForm | null>;
   renderUnsignedPayload(form: ComplianceSignableForm): Promise<ComplianceUnsignedPayload>;
-  persistLegacyDigest(payloadHashHex: string, payloadRendererVersion: 1): Promise<void>;
+  persistLegacyDigest(payloadHashHex: string, payloadRendererVersion: 1 | 2): Promise<void>;
 }
 
 export interface ComplianceSigningTarget {

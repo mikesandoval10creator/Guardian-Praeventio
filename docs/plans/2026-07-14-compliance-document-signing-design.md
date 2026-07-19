@@ -79,9 +79,18 @@ PDF and returns its SHA-256 digest:
 interface CompliancePayload {
   bytes: Uint8Array;
   hashHex: string;
-  rendererVersion: 1;
+  rendererVersion: 1 | 2;
 }
 ```
+
+> **Actualización 2026-07-19.** El renderer está versionado POR DOCUMENTO, no
+> globalmente. DS 67 / DS 76 siguen emitiendo v1; SUSESO emite v2, cuyo cuerpo
+> incluye el QR de verificación (dibujado como vectores desde `qrCodeUrl` para
+> que los bytes sean deterministas). La verificación renderiza a la versión
+> almacenada en el documento — nunca a la actual. Renderizar todo con el
+> renderer más nuevo haría que toda declaración firmada antes del cambio
+> reportara `payload_hash_mismatch`: acusaría de adulteración a documentos
+> legales válidos.
 
 Creation stores `payloadHashHex` and `payloadRendererVersion` on the form. The
 stored digest is part of the immutable form body. Challenge issuance and KMS

@@ -133,8 +133,9 @@ describe('createSusesoForm', () => {
     expect(result.pdfBytes.length).toBeGreaterThan(1000);
     expect(result.payloadHashHex).toMatch(/^[0-9a-f]{64}$/);
     expect(result.form.payloadHashHex).toBe(result.payloadHashHex);
-    expect(result.form.payloadRendererVersion).toBe(1);
+    expect(result.form.payloadRendererVersion).toBe(2);
     expect(result.qrCodeUrl).toBe('/verificar/DIAT-2026-praevent-000001');
+    expect(result.form.qrCodeUrl).toBe('/verificar/DIAT-2026-praevent-000001');
   });
 
   it('recomputes the authoritative unsigned digest and ignores signature evidence', async () => {
@@ -159,7 +160,66 @@ describe('createSusesoForm', () => {
 
     const recomputed = await renderSusesoUnsignedPayload(signedView);
     expect(recomputed.payloadHashHex).toBe(payloadHashHex);
-    expect(recomputed.payloadRendererVersion).toBe(1);
+    expect(recomputed.payloadRendererVersion).toBe(2);
+  });
+
+  // The whole point of versioning the renderer: adding the QR to the body
+  // must NOT retroactively invalidate declarations signed before it. If
+  // this breaks, every pre-2026-07 DIAT/DIEP starts telling inspectors it
+  // was altered after signing.
+  it('still reproduces the digest of a document signed under renderer v1', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, {
+      folioStore,
+      formStore,
+      now: () => new Date('2026-05-04T15:00:00.000Z'),
+    });
+    // A row as it exists in Firestore today: v1, no QR, no qrCodeUrl.
+    const legacyForm: SusesoForm = { ...form };
+    delete legacyForm.qrCodeUrl;
+    delete legacyForm.payloadHashHex;
+    legacyForm.payloadRendererVersion = 1;
+    const v1 = await renderSusesoUnsignedPayload(legacyForm);
+    expect(v1.payloadRendererVersion).toBe(1);
+
+    const signedLegacy: SusesoForm = {
+      ...legacyForm,
+      payloadHashHex: v1.payloadHashHex,
+      signature: buildBoundSusesoSignature({
+        ...legacyForm,
+        payloadHashHex: v1.payloadHashHex,
+      }),
+    };
+    await formStore.saveForm('praeventio', folioToDocId(form.folio), signedLegacy);
+
+    const r = await verifyFolio(form.folio, {
+      formStore,
+      verifySignature: async () => ({ status: 'verified' as const }),
+    });
+    expect(r.verificationStatus).toBe('verified');
+    expect(r.valid).toBe(true);
+  });
+
+  it('renders a different body for v1 and v2 — the QR is inside the signed bytes', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, {
+      folioStore,
+      formStore,
+      now: () => new Date('2026-05-04T15:00:00.000Z'),
+    });
+    const asV1: SusesoForm = { ...form, payloadRendererVersion: 1 };
+    const v1 = await renderSusesoUnsignedPayload(asV1);
+    const v2 = await renderSusesoUnsignedPayload(form);
+    expect(v2.payloadHashHex).not.toBe(v1.payloadHashHex);
+
+    // And the QR content is bound: repointing it changes the signed bytes.
+    const repointed = await renderSusesoUnsignedPayload({
+      ...form,
+      qrCodeUrl: 'https://attacker.example/verificar/DIAT-2026-praevent-000001',
+    });
+    expect(repointed.payloadHashHex).not.toBe(v2.payloadHashHex);
   });
 
   it('persists the form so it can be loaded back', async () => {
@@ -428,6 +488,45 @@ describe('verifyFolio', () => {
       kind: 'DIAT',
       verificationStatus: 'unverifiable',
       reason: 'legacy_unverifiable',
+    });
+  });
+
+  // Data we cannot reproduce must never be reported as tampering: a hash
+  // mismatch tells a fiscalizador the declaration was altered after
+  // signing, which is a far heavier claim than "we cannot check this".
+  it('reports a v2 row missing its QR URL as unverifiable, not altered', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    const formId = folioToDocId(form.folio);
+    await formStore.saveForm('praeventio', formId, {
+      ...form,
+      qrCodeUrl: undefined,
+      signature: buildBoundSusesoSignature(form),
+    });
+    await expect(verifyFolio(form.folio, { formStore })).resolves.toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'unverifiable',
+      reason: 'payload_inputs_incomplete',
+    });
+  });
+
+  it('reports a renderer version this build cannot render as unverifiable', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    const formId = folioToDocId(form.folio);
+    await formStore.saveForm('praeventio', formId, {
+      ...form,
+      payloadRendererVersion: 99 as unknown as 1 | 2,
+      signature: buildBoundSusesoSignature(form),
+    });
+    await expect(verifyFolio(form.folio, { formStore })).resolves.toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'unverifiable',
+      reason: 'unsupported_renderer_version',
     });
   });
 });

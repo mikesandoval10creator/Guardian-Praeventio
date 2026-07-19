@@ -40,6 +40,10 @@ const UNVERIFIABLE_DETAIL: Record<string, string> = {
     'El documento está registrado, pero la clave pública necesaria para comprobar su firma ya no está disponible.',
   evidence_attestation_key_unavailable:
     'El documento está registrado, pero falta la clave con la que se selló su evidencia, así que no podemos comprobar que no haya sido alterada en el archivo.',
+  unsupported_renderer_version:
+    'El documento está registrado, pero fue generado con una versión del formato que este verificador no sabe reconstruir, así que no puede comprobar su firma.',
+  payload_inputs_incomplete:
+    'El documento está registrado, pero falta uno de los datos con los que se generó, así que no podemos reconstruirlo para comprobar su firma.',
   verification_service_unavailable:
     'No pudimos consultar el servicio de verificación en este momento. El documento no ha sido descartado: simplemente no se pudo comprobar ahora.',
 };
