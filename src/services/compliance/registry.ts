@@ -365,7 +365,7 @@ function clOccupationalInjuryAdapter(): EmissionAdapter {
           if (snap.empty) return null;
           const doc = snap.docs[0];
           const tenantId = doc.ref.parent.parent?.id ?? '';
-          return { tenantId, form: doc.data() };
+          return { tenantId, formId: doc.id, form: doc.data() };
         },
         async attachSignature(tenantId: string, formId: string, signature: unknown) {
           const ref = formsPath(tenantId).doc(formId);

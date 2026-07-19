@@ -2,7 +2,7 @@
 //
 // Tests for the SUSESO orchestration service.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createSusesoForm,
   signForm,
@@ -61,8 +61,8 @@ function buildFormStore(): MinimalFormStore {
     },
     async findFormByFolio(folio) {
       for (const [tid, bucket] of byTenantId) {
-        for (const form of bucket.values()) {
-          if (form.folio === folio) return { tenantId: tid, form };
+        for (const [formId, form] of bucket) {
+          if (form.folio === folio) return { tenantId: tid, formId, form };
         }
       }
       return null;
@@ -287,12 +287,88 @@ describe('verifyFolio', () => {
       buildBoundSusesoSignature(form),
       { formStore },
     );
-    const r = await verifyFolio(form.folio, { formStore });
+    const verifySignature = vi.fn(async () => ({ status: 'verified' as const }));
+    const r = await verifyFolio(form.folio, { formStore, verifySignature });
     expect(r.valid).toBe(true);
+    expect(r.verificationStatus).toBe('verified');
     expect(r.kind).toBe('DIAT');
     expect(r.signerRut).toBe('14.444.444-K');
     // Worker rut MUST NOT leak in verification response.
     expect(JSON.stringify(r)).not.toContain('12.345.678-9');
+    expect(verifySignature).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({
+        tenantId: 'praeventio',
+        formId: folioToDocId(form.folio),
+        documentKind: 'suseso',
+        payloadHashHex: form.payloadHashHex,
+      }),
+      payloadBytes: expect.any(Uint8Array),
+    }));
+  });
+
+  it('does not equate a stored fabricated signature with validity', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    await formStore.attachSignature('praeventio', folioToDocId(form.folio), {
+      signerUid: 'u1', signerRut: '14.444.444-K',
+      signedAt: '2026-05-04T16:00:00.000Z', algorithm: 'webauthn-ecdsa-p256',
+      signatureB64: 'AAAA', payloadHashHex: form.payloadHashHex!,
+    });
+    const r = await verifyFolio(form.folio, {
+      formStore,
+      verifySignature: async () => ({ status: 'invalid', reason: 'signature_invalid' }),
+    });
+    expect(r).toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'invalid',
+      reason: 'signature_invalid',
+    });
+  });
+
+  it('detects mutation of the current document before crypto verification', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    const formId = folioToDocId(form.folio);
+    const signed = await signForm(
+      'praeventio', formId, buildBoundSusesoSignature(form), { formStore },
+    );
+    await formStore.saveForm('praeventio', formId, {
+      ...signed,
+      incidentDescription: 'document content changed after signing',
+    });
+    const verifySignature = vi.fn(async () => ({ status: 'verified' as const }));
+    const r = await verifyFolio(form.folio, { formStore, verifySignature });
+    expect(r).toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'invalid',
+      reason: 'payload_hash_mismatch',
+    });
+    expect(verifySignature).not.toHaveBeenCalled();
+  });
+
+  it('reports insufficient historical evidence without claiming invalid crypto', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    await formStore.attachSignature(
+      'praeventio', folioToDocId(form.folio), buildBoundSusesoSignature(form),
+    );
+    const r = await verifyFolio(form.folio, {
+      formStore,
+      verifySignature: async () => ({
+        status: 'unverifiable', reason: 'verification_key_unavailable',
+      }),
+    });
+    expect(r).toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'unverifiable',
+      reason: 'verification_key_unavailable',
+    });
   });
 });
 

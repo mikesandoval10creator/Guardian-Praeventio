@@ -22,7 +22,7 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { susesoVerifyLimiter } from '../middleware/limiters.js';
 import { callerTenantOr403 } from '../auth/callerTenant.js';
 import { callerHasRegulatoryRole } from '../auth/regulatoryRole.js';
-import { getWebauthnRpId } from '../auth/rpId.js';
+import { getWebauthnExpectedOrigin, getWebauthnRpId } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import {
   createSusesoForm,
@@ -53,6 +53,9 @@ import {
   attachComplianceSignatureAtomically,
   persistComplianceDigestAtomically,
 } from '../services/firestoreComplianceDocument.js';
+import { findByCredentialId } from '../../services/auth/webauthnCredentialStore.js';
+import { getComplianceKmsPublicKey } from '../../services/compliance/cloudKmsComplianceSigner.js';
+import { verifyPersistedComplianceSignature } from '../services/complianceSignatureVerification.js';
 
 const router = Router();
 
@@ -103,7 +106,7 @@ function buildFormStore(): MinimalFormStore {
       const doc = snap.docs[0];
       // Path: tenants/{tid}/suseso_forms/{formId}
       const tenantId = doc.ref.parent.parent?.id ?? '';
-      return { tenantId, form: doc.data() as SusesoForm };
+      return { tenantId, formId: doc.id, form: doc.data() as SusesoForm };
     },
     async attachSignature(tenantId, formId, signature) {
       const ref = formsPath(tenantId).doc(formId);
@@ -451,6 +454,26 @@ router.get('/verify/:folio', susesoVerifyLimiter, async (req, res) => {
   try {
     const result = await verifyFolio(req.params.folio, {
       formStore: buildFormStore(),
+      verifySignature: async (input) => {
+        const { buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+        return verifyPersistedComplianceSignature(input, {
+          resolveWebAuthnCredential: async (credentialId) => {
+            const stored = await findByCredentialId(
+              credentialId,
+              buildWebAuthnCredentialsDb(),
+            );
+            if (!stored) return null;
+            return {
+              uid: stored.uid,
+              publicKeyB64: stored.credential.publicKey,
+              origin: getWebauthnExpectedOrigin(),
+              rpId: getWebauthnRpId(),
+            };
+          },
+          resolveKmsPublicKey: async (keyVersion) =>
+            getComplianceKmsPublicKey(keyVersion),
+        });
+      },
     });
     res.json(result);
   } catch (err) {

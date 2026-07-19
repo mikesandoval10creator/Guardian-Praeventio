@@ -164,6 +164,7 @@ export interface SusesoForm {
  */
 export interface SusesoVerificationResult {
   valid: boolean;
+  verificationStatus?: 'verified' | 'invalid' | 'unverifiable';
   kind?: SusesoFormKind;
   signedAt?: string;
   signerRut?: string;

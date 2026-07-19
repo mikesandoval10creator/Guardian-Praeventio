@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ComplianceKmsSigningError,
+  getComplianceKmsPublicKey,
   signCompliancePayloadWithKms,
   type MinimalComplianceKmsClient,
 } from './cloudKmsComplianceSigner.js';
@@ -115,5 +116,27 @@ describe('signCompliancePayloadWithKms', () => {
     expect(error).toBeInstanceOf(ComplianceKmsSigningError);
     expect(error.code).toBe('kms_unavailable');
     expect(error.message).not.toContain('provider secret detail');
+  });
+});
+
+describe('getComplianceKmsPublicKey', () => {
+  it('loads the immutable public key for the exact historical version', async () => {
+    const client = successfulClient();
+    await expect(getComplianceKmsPublicKey(KEY_VERSION, { client })).resolves.toEqual({
+      publicKeyPem: PUBLIC_KEY,
+    });
+    expect(client.getPublicKey).toHaveBeenCalledWith({ name: KEY_VERSION });
+    expect(client.asymmetricSign).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for missing versions and provider outages', async () => {
+    await expect(getComplianceKmsPublicKey('', { client: successfulClient() }))
+      .rejects.toMatchObject({ code: 'kms_not_configured' });
+    await expect(getComplianceKmsPublicKey(KEY_VERSION, {
+      client: {
+        asymmetricSign: async () => [],
+        getPublicKey: async () => { throw new Error('provider secret'); },
+      },
+    })).rejects.toMatchObject({ code: 'kms_unavailable' });
   });
 });

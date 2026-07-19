@@ -11,22 +11,9 @@ import {
 import {
   classifyStoredComplianceSignatureEvidence,
   matchesPersistedComplianceSignatureContext,
+  type ComplianceSignatureVerificationOutcome,
   type ComplianceVerificationKey,
 } from '../../services/compliance/complianceSignature.js';
-
-export type ComplianceVerificationOutcome =
-  | { status: 'verified' }
-  | {
-      status: 'invalid';
-      reason: 'payload_hash_mismatch' | 'context_mismatch' | 'signature_invalid';
-    }
-  | {
-      status: 'unverifiable';
-      reason:
-        | 'legacy_unverifiable'
-        | 'verification_key_unavailable'
-        | 'verification_service_unavailable';
-    };
 
 export interface PersistedComplianceSignatureVerificationInput {
   context: ComplianceSigningContext;
@@ -99,7 +86,7 @@ async function verifyWebAuthn(
   context: ComplianceSigningContext,
   evidenceClass: ReturnType<typeof classifyStoredComplianceSignatureEvidence>,
   deps: PersistedComplianceSignatureVerificationDependencies,
-): Promise<ComplianceVerificationOutcome> {
+): Promise<ComplianceSignatureVerificationOutcome> {
   const resolved = await resolveWebAuthnKey(signature, evidenceClass, deps);
   if (resolved.kind === 'unavailable') {
     return {
@@ -200,7 +187,7 @@ async function verifyKms(
   payloadBytes: Uint8Array,
   evidenceClass: ReturnType<typeof classifyStoredComplianceSignatureEvidence>,
   deps: PersistedComplianceSignatureVerificationDependencies,
-): Promise<ComplianceVerificationOutcome> {
+): Promise<ComplianceSignatureVerificationOutcome> {
   const resolved = await resolveKmsKey(signature, evidenceClass, deps);
   if (resolved.kind === 'unavailable') {
     return {
@@ -230,7 +217,7 @@ async function verifyKms(
 export async function verifyPersistedComplianceSignature(
   input: PersistedComplianceSignatureVerificationInput,
   deps: PersistedComplianceSignatureVerificationDependencies = {},
-): Promise<ComplianceVerificationOutcome> {
+): Promise<ComplianceSignatureVerificationOutcome> {
   const evidenceClass = classifyStoredComplianceSignatureEvidence(input.signature);
   if (evidenceClass === 'legacy-unverifiable') {
     return { status: 'unverifiable', reason: 'legacy_unverifiable' };

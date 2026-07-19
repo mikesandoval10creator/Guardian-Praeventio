@@ -79,6 +79,20 @@ export type ComplianceSignatureEvidenceClass =
   | 'bound-evidence-v1'
   | 'legacy-unverifiable';
 
+export type ComplianceSignatureVerificationOutcome =
+  | { status: 'verified' }
+  | {
+      status: 'invalid';
+      reason: 'payload_hash_mismatch' | 'context_mismatch' | 'signature_invalid';
+    }
+  | {
+      status: 'unverifiable';
+      reason:
+        | 'legacy_unverifiable'
+        | 'verification_key_unavailable'
+        | 'verification_service_unavailable';
+    };
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }

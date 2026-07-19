@@ -7,14 +7,16 @@ tenant, formulario, tipo de documento, acción e identidad del firmante. Aplica
 a SUSESO DIAT/DIEP, DS-67 y DS-76. No elimina el flujo manual de presentación
 ante la mutualidad ni convierte a Praeventio en un PSE.
 
-La garantía criptográfica comienza en registros con `verificationVersion: 1`.
-Firmas anteriores siguen siendo legibles, pero se clasifican explícitamente
-como `legacy-unverifiable`: no contienen evidencia suficiente para afirmar una
-verificación retroactiva.
+La garantía criptográfica autocontenida comienza en registros con
+`verificationVersion: 2`. Cada firma nueva conserva una instantánea de la clave
+pública verificada, además del contexto exacto de firma. Esto permite comprobar
+el documento después de revocar una passkey o rotar una clave KMS, sin depender
+de que la credencial operativa siga activa.
 
-La validación pública por folio/QR es una superficie distinta. Este cambio no
-debe usarse para afirmar que el verificador QR prueba todavía la firma completa;
-esa verificación end-to-end permanece como tarea P0 separada.
+Los registros v1 conservan verificación compatible mientras la clave referida
+siga disponible en el registro de credenciales o en KMS. Las firmas anteriores
+sin contexto o evidencia suficiente siguen siendo legibles, pero se clasifican
+como `legacy-unverifiable`: nunca se presentan como válidas retroactivamente.
 
 ## Flujo WebAuthn humano
 
@@ -28,8 +30,9 @@ esa verificación end-to-end permanece como tarea P0 separada.
 5. El challenge WebAuthn es SHA-256 del intent. Challenge y metadata se consumen
    una sola vez y de forma atómica.
 6. Se verifica la assertion contra la credencial registrada y se persiste toda
-   la evidencia v1. La escritura final vuelve a comprobar en una transacción
-   que el documento siga existiendo y sin firma.
+   la evidencia v2, incluida la clave pública COSE, origin y RP ID efectivamente
+   verificados. La escritura final vuelve a comprobar en una transacción que el
+   documento siga existiendo y sin firma.
 
 Endpoints autenticados:
 
@@ -52,7 +55,8 @@ a los endpoints. No existe fallback por secreto compartido ni acceso browser.
 Cloud KMS firma el digest SHA-256 del PDF exacto con una versión RSA-PSS SHA-256.
 Antes de persistir, el servidor descarga la clave pública y verifica localmente
 la firma contra los bytes originales. La versión completa de la clave queda en
-`kmsKeyVersion` para auditoría.
+`kmsKeyVersion` para auditoría y la clave pública PEM verificada se archiva en
+la evidencia v2.
 
 Endpoints privados:
 
@@ -61,6 +65,24 @@ Endpoints privados:
 - `POST /api/compliance/ds76/:formId/kms-sign`
 
 El body estricto contiene solo `{ "tenantId": "..." }`.
+
+## Verificación pública por folio/QR
+
+`GET /api/suseso/verify/:folio` vuelve a renderizar el PDF sin firma en el
+servidor, compara renderer y SHA-256 con el registro persistido y luego verifica
+criptográficamente la evidencia WebAuthn o RSA-PSS. El endpoint no confía en un
+booleano almacenado ni en la mera presencia de `signatureB64`.
+
+La respuesta distingue tres estados auditables:
+
+- `verified`: hash, contexto, clave y firma criptográfica coinciden;
+- `invalid`: existe una contradicción verificable, por ejemplo documento
+  mutado, contexto diferente o firma falsa;
+- `unverifiable`: falta evidencia histórica suficiente o la dependencia de
+  claves no está disponible. Este estado siempre devuelve `valid: false`.
+
+El QR continúa siendo público y no expone datos clínicos. Solo devuelve tipo de
+documento y, cuando la firma es válida, fecha y RUT del responsable legal.
 
 ## Configuración y activación
 

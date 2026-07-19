@@ -582,6 +582,9 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
       return {
         verified: true,
         verifiedCredentialId: webauthnAssertion.credentialId,
+        verifiedCredentialPublicKeyB64: 'cose-public-key-b64',
+        verifiedOrigin: 'http://localhost:5173',
+        verifiedRpId: 'localhost',
         challengeMetadata: boundIntent,
       };
     });
@@ -606,7 +609,14 @@ describe('POST /api/suseso/form/:id/sign (webauthn-ecdsa-p256)', () => {
       signerRut: '12.345.678-5',
       payloadHashHex: 'a'.repeat(64),
       signatureB64: webauthnAssertion.signature,
-      verificationVersion: 1,
+      verificationVersion: 2,
+      verificationKey: {
+        kind: 'webauthn-cose',
+        credentialId: webauthnAssertion.credentialId,
+        publicKeyB64: 'cose-public-key-b64',
+        origin: 'http://localhost:5173',
+        rpId: 'localhost',
+      },
     });
     expect(mockSubmitToMutualidad).not.toHaveBeenCalled();
   });
@@ -989,6 +999,23 @@ describe('GET /api/suseso/verify/:folio', () => {
     expect(body.kind).toBe('DIAT');
     expect(body.signerRut).toBe('13.333.333-3');
     expect(body.signedAt).toBe('2026-05-31T09:00:00Z');
+  });
+
+  it('wires a server-side cryptographic verifier into the public folio service', async () => {
+    mockVerifyFolio.mockImplementationOnce(async (_folio, deps) => {
+      expect(deps).toEqual(expect.objectContaining({
+        formStore: expect.any(Object),
+        verifySignature: expect.any(Function),
+      }));
+      return { valid: false, verificationStatus: 'invalid', reason: 'signature_invalid' };
+    });
+    const res = await request(buildApp()).get(`/api/suseso/verify/${FOLIO}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      valid: false,
+      verificationStatus: 'invalid',
+      reason: 'signature_invalid',
+    });
   });
 
   it('verify endpoint is public — no auth required', async () => {
