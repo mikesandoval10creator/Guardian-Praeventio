@@ -155,6 +155,9 @@ export async function completeComplianceWebAuthnSigning(
       verified: boolean;
       reason?: string;
       verifiedCredentialId?: string;
+      verifiedCredentialPublicKeyB64?: string;
+      verifiedOrigin?: string;
+      verifiedRpId?: string;
       challengeMetadata?: unknown;
     }>;
     now?: () => Date;
@@ -167,7 +170,13 @@ export async function completeComplianceWebAuthnSigning(
       prepared.context,
     );
   const verdict = await deps.verifyAssertion(validateMetadata);
-  if (!verdict.verified || !verdict.verifiedCredentialId) {
+  if (
+    !verdict.verified ||
+    !verdict.verifiedCredentialId ||
+    !verdict.verifiedCredentialPublicKeyB64 ||
+    !verdict.verifiedOrigin ||
+    !verdict.verifiedRpId
+  ) {
     throw new ComplianceSigningFlowError('webauthn_failed', verdict.reason);
   }
   if (!validateMetadata(verdict.challengeMetadata)) {
@@ -179,6 +188,11 @@ export async function completeComplianceWebAuthnSigning(
     signer: prepared.signer,
     assertion: target.assertion,
     verifiedCredentialId: verdict.verifiedCredentialId,
+    verificationKey: {
+      publicKeyB64: verdict.verifiedCredentialPublicKeyB64,
+      origin: verdict.verifiedOrigin,
+      rpId: verdict.verifiedRpId,
+    },
     now: deps.now,
   });
 }
@@ -188,7 +202,11 @@ export async function completeComplianceKmsSigning(
   deps: {
     documents: ComplianceSigningDocuments;
     resolveSigner(uid: string): Promise<TrustedComplianceSigner>;
-    signPayload(payload: Uint8Array): Promise<{ signatureB64: string; keyVersion: string }>;
+    signPayload(payload: Uint8Array): Promise<{
+      signatureB64: string;
+      keyVersion: string;
+      publicKeyPem: string;
+    }>;
     now?: () => Date;
   },
 ): Promise<VerifiedKmsComplianceSignature> {
@@ -202,6 +220,7 @@ export async function completeComplianceKmsSigning(
     signer: prepared.signer,
     signatureB64: kmsEvidence.signatureB64,
     keyVersion: kmsEvidence.keyVersion,
+    publicKeyPem: kmsEvidence.publicKeyPem,
     now: deps.now,
   });
 }

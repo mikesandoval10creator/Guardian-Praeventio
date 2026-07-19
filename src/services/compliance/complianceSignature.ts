@@ -2,10 +2,25 @@ import type {
   ComplianceSigningContext,
   ComplianceSigningIntentV1,
 } from '../auth/complianceSigningIntent.js';
+import { matchesComplianceSigningContext } from '../auth/complianceSigningIntent.js';
+
+export type ComplianceVerificationKey =
+  | {
+      kind: 'webauthn-cose';
+      credentialId: string;
+      publicKeyB64: string;
+      origin: string;
+      rpId: string;
+    }
+  | {
+      kind: 'kms-rsa-pem';
+      keyVersion: string;
+      publicKeyPem: string;
+    };
 
 /** Optional on persisted models only so legacy signatures remain readable. */
 export interface ComplianceSignatureAuditFields {
-  verificationVersion?: 1;
+  verificationVersion?: 1 | 2;
   signingIntent?: ComplianceSigningIntentV1;
   credentialId?: string;
   rawId?: string;
@@ -13,6 +28,7 @@ export interface ComplianceSignatureAuditFields {
   authenticatorDataB64u?: string;
   kmsKeyVersion?: string;
   signingContext?: ComplianceSigningContext;
+  verificationKey?: ComplianceVerificationKey;
 }
 
 export interface WebAuthnComplianceAssertionEvidence {
@@ -36,12 +52,13 @@ export interface VerifiedWebAuthnComplianceSignature extends ComplianceSignature
   algorithm: 'webauthn-ecdsa-p256';
   signatureB64: string;
   payloadHashHex: string;
-  verificationVersion: 1;
+  verificationVersion: 2;
   signingIntent: ComplianceSigningIntentV1;
   credentialId: string;
   rawId: string;
   clientDataJSONB64u: string;
   authenticatorDataB64u: string;
+  verificationKey: Extract<ComplianceVerificationKey, { kind: 'webauthn-cose' }>;
 }
 
 export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAuditFields {
@@ -51,12 +68,32 @@ export interface VerifiedKmsComplianceSignature extends ComplianceSignatureAudit
   algorithm: 'kms-sign-rsa';
   signatureB64: string;
   payloadHashHex: string;
-  verificationVersion: 1;
+  verificationVersion: 2;
   signingContext: ComplianceSigningContext;
   kmsKeyVersion: string;
+  verificationKey: Extract<ComplianceVerificationKey, { kind: 'kms-rsa-pem' }>;
 }
 
-export type ComplianceSignatureEvidenceClass = 'bound-evidence-v1' | 'legacy-unverifiable';
+export type ComplianceSignatureEvidenceClass =
+  | 'self-contained-evidence-v2'
+  | 'bound-evidence-v1'
+  | 'legacy-unverifiable';
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasWebAuthnEvidence(signature: Record<string, unknown>): boolean {
+  return Boolean(signature.signingIntent) &&
+    isNonEmptyString(signature.credentialId) &&
+    isNonEmptyString(signature.rawId) &&
+    isNonEmptyString(signature.clientDataJSONB64u) &&
+    isNonEmptyString(signature.authenticatorDataB64u);
+}
+
+function hasKmsEvidence(signature: Record<string, unknown>): boolean {
+  return Boolean(signature.signingContext) && isNonEmptyString(signature.kmsKeyVersion);
+}
 
 /**
  * Classifies stored evidence without pretending to re-run cryptographic
@@ -68,24 +105,73 @@ export function classifyStoredComplianceSignatureEvidence(
 ): ComplianceSignatureEvidenceClass {
   if (!value || typeof value !== 'object') return 'legacy-unverifiable';
   const signature = value as Record<string, unknown>;
-  if (signature.verificationVersion !== 1 || typeof signature.signatureB64 !== 'string') {
+  if (
+    (signature.verificationVersion !== 1 && signature.verificationVersion !== 2) ||
+    !isNonEmptyString(signature.signatureB64)
+  ) {
     return 'legacy-unverifiable';
   }
   if (signature.algorithm === 'webauthn-ecdsa-p256') {
-    return signature.signingIntent &&
-      typeof signature.credentialId === 'string' &&
-      typeof signature.rawId === 'string' &&
-      typeof signature.clientDataJSONB64u === 'string' &&
-      typeof signature.authenticatorDataB64u === 'string'
-      ? 'bound-evidence-v1'
+    if (!hasWebAuthnEvidence(signature)) return 'legacy-unverifiable';
+    if (signature.verificationVersion === 1) return 'bound-evidence-v1';
+    const key = signature.verificationKey as Record<string, unknown> | undefined;
+    return key?.kind === 'webauthn-cose' &&
+      key.credentialId === signature.credentialId &&
+      isNonEmptyString(key.publicKeyB64) &&
+      isNonEmptyString(key.origin) &&
+      isNonEmptyString(key.rpId)
+      ? 'self-contained-evidence-v2'
       : 'legacy-unverifiable';
   }
   if (signature.algorithm === 'kms-sign-rsa') {
-    return signature.signingContext && typeof signature.kmsKeyVersion === 'string'
-      ? 'bound-evidence-v1'
+    if (!hasKmsEvidence(signature)) return 'legacy-unverifiable';
+    if (signature.verificationVersion === 1) return 'bound-evidence-v1';
+    const key = signature.verificationKey as Record<string, unknown> | undefined;
+    return key?.kind === 'kms-rsa-pem' &&
+      key.keyVersion === signature.kmsKeyVersion &&
+      isNonEmptyString(key.publicKeyPem)
+      ? 'self-contained-evidence-v2'
       : 'legacy-unverifiable';
   }
   return 'legacy-unverifiable';
+}
+
+/**
+ * Validate the immutable legal context carried by persisted evidence. This is
+ * intentionally structural; server-only cryptographic verification is a
+ * separate step so browser-safe document services never import Node crypto.
+ */
+export function matchesPersistedComplianceSignatureContext(
+  value: unknown,
+  context: ComplianceSigningContext,
+): boolean {
+  if (classifyStoredComplianceSignatureEvidence(value) === 'legacy-unverifiable') {
+    return false;
+  }
+  const signature = value as Record<string, unknown>;
+  if (
+    signature.payloadHashHex !== context.payloadHashHex ||
+    signature.signerUid !== context.signerUid ||
+    signature.signerRut !== context.signerRut
+  ) {
+    return false;
+  }
+  if (signature.algorithm === 'webauthn-ecdsa-p256') {
+    return matchesComplianceSigningContext(
+      signature.signingIntent as ComplianceSigningIntentV1,
+      context,
+    );
+  }
+  if (signature.algorithm === 'kms-sign-rsa') {
+    const stored = signature.signingContext as ComplianceSigningContext;
+    return stored.tenantId === context.tenantId &&
+      stored.formId === context.formId &&
+      stored.documentKind === context.documentKind &&
+      stored.payloadHashHex === context.payloadHashHex &&
+      stored.signerUid === context.signerUid &&
+      stored.signerRut === context.signerRut;
+  }
+  return false;
 }
 
 export function buildWebAuthnComplianceSignature(input: {
@@ -93,6 +179,11 @@ export function buildWebAuthnComplianceSignature(input: {
   signer: TrustedComplianceSigner;
   assertion: WebAuthnComplianceAssertionEvidence;
   verifiedCredentialId: string;
+  verificationKey: {
+    publicKeyB64: string;
+    origin: string;
+    rpId: string;
+  };
   now?: () => Date;
 }): VerifiedWebAuthnComplianceSignature {
   const { intent, signer, assertion, verifiedCredentialId } = input;
@@ -115,6 +206,13 @@ export function buildWebAuthnComplianceSignature(input: {
   if (!/^[0-9a-f]{64}$/.test(intent.payloadHashHex)) {
     throw new TypeError('signing intent payload hash is invalid');
   }
+  if (
+    !isNonEmptyString(input.verificationKey.publicKeyB64) ||
+    !isNonEmptyString(input.verificationKey.origin) ||
+    !isNonEmptyString(input.verificationKey.rpId)
+  ) {
+    throw new TypeError('verified WebAuthn public-key evidence is incomplete');
+  }
 
   const signedAtDate = (input.now ?? (() => new Date()))();
   if (!(signedAtDate instanceof Date) || Number.isNaN(signedAtDate.getTime())) {
@@ -128,12 +226,19 @@ export function buildWebAuthnComplianceSignature(input: {
     algorithm: 'webauthn-ecdsa-p256',
     signatureB64: assertion.signature,
     payloadHashHex: intent.payloadHashHex,
-    verificationVersion: 1,
+    verificationVersion: 2,
     signingIntent: intent,
     credentialId: assertion.credentialId,
     rawId: assertion.rawId,
     clientDataJSONB64u: assertion.clientDataJSON,
     authenticatorDataB64u: assertion.authenticatorData,
+    verificationKey: {
+      kind: 'webauthn-cose',
+      credentialId: verifiedCredentialId,
+      publicKeyB64: input.verificationKey.publicKeyB64,
+      origin: input.verificationKey.origin,
+      rpId: input.verificationKey.rpId,
+    },
   };
 }
 
@@ -142,6 +247,7 @@ export function buildKmsComplianceSignature(input: {
   signer: TrustedComplianceSigner;
   signatureB64: string;
   keyVersion: string;
+  publicKeyPem: string;
   now?: () => Date;
 }): VerifiedKmsComplianceSignature {
   const { context, signer } = input;
@@ -151,7 +257,7 @@ export function buildKmsComplianceSignature(input: {
   if (context.signerUid !== signer.uid || context.signerRut !== signer.rut) {
     throw new TypeError('configured KMS signer does not match the authoritative context');
   }
-  if (!input.signatureB64 || !input.keyVersion) {
+  if (!input.signatureB64 || !input.keyVersion || !input.publicKeyPem) {
     throw new TypeError('verified KMS signature and key version are required');
   }
   if (!/^[0-9a-f]{64}$/.test(context.payloadHashHex)) {
@@ -168,8 +274,13 @@ export function buildKmsComplianceSignature(input: {
     algorithm: 'kms-sign-rsa',
     signatureB64: input.signatureB64,
     payloadHashHex: context.payloadHashHex,
-    verificationVersion: 1,
+    verificationVersion: 2,
     signingContext: { ...context },
     kmsKeyVersion: input.keyVersion,
+    verificationKey: {
+      kind: 'kms-rsa-pem',
+      keyVersion: input.keyVersion,
+      publicKeyPem: input.publicKeyPem,
+    },
   };
 }

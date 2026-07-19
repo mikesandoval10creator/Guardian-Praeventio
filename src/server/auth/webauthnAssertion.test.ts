@@ -286,7 +286,11 @@ describe('verifyWebAuthnAssertion — counter clone-detection (Layer 5)', () => 
   it('ACCEPTS a monotonically increasing counter', async () => {
     mockVerify.mockResolvedValueOnce({
       verified: true,
-      authenticationInfo: { newCounter: 6 },
+      authenticationInfo: {
+        newCounter: 6,
+        origin: 'http://localhost:5173',
+        rpID: 'localhost',
+      },
     } as any);
     const result = await verifyWebAuthnAssertion({
       ...VALID_INPUT,
@@ -297,13 +301,20 @@ describe('verifyWebAuthnAssertion — counter clone-detection (Layer 5)', () => 
       verified: true,
       newCounter: 6,
       verifiedCredentialId: 'cred-abc',
+      verifiedCredentialPublicKeyB64: 'AQID',
+      verifiedOrigin: 'http://localhost:5173',
+      verifiedRpId: 'localhost',
     });
   });
 
   it('ACCEPTS counter 0 when the authenticator never implemented a counter (stored 0)', async () => {
     mockVerify.mockResolvedValueOnce({
       verified: true,
-      authenticationInfo: { newCounter: 0 },
+      authenticationInfo: {
+        newCounter: 0,
+        origin: 'http://localhost:5173',
+        rpID: 'localhost',
+      },
     } as any);
     const result = await verifyWebAuthnAssertion({
       ...VALID_INPUT,
@@ -314,6 +325,9 @@ describe('verifyWebAuthnAssertion — counter clone-detection (Layer 5)', () => 
       verified: true,
       newCounter: 0,
       verifiedCredentialId: 'cred-abc',
+      verifiedCredentialPublicKeyB64: 'AQID',
+      verifiedOrigin: 'http://localhost:5173',
+      verifiedRpId: 'localhost',
     });
   });
 });
@@ -338,7 +352,11 @@ describe('verifyWebAuthnAssertion — bound challenge metadata', () => {
     const metadata = { formId: 'form-A' };
     mockVerify.mockResolvedValueOnce({
       verified: true,
-      authenticationInfo: { newCounter: 1 },
+      authenticationInfo: {
+        newCounter: 1,
+        origin: 'http://localhost:5173',
+        rpID: 'localhost',
+      },
     } as any);
 
     const result = await verifyWebAuthnAssertion({
@@ -354,6 +372,9 @@ describe('verifyWebAuthnAssertion — bound challenge metadata', () => {
       verified: true,
       newCounter: 1,
       verifiedCredentialId: 'cred-abc',
+      verifiedCredentialPublicKeyB64: 'AQID',
+      verifiedOrigin: 'http://localhost:5173',
+      verifiedRpId: 'localhost',
       challengeMetadata: metadata,
     });
   });

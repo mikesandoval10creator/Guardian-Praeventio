@@ -70,6 +70,7 @@ describe('signCompliancePayloadWithKms', () => {
 
     expect(result.keyVersion).toBe(KEY_VERSION);
     expect(result.signatureB64).toMatch(/^[A-Za-z0-9+/]+=*$/);
+    expect(result.publicKeyPem).toBe(PUBLIC_KEY);
     expect(client.asymmetricSign).toHaveBeenCalledWith({
       name: KEY_VERSION,
       digest: { sha256: crypto.createHash('sha256').update(PAYLOAD).digest() },

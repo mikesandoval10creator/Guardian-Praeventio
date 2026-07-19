@@ -39,7 +39,7 @@ export async function signCompliancePayloadWithKms(
     keyVersionName?: string;
     client?: MinimalComplianceKmsClient;
   } = {},
-): Promise<{ signatureB64: string; keyVersion: string }> {
+): Promise<{ signatureB64: string; keyVersion: string; publicKeyPem: string }> {
   const keyVersionName = (
     options.keyVersionName ?? process.env.COMPLIANCE_KMS_SIGNING_KEY_VERSION ?? ''
   ).trim();
@@ -86,5 +86,9 @@ export async function signCompliancePayloadWithKms(
     throw new ComplianceKmsSigningError('kms_local_verification_failed');
   }
 
-  return { signatureB64: signature.toString('base64'), keyVersion: keyVersionName };
+  return {
+    signatureB64: signature.toString('base64'),
+    keyVersion: keyVersionName,
+    publicKeyPem: publicKeyResponse.pem,
+  };
 }

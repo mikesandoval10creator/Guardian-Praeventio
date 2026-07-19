@@ -102,7 +102,14 @@ describe('completeComplianceWebAuthnSigning', () => {
         now: () => 10_000, randomBytes: () => new Uint8Array([1, 2, 3, 4]),
       });
       validated = validator(issued.intent);
-      return { verified: true, verifiedCredentialId: 'credential-1', challengeMetadata: issued.intent };
+      return {
+        verified: true,
+        verifiedCredentialId: 'credential-1',
+        verifiedCredentialPublicKeyB64: 'cose-key',
+        verifiedOrigin: 'https://app.praeventio.net',
+        verifiedRpId: 'app.praeventio.net',
+        challengeMetadata: issued.intent,
+      };
     });
 
     const signature = await completeComplianceWebAuthnSigning({
@@ -116,7 +123,11 @@ describe('completeComplianceWebAuthnSigning', () => {
     expect(signature).toMatchObject({
       signerUid: 'user-1', signerRut: '12.345.678-5',
       signedAt: '2026-07-14T22:00:00.000Z', payloadHashHex: HASH,
-      signatureB64: 'signature', credentialId: 'credential-1', verificationVersion: 1,
+      signatureB64: 'signature', credentialId: 'credential-1', verificationVersion: 2,
+      verificationKey: {
+        kind: 'webauthn-cose', credentialId: 'credential-1', publicKeyB64: 'cose-key',
+        origin: 'https://app.praeventio.net', rpId: 'app.praeventio.net',
+      },
     });
   });
 
@@ -134,7 +145,14 @@ describe('completeComplianceWebAuthnSigning', () => {
       documents: adapter(), resolveSigner: async () => signer,
       verifyAssertion: async (validator) => {
         expect(validator(wrongIntent)).toBe(false);
-        return { verified: true, verifiedCredentialId: 'credential-1', challengeMetadata: wrongIntent };
+        return {
+          verified: true,
+          verifiedCredentialId: 'credential-1',
+          verifiedCredentialPublicKeyB64: 'cose-key',
+          verifiedOrigin: 'https://app.praeventio.net',
+          verifiedRpId: 'app.praeventio.net',
+          challengeMetadata: wrongIntent,
+        };
       },
     })).rejects.toMatchObject({ code: 'intent_context_mismatch' });
   });
@@ -162,7 +180,9 @@ describe('completeComplianceWebAuthnSigning', () => {
 
 describe('completeComplianceKmsSigning', () => {
   it('signs the exact reproduced PDF bytes and returns server-built machine evidence', async () => {
-    const signPayload = vi.fn(async () => ({ signatureB64: 'kms-signature', keyVersion: 'key/7' }));
+    const signPayload = vi.fn(async () => ({
+      signatureB64: 'kms-signature', keyVersion: 'key/7', publicKeyPem: 'public-key-pem',
+    }));
     const signature = await completeComplianceKmsSigning({
       uid: 'kms-signer', tenantId: 'tenant-1', formId: 'form-1', documentKind: 'suseso',
     }, {
@@ -175,6 +195,10 @@ describe('completeComplianceKmsSigning', () => {
     expect(signature).toMatchObject({
       algorithm: 'kms-sign-rsa', signatureB64: 'kms-signature',
       payloadHashHex: HASH, signerUid: 'kms-signer', kmsKeyVersion: 'key/7',
+      verificationVersion: 2,
+      verificationKey: {
+        kind: 'kms-rsa-pem', keyVersion: 'key/7', publicKeyPem: 'public-key-pem',
+      },
     });
   });
 

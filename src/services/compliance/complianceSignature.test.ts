@@ -4,6 +4,7 @@ import {
   buildKmsComplianceSignature,
   buildWebAuthnComplianceSignature,
   classifyStoredComplianceSignatureEvidence,
+  matchesPersistedComplianceSignatureContext,
 } from './complianceSignature.js';
 
 const intent: ComplianceSigningIntentV1 = {
@@ -36,6 +37,11 @@ describe('buildWebAuthnComplianceSignature', () => {
       signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
       assertion,
       verifiedCredentialId: 'credential-1',
+      verificationKey: {
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
       now: () => new Date('2026-07-14T22:00:00.000Z'),
     });
 
@@ -46,12 +52,19 @@ describe('buildWebAuthnComplianceSignature', () => {
       algorithm: 'webauthn-ecdsa-p256',
       signatureB64: 'authenticator-signature-b64u',
       payloadHashHex: 'ab'.repeat(32),
-      verificationVersion: 1,
+      verificationVersion: 2,
       signingIntent: intent,
       credentialId: 'credential-1',
       rawId: 'credential-1',
       clientDataJSONB64u: 'client-data-b64u',
       authenticatorDataB64u: 'authenticator-data-b64u',
+      verificationKey: {
+        kind: 'webauthn-cose',
+        credentialId: 'credential-1',
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
     });
   });
 
@@ -65,6 +78,11 @@ describe('buildWebAuthnComplianceSignature', () => {
       signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
       assertion,
       verifiedCredentialId: 'credential-1',
+      verificationKey: {
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
       now: () => new Date('2026-07-14T22:00:00.000Z'),
       ...overrides,
     })).toThrow();
@@ -76,6 +94,11 @@ describe('buildWebAuthnComplianceSignature', () => {
       signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
       assertion,
       verifiedCredentialId: 'credential-1',
+      verificationKey: {
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
       now: () => new Date('invalid'),
     })).toThrow();
   });
@@ -91,14 +114,20 @@ describe('buildKmsComplianceSignature', () => {
       signer: { uid: 'kms-signer', rut: '12.345.678-5', kind: 'kms' },
       signatureB64: 'kms-signature',
       keyVersion: 'projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/7',
+      publicKeyPem: '-----BEGIN PUBLIC KEY-----\nkey\n-----END PUBLIC KEY-----',
       now: () => new Date('2026-07-14T23:00:00.000Z'),
     });
     expect(signature).toMatchObject({
       signerUid: 'kms-signer', signerRut: '12.345.678-5',
       signedAt: '2026-07-14T23:00:00.000Z', algorithm: 'kms-sign-rsa',
       signatureB64: 'kms-signature', payloadHashHex: intent.payloadHashHex,
-      verificationVersion: 1,
+      verificationVersion: 2,
       kmsKeyVersion: 'projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/7',
+      verificationKey: {
+        kind: 'kms-rsa-pem',
+        keyVersion: 'projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/7',
+        publicKeyPem: '-----BEGIN PUBLIC KEY-----\nkey\n-----END PUBLIC KEY-----',
+      },
     });
     expect(signature.signingContext?.formId).toBe(intent.formId);
   });
@@ -110,7 +139,7 @@ describe('buildKmsComplianceSignature', () => {
         payloadHashHex: intent.payloadHashHex, signerUid: 'user-1', signerRut: intent.signerRut,
       },
       signer: { uid: 'user-1', rut: intent.signerRut, kind: 'human' },
-      signatureB64: 'kms-signature', keyVersion: 'key/1',
+      signatureB64: 'kms-signature', keyVersion: 'key/1', publicKeyPem: 'pem',
     })).toThrow();
   });
 });
@@ -122,8 +151,13 @@ describe('classifyStoredComplianceSignatureEvidence', () => {
       signer: { uid: 'user-1', rut: '12.345.678-5', kind: 'human' },
       assertion,
       verifiedCredentialId: 'credential-1',
+      verificationKey: {
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
     });
-    expect(classifyStoredComplianceSignatureEvidence(bound)).toBe('bound-evidence-v1');
+    expect(classifyStoredComplianceSignatureEvidence(bound)).toBe('self-contained-evidence-v2');
     expect(classifyStoredComplianceSignatureEvidence({
       signerUid: 'legacy-user',
       algorithm: 'webauthn-ecdsa-p256',
@@ -137,5 +171,89 @@ describe('classifyStoredComplianceSignatureEvidence', () => {
       algorithm: 'webauthn-ecdsa-p256',
       signingIntent: intent,
     })).toBe('legacy-unverifiable');
+  });
+
+  it('keeps complete v1 evidence readable for live-key fallback', () => {
+    expect(classifyStoredComplianceSignatureEvidence({
+      verificationVersion: 1,
+      algorithm: 'webauthn-ecdsa-p256',
+      signatureB64: assertion.signature,
+      signingIntent: intent,
+      credentialId: assertion.credentialId,
+      rawId: assertion.rawId,
+      clientDataJSONB64u: assertion.clientDataJSON,
+      authenticatorDataB64u: assertion.authenticatorData,
+    })).toBe('bound-evidence-v1');
+  });
+
+  it('rejects v2 evidence whose key snapshot is incomplete or inconsistent', () => {
+    expect(classifyStoredComplianceSignatureEvidence({
+      verificationVersion: 2,
+      algorithm: 'webauthn-ecdsa-p256',
+      signatureB64: assertion.signature,
+      signingIntent: intent,
+      credentialId: assertion.credentialId,
+      rawId: assertion.rawId,
+      clientDataJSONB64u: assertion.clientDataJSON,
+      authenticatorDataB64u: assertion.authenticatorData,
+      verificationKey: {
+        kind: 'webauthn-cose',
+        credentialId: 'different-credential',
+        publicKeyB64: 'cose-public-key',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
+    })).toBe('legacy-unverifiable');
+  });
+});
+
+describe('matchesPersistedComplianceSignatureContext', () => {
+  const context = {
+    tenantId: intent.tenantId,
+    formId: intent.formId,
+    documentKind: intent.documentKind,
+    payloadHashHex: intent.payloadHashHex,
+    signerUid: intent.signerUid,
+    signerRut: intent.signerRut,
+  };
+
+  const signature = buildWebAuthnComplianceSignature({
+    intent,
+    signer: { uid: intent.signerUid, rut: intent.signerRut, kind: 'human' },
+    assertion,
+    verifiedCredentialId: assertion.credentialId,
+    verificationKey: {
+      publicKeyB64: 'cose-public-key',
+      origin: 'https://app.praeventio.net',
+      rpId: 'app.praeventio.net',
+    },
+  });
+
+  it('accepts only the exact authoritative signing context', () => {
+    expect(matchesPersistedComplianceSignatureContext(signature, context)).toBe(true);
+    for (const patch of [
+      { tenantId: 'other' },
+      { formId: 'other' },
+      { documentKind: 'ds67' as const },
+      { payloadHashHex: 'cd'.repeat(32) },
+      { signerUid: 'other' },
+      { signerRut: '9.999.999-9' },
+    ]) {
+      expect(matchesPersistedComplianceSignatureContext(
+        signature,
+        { ...context, ...patch },
+      )).toBe(false);
+    }
+  });
+
+  it('rejects legacy and internally inconsistent evidence', () => {
+    expect(matchesPersistedComplianceSignatureContext({
+      ...signature,
+      payloadHashHex: 'cd'.repeat(32),
+    }, context)).toBe(false);
+    expect(matchesPersistedComplianceSignatureContext({
+      signatureB64: 'AAAA',
+      algorithm: 'webauthn-ecdsa-p256',
+    }, context)).toBe(false);
   });
 });
