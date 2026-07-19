@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { validateKmsBootConfig } from './kmsPreflight';
 
+const ATTESTATION_ENV = {
+  COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID: 'archive-2026-07',
+  COMPLIANCE_EVIDENCE_ATTESTATION_KEYS: JSON.stringify({
+    'archive-2026-07': 'production-compliance-evidence-secret-0001',
+  }),
+};
+
 describe('validateKmsBootConfig', () => {
   it('fails closed when production would use the in-memory development adapter', () => {
     const result = validateKmsBootConfig({
@@ -28,6 +35,7 @@ describe('validateKmsBootConfig', () => {
       NODE_ENV: 'production',
       KMS_ADAPTER: 'cloud-kms',
       KMS_KEY_RESOURCE_NAME: 'projects/p/locations/l/keyRings/r/cryptoKeys/k',
+      ...ATTESTATION_ENV,
     });
 
     expect(result).toMatchObject({ ok: true, adapter: 'cloud-kms' });
@@ -38,6 +46,7 @@ describe('validateKmsBootConfig', () => {
       NODE_ENV: 'production',
       KMS_ADAPTER: 'cloud-kms',
       KMS_KEY_RESOURCE_NAME: 'projects/p/locations/l/keyRings/r/cryptoKeys/k',
+      ...ATTESTATION_ENV,
       COMPLIANCE_KMS_SIGNING_ENABLED: 'true',
     });
     expect(result.ok).toBe(false);
@@ -58,7 +67,18 @@ describe('validateKmsBootConfig', () => {
       COMPLIANCE_KMS_SIGNER_UID: 'compliance-kms',
       COMPLIANCE_KMS_SIGNER_RUT: '12.345.678-5',
       COMPLIANCE_KMS_OIDC_AUDIENCE: 'https://app.example.com/api',
+      ...ATTESTATION_ENV,
     });
     expect(result.ok).toBe(true);
+  });
+
+  it('fails production boot without the evidence provenance keyring', () => {
+    const result = validateKmsBootConfig({
+      NODE_ENV: 'production',
+      KMS_ADAPTER: 'cloud-kms',
+      KMS_KEY_RESOURCE_NAME: 'projects/p/locations/l/keyRings/r/cryptoKeys/k',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('COMPLIANCE_EVIDENCE_ATTESTATION_KEYS');
   });
 });

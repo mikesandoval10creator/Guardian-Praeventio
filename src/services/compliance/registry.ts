@@ -360,12 +360,13 @@ function clOccupationalInjuryAdapter(): EmissionAdapter {
           const snap = await adminFirestore
             .collectionGroup('suseso_forms')
             .where('folio', '==', folio)
-            .limit(1)
+            .limit(2)
             .get();
           if (snap.empty) return null;
+          if (snap.docs.length > 1) return { ambiguous: true };
           const doc = snap.docs[0];
           const tenantId = doc.ref.parent.parent?.id ?? '';
-          return { tenantId, form: doc.data() };
+          return { tenantId, formId: doc.id, form: doc.data() };
         },
         async attachSignature(tenantId: string, formId: string, signature: unknown) {
           const ref = formsPath(tenantId).doc(formId);

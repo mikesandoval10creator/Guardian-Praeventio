@@ -9,6 +9,7 @@ import {
   tenantSlug,
 } from '../../suseso/folioGenerator.js';
 import { generateDs76Pdf } from '../../../utils/ds76Certificate.js';
+import { matchesPersistedComplianceSignatureContext } from '../complianceSignature.js';
 import { awardXp } from '../../gamification/positiveXp.js';
 import {
   JurisdictionNotSupportedError,
@@ -225,6 +226,19 @@ export async function signForm(
   }
   if (!/^[0-9a-f]{64}$/.test(signature.payloadHashHex)) {
     throw new Error('payloadHashHex must be a 64-char lowercase hex digest.');
+  }
+  if (
+    !existing.payloadHashHex ||
+    !matchesPersistedComplianceSignatureContext(signature, {
+      tenantId,
+      formId,
+      documentKind: 'ds76',
+      payloadHashHex: existing.payloadHashHex,
+      signerUid: signature.signerUid,
+      signerRut: signature.signerRut,
+    })
+  ) {
+    throw new Error('Signature must contain bound compliance evidence for this form.');
   }
   const result = await deps.formStore.attachSignature(tenantId, formId, signature);
 

@@ -82,6 +82,10 @@ export interface WebAuthnAssertionResult {
   newCounter?: number;
   /** Solo si `verified === true` — credentialId verificado. */
   verifiedCredentialId?: string;
+  /** Public credential evidence captured only after full verification. */
+  verifiedCredentialPublicKeyB64?: string;
+  verifiedOrigin?: string;
+  verifiedRpId?: string;
   /** Validated immutable challenge context, when the issuer stored one. */
   challengeMetadata?: unknown;
 }
@@ -226,6 +230,9 @@ export async function verifyWebAuthnAssertion(
     verified: true,
     newCounter,
     verifiedCredentialId: input.credentialId,
+    verifiedCredentialPublicKeyB64: stored.credential.publicKey,
+    verifiedOrigin: verification.authenticationInfo.origin,
+    verifiedRpId: verification.authenticationInfo.rpID,
   };
   if (challengeResult.metadata !== undefined) {
     result.challengeMetadata = challengeResult.metadata;

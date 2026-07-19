@@ -15,6 +15,7 @@ import {
 } from './ds67Service';
 import type { Ds67Form, Ds67Signature } from './types';
 import type { MinimalFolioStore } from '../../suseso/folioGenerator';
+import { buildKmsComplianceSignature } from '../complianceSignature';
 
 function buildFolioStore(): MinimalFolioStore {
   const data = new Map<string, { lastSeq: number }>();
@@ -169,7 +170,7 @@ describe('createDs67Form', () => {
 });
 
 describe('signForm', () => {
-  const validSig: Ds67Signature = {
+  const fabricatedSig: Ds67Signature = {
     signerUid: 'u1',
     signerRut: '14.444.444-K',
     signedAt: '2026-05-04T16:00:00.000Z',
@@ -178,6 +179,25 @@ describe('signForm', () => {
     payloadHashHex: 'a'.repeat(64),
   };
 
+  function boundSignature(form: Ds67Form): Ds67Signature {
+    const formId = ds67FolioToDocId(form.folio);
+    const payloadHashHex = form.payloadHashHex!;
+    return {
+      ...buildKmsComplianceSignature({
+      context: {
+        tenantId: 'praeventio', formId, documentKind: 'ds67', payloadHashHex,
+        signerUid: 'kms-signer', signerRut: '14.444.444-K',
+      },
+      signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
+      signatureB64: 'server-verified-signature', keyVersion: 'key/7',
+      publicKeyPem: 'server-verified-public-key',
+      }),
+      archiveAttestation: {
+        version: 1, keyId: 'service-boundary-test', macB64u: 'a'.repeat(43),
+      },
+    };
+  }
+
   it('attaches signature to unsigned form', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
@@ -185,19 +205,29 @@ describe('signForm', () => {
     const signed = await signForm(
       'praeventio',
       ds67FolioToDocId(form.folio),
-      validSig,
+      boundSignature(form),
       { formStore },
     );
     expect(signed.signature).toBeDefined();
+  });
+
+  it('rejects fabricated AAAA evidence at the service boundary', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createDs67Form(baseInput, { folioStore, formStore });
+    await expect(signForm(
+      'praeventio', ds67FolioToDocId(form.folio), fabricatedSig, { formStore },
+    )).rejects.toThrow(/bound compliance evidence/i);
   });
 
   it('refuses to re-sign', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
     const { form } = await createDs67Form(baseInput, { folioStore, formStore });
-    await signForm('praeventio', ds67FolioToDocId(form.folio), validSig, { formStore });
+    const signature = boundSignature(form);
+    await signForm('praeventio', ds67FolioToDocId(form.folio), signature, { formStore });
     await expect(
-      signForm('praeventio', ds67FolioToDocId(form.folio), validSig, { formStore }),
+      signForm('praeventio', ds67FolioToDocId(form.folio), signature, { formStore }),
     ).rejects.toThrow(/already signed/);
   });
 
@@ -209,7 +239,7 @@ describe('signForm', () => {
       signForm(
         'praeventio',
         ds67FolioToDocId(form.folio),
-        { ...validSig, payloadHashHex: 'xyz' },
+        { ...fabricatedSig, payloadHashHex: 'xyz' },
         { formStore },
       ),
     ).rejects.toThrow(/64-char lowercase hex/);

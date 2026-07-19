@@ -7,14 +7,18 @@ tenant, formulario, tipo de documento, acción e identidad del firmante. Aplica
 a SUSESO DIAT/DIEP, DS-67 y DS-76. No elimina el flujo manual de presentación
 ante la mutualidad ni convierte a Praeventio en un PSE.
 
-La garantía criptográfica comienza en registros con `verificationVersion: 1`.
-Firmas anteriores siguen siendo legibles, pero se clasifican explícitamente
-como `legacy-unverifiable`: no contienen evidencia suficiente para afirmar una
-verificación retroactiva.
+La garantía criptográfica autocontenida comienza en registros con
+`verificationVersion: 2`. Cada firma nueva conserva una instantánea de la clave
+pública verificada, además del contexto exacto de firma. Esto permite comprobar
+el documento después de revocar una passkey o rotar una clave KMS, sin depender
+de que la credencial operativa siga activa.
 
-La validación pública por folio/QR es una superficie distinta. Este cambio no
-debe usarse para afirmar que el verificador QR prueba todavía la firma completa;
-esa verificación end-to-end permanece como tarea P0 separada.
+Los registros WebAuthn v1 conservan verificación compatible mientras la
+credencial referida siga disponible. KMS v1 firmaba solo los bytes del PDF y no
+autenticaba UID/RUT; por ello se clasifica como `legacy-unverifiable` en vez de
+mostrar una identidad legal mutable como válida. Las demás firmas anteriores
+sin contexto o evidencia suficiente siguen siendo legibles, pero nunca se
+presentan como válidas retroactivamente.
 
 ## Flujo WebAuthn humano
 
@@ -28,8 +32,9 @@ esa verificación end-to-end permanece como tarea P0 separada.
 5. El challenge WebAuthn es SHA-256 del intent. Challenge y metadata se consumen
    una sola vez y de forma atómica.
 6. Se verifica la assertion contra la credencial registrada y se persiste toda
-   la evidencia v1. La escritura final vuelve a comprobar en una transacción
-   que el documento siga existiendo y sin firma.
+   la evidencia v2, incluida la clave pública COSE, origin y RP ID efectivamente
+   verificados. La escritura final vuelve a comprobar en una transacción que el
+   documento siga existiendo y sin firma.
 
 Endpoints autenticados:
 
@@ -49,10 +54,12 @@ La capacidad KMS se conserva como ruta privada. Solo un token Google OIDC con
 email de service account, `email_verified=true` y audiencia exacta puede llegar
 a los endpoints. No existe fallback por secreto compartido ni acceso browser.
 
-Cloud KMS firma el digest SHA-256 del PDF exacto con una versión RSA-PSS SHA-256.
+Cloud KMS firma con RSA-PSS SHA-256 un envelope canónico que incluye tenant,
+formulario, tipo documental, SHA-256 del PDF, UID y RUT del firmante de máquina.
 Antes de persistir, el servidor descarga la clave pública y verifica localmente
-la firma contra los bytes originales. La versión completa de la clave queda en
-`kmsKeyVersion` para auditoría.
+la firma contra ese mismo envelope. La versión completa de la clave queda en
+`kmsKeyVersion` para auditoría y la clave pública PEM verificada se archiva en
+la evidencia v2.
 
 Endpoints privados:
 
@@ -62,9 +69,39 @@ Endpoints privados:
 
 El body estricto contiene solo `{ "tenantId": "..." }`.
 
+## Verificación pública por folio/QR
+
+`GET /api/suseso/verify/:folio` vuelve a renderizar el PDF sin firma en el
+servidor, compara renderer y SHA-256 con el registro persistido y luego verifica
+criptográficamente la evidencia WebAuthn o RSA-PSS. El endpoint no confía en un
+booleano almacenado ni en la mera presencia de `signatureB64`.
+
+La respuesta distingue tres estados auditables:
+
+- `verified`: hash, contexto, clave y firma criptográfica coinciden;
+- `invalid`: existe una contradicción verificable, por ejemplo documento
+  mutado, contexto diferente o firma falsa;
+- `unverifiable`: falta evidencia histórica suficiente o la dependencia de
+  claves no está disponible. Este estado siempre devuelve `valid: false`.
+
+El QR continúa siendo público y no expone datos clínicos. Solo devuelve tipo de
+documento y, cuando la firma es válida, fecha y RUT del responsable legal.
+
 ## Configuración y activación
 
-La capacidad está apagada por defecto. Para activarla:
+Toda firma regulatoria nueva requiere primero la raíz de confianza archivística:
+
+```dotenv
+COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID=archive-2026-07
+COMPLIANCE_EVIDENCE_ATTESTATION_KEYS={"archive-2026-07":"secreto-aleatorio-de-al-menos-32-bytes"}
+```
+
+El preflight de producción falla cerrado si este keyring no existe o es
+inválido. Su HMAC autentica la procedencia y todos los campos de la evidencia
+v2; por eso una clave pública inventada junto con una firma autoconsistente no
+puede convertirse en un documento válido.
+
+La ruta KMS de máquina está apagada por defecto. Para activarla:
 
 ```dotenv
 COMPLIANCE_KMS_SIGNING_ENABLED=true
@@ -86,6 +123,10 @@ incompleta.
 - Rotar creando una versión nueva; actualizar
   `COMPLIANCE_KMS_SIGNING_KEY_VERSION` después de habilitarla. No destruir
   versiones anteriores mientras existan documentos que las referencien.
+- Para rotar la atestación archivística, agregar el secreto nuevo al JSON,
+  cambiar `COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID` y conservar las
+  entradas anteriores. Retirar una keyId vuelve `unverifiable` toda evidencia
+  histórica emitida con ella.
 - Para rollback inmediato, fijar `COMPLIANCE_KMS_SIGNING_ENABLED=false` y
   desplegar. WebAuthn humano continúa disponible.
 - Si una clave o service account se compromete: deshabilitar la versión/cuenta,

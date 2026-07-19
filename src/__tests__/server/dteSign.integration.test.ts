@@ -63,6 +63,68 @@ import {
 import type { Ds67Form, Ds67Signature } from '../../services/compliance/ds67/types.js';
 import type { Ds76Form, Ds76Signature } from '../../services/compliance/ds76/types.js';
 import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
+import {
+  buildWebAuthnComplianceSignature,
+  buildKmsComplianceSignature,
+} from '../../services/compliance/complianceSignature.js';
+
+/**
+ * signForm now rejects evidence that isn't cryptographically BOUND to the form
+ * (a hand-rolled `{ signerUid, algorithm, signatureB64 }` literal is classified
+ * `legacy-unverifiable`). These integration tests are about the SIGNING FLOW —
+ * signedAt, algorithm preservation, re-sign rejection — not about evidence
+ * shape, so they hand `signForm` a properly bound WebAuthn signature.
+ * `algorithm` stays `webauthn-ecdsa-p256`, which is what they assert.
+ */
+function boundWebAuthnSig(args: {
+  tenantId: string;
+  formId: string;
+  documentKind: 'ds67' | 'ds76';
+  payloadHashHex: string;
+  signerUid: string;
+  signerRut: string;
+}) {
+  const assertion = {
+    credentialId: 'cred-1',
+    rawId: 'cmF3SWQ=',
+    clientDataJSON: 'eyJ0eXBlIjoicHVibGljLWtleS1nZXQifQ==',
+    authenticatorData: 'YXV0aERhdGE=',
+    signature: 'd2ViYXV0aG5zaWduZWQ=',
+    type: 'public-key' as const,
+    clientExtensionResults: {},
+  };
+  return {
+    ...buildWebAuthnComplianceSignature({
+      intent: {
+        version: 1,
+        purpose: 'compliance-document-sign',
+        tenantId: args.tenantId,
+        formId: args.formId,
+        documentKind: args.documentKind,
+        action: 'sign',
+        payloadHashHex: args.payloadHashHex,
+        signerUid: args.signerUid,
+        signerRut: args.signerRut,
+        issuedAtMs: 1_700_000_000_000,
+        expiresAtMs: 1_700_000_300_000,
+        nonceB64u: 'AQIDBA',
+      },
+      signer: { kind: 'human', uid: args.signerUid, rut: args.signerRut },
+      assertion,
+      verifiedCredentialId: assertion.credentialId,
+      verificationKey: {
+        publicKeyB64: 'cHVibGljLWtleQ==',
+        origin: 'https://app.praeventio.net',
+        rpId: 'app.praeventio.net',
+      },
+    }),
+    archiveAttestation: {
+      version: 1 as const,
+      keyId: 'dte-sign-integration-test',
+      macB64u: 'a'.repeat(43),
+    },
+  };
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // In-memory store fixtures — mirror ds67Service.test.ts so behaviour
@@ -199,14 +261,14 @@ describe('DTE/DIAT firma digital — DS-67 create→sign integration', () => {
 
   it('signForm attaches WebAuthn signature → signedAt non-empty + algorithm preserved', async () => {
     const created = await createDs67Form(ds67Input, { folioStore, formStore });
-    const signature: Ds67Signature = {
+    const signature = boundWebAuthnSig({
+      tenantId: ds67Input.tenantId,
+      formId: ds67FolioToDocId(created.form.folio),
+      documentKind: 'ds67',
+      payloadHashHex: created.payloadHashHex,
       signerUid: 'admin-uid-1',
       signerRut: '11.111.111-1',
-      signedAt: new Date('2026-06-15T10:00:00Z').toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64: VALID_SIG_B64,
-      payloadHashHex: created.payloadHashHex,
-    };
+    }) as unknown as Ds67Signature;
     const signed = await signDs67Form(
       ds67Input.tenantId,
       ds67FolioToDocId(created.form.folio),
@@ -222,14 +284,14 @@ describe('DTE/DIAT firma digital — DS-67 create→sign integration', () => {
 
   it('re-sign of a signed folio is rejected — legal traceability requires a new folio', async () => {
     const created = await createDs67Form(ds67Input, { folioStore, formStore });
-    const signature: Ds67Signature = {
+    const signature = boundWebAuthnSig({
+      tenantId: ds67Input.tenantId,
+      formId: ds67FolioToDocId(created.form.folio),
+      documentKind: 'ds67',
+      payloadHashHex: created.payloadHashHex,
       signerUid: 'admin-uid-1',
       signerRut: '11.111.111-1',
-      signedAt: new Date().toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64: VALID_SIG_B64,
-      payloadHashHex: created.payloadHashHex,
-    };
+    }) as unknown as Ds67Signature;
     await signDs67Form(
       ds67Input.tenantId,
       ds67FolioToDocId(created.form.folio),
@@ -309,14 +371,14 @@ describe('DTE/DIAT firma digital — DS-76 create→sign integration', () => {
 
   it('signForm attaches WebAuthn signature with non-empty signedAt', async () => {
     const created = await createDs76Form(ds76Input, { folioStore, formStore });
-    const signature: Ds76Signature = {
+    const signature = boundWebAuthnSig({
+      tenantId: ds76Input.tenantId,
+      formId: ds76FolioToDocId(created.form.folio),
+      documentKind: 'ds76',
+      payloadHashHex: created.payloadHashHex,
       signerUid: 'gerente-uid-1',
       signerRut: '22.222.222-2',
-      signedAt: new Date('2026-06-20T14:30:00Z').toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64: VALID_SIG_B64,
-      payloadHashHex: created.payloadHashHex,
-    };
+    }) as unknown as Ds76Signature;
     const signed = await signDs76Form(
       ds76Input.tenantId,
       ds76FolioToDocId(created.form.folio),
@@ -329,14 +391,14 @@ describe('DTE/DIAT firma digital — DS-76 create→sign integration', () => {
 
   it('re-sign rejected — DS-76 must mint a new folio per modification', async () => {
     const created = await createDs76Form(ds76Input, { folioStore, formStore });
-    const signature: Ds76Signature = {
+    const signature = boundWebAuthnSig({
+      tenantId: ds76Input.tenantId,
+      formId: ds76FolioToDocId(created.form.folio),
+      documentKind: 'ds76',
+      payloadHashHex: created.payloadHashHex,
       signerUid: 'gerente-uid-1',
       signerRut: '22.222.222-2',
-      signedAt: new Date().toISOString(),
-      algorithm: 'webauthn-ecdsa-p256',
-      signatureB64: VALID_SIG_B64,
-      payloadHashHex: created.payloadHashHex,
-    };
+    }) as unknown as Ds76Signature;
     await signDs76Form(
       ds76Input.tenantId,
       ds76FolioToDocId(created.form.folio),
@@ -355,14 +417,29 @@ describe('DTE/DIAT firma digital — DS-76 create→sign integration', () => {
 
   it('alternate algorithm (kms-sign-rsa) is accepted by the service layer', async () => {
     const created = await createDs76Form(ds76Input, { folioStore, formStore });
-    const signature: Ds76Signature = {
-      signerUid: 'admin-uid-2',
-      signerRut: '33.333.333-3',
-      signedAt: new Date().toISOString(),
-      algorithm: 'kms-sign-rsa',
-      signatureB64: VALID_SIG_B64,
-      payloadHashHex: created.payloadHashHex,
-    };
+    // Bound KMS evidence — this test asserts the service accepts the
+    // `kms-sign-rsa` algorithm, so it needs the KMS shape, not WebAuthn.
+    const signature = {
+      ...buildKmsComplianceSignature({
+        context: {
+          tenantId: ds76Input.tenantId,
+          formId: ds76FolioToDocId(created.form.folio),
+          documentKind: 'ds76',
+          payloadHashHex: created.payloadHashHex,
+          signerUid: 'admin-uid-2',
+          signerRut: '33.333.333-3',
+        },
+        signer: { uid: 'admin-uid-2', rut: '33.333.333-3', kind: 'kms' },
+        signatureB64: VALID_SIG_B64,
+        keyVersion: 'key/7',
+        publicKeyPem: 'server-verified-public-key',
+      }),
+      archiveAttestation: {
+        version: 1 as const,
+        keyId: 'dte-sign-integration-test',
+        macB64u: 'a'.repeat(43),
+      },
+    } as unknown as Ds76Signature;
     const signed = await signDs76Form(
       ds76Input.tenantId,
       ds76FolioToDocId(created.form.folio),

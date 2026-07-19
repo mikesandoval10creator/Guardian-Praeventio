@@ -55,6 +55,7 @@ import {
   ComplianceSignerIdentityError,
   resolveHumanComplianceSigner,
 } from '../services/complianceSignerIdentity.js';
+import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
@@ -189,6 +190,9 @@ function sendSigningError(
   }
   if (err instanceof ComplianceSigningFlowError) {
     if (err.code === 'not_found') return res.status(404).json({ error: err.code });
+    if (err.code === 'evidence_attestation_unavailable') {
+      return res.status(503).json({ error: err.code });
+    }
     if (err.code === 'webauthn_failed') {
       return res.status(401).json({
         error: `${documentKind}_sign_webauthn_failed`, reason: err.reason,
@@ -397,6 +401,7 @@ router.post(
             challengeMetadataValidator: validateMetadata,
           });
         },
+        attestEvidence: attestComplianceEvidence,
       });
       const updated = await signDs67Form(
         tenantId,
@@ -557,6 +562,7 @@ router.post(
             challengeMetadataValidator: validateMetadata,
           });
         },
+        attestEvidence: attestComplianceEvidence,
       });
       const updated = await signDs76Form(
         tenantId,

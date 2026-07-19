@@ -33,13 +33,34 @@ function getDefaultClient(): MinimalComplianceKmsClient {
   return defaultClient;
 }
 
+export async function getComplianceKmsPublicKey(
+  keyVersionName: string,
+  options: { client?: MinimalComplianceKmsClient } = {},
+): Promise<{ publicKeyPem: string }> {
+  const normalizedKeyVersion = keyVersionName.trim();
+  if (!normalizedKeyVersion) {
+    throw new ComplianceKmsSigningError('kms_not_configured');
+  }
+  const client = options.client ?? getDefaultClient();
+  try {
+    const [response] = await client.getPublicKey({ name: normalizedKeyVersion });
+    if (!response?.pem) {
+      throw new ComplianceKmsSigningError('kms_invalid_response');
+    }
+    return { publicKeyPem: response.pem };
+  } catch (error) {
+    if (error instanceof ComplianceKmsSigningError) throw error;
+    throw new ComplianceKmsSigningError('kms_unavailable');
+  }
+}
+
 export async function signCompliancePayloadWithKms(
   payload: Uint8Array,
   options: {
     keyVersionName?: string;
     client?: MinimalComplianceKmsClient;
   } = {},
-): Promise<{ signatureB64: string; keyVersion: string }> {
+): Promise<{ signatureB64: string; keyVersion: string; publicKeyPem: string }> {
   const keyVersionName = (
     options.keyVersionName ?? process.env.COMPLIANCE_KMS_SIGNING_KEY_VERSION ?? ''
   ).trim();
@@ -86,5 +107,9 @@ export async function signCompliancePayloadWithKms(
     throw new ComplianceKmsSigningError('kms_local_verification_failed');
   }
 
-  return { signatureB64: signature.toString('base64'), keyVersion: keyVersionName };
+  return {
+    signatureB64: signature.toString('base64'),
+    keyVersion: keyVersionName,
+    publicKeyPem: publicKeyResponse.pem,
+  };
 }

@@ -14,6 +14,7 @@ import {
   type MinimalDs67FormStore,
 } from './ds67Service';
 import type { Ds67Form, Ds67Signature } from './types';
+import { buildKmsComplianceSignature } from '../complianceSignature';
 import type { MinimalFolioStore } from '../../suseso/folioGenerator';
 
 function buildFolioStore(): MinimalFolioStore {
@@ -82,14 +83,32 @@ const baseInput = {
   effectiveFrom: '2026-01-01',
 };
 
-function buildSig(payloadHashHex: string): Ds67Signature {
+// signForm now requires BOUND evidence carrying an archive attestation (a
+// hand-rolled minimal signature is classified `legacy-unverifiable` and
+// rejected). These tests are about the COUNTRY gate, not signature shape, so
+// they hand it a properly bound signature — same shape as the sibling
+// ds67Service.test.ts helper.
+function buildSig(formId: string, payloadHashHex: string): Ds67Signature {
   return {
-    signerUid: 'uid-1',
-    signerRut: '11.111.111-1',
-    signedAt: '2026-05-05T00:00:00.000Z',
-    algorithm: 'webauthn-ecdsa-p256',
-    signatureB64: 'AAAA',
-    payloadHashHex,
+    ...buildKmsComplianceSignature({
+      context: {
+        tenantId: baseInput.tenantId,
+        formId,
+        documentKind: 'ds67',
+        payloadHashHex,
+        signerUid: 'kms-signer',
+        signerRut: '14.444.444-K',
+      },
+      signer: { uid: 'kms-signer', rut: '14.444.444-K', kind: 'kms' },
+      signatureB64: 'server-verified-signature',
+      keyVersion: 'key/7',
+      publicKeyPem: 'server-verified-public-key',
+    }),
+    archiveAttestation: {
+      version: 1,
+      keyId: 'country-gate-test',
+      macB64u: 'a'.repeat(43),
+    },
   };
 }
 
@@ -107,7 +126,7 @@ describe('DS-67 signForm — country gate (Sprint 33 W6)', () => {
     const signed = await signForm(
       baseInput.tenantId,
       formId,
-      buildSig(payloadHashHex),
+      buildSig(formId, payloadHashHex),
       { formStore, resolveCountry: async () => 'CL' },
     );
     expect(signed.signature).toBeDefined();
@@ -124,7 +143,7 @@ describe('DS-67 signForm — country gate (Sprint 33 W6)', () => {
     const formId = ds67FolioToDocId(form.folio);
 
     await expect(
-      signForm(baseInput.tenantId, formId, buildSig(payloadHashHex), {
+      signForm(baseInput.tenantId, formId, buildSig(formId, payloadHashHex), {
         formStore,
         resolveCountry: async () => 'MX',
       }),
@@ -141,7 +160,7 @@ describe('DS-67 signForm — country gate (Sprint 33 W6)', () => {
 
     // Suggested adapter list cites OSHA / EU-OSHA / RIDDOR / STPS / CIPA.
     try {
-      await signForm(baseInput.tenantId, formId, buildSig(payloadHashHex), {
+      await signForm(baseInput.tenantId, formId, buildSig(formId, payloadHashHex), {
         formStore,
         resolveCountry: async () => 'BR',
       });
@@ -167,7 +186,7 @@ describe('DS-67 signForm — country gate (Sprint 33 W6)', () => {
       const signed = await signForm(
         baseInput.tenantId,
         formId,
-        buildSig(payloadHashHex),
+        buildSig(formId, payloadHashHex),
         {
           formStore,
           resolveCountry: async () => {

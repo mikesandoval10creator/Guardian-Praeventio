@@ -15,6 +15,7 @@ import {
   type MinimalDs76FormStore,
 } from './ds76Service';
 import type { Ds76Form } from './types';
+import { buildKmsComplianceSignature } from '../complianceSignature';
 import type { MinimalFolioStore } from '../../suseso/folioGenerator';
 
 function buildFolioStore(): MinimalFolioStore {
@@ -99,13 +100,29 @@ describe('ds76 signForm — XP hook', () => {
     await signForm(
       'praeventio',
       formId,
+      // signForm now rejects unbound evidence, so this must be a properly
+      // bound signature. The signer stays 'mgr-7' — that's what the XP
+      // assertion below is about.
       {
-        signerUid: 'mgr-7',
-        signerRut: '22.222.222-2',
-        signedAt: '2026-06-02T00:00:00.000Z',
-        signatureB64: 'sig',
-        payloadHashHex,
-        algorithm: 'ES256',
+        ...buildKmsComplianceSignature({
+          context: {
+            tenantId: 'praeventio',
+            formId,
+            documentKind: 'ds76',
+            payloadHashHex,
+            signerUid: 'mgr-7',
+            signerRut: '22.222.222-2',
+          },
+          signer: { uid: 'mgr-7', rut: '22.222.222-2', kind: 'kms' },
+          signatureB64: 'sig',
+          keyVersion: 'key/7',
+          publicKeyPem: 'server-verified-public-key',
+        }),
+        archiveAttestation: {
+          version: 1,
+          keyId: 'xp-hook-test',
+          macB64u: 'a'.repeat(43),
+        },
       } as any,
       { formStore },
     );

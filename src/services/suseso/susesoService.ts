@@ -39,6 +39,11 @@ import {
   parseFolio,
 } from './folioGenerator.js';
 import { generateSusesoPdf } from '../../utils/susesoCertificate.js';
+import { matchesPersistedComplianceSignatureContext } from '../compliance/complianceSignature.js';
+import type {
+  ComplianceSignatureVerificationOutcome,
+} from '../compliance/complianceSignature.js';
+import type { ComplianceSigningContext } from '../auth/complianceSigningIntent.js';
 
 /**
  * Tiny Firestore-shaped contract used by this service. Tests pass an
@@ -51,7 +56,11 @@ export interface MinimalFormStore {
   /** Read a form by id, or null. */
   loadForm(tenantId: string, formId: string): Promise<SusesoForm | null>;
   /** Read a form by folio (cross-tenant index). */
-  findFormByFolio(folio: string): Promise<{ tenantId: string; form: SusesoForm } | null>;
+  findFormByFolio(folio: string): Promise<
+    | { tenantId: string; formId: string; form: SusesoForm }
+    | { ambiguous: true }
+    | null
+  >;
   /** Apply signature mutation. Service-only, never client-callable. */
   attachSignature(
     tenantId: string,
@@ -249,6 +258,19 @@ export async function signForm(
   if (!/^[0-9a-f]{64}$/.test(signature.payloadHashHex)) {
     throw new Error('payloadHashHex must be a 64-char lowercase hex digest.');
   }
+  if (
+    !existing.payloadHashHex ||
+    !matchesPersistedComplianceSignatureContext(signature, {
+      tenantId,
+      formId,
+      documentKind: 'suseso',
+      payloadHashHex: existing.payloadHashHex,
+      signerUid: signature.signerUid,
+      signerRut: signature.signerRut,
+    })
+  ) {
+    throw new Error('Signature must contain bound compliance evidence for this form.');
+  }
   return deps.formStore.attachSignature(tenantId, formId, signature);
 }
 
@@ -258,7 +280,14 @@ export async function signForm(
  */
 export async function verifyFolio(
   folio: string,
-  deps: { formStore: MinimalFormStore },
+  deps: {
+    formStore: MinimalFormStore;
+    verifySignature?(input: {
+      context: ComplianceSigningContext;
+      payloadBytes: Uint8Array;
+      signature: SusesoSignature;
+    }): Promise<ComplianceSignatureVerificationOutcome>;
+  },
 ): Promise<SusesoVerificationResult> {
   if (!parseFolio(folio)) {
     return { valid: false, reason: 'malformed_folio' };
@@ -267,11 +296,66 @@ export async function verifyFolio(
   if (!found) {
     return { valid: false, reason: 'unknown_folio' };
   }
+  if ('ambiguous' in found) {
+    return { valid: false, verificationStatus: 'unverifiable', reason: 'ambiguous_folio' };
+  }
   if (!found.form.signature) {
     return { valid: false, kind: found.form.kind, reason: 'unsigned' };
   }
+  if (
+    found.form.payloadRendererVersion === undefined ||
+    found.form.payloadHashHex === undefined
+  ) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'unverifiable',
+      reason: 'legacy_unverifiable',
+    };
+  }
+  const payload = await renderSusesoUnsignedPayload(found.form);
+  if (
+    found.form.payloadRendererVersion !== payload.payloadRendererVersion ||
+    found.form.payloadHashHex !== payload.payloadHashHex
+  ) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'invalid',
+      reason: 'payload_hash_mismatch',
+    };
+  }
+  if (!deps.verifySignature) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'unverifiable',
+      reason: 'verification_service_unavailable',
+    };
+  }
+  const outcome = await deps.verifySignature({
+    context: {
+      tenantId: found.tenantId,
+      formId: found.formId,
+      documentKind: 'suseso',
+      payloadHashHex: payload.payloadHashHex,
+      signerUid: found.form.signature.signerUid,
+      signerRut: found.form.signature.signerRut,
+    },
+    payloadBytes: payload.pdfBytes,
+    signature: found.form.signature,
+  });
+  if (outcome.status !== 'verified') {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: outcome.status,
+      reason: outcome.reason,
+    };
+  }
   return {
     valid: true,
+    verificationStatus: 'verified',
     kind: found.form.kind,
     signedAt: found.form.signature.signedAt,
     // Reveal ONLY the signer's RUT (the legally-responsible party),
