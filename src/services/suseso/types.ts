@@ -112,10 +112,29 @@ export interface SusesoForm {
    */
   folio: string;
 
-  /** Server-computed SHA-256 of renderer v1 unsigned PDF bytes. */
+  /** Server-computed SHA-256 of the unsigned PDF bytes at `payloadRendererVersion`. */
   payloadHashHex?: string;
-  /** Versioned byte-rendering contract used to reproduce the digest. */
-  payloadRendererVersion?: 1;
+  /**
+   * Versioned byte-rendering contract used to reproduce the digest.
+   *
+   * v1 — body without the verification QR (every document signed before
+   *      2026-07). v2 — body WITH the QR drawn from `qrCodeUrl`.
+   *
+   * Verification MUST render at the version stored on the document, never
+   * at "whatever the current renderer emits": bumping the renderer while
+   * verifying against the newest output would make every previously-signed
+   * declaration report a payload mismatch — i.e. accuse valid legal
+   * documents of having been altered.
+   */
+  payloadRendererVersion?: 1 | 2;
+  /**
+   * Absolute URL the printed QR encodes (`…/verificar/{folio}`).
+   *
+   * Persisted rather than recomputed because in v2 it is part of the
+   * SIGNED bytes: rebuilding it from an environment variable would make
+   * the digest depend on where verification happens to run.
+   */
+  qrCodeUrl?: string;
 
   // Worker
   workerRut: string;

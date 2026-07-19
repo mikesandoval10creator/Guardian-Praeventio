@@ -101,4 +101,31 @@ describe('generateSusesoPdf', () => {
     const bytes = generateSusesoPdf(signed);
     expect(bytes.length).toBeGreaterThan(1000);
   });
+
+  describe('verification QR (renderer v2)', () => {
+    const QR_URL = 'https://app.praeventio.net/verificar/DIAT-2026-praevent-000001';
+
+    // These bytes are what a compliance signature covers. If QR rendering
+    // is not byte-identical across runs, every signed declaration becomes
+    // unverifiable the moment it is re-rendered for verification.
+    it('is byte-deterministic across renders', () => {
+      const a = generateSusesoPdf(baseForm, { qrText: QR_URL });
+      const b = generateSusesoPdf(baseForm, { qrText: QR_URL });
+      expect(Array.from(a)).toEqual(Array.from(b));
+    });
+
+    it('changes the body, so the QR is inside the signed bytes', () => {
+      const withQr = generateSusesoPdf(baseForm, { qrText: QR_URL });
+      const withoutQr = generateSusesoPdf(baseForm);
+      expect(Array.from(withQr)).not.toEqual(Array.from(withoutQr));
+    });
+
+    it('binds the QR target — repointing it changes the bytes', () => {
+      const real = generateSusesoPdf(baseForm, { qrText: QR_URL });
+      const repointed = generateSusesoPdf(baseForm, {
+        qrText: 'https://attacker.example/verificar/DIAT-2026-praevent-000001',
+      });
+      expect(Array.from(real)).not.toEqual(Array.from(repointed));
+    });
+  });
 });

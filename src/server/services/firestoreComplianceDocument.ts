@@ -39,7 +39,7 @@ export async function persistComplianceDigestAtomically(
   firestore: Firestore,
   ref: DocumentReference,
   payloadHashHex: string,
-  payloadRendererVersion: 1,
+  payloadRendererVersion: 1 | 2,
 ): Promise<void> {
   await firestore.runTransaction(async (tx) => {
     const snapshot = await tx.get(ref);

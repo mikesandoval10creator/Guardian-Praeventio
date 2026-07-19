@@ -419,8 +419,16 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
             </button>
           ) : (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded px-3 py-2 text-sm">
-              Firmado correctamente. La declaración es ahora verificable en{' '}
-              <code>{result.qrCodeUrl}</code>.
+              Firmado correctamente. El PDF lleva impreso un código QR que abre{' '}
+              <a
+                href={result.qrCodeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold"
+              >
+                su página de verificación
+              </a>
+              , donde un fiscalizador puede comprobar la firma sin tener cuenta.
             </div>
           )}
 

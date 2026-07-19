@@ -229,6 +229,11 @@ router.post('/form', verifyAuth, validate(createFormSchema), async (req, res) =>
     const result = await createSusesoForm(input, {
       folioStore: buildFolioStore(),
       formStore: buildFormStore(),
+      // The verification URL is handed to someone holding a printed
+      // document, so it has to stand on its own — absolute, not a path
+      // that only resolves if you are already inside the app. Falls back
+      // to the relative path when APP_BASE_URL is unset (dev).
+      publicBaseUrl: process.env.APP_BASE_URL,
     });
     // P0 fix: Codex P2 3308579646 — auditServerEvent returns boolean,
     // never throws. Branch on the return; helper already logs failures.

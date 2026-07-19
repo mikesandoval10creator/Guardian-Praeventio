@@ -60,7 +60,11 @@ function computeSkipLanding(): boolean {
     window.location.pathname.startsWith('/privacy') ||
     window.location.pathname.startsWith('/terms') ||
     // Sprint 30 Bucket LL — public demo page accessible without auth.
-    window.location.pathname.startsWith('/demo')
+    window.location.pathname.startsWith('/demo') ||
+    // SUSESO QR verifier: whoever opens this scanned the QR on a printed
+    // DIAT/DIEP and is holding the document. Landing on a marketing page
+    // instead of on the verdict is a failed verification from their side.
+    window.location.pathname.startsWith('/verificar')
   );
 }
 

@@ -116,26 +116,47 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+/** Renderer version used for documents created from 2026-07 onward. */
+export const CURRENT_PAYLOAD_RENDERER_VERSION = 2 as const;
+
 export interface SusesoUnsignedPayload {
   pdfBytes: Uint8Array;
   payloadHashHex: string;
-  payloadRendererVersion: 1;
+  payloadRendererVersion: 1 | 2;
 }
 
-/** Rebuild the exact unsigned bytes covered by a SUSESO signature. */
+/**
+ * Rebuild the exact unsigned bytes covered by a SUSESO signature.
+ *
+ * Renders at the version recorded ON THE DOCUMENT, not at the current
+ * one. This is what makes bumping the renderer safe: a declaration signed
+ * under v1 (no QR in the body) keeps reproducing v1 bytes forever, so it
+ * still verifies. Rendering everything at the newest version would report
+ * `payload_hash_mismatch` for every previously-signed document — telling
+ * a fiscalizador that valid legal declarations had been tampered with.
+ *
+ * Documents with no recorded version predate the field and are v1.
+ */
 export async function renderSusesoUnsignedPayload(
   form: SusesoForm,
 ): Promise<SusesoUnsignedPayload> {
+  const version = form.payloadRendererVersion ?? 1;
   const unsignedForm: SusesoForm = { ...form };
   delete unsignedForm.signature;
   delete unsignedForm.submittedAt;
   delete unsignedForm.payloadHashHex;
   delete unsignedForm.payloadRendererVersion;
-  const pdfBytes = generateSusesoPdf(unsignedForm);
+  // v2 draws the verification QR into the signed body, from the URL
+  // persisted at creation — never from an env var, which would make the
+  // digest depend on which deployment runs the verification.
+  const pdfBytes = generateSusesoPdf(
+    unsignedForm,
+    version === 2 ? { qrText: form.qrCodeUrl } : {},
+  );
   return {
     pdfBytes,
     payloadHashHex: await sha256Hex(pdfBytes),
-    payloadRendererVersion: 1,
+    payloadRendererVersion: version,
   };
 }
 
@@ -151,13 +172,19 @@ export function folioToDocId(folio: string): string {
 /**
  * Build the QR payload URL. The QR should be small enough that any
  * phone camera reads it, so we keep ONLY the folio in the URL — the
- * public verifier endpoint loads the rest.
+ * public verifier page loads the rest.
+ *
+ * Points at the human page (`/verificar/:folio`), NOT at
+ * `/api/suseso/verify/:folio`: whoever scans this is a fiscalizador or a
+ * worker holding a printed DIAT/DIEP, and a phone camera opening raw JSON
+ * reads as "this document is broken". The API endpoint is unchanged and
+ * remains the integration surface.
  *
  * `baseUrl` defaults to relative path, but server-side renders may
  * need an absolute URL — we leave that decision to the caller.
  */
 export function buildVerificationUrl(folio: string, baseUrl = ''): string {
-  return `${baseUrl}/api/suseso/verify/${encodeURIComponent(folio)}`;
+  return `${baseUrl}/verificar/${encodeURIComponent(folio)}`;
 }
 
 /**
@@ -209,6 +236,11 @@ export async function createSusesoForm(
     witnesses: input.witnesses,
     reportedBy: input.reportedBy,
     createdAt: now.toISOString(),
+    // The QR lives INSIDE the signed body (renderer v2), so its URL has
+    // to be fixed before hashing and stored with the document — see
+    // `renderSusesoUnsignedPayload`.
+    qrCodeUrl: buildVerificationUrl(folio, deps.publicBaseUrl),
+    payloadRendererVersion: CURRENT_PAYLOAD_RENDERER_VERSION,
   };
 
   // 4. Render the PDF + hash.
@@ -224,7 +256,7 @@ export async function createSusesoForm(
     form,
     pdfBytes: payload.pdfBytes,
     payloadHashHex: payload.payloadHashHex,
-    qrCodeUrl: buildVerificationUrl(folio, deps.publicBaseUrl),
+    qrCodeUrl: form.qrCodeUrl!,
   };
 }
 
@@ -311,6 +343,29 @@ export async function verifyFolio(
       kind: found.form.kind,
       verificationStatus: 'unverifiable',
       reason: 'legacy_unverifiable',
+    };
+  }
+  // A version this build cannot render, or a v2 document missing the URL
+  // its QR was drawn from, means we cannot reproduce the signed bytes.
+  // That is "we cannot check", NOT "this was altered" — reporting a hash
+  // mismatch here would brand a possibly-valid declaration as tampered.
+  if (
+    found.form.payloadRendererVersion !== 1 &&
+    found.form.payloadRendererVersion !== 2
+  ) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'unverifiable',
+      reason: 'unsupported_renderer_version',
+    };
+  }
+  if (found.form.payloadRendererVersion === 2 && !found.form.qrCodeUrl) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'unverifiable',
+      reason: 'payload_inputs_incomplete',
     };
   }
   const payload = await renderSusesoUnsignedPayload(found.form);
