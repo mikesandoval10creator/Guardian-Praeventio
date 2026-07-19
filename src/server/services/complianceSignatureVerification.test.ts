@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import {
   createComplianceSigningIntent,
   deriveComplianceSigningChallenge,
@@ -138,6 +138,41 @@ function kmsFixture() {
 }
 
 describe('verifyPersistedComplianceSignature', () => {
+  // The verifier now takes the relying-party binding from THIS server's config
+  // instead of trusting the rpId/origin carried by the evidence. The fixtures
+  // sign as `app.praeventio.net`, so the test env must declare that it is that
+  // relying party — otherwise the outcome is `relying_party_mismatch`, which is
+  // exactly the protection asserted below.
+  const savedRpId = process.env.WEBAUTHN_RP_ID;
+  const savedOrigin = process.env.APP_BASE_URL;
+  beforeEach(() => {
+    process.env.WEBAUTHN_RP_ID = 'app.praeventio.net';
+    process.env.APP_BASE_URL = 'https://app.praeventio.net';
+  });
+  afterEach(() => {
+    if (savedRpId === undefined) delete process.env.WEBAUTHN_RP_ID;
+    else process.env.WEBAUTHN_RP_ID = savedRpId;
+    if (savedOrigin === undefined) delete process.env.APP_BASE_URL;
+    else process.env.APP_BASE_URL = savedOrigin;
+  });
+
+  it('refuses evidence that names a different relying party (anti-forgery)', async () => {
+    // Evidence forged to name its own RP must never verify: before this guard
+    // the verifier hashed the rpId carried by the record itself, so a forged
+    // record satisfied its own binding.
+    const { evidence } = webAuthnFixture();
+    process.env.WEBAUTHN_RP_ID = 'attacker.example';
+    process.env.APP_BASE_URL = 'https://attacker.example';
+    await expect(verifyPersistedComplianceSignature({
+      context: CONTEXT,
+      payloadBytes: PAYLOAD,
+      signature: evidence,
+    }, ATTESTATION_DEPS)).resolves.toEqual({
+      status: 'unverifiable',
+      reason: 'relying_party_mismatch',
+    });
+  });
+
   it('verifies a self-contained WebAuthn signature with real P-256 crypto', async () => {
     const { evidence } = webAuthnFixture();
     await expect(verifyPersistedComplianceSignature({

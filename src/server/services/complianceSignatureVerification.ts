@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 import {
   parseAuthenticatorData,
   verifySignature,
@@ -108,6 +109,25 @@ async function verifyWebAuthn(
     return { status: 'invalid', reason: 'context_mismatch' };
   }
 
+  // [P0][seguridad] The relying-party binding must come from OUR configuration,
+  // never from the record being verified. For `self-contained-evidence-v2` the
+  // rpId/origin travel INSIDE the stored evidence, so verifying against them is
+  // circular: forged evidence could name its own relying party and then satisfy
+  // every check against it. Resolve the expected values from the server env
+  // (fail-loud in production, see auth/rpId.ts) and refuse anything that names a
+  // different RP.
+  //
+  // A mismatch is reported as `unverifiable`, not `invalid`: a document signed
+  // under a previous deployment is indistinguishable here from a forgery, and
+  // this system's rule is to never present something as verified when it cannot
+  // be proven — while still not branding a possibly-legitimate archived document
+  // as invalid.
+  const expectedRpId = getWebauthnRpId();
+  const expectedOrigin = getWebauthnExpectedOrigin();
+  if (resolved.rpId !== expectedRpId || resolved.origin !== expectedOrigin) {
+    return { status: 'unverifiable', reason: 'relying_party_mismatch' };
+  }
+
   const clientDataBytes = decodeBase64Url(signature.clientDataJSONB64u);
   const authenticatorData = decodeBase64Url(signature.authenticatorDataB64u);
   const signatureBytes = decodeBase64Url(signature.signatureB64);
@@ -136,24 +156,22 @@ async function verifyWebAuthn(
   if (
     clientData.type !== 'webauthn.get' ||
     clientData.challenge !== expectedChallenge ||
-    clientData.origin !== resolved.origin
+    clientData.origin !== expectedOrigin
   ) {
     return { status: 'invalid', reason: 'signature_invalid' };
   }
 
   try {
     const parsed = parseAuthenticatorData(authenticatorData);
-    // SHA-256 here is MANDATED by the WebAuthn spec, not a hashing choice:
+    // SHA-256 is MANDATED by the WebAuthn spec, not a hashing choice:
     // authenticatorData carries `rpIdHash = SHA-256(rpId)` (W3C WebAuthn §6.1),
     // so the verifier must recompute exactly that to compare. `rpId` is a public
-    // domain name ("app.praeventio.net"), NOT a credential or a password — a
-    // slow KDF (bcrypt/scrypt/argon2) would produce a different digest and break
-    // verification outright.
+    // domain name ("app.praeventio.net"), never a secret — a slow KDF would
+    // produce a different digest and break verification outright.
     //
-    // CodeQL flags this as `js/insufficient-password-hash` because the value
-    // reaches here from `resolveWebAuthnKey` and its taint heuristic reads
-    // "…Key" as credential material. False positive — see the note above.
-    const expectedRpIdHash = crypto.createHash('sha256').update(resolved.rpId).digest();
+    // The input is the SERVER-CONFIGURED rpId (validated against the stored one
+    // above), never the value carried by the evidence under verification.
+    const expectedRpIdHash = crypto.createHash('sha256').update(expectedRpId).digest();
     if (!equalBytes(parsed.rpIdHash, expectedRpIdHash) || !parsed.flags.up || !parsed.flags.uv) {
       return { status: 'invalid', reason: 'signature_invalid' };
     }

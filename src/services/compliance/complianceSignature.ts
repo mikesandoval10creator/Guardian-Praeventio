@@ -112,6 +112,12 @@ export type ComplianceSignatureVerificationOutcome =
       reason:
         | 'legacy_unverifiable'
         | 'verification_key_unavailable'
+        // The stored evidence names a relying party (rpId/origin) that is not
+        // the one this server is configured for. Either the document was signed
+        // under a different deployment, or the evidence was forged to name its
+        // own RP. We cannot tell those apart, so we refuse to call it verified —
+        // without calling it invalid either.
+        | 'relying_party_mismatch'
         | 'evidence_attestation_key_unavailable'
         | 'verification_service_unavailable';
     };
