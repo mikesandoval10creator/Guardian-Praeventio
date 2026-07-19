@@ -18,6 +18,12 @@ export type ComplianceVerificationKey =
       publicKeyPem: string;
     };
 
+export interface ComplianceArchiveAttestation {
+  version: 1;
+  keyId: string;
+  macB64u: string;
+}
+
 /** Optional on persisted models only so legacy signatures remain readable. */
 export interface ComplianceSignatureAuditFields {
   verificationVersion?: 1 | 2;
@@ -29,6 +35,7 @@ export interface ComplianceSignatureAuditFields {
   kmsKeyVersion?: string;
   signingContext?: ComplianceSigningContext;
   verificationKey?: ComplianceVerificationKey;
+  archiveAttestation?: ComplianceArchiveAttestation;
 }
 
 export interface WebAuthnComplianceAssertionEvidence {
@@ -83,15 +90,35 @@ export type ComplianceSignatureVerificationOutcome =
   | { status: 'verified' }
   | {
       status: 'invalid';
-      reason: 'payload_hash_mismatch' | 'context_mismatch' | 'signature_invalid';
+      reason:
+        | 'payload_hash_mismatch'
+        | 'context_mismatch'
+        | 'signature_invalid'
+        | 'evidence_attestation_invalid';
     }
   | {
       status: 'unverifiable';
       reason:
         | 'legacy_unverifiable'
         | 'verification_key_unavailable'
+        | 'evidence_attestation_key_unavailable'
         | 'verification_service_unavailable';
     };
+
+export function buildComplianceKmsSigningPayload(
+  context: ComplianceSigningContext,
+): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify({
+    version: 1,
+    purpose: 'praeventio.compliance.kms-signature',
+    tenantId: context.tenantId,
+    formId: context.formId,
+    documentKind: context.documentKind,
+    payloadHashHex: context.payloadHashHex,
+    signerUid: context.signerUid,
+    signerRut: context.signerRut,
+  }));
+}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;

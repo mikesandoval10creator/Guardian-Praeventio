@@ -56,11 +56,11 @@ export interface MinimalFormStore {
   /** Read a form by id, or null. */
   loadForm(tenantId: string, formId: string): Promise<SusesoForm | null>;
   /** Read a form by folio (cross-tenant index). */
-  findFormByFolio(folio: string): Promise<{
-    tenantId: string;
-    formId: string;
-    form: SusesoForm;
-  } | null>;
+  findFormByFolio(folio: string): Promise<
+    | { tenantId: string; formId: string; form: SusesoForm }
+    | { ambiguous: true }
+    | null
+  >;
   /** Apply signature mutation. Service-only, never client-callable. */
   attachSignature(
     tenantId: string,
@@ -296,8 +296,22 @@ export async function verifyFolio(
   if (!found) {
     return { valid: false, reason: 'unknown_folio' };
   }
+  if ('ambiguous' in found) {
+    return { valid: false, verificationStatus: 'unverifiable', reason: 'ambiguous_folio' };
+  }
   if (!found.form.signature) {
     return { valid: false, kind: found.form.kind, reason: 'unsigned' };
+  }
+  if (
+    found.form.payloadRendererVersion === undefined ||
+    found.form.payloadHashHex === undefined
+  ) {
+    return {
+      valid: false,
+      kind: found.form.kind,
+      verificationStatus: 'unverifiable',
+      reason: 'legacy_unverifiable',
+    };
   }
   const payload = await renderSusesoUnsignedPayload(found.form);
   if (

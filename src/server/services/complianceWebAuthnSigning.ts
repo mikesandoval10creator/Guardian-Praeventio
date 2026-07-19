@@ -7,7 +7,9 @@ import {
 } from '../../services/auth/complianceSigningIntent.js';
 import {
   buildWebAuthnComplianceSignature,
+  buildComplianceKmsSigningPayload,
   buildKmsComplianceSignature,
+  type ComplianceArchiveAttestation,
   type TrustedComplianceSigner,
   type VerifiedWebAuthnComplianceSignature,
   type VerifiedKmsComplianceSignature,
@@ -18,7 +20,8 @@ export type ComplianceSigningFlowErrorCode =
   | 'already_signed'
   | 'payload_hash_mismatch'
   | 'intent_context_mismatch'
-  | 'webauthn_failed';
+  | 'webauthn_failed'
+  | 'evidence_attestation_unavailable';
 
 export class ComplianceSigningFlowError extends Error {
   constructor(
@@ -160,6 +163,7 @@ export async function completeComplianceWebAuthnSigning(
       verifiedRpId?: string;
       challengeMetadata?: unknown;
     }>;
+    attestEvidence(evidence: unknown): ComplianceArchiveAttestation;
     now?: () => Date;
   },
 ): Promise<VerifiedWebAuthnComplianceSignature> {
@@ -183,7 +187,7 @@ export async function completeComplianceWebAuthnSigning(
     throw new ComplianceSigningFlowError('intent_context_mismatch');
   }
 
-  return buildWebAuthnComplianceSignature({
+  const evidence = buildWebAuthnComplianceSignature({
     intent: verdict.challengeMetadata as ComplianceSigningIntentV1,
     signer: prepared.signer,
     assertion: target.assertion,
@@ -195,6 +199,14 @@ export async function completeComplianceWebAuthnSigning(
     },
     now: deps.now,
   });
+  try {
+    return {
+      ...evidence,
+      archiveAttestation: deps.attestEvidence(evidence),
+    };
+  } catch {
+    throw new ComplianceSigningFlowError('evidence_attestation_unavailable');
+  }
 }
 
 export async function completeComplianceKmsSigning(
@@ -207,6 +219,7 @@ export async function completeComplianceKmsSigning(
       keyVersion: string;
       publicKeyPem: string;
     }>;
+    attestEvidence(evidence: unknown): ComplianceArchiveAttestation;
     now?: () => Date;
   },
 ): Promise<VerifiedKmsComplianceSignature> {
@@ -214,8 +227,8 @@ export async function completeComplianceKmsSigning(
   if (prepared.signer.kind !== 'kms') {
     throw new TypeError('KMS signing requires the configured machine identity');
   }
-  const kmsEvidence = await deps.signPayload(prepared.payload.pdfBytes);
-  return buildKmsComplianceSignature({
+  const kmsEvidence = await deps.signPayload(buildComplianceKmsSigningPayload(prepared.context));
+  const evidence = buildKmsComplianceSignature({
     context: prepared.context,
     signer: prepared.signer,
     signatureB64: kmsEvidence.signatureB64,
@@ -223,4 +236,12 @@ export async function completeComplianceKmsSigning(
     publicKeyPem: kmsEvidence.publicKeyPem,
     now: deps.now,
   });
+  try {
+    return {
+      ...evidence,
+      archiveAttestation: deps.attestEvidence(evidence),
+    };
+  } catch {
+    throw new ComplianceSigningFlowError('evidence_attestation_unavailable');
+  }
 }

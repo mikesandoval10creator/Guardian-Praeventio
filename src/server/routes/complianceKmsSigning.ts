@@ -17,6 +17,7 @@ import {
   ComplianceKmsSigningError,
   signCompliancePayloadWithKms,
 } from '../../services/compliance/cloudKmsComplianceSigner.js';
+import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 import {
   renderSusesoUnsignedPayload,
   signForm as signSusesoForm,
@@ -125,6 +126,7 @@ async function signDocumentWithKms(
     documents: buildDocuments(kind, tenantId, formId),
     resolveSigner: async () => signer,
     signPayload: (payload) => signCompliancePayloadWithKms(payload),
+    attestEvidence: attestComplianceEvidence,
   });
 
   const atomicStore = buildAtomicStore(kind);
@@ -171,6 +173,7 @@ export interface ComplianceKmsSigningRouterDependencies {
 function errorStatus(error: unknown): number {
   if (error instanceof ComplianceSigningFlowError) {
     if (error.code === 'not_found') return 404;
+    if (error.code === 'evidence_attestation_unavailable') return 503;
     if (
       error.code === 'already_signed' ||
       error.code === 'payload_hash_mismatch' ||

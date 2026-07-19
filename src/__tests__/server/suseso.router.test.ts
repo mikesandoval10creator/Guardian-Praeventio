@@ -183,6 +183,10 @@ const kmsSignature = {
 
 // ─── beforeEach ───────────────────────────────────────────────────────────
 beforeEach(async () => {
+  process.env.COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID = 'test-key';
+  process.env.COMPLIANCE_EVIDENCE_ATTESTATION_KEYS = JSON.stringify({
+    'test-key': 'test-compliance-evidence-secret-000001',
+  });
   H.db = createFakeFirestore();
   await H.db.doc('users/u1').set({ rut: '12.345.678-5' });
   mockCreateSusesoForm.mockReset();

@@ -60,12 +60,14 @@ function buildFormStore(): MinimalFormStore {
       return byTenantId.get(tenantId)?.get(formId) ?? null;
     },
     async findFormByFolio(folio) {
+      const matches: Array<{ tenantId: string; formId: string; form: SusesoForm }> = [];
       for (const [tid, bucket] of byTenantId) {
         for (const [formId, form] of bucket) {
-          if (form.folio === folio) return { tenantId: tid, formId, form };
+          if (form.folio === folio) matches.push({ tenantId: tid, formId, form });
         }
       }
-      return null;
+      if (matches.length > 1) return { ambiguous: true };
+      return matches[0] ?? null;
     },
     async attachSignature(tenantId, formId, signature) {
       const bucket = byTenantId.get(tenantId);
@@ -267,6 +269,26 @@ describe('verifyFolio', () => {
     expect(r.reason).toBe('unknown_folio');
   });
 
+  it('fails closed when the shortened tenant slug causes a duplicate public folio', async () => {
+    const formStore = buildFormStore();
+    const folioStoreA = buildFolioStore();
+    const folioStoreB = buildFolioStore();
+    const first = await createSusesoForm(
+      { ...baseInput, tenantId: 'praeventio-alpha' },
+      { folioStore: folioStoreA, formStore },
+    );
+    const second = await createSusesoForm(
+      { ...baseInput, tenantId: 'praeventio-beta' },
+      { folioStore: folioStoreB, formStore },
+    );
+    expect(first.form.folio).toBe(second.form.folio);
+    await expect(verifyFolio(first.form.folio, { formStore })).resolves.toEqual({
+      valid: false,
+      verificationStatus: 'unverifiable',
+      reason: 'ambiguous_folio',
+    });
+  });
+
   it('returns valid:false unsigned for unsigned forms', async () => {
     const folioStore = buildFolioStore();
     const formStore = buildFormStore();
@@ -368,6 +390,26 @@ describe('verifyFolio', () => {
       kind: 'DIAT',
       verificationStatus: 'unverifiable',
       reason: 'verification_key_unavailable',
+    });
+  });
+
+  it('classifies a signed legacy row without digest metadata as unverifiable', async () => {
+    const folioStore = buildFolioStore();
+    const formStore = buildFormStore();
+    const { form } = await createSusesoForm(baseInput, { folioStore, formStore });
+    const formId = folioToDocId(form.folio);
+    const signature = buildBoundSusesoSignature(form);
+    await formStore.saveForm('praeventio', formId, {
+      ...form,
+      payloadHashHex: undefined,
+      payloadRendererVersion: undefined,
+      signature,
+    });
+    await expect(verifyFolio(form.folio, { formStore })).resolves.toEqual({
+      valid: false,
+      kind: 'DIAT',
+      verificationStatus: 'unverifiable',
+      reason: 'legacy_unverifiable',
     });
   });
 });

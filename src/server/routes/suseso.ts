@@ -56,6 +56,7 @@ import {
 import { findByCredentialId } from '../../services/auth/webauthnCredentialStore.js';
 import { getComplianceKmsPublicKey } from '../../services/compliance/cloudKmsComplianceSigner.js';
 import { verifyPersistedComplianceSignature } from '../services/complianceSignatureVerification.js';
+import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 
 const router = Router();
 
@@ -100,9 +101,10 @@ function buildFormStore(): MinimalFormStore {
       const snap = await fs
         .collectionGroup('suseso_forms')
         .where('folio', '==', folio)
-        .limit(1)
+        .limit(2)
         .get();
       if (snap.empty) return null;
+      if (snap.docs.length > 1) return { ambiguous: true };
       const doc = snap.docs[0];
       // Path: tenants/{tid}/suseso_forms/{formId}
       const tenantId = doc.ref.parent.parent?.id ?? '';
@@ -148,6 +150,9 @@ function sendSigningError(res: Parameters<typeof callerTenantOr403>[1], err: unk
   }
   if (err instanceof ComplianceSigningFlowError) {
     if (err.code === 'not_found') return res.status(404).json({ error: err.code });
+    if (err.code === 'evidence_attestation_unavailable') {
+      return res.status(503).json({ error: err.code });
+    }
     if (err.code === 'webauthn_failed') {
       return res.status(401).json({ error: 'suseso_sign_webauthn_failed', reason: err.reason });
     }
@@ -292,6 +297,7 @@ router.post(
             challengeMetadataValidator: validateMetadata,
           });
         },
+        attestEvidence: attestComplianceEvidence,
       });
 
       const updated = await signForm(

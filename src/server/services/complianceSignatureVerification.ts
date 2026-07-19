@@ -9,11 +9,16 @@ import {
   type ComplianceSigningIntentV1,
 } from '../../services/auth/complianceSigningIntent.js';
 import {
+  buildComplianceKmsSigningPayload,
   classifyStoredComplianceSignatureEvidence,
   matchesPersistedComplianceSignatureContext,
   type ComplianceSignatureVerificationOutcome,
   type ComplianceVerificationKey,
 } from '../../services/compliance/complianceSignature.js';
+import {
+  verifyComplianceEvidenceAttestation,
+  type ComplianceEvidenceAttestationVerification,
+} from './complianceEvidenceAttestation.js';
 
 export interface PersistedComplianceSignatureVerificationInput {
   context: ComplianceSigningContext;
@@ -22,6 +27,9 @@ export interface PersistedComplianceSignatureVerificationInput {
 }
 
 export interface PersistedComplianceSignatureVerificationDependencies {
+  verifyEvidenceAttestation?(
+    signature: unknown,
+  ): ComplianceEvidenceAttestationVerification | Promise<ComplianceEvidenceAttestationVerification>;
   resolveWebAuthnCredential?(credentialId: string): Promise<{
     uid: string;
     publicKeyB64: string;
@@ -185,6 +193,7 @@ async function resolveKmsKey(
 async function verifyKms(
   signature: Record<string, unknown>,
   payloadBytes: Uint8Array,
+  context: ComplianceSigningContext,
   evidenceClass: ReturnType<typeof classifyStoredComplianceSignatureEvidence>,
   deps: PersistedComplianceSignatureVerificationDependencies,
 ): Promise<ComplianceSignatureVerificationOutcome> {
@@ -201,7 +210,10 @@ async function verifyKms(
     return { status: 'invalid', reason: 'signature_invalid' };
   }
   try {
-    const verified = crypto.verify('sha256', payloadBytes, {
+    const signedBytes = evidenceClass === 'bound-evidence-v1'
+      ? payloadBytes
+      : buildComplianceKmsSigningPayload(context);
+    const verified = crypto.verify('sha256', signedBytes, {
       key: resolved.publicKeyPem,
       padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
       saltLength: 32,
@@ -222,6 +234,23 @@ export async function verifyPersistedComplianceSignature(
   if (evidenceClass === 'legacy-unverifiable') {
     return { status: 'unverifiable', reason: 'legacy_unverifiable' };
   }
+  if (evidenceClass === 'self-contained-evidence-v2') {
+    let attestation: ComplianceEvidenceAttestationVerification;
+    try {
+      attestation = await (
+        deps.verifyEvidenceAttestation?.(input.signature) ??
+        verifyComplianceEvidenceAttestation(input.signature)
+      );
+    } catch {
+      return { status: 'unverifiable', reason: 'verification_service_unavailable' };
+    }
+    if (attestation === 'invalid') {
+      return { status: 'invalid', reason: 'evidence_attestation_invalid' };
+    }
+    if (attestation === 'unavailable') {
+      return { status: 'unverifiable', reason: 'evidence_attestation_key_unavailable' };
+    }
+  }
   const computedHash = crypto.createHash('sha256').update(input.payloadBytes).digest('hex');
   if (computedHash !== input.context.payloadHashHex) {
     return { status: 'invalid', reason: 'payload_hash_mismatch' };
@@ -234,7 +263,7 @@ export async function verifyPersistedComplianceSignature(
     return verifyWebAuthn(signature, input.context, evidenceClass, deps);
   }
   if (signature.algorithm === 'kms-sign-rsa') {
-    return verifyKms(signature, input.payloadBytes, evidenceClass, deps);
+    return verifyKms(signature, input.payloadBytes, input.context, evidenceClass, deps);
   }
   return { status: 'invalid', reason: 'signature_invalid' };
 }

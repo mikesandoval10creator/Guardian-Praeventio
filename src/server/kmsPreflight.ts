@@ -1,3 +1,5 @@
+import { loadComplianceEvidenceAttestationKeyring } from './services/complianceEvidenceAttestation.js';
+
 export interface KmsBootConfigResult {
   ok: boolean;
   adapter: string;
@@ -16,6 +18,8 @@ type KmsBootEnv = {
   COMPLIANCE_KMS_SIGNER_RUT?: string;
   COMPLIANCE_KMS_OIDC_AUDIENCE?: string;
   APP_BASE_URL?: string;
+  COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID?: string;
+  COMPLIANCE_EVIDENCE_ATTESTATION_KEYS?: string;
 };
 
 const VALID_KMS_ADAPTERS = new Set(['cloud-kms', 'in-memory-dev']);
@@ -40,6 +44,15 @@ export function validateKmsBootConfig(env: KmsBootEnv): KmsBootConfigResult {
     if (adapter === 'cloud-kms' && !env.KMS_KEY_RESOURCE_NAME) {
       errors.push(
         'Production with cloud-kms requires KMS_KEY_RESOURCE_NAME to point at the key encryption key.',
+      );
+    }
+    try {
+      loadComplianceEvidenceAttestationKeyring(env as NodeJS.ProcessEnv);
+    } catch {
+      errors.push(
+        'Production compliance signing requires a valid '
+          + 'COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID and '
+          + 'COMPLIANCE_EVIDENCE_ATTESTATION_KEYS keyring.',
       );
     }
   }

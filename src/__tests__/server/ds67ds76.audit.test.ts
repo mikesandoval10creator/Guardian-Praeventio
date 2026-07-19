@@ -285,7 +285,7 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
     signerRut: '11.111.111-1',
     signedAt: '2026-06-01T00:00:00.000Z',
     algorithm: 'webauthn-ecdsa-p256' as const,
-    signatureB64: 'AAAA',
+    signatureB64: 'c2lnbmF0dXJl',
     payloadHashHex: 'a'.repeat(64),
   };
   const assertion = {
@@ -294,12 +294,16 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
     rawId: 'raw-1',
     clientDataJSON: 'cdj',
     authenticatorData: 'ad',
-    signature: 'AAAA',
+    signature: 'c2lnbmF0dXJl',
     type: 'public-key' as const,
     clientExtensionResults: {},
   };
 
   beforeEach(() => {
+    process.env.COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID = 'test-key';
+    process.env.COMPLIANCE_EVIDENCE_ATTESTATION_KEYS = JSON.stringify({
+      'test-key': 'test-compliance-evidence-secret-000001',
+    });
     verifyAssertionMock.mockReset();
     auditMock.mockResolvedValue(true);
     captureRouteErrorMock.mockReset();
@@ -378,6 +382,9 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
             verified: true,
             newCounter: 1,
             verifiedCredentialId: 'cred-1',
+            verifiedCredentialPublicKeyB64: 'cose-public-key-b64',
+            verifiedOrigin: 'http://localhost:5173',
+            verifiedRpId: 'localhost',
             challengeMetadata: boundIntent,
           };
         });

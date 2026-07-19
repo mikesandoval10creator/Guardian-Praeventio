@@ -52,9 +52,10 @@ La capacidad KMS se conserva como ruta privada. Solo un token Google OIDC con
 email de service account, `email_verified=true` y audiencia exacta puede llegar
 a los endpoints. No existe fallback por secreto compartido ni acceso browser.
 
-Cloud KMS firma el digest SHA-256 del PDF exacto con una versión RSA-PSS SHA-256.
+Cloud KMS firma con RSA-PSS SHA-256 un envelope canónico que incluye tenant,
+formulario, tipo documental, SHA-256 del PDF, UID y RUT del firmante de máquina.
 Antes de persistir, el servidor descarga la clave pública y verifica localmente
-la firma contra los bytes originales. La versión completa de la clave queda en
+la firma contra ese mismo envelope. La versión completa de la clave queda en
 `kmsKeyVersion` para auditoría y la clave pública PEM verificada se archiva en
 la evidencia v2.
 
@@ -86,7 +87,19 @@ documento y, cuando la firma es válida, fecha y RUT del responsable legal.
 
 ## Configuración y activación
 
-La capacidad está apagada por defecto. Para activarla:
+Toda firma regulatoria nueva requiere primero la raíz de confianza archivística:
+
+```dotenv
+COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID=archive-2026-07
+COMPLIANCE_EVIDENCE_ATTESTATION_KEYS={"archive-2026-07":"secreto-aleatorio-de-al-menos-32-bytes"}
+```
+
+El preflight de producción falla cerrado si este keyring no existe o es
+inválido. Su HMAC autentica la procedencia y todos los campos de la evidencia
+v2; por eso una clave pública inventada junto con una firma autoconsistente no
+puede convertirse en un documento válido.
+
+La ruta KMS de máquina está apagada por defecto. Para activarla:
 
 ```dotenv
 COMPLIANCE_KMS_SIGNING_ENABLED=true
@@ -108,6 +121,10 @@ incompleta.
 - Rotar creando una versión nueva; actualizar
   `COMPLIANCE_KMS_SIGNING_KEY_VERSION` después de habilitarla. No destruir
   versiones anteriores mientras existan documentos que las referencien.
+- Para rotar la atestación archivística, agregar el secreto nuevo al JSON,
+  cambiar `COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID` y conservar las
+  entradas anteriores. Retirar una keyId vuelve `unverifiable` toda evidencia
+  histórica emitida con ella.
 - Para rollback inmediato, fijar `COMPLIANCE_KMS_SIGNING_ENABLED=false` y
   desplegar. WebAuthn humano continúa disponible.
 - Si una clave o service account se compromete: deshabilitar la versión/cuenta,
