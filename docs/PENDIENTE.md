@@ -1,6 +1,27 @@
 # PENDIENTE — registro único de lo que falta para "app real y conectada"
 
-**Esta es la ÚNICA fuente de verdad de lo pendiente.** Se trabaja SOLO desde aquí; al cerrar un ítem se actualiza aquí (con `file:line` del PR); los **gates** impiden que entre deuda nueva escondida. Consolidado el 2026-06-17 de: triage de huérfanos (workflow), discovery de honestidad, `docs/stubs-inventory.md` y `docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md`. Reemplaza el andar en círculos entre listas separadas.
+> ## ⚠ Este documento YA NO es la fuente de verdad de lo pendiente (2026-07-20)
+>
+> Lo fue, y envejeció. El 2026-07-20 se midió que afirmaba **39 huérfanos** y **10 routers sin
+> cobertura** cuando el código tenía **4** y **0** — describía un problema diez veces mayor del que
+> existía, y su lista A1 enumera componentes que ya están montados. Trabajar desde aquí era, en la
+> práctica, andar en círculos: justo lo que este archivo nació para evitar.
+>
+> La causa no fue descuido, fue el mecanismo: un contador escrito a mano en un repo que avanza más
+> rápido que su documentación. Se corrigió cambiando el mecanismo, no pidiendo más disciplina.
+>
+> **Dónde vive ahora cada verdad:**
+>
+> | Fuente | De qué es dueña |
+> | --- | --- |
+> | [`ESTADO-MEDIDO.md`](./ESTADO-MEDIDO.md) | Los contadores. **Generado** desde los ratchets, nunca escrito a mano. |
+> | Notion — *Alpha 41 — Tasks* | La deuda funcional pendiente. Auditada y vigente. |
+> | graphify (`graphify-out/`) | La estructura y las relaciones del código. |
+> | **Este archivo** | Las **decisiones**, las reglas y el historial. Eso no caduca. |
+>
+> Gate: `scripts/gen-measured-state.cjs` falla el commit si un documento afirma un contador que el
+> código desmiente. Por eso las secciones de abajo ya no llevan cifras — si vuelven, el gate las
+> caza.
 
 **Honestidad sobre el alcance:** no es omnisciencia perfecta (el código es enorme). Es un ledger de las dimensiones conocidas, cada una con su nivel de confianza + gate. Lo que NO está medido-con-gate se marca explícito como "medir" — esa es una lista finita, no un redescubrir infinito.
 
@@ -8,17 +29,19 @@
 
 ## Contador maestro
 
-> **Re-verificado 2026-06-22** (ratchet baselines leídos de disco: `scripts/connectivity-ratchet-baseline.json` count=39 y `scripts/router-test-ratchet-baseline.json` uncovered_count=10/total=205). Actualización anterior: 2026-06-19 (recomputado contra código + 3 auditorías).
+> **Los números se movieron a [`ESTADO-MEDIDO.md`](./ESTADO-MEDIDO.md)**, que los genera desde los
+> baselines de los ratchets. Esta tabla conserva sólo qué dimensión existe, cómo se mide y si tiene
+> gate — lo que no cambia commit a commit.
 
-| # | Dimensión | Cantidad (verificada 06-22) | Medido | Gate |
-|---|---|---|---|---|
-| A | Huérfanos (construido, sin montar) | **39** (era 89; −50 cerrados — ratchet baseline leído de `scripts/connectivity-ratchet-baseline.json:3`) | ✅ ratchet leído | ✅ `connectivity-ratchet` (baseline 39) |
-| B | Datos fabricados en pantallas montadas | **0 confirmados** (el `WisdomCapsule` era falso positivo — ver detalle); pantallas montadas honestas | ✅ sweep completo + verificado en fuente | ❌ gate honestidad opcional (debe distinguir decorativo de dato-fabricado) |
-| C | Stubs / placeholders | 86 inventario → **~9 accionables** (3 REAL-NEEDED · 3 fail-soft legítimo · 1 bloqueado-externo · 3 entradas STALE) | ✅ triado | 🟡 `stub-guard` (forma, no conexión) |
-| D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Routers sin test conductual | **10 / 205** (195 verificados — ratchet baseline leído de `scripts/router-test-ratchet-baseline.json:3-5`) | ✅ ratchet leído | ✅ `router-test-ratchet` (baseline 10 uncovered) |
-| F | Decisiones del fundador | **6 RESUELTAS 2026-06-20** (RUT F1 confirmado 78.231.119-0) | ✅ resuelto | n/a (decisión) |
-| B0 | Índice de rutas (`api-routes.md`) | **viejo: 43 de 204 rutas** (del 2026-04-28). Generador+gate pendiente | ✅ medido (~1501 decl. de ruta) | ❌ falta generador |
+| # | Dimensión | Medido | Gate |
+|---|---|---|---|
+| A | Huérfanos (construido, sin montar) | ✅ ratchet | ✅ `connectivity-ratchet` |
+| B | Datos fabricados en pantallas montadas | ✅ sweep verificado en fuente (el `WisdomCapsule` era falso positivo — ver detalle) | ❌ gate honestidad pendiente (debe distinguir decorativo de dato-fabricado) |
+| C | Stubs / placeholders | ✅ triado (inventario en `docs/stubs-inventory.md`) | 🟡 `stub-guard` (forma, no conexión) |
+| D | Pipelines backend sin construir | ✅ explícito (lista en §D) | ❌ |
+| E | Routers sin test conductual | ✅ ratchet | ✅ `router-test-ratchet` |
+| F | Decisiones del fundador | **6 RESUELTAS 2026-06-20** (RUT F1 confirmado 78.231.119-0) | n/a (decisión) |
+| B0 | Índice de rutas | ✅ generado | ✅ `apiIndexFresh` → `docs/API-INDEX.md` |
 
 ### Hallazgos de la re-verificación 06-19 (detalle)
 - **B (honestidad) — RE-VERIFICADO EN FUENTE 2026-06-20: limpio (0 fabricaciones).** El supuesto `WisdomCapsule` era **falso positivo**: `MorningRoutine.tsx:160-184` YA hace fetch a `GET /api/wisdom-capsule/today` y muestra la cápsula **real** (agregada de findings/crews del proyecto) cuando hay proyecto. El quote Sun Tzu de `WisdomCapsule.tsx` solo aparece como fallback **sin proyecto** (`{!selectedProject?.id && ...}`) y en el splash `ConsciousnessLoader` — un quote genérico **atribuido** es decorativo, no dato fabricado presentado como métrica real. F6 (cablear capsules reales) ya satisfecho. Lección aplicada: revisar la FUENTE, no el render. Lo demás ya estaba real (cierres #966-#982).
@@ -90,9 +113,15 @@ Auditoría cruzada (5 sub-agentes ponytail/impacto + 2 PDFs línea-por-línea de
 
 ---
 
-## A. Huérfanos — construido pero sin montar  ·  GATE: connectivity-ratchet (baseline 39)
+## A. Huérfanos — construido pero sin montar  ·  GATE: `connectivity-ratchet`
 
-El gran bloque de "trabajo hecho que no es real porque no está conectado". El detalle por archivo en `docs/BASELINE-CONECTIVIDAD-2026-06-17.md`. Baseline actual: **39** (leído de `scripts/connectivity-ratchet-baseline.json:3`, 2026-06-22). Origen: era 126 → −37 (ola MiMo 06-19) → −50 acumulado → 39 actuales.
+El bloque de "trabajo hecho que no es real porque no está conectado". Detalle por archivo en
+`docs/BASELINE-CONECTIVIDAD-2026-06-17.md`; **cuántos quedan hoy: [`ESTADO-MEDIDO.md`](./ESTADO-MEDIDO.md)**
+(la cifra sale del baseline, no de este texto). Trayectoria histórica: 126 → 89 → 39 → la actual.
+
+> ⚠ **Las listas A1-A4 de abajo son de junio y no se han re-verificado.** Buena parte ya está
+> montada — el contador cayó fuerte desde entonces. Antes de tomar un ítem de aquí, comprobar
+> contra el código que siga huérfano: trabajar sobre esta lista sin verificar es rehacer lo hecho.
 
 ### A1. Montables YA — VIDA/LEGAL (24) — prioridad 1 (montar = hacerlo real)
 Cada uno: la feature existe, su backend/motor es real, falta montarla. Una por PR, con review, bajando el contador del ratchet.
@@ -162,7 +191,7 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ## E. Routers sin test conductual  ·  MEDIDO + GATE: router-test-ratchet
 
-Medido: **205 routers reales · 195 verificados · 10 sin cobertura** (leído de `scripts/router-test-ratchet-baseline.json:3-5`, 2026-06-22). Un test importa el router real — por path `../../server/routes/x` **o** relativo co-locado `./x` — + usa supertest `request()`. **Los 195 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 10 uncovered, solo baja; router nuevo sin test → FAIL).
+Cifras vigentes en [`ESTADO-MEDIDO.md`](./ESTADO-MEDIDO.md). Un router cuenta como verificado cuando un test importa el router **real** — por path `../../server/routes/x` **o** relativo co-locado `./x` — y usa supertest `request()`. **Los routers verificados son el inventario "qué funciona verificado (server)"**: el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (el conteo sin cobertura sólo puede bajar; router nuevo sin test → FAIL).
 
 > Corrección de exactitud (2026-06-18): el ratchet contaba 76/128 por un **falso negativo** — solo detectaba imports por path completo y no los co-locados `./x`. Tras resolver imports relativos contra el dir del test, 9 routers ya cubiertos dejaron de aparecer como "sin cobertura": `loto`, `medicalAptitude`, `health`, `cad`, `openapi`, `b2d/{climate,hazmat,normativa,suite}`. El inventario ahora es honesto.
 
