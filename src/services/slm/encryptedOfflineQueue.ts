@@ -130,6 +130,25 @@ export interface QueuedSession {
    * written before this field existed.
    */
   hmacKeyId?: string;
+  /**
+   * Where and by whom this answer was captured, sealed at enqueue.
+   *
+   * Without it the reconciler wrote every queued answer into whatever
+   * project happened to be selected when connectivity returned — so a
+   * worker who switched sites, or a second person logging into a shared
+   * device, silently moved one company's knowledge into another's project.
+   * Absent on entries captured before this existed.
+   */
+  projectId?: string;
+  tenantId?: string;
+  uid?: string;
+}
+
+/** Capture context sealed into a queued session. See `QueuedSession`. */
+export interface SessionContext {
+  projectId?: string;
+  tenantId?: string;
+  uid?: string;
 }
 
 /**
@@ -155,6 +174,10 @@ interface EncryptedRecord {
   hmac?: string;
   /** Fingerprint of the key behind `hmac` — see QueuedSession.hmacKeyId. */
   hmacKeyId?: string;
+  /** Capture context, sealed in the HMAC — see QueuedSession.projectId. */
+  projectId?: string;
+  tenantId?: string;
+  uid?: string;
   encryptionVersion: EncryptionVersion;
 }
 
@@ -212,6 +235,20 @@ export function canonicalForHmac(input: {
   query: SLMQuery;
   response: SLMResponse;
   createdAt: number;
+  /**
+   * Capture context (project / tenant / worker). Sealed INSIDE the signed
+   * canonical, not merely stored beside it: someone able to rewrite
+   * `projectId` on disk could otherwise redirect one company's captured
+   * knowledge into another's project. Signing it makes that edit detectable.
+   *
+   * Undefined fields vanish from `JSON.stringify`, so an entry written
+   * before this existed canonicalizes byte-for-byte as it did before and
+   * keeps verifying — deliberate, because changing the canonical for old
+   * records would have made every one of them fail verification.
+   */
+  projectId?: string;
+  tenantId?: string;
+  uid?: string;
 }): string {
   return JSON.stringify(sortKeysDeep(input));
 }
@@ -333,16 +370,19 @@ function isEncryptedRecord(r: StoredRecord): r is EncryptedRecord {
 export async function enqueueSession(
   query: SLMQuery,
   response: SLMResponse,
+  context: SessionContext = {},
 ): Promise<string> {
   const kek = await requireKek('enqueue');
   const db = await getDb();
   const id = newId();
   const createdAt = Date.now();
+  const { projectId, tenantId, uid } = context;
 
   // Sign the canonical plaintext first — tag stays decoupled from
-  // ciphertext (see module-level note on encrypt-then-sign).
+  // ciphertext (see module-level note on encrypt-then-sign). The capture
+  // context goes INSIDE the signature so it cannot be repointed on disk.
   const hmac = await signPayload(
-    canonicalForHmac({ id, query, response, createdAt }),
+    canonicalForHmac({ id, query, response, createdAt, projectId, tenantId, uid }),
   );
   // Which key signed it. Without this, a tag that fails to verify after the
   // app is reopened is indistinguishable from tampering — and the entry was
@@ -367,6 +407,9 @@ export async function enqueueSession(
     reconciled: false,
     hmac,
     hmacKeyId,
+    projectId,
+    tenantId,
+    uid,
     encryptionVersion: ENCRYPTION_VERSION,
   };
   await db.put(STORE_NAME, record);
@@ -442,6 +485,9 @@ async function decryptOne(
     reconciled: record.reconciled,
     hmac: record.hmac,
     hmacKeyId: record.hmacKeyId,
+    projectId: record.projectId,
+    tenantId: record.tenantId,
+    uid: record.uid,
   };
 }
 

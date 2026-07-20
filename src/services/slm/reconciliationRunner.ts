@@ -50,6 +50,12 @@ export interface RunReconciliationOptions {
    * inside `writeNodes`.
    */
   projectId: string;
+  /**
+   * Account draining the queue. Entries captured by a different worker on
+   * a shared device stay queued instead of being written under this one —
+   * see `ReconcileOptions.expectedContext`.
+   */
+  uid?: string;
 }
 
 /**
@@ -182,6 +188,7 @@ export async function runReconciliation(
       : Date.now();
   const result = await reconcileOfflineSessions({
     zettelkastenWriteFn: makeAdapter(opts.projectId),
+    expectedContext: { projectId: opts.projectId, uid: opts.uid },
   });
   void (async () => {
     try {

@@ -289,7 +289,14 @@ export function AsesorChat() {
       // event so the pending-count badge updates immediately.
       if (isOfflineBackend) {
         try {
-          await enqueueSession({ prompt }, response);
+          // Seal where and by whom this was captured. The drain runs later,
+          // possibly after the worker switched sites or handed the device to
+          // someone else — without this, the answer landed in whatever
+          // project happened to be selected at that moment.
+          await enqueueSession({ prompt }, response, {
+            projectId: selectedProject?.id,
+            uid: auth.currentUser?.uid,
+          });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent(SLM_ENQUEUED_EVENT));
           }

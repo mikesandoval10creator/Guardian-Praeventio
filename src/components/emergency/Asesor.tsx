@@ -8,8 +8,11 @@ import { logger } from '../../utils/logger';
 import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
 import { SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
 import { buildAsesorPrompt } from './asesorPrompt';
+import { useProject } from '../../contexts/ProjectContext';
+import { auth } from '../../services/firebase';
 
 export function Asesor() {
+  const { selectedProject } = useProject();
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,7 +45,13 @@ export function Asesor() {
       // LLM so the canonical record reflects the authoritative answer.
       if (slmResponse.backend === 'webgpu' || slmResponse.backend === 'wasm-simd') {
         try {
-          await enqueueSession({ prompt: contextualQuery }, slmResponse);
+          // Seal the capture context: this answer belongs to the site and
+          // the worker that produced it, not to whatever project happens
+          // to be selected when connectivity returns.
+          await enqueueSession({ prompt: contextualQuery }, slmResponse, {
+            projectId: selectedProject?.id,
+            uid: auth.currentUser?.uid,
+          });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent(SLM_ENQUEUED_EVENT));
           }

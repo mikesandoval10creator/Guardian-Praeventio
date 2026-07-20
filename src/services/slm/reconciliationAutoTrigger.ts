@@ -141,6 +141,7 @@ export interface ReconciliationAuditRecord {
 /** Caller-provided runner — matches `runReconciliation` from the runner module. */
 export type ReconciliationRunner = (opts: {
   projectId: string;
+  uid?: string;
 }) => Promise<ReconciliationResult>;
 
 /**
@@ -151,6 +152,11 @@ export type ReconciliationRunner = (opts: {
 export interface AutoTriggerConfig {
   /** Active project. Used by the runner + audit record. */
   projectId: string;
+  /**
+   * Account draining the queue. Threaded to the runner so entries captured
+   * by another worker on a shared device are not written under this one.
+   */
+  uid?: string;
   /** The reconciliation runner. Injected so tests can stub it. */
   runner: ReconciliationRunner;
   /** Persists the audit record. Async; failures are swallowed. */
@@ -332,7 +338,10 @@ export function installReconciliationAutoTrigger(
     inflight = (async () => {
       let result: ReconciliationResult;
       try {
-        result = await config.runner({ projectId: config.projectId });
+        result = await config.runner({
+          projectId: config.projectId,
+          uid: config.uid,
+        });
       } catch (err) {
         onError('runner', err);
         const finishedAt = now();
