@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { EmergencyAuthorityCallPanel } from './EmergencyAuthorityCallPanel';
 import { 
   AlertTriangle, 
   Users, 
@@ -37,8 +39,9 @@ export function EmergencyDashboard() {
   const { isSupported: isBluetoothSupported, isScanning, nearbyDevices, startScanning } = useBluetoothMesh();
 
   const isWorker = userRole === 'worker' && !isAdmin;
+  const navigate = useNavigate();
   const [showLotoConfirm, setShowLotoConfirm] = useState(false);
-  const [lotoActivated, setLotoActivated] = useState(false);
+  const [showAuthorityPanel, setShowAuthorityPanel] = useState(false);
 
   useEffect(() => {
     if (!selectedProject?.id) return undefined;
@@ -136,21 +139,27 @@ export function EmergencyDashboard() {
             {isAdmin && (
               <button
                 onClick={() => setShowLotoConfirm(true)}
-                className={`px-6 sm:px-8 py-3 sm:py-4 border-2 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ${lotoActivated ? 'bg-rose-900 border-rose-300 text-rose-300' : 'bg-black text-rose-500 border-rose-500 hover:bg-rose-950'}`}
+                data-testid="open-loto-registry"
+                className="px-6 sm:px-8 py-3 sm:py-4 border-2 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 bg-black text-rose-500 border-rose-500 hover:bg-rose-950"
               >
                 <Power className="w-4 h-4" />
-                {lotoActivated ? 'LOTO Activo' : 'Desconexión LOTO'}
+                Registrar bloqueo LOTO
               </button>
             )}
-            <button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95">
-              Solicitar Apoyo Externo
-            </button>
+            {/* [P0][VIDA] These were two buttons with NO onClick at all. They
+                animated on press and did nothing, and the icon one announced
+                itself to screen readers as "Llamar a contacto de emergencia".
+                Now one control opens the country-aware authority numbers; a
+                human on-scene taps the number. We never auto-dial — a false
+                alarm to real authorities has consequences. */}
             <button
               type="button"
-              aria-label="Llamar a contacto de emergencia"
-              className="p-3 sm:p-4 bg-rose-700/50 border border-white/20 rounded-xl sm:rounded-2xl hover:bg-rose-700 transition-all flex items-center justify-center"
+              onClick={() => setShowAuthorityPanel(true)}
+              data-testid="request-external-support"
+              className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
-              <Phone className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
+              <Phone className="w-4 h-4" aria-hidden="true" />
+              Solicitar Apoyo Externo
             </button>
           </div>
         </div>
@@ -270,13 +279,64 @@ export function EmergencyDashboard() {
           {activeTab === 'map' && <DynamicEvacuationMap />}
         </motion.div>
       </AnimatePresence>
+      {/* [P0][VIDA] This dialog used to promise "esto desconectará remotamente
+          toda la maquinaria crítica" and its onConfirm only flipped a local
+          boolean — no write, no endpoint, no audit — after which the button
+          read "LOTO Activo". A supervisor could believe the machinery was
+          locked out and send someone in.
+
+          Praeventio does not de-energise equipment; it records the lockout and
+          tracks it (lotoDigitalLight.ts: "NO sustituye al procedimiento físico
+          — lo complementa con trazabilidad digital"). So the copy now says what
+          actually happens, and the action hands off to the REAL LOTO flow
+          (/loto → POST /api/sprint-k/:projectId/loto), which registers lock
+          points, zero-energy verification and release with signature. */}
+      {/* Authority numbers for "Solicitar Apoyo Externo". The panel renders
+          tel: links only — a human decides and dials. */}
+      {showAuthorityPanel && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowAuthorityPanel(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="external-support-title"
+            className="bg-surface rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="external-support-title" className="text-lg font-black uppercase tracking-tight mb-1">
+              Apoyo externo
+            </h3>
+            <p className="text-xs text-secondary-token mb-4">
+              Llama tú al servicio que corresponda. La aplicación no avisa a las
+              autoridades por su cuenta.
+            </p>
+            <EmergencyAuthorityCallPanel
+              regionCode={selectedProject?.country}
+              coords={
+                selectedProject?.coordinates
+                  ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
+                  : undefined
+              }
+            />
+            <button
+              type="button"
+              onClick={() => setShowAuthorityPanel(false)}
+              className="mt-5 w-full bg-elevated hover:bg-zinc-200 dark:hover:bg-zinc-700 text-primary-token px-4 py-2 rounded-xl font-bold text-sm"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={showLotoConfirm}
-        title="Activar Protocolo LOTO"
-        message="Esto desconectará remotamente toda la maquinaria crítica en la zona de emergencia. ¿Está seguro?"
-        confirmLabel="Activar LOTO"
-        danger
-        onConfirm={() => { setLotoActivated(true); setShowLotoConfirm(false); }}
+        title="Registrar bloqueo LOTO"
+        message="El bloqueo y etiquetado lo aplica el personal en terreno. Aquí queda el registro: puntos de bloqueo, verificación de cero energía y liberación firmada, con seguimiento de las tareas. ¿Abrir el registro LOTO?"
+        confirmLabel="Abrir registro LOTO"
+        onConfirm={() => { setShowLotoConfirm(false); navigate('/loto'); }}
         onCancel={() => setShowLotoConfirm(false)}
       />
     </div>
