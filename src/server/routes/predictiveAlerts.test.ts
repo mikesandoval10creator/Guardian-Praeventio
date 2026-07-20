@@ -239,3 +239,77 @@ describe('predictiveAlertsRouter — evaluate-probes', () => {
     expect(res.body.alerts).toEqual([]);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// 3. issue-recommendation
+//
+// [P0][VIDA] Backs the PredictiveGuard buttons that had no handler at all.
+// Unlike the two endpoints above, this one CHANGES STATE: it has to reach the
+// crew and leave an audit row naming who issued it.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('predictiveAlertsRouter — issue-recommendation', () => {
+  const path = `/api/${PROJECT_ID}/predictive-alerts/issue-recommendation`;
+
+  const windRecommendation = {
+    source: 'weather.wind',
+    title: 'Suspender trabajos en altura',
+    body: 'Se detectan vientos de 45 km/h en la zona.',
+    recommendedAction: 'Suspender trabajos en altura y asegurar materiales sueltos.',
+    metric: { kind: 'wind', value: 45, unit: 'km/h' },
+  };
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).post(path).send(windRecommendation);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 for a non-member of the project', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', NON_MEMBER_UID)
+      .send(windRecommendation);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('400 when the recommended action is missing', async () => {
+    const { recommendedAction: _omitted, ...withoutAction } = windRecommendation;
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .send(withoutAction);
+    expect(res.status).toBe(400);
+  });
+
+  it('201 reaches the crew with the reading that motivated it', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .send(windRecommendation);
+    expect(res.status).toBe(201);
+    expect(res.body.notificationId).toBeTruthy();
+
+    const stored = H.db!._dump()[
+      `projects/${PROJECT_ID}/notifications/${res.body.notificationId}`
+    ];
+    expect(stored.kind).toBe('safety.recommendation_issued');
+    expect(stored.recommendedAction).toMatch(/suspender trabajos en altura/i);
+    expect(stored.metric).toEqual({ kind: 'wind', value: 45, unit: 'km/h' });
+    expect(stored.read).toBe(false);
+  });
+
+  it('stamps the issuer from the verified token, not from the body', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      // A client trying to attribute the decision to somebody else.
+      .send({ ...windRecommendation, issuedByUid: 'uid-someone-else' });
+    expect(res.status).toBe(201);
+
+    const stored = H.db!._dump()[
+      `projects/${PROJECT_ID}/notifications/${res.body.notificationId}`
+    ];
+    expect(stored.issuedByUid).toBe(MEMBER_UID);
+  });
+});

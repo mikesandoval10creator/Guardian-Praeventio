@@ -34,6 +34,8 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { apiAuthHeaders } from '../lib/apiAuth';
+import { humanErrorFromResponse, humanErrorMessage } from '../lib/humanError';
 import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
@@ -47,6 +49,51 @@ export function PredictiveGuard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const isOnline = useOnlineStatus();
   const [alerts, setAlerts] = useState<ScheduledAlert[]>([]);
+
+  // [P0][VIDA] The adverse-weather card offered "Sí, Enviar Alerta" / "Ignorar"
+  // over buttons with no handler: the supervisor pressed and nothing left the
+  // screen. Praeventio recommends; the human decides; the decision is recorded
+  // and reaches the crew through an audited endpoint.
+  const [windAlert, setWindAlert] =
+    useState<'idle' | 'sending' | 'sent' | 'dismissed' | 'error'>('idle');
+  const [windAlertError, setWindAlertError] = useState<string>('');
+
+  const issueWindRecommendation = useCallback(async () => {
+    const pid = selectedProject?.id;
+    const windSpeed = environment?.weather?.windSpeed;
+    if (!pid || typeof windSpeed !== 'number') return;
+    setWindAlert('sending');
+    try {
+      const res = await fetch(
+        `/api/sprint-k/${encodeURIComponent(pid)}/predictive-alerts/issue-recommendation`,
+        {
+          method: 'POST',
+          headers: await apiAuthHeaders(),
+          body: JSON.stringify({
+            source: 'weather.wind',
+            title: 'Suspender trabajos en altura',
+            body: `Se detectan vientos de ${windSpeed} km/h en la zona.`,
+            recommendedAction:
+              'Suspender trabajos en altura y asegurar materiales sueltos hasta que baje el viento.',
+            metric: { kind: 'wind', value: windSpeed, unit: 'km/h' },
+          }),
+        },
+      );
+      if (!res.ok) {
+        // Never surface a bare status code to the user (see lib/humanError).
+        setWindAlertError(await humanErrorFromResponse(res));
+        setWindAlert('error');
+        return;
+      }
+      setWindAlert('sent');
+    } catch (err) {
+      logger.error('predictive_guard.wind_recommendation_failed', err);
+      setWindAlertError(
+        'No pudimos enviar la recomendación a la cuadrilla. Revisa tu conexión e inténtalo de nuevo.',
+      );
+      setWindAlert('error');
+    }
+  }, [selectedProject?.id, environment?.weather?.windSpeed]);
 
   useEffect(() => {
     const pid = selectedProject?.id;
@@ -457,7 +504,7 @@ export function PredictiveGuard() {
 
             {/* Haki de Observación Consultivo (System 4) */}
             <AnimatePresence>
-              {environment?.weather && !environment.weather.unavailable && (environment.weather.windSpeed ?? 0) > 50 && (
+              {environment?.weather && !environment.weather.unavailable && (environment.weather.windSpeed ?? 0) > 50 && windAlert !== 'dismissed' && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -488,14 +535,43 @@ export function PredictiveGuard() {
                             <p className="text-sm text-secondary-token leading-relaxed mb-4">
                               El Guardián detecta vientos de {environment.weather.windSpeed} km/h en la zona. ¿Deseas enviar una alerta para suspender trabajos en altura?
                             </p>
-                            <div className="flex gap-3">
-                              <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors">
-                                Sí, Enviar Alerta
-                              </button>
-                              <button className="px-4 py-2 bg-elevated hover:bg-elevated/80 text-secondary-token text-xs font-bold uppercase tracking-widest rounded-xl transition-colors border border-default-token">
-                                Ignorar
-                              </button>
-                            </div>
+                            {windAlert === 'sent' ? (
+                              <p
+                                data-testid="wind-alert-sent"
+                                className="text-xs font-bold text-emerald-600"
+                              >
+                                Recomendación enviada a la cuadrilla. Queda registrada
+                                con tu nombre y la hora.
+                              </p>
+                            ) : (
+                              <div className="flex gap-3">
+                                <button
+                                  type="button"
+                                  data-testid="wind-alert-send"
+                                  disabled={windAlert === 'sending'}
+                                  onClick={issueWindRecommendation}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors"
+                                >
+                                  {windAlert === 'sending' ? 'Enviando…' : 'Sí, Enviar Alerta'}
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid="wind-alert-dismiss"
+                                  onClick={() => setWindAlert('dismissed')}
+                                  className="px-4 py-2 bg-elevated hover:bg-elevated/80 text-secondary-token text-xs font-bold uppercase tracking-widest rounded-xl transition-colors border border-default-token"
+                                >
+                                  Ignorar
+                                </button>
+                              </div>
+                            )}
+                            {windAlert === 'error' && (
+                              <p
+                                data-testid="wind-alert-error"
+                                className="text-xs font-bold text-rose-600 mt-2"
+                              >
+                                {humanErrorMessage(windAlertError)}
+                              </p>
+                            )}
                             <p className="text-[9px] text-muted-token mt-3 italic">
                               * La IA nunca ejecuta acciones por sí sola. La responsabilidad permanece en la tripulación.
                             </p>
