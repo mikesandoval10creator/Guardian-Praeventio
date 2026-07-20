@@ -42,6 +42,9 @@ export function ReconciliationDrainSlot() {
     if (!projectId || !uid) return undefined;
     const handle = installReconciliationAutoTrigger({
       projectId,
+      // Threaded so the drain only writes entries captured by THIS account
+      // in THIS project. Shared devices are the norm on a worksite.
+      uid,
       runner: runReconciliation,
     });
     return () => handle.dispose();

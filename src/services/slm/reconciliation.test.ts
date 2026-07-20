@@ -244,6 +244,62 @@ describe('SLM reconciliation (reconciliation.ts)', () => {
     expect(tamperAlerts).toHaveLength(0);
   });
 
+  // Isolation between companies. The queue is per-device, and a worksite
+  // device gets handed around and moved between sites — so the drain must
+  // write only what THIS account captured in THIS project.
+  it('never writes an answer captured in another project', async () => {
+    await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE, {
+      projectId: 'p-uno',
+      uid: 'uid-a',
+    });
+
+    const writeFn: ZettelkastenWriteFn = vi.fn(async () => ({ nodeId: 'n1' }));
+    const result = await reconcileOfflineSessions({
+      zettelkastenWriteFn: writeFn,
+      expectedContext: { projectId: 'p-dos', uid: 'uid-a' },
+    });
+
+    expect(writeFn).not.toHaveBeenCalled();
+    expect(result.foreignContext).toBe(1);
+    expect(result.succeeded).toBe(0);
+    // Kept, not destroyed: it still belongs to the other site.
+    expect(await listPending()).toHaveLength(1);
+  });
+
+  it('never writes an answer captured by another worker on the same device', async () => {
+    await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE, {
+      projectId: 'p-uno',
+      uid: 'uid-a',
+    });
+
+    const writeFn: ZettelkastenWriteFn = vi.fn(async () => ({ nodeId: 'n1' }));
+    const result = await reconcileOfflineSessions({
+      zettelkastenWriteFn: writeFn,
+      expectedContext: { projectId: 'p-uno', uid: 'uid-b' },
+    });
+
+    expect(writeFn).not.toHaveBeenCalled();
+    expect(result.foreignContext).toBe(1);
+    expect(await listPending()).toHaveLength(1);
+  });
+
+  it('writes it once the owning project and account are the ones draining', async () => {
+    await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE, {
+      projectId: 'p-uno',
+      uid: 'uid-a',
+    });
+
+    const writeFn: ZettelkastenWriteFn = vi.fn(async () => ({ nodeId: 'n1' }));
+    const result = await reconcileOfflineSessions({
+      zettelkastenWriteFn: writeFn,
+      expectedContext: { projectId: 'p-uno', uid: 'uid-a' },
+    });
+
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(result.succeeded).toBe(1);
+    expect(result.foreignContext).toBe(0);
+  });
+
   it('handles a non-Error throw value gracefully (string thrown)', async () => {
     await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE);
     const writeFn: ZettelkastenWriteFn = vi.fn(async () => {

@@ -72,6 +72,13 @@ export interface ReconciliationResult {
    * destroyed, which is what used to happen to a worker's offline work.
    */
   unverifiable: number;
+  /**
+   * Entries left in place because they were captured under a different
+   * project or account than the one draining. Not failures, not tampering
+   * — just not ours to write. They stay queued for the session that owns
+   * them.
+   */
+  foreignContext: number;
 }
 
 /**
@@ -96,6 +103,18 @@ export type ZettelkastenWriteFn = (input: {
  */
 export interface ReconcileOptions {
   zettelkastenWriteFn: ZettelkastenWriteFn;
+  /**
+   * Who is draining, and into which project. An entry captured under a
+   * DIFFERENT project or account is left untouched rather than written
+   * here. That is the isolation guarantee: knowledge captured at one
+   * company's site must never land in another's — which is exactly what
+   * happened while the drain used whatever project was selected at the
+   * moment connectivity returned.
+   *
+   * Omitted only by tests that enqueue and drain in one breath, where
+   * there is no context to confuse.
+   */
+  expectedContext?: { projectId?: string; uid?: string };
 }
 
 /**
@@ -138,6 +157,13 @@ async function checkIntegrity(
     query: session.query,
     response: session.response,
     createdAt: session.createdAt,
+    // The capture context is INSIDE the signature (that is what makes it
+    // unforgeable on disk), so it has to be part of the canonical here too.
+    // Entries captured before it existed carry undefined, which drops out of
+    // JSON.stringify and reproduces the old canonical byte-for-byte.
+    projectId: session.projectId,
+    tenantId: session.tenantId,
+    uid: session.uid,
   });
   const ok = await verifyPayload(canonical, session.hmac);
   if (ok) return 'ok';
@@ -190,6 +216,7 @@ async function reconcileOfflineSessionsImpl(
     failed: 0,
     failures: [],
     unverifiable: 0,
+    foreignContext: 0,
   };
 
   for (const session of pending) {
@@ -218,6 +245,28 @@ async function reconcileOfflineSessionsImpl(
         error: 'hmac_mismatch: queue entry dropped',
       });
       continue;
+    }
+
+    // Isolation gate. The entry carries the project and account it was
+    // captured under, sealed inside the HMAC. If either differs from the
+    // session doing the drain, this answer is not ours to write: it belongs
+    // to another company's site, or to another worker on a shared device.
+    // Keep it — the right context will come back — but never write it here.
+    const captured = { projectId: session.projectId, uid: session.uid };
+    const expected = opts.expectedContext;
+    if (expected) {
+      const wrongProject =
+        typeof captured.projectId === 'string' &&
+        typeof expected.projectId === 'string' &&
+        captured.projectId !== expected.projectId;
+      const wrongAccount =
+        typeof captured.uid === 'string' &&
+        typeof expected.uid === 'string' &&
+        captured.uid !== expected.uid;
+      if (wrongProject || wrongAccount) {
+        result.foreignContext += 1;
+        continue;
+      }
     }
 
     if (integrity === 'unverifiable') {
