@@ -220,6 +220,34 @@ async function getOrCreateSessionKey(): Promise<CryptoKey> {
 }
 
 /**
+ * Non-secret fingerprint of the CURRENT session key.
+ *
+ * Why this exists: a verification failure has two very different causes
+ * that were previously indistinguishable — the record was tampered with,
+ * or it was signed by a key this session no longer has (the worker closed
+ * the app, and `sessionStorage` died with the tab). Treating the second as
+ * the first destroyed legitimate offline work captured with no signal, and
+ * filled Sentry with "tampering" alerts that were really just tab closes.
+ *
+ * Stamping this id beside each tag lets the reconciler tell them apart. It
+ * is a one-way SHA-256 digest of the raw key bytes, truncated to 8 bytes
+ * and base64url-encoded: enough to distinguish keys, useless for
+ * reconstructing one. Safe to persist next to the record in IndexedDB —
+ * which is the point, since the key itself deliberately is not.
+ */
+export async function currentKeyId(): Promise<string> {
+  const subtle = getSubtle();
+  // Ensure a key exists before fingerprinting it.
+  await getOrCreateSessionKey();
+  const ss = getSessionStorage();
+  const stored = ss?.getItem(SESSION_KEY_NAME) ?? null;
+  const raw = stored ? base64ToBytes(stored) : inMemoryKeyBytes;
+  if (!raw) throw new Error('slm_hmac_key_unavailable');
+  const digest = await subtle.digest('SHA-256', raw as unknown as BufferSource);
+  return bytesToBase64Url(new Uint8Array(digest).slice(0, 8));
+}
+
+/**
  * Sign `payload` with the per-session HMAC key. Returns the tag as
  * base64url. Failures (missing crypto.subtle, etc.) re-throw so the
  * caller can surface them.
