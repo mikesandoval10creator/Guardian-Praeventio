@@ -48,6 +48,7 @@ function makeResult(overrides: Partial<ReconciliationResult> = {}): Reconciliati
     succeeded: 0,
     failed: 0,
     failures: [],
+    unverifiable: 0,
     ...overrides,
   };
 }

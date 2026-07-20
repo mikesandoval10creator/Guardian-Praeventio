@@ -212,6 +212,38 @@ describe('SLM reconciliation (reconciliation.ts)', () => {
     expect(stillPending.find((s) => s.id === idA)).toBeUndefined();
   });
 
+  // The worker captured answers offline (no signal in the pit), closed the
+  // app, and reopened it. The HMAC key lives in sessionStorage by design and
+  // died with the tab, so the tag no longer verifies — but that is not
+  // tampering, and the entries used to be DELETED for it.
+  it('keeps entries signed in a previous session instead of destroying them', async () => {
+    const id = await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE);
+    sentryMockHandle.__captureMessageMock.mockClear();
+
+    // Closing the app: the session key is gone, the queue is not.
+    __resetSessionKeyForTesting();
+
+    // Returns a node id to satisfy the contract, but the point of the test is
+    // that it is never called.
+    const writeFn: ZettelkastenWriteFn = vi.fn(async () => ({ nodeId: 'n-unused' }));
+    const result = await reconcileOfflineSessions({ zettelkastenWriteFn: writeFn });
+
+    // Not written — integrity cannot be proven, so it must not enter the
+    // safety corpus.
+    expect(writeFn).not.toHaveBeenCalled();
+    // Not a failure, and above all NOT deleted.
+    expect(result.unverifiable).toBe(1);
+    expect(result.failed).toBe(0);
+    const stillPending = await listPending();
+    expect(stillPending.map((s) => s.id)).toContain(id);
+
+    // And no tampering alert: those must stay meaningful for real attacks.
+    const tamperAlerts = sentryMockHandle.__captureMessageMock.mock.calls.filter(
+      (call) => call[0] === 'slm.queue.hmac_mismatch',
+    );
+    expect(tamperAlerts).toHaveLength(0);
+  });
+
   it('handles a non-Error throw value gracefully (string thrown)', async () => {
     await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE);
     const writeFn: ZettelkastenWriteFn = vi.fn(async () => {

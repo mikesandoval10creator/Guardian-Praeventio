@@ -84,7 +84,7 @@ import {
   type BrowserEnvelope,
 } from '../security/browserEnvelope';
 import { getOrCreateDeviceKek, tryGetDeviceKek } from '../security/deviceKek';
-import { signPayload } from './hmac';
+import { signPayload, currentKeyId } from './hmac';
 import type { SLMQuery, SLMResponse } from './types';
 import { randomId } from '../../utils/randomId';
 
@@ -122,6 +122,14 @@ export interface QueuedSession {
   createdAt: number;
   reconciled: boolean;
   hmac?: string;
+  /**
+   * Fingerprint of the key that produced `hmac` (hmac.ts `currentKeyId`).
+   * Lets the reconciler tell "tampered" apart from "signed in a session
+   * whose key is gone" — the same symptom, opposite conclusions: one is an
+   * attack, the other is a worker closing the app. Absent on records
+   * written before this field existed.
+   */
+  hmacKeyId?: string;
 }
 
 /**
@@ -145,6 +153,8 @@ interface EncryptedRecord {
   createdAt: number;
   reconciled: boolean;
   hmac?: string;
+  /** Fingerprint of the key behind `hmac` — see QueuedSession.hmacKeyId. */
+  hmacKeyId?: string;
   encryptionVersion: EncryptionVersion;
 }
 
@@ -334,6 +344,10 @@ export async function enqueueSession(
   const hmac = await signPayload(
     canonicalForHmac({ id, query, response, createdAt }),
   );
+  // Which key signed it. Without this, a tag that fails to verify after the
+  // app is reopened is indistinguishable from tampering — and the entry was
+  // being deleted as if it were an attack.
+  const hmacKeyId = await currentKeyId();
 
   // Encrypt query + response → envelopes.
   let queryEnvelope: BrowserEnvelope;
@@ -352,6 +366,7 @@ export async function enqueueSession(
     createdAt,
     reconciled: false,
     hmac,
+    hmacKeyId,
     encryptionVersion: ENCRYPTION_VERSION,
   };
   await db.put(STORE_NAME, record);
@@ -426,6 +441,7 @@ async function decryptOne(
     createdAt: record.createdAt,
     reconciled: record.reconciled,
     hmac: record.hmac,
+    hmacKeyId: record.hmacKeyId,
   };
 }
 

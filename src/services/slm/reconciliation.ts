@@ -47,7 +47,7 @@ import {
   migrateLegacyQueueEntries,
   type QueuedSession,
 } from './encryptedOfflineQueue';
-import { verifyPayload } from './hmac';
+import { verifyPayload, currentKeyId } from './hmac';
 import { withSentryScope } from '../observability/sentryInstrumentation';
 
 /**
@@ -65,6 +65,13 @@ export interface ReconciliationResult {
   failed: number;
   /** Per-failure detail (for logs / Sentry breadcrumbs). */
   failures: Array<{ sessionId: string; error: string }>;
+  /**
+   * Entries kept but not written: signed by a session key that no longer
+   * exists (the app was closed), so integrity cannot be proven. NOT
+   * failures and NOT tampering — they stay in the queue instead of being
+   * destroyed, which is what used to happen to a worker's offline work.
+   */
+  unverifiable: number;
 }
 
 /**
@@ -103,10 +110,29 @@ export interface ReconcileOptions {
  */
 async function checkIntegrity(
   session: QueuedSession,
-): Promise<'ok' | 'legacy' | 'mismatch'> {
+): Promise<'ok' | 'legacy' | 'mismatch' | 'unverifiable'> {
   if (typeof session.hmac !== 'string' || session.hmac.length === 0) {
     return 'legacy';
   }
+
+  // A failed verification has two causes with opposite meanings:
+  //   - signed by THIS session's key, tag does not match → tampering.
+  //   - signed by a key we no longer hold → we simply cannot check it.
+  // The second is the normal consequence of closing the app: the HMAC key
+  // lives in sessionStorage by design (see hmac.ts) and dies with the tab.
+  // Conflating them destroyed legitimate work a worker captured offline,
+  // and reported it to Sentry as an attack.
+  if (typeof session.hmacKeyId === 'string' && session.hmacKeyId.length > 0) {
+    let activeKeyId: string | null = null;
+    try {
+      activeKeyId = await currentKeyId();
+    } catch {
+      // No usable key in this environment — nothing can be verified.
+      return 'unverifiable';
+    }
+    if (session.hmacKeyId !== activeKeyId) return 'unverifiable';
+  }
+
   const canonical = canonicalForHmac({
     id: session.id,
     query: session.query,
@@ -114,7 +140,13 @@ async function checkIntegrity(
     createdAt: session.createdAt,
   });
   const ok = await verifyPayload(canonical, session.hmac);
-  return ok ? 'ok' : 'mismatch';
+  if (ok) return 'ok';
+
+  // Records written before `hmacKeyId` existed cannot be attributed to a
+  // key, so a failure here is ambiguous. Erring toward "unverifiable" keeps
+  // the worker's data; it never enters the corpus unverified either way, so
+  // the tamper-resistance property (TM-T03) is preserved.
+  return session.hmacKeyId ? 'mismatch' : 'unverifiable';
 }
 
 /**
@@ -157,6 +189,7 @@ async function reconcileOfflineSessionsImpl(
     succeeded: 0,
     failed: 0,
     failures: [],
+    unverifiable: 0,
   };
 
   for (const session of pending) {
@@ -184,6 +217,17 @@ async function reconcileOfflineSessionsImpl(
         sessionId: session.id,
         error: 'hmac_mismatch: queue entry dropped',
       });
+      continue;
+    }
+
+    if (integrity === 'unverifiable') {
+      // The worker closed the app: the session key that signed this entry is
+      // gone. We cannot prove the record is intact, so it must NOT enter the
+      // safety corpus — but it is almost certainly their genuine offline
+      // work, so deleting it (what used to happen) is the worse error of the
+      // two. Keep it, count it, and do not raise a tampering alert: those
+      // alerts have to stay meaningful for the real thing.
+      result.unverifiable += 1;
       continue;
     }
 
