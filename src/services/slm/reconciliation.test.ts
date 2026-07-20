@@ -223,7 +223,9 @@ describe('SLM reconciliation (reconciliation.ts)', () => {
     // Closing the app: the session key is gone, the queue is not.
     __resetSessionKeyForTesting();
 
-    const writeFn: ZettelkastenWriteFn = vi.fn(async () => undefined);
+    // Returns a node id to satisfy the contract, but the point of the test is
+    // that it is never called.
+    const writeFn: ZettelkastenWriteFn = vi.fn(async () => ({ nodeId: 'n-unused' }));
     const result = await reconcileOfflineSessions({ zettelkastenWriteFn: writeFn });
 
     // Not written — integrity cannot be proven, so it must not enter the
