@@ -346,41 +346,44 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
 - For unfamiliar files/branches/lockfile state, **investigate before
   deleting or overwriting** — assume it's the user's in-flight work.
 
-## Active work — Phase 5 remediation (2026-06)
+## Active work — fuentes de verdad (2026-07-20)
 
-El repo fue auditado por completo (cada archivo leído línea por línea). Estado y hoja de ruta:
-- `TODO.md` §2.32 (deuda FEAT) · §2.33 (17 patrones sistémicos) · §2.34 (tests/infra/docs).
-- Índices: `docs/audits/file-ledger/DEEP-EX-INDEX.md`, `DEEP-EXT-INDEX.md`, `INDEX-CONSOLIDADO.md`.
-- Roadmap de ejecución (checklist por bloque): `docs/audits/file-ledger/PHASE5-REMEDIATION.md`.
+El repo fue auditado por completo en junio (cada archivo leído línea por línea). Desde entonces el
+código avanzó mucho más rápido que sus documentos, así que el 2026-07-20 se reorganizó dónde vive
+cada verdad — no confiar en un solo `.md` que se declare "la única fuente":
 
-PRINCIPIO RECTOR: hacer REAL la app, NO eliminar. Cada función se cablea donde corresponde —
+| Fuente | De qué es dueña |
+|---|---|
+| **Notion — _Alpha 41 — Tasks_** | La **deuda pendiente** (auditada y vigente) y el inventario positivo (estado `Ya-real (auditoría)`: lo verificado funcionando, con `Verify cmd`). Es la fuente de trabajo. |
+| **`docs/ESTADO-MEDIDO.md`** | Los **contadores** (huérfanos, routers, fantasmas, `as any`). Generado desde los ratchets por `scripts/gen-measured-state.cjs`; el gate falla el commit si un `.md` afirma un número que el código desmiente. |
+| **graphify (`graphify-out/`)** | La estructura y relaciones del código. Consultar con `graphify explain/query/path`. |
+| **Los `.md` rectores** | Decisiones, arquitectura y principios. **Nunca contadores ni listas de pendientes.** |
+
+Barrido en curso (2026-07-20): los ~500 `.md` se están verificando **contra el código actual** —
+hallazgo por hallazgo, no confiando en el documento— y volcando a Notion (`Ya-real` si ya está
+resuelto, tarea si sigue vivo). Medición del primer lote: **~4 de cada 5 hallazgos críticos de junio
+YA estaban resueltos**. Una vez volcado y verificado, el `.md` se borra (git conserva el histórico).
+La auditoría línea-por-línea vivía en `docs/audits/file-ledger/` (índices `DEEP-EX-INDEX`,
+`DEEP-EXT-INDEX`, `INDEX-CONSOLIDADO`); a medida que se triaja, se retira.
+
+**PRINCIPIO RECTOR (durable, no caduca): hacer REAL la app, NO eliminar.** Honesto = la función hace
+lo que promete, nunca un cartel "no disponible" ni un stub. Cada función se cablea donde corresponde —
 huérfanos→montar, mocks→datos reales, stubs→implementar, duplicados→consolidar (preservar
 capacidades). ADR 0012 (no diagnóstico): reconvertir a función conforme, nunca borrar ni habilitar
 diagnóstico. Datos legales fabricados (RUT falso, métricas inventadas): exigir el dato real.
-Decisiones de arquitectura ya tomadas (COLMAP→on-device §2.28): documentar supersesión, no re-cablear.
+Decisiones de arquitectura ya tomadas (p. ej. COLMAP→on-device): documentar supersesión, no re-cablear.
 
-La remediación va **un PR por bloque**, vida/privacidad primero
-(B1→B7→B3→B16→B2→B17→B5→B12→B4→B8→B9→B6→B10→B11→B13→B14→B15→B18→B-DigitalTwin),
-tras **cimientos compartidos** (F1 harness rules-tests real, F2 parseGeminiJson, F3
-identidad-desde-token, F4 verify WebAuthn, F5 gobernanza CI). Cross-cutting (dominio/WebAuthn,
-iOS mesh UUID, DR replication, voseo es-CL) y doc-drift se intercalan.
+Prioridad de producto (decisión del fundador 2026-07-20): **las 133 tareas completas antes de
+publicar en Play Store, lo más difícil primero.** Android se construye **contra la vara de iOS** (sin
+Mac todavía): lógica de la guardia en TypeScript compartido y testeado, capa nativa delgada basada en
+eventos del SO — para que iOS sea después homologación, no rediseño, y para sobrevivir a los
+fabricantes agresivos (Xiaomi/Huawei) en Android.
 
-Reglas: TDD estricto con tests que ejercitan CÓDIGO REAL (prohibido Admin-SDK en rules-tests,
-sembrar el campo del gate, reimplementar el handler, o tests "wire-up" solo router.stack —
-catálogo en DEEP-EXT-INDEX.md). Cada cambio de estado escribe audit_logs (server estampa uid/tenant).
-Nueva colección = reglas + ≥5 rules-tests (authenticatedContext) + Dirty Dozen en security_spec.md.
-Actualizar TODO.md (resuelto con file:line) al avanzar.
-
-Hecho (B1): sosOutbox dead-letter + routingBackend hazard-clearing.
-
-Estado 2026-06-13: el roadmap activo es el plan híbrido controlado `revisa-si-el-workflow-mighty-goose.md` (olas 0-7). **OLA 0 (15 fixes quirúrgicos #866-#880) está CERRADA 2026-06-13** (ver `docs/audits/file-ledger/PHASE5-REMEDIATION.md` §"OLA 0 … CERRADA"); sigue OLA 1 (VIDA visible).
-
-**Estado 2026-06-19 — Plan maestro end-to-end (post-auditoría ola MiMo).** Roadmap
-vivo en `docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md` (Fase 0 consolidación → 1 cerrar
-ola MiMo → 2 fortalecer CI [reglas #23/#24] → 3 tests E2E a estándar → 4 vida-safety
-nativo → 5 limpieza ponytail). Pendiente único en `docs/PENDIENTE.md` §"Actualización
-2026-06-19". Las 2 auditorías externas (E2E + Adendum profundo, 40k LOC) en
-`docs/audits/archive/`.
+Reglas de trabajo: TDD estricto con tests que ejercitan CÓDIGO REAL (prohibido Admin-SDK en
+rules-tests, sembrar el campo del gate, reimplementar el handler, o tests "wire-up" solo
+router.stack). Cada cambio de estado escribe audit_logs (server estampa uid/tenant). Nueva colección =
+reglas + ≥5 rules-tests (authenticatedContext) + Dirty Dozen en `security_spec.md`. Al avanzar,
+actualizar Notion (no abrir listas paralelas en `.md`).
 
 **Flujo MiMo (IA Xiaomi, acelerador auditado).** MiMo 2.5 Pro genera código vía MiMo
 Code CLI (o un agente apuntado a su endpoint Anthropic-compatible) ejecutando **specs
