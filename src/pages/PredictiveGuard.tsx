@@ -35,7 +35,7 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { apiAuthHeaders } from '../lib/apiAuth';
-import { humanErrorFromResponse } from '../lib/humanError';
+import { humanErrorFromResponse, humanErrorMessage } from '../lib/humanError';
 import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
@@ -569,7 +569,7 @@ export function PredictiveGuard() {
                                 data-testid="wind-alert-error"
                                 className="text-xs font-bold text-rose-600 mt-2"
                               >
-                                {windAlertError}
+                                {humanErrorMessage(windAlertError)}
                               </p>
                             )}
                             <p className="text-[9px] text-muted-token mt-3 italic">
