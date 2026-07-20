@@ -42,6 +42,8 @@
     "lint:router-tests": "node scripts/check-router-test-ratchet.cjs",
     "gen:api-index": "node scripts/gen-api-index.cjs",
     "lint:api-index": "node scripts/gen-api-index.cjs --check",
+    "gen:measured-state": "node scripts/gen-measured-state.cjs --write",
+    "lint:measured-state": "node scripts/gen-measured-state.cjs",
     "test:medical-guard": "node --test src/__tests__/scripts/medicalGuard.test.cjs",
     "prepare": "husky install || true",
     "validate:env": "node scripts/validate-env.cjs",

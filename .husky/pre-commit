@@ -9,3 +9,4 @@ node scripts/check-router-test-ratchet.cjs
 node scripts/precommit-stub-guard.cjs
 node scripts/precommit-allowbackup-guard.cjs
 node scripts/check-open-reads-ratchet.cjs
+node scripts/gen-measured-state.cjs
