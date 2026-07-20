@@ -160,7 +160,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "katex": "^0.17.0",
-    "lucide-react": "^0.546.0",
+    "lucide-react": "^1.25.0",
     "mercadopago": "^3.2.0",
     "mqtt": "^5.15.2",
     "onnxruntime-web": "^1.27.0",
