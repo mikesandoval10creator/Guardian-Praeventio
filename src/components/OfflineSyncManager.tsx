@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { syncWithFirebase, SyncAction, getPendingActions, removeSyncedAction } from '../utils/pwa-offline';
 import { db, storage, handleFirestoreError, OperationType } from '../services/firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
 import {
@@ -15,6 +15,7 @@ import {
   type PendingAction,
   type DocSnapshot,
 } from '../services/sync/conflictResolver';
+import { offlineOpDocId } from '../utils/offlineOpId';
 import { logAuditAction } from '../services/auditService';
 import { useProjectOptional } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
@@ -41,8 +42,12 @@ export function OfflineSyncManager() {
           createNode = _createNode;
           nodeData = _nodeData;
           try {
-            const docRef = await addDoc(collection(db, action.collection), firestoreData);
-            docId = docRef.id;
+            // The state-machine queue holds this same operation and drains
+            // separately, so an auto-id here produced two documents for one
+            // report. Both queues derive the id from the payload and write
+            // the same row instead; whichever runs second is a no-op.
+            docId = offlineOpDocId(action.collection, 'create', action.data);
+            await setDoc(doc(db, action.collection, docId), firestoreData);
           } catch (error) {
             handleFirestoreError(error, OperationType.CREATE, action.collection);
           }
@@ -227,11 +232,15 @@ export function OfflineSyncManager() {
 
           // Add document to Firestore
           try {
-            const docRef = await addDoc(collection(db, action.collection), {
+            // Same idempotent id as the create path. The storage upload above
+            // is already idempotent (deterministic storagePath), but this
+            // Firestore row was not: a retry after a mid-flush restart filed
+            // the document twice.
+            docId = offlineOpDocId(action.collection, 'upload', action.data);
+            await setDoc(doc(db, action.collection, docId), {
               ...action.data.documentData,
               url: downloadUrl,
             });
-            docId = docRef.id;
           } catch (error) {
             handleFirestoreError(error, OperationType.CREATE, action.collection);
           }
@@ -239,7 +248,13 @@ export function OfflineSyncManager() {
 
         // Handle Risk Network node creation if requested
         if (createNode && nodeData && docId) {
-          const nodeId = crypto.randomUUID();
+          // Derived from the document it describes, not random: a replay after
+          // a mid-flush restart used to attach a second, orphaned node to the
+          // same document on every re-sync.
+          const nodeId = offlineOpDocId('nodes', 'create', {
+            docId,
+            collection: action.collection,
+          });
           const now = new Date().toISOString();
           const newNode = {
             ...nodeData,
@@ -319,8 +334,14 @@ export function OfflineSyncManager() {
     offlineSync.setExecutor(async (op: SyncOperation) => {
       const collectionName = op.collection;
       if (op.type === 'create') {
-        const { id: _id, ...payload } = op.data ?? {};
-        await addDoc(collection(db, collectionName), payload);
+        // Mirror of the legacy path above: same derived id, and the same
+        // control keys stripped, so it does not matter which queue drains
+        // first — both write one identical document.
+        const { id: _id, createNode: _createNode, nodeData: _nodeData, ...payload } = op.data ?? {};
+        await setDoc(
+          doc(db, collectionName, offlineOpDocId(collectionName, 'create', op.data)),
+          payload,
+        );
       } else if (op.type === 'update') {
         const { id, ...payload } = op.data ?? {};
         if (!id) throw new Error('update op missing id');
