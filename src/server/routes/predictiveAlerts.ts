@@ -24,6 +24,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -150,6 +151,99 @@ router.post(
     } catch (err) {
       logger.error?.('predictiveAlerts.evaluateProbes.error', err);
       captureRouteError(err, 'predictiveAlerts.evaluateProbes');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 3. issue-recommendation
+//
+// [P0][VIDA] PredictiveGuard showed "Condiciones adversas detectadas … ¿Deseas
+// enviar una alerta para suspender trabajos en altura?" over two buttons with
+// NO handler: the supervisor pressed "Sí, Enviar Alerta" and nothing left the
+// screen.
+//
+// Praeventio recommends; a human decides, and the decision is recorded. This
+// endpoint IS that record: the caller endorses a recommendation, it reaches the
+// crew through the in-app notifications channel, and an audit row names who
+// issued it. Server-side because a state change on a safety route must be
+// audited (CLAUDE.md #3) and the issuer's identity has to come from the
+// verified token, never from the client.
+// ────────────────────────────────────────────────────────────────────────
+
+const issueRecommendationSchema = z.object({
+  /** Which detector produced it — 'weather.wind', 'weather.storm', … */
+  source: z.string().min(1).max(200),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(2000),
+  /** What the crew should do — the actionable part for a worker. */
+  recommendedAction: z.string().min(1).max(2000),
+  /** The reading that motivated it, kept for traceability. */
+  metric: z
+    .object({
+      kind: z.string().min(1).max(80),
+      value: finiteNumber,
+      unit: z.string().min(1).max(20),
+    })
+    .optional(),
+});
+
+router.post(
+  '/:projectId/predictive-alerts/issue-recommendation',
+  verifyAuth,
+  validate(issueRecommendationSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof issueRecommendationSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    try {
+      const nowIso = new Date().toISOString();
+      const ref = await admin
+        .firestore()
+        .collection('projects')
+        .doc(projectId)
+        .collection('notifications')
+        .add({
+          kind: 'safety.recommendation_issued',
+          createdAt: nowIso,
+          read: false,
+          title: body.title,
+          body: body.body,
+          recommendedAction: body.recommendedAction,
+          source: body.source,
+          metric: body.metric ?? null,
+          // Identity from the verified token — never from the request body.
+          issuedByUid: callerUid,
+        });
+
+      // Rule #14: awaited. A failure here is logged but must not fail the
+      // user-facing action — the crew notification already went out.
+      const auditOk = await auditServerEvent(
+        req,
+        'predictive_alerts.recommendation_issued',
+        'predictive_alerts',
+        {
+          projectId,
+          notificationId: ref.id,
+          source: body.source,
+          recommendedAction: body.recommendedAction,
+          metric: body.metric ?? null,
+        },
+      );
+      if (!auditOk) {
+        captureRouteError(
+          new Error('audit_write_failed'),
+          'predictiveAlerts.audit',
+          { audit_event: 'predictive_alerts.recommendation_issued', projectId },
+        );
+      }
+
+      return res.status(201).json({ notificationId: ref.id, issuedAt: nowIso });
+    } catch (err) {
+      logger.error?.('predictiveAlerts.issueRecommendation.error', err);
+      captureRouteError(err, 'predictiveAlerts.issueRecommendation');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
