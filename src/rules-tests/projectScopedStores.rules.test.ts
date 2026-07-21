@@ -30,6 +30,7 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PID = 'proj-stores-1';
+const TENANT = 'tenant-stores-1'; // owning tenant of PID (M-1 Phase 3)
 const MEMBER = 'member-uid-1';
 const OTHER_MEMBER = 'member-uid-2';
 const NON_MEMBER = 'outsider-uid-9';
@@ -55,6 +56,9 @@ beforeEach(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'projects', PID), {
       name: 'Stores Test Project',
+      // M-1 Phase 3: the project's owning tenant. The rescue-coordinator
+      // (supervisor) path is now scoped to THIS tenant, not the global role.
+      tenantId: TENANT,
       createdBy: MEMBER,
       members: [MEMBER, OTHER_MEMBER],
     });
@@ -431,7 +435,13 @@ describe('projectScopedStores firestore.rules', () => {
   // B17 (Fase 5) — lone-worker session integrity. A lone-worker session/event
   // belongs to ONE worker; a different project member must NOT be able to flip
   // its state (e.g. mark a worker-in-distress as "safe"). Only the owner or a
-  // rescue coordinator (admin/supervisor) may update it.
+  // rescue coordinator (supervisor of the project's OWNING tenant) may update it.
+  //
+  // M-1 Phase 3 (2026-07-21): the rescue-coordinator path is now tenant-scoped
+  // (isProjectMemberTenantScoped), not the GLOBAL isSupervisor() role. A
+  // supervisor of the project's own tenant still rescues the worker (life-safety
+  // preserved); a supervisor of ANOTHER tenant can no longer flip a worker's
+  // distress state across tenants (the cross-tenant leak, now closed).
   for (const coll of ['lone_worker_sessions', 'lone_worker_events']) {
     describe(`${coll} (owner-or-rescuer update integrity)`, () => {
       it('a DIFFERENT member cannot update the worker\'s session', async () => {
@@ -454,13 +464,29 @@ describe('projectScopedStores firestore.rules', () => {
         );
       });
 
-      it('a supervisor (rescue coordinator) can update any worker\'s session', async () => {
+      it('a supervisor OF THE PROJECT\'S TENANT (rescue coordinator) can update the worker\'s session', async () => {
         await seed(coll, 'lw3', { workerUid: MEMBER, status: 'active' });
         const supDb = requireEnv()
-          .authenticatedContext('supervisor-uid-1', verifiedToken('supervisor'))
+          .authenticatedContext(
+            'supervisor-uid-1',
+            verifiedToken('supervisor', 'supervisor-uid-1@example.com', { tenantId: TENANT }),
+          )
           .firestore();
         await assertSucceeds(
           setDoc(ref(supDb, coll, 'lw3'), { workerUid: MEMBER, status: 'rescued' }),
+        );
+      });
+
+      it('M-1: a supervisor of ANOTHER tenant CANNOT update the worker\'s session (cross-tenant leak closed)', async () => {
+        await seed(coll, 'lw4', { workerUid: MEMBER, status: 'active' });
+        const foreignSupDb = requireEnv()
+          .authenticatedContext(
+            'supervisor-uid-2',
+            verifiedToken('supervisor', 'supervisor-uid-2@example.com', { tenantId: 'tenant-OTHER' }),
+          )
+          .firestore();
+        await assertFails(
+          setDoc(ref(foreignSupDb, coll, 'lw4'), { workerUid: MEMBER, status: 'rescued' }),
         );
       });
     });

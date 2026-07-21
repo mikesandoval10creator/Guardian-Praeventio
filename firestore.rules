@@ -119,17 +119,17 @@ service cloud.firestore {
       return isEmailVerified() && get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy == request.auth.uid;
     }
 
-    function isProjectMember(projectId) {
-      return isEmailVerified() && (
-        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members ||
-        isAdmin() ||
-        isSupervisor() ||
-        isProjectCreator(projectId)
-      );
-    }
+    // NOTE (M-1 Phase 3, 2026-07-21): the legacy `isProjectMember()` helper —
+    // which OR'd in the GLOBAL `isAdmin()`/`isSupervisor()` roles and thus let a
+    // privileged user of tenant B reach tenant A's projects/subcollections — was
+    // REMOVED. Every caller now uses `isProjectMemberTenantScoped()` (defined
+    // below), which scopes the admin/supervisor branch to the project's OWNING
+    // tenant. The member + creator branches are preserved, so life-safety access
+    // (SOS/evacuation/ManDown) for a real project member is never affected. This
+    // helper is gone on purpose: the leak cannot be reintroduced by mistake.
 
     // Public resources owned by a project need direct association, not the
-    // global admin/supervisor shortcut in isProjectMember(). A privileged role
+    // global admin/supervisor shortcut in isProjectMemberTenantScoped(). A privileged role
     // alone must never grant management over every project's public records.
     function isDirectProjectMember(projectId) {
       return isEmailVerified() && isValidId(projectId) && (
@@ -411,11 +411,11 @@ service cloud.firestore {
       // a concrete document: any get()-based clause (isAdmin/isSupervisor read
       // users/{uid}) raises "Null value error" during list eval, and
       // resource.data.get(k,default) defeats the array-contains static match.
-      // The prior single `allow read: isProjectMember()` did a self-referential
+      // The prior single `allow read: isProjectMemberTenantScoped()` did a self-referential
       // get() that the emulator cannot resolve during list at all.
       //
       // get: a single project doc is concrete, so the full check is safe and
-      // mirrors the prior isProjectMember() semantics (minus the self-get):
+      // mirrors the prior isProjectMemberTenantScoped() semantics (minus the self-get):
       // member OR creator OR admin OR supervisor.
       allow get: if isValidId(projectId) && isEmailVerified() && (
         request.auth.uid in resource.data.members ||
@@ -462,21 +462,21 @@ service cloud.firestore {
       }
 
       match /emergency_messages/{messageId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId) && incoming().senderId == request.auth.uid;
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && incoming().senderId == request.auth.uid;
       }
 
       match /emergency_checkins/{checkinId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId) && incoming().workerId == request.auth.uid;
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && incoming().workerId == request.auth.uid;
       }
 
       match /attendance/{attendanceId} {
         // Read: any project member (staffing / evacuation headcount).
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         // Create: a project member (gate operator) records attendance, but the
         // payload shape is validated and `recordedBy` is bound to the caller —
         // no arbitrary/backdated docs, and every record names an accountable
         // author who cannot be spoofed. (workerId is the worker, not the caller.)
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && isValidAttendance(incoming(), projectId)
           && incoming().recordedBy == request.auth.uid;
         // Update: restricted to admin/supervisor (a line worker must not silently
@@ -487,12 +487,12 @@ service cloud.firestore {
       }
 
       match /reports/{reportId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidReport(incoming());
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && isValidReport(incoming());
         allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().authorId == request.auth.uid && existing().status != 'Cerrado')) && isValidReport(incoming());
       }
 
       match /safety_posts/{postId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidPost(incoming());
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && isValidPost(incoming());
         allow update: if isValidId(projectId) && (isSupervisorOfTenant(projectTenantId(projectId)) || (existing().userId == request.auth.uid)) && (
           incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments', 'updatedAt']) ||
           isValidPost(incoming())
@@ -503,19 +503,19 @@ service cloud.firestore {
       // Safety-critical collections — strict read for project members,
       // create by any project member (sensor-driven), updates restricted.
       match /mandown_events/{eventId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().status in ['pending', 'active']
           && incoming().workerId == request.auth.uid;
         // Acknowledgement: any supervisor/admin/member can ack; only ack fields mutable
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acknowledgedBy', 'acknowledgedByName', 'acknowledgedAt', 'resolvedAt', 'resolvedBy', 'updatedAt']);
         allow delete: if false;
       }
 
       match /zone_violations/{violationId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerId == request.auth.uid;
         allow update, delete: if false;
       }
@@ -533,8 +533,8 @@ service cloud.firestore {
       // null). Events are IMMUTABLE — update/delete denied for everyone; the
       // server-side collectionGroup trigger mirrors each event to audit_logs.
       match /system_events/{eventId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().keys().hasAll(['id', 'tenantId', 'projectId', 'ts', 'idempotencyKey', 'type', 'payload'])
           && incoming().id is string && incoming().id == eventId
           && incoming().tenantId is string
@@ -559,8 +559,8 @@ service cloud.firestore {
       // schema validation, path-bound projectId (no cross-project inject),
       // immutable once written (the accelerometer log is evidence).
       match /seismic_events/{eventId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().keys().hasAll(['detectedAt', 'peakG', 'projectId'])
           && incoming().detectedAt is string
           && incoming().peakG is number
@@ -573,7 +573,7 @@ service cloud.firestore {
       // The REAL on-device photogrammetry job store writes `reconstruction_jobs`
       // (below), NOT this path.
       match /digital_twin_jobs/{jobId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow write: if false;
       }
 
@@ -587,15 +587,15 @@ service cloud.firestore {
       // member create/update, admin/supervisor delete (a job record is part of the
       // site's safety/inspection trail — only a privileged role may erase one).
       match /reconstruction_jobs/{jobId} {
-        allow read: if isValidId(projectId) && isProjectMember(projectId);
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
       
       // Strict constraints for other project data
       match /locations/{locationId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId) && incoming().userId == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId) && existing().userId == request.auth.uid && incoming().userId == request.auth.uid;
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && incoming().userId == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && existing().userId == request.auth.uid && incoming().userId == request.auth.uid;
       }
       
       // Admin/Creator-only write for remaining sub-collections
@@ -629,7 +629,7 @@ service cloud.firestore {
         // the nested `match /workers/{workerId}` declared NO documents sub-match
         // → the worker Documentación feature was default-denied in production.
         match /documents/{documentId} {
-          allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+          allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
           // F7 (2026-07-02): worker documents = legal evidence — no client
           // deletes. DocsModal archives (`archived: true`) via the member-
           // gated update above; physical removal is server-side + audited.
@@ -639,7 +639,7 @@ service cloud.firestore {
 
       // Emergency events — members create, supervisors/admins update status
       match /emergency_events/{eventId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().status in ['active', 'pending']
           && incoming().triggeredBy == request.auth.uid;
         allow update: if isValidId(projectId) && (isAdmin() || isSupervisor())
@@ -662,7 +662,7 @@ service cloud.firestore {
 
       // Live emergency chat — append-only; any member posts, nobody edits.
       match /emergency_chat/{messageId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow update, delete: if false;
       }
 
@@ -670,28 +670,28 @@ service cloud.firestore {
       // a member confirms their own status AND a supervisor marks others, so
       // create/update are member-gated (not uid-bound). Never deleted.
       match /emergency_safety/{workerId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if false;
       }
 
       // AI-generated emergency plans (EmergencyPlanGenerator). Any member may
       // generate; only admin/supervisor revise or remove a saved plan.
       match /emergency_plans/{planId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow update, delete: if isAdmin() || isSupervisor();
       }
 
       // In-app notifications (orphan-risk/worker detection — Zettelkasten hook).
       // Members create + mark-read; deletion restricted to admin/supervisor.
       match /notifications/{notificationId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
 
       // AI EPP verification records (EPPVerificationModal). Compliance trail —
       // members create, immutable thereafter, admin/supervisor may purge.
       match /epp_verifications/{verificationId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow update: if false;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -699,7 +699,7 @@ service cloud.firestore {
       // Training assignments (TrainingRecommendations). Members create + update
       // status (assigned→done); admin/supervisor may delete.
       match /trainings/{trainingId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
 
@@ -708,7 +708,7 @@ service cloud.firestore {
       // Was default-denied by the Master Gate (read-only) → the AI capsule never
       // persisted (SloErrorBudget §365-class gap).
       match /training_capsules/{capsuleId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow update, delete: if isAdmin() || isSupervisor();
       }
 
@@ -717,7 +717,7 @@ service cloud.firestore {
       // top-level `calendar_events` collection, written by the digital-twin
       // lifecycle, has its own projectId-gated rule below.)
       match /calendar_events/{eventId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
 
@@ -732,14 +732,14 @@ service cloud.firestore {
         allow update, delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || isProjectCreator(projectId));
       }
       match /iso_improvements/{docId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid);
         allow delete: if isAdmin() || isSupervisor();
       }
 
       // Morning check-ins — each member creates/updates their own record
       match /morning_checkins/{checkinId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().userId == request.auth.uid;
         allow update: if isValidId(projectId) && existing().userId == request.auth.uid
           && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'answers', 'completed']);
@@ -770,23 +770,23 @@ service cloud.firestore {
       // Stoppage (paralización DS): state machine declare→resume/cancel, so
       // updates are allowed but the declarer is immutable and it can't be deleted.
       match /stoppages/{stoppageId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().declaredByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().declaredByUid == existing().declaredByUid;
         allow delete: if false;
       }
       match /operational_changes/{changeId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().declaredByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().declaredByUid == existing().declaredByUid;
         allow delete: if false;
       }
       match /root_causes/{rcId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().analyzedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().analyzedByUid == existing().analyzedByUid;
         allow delete: if false;
       }
@@ -800,9 +800,9 @@ service cloud.firestore {
       // the supervisor who closes the analysis signs it with their own UID and
       // it stays immutable on update. Compliance record (no client delete).
       match /root_cause_analyses/{analysisId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().analyzedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().analyzedByUid == existing().analyzedByUid;
         allow delete: if false;
       }
@@ -812,13 +812,13 @@ service cloud.firestore {
       // y borrar un DEA queda restringido a admin/supervisor. Lectura cubierta
       // por el master-gate de subcolecciones (isProjectMember).
       match /deas/{deaId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == existing().createdBy;
         allow delete: if isAdmin() || isSupervisor();
         match /inspections/{inspectionId} {
-          allow create: if isValidId(projectId) && isProjectMember(projectId)
+          allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
             && incoming().performedByUid == request.auth.uid;
           // Registro inmutable de cumplimiento (Ley 21.156).
           allow update, delete: if false;
@@ -830,9 +830,9 @@ service cloud.firestore {
       // Deleting a safety alert is restricted to admin/supervisor. Read via the
       // sub-collection master-gate. Previously had NO write rule → default-denied.
       match /clinical_alerts/{alertId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == existing().createdBy;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -842,7 +842,7 @@ service cloud.firestore {
       // admin/supervisor. Read via the sub-collection master-gate. Previously had
       // NO write rule → the Documents feature was default-denied in production.
       match /documents/{documentId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         // F7 (2026-07-02): project documents = legal evidence — no client
         // deletes; archive via update, physical removal server-side.
         allow delete: if false;
@@ -874,20 +874,20 @@ service cloud.firestore {
       // The schema carries `reportedBy` (display name, not a uid) → member-gated
       // create/update; deleting a safety finding is restricted to admin/supervisor.
       match /findings/{findingId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
       // Digital-twin placed objects (hazards/equipment placed in the 3D twin,
       // placedObjectsStore client SDK). No creator-uid field → member-gated;
       // deleting a placed safety object is restricted to admin/supervisor.
       match /placed_objects/{objectId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
       // Personalized AI safety plans (PersonalizedSafetyPlan, client SDK). The
       // schema has no creator-uid field → member-gated; admin/supervisor delete.
       match /personalized_plans/{planId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
       // Driving incidents (SafeDriving). D2 slice 2: reports are created
@@ -907,9 +907,9 @@ service cloud.firestore {
       // writes ONLY their own receipt (workerUid == caller, immutable); the acuse
       // is never deleted. Read via the sub-collection master-gate.
       match /read_receipts/{receiptId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == existing().workerUid
           && existing().workerUid == request.auth.uid;
         allow delete: if false;
@@ -921,9 +921,9 @@ service cloud.firestore {
       // safety validation is restricted to admin/supervisor. Read via the
       // sub-collection master-gate (isProjectMember).
       match /control_validations/{validationId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().validatedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().validatedByUid == existing().validatedByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -937,9 +937,9 @@ service cloud.firestore {
       // server-side — the predictive ladder stays honestly silent, never firing
       // on a fabricated wind.
       match /structural_loads/{loadId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdBy == existing().createdBy;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -954,18 +954,18 @@ service cloud.firestore {
       // signature is already present). Corrections are NEW entries referencing
       // the original folio (createCorrection()), never in-place mutations.
       match /site_book/{docId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().recordedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && existing().status != 'signed'
           && !('signature' in existing())
           && incoming().recordedByUid == existing().recordedByUid;
         allow delete: if false;
       }
       match /site_book_entries/{entryId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().recordedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && existing().status != 'signed'
           && !('signature' in existing())
           && incoming().recordedByUid == existing().recordedByUid;
@@ -980,39 +980,39 @@ service cloud.firestore {
       // emergency. `isProjectMember` already subsumes admin/supervisor, so the
       // added clause is the owner-or-rescuer gate; `workerUid` stays immutable.
       match /lone_worker_sessions/{sessionId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == existing().workerUid
           && (existing().workerUid == request.auth.uid || isAdmin() || isSupervisor());
         allow delete: if isAdmin() || isSupervisor();
       }
       match /lone_worker_events/{eventId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().workerUid == existing().workerUid
           && (existing().workerUid == request.auth.uid || isAdmin() || isSupervisor());
         allow delete: if isAdmin() || isSupervisor();
       }
       match /safety_talks_given/{talkId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().givenByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().givenByUid == existing().givenByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
       match /audit_portals/{portalId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().createdByUid == existing().createdByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
       match /documents_for_read/{documentId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().authorUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().authorUid == existing().authorUid;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -1028,9 +1028,9 @@ service cloud.firestore {
       //   On create: approvedByUid MUST equal the caller's uid.
       //   On update: approvedByUid MUST stay immutable (cannot be reassigned).
       match /exceptions/{exceptionId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().approvedByUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().approvedByUid == existing().approvedByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -1040,7 +1040,7 @@ service cloud.firestore {
       // and are NEVER written by the client SDK directly. Anti-spoof N/A for
       // client writes. The server-side route enforces identity via verifyAuth.
       match /legal_obligations/{obligationId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
       // shifts — creator field: `supervisorUid`.
@@ -1058,10 +1058,10 @@ service cloud.firestore {
       //   per-transition immutability) is a follow-up; this closes the worker
       //   privilege-escalation at the rules layer.
       match /shifts/{shiftId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && (isSupervisor() || isAdmin())
           && incoming().supervisorUid == request.auth.uid;
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && (isSupervisor() || isAdmin())
           && incoming().supervisorUid == existing().supervisorUid;
         allow delete: if isAdmin() || isSupervisor();
@@ -1115,13 +1115,13 @@ service cloud.firestore {
           existing().metadata.authorId == request.auth.uid ||
           isAdmin() ||
           isSupervisor() ||
-          (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
+          (isProjectMemberTenantScoped(existing().projectId) && !nodeHasWorkerRut(existing()))
         ));
       allow list: if isEmailVerified() && (
           existing().metadata.authorId == request.auth.uid ||
           isAdmin() ||
           isSupervisor() ||
-          (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
+          (isProjectMemberTenantScoped(existing().projectId) && !nodeHasWorkerRut(existing()))
         );
       allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
       allow update: if isEmailVerified() && isValidNode(incoming()) && (
@@ -1219,9 +1219,9 @@ service cloud.firestore {
     // source-of-truth doc never persisted before the sync attempt.
     match /calendar_events/{eventId} {
       allow read: if isSignedIn() && existing().projectId is string
-        && isProjectMember(existing().projectId);
+        && isProjectMemberTenantScoped(existing().projectId);
       allow create: if isSignedIn() && incoming().projectId is string
-        && isProjectMember(incoming().projectId);
+        && isProjectMemberTenantScoped(incoming().projectId);
       allow update, delete: if false;
     }
 
@@ -1245,14 +1245,14 @@ service cloud.firestore {
     // create/update/delete está prohibido — la única ruta legítima es
     // el endpoint server-side, que usa Admin SDK y bypasea estas reglas.
     match /zettelkasten_nodes/{nodeId} {
-      allow read: if isSignedIn() && existing().projectId is string && isProjectMember(existing().projectId);
+      allow read: if isSignedIn() && existing().projectId is string && isProjectMemberTenantScoped(existing().projectId);
       allow create, update, delete: if false; // server-only via /api/zettelkasten/nodes
     }
 
     match /training/{sessionId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
+        (existing().projectId != null && isProjectMemberTenantScoped(existing().projectId))
       );
       allow write: if isAdmin() || isSupervisor();
     }
@@ -1260,7 +1260,7 @@ service cloud.firestore {
     match /safety_solutions/{solutionId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
+        (existing().projectId != null && isProjectMemberTenantScoped(existing().projectId))
       );
       allow write: if isAdmin() || isSupervisor();
     }
@@ -1350,7 +1350,7 @@ service cloud.firestore {
       // src/rules-tests/exposureHours.rules.test.ts.
       allow read: if isEmailVerified()
         && existing().projectId is string
-        && isProjectMember(existing().projectId);
+        && isProjectMemberTenantScoped(existing().projectId);
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
@@ -1370,7 +1370,7 @@ service cloud.firestore {
       // member-read exercised by src/rules-tests/workforcePeriods.rules.test.ts.
       allow read: if isEmailVerified()
         && existing().projectId is string
-        && isProjectMember(existing().projectId);
+        && isProjectMemberTenantScoped(existing().projectId);
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
@@ -1390,7 +1390,7 @@ service cloud.firestore {
       // src/rules-tests/contractorExposureHours.rules.test.ts.
       allow read: if isEmailVerified()
         && existing().projectId is string
-        && isProjectMember(existing().projectId);
+        && isProjectMemberTenantScoped(existing().projectId);
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
@@ -1411,7 +1411,7 @@ service cloud.firestore {
       // src/rules-tests/safetyPlanPeriods.rules.test.ts.
       allow read: if isEmailVerified()
         && existing().projectId is string
-        && isProjectMember(existing().projectId);
+        && isProjectMemberTenantScoped(existing().projectId);
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
@@ -1428,7 +1428,7 @@ service cloud.firestore {
     match /vector_store/{docId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
+        (existing().projectId != null && isProjectMemberTenantScoped(existing().projectId))
       );
       allow write: if isAdmin();
     }
@@ -1478,9 +1478,9 @@ service cloud.firestore {
     match /blueprints/{blueprintId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
-      allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
+      allow create: if isEmailVerified() && isProjectMemberTenantScoped(incoming().projectId);
       allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId));
       allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
     }
@@ -1505,9 +1505,9 @@ service cloud.firestore {
     match /project_documents/{docId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
-      allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
+      allow create: if isEmailVerified() && isProjectMemberTenantScoped(incoming().projectId);
       // F7 (founder decision 2026-07-02): a project document is legal
       // evidence — client delete is an evidence-destruction primitive and
       // is DENIED. The UI "removes" via `archived: true` (hide-only); the
@@ -1563,16 +1563,16 @@ service cloud.firestore {
     match /assets/{assetId} {
       allow read: if isValidId(assetId) && isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
       allow create: if isValidId(assetId) && isEmailVerified() &&
-        isProjectMember(incoming().projectId) &&
+        isProjectMemberTenantScoped(incoming().projectId) &&
         incoming().projectId is string &&
         incoming().name is string &&
         incoming().type in ['Maquinaria', 'Vehículo', 'Herramienta'] &&
         incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
       allow update: if isValidId(assetId) && isEmailVerified() &&
-        isProjectMember(resource.data.projectId) &&
+        isProjectMemberTenantScoped(resource.data.projectId) &&
         incoming().projectId == resource.data.projectId &&
         incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
       allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
@@ -1596,7 +1596,7 @@ service cloud.firestore {
       );
       allow create: if isValidId(cardId) && isEmailVerified() &&
         incoming().workerUid == request.auth.uid &&
-        isProjectMember(incoming().projectId) &&
+        isProjectMemberTenantScoped(incoming().projectId) &&
         incoming().projectId is string &&
         incoming().workerUid is string &&
         incoming().topic is string &&
@@ -1659,17 +1659,17 @@ service cloud.firestore {
     match /ergonomic_assessments/{assessmentId} {
       allow read: if isValidId(assessmentId) && isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
       allow create: if isValidId(assessmentId) && isEmailVerified() &&
-        isProjectMember(incoming().projectId) &&
+        isProjectMemberTenantScoped(incoming().projectId) &&
         incoming().metadata.signedAt == null &&
         incoming().type in ['REBA', 'RULA'] &&
         incoming().score is number &&
         incoming().workerId is string &&
         incoming().projectId is string;
       allow update: if isValidId(assessmentId) && isEmailVerified() &&
-        isProjectMember(resource.data.projectId) &&
+        isProjectMemberTenantScoped(resource.data.projectId) &&
         existing().metadata.signedAt == null &&
         incoming().diff(existing()).affectedKeys().hasOnly(['metadata', 'inputs', 'score', 'actionLevel']);
       allow delete: if false; // Ley 16.744 Art. 76 + ISO 45001 §7.5.3
@@ -1681,10 +1681,10 @@ service cloud.firestore {
     match /iper_assessments/{assessmentId} {
       allow read: if isValidId(assessmentId) && isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
       allow create: if isValidId(assessmentId) && isEmailVerified() &&
-        isProjectMember(incoming().projectId) &&
+        isProjectMemberTenantScoped(incoming().projectId) &&
         incoming().metadata.signedAt == null &&
         incoming().inputs.probability is int &&
         incoming().inputs.probability >= 1 && incoming().inputs.probability <= 5 &&
@@ -1693,7 +1693,7 @@ service cloud.firestore {
         incoming().level is string &&
         incoming().rawScore is number;
       allow update: if isValidId(assessmentId) && isEmailVerified() &&
-        isProjectMember(resource.data.projectId) &&
+        isProjectMemberTenantScoped(resource.data.projectId) &&
         existing().metadata.signedAt == null &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'metadata', 'probability', 'severity', 'level',
@@ -1778,18 +1778,18 @@ service cloud.firestore {
     match /lighting_audits/{auditId} {
       allow read: if isValidId(auditId) && isEmailVerified() && (
         isAdmin() || isSupervisor() ||
-        isProjectMember(resource.data.projectId)
+        isProjectMemberTenantScoped(resource.data.projectId)
       );
       // New audits must be created unsigned; the immutable lock is the
       // top-level `signed` flag, so it must start false (or be absent).
       allow create: if isValidId(auditId) && isEmailVerified() &&
-        isProjectMember(incoming().projectId) &&
+        isProjectMemberTenantScoped(incoming().projectId) &&
         (!('signed' in incoming()) || incoming().signed == false);
       // Pre-sign: a project member may edit measurements OR sign the audit
       // (false -> true). Post-sign: every update is denied. `signed` may only
       // move false -> true, never true -> false.
       allow update: if isValidId(auditId) && isEmailVerified() &&
-        isProjectMember(resource.data.projectId) &&
+        isProjectMemberTenantScoped(resource.data.projectId) &&
         existing().signed != true &&
         incoming().signed in [true, false] &&
         incoming().diff(existing()).affectedKeys().hasOnly([
@@ -1829,7 +1829,7 @@ service cloud.firestore {
         isAdmin() || isSupervisor() ||
         (resource != null && resource.data.traineeUid == request.auth.uid) ||
         (resource != null && resource.data.projectId != null &&
-          isProjectMember(resource.data.projectId))
+          isProjectMemberTenantScoped(resource.data.projectId))
       );
       allow create: if isValidId(trainingId) && isEmailVerified() &&
         incoming().traineeUid == request.auth.uid &&
@@ -1905,21 +1905,21 @@ service cloud.firestore {
     // a closed key set + a 3-step status pipeline.
 
     match /crews/{crewId} {
-      allow read: if isProjectMember(resource.data.projectId);
+      allow read: if isProjectMemberTenantScoped(resource.data.projectId);
       allow create, update, delete: if false;
     }
 
     match /processes/{processId} {
-      allow read: if isProjectMember(resource.data.projectId);
+      allow read: if isProjectMemberTenantScoped(resource.data.projectId);
       allow create, update, delete: if false;
     }
 
     match /tasks/{taskId} {
-      allow read: if isProjectMember(resource.data.projectId);
+      allow read: if isProjectMemberTenantScoped(resource.data.projectId);
       // Project members may create + update task docs, with shape pinned
       // to a closed key set. Status enum is enforced. Deletes are denied
       // to preserve the audit trail.
-      allow create: if isProjectMember(incoming().projectId)
+      allow create: if isProjectMemberTenantScoped(incoming().projectId)
         && incoming().keys().hasOnly([
           'description', 'assignedUids', 'status', 'date',
           'crewId', 'processId', 'projectId', 'completedAt'
@@ -1927,7 +1927,7 @@ service cloud.firestore {
         && incoming().status in ['pending', 'doing', 'done']
         && incoming().description is string
         && incoming().date is string;
-      allow update: if isProjectMember(resource.data.projectId)
+      allow update: if isProjectMemberTenantScoped(resource.data.projectId)
         && incoming().keys().hasOnly([
           'description', 'assignedUids', 'status', 'date',
           'crewId', 'processId', 'projectId', 'completedAt'
@@ -2021,7 +2021,7 @@ service cloud.firestore {
       match /emergency_alerts/{alertId} {
         allow read: if isSignedIn()
           && resource.data.projectId is string
-          && isProjectMember(resource.data.projectId);
+          && isProjectMemberTenantScoped(resource.data.projectId);
         allow create, update, delete: if false;
       }
 
@@ -2048,7 +2048,7 @@ service cloud.firestore {
             isSupervisor() ||
             isDoctor() ||
             (resource.data.projectId is string
-              && isProjectMember(resource.data.projectId))
+              && isProjectMemberTenantScoped(resource.data.projectId))
           );
         allow create: if isSignedIn()
           && (isAdmin() || isSupervisor() || isDoctor());
@@ -2262,7 +2262,7 @@ service cloud.firestore {
           allow read: if isSignedIn()
             && (
               resource.data.reporterUid == request.auth.uid
-              || isProjectMember(projectId)
+              || isProjectMemberTenantScoped(projectId)
             );
           allow create, update, delete: if false;
         }
@@ -2352,15 +2352,15 @@ service cloud.firestore {
     }
 
     match /cphs_committees/{committeeId} {
-      allow read: if isProjectMember(resource.data.projectId);
+      allow read: if isProjectMemberTenantScoped(resource.data.projectId);
       allow create: if isEmailVerified()
-        && isProjectMember(incoming().projectId)
+        && isProjectMemberTenantScoped(incoming().projectId)
         && (isAdmin() || isSupervisor())
         && incoming().status == 'active'
         && incoming().members is list
         && incoming().members.size() >= 6;
       allow update: if isEmailVerified()
-        && isProjectMember(resource.data.projectId)
+        && isProjectMemberTenantScoped(resource.data.projectId)
         && (isAdmin() || isSupervisor() || isCphsMember(resource.data))
         // projectId / createdBy / createdAt no mutables.
         && incoming().projectId == resource.data.projectId
@@ -2372,13 +2372,13 @@ service cloud.firestore {
     match /cphs_meetings/{meetingId} {
       allow read: if isSignedIn()
         && exists(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId))
-        && isProjectMember(
+        && isProjectMemberTenantScoped(
           get(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId)).data.projectId
         );
       allow create: if isEmailVerified()
         && incoming().committeeId is string
         && exists(/databases/$(database)/documents/cphs_committees/$(incoming().committeeId))
-        && isProjectMember(
+        && isProjectMemberTenantScoped(
           get(/databases/$(database)/documents/cphs_committees/$(incoming().committeeId)).data.projectId
         )
         && incoming().status in ['scheduled', 'held', 'cancelled']
@@ -2389,7 +2389,7 @@ service cloud.firestore {
       // Antes de la primera firma, miembros del proyecto pueden modificar
       // minutes/resolutions/attendees/status (recordMinutes flow).
       allow update: if isEmailVerified()
-        && isProjectMember(
+        && isProjectMemberTenantScoped(
           get(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId)).data.projectId
         )
         // Invariantes hoisted a TODOS los sub-casos: committeeId y
