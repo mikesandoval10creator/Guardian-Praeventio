@@ -97,6 +97,16 @@
              biometric/pose flows run inside the WebView via getUserMedia;
              Android only surfaces the WebView permission prompt when the
              app itself holds CAMERA.
+         RECORD_AUDIO + MODIFY_AUDIO_SETTINGS — same class of bug as CAMERA,
+             for the microphone. Capacitor's BridgeWebChromeClient
+             (onPermissionRequest) maps the WebView's AUDIO_CAPTURE request
+             to BOTH permissions and calls request.deny() unless EVERY
+             permission in the array is granted — and Android denies any
+             permission the manifest does not declare. Declaring only one of
+             the two leaves the mic just as dead. Needed by:
+             NoiseMonitor (decibel measurement, DS 594 hygiene),
+             CrisisChat (emergency voice message — life-safety path),
+             GuardianVoiceAssistant (voice input).
 
          BLE permissions (BLUETOOTH_SCAN/CONNECT/ADVERTISE + legacy) are
          intentionally NOT declared here — they merge in from the
@@ -105,4 +115,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>
