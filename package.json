@@ -131,7 +131,7 @@
     "@types/d3": "^7.4.3",
     "@types/express-session": "^1.19.0",
     "@types/pdfkit": "^0.17.6",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vitejs/plugin-react": "^6.0.3",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "cookie-parser": "^1.4.7",
