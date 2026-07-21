@@ -500,3 +500,64 @@ describe('signIperAssessment', () => {
     expect(logAuditActionMock).not.toHaveBeenCalled();
   });
 });
+
+// DS 44/2024 — the evaluation must survive as legal evidence, not just live in
+// memory: the differentiated-population lens and the disaster scenario are part
+// of what an inspector reads back from the record.
+describe('recordIperAssessment — DS 44 (enfoque de género + gestión de desastres)', () => {
+  beforeEach(() => {
+    setDocMock.mockClear();
+    logAuditActionMock.mockClear();
+    (setDocMock as any).mockImplementation((..._args: unknown[]) => undefined);
+  });
+
+  it('persists the gender lens, the disaster hazard and the derived duties', async () => {
+    await recordIperAssessment({
+      ...basePayload,
+      inputs: {
+        probability: 3 as const,
+        severity: 3 as const,
+        genderLens: { maternityExposure: true },
+        disasterHazard: 'sismo' as const,
+      },
+      ds44Obligations: ['Protección a la maternidad: reasignar…', 'Amenaza de sismo: plan…'],
+      differentialEscalation: true,
+    });
+
+    const written = setDocMock.mock.calls[0][1] as Record<string, any>;
+    expect(written.inputs.genderLens).toEqual({ maternityExposure: true });
+    expect(written.inputs.disasterHazard).toBe('sismo');
+    expect(written.ds44Obligations).toHaveLength(2);
+    expect(written.differentialEscalation).toBe(true);
+  });
+
+  it('records the DS 44 escalation in the audit trail', async () => {
+    await recordIperAssessment({
+      ...basePayload,
+      inputs: {
+        probability: 3 as const,
+        severity: 3 as const,
+        genderLens: { maternityExposure: true },
+      },
+      ds44Obligations: ['Protección a la maternidad: reasignar…'],
+      differentialEscalation: true,
+    });
+
+    const details = logAuditActionMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(details.differentialEscalation).toBe(true);
+    expect(details.ds44ObligationCount).toBe(1);
+  });
+
+  it('leaves the persisted payload byte-identical when no DS 44 input is given', async () => {
+    await recordIperAssessment(basePayload);
+
+    const written = setDocMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(written).not.toHaveProperty('ds44Obligations');
+    expect(written).not.toHaveProperty('differentialEscalation');
+    expect(written.inputs).not.toHaveProperty('genderLens');
+    expect(written.inputs).not.toHaveProperty('disasterHazard');
+
+    const details = logAuditActionMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(details).not.toHaveProperty('differentialEscalation');
+  });
+});
