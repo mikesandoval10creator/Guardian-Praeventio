@@ -84,6 +84,14 @@ describe('AndroidManifest — permissions the plugins do not provide (B21)', () 
     ['android.permission.ACCESS_BACKGROUND_LOCATION', 'tracking while backgrounded'],
     ['android.permission.POST_NOTIFICATIONS', 'FGS + critical push (SDK 33+)'],
     ['android.permission.FOREGROUND_SERVICE_LOCATION', 'lone-worker FGS type'],
+    // Mic via WebView getUserMedia({audio:true}) — same class of bug as CAMERA
+    // above. Capacitor's BridgeWebChromeClient.onPermissionRequest maps
+    // AUDIO_CAPTURE to BOTH of these and calls request.deny() unless every
+    // permission in the array is granted; Android denies any permission the
+    // manifest does not declare. Missing either one ⇒ mic dead on device
+    // (NoiseMonitor decibels, CrisisChat emergency voice, voice assistant).
+    ['android.permission.RECORD_AUDIO', 'NoiseMonitor / CrisisChat voice / voice assistant'],
+    ['android.permission.MODIFY_AUDIO_SETTINGS', 'requested alongside RECORD_AUDIO by the Capacitor bridge'],
   ])('declares %s (%s)', (permission) => {
     expect(manifest).toContain(`<uses-permission android:name="${permission}" />`);
   });
