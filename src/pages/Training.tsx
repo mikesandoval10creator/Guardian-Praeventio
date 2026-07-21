@@ -17,7 +17,7 @@ import {
   ChevronRight,
   Shield,
   X,
-  Youtube,
+  Video,
   Gamepad2,
   WifiOff,
   Download,
@@ -636,7 +636,7 @@ export function Training() {
                 <div>
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">URL del Video (YouTube)</label>
                   <div className="relative">
-                    <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <Video className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
                     <input
                       type="url"
                       value={newSessionForm.youtubeUrl}
@@ -708,7 +708,7 @@ export function Training() {
               <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-red-500/10 to-transparent">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-red-500/20 flex items-center justify-center text-red-500">
-                    <Youtube className="w-6 h-6" />
+                    <Video className="w-6 h-6" />
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-white uppercase tracking-tighter">{activeVideoSession.title}</h2>
@@ -737,7 +737,7 @@ export function Training() {
                   </div>
                 ) : (
                   <div className="w-full aspect-video bg-zinc-900 rounded-2xl border border-white/10 flex flex-col items-center justify-center text-zinc-500">
-                    <Youtube className="w-16 h-16 mb-4 opacity-50" />
+                    <Video className="w-16 h-16 mb-4 opacity-50" />
                     <p className="font-medium">Video no disponible o URL inválida.</p>
                   </div>
                 )}
@@ -1210,7 +1210,7 @@ export function Training() {
                   </span>
                   {session.youtubeUrl && (
                     <span className="flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-2 py-1 rounded-md border border-red-500/20">
-                      <Youtube className="w-3 h-3" />
+                      <Video className="w-3 h-3" />
                       Video
                     </span>
                   )}
@@ -1261,7 +1261,7 @@ export function Training() {
                       onClick={() => setActiveVideoSession(session)}
                       className="flex-1 sm:flex-none justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
                     >
-                      <Youtube className="w-4 h-4" />
+                      <Video className="w-4 h-4" />
                       <span>{session.status === 'completed' ? 'Repetir' : 'Ver Video'}</span>
                     </button>
                   </div>
