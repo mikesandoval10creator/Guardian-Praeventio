@@ -11,7 +11,11 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAuditAction } from '../auditService';
 import { randomId } from '../../utils/randomId';
-import type { DisasterHazard, IperGenderLens } from '../protocols/iper';
+import type {
+  DisasterHazard,
+  Ds44Recommendation,
+  IperGenderLens,
+} from '../protocols/iper';
 
 export interface IperAssessmentInputs {
   probability: 1 | 2 | 3 | 4 | 5;
@@ -47,13 +51,13 @@ export interface IperAssessmentPayload {
    */
   durationMin?: number;
   /**
-   * DS 44/2024 duties derived by the engine (`calculateIper`). Persisted as
-   * legal evidence: an inspector reads back WHICH differentiated-population or
-   * disaster duties the evaluation triggered, not just the final level.
+   * DS 44/2024 recommendations raised by the engine (`calculateIper`), each
+   * citing its legal basis. Persisted as evidence of the analysis: an inspector
+   * reads back WHICH differentiated-population or disaster considerations the
+   * evaluation surfaced — and the prevencionista's own classification stays in
+   * `level`, because the lens recommends, it does not decide.
    */
-  ds44Obligations?: string[];
-  /** True when a DS 44 factor escalated the base 5×5 level. */
-  differentialEscalation?: boolean;
+  ds44Recommendations?: Ds44Recommendation[];
 }
 
 const COLLECTION = 'iper_assessments';
@@ -123,11 +127,11 @@ export async function recordIperAssessment(
 
   // DS 44 fields are added ONLY when the evaluation produced them, so records
   // written without the gender/disaster lens stay byte-identical to today's.
-  if (Array.isArray(payload.ds44Obligations) && payload.ds44Obligations.length > 0) {
-    dbPayload.ds44Obligations = payload.ds44Obligations;
-  }
-  if (payload.differentialEscalation === true) {
-    dbPayload.differentialEscalation = true;
+  if (
+    Array.isArray(payload.ds44Recommendations) &&
+    payload.ds44Recommendations.length > 0
+  ) {
+    dbPayload.ds44Recommendations = payload.ds44Recommendations;
   }
 
   await setDoc(ref, dbPayload);
@@ -148,14 +152,14 @@ export async function recordIperAssessment(
   ) {
     auditDetails.durationMin = payload.durationMin;
   }
-  // DS 44: the compliance trail must show that a differentiated-population or
-  // disaster factor changed the classification — the count keeps the audit
-  // entry small while proving the duties were raised.
-  if (payload.differentialEscalation === true) {
-    auditDetails.differentialEscalation = true;
-  }
-  if (Array.isArray(payload.ds44Obligations) && payload.ds44Obligations.length > 0) {
-    auditDetails.ds44ObligationCount = payload.ds44Obligations.length;
+  // DS 44: the trail shows that the differentiated-population / disaster
+  // considerations WERE surfaced to the prevencionista. The count keeps the
+  // audit entry small; the full texts live in the assessment document.
+  if (
+    Array.isArray(payload.ds44Recommendations) &&
+    payload.ds44Recommendations.length > 0
+  ) {
+    auditDetails.ds44RecommendationCount = payload.ds44Recommendations.length;
   }
 
   await logAuditAction(
