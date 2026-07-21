@@ -1,9 +1,12 @@
 # docs/archive/ — snapshots históricos
 
-> **Fuente única de verdad activa:** [`/TODO.md`](../../TODO.md). Cualquier
-> documento dentro de `docs/archive/` representa un snapshot histórico
-> conservado para auditoría y trazabilidad — **no consultes estos archivos
-> para decisiones operacionales actuales**.
+> **Fuentes de verdad activas (2026-07-20):** la **deuda pendiente** vive en
+> Notion (_Alpha 41 — Tasks_); los **contadores** en
+> [`/docs/ESTADO-MEDIDO.md`](../ESTADO-MEDIDO.md) (generado desde los ratchets);
+> las **decisiones e historial** en [`/TODO.md`](../../TODO.md) y
+> [`/docs/PENDIENTE.md`](../PENDIENTE.md). Cualquier documento dentro de
+> `docs/archive/` es un snapshot histórico conservado para auditoría y
+> trazabilidad — **no lo consultes para decisiones operacionales actuales**.
 
 ---
 

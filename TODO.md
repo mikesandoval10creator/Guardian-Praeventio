@@ -1,5 +1,14 @@
 # TODO.md — Guardian Praeventio (Fuente Única de Verdad)
 
+> **Alcance aclarado (2026-07-20).** Este documento sigue siendo la Fuente Única
+> de Verdad **del estado funcional verificado y de las decisiones** (Regla #1:
+> nada ✅ sin `file:line`). Ya **no** es la lista de trabajo pendiente: la
+> **deuda pendiente vive en Notion** (_Alpha 41 — Tasks_), auditada y vigente, y
+> los **contadores** en [`docs/ESTADO-MEDIDO.md`](docs/ESTADO-MEDIDO.md)
+> (generado desde los ratchets, no a mano). Las referencias de abajo a
+> `docs/audits/file-ledger/` (§2.32–2.34) son históricas — esa carpeta se retiró
+> el 2026-07-20 tras triar sus hallazgos a Notion (git conserva el histórico).
+
 > **Filosofía:** "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián.
 >
 > **Regla #1 (inviolable):** este documento **NO marca ✅ sin evidencia file:line**. Cada claim de "hecho" debe ser verificable con `grep` o `Read` en el código real. Una app de prevención de riesgos NO puede permitirse falsa completeness — vidas dependen de que sepamos qué funciona de verdad.
