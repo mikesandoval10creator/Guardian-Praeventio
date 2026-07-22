@@ -125,7 +125,14 @@ export function applyProfessionalIdentityTransition(
   return next;
 }
 
-export function canReceiveHealthGrant(identity: HealthProfessionalIdentity): boolean {
+export type EligibleHealthProfessionalIdentity = HealthProfessionalIdentity & {
+  status: 'provisional' | 'verified';
+  webauthnRequired: true;
+};
+
+export function canReceiveHealthGrant(
+  identity: HealthProfessionalIdentity,
+): identity is EligibleHealthProfessionalIdentity {
   return (
     identity.webauthnRequired === true &&
     (identity.status === 'provisional' || identity.status === 'verified')

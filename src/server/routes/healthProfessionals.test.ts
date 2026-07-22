@@ -37,6 +37,8 @@ const pendingIdentity = {
 } as unknown as HealthProfessionalIdentity;
 
 function setup() {
+  const hasWebAuthnCredential = vi.fn(async () => true);
+  const analytics = { track: vi.fn(async () => undefined) };
   const store = {
     enroll: vi.fn(async (input: any) => ({ ...pendingIdentity, ...input, rut: undefined })),
     get: vi.fn(async (uid: string) => (uid === pendingIdentity.uid ? pendingIdentity : null)),
@@ -57,11 +59,11 @@ function setup() {
       status: 'provisional' as const,
     })),
   };
-  const router = createHealthProfessionalsRouter({ store });
+  const router = createHealthProfessionalsRouter({ store, hasWebAuthnCredential, analytics });
   const app = express();
   app.use(express.json());
   app.use('/api/health-professionals', router);
-  return { app, store };
+  return { app, store, hasWebAuthnCredential, analytics };
 }
 
 describe('health professional routes', () => {
@@ -72,7 +74,7 @@ describe('health professional routes', () => {
 
   it('enrolls only the authenticated account and returns no RUT', async () => {
     caller.uid = 'doctor-external-1';
-    const { app, store } = setup();
+    const { app, store, analytics } = setup();
     const response = await request(app).post('/api/health-professionals/enroll').send({
       displayName: 'Dra. Elena Morales',
       rut: '12.345.678-5',
@@ -88,6 +90,15 @@ describe('health professional routes', () => {
       registryNumber: 'RNPI-12345',
     });
     expect(JSON.stringify(response.body)).not.toContain('12.345.678-5');
+    expect(analytics.track).toHaveBeenCalledWith('health.professional.onboarding_completed', {
+      country: 'CL',
+      outcome_code: 'success',
+    });
+    expect(analytics.track).toHaveBeenCalledWith('health.professional.verification_pending', {
+      country: 'CL',
+      verification_status: 'pending',
+      outcome_code: 'success',
+    });
     expect(response.body.message).toMatch(/revisión/i);
   });
 
@@ -116,7 +127,7 @@ describe('health professional routes', () => {
   });
 
   it('denies tenant admins and requires the platform admin claim for review', async () => {
-    const { app, store } = setup();
+    const { app, store, analytics } = setup();
     const response = await request(app)
       .post('/api/health-professionals/review/doctor-external-1')
       .send({ evidenceReference: 'consulta-registro-2026-07-21' });
@@ -132,7 +143,7 @@ describe('health professional routes', () => {
   it('records an audited provisional decision but cannot call it officially verified', async () => {
     caller.uid = 'platform-reviewer-1';
     caller.admin = true;
-    const { app, store } = setup();
+    const { app, store, analytics } = setup();
     const response = await request(app)
       .post('/api/health-professionals/review/doctor-external-1')
       .send({ evidenceReference: 'consulta-registro-2026-07-21' });
@@ -145,6 +156,30 @@ describe('health professional routes', () => {
       reviewerUid: 'platform-reviewer-1',
       evidenceReference: 'consulta-registro-2026-07-21',
     });
+    expect(analytics.track).toHaveBeenCalledWith('health.professional.provisional_approved', {
+      country: 'CL',
+      verification_status: 'provisional',
+      outcome_code: 'success',
+    });
+  });
+
+  it('does not approve a professional until a server-verifiable WebAuthn credential exists', async () => {
+    caller.uid = 'platform-reviewer-1';
+    caller.admin = true;
+    const { app, store, hasWebAuthnCredential } = setup();
+    hasWebAuthnCredential.mockResolvedValue(false);
+
+    const response = await request(app)
+      .post('/api/health-professionals/review/doctor-external-1')
+      .send({ evidenceReference: 'consulta-registro-2026-07-21' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      error: 'professional_webauthn_required',
+      message: 'El profesional debe registrar una huella o llave de seguridad antes de ser habilitado.',
+    });
+    expect(hasWebAuthnCredential).toHaveBeenCalledWith('doctor-external-1');
+    expect(store.approveProvisional).not.toHaveBeenCalled();
   });
 
   it('returns human validation errors instead of raw status codes', async () => {

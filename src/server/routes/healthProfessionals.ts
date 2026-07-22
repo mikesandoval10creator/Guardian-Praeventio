@@ -15,6 +15,9 @@ import type {
 } from '../../services/health/professionalIdentity.js';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
+import { getCredentialsByUid } from '../../services/auth/webauthnCredentialStore.js';
+import { buildWebAuthnCredentialsDb } from './curriculum.js';
+import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
 
 type ProfessionalStore = {
   enroll(input: {
@@ -143,9 +146,17 @@ function defaultStore(): ProfessionalStore {
   });
 }
 
-export function createHealthProfessionalsRouter(deps?: { store: ProfessionalStore }) {
+export function createHealthProfessionalsRouter(deps?: {
+  store: ProfessionalStore;
+  hasWebAuthnCredential?: (uid: string) => Promise<boolean>;
+  analytics?: Pick<ServerAnalytics, 'track'>;
+}) {
   const router = Router();
   const getStore = () => deps?.store ?? defaultStore();
+  const hasWebAuthnCredential =
+    deps?.hasWebAuthnCredential ??
+    (async (uid: string) => (await getCredentialsByUid(uid, buildWebAuthnCredentialsDb())).length > 0);
+  const analytics = deps?.analytics ?? serverAnalytics;
 
   router.post('/enroll', verifyAuth, limiter, async (req, res) => {
     const callerUid = req.user?.uid;
@@ -164,6 +175,19 @@ export function createHealthProfessionalsRouter(deps?: { store: ProfessionalStor
     }
     try {
       const identity = await getStore().enroll({ uid: callerUid, ...parsed.data });
+      try {
+        await analytics.track('health.professional.onboarding_completed', {
+          country: 'CL',
+          outcome_code: 'success',
+        });
+        await analytics.track('health.professional.verification_pending', {
+          country: 'CL',
+          verification_status: 'pending',
+          outcome_code: 'success',
+        });
+      } catch {
+        // Product analytics is deliberately non-critical for identity enrollment.
+      }
       return res.status(201).json({
         identity: selfDto(identity),
         message: 'Tu identidad profesional quedó pendiente de revisión.',
@@ -239,11 +263,26 @@ export function createHealthProfessionalsRouter(deps?: { store: ProfessionalStor
       });
     }
     try {
+      if (!(await hasWebAuthnCredential(req.params.uid))) {
+        return res.status(409).json({
+          error: 'professional_webauthn_required',
+          message: 'El profesional debe registrar una huella o llave de seguridad antes de ser habilitado.',
+        });
+      }
       const identity = await getStore().approveProvisional({
         targetUid: req.params.uid,
         reviewerUid,
         evidenceReference: parsed.data.evidenceReference,
       });
+      try {
+        await analytics.track('health.professional.provisional_approved', {
+          country: 'CL',
+          verification_status: 'provisional',
+          outcome_code: 'success',
+        });
+      } catch {
+        // Audit is persisted by the store; product analytics must not block review.
+      }
       return res.json({
         identity: selfDto(identity),
         message: 'La identidad quedó aprobada de forma provisional y auditada.',

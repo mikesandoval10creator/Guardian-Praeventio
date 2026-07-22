@@ -471,3 +471,67 @@ events:
     ownerTeam: platform
     firstVersion: 1.0.0
     piiRisk: low
+
+  # =================== Health Vault professional funnel (7) ===================
+  - name: health.professional.onboarding_started
+    class: lifecycle
+    description: Professional opened the independent identity onboarding flow.
+    requiredProps: [country]
+    optionalProps: [outcome_code]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.professional.onboarding_completed
+    class: lifecycle
+    description: Professional submitted the minimum identity enrollment.
+    requiredProps: [country]
+    optionalProps: [outcome_code]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.professional.verification_pending
+    class: lifecycle
+    description: Professional identity entered pending review.
+    requiredProps: [country, verification_status]
+    optionalProps: [outcome_code]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.professional.provisional_approved
+    class: lifecycle
+    description: Audited review granted provisional eligibility.
+    requiredProps: [country, verification_status]
+    optionalProps: [outcome_code]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.professional.officially_verified
+    class: lifecycle
+    description: Configured official registry confirmed eligibility.
+    requiredProps: [country, verification_status]
+    optionalProps: [outcome_code]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.share.recipient_confirmed
+    class: lifecycle
+    description: Patient confirmed an eligible professional without exposing consent purpose.
+    requiredProps: [country, verification_status, channel]
+    optionalProps: [duration_bucket, outcome_code]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: none
+
+  - name: health.share.session_started
+    class: engagement
+    description: Eligible professional opened a consent-bound WebAuthn-backed session.
+    requiredProps: [country, verification_status, channel]
+    optionalProps: [duration_bucket, outcome_code]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: none

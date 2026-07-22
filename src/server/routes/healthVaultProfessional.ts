@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import admin from 'firebase-admin';
 import { z } from 'zod';
 
@@ -44,14 +45,23 @@ import {
   buildWebAuthnDb,
 } from './curriculum.js';
 import { logger } from '../../utils/logger.js';
+import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
+import { bucketHealthAccessDuration } from '../../services/analytics/healthPrivacy.js';
 
 type VerifiedAssertion = { verified: boolean; credentialId?: string; reason?: string };
 type FilePayload = { bytes: Buffer; contentType: string };
 
 export interface HealthVaultProfessionalRouterDeps {
+  analytics?: Pick<ServerAnalytics, 'track'>;
   createGrant(grant: HealthAccessGrantV2): Promise<unknown>;
   getGrant(id: string): Promise<HealthAccessGrantV2 | null>;
-  replaceGrant(grant: HealthAccessGrantV2): Promise<unknown>;
+  replaceGrant(
+    grant: HealthAccessGrantV2,
+    audit: {
+      action: 'health_vault.grant.recipient_confirmed' | 'health_vault.grant.revoked';
+      actorUid: string;
+    },
+  ): Promise<unknown>;
   activateSession(grant: HealthAccessGrantV2, session: VaultAccessSession): Promise<unknown>;
   getSession(id: string): Promise<VaultAccessSession | null>;
   getProfessional(uid: string): Promise<HealthProfessionalIdentity | null>;
@@ -93,6 +103,20 @@ const sessionSchema = z.object({
 
 const confirmRecipientSchema = z.object({
   professionalUid: z.string().min(1).max(128),
+});
+
+const challengeLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const sessionLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 const PURPOSE_LABELS: Record<HealthAccessPurpose, string> = {
@@ -189,6 +213,15 @@ function assertRuntimeGrant(
   }
 }
 
+function analyticsVerificationStatus(
+  professional: HealthProfessionalIdentity,
+): 'provisional' | 'verified' {
+  if (professional.status === 'provisional' || professional.status === 'verified') {
+    return professional.status;
+  }
+  throw new VaultShareError('Professional not eligible', 'professional_not_eligible');
+}
+
 function sessionHeader(req: Request): { id: string; secret: string } | null {
   const raw = req.header('X-Health-Vault-Session');
   if (!raw || raw.length > 512) return null;
@@ -239,6 +272,7 @@ export function createHealthVaultProfessionalRouter(
 ) {
   const router = Router();
   const deps = () => providedDeps ?? defaultDependencies();
+  const analytics = providedDeps?.analytics ?? serverAnalytics;
 
   router.use((_req, res, next) => {
     applySecurityHeaders(res);
@@ -301,6 +335,21 @@ export function createHealthVaultProfessionalRouter(
         maxSessions: parsed.data.maxSessions,
       });
       await service.createGrant(created.record);
+      if (professional) {
+        try {
+          await analytics.track('health.share.recipient_confirmed', {
+            country: 'CL',
+            verification_status: analyticsVerificationStatus(professional),
+            channel: 'directory',
+            duration_bucket: bucketHealthAccessDuration(
+              created.record.expiresAt - created.record.createdAt,
+            ),
+            outcome_code: 'success',
+          });
+        } catch {
+          // Consent persistence and audit are critical; product analytics is not.
+        }
+      }
       return res.status(201).json({
         grantId: created.record.id,
         secret: created.secret,
@@ -360,7 +409,21 @@ export function createHealthVaultProfessionalRouter(
         return res.status(400).json({ error: 'professional_not_eligible', message: 'El profesional aún no está habilitado.' });
       }
       const updated = confirmGrantRecipient(grant, callerUid, professional.uid);
-      await service.replaceGrant(updated);
+      await service.replaceGrant(updated, {
+        action: 'health_vault.grant.recipient_confirmed',
+        actorUid: callerUid,
+      });
+      try {
+        await analytics.track('health.share.recipient_confirmed', {
+          country: 'CL',
+          verification_status: analyticsVerificationStatus(professional),
+          channel: 'qr',
+          duration_bucket: bucketHealthAccessDuration(updated.expiresAt - updated.createdAt),
+          outcome_code: 'success',
+        });
+      } catch {
+        // Product analytics must never block a consent decision.
+      }
       return res.json({ status: updated.status, recipient: professional.uid });
     } catch (error) {
       if (error instanceof VaultShareError) return grantError(res, error);
@@ -368,7 +431,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.get('/view/:grantId/challenge', verifyAuth, async (req, res) => {
+  router.get('/view/:grantId/challenge', verifyAuth, challengeLimiter, async (req, res) => {
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión.' });
     try {
@@ -387,7 +450,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.post('/view/:grantId/session', verifyAuth, async (req, res) => {
+  router.post('/view/:grantId/session', verifyAuth, sessionLimiter, async (req, res) => {
     const callerUid = req.user?.uid;
     const parsed = sessionSchema.safeParse(req.body);
     if (!callerUid || !parsed.success) {
@@ -421,6 +484,17 @@ export function createHealthVaultProfessionalRouter(
       });
       const activatedGrant = activateGrantSession(grant, callerUid, credentialIdHash);
       await service.activateSession(activatedGrant, createdSession.record);
+      try {
+        await analytics.track('health.share.session_started', {
+          country: 'CL',
+          verification_status: analyticsVerificationStatus(professional),
+          channel: 'qr',
+          duration_bucket: bucketHealthAccessDuration(grant.expiresAt - grant.createdAt),
+          outcome_code: 'success',
+        });
+      } catch {
+        // The atomic session audit is authoritative; product analytics is optional.
+      }
       return res.status(201).json({
         sessionToken: `${createdSession.record.id}.${createdSession.secret}`,
         expiresAt: createdSession.record.expiresAt,
@@ -508,7 +582,10 @@ export function createHealthVaultProfessionalRouter(
       const grant = await service.getGrant(req.params.grantId);
       if (!grant) return next();
       const revoked = revokeHealthAccessGrant(grant, callerUid);
-      await service.replaceGrant(revoked);
+      await service.replaceGrant(revoked, {
+        action: 'health_vault.grant.revoked',
+        actorUid: callerUid,
+      });
       return res.json({ ok: true, revokedAt: revoked.revokedAt });
     } catch (error) {
       if (error instanceof VaultShareError) return grantError(res, error);
@@ -556,13 +633,40 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
       });
     },
     getGrant: locateGrant,
-    async replaceGrant(grant) {
-      await db
+    async replaceGrant(grant, audit) {
+      const grantRef = db
         .collection('users')
         .doc(grant.ownerUid)
         .collection('health_vault_shares')
-        .doc(grant.id)
-        .set(grant);
+        .doc(grant.id);
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(grantRef);
+        const current = snapshot.data() as HealthAccessGrantV2 | undefined;
+        if (!snapshot.exists || !current || current.version !== 2) {
+          throw new Error('grant_replace_conflict');
+        }
+        if (audit.actorUid !== current.ownerUid || grant.ownerUid !== current.ownerUid) {
+          throw new Error('grant_owner_conflict');
+        }
+        const validTransition =
+          (audit.action === 'health_vault.grant.recipient_confirmed' &&
+            current.status === 'pending' &&
+            grant.status === 'active') ||
+          (audit.action === 'health_vault.grant.revoked' &&
+            current.status !== 'revoked' &&
+            grant.status === 'revoked');
+        if (!validTransition) throw new Error('grant_state_conflict');
+
+        transaction.set(grantRef, grant);
+        transaction.create(db.collection('audit_logs').doc(), {
+          action: audit.action,
+          actorUid: audit.actorUid,
+          ownerUid: current.ownerUid,
+          grantId: current.id,
+          resourceType: 'health_vault',
+          timestamp: Date.now(),
+        });
+      });
     },
     async activateSession(grant, session) {
       const grantRef = db

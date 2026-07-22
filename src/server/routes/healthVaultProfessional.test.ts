@@ -48,6 +48,7 @@ function setup() {
     ['doctor-2', professional('doctor-2', 'verified')],
   ]);
   const deps = {
+    analytics: { track: vi.fn(async () => undefined) },
     createGrant: vi.fn(async (grant: HealthAccessGrantV2) => grants.set(grant.id, grant)),
     getGrant: vi.fn(async (id: string) => grants.get(id) ?? null),
     replaceGrant: vi.fn(async (grant: HealthAccessGrantV2) => grants.set(grant.id, grant)),
@@ -95,7 +96,7 @@ describe('Health Vault professional v2 routes', () => {
   });
 
   it('creates an owner-bound grant with an explicit resource snapshot and fragment secret', async () => {
-    const { app, grants } = setup();
+    const { app, grants, deps } = setup();
     const response = await createGrant(app);
 
     expect(response.status).toBe(201);
@@ -106,6 +107,13 @@ describe('Health Vault professional v2 routes', () => {
     expect(persisted.ownerUid).toBe('patient-1');
     expect(persisted.resourceIds).toEqual(['record-1', 'record-2']);
     expect(JSON.stringify(persisted)).not.toContain(response.body.secret);
+    expect(deps.analytics.track).toHaveBeenCalledWith('health.share.recipient_confirmed', {
+      country: 'CL',
+      verification_status: 'provisional',
+      channel: 'directory',
+      duration_bucket: '1_to_24h',
+      outcome_code: 'success',
+    });
   });
 
   it('lists only safe metadata so the owner can choose records explicitly', async () => {
@@ -130,6 +138,54 @@ describe('Health Vault professional v2 routes', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('health_records_not_owned');
     expect(response.body.message).toMatch(/seleccionados/i);
+  });
+
+  it('persists recipient confirmation with an explicit audit action', async () => {
+    const { app, deps } = setup();
+    const created = await request(app).post('/api/health-vault/share').send({
+      version: 2,
+      scope: 'full',
+      resourceIds: ['record-1'],
+      purpose: 'second_opinion',
+    });
+
+    const response = await request(app)
+      .post(`/api/health-vault/share/${created.body.grantId}/confirm-recipient`)
+      .send({ professionalUid: 'doctor-2' });
+
+    expect(response.status).toBe(200);
+    expect(deps.replaceGrant).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'active', recipientProfessionalUid: 'doctor-2' }),
+      {
+        action: 'health_vault.grant.recipient_confirmed',
+        actorUid: 'patient-1',
+      },
+    );
+    expect(deps.analytics.track).toHaveBeenCalledWith('health.share.recipient_confirmed', {
+      country: 'CL',
+      verification_status: 'verified',
+      channel: 'qr',
+      duration_bucket: '1_to_24h',
+      outcome_code: 'success',
+    });
+  });
+
+  it('persists owner revocation with an explicit audit action', async () => {
+    const { app, deps } = setup();
+    const created = await createGrant(app);
+
+    const response = await request(app)
+      .post(`/api/health-vault/share/${created.body.grantId}/revoke`)
+      .send({ version: 2 });
+
+    expect(response.status).toBe(200);
+    expect(deps.replaceGrant).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'revoked' }),
+      {
+        action: 'health_vault.grant.revoked',
+        actorUid: 'patient-1',
+      },
+    );
   });
 
   it('issues a challenge bound to an external professional and grant without tenant membership', async () => {
@@ -161,6 +217,13 @@ describe('Health Vault professional v2 routes', () => {
       expect.objectContaining({ challengeId: 'challenge-health-1' }),
     );
     expect(deps.activateSession).toHaveBeenCalledTimes(1);
+    expect(deps.analytics.track).toHaveBeenCalledWith('health.share.session_started', {
+      country: 'CL',
+      verification_status: 'provisional',
+      channel: 'qr',
+      duration_bucket: '1_to_24h',
+      outcome_code: 'success',
+    });
   });
 
   it('rejects another valid doctor with a human recipient message', async () => {

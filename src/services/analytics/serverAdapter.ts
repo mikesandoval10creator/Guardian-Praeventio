@@ -62,6 +62,16 @@ const PII_FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
   'lng',
   'latitude',
   'longitude',
+  'uid',
+  'patient_uid',
+  'worker_uid',
+  'professional_uid',
+  'purpose',
+  'resource_ids',
+  'record_ids',
+  'specialty',
+  'diagnosis',
+  'medications',
 ]);
 
 /** Plan-level event_version. Bumped per row in the catalog. */

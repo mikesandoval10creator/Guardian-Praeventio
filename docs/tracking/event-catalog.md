@@ -9,7 +9,7 @@ Common properties (sent on every event, see TRACKING_PLAN §4.8) are not repeate
 
 Total: **46 events** across **12 surfaces**.
 
-Counts by class: lifecycle 23, engagement 10, safety_critical 9, commerce 4.
+Counts by class: lifecycle 29, engagement 11, safety_critical 9, commerce 4.
 
 ---
 
@@ -119,11 +119,23 @@ Counts by class: lifecycle 23, engagement 10, safety_critical 9, commerce 4.
 | `app.backgrounded` | engagement | Page went `visibilityState=hidden` for ≥ 3 s. |  | `foreground_duration_seconds` | platform | 1.0.0 |
 | `app.mode.switched` | engagement | `useAppMode().setMode(...)` called or auto-trigger fired. | `from_mode`, `to_mode`, `trigger_kind` |  | platform | 1.0.0 |
 
+## Health Vault professional funnel (7)
+
+| Event | Class | Description | Required props | Optional props | Owner | First version |
+|---|---|---|---|---|---|---|
+| `health.professional.onboarding_started` | lifecycle | Professional opened the independent identity onboarding flow. | `country` | `outcome_code` | identity | 1.0.0 |
+| `health.professional.onboarding_completed` | lifecycle | Professional submitted the minimum identity enrollment. | `country` | `outcome_code` | identity | 1.0.0 |
+| `health.professional.verification_pending` | lifecycle | Professional identity entered pending review. | `country`, `verification_status` | `outcome_code` | identity | 1.0.0 |
+| `health.professional.provisional_approved` | lifecycle | Audited review granted provisional eligibility. | `country`, `verification_status` | `outcome_code` | identity | 1.0.0 |
+| `health.professional.officially_verified` | lifecycle | Configured official registry confirmed eligibility. | `country`, `verification_status` | `outcome_code` | identity | 1.0.0 |
+| `health.share.recipient_confirmed` | lifecycle | Patient confirmed an eligible professional without exposing consent purpose. | `country`, `verification_status`, `channel` | `duration_bucket`, `outcome_code` | safety | 1.0.0 |
+| `health.share.session_started` | engagement | Eligible professional opened a consent-bound, WebAuthn-backed session. | `country`, `verification_status`, `channel` | `duration_bucket`, `outcome_code` | safety | 1.0.0 |
+
 ---
 
 ## Cross-checks (manual until codegen runs)
 
-- Row count above (excluding the headline rows): 46. Matches the YAML manifest.
+- Row count above (excluding the headline rows): 53. Matches the YAML manifest.
 - Every `Owner` is one of: `identity`, `platform`, `safety`, `compliance`, `billing`, `knowledge`.
 - Every event in the `safety_critical` class is sampled at 100% (TRACKING_PLAN §4.7) and retained 24 months (§8.1).
 - Three events that pulled extra discussion (see PR description / agent return message): `app.opened`, `slm.queue.reconciled`, `comite.minutes.drafted` — see TRACKING_PLAN §10 open questions.

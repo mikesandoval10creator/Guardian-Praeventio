@@ -167,6 +167,27 @@ describe('createServerAnalytics()', () => {
     expect(sink.calls).toHaveLength(0);
   });
 
+  it('drops clinical purpose and record identifiers even through an untyped caller', async () => {
+    const sink = makeMockSink();
+    const analytics = createServerAnalytics({
+      sinks: [sink],
+      queue: createInMemoryAnalyticsQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await analytics.track('health.share.session_started', {
+      country: 'CL',
+      verification_status: 'verified',
+      channel: 'qr',
+      // @ts-expect-error — runtime privacy guard must still reject this
+      purpose: 'diagnostic_review',
+      record_ids: ['record-1'],
+    });
+
+    expect(sink.calls).toHaveLength(0);
+  });
+
   it('opt-out short-circuits track', async () => {
     const sink = makeMockSink();
     const analytics = createServerAnalytics({
