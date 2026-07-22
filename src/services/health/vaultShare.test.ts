@@ -8,6 +8,11 @@ import {
   validateShareAccess,
   recordIdInShareScope,
   buildAuditEntry,
+  activateGrantSession,
+  confirmGrantRecipient,
+  createHealthAccessGrant,
+  revokeHealthAccessGrant,
+  validateGrantClaim,
   VaultShareError,
   DEFAULT_TTL_HOURS,
   DEFAULT_MAX_CONSUMES,
@@ -391,5 +396,117 @@ describe('recordIdInShareScope', () => {
   it('rejects empty/non-string recordId', () => {
     const { record } = createShareToken({ workerUid: 'w1', scope: 'full', now });
     expect(recordIdInShareScope(record, '')).toBe(false);
+  });
+});
+
+describe('HealthAccessGrant v2', () => {
+  const createGrant = (overrides: Partial<Parameters<typeof createHealthAccessGrant>[0]> = {}) =>
+    createHealthAccessGrant({
+      ownerUid: 'patient-1',
+      scope: 'full',
+      resourceIds: ['record-1', 'record-2'],
+      recipientProfessionalUid: 'doctor-external-1',
+      purpose: 'continuity_of_care',
+      consentTextVersion: 'health-vault-v2-es-CL-1',
+      consentText: 'Autorizo a la profesional seleccionada a consultar dos registros.',
+      now,
+      ...overrides,
+    });
+
+  it('freezes explicit resources and puts the raw secret only in the URL fragment', () => {
+    const { record, secret, qrPayload } = createGrant();
+
+    expect(record.version).toBe(2);
+    expect(record.ownerUid).toBe('patient-1');
+    expect(record.resourceIds).toEqual(['record-1', 'record-2']);
+    expect(record.recipientProfessionalUid).toBe('doctor-external-1');
+    expect(record.status).toBe('active');
+    expect(record.consentTextHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(qrPayload).toBe(`https://praeventio.app/vault/share/${record.id}#${secret}`);
+    expect(qrPayload.split('#')[0]).not.toContain(secret);
+    expect(JSON.stringify(record)).not.toContain(secret);
+  });
+
+  it.each([
+    { label: 'empty', resourceIds: [] },
+    { label: 'duplicated', resourceIds: ['record-1', 'record-1'] },
+  ])(
+    'rejects an $label resource snapshot',
+    ({ resourceIds }) => {
+      expect(() => createGrant({ resourceIds })).toThrowError(VaultShareError);
+    },
+  );
+
+  it('does not allow another verified professional to consume a bound grant', () => {
+    const { record, secret } = createGrant();
+
+    expect(() =>
+      validateGrantClaim(record, secret, {
+        uid: 'doctor-different-2',
+        status: 'verified',
+        webauthnRequired: true,
+      }, { now }),
+    ).toThrowError(expect.objectContaining({ code: 'recipient_mismatch' }));
+  });
+
+  it.each(['pending', 'suspended', 'revoked'] as const)(
+    'rejects a professional whose verification status is %s',
+    (status) => {
+      const { record, secret } = createGrant();
+      expect(() =>
+        validateGrantClaim(record, secret, {
+          uid: 'doctor-external-1',
+          status,
+          webauthnRequired: true,
+        }, { now }),
+      ).toThrowError(expect.objectContaining({ code: 'professional_not_eligible' }));
+    },
+  );
+
+  it('open invitation requires owner confirmation before it becomes active', () => {
+    const { record } = createGrant({ recipientProfessionalUid: undefined });
+    expect(record.status).toBe('pending');
+
+    expect(() =>
+      confirmGrantRecipient(record, 'company-admin-1', 'doctor-external-1', { now }),
+    ).toThrowError(expect.objectContaining({ code: 'owner_required' }));
+
+    const confirmed = confirmGrantRecipient(record, 'patient-1', 'doctor-external-1', {
+      now,
+    });
+    expect(confirmed.status).toBe('active');
+    expect(confirmed.recipientProfessionalUid).toBe('doctor-external-1');
+  });
+
+  it('counts clinical sessions and stops at the explicit cap', () => {
+    const { record } = createGrant({ maxSessions: 1 });
+    const activated = activateGrantSession(record, 'doctor-external-1', 'credential-hash', {
+      now,
+    });
+    expect(activated.sessionCount).toBe(1);
+    expect(activated.sessions[0]).toEqual({
+      at: FIXED_NOW,
+      professionalUid: 'doctor-external-1',
+      credentialIdHash: 'credential-hash',
+    });
+    expect(() =>
+      activateGrantSession(activated, 'doctor-external-1', 'credential-hash', { now }),
+    ).toThrowError(expect.objectContaining({ code: 'max_sessions_reached' }));
+  });
+
+  it('revocation is owner-only and blocks the next claim', () => {
+    const { record, secret } = createGrant();
+    expect(() => revokeHealthAccessGrant(record, 'company-admin-1', { now })).toThrowError(
+      expect.objectContaining({ code: 'owner_required' }),
+    );
+    const revoked = revokeHealthAccessGrant(record, 'patient-1', { now });
+    expect(revoked.status).toBe('revoked');
+    expect(() =>
+      validateGrantClaim(revoked, secret, {
+        uid: 'doctor-external-1',
+        status: 'provisional',
+        webauthnRequired: true,
+      }, { now }),
+    ).toThrowError(expect.objectContaining({ code: 'revoked' }));
   });
 });

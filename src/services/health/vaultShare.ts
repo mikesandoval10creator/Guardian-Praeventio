@@ -54,6 +54,11 @@ export class VaultShareError extends Error {
       | 'expired'
       | 'revoked'
       | 'max_consumes_reached'
+      | 'max_sessions_reached'
+      | 'recipient_mismatch'
+      | 'professional_not_eligible'
+      | 'owner_required'
+      | 'recipient_confirmation_required'
       | 'malformed',
   ) {
     super(message);
@@ -319,4 +324,217 @@ export function buildAuditEntry(
     },
     timestamp: Date.now(),
   };
+}
+
+export type HealthAccessPurpose =
+  | 'continuity_of_care'
+  | 'second_opinion'
+  | 'diagnostic_review'
+  | 'occupational_health';
+
+export interface HealthAccessGrantV2 {
+  version: 2;
+  id: string;
+  ownerUid: string;
+  scope: VaultShareScope;
+  resourceIds: string[];
+  recipientProfessionalUid?: string;
+  purpose: HealthAccessPurpose;
+  consentTextVersion: string;
+  consentTextHash: string;
+  consentedAt: number;
+  status: 'pending' | 'active' | 'revoked' | 'expired';
+  tokenHash: string;
+  tokenPrefix: string;
+  createdAt: number;
+  expiresAt: number;
+  maxSessions: number;
+  sessionCount: number;
+  sessions: Array<{
+    at: number;
+    professionalUid: string;
+    credentialIdHash: string;
+  }>;
+  revokedAt: number | null;
+  revokedBy?: string;
+}
+
+export type GrantRecipientProfessional = {
+  uid: string;
+  status: 'pending' | 'provisional' | 'verified' | 'suspended' | 'revoked';
+  webauthnRequired: boolean;
+};
+
+const GRANT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+function requireGrantText(value: string, field: string, maxLength: number): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized || normalized.length > maxLength) {
+    throw new VaultShareError(`${field} is invalid`, 'malformed');
+  }
+  return normalized;
+}
+
+export function createHealthAccessGrant(opts: {
+  ownerUid: string;
+  scope: VaultShareScope;
+  resourceIds: string[];
+  recipientProfessionalUid?: string;
+  purpose: HealthAccessPurpose;
+  consentTextVersion: string;
+  consentText: string;
+  ttlHours?: number;
+  maxSessions?: number;
+  now?: () => number;
+}): { record: HealthAccessGrantV2; secret: string; qrPayload: string } {
+  const ownerUid = requireGrantText(opts.ownerUid, 'ownerUid', 128);
+  const consentTextVersion = requireGrantText(
+    opts.consentTextVersion,
+    'consentTextVersion',
+    80,
+  );
+  const consentText = requireGrantText(opts.consentText, 'consentText', 4_000);
+  if (!Array.isArray(opts.resourceIds) || opts.resourceIds.length === 0 || opts.resourceIds.length > 100) {
+    throw new VaultShareError('resourceIds must contain 1-100 records', 'malformed');
+  }
+  const resourceIds = opts.resourceIds.map((id) => requireGrantText(id, 'resourceId', 128));
+  if (resourceIds.some((id) => !GRANT_ID_PATTERN.test(id)) || new Set(resourceIds).size !== resourceIds.length) {
+    throw new VaultShareError('resourceIds must be unique valid ids', 'malformed');
+  }
+  const recipientProfessionalUid = opts.recipientProfessionalUid
+    ? requireGrantText(opts.recipientProfessionalUid, 'recipientProfessionalUid', 128)
+    : undefined;
+  const now = (opts.now ?? Date.now)();
+  const ttlHours = opts.ttlHours ?? DEFAULT_TTL_HOURS;
+  const maxSessions = opts.maxSessions ?? DEFAULT_MAX_CONSUMES;
+  if (!Number.isFinite(ttlHours) || ttlHours <= 0 || ttlHours > 168) {
+    throw new VaultShareError('ttlHours is invalid', 'malformed');
+  }
+  if (!Number.isInteger(maxSessions) || maxSessions <= 0 || maxSessions > 20) {
+    throw new VaultShareError('maxSessions is invalid', 'malformed');
+  }
+  const { secret, hash, prefix } = generateSecret();
+  const id = `hvg_${prefix}_${now.toString(36)}`;
+  const record: HealthAccessGrantV2 = {
+    version: 2,
+    id,
+    ownerUid,
+    scope: opts.scope,
+    resourceIds: [...resourceIds],
+    recipientProfessionalUid,
+    purpose: opts.purpose,
+    consentTextVersion,
+    consentTextHash: createHash('sha256').update(consentText, 'utf8').digest('hex'),
+    consentedAt: now,
+    status: recipientProfessionalUid ? 'active' : 'pending',
+    tokenHash: hash,
+    tokenPrefix: prefix,
+    createdAt: now,
+    expiresAt: now + ttlHours * 60 * 60 * 1000,
+    maxSessions,
+    sessionCount: 0,
+    sessions: [],
+    revokedAt: null,
+  };
+  const baseUrl = process.env.APP_BASE_URL ?? 'https://praeventio.app';
+  return {
+    record,
+    secret,
+    qrPayload: `${baseUrl}/vault/share/${id}#${secret}`,
+  };
+}
+
+export function confirmGrantRecipient(
+  grant: HealthAccessGrantV2,
+  actorUid: string,
+  professionalUid: string,
+  options: { now?: () => number } = {},
+): HealthAccessGrantV2 {
+  if (actorUid !== grant.ownerUid) {
+    throw new VaultShareError('Only the owner may confirm a recipient', 'owner_required');
+  }
+  if (grant.status !== 'pending' || grant.recipientProfessionalUid) {
+    throw new VaultShareError('Grant is not awaiting a recipient', 'recipient_confirmation_required');
+  }
+  const now = (options.now ?? Date.now)();
+  if (now > grant.expiresAt) throw new VaultShareError('Grant expired', 'expired');
+  return {
+    ...grant,
+    recipientProfessionalUid: requireGrantText(professionalUid, 'professionalUid', 128),
+    status: 'active',
+  };
+}
+
+export function validateGrantClaim(
+  grant: HealthAccessGrantV2,
+  secret: string,
+  professional: GrantRecipientProfessional,
+  options: { now?: () => number } = {},
+): { resourceIds: string[] } {
+  const now = (options.now ?? Date.now)();
+  if (grant.status === 'revoked' || grant.revokedAt !== null) {
+    throw new VaultShareError('Grant revoked', 'revoked');
+  }
+  if (grant.status === 'pending' || !grant.recipientProfessionalUid) {
+    throw new VaultShareError('Recipient confirmation required', 'recipient_confirmation_required');
+  }
+  if (grant.status === 'expired' || now > grant.expiresAt) {
+    throw new VaultShareError('Grant expired', 'expired');
+  }
+  if (!verifySecret(secret, grant.tokenHash)) {
+    throw new VaultShareError('Invalid token', 'invalid_token');
+  }
+  if (grant.recipientProfessionalUid !== professional.uid) {
+    throw new VaultShareError('Professional is not the selected recipient', 'recipient_mismatch');
+  }
+  if (
+    professional.webauthnRequired !== true ||
+    (professional.status !== 'provisional' && professional.status !== 'verified')
+  ) {
+    throw new VaultShareError('Professional is not eligible', 'professional_not_eligible');
+  }
+  if (grant.sessionCount >= grant.maxSessions) {
+    throw new VaultShareError('Maximum sessions reached', 'max_sessions_reached');
+  }
+  return { resourceIds: [...grant.resourceIds] };
+}
+
+export function activateGrantSession(
+  grant: HealthAccessGrantV2,
+  professionalUid: string,
+  credentialIdHash: string,
+  options: { now?: () => number } = {},
+): HealthAccessGrantV2 {
+  if (grant.sessionCount >= grant.maxSessions) {
+    throw new VaultShareError('Maximum sessions reached', 'max_sessions_reached');
+  }
+  if (grant.recipientProfessionalUid !== professionalUid) {
+    throw new VaultShareError('Professional is not the selected recipient', 'recipient_mismatch');
+  }
+  const at = (options.now ?? Date.now)();
+  return {
+    ...grant,
+    sessionCount: grant.sessionCount + 1,
+    sessions: [
+      ...grant.sessions,
+      {
+        at,
+        professionalUid,
+        credentialIdHash: requireGrantText(credentialIdHash, 'credentialIdHash', 128),
+      },
+    ],
+  };
+}
+
+export function revokeHealthAccessGrant(
+  grant: HealthAccessGrantV2,
+  actorUid: string,
+  options: { now?: () => number } = {},
+): HealthAccessGrantV2 {
+  if (actorUid !== grant.ownerUid) {
+    throw new VaultShareError('Only the owner may revoke a grant', 'owner_required');
+  }
+  if (grant.status === 'revoked') return grant;
+  const at = (options.now ?? Date.now)();
+  return { ...grant, status: 'revoked', revokedAt: at, revokedBy: actorUid };
 }
