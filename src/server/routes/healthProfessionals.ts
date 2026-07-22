@@ -322,7 +322,7 @@ export function createHealthProfessionalsRouter(deps?: {
       (await getCredentialsByUid(uid, createWebAuthnCredentialsFirestoreDb())).length > 0);
   const analytics = deps?.analytics ?? serverAnalytics;
 
-  router.post('/enroll', verifyAuth, limiter, async (req, res) => {
+  router.post('/enroll', limiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     if (!callerUid) {
       return res.status(401).json({
@@ -361,7 +361,7 @@ export function createHealthProfessionalsRouter(deps?: {
     }
   });
 
-  router.get('/me', verifyAuth, limiter, async (req, res) => {
+  router.get('/me', limiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     if (!callerUid) {
       return res.status(401).json({
@@ -383,7 +383,7 @@ export function createHealthProfessionalsRouter(deps?: {
     }
   });
 
-  router.get('/search', verifyAuth, limiter, async (req, res) => {
+  router.get('/search', limiter, verifyAuth, async (req, res) => {
     if (!req.user?.uid) {
       return res.status(401).json({
         error: 'authentication_required',
@@ -405,7 +405,7 @@ export function createHealthProfessionalsRouter(deps?: {
     }
   });
 
-  router.post('/review/:uid', verifyAuth, limiter, async (req, res) => {
+  router.post('/review/:uid', limiter, verifyAuth, async (req, res) => {
     const reviewerUid = req.user?.uid;
     if (!reviewerUid) {
       return res.status(401).json({
@@ -496,10 +496,10 @@ export function createHealthProfessionalsRouter(deps?: {
       }
     };
 
-  router.post('/suspend/:uid', verifyAuth, limiter, manageStatus('suspended'));
-  router.post('/revoke/:uid', verifyAuth, limiter, manageStatus('revoked'));
+  router.post('/suspend/:uid', limiter, verifyAuth, manageStatus('suspended'));
+  router.post('/revoke/:uid', limiter, verifyAuth, manageStatus('revoked'));
 
-  router.post('/revalidate/:uid', verifyAuth, limiter, async (req, res) => {
+  router.post('/revalidate/:uid', limiter, verifyAuth, async (req, res) => {
     const reviewerUid = req.user?.uid;
     if (!reviewerUid) {
       return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesiÃ³n.' });

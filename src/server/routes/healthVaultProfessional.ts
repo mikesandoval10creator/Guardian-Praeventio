@@ -132,6 +132,20 @@ const sessionLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const vaultReadLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const vaultMutationLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const PURPOSE_LABELS: Record<HealthAccessPurpose, string> = {
   continuity_of_care: 'continuidad de atención',
   second_opinion: 'segunda opinión',
@@ -389,7 +403,7 @@ export function createHealthVaultProfessionalRouter(
     next();
   });
 
-  router.post('/share', verifyAuth, async (req, res) => {
+  router.post('/share', vaultMutationLimiter, verifyAuth, async (req, res) => {
     if (req.body?.version !== 2) {
       return res.status(426).json({
         error: 'health_vault_client_upgrade_required',
@@ -485,7 +499,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.get('/records', verifyAuth, async (req, res) => {
+  router.get('/records', vaultReadLimiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     if (!callerUid) {
       return res.status(401).json({
@@ -504,7 +518,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.post('/view/:grantId/claim', verifyAuth, sessionLimiter, async (req, res) => {
+  router.post('/view/:grantId/claim', sessionLimiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     const parsed = claimSchema.safeParse(req.body);
     if (!callerUid || !parsed.success) {
@@ -551,7 +565,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.post('/share/:grantId/confirm-recipient', verifyAuth, async (req, res) => {
+  router.post('/share/:grantId/confirm-recipient', vaultMutationLimiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     const parsed = confirmRecipientSchema.safeParse(req.body);
     if (!callerUid || !parsed.success) {
@@ -593,7 +607,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.get('/view/:grantId/challenge', verifyAuth, challengeLimiter, async (req, res) => {
+  router.get('/view/:grantId/challenge', challengeLimiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión.' });
     try {
@@ -612,7 +626,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.post('/view/:grantId/session', verifyAuth, sessionLimiter, async (req, res) => {
+  router.post('/view/:grantId/session', sessionLimiter, verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     const parsed = sessionSchema.safeParse(req.body);
     if (!callerUid || !parsed.success) {
@@ -667,7 +681,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.get('/view/:grantId/records', verifyAuth, async (req, res) => {
+  router.get('/view/:grantId/records', vaultReadLimiter, verifyAuth, async (req, res) => {
     try {
       const service = deps();
       const authorized = await authorizeSession(req, service);
@@ -705,7 +719,7 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.post('/view/:grantId/file', verifyAuth, async (req, res) => {
+  router.post('/view/:grantId/file', vaultReadLimiter, verifyAuth, async (req, res) => {
     const parsed = fileSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -727,13 +741,13 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
-  router.get('/view/:grantId/file/:recordId', verifyAuth, (_req, res) =>
+  router.get('/view/:grantId/file/:recordId', vaultReadLimiter, verifyAuth, (_req, res) =>
     res.status(426).json({
       error: 'health_vault_client_upgrade_required',
       message: 'Actualiza Praeventio para abrir el archivo sin exponer identificadores clínicos en la URL.',
     }));
 
-  router.post('/share/:grantId/revoke', verifyAuth, async (req, res, next: NextFunction) => {
+  router.post('/share/:grantId/revoke', vaultMutationLimiter, verifyAuth, async (req, res, next: NextFunction) => {
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión.' });
     try {
