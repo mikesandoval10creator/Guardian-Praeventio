@@ -19,6 +19,7 @@ const runtime = vi.hoisted(() => ({
     signature: 'signature',
   } as any,
 }));
+const registerCredentialMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: runtime.user }),
@@ -26,6 +27,7 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useBiometricAuth', () => ({
   useBiometricAuth: () => ({
     createHealthProfessionalAssertion: vi.fn(async () => runtime.assertion),
+    registerCredential: registerCredentialMock,
   }),
 }));
 vi.mock('../components/health/MedicalDisclaimer', () => ({
@@ -47,6 +49,8 @@ beforeEach(() => {
     clientExtensionResults: {}, clientDataJSON: 'client', authenticatorData: 'authenticator', signature: 'signature',
   };
   fetchMock.mockReset();
+  registerCredentialMock.mockReset();
+  registerCredentialMock.mockResolvedValue({ success: true, credentialId: 'credential-new' });
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -94,6 +98,57 @@ describe('HealthVaultViewer v2', () => {
 
     expect(await screen.findByText('Registrar identidad profesional')).toBeTruthy();
     expect(screen.getByText(/independiente de cualquier empresa o proyecto/i)).toBeTruthy();
+  });
+
+  it('registers a server-verifiable passkey before submitting professional identity', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(404, { error: 'professional_identity_not_found' }))
+      .mockResolvedValueOnce(jsonResponse(201, { identity: { status: 'pending' } }));
+    renderAt();
+
+    fireEvent.change(await screen.findByLabelText('Nombre profesional'), {
+      target: { value: 'Dra. Elena Morales' },
+    });
+    fireEvent.change(screen.getByLabelText('RUT profesional'), {
+      target: { value: '12.345.678-5' },
+    });
+    fireEvent.change(screen.getByLabelText(/registro profesional/i), {
+      target: { value: 'RNPI-12345' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Registrar huella y enviar/i }));
+
+    expect(await screen.findByText(/profesional est.* pendiente/i)).toBeTruthy();
+    expect(registerCredentialMock).toHaveBeenCalledWith(
+      'Verifica tu identidad para registrar tu perfil profesional',
+    );
+    const enrollmentCall = fetchMock.mock.calls.find(
+      ([url]) => url === '/api/health-professionals/enroll',
+    );
+    expect(enrollmentCall).toBeTruthy();
+  });
+
+  it('fails closed and keeps identity data local when passkey registration fails', async () => {
+    registerCredentialMock.mockResolvedValue({ success: false });
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(404, { error: 'professional_identity_not_found' }),
+    );
+    renderAt();
+
+    fireEvent.change(await screen.findByLabelText('Nombre profesional'), {
+      target: { value: 'Dra. Elena Morales' },
+    });
+    fireEvent.change(screen.getByLabelText('RUT profesional'), {
+      target: { value: '12.345.678-5' },
+    });
+    fireEvent.change(screen.getByLabelText(/registro profesional/i), {
+      target: { value: 'RNPI-12345' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Registrar huella y enviar/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/dispositivo compatibles con passkeys/i);
+    expect(
+      fetchMock.mock.calls.some(([url]) => url === '/api/health-professionals/enroll'),
+    ).toBe(false);
   });
 
   it('does not release data while professional verification is pending', async () => {

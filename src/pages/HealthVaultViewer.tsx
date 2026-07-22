@@ -271,14 +271,26 @@ export function HealthVaultViewer() {
 }
 
 function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
+  const { registerCredential } = useBiometricAuth();
   const [displayName, setDisplayName] = useState('');
   const [rut, setRut] = useState('');
   const [registryNumber, setRegistryNumber] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   async function enroll(event: React.FormEvent) {
     event.preventDefault();
+    setError('');
+    setSubmitting(true);
     try {
+      const credential = await registerCredential(
+        'Verifica tu identidad para registrar tu perfil profesional',
+      );
+      if (!credential.success) {
+        throw new Error(
+          'No pudimos registrar una huella o llave verificable. Usa un navegador y dispositivo compatibles con passkeys.',
+        );
+      }
       const authHeader = await apiAuthHeader();
       if (!authHeader) throw new Error('Inicia sesión nuevamente.');
       const response = await fetch('/api/health-professionals/enroll', {
@@ -288,8 +300,10 @@ function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.message ?? 'No se pudo enviar la verificación.');
+      setSubmitting(false);
       onPending();
     } catch (submitError: any) {
+      setSubmitting(false);
       setError(submitError?.message ?? 'No se pudo enviar la verificación.');
     }
   }
@@ -297,12 +311,21 @@ function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
   return (
     <form onSubmit={enroll} className="rounded-xl border border-teal-200 bg-white p-5 space-y-3">
       <h2 className="font-bold">Registrar identidad profesional</h2>
-      <p className="text-sm">Este registro es independiente de cualquier empresa o proyecto.</p>
+      <p className="text-sm">
+        Este registro es independiente de cualquier empresa o proyecto. Primero registrarás una
+        huella o llave de seguridad verificable por el servidor; nunca enviamos tu huella a Praeventio.
+      </p>
       <input aria-label="Nombre profesional" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required className="w-full rounded border p-2" />
       <input aria-label="RUT profesional" value={rut} onChange={(event) => setRut(event.target.value)} required className="w-full rounded border p-2" />
       <input aria-label="Número de registro profesional" value={registryNumber} onChange={(event) => setRegistryNumber(event.target.value)} required className="w-full rounded border p-2" />
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button type="submit" className="rounded bg-teal-700 px-4 py-2 text-sm text-white">Enviar para revisión</button>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="rounded bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-60"
+      >
+        {submitting ? 'Registrando seguridad…' : 'Registrar huella y enviar para revisión'}
+      </button>
     </form>
   );
 }
