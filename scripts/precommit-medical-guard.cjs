@@ -17,7 +17,7 @@
  * Ref: docs/architecture-decisions/0012-health-data-sovereignty-no-diagnosis.md
  */
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -82,9 +82,18 @@ const SCOPED_DIRS = [
   'src/pages/Medicine',
 ];
 
-function getStagedFiles() {
+function candidateDiffArgs(baseRef) {
+  if (!baseRef) return ['diff', '--cached', '--name-only', '--diff-filter=ACM'];
+  if (!/^[A-Za-z0-9._^~/-]+$/.test(baseRef) || baseRef.startsWith('-')) {
+    throw new Error('MEDICAL_GUARD_DIFF_BASE is not a safe git ref');
+  }
+  return ['diff', '--name-only', '--diff-filter=ACM', `${baseRef}...HEAD`];
+}
+
+function getCandidateFiles() {
   try {
-    return execSync('git diff --cached --name-only --diff-filter=ACM')
+    const baseRef = process.env.MEDICAL_GUARD_DIFF_BASE?.trim();
+    return execFileSync('git', candidateDiffArgs(baseRef))
       .toString()
       .split('\n')
       .filter(Boolean);
@@ -134,7 +143,13 @@ function checkFile(file) {
   }
 
   // 3. View files MUST import + render MedicalDisclaimer
-  const isView = VIEW_FILE_PATTERNS.some((p) => p.test(normalizedFile));
+  // Test harnesses may live beside a medical view and mock the disclaimer;
+  // they are not user-facing screens. They remain scanned for forbidden
+  // diagnostic functions/prompts, but only production TSX must render the
+  // disclaimer itself.
+  const isView =
+    !normalizedFile.endsWith('.test.tsx') &&
+    VIEW_FILE_PATTERNS.some((p) => p.test(normalizedFile));
   if (isView) {
     const hasImport =
       /import\s+\{[^}]*MedicalDisclaimer[^}]*\}\s+from\s+['"][^'"]*MedicalDisclaimer['"]/.test(
@@ -154,18 +169,18 @@ function checkFile(file) {
 }
 
 function main() {
-  const staged = getStagedFiles().filter(isInScope);
-  if (staged.length === 0) {
+  const candidates = getCandidateFiles().filter(isInScope);
+  if (candidates.length === 0) {
     process.exit(0);
   }
 
   const allViolations = [];
-  for (const file of staged) {
+  for (const file of candidates) {
     allViolations.push(...checkFile(file));
   }
 
   if (allViolations.length === 0) {
-    console.log('✓ ADR 0012 enforcement: clean (' + staged.length + ' health files staged)');
+    console.log('✓ ADR 0012 enforcement: clean (' + candidates.length + ' changed health files)');
     process.exit(0);
   }
 
@@ -192,4 +207,6 @@ module.exports = {
   FORBIDDEN_PROMPT_PATTERNS,
   VIEW_FILE_PATTERNS,
   SCOPED_DIRS,
+  candidateDiffArgs,
+  getCandidateFiles,
 };

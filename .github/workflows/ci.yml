@@ -245,20 +245,14 @@ jobs:
           node-version: '20'
 
       - name: Stage diff and run medical guard
+        env:
+          # PR checkout points at a synthetic merge commit; its first parent is
+          # the base. Pushes to main compare the new commit with its parent.
+          MEDICAL_GUARD_DIFF_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: |
-          # Stage all changed files vs base so the hook's `git diff --cached`
-          # query sees the PR's contents. Falls back to staging the whole tree
-          # on the first commit (no HEAD~1).
-          #
-          # `--diff-filter=ACMR` excludes Deletions — `git add <deleted-file>`
-          # fails with "pathspec did not match any files" and would abort the
-          # job. Deletes need no staging anyway (the precommit hook scans
-          # diffs in surviving content).
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            git diff --name-only --diff-filter=ACMR HEAD~1 HEAD | xargs -r git add
-          else
-            git add -A
-          fi
+          # CI inspects the committed base...HEAD range directly. It must not
+          # mutate the index: ignored-but-tracked design docs and whitespace in
+          # paths made the old `xargs git add` bootstrap fail before the guard.
           node scripts/precommit-medical-guard.cjs
 
       - name: Run medical guard unit tests
