@@ -37,7 +37,7 @@ export interface HealthProfessionalIdentity {
     checkedAt: number;
     nextReviewAt?: number;
   };
-  webauthnRequired: true;
+  webauthnRequired: boolean;
   createdAt: number;
   updatedAt: number;
   suspendedAt?: number;
@@ -135,7 +135,10 @@ export function canReceiveHealthGrant(identity: HealthProfessionalIdentity): boo
 export function toProfessionalPublicProfile(
   identity: HealthProfessionalIdentity,
 ): ProfessionalPublicProfile {
-  if (!canReceiveHealthGrant(identity)) {
+  if (
+    !canReceiveHealthGrant(identity) ||
+    (identity.status !== 'provisional' && identity.status !== 'verified')
+  ) {
     throw new ProfessionalIdentityError(
       'Professional identity is not eligible for grants',
       'invalid_transition',

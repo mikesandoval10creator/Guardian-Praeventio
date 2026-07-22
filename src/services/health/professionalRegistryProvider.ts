@@ -26,7 +26,11 @@ export interface ProfessionalRegistryProvider {
 export class StubProfessionalRegistryProvider implements ProfessionalRegistryProvider {
   constructor(private readonly state: 'not_configured' | 'unavailable' = 'not_configured') {}
 
-  async verifyPhysician(): Promise<ProfessionalRegistryVerification> {
+  async verifyPhysician(_input: {
+    country: 'CL';
+    registryNumber: string;
+    normalizedRut: string;
+  }): Promise<ProfessionalRegistryVerification> {
     return {
       status: this.state,
       provider: 'superintendencia_salud_cl_stub',
