@@ -40,6 +40,7 @@ const { check, REQUIRED_PROD, PLACEHOLDER_REGEX, SECRET_MANAGER_SECRETS } = vali
     // lo satisface (usado por buildHealthyEnv).
     pattern?: string;
     example?: string;
+    validate?: (value: string) => boolean;
   }>;
   PLACEHOLDER_REGEX: RegExp;
   SECRET_MANAGER_SECRETS: string[];
@@ -169,13 +170,28 @@ describe('validate-env (Bucket U.1)', () => {
     expect(result.checked).toBe(SECRET_MANAGER_SECRETS.length);
   });
 
-  it('prod-secret-manager mode covers the 22 expected secrets (6 wired + 16 new)', () => {
+  it('prod-secret-manager mode covers the expected security secrets', () => {
     expect(SECRET_MANAGER_SECRETS).toContain('GEMINI_API_KEY');
     expect(SECRET_MANAGER_SECRETS).toContain('SENTRY_DSN');
     expect(SECRET_MANAGER_SECRETS).toContain('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON');
-    expect(SECRET_MANAGER_SECRETS.length).toBe(22);
+    expect(SECRET_MANAGER_SECRETS).toContain('HEALTH_PROFESSIONAL_LOOKUP_KEYS');
+    expect(SECRET_MANAGER_SECRETS.length).toBe(23);
     // No duplicates.
     expect(new Set(SECRET_MANAGER_SECRETS).size).toBe(SECRET_MANAGER_SECRETS.length);
+  });
+
+  it('rejects malformed or weak professional lookup key sets', () => {
+    const malformed = buildHealthyEnv();
+    malformed.HEALTH_PROFESSIONAL_LOOKUP_KEYS = '{bad-json';
+    expect(check(malformed).errors.some((error) =>
+      error.includes('HEALTH_PROFESSIONAL_LOOKUP_KEYS'),
+    )).toBe(true);
+
+    const weak = buildHealthyEnv();
+    weak.HEALTH_PROFESSIONAL_LOOKUP_KEYS = JSON.stringify({ v1: 'short' });
+    expect(check(weak).errors.some((error) =>
+      error.includes('HEALTH_PROFESSIONAL_LOOKUP_KEYS'),
+    )).toBe(true);
   });
 
   // === Self-hosted AI provider (provider layer 2026-06) ===

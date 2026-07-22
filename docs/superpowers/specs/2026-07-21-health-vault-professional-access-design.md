@@ -340,9 +340,10 @@ Estas tareas preservarán las capacidades, capacitaciones, certificaciones y exp
 
 ## 17. Evidencia de implementación
 
-- 246 pruebas focalizadas verdes en 19 archivos: dominio, cifrado, WebAuthn, rutas legacy/v2, UI y analítica.
-- 17 pruebas verdes con emuladores de Firestore y Storage para titular, tercero, médico y administrador.
-- `typecheck:ci`, `lint:connectivity`, `lint:rules` y `npm run build` terminaron con código 0.
+- 312 pruebas focalizadas verdes en 25 archivos: dominio, cifrado, WebAuthn, rutas legacy/v2, UI, analítica, rotación HMAC y carreras transaccionales.
+- 102 pruebas verdes con emuladores de Firestore/Storage en las suites de privacidad afectadas. Dos corridas globales no reportaron fallos de aserción, pero un worker local de Vitest terminó por recursos tras 749/757 y 751/757; GitHub CI queda como autoridad para la corrida global única.
+- `typecheck:ci`, `lint:connectivity`, `lint:rules`, `lint:router-tests`, `lint:user-facing-errors`, `lint:api-index` y `npm run build` terminaron con código 0.
 - Catálogo y manifiesto de analítica alineados en 53 eventos; la allowlist del embudo elimina identificadores y contexto clínico en runtime.
-- Graphify reconstruido tras extraer los adaptadores Firestore de WebAuthn fuera del router de currículum.
-- La suite global se ejecutó durante cinco minutos sin reportar fallos, pero el proceso local alcanzó el timeout antes del resumen final; GitHub CI queda como autoridad para esa regresión completa.
+- Rotación HMAC operable: bootstrap no imprimible, preflight de forma/fuerza, reindexación por lotes reanudable y escritura atómica de identidad+índices+auditoría.
+- Graphify reconstruido: 29.167 nodos, 59.067 aristas y 1.245 comunidades.
+- Revisión independiente final: APPROVED, sin hallazgos Critical, Important ni Minor pendientes.

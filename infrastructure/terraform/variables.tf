@@ -133,5 +133,6 @@ variable "secret_ids" {
     "resend-api-key",
     "gemini-api-key",
     "oauth-client-secret",
+    "HEALTH_PROFESSIONAL_LOOKUP_KEYS",
   ]
 }

@@ -339,6 +339,12 @@ export interface HealthAccessGrantV2 {
   scope: VaultShareScope;
   resourceIds: string[];
   recipientProfessionalUid?: string;
+  recipientClaim?: {
+    professionalUid: string;
+    displayName: string;
+    registryNumber: string;
+    requestedAt: number;
+  };
   purpose: HealthAccessPurpose;
   consentTextVersion: string;
   consentTextHash: string;
@@ -363,6 +369,11 @@ export type GrantRecipientProfessional = {
   uid: string;
   status: 'pending' | 'provisional' | 'verified' | 'suspended' | 'revoked';
   webauthnRequired: boolean;
+};
+
+export type ClaimingHealthProfessional = GrantRecipientProfessional & {
+  displayName: string;
+  registryNumber: string;
 };
 
 const GRANT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -456,12 +467,67 @@ export function confirmGrantRecipient(
   if (grant.status !== 'pending' || grant.recipientProfessionalUid) {
     throw new VaultShareError('Grant is not awaiting a recipient', 'recipient_confirmation_required');
   }
+  if (
+    grant.recipientClaim &&
+    grant.recipientClaim.professionalUid !== professionalUid
+  ) {
+    throw new VaultShareError('Professional does not match the pending claim', 'recipient_mismatch');
+  }
   const now = (options.now ?? Date.now)();
   if (now > grant.expiresAt) throw new VaultShareError('Grant expired', 'expired');
+  const { recipientClaim: _completedClaim, ...grantWithoutClaim } = grant;
   return {
-    ...grant,
+    ...grantWithoutClaim,
     recipientProfessionalUid: requireGrantText(professionalUid, 'professionalUid', 128),
     status: 'active',
+  };
+}
+
+export function requestGrantRecipientClaim(
+  grant: HealthAccessGrantV2,
+  secret: string,
+  professional: ClaimingHealthProfessional,
+  options: { now?: () => number } = {},
+): HealthAccessGrantV2 {
+  const at = (options.now ?? Date.now)();
+  if (grant.status === 'revoked' || grant.revokedAt !== null) {
+    throw new VaultShareError('Grant revoked', 'revoked');
+  }
+  if (grant.status === 'expired' || at > grant.expiresAt) {
+    throw new VaultShareError('Grant expired', 'expired');
+  }
+  if (!verifySecret(secret, grant.tokenHash)) {
+    throw new VaultShareError('Invalid token', 'invalid_token');
+  }
+  if (
+    professional.webauthnRequired !== true ||
+    (professional.status !== 'provisional' && professional.status !== 'verified')
+  ) {
+    throw new VaultShareError('Professional is not eligible', 'professional_not_eligible');
+  }
+  if (grant.status === 'active') {
+    if (grant.recipientProfessionalUid !== professional.uid) {
+      throw new VaultShareError('Professional is not the selected recipient', 'recipient_mismatch');
+    }
+    return grant;
+  }
+  if (grant.status !== 'pending' || grant.recipientProfessionalUid) {
+    throw new VaultShareError('Recipient confirmation required', 'recipient_confirmation_required');
+  }
+  if (grant.recipientClaim) {
+    if (grant.recipientClaim.professionalUid !== professional.uid) {
+      throw new VaultShareError('Another recipient confirmation is pending', 'recipient_mismatch');
+    }
+    return grant;
+  }
+  return {
+    ...grant,
+    recipientClaim: {
+      professionalUid: requireGrantText(professional.uid, 'professionalUid', 128),
+      displayName: requireGrantText(professional.displayName, 'displayName', 160),
+      registryNumber: requireGrantText(professional.registryNumber, 'registryNumber', 80),
+      requestedAt: at,
+    },
   };
 }
 
@@ -505,13 +571,22 @@ export function activateGrantSession(
   credentialIdHash: string,
   options: { now?: () => number } = {},
 ): HealthAccessGrantV2 {
+  if (grant.status === 'revoked' || grant.revokedAt !== null) {
+    throw new VaultShareError('Grant revoked', 'revoked');
+  }
+  if (grant.status === 'pending' || !grant.recipientProfessionalUid) {
+    throw new VaultShareError('Recipient confirmation required', 'recipient_confirmation_required');
+  }
+  const at = (options.now ?? Date.now)();
+  if (grant.status === 'expired' || at > grant.expiresAt) {
+    throw new VaultShareError('Grant expired', 'expired');
+  }
   if (grant.sessionCount >= grant.maxSessions) {
     throw new VaultShareError('Maximum sessions reached', 'max_sessions_reached');
   }
   if (grant.recipientProfessionalUid !== professionalUid) {
     throw new VaultShareError('Professional is not the selected recipient', 'recipient_mismatch');
   }
-  const at = (options.now ?? Date.now)();
   return {
     ...grant,
     sessionCount: grant.sessionCount + 1,
@@ -536,5 +611,11 @@ export function revokeHealthAccessGrant(
   }
   if (grant.status === 'revoked') return grant;
   const at = (options.now ?? Date.now)();
-  return { ...grant, status: 'revoked', revokedAt: at, revokedBy: actorUid };
+  const { recipientClaim: _cancelledClaim, ...grantWithoutClaim } = grant;
+  return {
+    ...grantWithoutClaim,
+    status: 'revoked',
+    revokedAt: at,
+    revokedBy: actorUid,
+  };
 }

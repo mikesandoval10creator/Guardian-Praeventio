@@ -25,6 +25,9 @@ const BASE: HealthProfessionalIdentity = {
     createdAt: '2026-07-21T00:00:00.000Z',
   },
   rutLookupHmac: 'lookup-hmac',
+  rutLookupHmacVersion: 'v1',
+  displayNameSearch: 'dra elena morales',
+  searchPrefixes: ['e', 'el', 'ele', 'elena'],
   status: 'pending',
   registryAssurance: {
     provider: 'superintendencia_salud_cl_stub',

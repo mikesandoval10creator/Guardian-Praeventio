@@ -45,6 +45,7 @@ import type {
   EventPropertiesMap,
   Sink,
 } from './types';
+import { buildHealthAnalyticsProperties } from './healthPrivacy';
 
 // ---------------------------------------------------------------------------
 // PII guard — same forbidden top-level keys as the browser adapter.
@@ -341,7 +342,10 @@ export function createServerAnalytics(
       try {
         if (isOptedOut()) return;
 
-        const forbidden = findForbiddenKeys(props as object);
+        const safeProps = name.startsWith('health.')
+          ? buildHealthAnalyticsProperties(props as Record<string, unknown>)
+          : props;
+        const forbidden = findForbiddenKeys(safeProps as object);
         if (forbidden.length > 0) {
           await warnSentryAdapter('analytics.track: PII guard dropped event', {
             name,
@@ -355,7 +359,7 @@ export function createServerAnalytics(
           name,
           properties: {
             ...common,
-            ...(props as object),
+            ...(safeProps as object),
           } as EventPropertiesMap[N],
         };
 

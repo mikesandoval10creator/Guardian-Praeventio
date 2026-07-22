@@ -385,7 +385,7 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('allows read for medico_ocupacional (any uid)', async (ctx) => {
+    it('denies direct read for medico_ocupacional without an owner grant', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(OWNER, 'worker');
@@ -395,7 +395,7 @@ describe('firestore.rules', () => {
         'doc-uid',
         verifiedToken('medico_ocupacional'),
       );
-      await assertSucceeds(
+      await assertFails(
         getDoc(
           doc(medic.firestore(), 'users', OWNER, 'medical_exams', EXAM),
         ),
@@ -444,8 +444,8 @@ describe('firestore.rules', () => {
         'boss-uid',
         verifiedToken('gerente'),
       );
-      // The rule is `isOwner(userId) || isDoctor()` — admins explicitly
-      // excluded per the medical-confidentiality envelope.
+      // Direct client reads are owner-only. Administrators and occupational
+      // roles must use an explicit owner grant through the mediated server.
       await assertFails(
         getDoc(
           doc(boss.firestore(), 'users', OWNER, 'medical_exams', EXAM),
@@ -470,7 +470,7 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('allows write for medico_ocupacional', async (ctx) => {
+    it('denies direct write for medico_ocupacional to another user vault', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(OWNER, 'worker');
@@ -479,7 +479,7 @@ describe('firestore.rules', () => {
         'doc-uid',
         verifiedToken('medico_ocupacional'),
       );
-      await assertSucceeds(
+      await assertFails(
         setDoc(
           doc(medic.firestore(), 'users', OWNER, 'medical_exams', 'new-exam'),
           { examId: 'new-exam', type: 'audiometry', date: '2026-04-28' },
@@ -487,7 +487,7 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('denies write for owner (only doctor can write)', async (ctx) => {
+    it('denies direct write for owner because clinical writes are server-mediated', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(OWNER, 'worker');

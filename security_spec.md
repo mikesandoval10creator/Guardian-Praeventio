@@ -1495,3 +1495,19 @@ files. Now fail-closed. Rejected payloads:
 166. **Stale-Access After Removal**: a user removed from a project keeps
      uploading with their pre-removal token — assignedSitesSync revokes refresh
      tokens on removal, so the stale token dies on its next refresh.
+
+## M-2 Health Vault professional identity and clinical sharing (2026-07-21)
+
+- Professional identity is global and independent of tenant employment roles.
+- RUT is KMS-envelope encrypted; duplicate lookup uses versioned HMAC keys from
+  Secret Manager with dual-read rotation and atomic unique indexes.
+- Only an official registry provider may produce `verified`; the current stub
+  can return only `not_configured` or `unavailable`. Manual review produces
+  `provisional` and is audited.
+- Every grant freezes explicit record IDs, recipient, purpose, consent hash,
+  expiry and session cap. Open QR claims release no clinical data until the
+  owner confirms the eligible professional.
+- QR secrets stay in fragments and ephemeral in-memory login handoffs. Clinical
+  record IDs are sent in request bodies, never analytics or log URLs.
+- Session activation, claim, confirmation, revocation and professional status
+  changes reconstruct state from fresh transaction snapshots.

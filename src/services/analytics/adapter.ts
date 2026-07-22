@@ -37,6 +37,7 @@ import type {
   EventPropertiesMap,
   Sink,
 } from './types';
+import { buildHealthAnalyticsProperties } from './healthPrivacy';
 
 /**
  * Forbidden top-level prop names. Presence of ANY of these in the input
@@ -238,10 +239,13 @@ export class AnalyticsAdapter {
   async track<N extends EventName>(name: N, props: EventInputProps<N>): Promise<void> {
     try {
       if (this.isOptedOut()) return;
-      if (this.containsForbiddenPii(props)) {
+      const safeProps = name.startsWith('health.')
+        ? buildHealthAnalyticsProperties(props as Record<string, unknown>)
+        : props;
+      if (this.containsForbiddenPii(safeProps)) {
         await warnSentry('analytics.track: PII guard dropped event', {
           name,
-          forbiddenKeys: this.findForbiddenKeys(props),
+          forbiddenKeys: this.findForbiddenKeys(safeProps),
         });
         return;
       }
@@ -250,7 +254,7 @@ export class AnalyticsAdapter {
         name,
         properties: {
           ...common,
-          ...(props as object),
+          ...(safeProps as object),
         } as EventPropertiesMap[N],
       };
 

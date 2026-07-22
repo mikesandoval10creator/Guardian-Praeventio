@@ -48,6 +48,8 @@
     "prepare": "husky install || true",
     "validate:env": "node scripts/validate-env.cjs",
     "validate:env:test": "node scripts/validate-env.cjs --mode test",
+    "health:professional:reindex-lookups": "tsx scripts/reindex-health-professional-lookups.ts",
+    "health:professional:bootstrap-lookup-secret": "node scripts/bootstrap-health-professional-lookup-secret.cjs",
     "cap:sync": "npm run build && npx cap sync",
     "mesh:build": "cd packages/capacitor-mesh && npx tsc -p tsconfig.json",
     "proximity:build": "cd packages/capacitor-proximity && npx tsc -p tsconfig.json",

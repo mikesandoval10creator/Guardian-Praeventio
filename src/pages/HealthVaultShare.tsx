@@ -17,7 +17,7 @@ import type {
 } from '../services/health/vaultShare';
 import type { HealthRecord } from '../services/health/vaultRecord';
 import { apiAuthHeader } from '../lib/apiAuth';
-import { humanErrorMessage } from '../lib/humanError';
+import { humanErrorFromResponse, humanErrorMessage } from '../lib/humanError';
 
 
 interface CreatedShare {
@@ -38,6 +38,7 @@ interface ProfessionalOption {
 type SelectableRecord = Omit<HealthRecord, 'fileUri'> & { fileAvailable?: boolean };
 
 interface ActiveShareSummary {
+  version?: number;
   id: string;
   scope: VaultShareScope;
   topic?: string;
@@ -46,6 +47,14 @@ interface ActiveShareSummary {
   consumeCount: number;
   maxConsumes: number;
   revokedAt: number | null;
+  status?: 'pending' | 'active' | 'revoked' | 'expired';
+  recipientProfessionalUid?: string;
+  recipientClaim?: {
+    professionalUid: string;
+    displayName: string;
+    registryNumber: string;
+    requestedAt: number;
+  };
 }
 
 const SCOPE_LABELS: Record<VaultShareScope, string> = {
@@ -71,11 +80,14 @@ export function HealthVaultShare() {
   const [professionals, setProfessionals] = useState<ProfessionalOption[]>([]);
   const [records, setRecords] = useState<SelectableRecord[]>([]);
   const [selectedProfessionalUid, setSelectedProfessionalUid] = useState('');
+  const [professionalQuery, setProfessionalQuery] = useState('');
+  const [openInvitation, setOpenInvitation] = useState(false);
   const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
   const [choicesLoading, setChoicesLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [createdShare, setCreatedShare] = useState<CreatedShare | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveShareSummary[]>([]);
 
   useEffect(() => {
@@ -121,38 +133,85 @@ export function HealthVaultShare() {
     };
   }, [user?.uid]);
 
-  // Cargar shares activos del trabajador (Firestore client SDK).
+  useEffect(() => {
+    if (!user?.uid || professionalQuery.trim().length < 2) return undefined;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return;
+        const response = await fetch(
+          `/api/health-professionals/search?q=${encodeURIComponent(professionalQuery.trim())}&limit=20`,
+          { headers: { Authorization: authHeader } },
+        );
+        if (!response.ok || cancelled) return;
+        const body = await response.json();
+        if (!cancelled) {
+          setProfessionals(Array.isArray(body.professionals) ? body.professionals : []);
+        }
+      } catch {
+        // The initial directory remains available; the user can retry typing.
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [professionalQuery, user?.uid]);
+
+  // Keep the owner's grant list live. Open invitations are claimed by a
+  // different account, so a one-shot read would leave the patient unable to
+  // confirm the claimant until the whole page was reloaded.
   useEffect(() => {
     if (!user?.uid || !db) return undefined;
     let cancelled = false;
-    async function load() {
+    let unsubscribe: (() => void) | undefined;
+    async function subscribe() {
       try {
-        const { collection, getDocs, query, orderBy } = await import('firebase/firestore');
+        const { collection, onSnapshot, query, orderBy } = await import('firebase/firestore');
         const ref = collection(db, 'users', user.uid, 'health_vault_shares');
-        const snap = await getDocs(query(ref, orderBy('createdAt', 'desc')));
-        if (cancelled) return;
-        setActive(
-          snap.docs.map((d: any) => {
-            const data = d.data();
-            return {
-              id: data.id,
-              scope: data.scope,
-              topic: data.topic,
-              createdAt: data.createdAt,
-              expiresAt: data.expiresAt,
-              consumeCount: data.consumeCount ?? 0,
-              maxConsumes: data.maxConsumes ?? 0,
-              revokedAt: data.revokedAt ?? null,
-            };
-          }),
+        const stopListening = onSnapshot(
+          query(ref, orderBy('createdAt', 'desc')),
+          (snap) => {
+            if (cancelled) return;
+            setActive(
+              snap.docs.map((d: any) => {
+                const data = d.data();
+                return {
+                  version: data.version,
+                  id: data.id,
+                  scope: data.scope,
+                  topic: data.topic,
+                  createdAt: data.createdAt,
+                  expiresAt: data.expiresAt,
+                  consumeCount: data.sessionCount ?? data.consumeCount ?? 0,
+                  maxConsumes: data.maxSessions ?? data.maxConsumes ?? 0,
+                  revokedAt: data.revokedAt ?? null,
+                  status: data.status,
+                  recipientProfessionalUid: data.recipientProfessionalUid,
+                  recipientClaim: data.recipientClaim,
+                };
+              }),
+            );
+          },
+          () => {
+            // soft-fail: the grant list is informative and Firestore retries
+            // transient listener failures internally.
+          },
         );
+        if (cancelled) {
+          stopListening();
+          return;
+        }
+        unsubscribe = stopListening;
       } catch {
-        // soft-fail: la lista activos es informativa
+        // soft-fail: the grant list is informative
       }
     }
-    void load();
+    void subscribe();
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [user?.uid, db, createdShare]);
 
@@ -176,7 +235,7 @@ export function HealthVaultShare() {
           version: 2,
           scope,
           resourceIds: selectedRecordIds,
-          recipientProfessionalUid: selectedProfessionalUid,
+          ...(openInvitation ? {} : { recipientProfessionalUid: selectedProfessionalUid }),
           purpose,
           ttlHours,
           maxSessions: 5,
@@ -196,20 +255,58 @@ export function HealthVaultShare() {
   }
 
   async function handleRevoke(tokenId: string) {
+    setRevokeError(null);
     try {
       // Same Bearer-prefix requirement as handleSubmit — use apiAuthHeader().
       const authHeader = await apiAuthHeader();
-      await fetch(`/api/health-vault/share/${tokenId}/revoke`, {
+      const response = await fetch(`/api/health-vault/share/${tokenId}/revoke`, {
         method: 'POST',
         headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
       });
+      if (!response.ok) {
+        throw new Error(await humanErrorFromResponse(response));
+      }
       setActive((prev) =>
         prev.map((s) =>
           s.id === tokenId ? { ...s, revokedAt: Date.now() } : s,
         ),
       );
-    } catch {
-      // soft fail; el usuario puede reintentar
+    } catch (revokeFailure) {
+      setRevokeError(humanErrorMessage(revokeFailure));
+    }
+  }
+
+  async function handleConfirmRecipient(share: ActiveShareSummary) {
+    if (!share.recipientClaim) return;
+    setRevokeError(null);
+    try {
+      const authHeader = await apiAuthHeader();
+      const response = await fetch(
+        `/api/health-vault/share/${share.id}/confirm-recipient`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : {}),
+          },
+          body: JSON.stringify({
+            professionalUid: share.recipientClaim.professionalUid,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(await humanErrorFromResponse(response));
+      setActive((previous) => previous.map((candidate) =>
+        candidate.id === share.id
+          ? {
+              ...candidate,
+              status: 'active',
+              recipientProfessionalUid: share.recipientClaim?.professionalUid,
+              recipientClaim: undefined,
+            }
+          : candidate,
+      ));
+    } catch (confirmationFailure) {
+      setRevokeError(humanErrorMessage(confirmationFailure));
     }
   }
 
@@ -256,10 +353,19 @@ export function HealthVaultShare() {
               <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
                 Profesional destinatario
               </span>
+              <input
+                aria-label="Buscar profesional"
+                value={professionalQuery}
+                onChange={(event) => setProfessionalQuery(event.target.value)}
+                disabled={openInvitation}
+                placeholder="Busca por nombre o registro"
+                className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
+              />
               <select
                 aria-label="Profesional destinatario"
-                value={selectedProfessionalUid}
+                value={openInvitation ? '' : selectedProfessionalUid}
                 onChange={(event) => setSelectedProfessionalUid(event.target.value)}
+                disabled={openInvitation}
                 className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
               >
                 <option value="">Selecciona un profesional verificado</option>
@@ -270,6 +376,15 @@ export function HealthVaultShare() {
                   </option>
                 ))}
               </select>
+              <label className="mt-2 flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={openInvitation}
+                  onChange={(event) => setOpenInvitation(event.target.checked)}
+                />
+                Mi médico aún no aparece. Crear un QR abierto que no mostrará datos hasta que yo
+                confirme su identidad profesional verificada.
+              </label>
             </label>
 
             <fieldset className="space-y-2">
@@ -336,10 +451,11 @@ export function HealthVaultShare() {
               </p>
             )}
 
-            {selectedProfessionalUid && selectedRecordIds.length > 0 && (
+            {(selectedProfessionalUid || openInvitation) && selectedRecordIds.length > 0 && (
               <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
                 Autorizarás exactamente {selectedRecordIds.length} registro(s) al profesional
-                seleccionado para {PURPOSE_LABELS[purpose].toLocaleLowerCase('es-CL')}, por hasta{' '}
+                {openInvitation ? ' que confirmes después de escanear el QR' : ' seleccionado'} para{' '}
+                {PURPOSE_LABELS[purpose].toLocaleLowerCase('es-CL')}, por hasta{' '}
                 {ttlHours} hora(s). Puedes revocar el acceso en cualquier momento.
               </div>
             )}
@@ -349,7 +465,7 @@ export function HealthVaultShare() {
               disabled={
                 submitting ||
                 choicesLoading ||
-                !selectedProfessionalUid ||
+                (!selectedProfessionalUid && !openInvitation) ||
                 selectedRecordIds.length === 0
               }
               className="w-full rounded-md bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-400 px-4 py-2 text-sm font-semibold text-white"
@@ -396,6 +512,11 @@ export function HealthVaultShare() {
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
             {t('healthVaultShare.yourShares', 'Tus enlaces compartidos')}
           </h2>
+          {revokeError && (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+              {humanErrorMessage(revokeError)}
+            </p>
+          )}
           {active.length === 0 && (
             <p className="text-xs italic text-zinc-500">Aún no has generado ninguno.</p>
           )}
@@ -417,6 +538,21 @@ export function HealthVaultShare() {
                     <p className="text-zinc-500">
                       Expira: {new Date(s.expiresAt).toLocaleString('es-CL')}
                     </p>
+                    {s.recipientClaim && s.status === 'pending' && (
+                      <div className="mt-2 rounded-md border border-teal-200 bg-teal-50 p-2 text-teal-950">
+                        <p>
+                          Solicitud de {s.recipientClaim.displayName} Â· registro{' '}
+                          {s.recipientClaim.registryNumber}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmRecipient(s)}
+                          className="mt-1 font-semibold underline"
+                        >
+                          Confirmar este profesional
+                        </button>
+                      </div>
+                    )}
                     {s.revokedAt && (
                       <p className="text-amber-700 dark:text-amber-400">
                         Revocado: {new Date(s.revokedAt).toLocaleString('es-CL')}

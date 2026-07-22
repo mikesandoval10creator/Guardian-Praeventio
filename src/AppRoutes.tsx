@@ -196,13 +196,13 @@ interface AppRoutesInnerProps {
 function LoginRoute({ user }: { user: unknown }) {
   const location = useLocation();
   if (!user) return <Login />;
-  const state = location.state as { returnTo?: string; vaultSecret?: string } | null;
+  const state = location.state as { returnTo?: string; vaultHandoff?: string } | null;
   const returnTo = safeVaultReturnTo(state?.returnTo);
   return (
     <Navigate
       to={returnTo}
       replace
-      state={state?.vaultSecret ? { vaultSecret: state.vaultSecret } : undefined}
+      state={state?.vaultHandoff ? { vaultHandoff: state.vaultHandoff } : undefined}
     />
   );
 }

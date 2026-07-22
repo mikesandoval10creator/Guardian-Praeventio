@@ -3,7 +3,11 @@ import express from 'express';
 import request from 'supertest';
 
 import type { HealthProfessionalIdentity } from '../../services/health/professionalIdentity';
-import type { HealthAccessGrantV2 } from '../../services/health/vaultShare';
+import {
+  activateGrantSession,
+  revokeHealthAccessGrant,
+  type HealthAccessGrantV2,
+} from '../../services/health/vaultShare';
 import type { VaultAccessSession } from '../../services/health/vaultAccessSession';
 import type { HealthRecord } from '../../services/health/vaultRecord';
 
@@ -15,11 +19,16 @@ vi.mock('../middleware/verifyAuth.js', () => ({
   },
 }));
 
-import { createHealthVaultProfessionalRouter } from './healthVaultProfessional';
+import {
+  activateVaultSessionAtomically,
+  createHealthVaultProfessionalRouter,
+} from './healthVaultProfessional';
 
 function professional(uid: string, status: HealthProfessionalIdentity['status'] = 'provisional') {
   return {
     uid,
+    displayName: uid === 'doctor-1' ? 'Dra. Elena Morales' : 'Dr. Pedro Soto',
+    registryNumber: uid === 'doctor-1' ? 'RNPI-12345' : 'RNPI-9988',
     status,
     webauthnRequired: true,
   } as HealthProfessionalIdentity;
@@ -116,6 +125,19 @@ describe('Health Vault professional v2 routes', () => {
     });
   });
 
+  it('blocks cached clients from creating a legacy link that no viewer can open', async () => {
+    const { app, deps } = setup();
+    const response = await request(app).post('/api/health-vault/share').send({
+      scope: 'full',
+      ttlHours: 24,
+    });
+
+    expect(response.status).toBe(426);
+    expect(response.body.error).toBe('health_vault_client_upgrade_required');
+    expect(response.body.message).toMatch(/actualiza/i);
+    expect(deps.createGrant).not.toHaveBeenCalled();
+  });
+
   it('lists only safe metadata so the owner can choose records explicitly', async () => {
     const { app } = setup();
     const response = await request(app).get('/api/health-vault/records');
@@ -168,6 +190,58 @@ describe('Health Vault professional v2 routes', () => {
       duration_bucket: '1_to_24h',
       outcome_code: 'success',
     });
+  });
+
+  it('lets the verified QR holder request access and waits for owner confirmation', async () => {
+    const { app, deps, grants } = setup();
+    const created = await request(app).post('/api/health-vault/share').send({
+      version: 2,
+      scope: 'full',
+      resourceIds: ['record-1'],
+      purpose: 'second_opinion',
+    });
+    caller.uid = 'doctor-1';
+
+    const claim = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/claim`)
+      .send({ secret: created.body.secret });
+
+    expect(claim.status).toBe(202);
+    expect(claim.body).toEqual({ status: 'pending', confirmationRequired: true });
+    expect(deps.replaceGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'pending',
+        recipientProfessionalUid: undefined,
+        recipientClaim: expect.objectContaining({
+          professionalUid: 'doctor-1',
+          registryNumber: 'RNPI-12345',
+        }),
+      }),
+      {
+        action: 'health_vault.grant.recipient_claimed',
+        actorUid: 'doctor-1',
+      },
+    );
+    expect(grants.get(created.body.grantId)?.status).toBe('pending');
+  });
+
+  it('does not let a QR holder claim with an invalid secret', async () => {
+    const { app, deps } = setup();
+    const created = await request(app).post('/api/health-vault/share').send({
+      version: 2,
+      scope: 'full',
+      resourceIds: ['record-1'],
+      purpose: 'second_opinion',
+    });
+    caller.uid = 'doctor-1';
+
+    const claim = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/claim`)
+      .send({ secret: 'not-the-right-secret-but-long-enough' });
+
+    expect(claim.status).toBe(401);
+    expect(claim.body.error).toBe('invalid_token');
+    expect(deps.replaceGrant).not.toHaveBeenCalled();
   });
 
   it('persists owner revocation with an explicit audit action', async () => {
@@ -258,6 +332,89 @@ describe('Health Vault professional v2 routes', () => {
     expect(JSON.stringify(response.body)).not.toContain('record-future');
   });
 
+  it('serves an authorized file through a body id and retires the identifier URL', async () => {
+    const { app, deps } = setup();
+    const created = await createGrant(app);
+    caller.uid = 'doctor-1';
+    const sessionResponse = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/session`)
+      .send({ secret: created.body.secret, assertion: { challengeId: 'challenge-health-1' } });
+
+    const response = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/file`)
+      .set('X-Health-Vault-Session', sessionResponse.body.sessionToken)
+      .send({ recordId: 'record-1' });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(deps.readFile).toHaveBeenCalledWith('private/record-1.pdf');
+    expect(deps.auditAccess).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_access_attempted',
+    }));
+    expect(deps.auditAccess).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_ready',
+    }));
+    expect(deps.auditAccess).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_accessed',
+    }));
+
+    const legacy = await request(app)
+      .get(`/api/health-vault/view/${created.body.grantId}/file/record-1`)
+      .set('X-Health-Vault-Session', sessionResponse.body.sessionToken);
+    expect(legacy.status).toBe(426);
+    expect(legacy.body.error).toBe('health_vault_client_upgrade_required');
+  });
+
+  it('audits an unavailable file as an attempt and never as a completed access', async () => {
+    const { app, deps } = setup();
+    const created = await createGrant(app);
+    caller.uid = 'doctor-1';
+    const sessionResponse = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/session`)
+      .send({ secret: created.body.secret, assertion: { challengeId: 'challenge-health-1' } });
+    deps.readFile.mockResolvedValueOnce(null as any);
+
+    const response = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/file`)
+      .set('X-Health-Vault-Session', sessionResponse.body.sessionToken)
+      .send({ recordId: 'record-1' });
+
+    expect(response.status).toBe(404);
+    expect(deps.auditAccess).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_access_attempted',
+    }));
+    expect(deps.auditAccess).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_unavailable',
+    }));
+    expect(deps.auditAccess).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'health_vault.session.file_ready',
+    }));
+  });
+
+  it('audits an authorized request even when the record has no downloadable file', async () => {
+    const { app, deps } = setup();
+    const created = await createGrant(app);
+    caller.uid = 'doctor-1';
+    const sessionResponse = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/session`)
+      .send({ secret: created.body.secret, assertion: { challengeId: 'challenge-health-1' } });
+    deps.getRecordById.mockResolvedValueOnce(null as any);
+
+    const response = await request(app)
+      .post(`/api/health-vault/view/${created.body.grantId}/file`)
+      .set('X-Health-Vault-Session', sessionResponse.body.sessionToken)
+      .send({ recordId: 'record-1' });
+
+    expect(response.status).toBe(404);
+    expect(deps.auditAccess).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      action: 'health_vault.session.file_access_attempted',
+    }));
+    expect(deps.auditAccess).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      action: 'health_vault.session.file_unavailable',
+    }));
+    expect(deps.readFile).not.toHaveBeenCalled();
+  });
+
   it('revalidates revocation before every records request', async () => {
     const { app, grants } = setup();
     const created = await createGrant(app);
@@ -275,6 +432,49 @@ describe('Health Vault professional v2 routes', () => {
     expect(response.status).toBe(410);
     expect(response.body.error).toBe('revoked');
     expect(response.body.message).toMatch(/revocó/i);
+  });
+
+  it('rejects a stale session activation when Firestore observes a concurrent revocation', async () => {
+    const { app, grants } = setup();
+    const created = await createGrant(app);
+    const original = grants.get(created.body.grantId)!;
+    const staleActivated = activateGrantSession(original, 'doctor-1', 'credential-hash');
+    const concurrentlyRevoked = revokeHealthAccessGrant(original, 'patient-1');
+    const session: VaultAccessSession = {
+      id: 'session-race',
+      grantId: original.id,
+      professionalUid: 'doctor-1',
+      tokenHash: 'a'.repeat(64),
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 300_000,
+      revokedAt: null,
+    };
+    const grantRef = { kind: 'grant' };
+    const professionalRef = { kind: 'professional' };
+    const sessionRef = { kind: 'session' };
+    const auditRef = { kind: 'audit' };
+    const transaction = {
+      get: vi.fn(async (ref: any) => ref === grantRef
+        ? { exists: true, data: () => concurrentlyRevoked }
+        : { exists: true, data: () => professional('doctor-1') }),
+      set: vi.fn(),
+      create: vi.fn(),
+    };
+    const fakeDb = {
+      runTransaction: vi.fn(async (callback: any) => callback(transaction)),
+      collection: vi.fn(() => ({ doc: () => auditRef })),
+    };
+
+    await expect(activateVaultSessionAtomically({
+      db: fakeDb as any,
+      grantRef: grantRef as any,
+      professionals: { doc: () => professionalRef } as any,
+      sessions: { doc: () => sessionRef } as any,
+      grant: staleActivated,
+      session,
+    })).rejects.toThrow(/revoked/i);
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(transaction.create).not.toHaveBeenCalled();
   });
 
   it('fails closed if the critical clinical audit cannot be written', async () => {

@@ -23,6 +23,9 @@ export interface HealthProfessionalIdentity {
   registryNumber: string;
   rutCiphertext: EnvelopeCiphertext;
   rutLookupHmac: string;
+  rutLookupHmacVersion: string;
+  displayNameSearch: string;
+  searchPrefixes: string[];
   status: ProfessionalVerificationStatus;
   identityAssurance?: {
     level: 'provisional' | 'verified';

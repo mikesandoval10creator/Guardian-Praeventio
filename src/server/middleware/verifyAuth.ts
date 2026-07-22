@@ -44,6 +44,19 @@ function sentryCapture(
   }
 }
 
+export function endpointForSecurityTelemetry(url: string): string {
+  const pathname = String(url ?? '').split('?')[0];
+  return pathname
+    .replace(
+      /\/api\/health-vault\/view\/[^/]+\/file\/[^/]+/g,
+      '/api/health-vault/view/:grantId/file/:recordId',
+    )
+    .replace(
+      /\/api\/health-vault\/(view|share)\/[^/]+/g,
+      '/api/health-vault/$1/:grantId',
+    );
+}
+
 // Startup guard: prod + E2E_MODE simultaneously is a CONFIG ERROR.
 // Module-level throw means the server refuses to boot in this state, even
 // if a misconfigured deploy accidentally injects E2E_MODE=1 into Cloud Run.
@@ -136,7 +149,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
       const sessionAgeMs = Date.now() - authTimeSec * 1000;
       if (sessionAgeMs > MAX_SESSION_MS) {
         logger.warn('auth_session_expired', {
-          endpoint: req.url,
+          endpoint: endpointForSecurityTelemetry(req.originalUrl || req.url),
           method: req.method,
           ageHours: Math.round(sessionAgeMs / 3_600_000),
         });
@@ -170,7 +183,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     // detecta que el token fue emitido antes de revokeRefreshTokens().
     if (error?.code === 'auth/id-token-revoked') {
       logger.warn('auth_token_revoked', {
-        endpoint: req.url,
+        endpoint: endpointForSecurityTelemetry(req.originalUrl || req.url),
         method: req.method,
       });
       return res.status(401).json({
@@ -178,8 +191,9 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
         reason: 'token_revoked',
       });
     }
-    logger.error('auth_token_verification_failed', error, { endpoint: req.url, method: req.method });
-    sentryCapture(error, { endpoint: req.url, tags: { method: req.method, middleware: 'verifyAuth' } });
+    const endpoint = endpointForSecurityTelemetry(req.originalUrl || req.url);
+    logger.error('auth_token_verification_failed', error, { endpoint, method: req.method });
+    sentryCapture(error, { endpoint, tags: { method: req.method, middleware: 'verifyAuth' } });
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };

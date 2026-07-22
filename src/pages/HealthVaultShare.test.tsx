@@ -16,6 +16,9 @@ vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: { uid: 'patient-1' }, db: {} }),
 }));
 
+let activeShareOverrides: Record<string, unknown> = {};
+let emitActiveShares: ((docs: Array<{ data(): Record<string, unknown> }>) => void) | undefined;
+const unsubscribeActiveShares = vi.fn();
 const activeShareDoc = {
   data: () => ({
     id: 'grant-active',
@@ -25,11 +28,19 @@ const activeShareDoc = {
     consumeCount: 0,
     maxConsumes: 3,
     revokedAt: null,
+    ...activeShareOverrides,
   }),
 };
 vi.mock('firebase/firestore', () => ({
   collection: () => ({}),
-  getDocs: async () => ({ docs: [activeShareDoc] }),
+  onSnapshot: (
+    _query: unknown,
+    next: (snapshot: { docs: Array<{ data(): Record<string, unknown> }> }) => void,
+  ) => {
+    emitActiveShares = (docs) => next({ docs });
+    next({ docs: [activeShareDoc] });
+    return unsubscribeActiveShares;
+  },
   query: (...args: unknown[]) => args,
   orderBy: () => ({}),
 }));
@@ -41,6 +52,9 @@ const fetchMock = vi.fn();
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
 beforeEach(() => {
+  activeShareOverrides = {};
+  emitActiveShares = undefined;
+  unsubscribeActiveShares.mockClear();
   fetchMock.mockReset();
   apiAuthHeaderMock.mockClear();
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -82,6 +96,7 @@ beforeEach(() => {
       });
     }
     if (url.includes('/revoke')) return ok({ ok: true });
+    if (url.includes('/confirm-recipient')) return ok({ status: 'active' });
     throw new Error(`unexpected fetch ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -133,6 +148,22 @@ describe('HealthVaultShare v2', () => {
     expect(screen.getByText('Consentimiento exacto emitido por el servidor.')).toBeTruthy();
   });
 
+  it('creates an open QR without a recipient and requires later owner confirmation', async () => {
+    render(<HealthVaultShare />);
+    await screen.findByRole('option', { name: /Dra. Elena Morales/ });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Mi médico aún no aparece/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hemograma' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar QR' }));
+
+    await screen.findByTestId('qr');
+    const call = fetchMock.mock.calls.find(([url, init]) =>
+      url === '/api/health-vault/share' && (init as RequestInit)?.method === 'POST',
+    ) as [string, RequestInit];
+    const body = JSON.parse(String(call[1].body));
+    expect(body).not.toHaveProperty('recipientProfessionalUid');
+    expect(body.resourceIds).toEqual(['record-1']);
+  });
+
   it('keeps revocation authenticated for legacy and v2 summaries', async () => {
     render(<HealthVaultShare />);
     fireEvent.click(await screen.findByText('Revocar'));
@@ -144,5 +175,92 @@ describe('HealthVaultShare v2', () => {
       expect(call).toBeDefined();
       expect((call![1].headers as Record<string, string>).Authorization).toBe('Bearer test-token');
     });
+  });
+
+  it('keeps a share active and explains what to do when revocation fails', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/health-vault/records') return ok({ records: [] });
+      if (url.startsWith('/api/health-professionals/search')) {
+        return ok({ professionals: [] });
+      }
+      if (url === '/api/health-vault/share/grant-active/revoke') {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({
+            error: 'health_vault_temporarily_unavailable',
+            message: 'No pudimos revocar el acceso. Intenta nuevamente.',
+          }),
+        };
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    render(<HealthVaultShare />);
+    fireEvent.click(await screen.findByText('Revocar'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No pudimos revocar el acceso. Intenta nuevamente.',
+    );
+    expect(screen.getByText('Revocar')).toBeTruthy();
+    expect(screen.queryByText(/Revocado:/)).toBeNull();
+  });
+
+  it('shows an open-QR claim and confirms exactly that professional', async () => {
+    activeShareOverrides = {
+      version: 2,
+      status: 'pending',
+      recipientClaim: {
+        professionalUid: 'doctor-1',
+        displayName: 'Dra. Elena Morales',
+        registryNumber: 'RNPI-12345',
+        requestedAt: Date.now(),
+      },
+      sessionCount: 0,
+      maxSessions: 5,
+    };
+    render(<HealthVaultShare />);
+
+    expect(await screen.findByText(/Solicitud de Dra. Elena Morales/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar este profesional' }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) =>
+        url === '/api/health-vault/share/grant-active/confirm-recipient',
+      ) as [string, RequestInit] | undefined;
+      expect(call).toBeDefined();
+      expect(JSON.parse(String(call![1].body))).toEqual({ professionalUid: 'doctor-1' });
+    });
+  });
+
+  it('shows a professional claim received while the owner keeps the page open', async () => {
+    render(<HealthVaultShare />);
+    expect(await screen.findByText('Revocar')).toBeTruthy();
+    expect(screen.queryByText(/Solicitud de Dra. Elena Morales/)).toBeNull();
+
+    activeShareOverrides = {
+      version: 2,
+      status: 'pending',
+      recipientClaim: {
+        professionalUid: 'doctor-1',
+        displayName: 'Dra. Elena Morales',
+        registryNumber: 'RNPI-12345',
+        requestedAt: Date.now(),
+      },
+      sessionCount: 0,
+      maxSessions: 5,
+    };
+    emitActiveShares?.([activeShareDoc]);
+
+    expect(await screen.findByText(/Solicitud de Dra. Elena Morales/)).toBeTruthy();
+  });
+
+  it('releases the live grant listener when the owner leaves the page', async () => {
+    const view = render(<HealthVaultShare />);
+    expect(await screen.findByText('Revocar')).toBeTruthy();
+
+    view.unmount();
+
+    expect(unsubscribeActiveShares).toHaveBeenCalled();
   });
 });

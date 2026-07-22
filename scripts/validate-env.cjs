@@ -81,6 +81,26 @@ const REQUIRED_PROD = [
     mode: 'prod',
     requiredIf: (env) => env.KMS_ADAPTER === 'cloud-kms',
   },
+  {
+    name: 'HEALTH_PROFESSIONAL_LOOKUP_KEYS',
+    purpose: 'versioned HMAC keys for professional civil-identity lookup',
+    mode: 'prod',
+    minLength: 40,
+    example: `{"v1":"${'a'.repeat(64)}"}`,
+    validate: (value) => {
+      try {
+        const parsed = JSON.parse(String(value));
+        const entries = parsed && !Array.isArray(parsed) && typeof parsed === 'object'
+          ? Object.entries(parsed)
+          : [];
+        return entries.length > 0 && entries.every(
+          ([version, key]) => version.trim().length > 0 && typeof key === 'string' && Buffer.byteLength(key, 'utf8') >= 32,
+        );
+      } catch {
+        return false;
+      }
+    },
+  },
 
   // === MercadoPago prod contract (Sprint 39 Fase B.4) ===
   // BACKLOG: hasta Sprint 38 solo MP_IPN_SECRET estaba en el contrato.
@@ -222,7 +242,7 @@ const PLACEHOLDER_REGEX = /^(YOUR_|MY_|REPLACE_|PLACEHOLDER|<.*>)/i;
 
 // Secrets expected to live in Google Cloud Secret Manager when
 // --mode prod-secret-manager is used. Mirrors deploy.yml `secrets:` block
-// + the 6 already-wired Sprint 21 secrets. Kept in sync manually because
+// + security-critical secrets wired after Sprint 21. Kept in sync manually because
 // the deploy.yml is the source of truth for what Cloud Run actually
 // receives at boot.
 const SECRET_MANAGER_SECRETS = [
@@ -231,6 +251,7 @@ const SECRET_MANAGER_SECRETS = [
   'SESSION_SECRET',
   'RESEND_API_KEY',
   'IOT_WEBHOOK_SECRET',
+  'HEALTH_PROFESSIONAL_LOOKUP_KEYS',
   'VITE_GOOGLE_MAPS_API_KEY',
   'VITE_OPENWEATHER_API_KEY',
   // Sprint 22 / Bucket V — pending bootstrap
@@ -346,6 +367,15 @@ function check(env, options = {}) {
       errors.push(
         `INVALID VALUE: ${spec.name} = "${value}" — allowed: ${spec.allowedValues.join(', ')}`,
       );
+      continue;
+    }
+
+    if (typeof spec.validate === 'function' && !spec.validate(value)) {
+      if (mode === 'test') {
+        warnings.push(`${spec.name} â€” custom validation bypass in test mode`);
+        continue;
+      }
+      errors.push(`INVALID FORMAT: ${spec.name} â€” value failed security validation`);
       continue;
     }
   }

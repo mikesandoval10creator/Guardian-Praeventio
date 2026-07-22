@@ -434,6 +434,7 @@ These are NOT optional. Treat them as Sprint 21 exit criteria:
 | SESSION_SECRET | live in Secret Manager | `openssl rand -hex 32` | TBD |
 | RESEND_API_KEY | live in Secret Manager | resend.com → API keys | TBD |
 | IOT_WEBHOOK_SECRET | live in Secret Manager | `openssl rand -hex 32` | TBD |
+| HEALTH_PROFESSIONAL_LOOKUP_KEYS | bootstrap command available; production preflight blocks an absent version | `npm run health:professional:bootstrap-lookup-secret -- --project=<id>` | operator-recorded |
 | VITE_GOOGLE_MAPS_API_KEY | live in Secret Manager | console.cloud.google.com → APIs & Services → Credentials | TBD |
 | VITE_OPENWEATHER_API_KEY | live in Secret Manager | openweathermap.org → My API keys | TBD |
 | GOOGLE_CLIENT_ID | pending bootstrap | console.cloud.google.com → APIs & Services → Credentials → OAuth client | — |
@@ -452,6 +453,51 @@ These are NOT optional. Treat them as Sprint 21 exit criteria:
 | PHOTOGRAMMETRY_WORKER_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` paired with worker URL | — |
 | DWG_CONVERTER_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` paired with converter URL | — |
 | MODAL_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` configured in `infra/modal-photogrammetry/app.py` | — |
+
+### Health professional lookup HMAC rotation (2026-07-21)
+
+`HEALTH_PROFESSIONAL_LOOKUP_KEYS` is a JSON object whose first entry is the
+active key and later entries remain readable during rotation, for example
+`{"2026-07":"<64 hex>","2026-01":"<64 hex>"}`. Values live only in Secret
+Manager and must contain at least 32 random bytes.
+
+Rotation is three-phase: add the new version while retaining the previous key;
+run and audit a server-side reindex of existing encrypted identities without
+exporting plaintext RUTs; remove the old version only after indexed and identity
+counts match, duplicate-enrollment smoke tests pass, and the rollback window
+closes. Invalid JSON, an empty set, or short keys make enrollment fail closed.
+
+Bootstrap creates the Secret Manager shell/version without printing or writing
+the key material locally. The deploy workflow has an explicit preflight and
+will stop with this remediation command instead of failing opaquely inside the
+Cloud Run action:
+
+```bash
+npm run health:professional:bootstrap-lookup-secret -- --project=praeventio-541ad
+```
+
+For rotation, prepend a new generated key while retaining the existing JSON,
+then run the resumable audited reindex. The reindex requires Cloud KMS and
+refuses to run with a dev/noop adapter:
+
+```bash
+npm run health:professional:bootstrap-lookup-secret -- \
+  --project=praeventio-541ad --rotate --version=2026-10
+
+export KMS_ADAPTER=cloud-kms
+export HEALTH_LOOKUP_ROTATION_ACTOR=<platform-operator-uid>
+# Load KMS_KEY_RESOURCE_NAME and HEALTH_PROFESSIONAL_LOOKUP_KEYS from Secret Manager.
+npm run health:professional:reindex-lookups -- --batch-size=100
+```
+
+Every identity is read in UID order, its encrypted RUT is opened only in memory,
+and all configured lookup indexes plus the new primary version and an audit row
+are written in one Firestore transaction. Output contains only aggregate counts
+and a resumable cursor. Do not remove the retiring key until the command reports
+`result: complete`, a second run reports every row `unchanged`, and the
+duplicate-enrollment smoke test fails closed as expected. Old index documents
+may remain as non-secret collision sentinels; they contain only UID and
+timestamps, never RUT or HMAC key material.
 
 URL-shaped values (`PHOTOGRAMMETRY_WORKER_URL`, `DWG_CONVERTER_URL`,
 `MODAL_SUBMIT_URL`, `MODAL_STATUS_URL`) live in GitHub Actions secrets

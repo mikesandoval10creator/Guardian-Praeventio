@@ -669,6 +669,23 @@
         { "fieldPath": "projectId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "health_professional_identities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "displayNameSearch", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "health_professional_identities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "searchPrefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "displayNameSearch", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

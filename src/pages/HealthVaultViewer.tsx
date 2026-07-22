@@ -2,13 +2,18 @@
 // Health Vault v2 — authenticated, consent-bound professional viewer.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
 import type { HealthRecord } from '../services/health/vaultRecord';
+import {
+  consumeVaultSecretHandoff,
+  createVaultSecretHandoff,
+} from '../services/health/vaultSecretHandoff';
 
 type SafeRecord = Omit<HealthRecord, 'fileUri'> & { fileAvailable?: boolean };
 
@@ -18,12 +23,13 @@ type ViewerState =
   | { kind: 'legacy_reissue' }
   | { kind: 'professional_enrollment' }
   | { kind: 'verification_pending'; status: string }
+  | { kind: 'recipient_confirmation_pending' }
   | { kind: 'webauthn_required' }
   | { kind: 'opening' }
   | { kind: 'authorized'; ownerName: string; records: SafeRecord[]; expiresAt: number }
   | { kind: 'error'; title: string; message: string };
 
-type VaultRouteState = { vaultSecret?: string } | null;
+type VaultRouteState = { vaultHandoff?: string } | null;
 
 function formatDate(value: number | string | undefined): string {
   if (!value) return '';
@@ -48,12 +54,15 @@ function serverError(body: { error?: string; message?: string }, status: number)
 export function HealthVaultViewer() {
   const { tokenId = '', secret: legacySecret } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useFirebase() as any;
   const { createHealthProfessionalAssertion } = useBiometricAuth();
   const [secret] = useState(() => {
     if (legacySecret) return '';
-    const routeSecret = (location.state as VaultRouteState)?.vaultSecret;
-    if (typeof routeSecret === 'string' && routeSecret) return routeSecret;
+    const routeSecret = consumeVaultSecretHandoff(
+      (location.state as VaultRouteState)?.vaultHandoff,
+    );
+    if (routeSecret) return routeSecret;
     const fragment = window.location.hash.replace(/^#/, '');
     if (fragment) {
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
@@ -65,8 +74,17 @@ export function HealthVaultViewer() {
   );
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
+  useEffect(() => {
+    if ((location.state as VaultRouteState)?.vaultHandoff) {
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
   const returnState = useMemo(
-    () => ({ returnTo: `/vault/share/${encodeURIComponent(tokenId)}`, vaultSecret: secret }),
+    () => ({
+      returnTo: `/vault/share/${encodeURIComponent(tokenId)}`,
+      vaultHandoff: secret ? createVaultSecretHandoff(secret) : undefined,
+    }),
     [tokenId, secret],
   );
 
@@ -104,13 +122,27 @@ export function HealthVaultViewer() {
           setState({ kind: 'verification_pending', status: String(status ?? 'pending') });
           return;
         }
+        const claimResponse = await fetch(`/api/health-vault/view/${tokenId}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify({ secret }),
+        });
+        const claimBody = await claimResponse.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!claimResponse.ok && claimResponse.status !== 202) {
+          throw new Error(serverError(claimBody, claimResponse.status));
+        }
+        if (claimBody.confirmationRequired === true) {
+          setState({ kind: 'recipient_confirmation_pending' });
+          return;
+        }
         setState({ kind: 'webauthn_required' });
       } catch (error: any) {
         if (!cancelled) {
           setState({
             kind: 'error',
             title: 'No pudimos verificar tu perfil',
-            message: error?.message ?? 'Intenta nuevamente.',
+            message: humanErrorMessage(error),
           });
         }
       }
@@ -169,7 +201,7 @@ export function HealthVaultViewer() {
       setState({
         kind: 'error',
         title: 'No se pudo abrir el Health Vault',
-        message: error?.message ?? 'Intenta nuevamente.',
+        message: humanErrorMessage(error),
       });
     }
   }
@@ -179,11 +211,14 @@ export function HealthVaultViewer() {
     try {
       const authHeader = await apiAuthHeader();
       if (!authHeader) throw new Error('authentication_required');
-      const response = await fetch(`/api/health-vault/view/${tokenId}/file/${recordId}`, {
+      const response = await fetch(`/api/health-vault/view/${tokenId}/file`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: authHeader,
           'X-Health-Vault-Session': sessionToken,
         },
+        body: JSON.stringify({ recordId }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -196,7 +231,7 @@ export function HealthVaultViewer() {
       setState({
         kind: 'error',
         title: 'No se pudo abrir el archivo',
-        message: error?.message ?? 'Intenta nuevamente.',
+        message: humanErrorMessage(error),
       });
     }
   }
@@ -229,6 +264,16 @@ export function HealthVaultViewer() {
             title="Este enlace antiguo ya no muestra datos médicos"
             message="Por seguridad, pide al paciente que genere un acceso nuevo ligado a tu identidad profesional."
           />
+        )}
+
+        {state.kind === 'recipient_confirmation_pending' && (
+          <ActionCard title="El paciente debe confirmar tu acceso">
+            <p>
+              Tu identidad profesional ya fue enviada al titular. TodavÃ­a no se mostrÃ³ ningÃºn
+              dato clÃ­nico. PÃ­dele que confirme la solicitud desde su Health Vault y vuelve a
+              escanear el QR.
+            </p>
+          </ActionCard>
         )}
 
         {state.kind === 'professional_enrollment' && (
@@ -304,7 +349,7 @@ function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
       onPending();
     } catch (submitError: any) {
       setSubmitting(false);
-      setError(submitError?.message ?? 'No se pudo enviar la verificación.');
+      setError(humanErrorMessage(submitError));
     }
   }
 
@@ -318,7 +363,7 @@ function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
       <input aria-label="Nombre profesional" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required className="w-full rounded border p-2" />
       <input aria-label="RUT profesional" value={rut} onChange={(event) => setRut(event.target.value)} required className="w-full rounded border p-2" />
       <input aria-label="Número de registro profesional" value={registryNumber} onChange={(event) => setRegistryNumber(event.target.value)} required className="w-full rounded border p-2" />
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{humanErrorMessage(error)}</p>}
       <button
         type="submit"
         disabled={submitting}

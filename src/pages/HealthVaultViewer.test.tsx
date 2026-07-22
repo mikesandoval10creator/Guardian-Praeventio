@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { HealthVaultViewer } from './HealthVaultViewer';
+import { createVaultSecretHandoff } from '../services/health/vaultSecretHandoff';
 
 const runtime = vi.hoisted(() => ({
   user: { uid: 'doctor-1' } as { uid: string } | null,
@@ -64,7 +65,12 @@ function renderAt(options?: { legacy?: boolean; secret?: string }) {
   const path = legacy ? '/vault/share/grant-1/legacy-secret' : '/vault/share/grant-1';
   const entry = legacy
     ? path
-    : { pathname: path, state: { vaultSecret: options?.secret ?? 'fragment-secret' } };
+    : {
+        pathname: path,
+        state: {
+          vaultHandoff: createVaultSecretHandoff(options?.secret ?? 'fragment-secret'),
+        },
+      };
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
@@ -159,10 +165,30 @@ describe('HealthVaultViewer v2', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('requests owner confirmation for an open QR without releasing records', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { identity: { status: 'provisional' } }))
+      .mockResolvedValueOnce(jsonResponse(202, {
+        status: 'pending',
+        confirmationRequired: true,
+      }));
+    renderAt();
+
+    expect(await screen.findByText('El paciente debe confirmar tu acceso')).toBeTruthy();
+    expect(screen.getByText(/TodavÃ­a no se mostrÃ³ ningÃºn dato clÃ­nico/i)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const claimCall = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(claimCall[0]).toBe('/api/health-vault/view/grant-1/claim');
+    expect(JSON.parse(String(claimCall[1].body))).toEqual({ secret: 'fragment-secret' });
+  });
+
   it('opens a server-verified session and fetches exactly the authorized records', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === '/api/health-professionals/me') {
         return jsonResponse(200, { identity: { status: 'provisional' } });
+      }
+      if (url === '/api/health-vault/view/grant-1/claim') {
+        return jsonResponse(200, { status: 'active', confirmationRequired: false });
       }
       if (url === '/api/health-vault/view/grant-1/session') {
         return jsonResponse(201, { sessionToken: 'hvs_session.session-secret', expiresAt: Date.now() + 60_000 });
@@ -206,6 +232,9 @@ describe('HealthVaultViewer v2', () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url === '/api/health-professionals/me') {
         return jsonResponse(200, { identity: { status: 'verified' } });
+      }
+      if (url === '/api/health-vault/view/grant-1/claim') {
+        return jsonResponse(200, { status: 'active', confirmationRequired: false });
       }
       return jsonResponse(403, {
         error: 'recipient_mismatch',

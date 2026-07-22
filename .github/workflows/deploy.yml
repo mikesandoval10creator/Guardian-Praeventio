@@ -54,6 +54,17 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker southamerica-west1-docker.pkg.dev --quiet
 
+      - name: Preflight required Health Vault lookup secret
+        run: |
+          set -euo pipefail
+          if ! gcloud secrets versions access latest \
+              --secret=HEALTH_PROFESSIONAL_LOOKUP_KEYS \
+              --project="${{ env.PROJECT_ID }}" 2>/dev/null \
+              | node scripts/health-professional-lookup-keyring.cjs; then
+            echo "::error::HEALTH_PROFESSIONAL_LOOKUP_KEYS is absent, inaccessible, malformed, or weak. Verify IAM/JSON; bootstrap only if absent: npm run health:professional:bootstrap-lookup-secret -- --project=${{ env.PROJECT_ID }}"
+            exit 1
+          fi
+
       # The push target (southamerica-west1-docker.pkg.dev/.../praeventio/api)
       # requires the `praeventio` Docker repository to exist in Artifact
       # Registry. cloudbuild.yaml declares it (_REPO: "praeventio") but never
@@ -162,6 +173,7 @@ jobs:
           # Manager, so mount it from there (a real entry below, NOT a comment).
           secrets: |
             KMS_KEY_RESOURCE_NAME=KMS_KEY_RESOURCE_NAME:latest
+            HEALTH_PROFESSIONAL_LOOKUP_KEYS=HEALTH_PROFESSIONAL_LOOKUP_KEYS:latest
             COMPLIANCE_EVIDENCE_ATTESTATION_KEYS=COMPLIANCE_EVIDENCE_ATTESTATION_KEYS:latest
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest

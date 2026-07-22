@@ -12,6 +12,7 @@ import {
   confirmGrantRecipient,
   createHealthAccessGrant,
   revokeHealthAccessGrant,
+  requestGrantRecipientClaim,
   validateGrantClaim,
   VaultShareError,
   DEFAULT_TTL_HOURS,
@@ -478,6 +479,54 @@ describe('HealthAccessGrant v2', () => {
     expect(confirmed.recipientProfessionalUid).toBe('doctor-external-1');
   });
 
+  it('lets an eligible QR holder request access without releasing clinical data', () => {
+    const { record, secret } = createGrant({ recipientProfessionalUid: undefined });
+    const claimed = requestGrantRecipientClaim(record, secret, {
+      uid: 'doctor-external-1',
+      displayName: 'Dra. Elena Morales',
+      registryNumber: 'RNPI-12345',
+      status: 'provisional',
+      webauthnRequired: true,
+    }, { now });
+
+    expect(claimed.status).toBe('pending');
+    expect(claimed.recipientProfessionalUid).toBeUndefined();
+    expect(claimed.recipientClaim).toEqual({
+      professionalUid: 'doctor-external-1',
+      displayName: 'Dra. Elena Morales',
+      registryNumber: 'RNPI-12345',
+      requestedAt: FIXED_NOW,
+    });
+    expect(() =>
+      validateGrantClaim(claimed, secret, {
+        uid: 'doctor-external-1', status: 'provisional', webauthnRequired: true,
+      }, { now }),
+    ).toThrowError(expect.objectContaining({ code: 'recipient_confirmation_required' }));
+  });
+
+  it('binds owner confirmation to the professional who claimed the QR', () => {
+    const { record, secret } = createGrant({ recipientProfessionalUid: undefined });
+    const claimed = requestGrantRecipientClaim(record, secret, {
+      uid: 'doctor-external-1',
+      displayName: 'Dra. Elena Morales',
+      registryNumber: 'RNPI-12345',
+      status: 'verified',
+      webauthnRequired: true,
+    }, { now });
+
+    expect(() =>
+      confirmGrantRecipient(claimed, 'patient-1', 'doctor-different-2', { now }),
+    ).toThrowError(expect.objectContaining({ code: 'recipient_mismatch' }));
+    const confirmed = confirmGrantRecipient(
+      claimed,
+      'patient-1',
+      'doctor-external-1',
+      { now },
+    );
+    expect(confirmed.status).toBe('active');
+    expect(confirmed.recipientClaim).toBeUndefined();
+  });
+
   it('counts clinical sessions and stops at the explicit cap', () => {
     const { record } = createGrant({ maxSessions: 1 });
     const activated = activateGrantSession(record, 'doctor-external-1', 'credential-hash', {
@@ -492,6 +541,25 @@ describe('HealthAccessGrant v2', () => {
     expect(() =>
       activateGrantSession(activated, 'doctor-external-1', 'credential-hash', { now }),
     ).toThrowError(expect.objectContaining({ code: 'max_sessions_reached' }));
+  });
+
+  it('never activates a session from a grant revoked after the initial claim', () => {
+    const { record } = createGrant();
+    const revoked = revokeHealthAccessGrant(record, 'patient-1', { now });
+
+    expect(() =>
+      activateGrantSession(revoked, 'doctor-external-1', 'credential-hash', { now }),
+    ).toThrowError(expect.objectContaining({ code: 'revoked' }));
+  });
+
+  it('never activates a session from a grant that expired after the initial claim', () => {
+    const { record } = createGrant();
+
+    expect(() =>
+      activateGrantSession(record, 'doctor-external-1', 'credential-hash', {
+        now: () => record.expiresAt + 1,
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'expired' }));
   });
 
   it('revocation is owner-only and blocks the next claim', () => {

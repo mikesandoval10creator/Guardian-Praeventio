@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**202 routers montados · 709 rutas detectadas.**
+**204 routers montados · 728 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -177,11 +177,34 @@ clave ver `docs/api-routes.md`.
 - `GET /api/evacuation/status`
 - `POST /api/evacuation/end`
 
+### `src/server/routes/healthProfessionals.ts` → `/api/health-professionals`
+- `POST /api/health-professionals/enroll`
+- `GET /api/health-professionals/me`
+- `GET /api/health-professionals/search`
+- `POST /api/health-professionals/review/:uid`
+- `POST /api/health-professionals/suspend/:uid`
+- `POST /api/health-professionals/revoke/:uid`
+- `POST /api/health-professionals/revalidate/:uid`
+
 ### `src/server/routes/healthVault.ts` → `/api/health-vault`
 - `POST /api/health-vault/share`
 - `GET /api/health-vault/view/:tokenId/:secret`
+- `GET /api/health-vault/view/:tokenId/:secret`
+- `GET /api/health-vault/view/:tokenId/:secret/file/:recordId`
 - `GET /api/health-vault/view/:tokenId/:secret/file/:recordId`
 - `POST /api/health-vault/share/:tokenId/revoke`
+
+### `src/server/routes/healthVaultProfessional.ts` → `/api/health-vault`
+- `POST /api/health-vault/share`
+- `GET /api/health-vault/records`
+- `POST /api/health-vault/view/:grantId/claim`
+- `POST /api/health-vault/share/:grantId/confirm-recipient`
+- `GET /api/health-vault/view/:grantId/challenge`
+- `POST /api/health-vault/view/:grantId/session`
+- `GET /api/health-vault/view/:grantId/records`
+- `POST /api/health-vault/view/:grantId/file`
+- `GET /api/health-vault/view/:grantId/file/:recordId`
+- `POST /api/health-vault/share/:grantId/revoke`
 
 ### `src/server/routes/incidents.ts` → `/api/incidents`
 - `POST /api/incidents/report`

@@ -16,7 +16,10 @@ vi.mock('../middleware/verifyAuth.js', () => ({
   },
 }));
 
-import { createHealthProfessionalsRouter } from './healthProfessionals';
+import {
+  createHealthProfessionalsRouter,
+  parseProfessionalLookupKeys,
+} from './healthProfessionals';
 
 const pendingIdentity = {
   uid: 'doctor-external-1',
@@ -58,6 +61,24 @@ function setup() {
       uid: targetUid,
       status: 'provisional' as const,
     })),
+    transitionStatus: vi.fn(async ({ targetUid, to }: any) => ({
+      ...pendingIdentity,
+      uid: targetUid,
+      status: to,
+    })),
+    revalidate: vi.fn(async ({ targetUid }: any) => ({
+      identity: { ...pendingIdentity, uid: targetUid },
+      verification: {
+        status: 'not_configured' as const,
+        provider: 'superintendencia_salud_cl_stub' as const,
+      },
+    })),
+    reindexLookupKeys: vi.fn(async () => ({
+      processed: 0,
+      updated: 0,
+      unchanged: 0,
+      done: true,
+    })),
   };
   const router = createHealthProfessionalsRouter({ store, hasWebAuthnCredential, analytics });
   const app = express();
@@ -70,6 +91,17 @@ describe('health professional routes', () => {
   beforeEach(() => {
     caller.uid = 'patient-1';
     caller.admin = false;
+  });
+
+  it('parses active and previous lookup keys in declared rotation order', () => {
+    expect(parseProfessionalLookupKeys(JSON.stringify({
+      '2026-07': 'n'.repeat(64),
+      '2026-01': 'o'.repeat(64),
+    }), undefined)).toEqual([
+      { version: '2026-07', key: 'n'.repeat(64) },
+      { version: '2026-01', key: 'o'.repeat(64) },
+    ]);
+    expect(parseProfessionalLookupKeys('{bad-json', undefined)).toEqual([]);
   });
 
   it('enrolls only the authenticated account and returns no RUT', async () => {
@@ -194,5 +226,41 @@ describe('health professional routes', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_professional_identity');
     expect(response.body.message).toMatch(/revisa/i);
+  });
+
+  it('provides an audited platform operation to suspend a professional', async () => {
+    caller.uid = 'platform-reviewer-1';
+    caller.admin = true;
+    const { app, store } = setup();
+
+    const response = await request(app)
+      .post('/api/health-professionals/suspend/doctor-external-1')
+      .send({ evidenceReference: 'credencial-comprometida-incidente-2026-07-21' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.identity.status).toBe('suspended');
+    expect(store.transitionStatus).toHaveBeenCalledWith({
+      targetUid: 'doctor-external-1',
+      reviewerUid: 'platform-reviewer-1',
+      to: 'suspended',
+      evidenceReference: 'credencial-comprometida-incidente-2026-07-21',
+    });
+  });
+
+  it('exposes a fail-closed revalidation seam while the official API is unavailable', async () => {
+    caller.uid = 'platform-reviewer-1';
+    caller.admin = true;
+    const { app, store } = setup();
+
+    const response = await request(app)
+      .post('/api/health-professionals/revalidate/doctor-external-1');
+
+    expect(response.status).toBe(503);
+    expect(response.body.error).toBe('official_registry_not_configured');
+    expect(response.body.message).toMatch(/conserva su estado actual/i);
+    expect(store.revalidate).toHaveBeenCalledWith({
+      targetUid: 'doctor-external-1',
+      reviewerUid: 'platform-reviewer-1',
+    });
   });
 });
