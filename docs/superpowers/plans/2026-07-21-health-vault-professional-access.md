@@ -174,4 +174,3 @@
 - [ ] Revisar `git diff --check`, `git status`, y buscar secretos/RUT/PHI en logging/analytics.
 - [ ] Usar `superpowers:verification-before-completion` y `superpowers:requesting-code-review`.
 - [ ] Publicar `codex/health-vault-professional`, crear un único PR listo para revisión y actualizar Notion a `Review` con URL y comandos exactos.
-
