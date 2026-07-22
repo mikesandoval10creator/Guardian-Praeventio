@@ -47,3 +47,48 @@ describe('<IperMatrixCard />', () => {
     expect(onChange).toHaveBeenCalled();
   });
 });
+
+// DS 44/2024 — la lente RECOMIENDA y cita la norma; nunca reclasifica sola.
+describe('<IperMatrixCard /> — DS 44 (recomienda, no impone)', () => {
+  it('no muestra el bloque DS 44 mientras no se marque ningún factor', () => {
+    render(<IperMatrixCard />);
+    expect(screen.queryByTestId('iper-ds44-recommendations')).toBeNull();
+  });
+
+  it('cita la norma y sugiere un nivel SIN cambiar la clasificación calculada', () => {
+    render(<IperMatrixCard />);
+    expect(screen.getByTestId('iper-level').textContent).toBe('moderado');
+
+    fireEvent.click(screen.getByTestId('iper-ds44-maternity'));
+
+    // La clasificación sigue siendo la del motor base: la decide el usuario.
+    expect(screen.getByTestId('iper-level').textContent).toBe('moderado');
+
+    const rec = screen.getByTestId('iper-ds44-recommendations');
+    expect(rec.textContent).toMatch(/reasign|apartar/i);
+    expect(rec.textContent).toMatch(/202/); // Código del Trabajo art. 202
+    expect(rec.textContent).toMatch(/importante/i); // nivel sugerido, no aplicado
+  });
+
+  it('evalúa una amenaza natural y recomienda el plan de emergencia', () => {
+    render(<IperMatrixCard />);
+    fireEvent.change(screen.getByTestId('iper-ds44-disaster'), {
+      target: { value: 'sismo' },
+    });
+    const rec = screen.getByTestId('iper-ds44-recommendations');
+    expect(rec.textContent).toMatch(/plan de emergencia|evacuaci/i);
+  });
+
+  it('propaga los factores DS 44 en onChange para que la página los persista', () => {
+    const onChange = vi.fn();
+    render(<IperMatrixCard onChange={onChange} />);
+    fireEvent.click(screen.getByTestId('iper-ds44-psychosocial'));
+
+    const [input, result] = onChange.mock.calls.at(-1) as [
+      { genderLens?: { genderedPsychosocial?: boolean } },
+      { ds44Recommendations?: Array<{ basis: string }> },
+    ];
+    expect(input.genderLens?.genderedPsychosocial).toBe(true);
+    expect(result.ds44Recommendations?.[0].basis).toMatch(/21\.643|karin/i);
+  });
+});
