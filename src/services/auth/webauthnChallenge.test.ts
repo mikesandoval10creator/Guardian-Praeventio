@@ -34,6 +34,8 @@ import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
   consumeWebAuthnChallenge,
+  healthProfessionalChallengeMetadata,
+  matchesHealthProfessionalChallenge,
   type MinimalChallengesDb,
 } from './webauthnChallenge.js';
 
@@ -98,6 +100,30 @@ describe('generateWebAuthnChallenge', () => {
       ids.add(generateWebAuthnChallenge().challengeId);
     }
     expect(ids.size).toBe(1000);
+  });
+});
+
+describe('health professional challenge context', () => {
+  it('binds the immutable purpose and grant id', () => {
+    expect(healthProfessionalChallengeMetadata('grant-1')).toEqual({
+      purpose: 'health_professional_access',
+      grantId: 'grant-1',
+    });
+    expect(
+      matchesHealthProfessionalChallenge(
+        { purpose: 'health_professional_access', grantId: 'grant-1' },
+        'grant-1',
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    { purpose: 'login', grantId: 'grant-1' },
+    { purpose: 'health_professional_access', grantId: 'grant-2' },
+    { purpose: 'health_professional_access' },
+    null,
+  ])('rejects a mismatched clinical context: %j', (metadata) => {
+    expect(matchesHealthProfessionalChallenge(metadata, 'grant-1')).toBe(false);
   });
 });
 

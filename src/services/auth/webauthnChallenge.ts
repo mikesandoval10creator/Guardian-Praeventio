@@ -78,6 +78,33 @@ export interface GeneratedChallenge {
   challenge: Uint8Array;
 }
 
+export interface HealthProfessionalChallengeMetadata {
+  purpose: 'health_professional_access';
+  grantId: string;
+}
+
+export function healthProfessionalChallengeMetadata(
+  grantId: string,
+): HealthProfessionalChallengeMetadata {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(grantId)) {
+    throw new TypeError('grantId is invalid');
+  }
+  return { purpose: 'health_professional_access', grantId };
+}
+
+export function matchesHealthProfessionalChallenge(
+  metadata: unknown,
+  grantId: string,
+): metadata is HealthProfessionalChallengeMetadata {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+  const candidate = metadata as Record<string, unknown>;
+  return (
+    candidate.purpose === 'health_professional_access' &&
+    candidate.grantId === grantId &&
+    Object.keys(candidate).length === 2
+  );
+}
+
 /**
  * Generate a fresh server challenge. Caller must persist it via
  * storeWebAuthnChallenge before handing the bytes to the client.
