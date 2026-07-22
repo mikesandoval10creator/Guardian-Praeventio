@@ -1,7 +1,7 @@
 # Health Vault: acceso soberano para profesionales externos verificados
 
 **Fecha:** 2026-07-21  
-**Estado:** diseño aprobado, pendiente de revisión escrita  
+**Estado:** diseño aprobado y plan de implementación revisado  
 **Tarea Notion:** `[P0] Acceso soberano al Health Vault para médico externo verificado`  
 **Principio rector:** la información médica pertenece al usuario y lo acompaña entre empresas, proyectos y prestadores. La empresa no hereda acceso clínico y un médico externo no necesita pertenecer al tenant.
 
