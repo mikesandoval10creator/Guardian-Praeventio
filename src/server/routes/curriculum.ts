@@ -68,6 +68,10 @@ import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
+import {
+  createWebAuthnChallengesFirestoreDb,
+  createWebAuthnCredentialsFirestoreDb,
+} from '../auth/webauthnFirestoreDb.js';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
@@ -216,55 +220,7 @@ export function buildClaimEmailHtml({
  * read-then-write so two concurrent consume() calls cannot both win.
  */
 export function buildWebAuthnDb(): WebAuthnChallengesDb {
-  const fs = admin.firestore();
-  return {
-    now: () => Date.now(),
-    collection(name: string) {
-      const col = fs.collection(name);
-      return {
-        doc(id: string) {
-          const ref = col.doc(id);
-          return {
-            async get() {
-              const snap = await ref.get();
-              return {
-                exists: snap.exists,
-                id: snap.id,
-                data: () =>
-                  snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
-              };
-            },
-            async set(data: Record<string, unknown>) {
-              await ref.set(data);
-            },
-            async updateIf(
-              precondition: (current: Record<string, unknown> | undefined) => boolean,
-              patch: Record<string, unknown>,
-            ): Promise<boolean> {
-              return fs.runTransaction(async (tx) => {
-                const snap = await tx.get(ref);
-                const current = snap.exists
-                  ? (snap.data() as Record<string, unknown>)
-                  : undefined;
-                if (!precondition(current)) return false;
-                // Firestore Admin's `update()` overloads accept either
-                // `(ref, UpdateData)` or `(ref, field, value, ...)`. The
-                // first overload's `UpdateData<T>` resolves to
-                // `{ [k: string]: FieldValue | Partial<...> | undefined }`
-                // which is structurally compatible with our
-                // `Record<string, unknown>` at runtime but not via TS's
-                // narrow inference. Cast via `unknown` first because
-                // `Record<string, unknown>` and `UpdateData` don't
-                // sufficiently overlap for a direct cast.
-                tx.update(ref, patch as unknown as { [k: string]: any });
-                return true;
-              });
-            },
-          };
-        },
-      };
-    },
-  };
+  return createWebAuthnChallengesFirestoreDb();
 }
 
 /**
@@ -274,53 +230,7 @@ export function buildWebAuthnDb(): WebAuthnChallengesDb {
  * collection used by the @simplewebauthn/server signature-verify path.
  */
 export function buildWebAuthnCredentialsDb(): MinimalCredentialsDb {
-  const fs = admin.firestore();
-  return {
-    now: () => Date.now(),
-    collection(name: string) {
-      const col = fs.collection(name);
-      return {
-        doc(id: string) {
-          const ref = col.doc(id);
-          return {
-            async get() {
-              const snap = await ref.get();
-              return {
-                exists: snap.exists,
-                id: snap.id,
-                data: () =>
-                  snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
-              };
-            },
-            async set(data: Record<string, unknown>) {
-              await ref.set(data);
-            },
-            async update(patch: Record<string, unknown>) {
-              await ref.update(patch);
-            },
-            async delete() {
-              await ref.delete();
-            },
-          };
-        },
-        where(field: string, op: '==', value: unknown) {
-          const q = col.where(field, op, value);
-          return {
-            async get() {
-              const snap = await q.get();
-              return {
-                empty: snap.empty,
-                docs: snap.docs.map((d) => ({
-                  id: d.id,
-                  data: () => d.data() as Record<string, unknown>,
-                })),
-              };
-            },
-          };
-        },
-      };
-    },
-  };
+  return createWebAuthnCredentialsFirestoreDb();
 }
 
 const router = Router();

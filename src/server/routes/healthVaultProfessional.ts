@@ -41,9 +41,9 @@ import {
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
 import { getWebauthnExpectedOrigin, getWebauthnRpId } from '../auth/rpId.js';
 import {
-  buildWebAuthnCredentialsDb,
-  buildWebAuthnDb,
-} from './curriculum.js';
+  createWebAuthnChallengesFirestoreDb,
+  createWebAuthnCredentialsFirestoreDb,
+} from '../auth/webauthnFirestoreDb.js';
 import { logger } from '../../utils/logger.js';
 import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
 import { bucketHealthAccessDuration } from '../../services/analytics/healthPrivacy.js';
@@ -711,9 +711,15 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
     },
     async issueChallenge(uid, grantId) {
       const generated = generateWebAuthnChallenge();
-      await storeWebAuthnChallenge(uid, generated.challengeId, generated.challenge, buildWebAuthnDb(), {
-        metadata: healthProfessionalChallengeMetadata(grantId),
-      });
+      await storeWebAuthnChallenge(
+        uid,
+        generated.challengeId,
+        generated.challenge,
+        createWebAuthnChallengesFirestoreDb(),
+        {
+          metadata: healthProfessionalChallengeMetadata(grantId),
+        },
+      );
       return {
         challengeId: generated.challengeId,
         challenge: Buffer.from(generated.challenge).toString('base64'),
@@ -736,8 +742,8 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
         challengeId: String(assertion.challengeId ?? ''),
         expectedOrigin: getWebauthnExpectedOrigin(),
         expectedRpId: getWebauthnRpId(),
-        challengesDb: buildWebAuthnDb(),
-        credentialsDb: buildWebAuthnCredentialsDb(),
+        challengesDb: createWebAuthnChallengesFirestoreDb(),
+        credentialsDb: createWebAuthnCredentialsFirestoreDb(),
         challengeMetadataValidator: (metadata) =>
           matchesHealthProfessionalChallenge(metadata, grantId),
       });

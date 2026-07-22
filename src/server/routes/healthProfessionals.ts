@@ -16,7 +16,7 @@ import type {
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { getCredentialsByUid } from '../../services/auth/webauthnCredentialStore.js';
-import { buildWebAuthnCredentialsDb } from './curriculum.js';
+import { createWebAuthnCredentialsFirestoreDb } from '../auth/webauthnFirestoreDb.js';
 import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
 
 type ProfessionalStore = {
@@ -155,7 +155,8 @@ export function createHealthProfessionalsRouter(deps?: {
   const getStore = () => deps?.store ?? defaultStore();
   const hasWebAuthnCredential =
     deps?.hasWebAuthnCredential ??
-    (async (uid: string) => (await getCredentialsByUid(uid, buildWebAuthnCredentialsDb())).length > 0);
+    (async (uid: string) =>
+      (await getCredentialsByUid(uid, createWebAuthnCredentialsFirestoreDb())).length > 0);
   const analytics = deps?.analytics ?? serverAnalytics;
 
   router.post('/enroll', verifyAuth, limiter, async (req, res) => {
