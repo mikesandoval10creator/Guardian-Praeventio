@@ -187,6 +187,18 @@ PII risk legend:
 | `to_mode` | enum | same set as `app_mode` |  | none | Mode the user is entering. |
 | `trigger_kind` | enum | `manual` \| `auto_fall` \| `auto_geofence` \| `auto_seismic` \| `auto_climate` | `"auto_seismic"` | none | From `services/emergency/autoTrigger.ts`. |
 
+## Health Vault professional funnel
+
+| Property | Type | Allowed values / shape | Example | PII risk | Notes |
+|---|---|---|---|---|---|
+| `country` | enum | `CL` | `"CL"` | none | Deployment jurisdiction only; never a precise location. |
+| `verification_status` | enum | `pending` \| `provisional` \| `verified` | `"provisional"` | none | Closed assurance state; no registry number or specialty. |
+| `channel` | enum | `qr` \| `directory` | `"qr"` | none | How the professional was connected, not who they are. |
+| `duration_bucket` | enum | `under_1h` \| `1_to_24h` \| `1_to_7d` | `"1_to_24h"` | none | Coarse consent duration; exact timestamps are excluded. |
+| `outcome_code` | enum | `success` \| `cancelled` \| `not_eligible` \| `webauthn_failed` \| `expired` \| `revoked` \| `service_unavailable` | `"success"` | none | Closed operational result; never a raw exception or clinical reason. |
+
+Health analytics explicitly prohibit UID, RUT, patient names, specialty, clinical purpose, record IDs, diagnoses and medications.
+
 ## Reserved / system
 
 | Property | Type | Allowed values / shape | Example | PII risk | Notes |

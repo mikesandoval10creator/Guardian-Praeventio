@@ -193,6 +193,19 @@ router.post('/share', verifyAuth, async (req, res) => {
 // PÃšBLICO (sin verifyAuth). Sólo el secret + tokenId dan acceso. El
 // limiter por IP cubre brute-force.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// SECURITY MIGRATION: bearer-only v1 links are retained for owner listing and
+// revocation, but can no longer reveal clinical data. The v2 router mounted
+// before this legacy router handles authenticated professional sessions.
+router.get('/view/:tokenId/:secret', healthVaultViewLimiter, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  return res.status(410).json({
+    error: 'legacy_share_reissue_required',
+    message:
+      'Este enlace antiguo ya no puede mostrar datos médicos. Pide al paciente que genere un acceso seguro nuevo para tu identidad profesional.',
+  });
+});
+
 router.get(
   '/view/:tokenId/:secret',
   healthVaultViewLimiter,
@@ -327,6 +340,20 @@ router.get(
 // y la URL no sobrevive a la revocación. NO consume una unidad de maxConsumes
 // (un viewer con N archivos no debe gastar N vistas). Reusa healthVaultViewLimiter.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get(
+  '/view/:tokenId/:secret/file/:recordId',
+  healthVaultViewLimiter,
+  (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    return res.status(410).json({
+      error: 'legacy_share_reissue_required',
+      message:
+        'Este archivo pertenecía a un enlace antiguo. Pide al paciente que genere un acceso seguro nuevo.',
+    });
+  },
+);
+
 router.get(
   '/view/:tokenId/:secret/file/:recordId',
   healthVaultViewLimiter,

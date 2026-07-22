@@ -14,7 +14,7 @@ const os = require('os');
 const path = require('path');
 
 const guard = require('../../../scripts/precommit-medical-guard.cjs');
-const { checkFile, isInScope } = guard;
+const { checkFile, isInScope, candidateDiffArgs } = guard;
 
 // Cada test escribe a un sandbox temporal y le pasa la ruta absoluta
 // al guard, pero la verificación de "is view" usa pattern de path con prefijo
@@ -74,6 +74,16 @@ test('1. checkFile en archivo fuera de scope → no violations', () => {
   }
 });
 
+test('1b. CI compara base...HEAD sin mutar el índice y pre-commit conserva --cached', () => {
+  assert.deepStrictEqual(candidateDiffArgs(undefined), [
+    'diff', '--cached', '--name-only', '--diff-filter=ACM',
+  ]);
+  assert.deepStrictEqual(candidateDiffArgs('abc123'), [
+    'diff', '--name-only', '--diff-filter=ACM', 'abc123...HEAD',
+  ]);
+  assert.throws(() => candidateDiffArgs('--output=/tmp/leak'), /safe git ref/);
+});
+
 test('2. inferDiagnosis() en src/services/health/ → FORBIDDEN_FUNCTION', () => {
   const sb = makeSandbox();
   try {
@@ -130,6 +140,27 @@ export default function HealthVault() {
 }`;
     const violations = runIn(sb, 'src/pages/HealthVault.tsx', content);
     assert.strictEqual(violations.length, 0, JSON.stringify(violations));
+  } finally {
+    sb.cleanup();
+  }
+});
+
+test('5b. un harness *.test.tsx no es una vista, pero sigue escaneando diagnóstico', () => {
+  const sb = makeSandbox();
+  try {
+    const clean = runIn(
+      sb,
+      'src/pages/HealthVaultShare.test.tsx',
+      `test('renders', () => render(<HealthVaultShare />));`,
+    );
+    assert.strictEqual(clean.length, 0, JSON.stringify(clean));
+
+    const forbidden = runIn(
+      sb,
+      'src/pages/HealthVaultShare.test.tsx',
+      `const prompt = "diagnose this exam";`,
+    );
+    assert.ok(forbidden.find((entry) => entry.type === 'FORBIDDEN_PROMPT'));
   } finally {
     sb.cleanup();
   }

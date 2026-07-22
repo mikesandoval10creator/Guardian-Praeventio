@@ -90,6 +90,35 @@ type Platform = 'web' | 'ios' | 'android';
  */
 export type BiometricPurpose = 'login' | 'claim-signing' | 'enroll-test';
 
+export interface HealthProfessionalWebAuthnAssertion {
+  challengeId: string;
+  id: string;
+  rawId: string;
+  type: 'public-key';
+  clientExtensionResults: AuthenticationExtensionsClientOutputs;
+  clientDataJSON: string;
+  authenticatorData: string;
+  signature: string;
+}
+
+function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
 function isSensitivePurpose(p: BiometricPurpose): boolean {
   return p === 'login' || p === 'claim-signing';
 }
@@ -320,6 +349,63 @@ export const useBiometricAuth = () => {
     [isSupported, isNative],
   );
 
+  /**
+   * Creates the assertion consumed directly by the Health Vault session route.
+   * Unlike `authenticate()`, this method does not exchange the assertion for a
+   * reusable boolean. The server-issued challenge is bound to the grant and the
+   * clinical route verifies the signature, credential owner and purpose together.
+   *
+   * The Capacitor biometric plugin is intentionally not a fallback: it proves a
+   * local unlock but provides no assertion that the server can verify.
+   */
+  const createHealthProfessionalAssertion = useCallback(
+    async (grantId: string): Promise<HealthProfessionalWebAuthnAssertion | null> => {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(grantId) || !detectWebAuthnSupport()) {
+        return null;
+      }
+      try {
+        if (!auth.currentUser) return null;
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return null;
+        const response = await fetch(
+          `/api/health-vault/view/${encodeURIComponent(grantId)}/challenge`,
+          { headers: { Authorization: authHeader } },
+        );
+        if (!response.ok) return null;
+        const body = await response.json();
+        if (
+          typeof body?.challengeId !== 'string' ||
+          typeof body?.challenge !== 'string'
+        ) {
+          return null;
+        }
+        const credential = (await navigator.credentials.get({
+          publicKey: {
+            challenge: base64ToBytes(body.challenge),
+            rpId: window.location.hostname,
+            userVerification: 'required',
+          },
+        })) as PublicKeyCredential | null;
+        if (!credential || credential.type !== 'public-key') return null;
+        const assertion = credential.response as AuthenticatorAssertionResponse;
+        return {
+          challengeId: body.challengeId,
+          id: credential.id,
+          rawId: arrayBufferToBase64Url(credential.rawId),
+          type: 'public-key',
+          clientExtensionResults: credential.getClientExtensionResults(),
+          clientDataJSON: arrayBufferToBase64Url(assertion.clientDataJSON),
+          authenticatorData: arrayBufferToBase64Url(assertion.authenticatorData),
+          signature: arrayBufferToBase64Url(assertion.signature),
+        };
+      } catch (error) {
+        console.warn('[biometric] health professional assertion failed', error);
+        return null;
+      }
+    },
+    [],
+  );
+
   const register = useCallback(
     async (username: string): Promise<boolean> => {
       if (!isSupported) return false;
@@ -531,5 +617,12 @@ export const useBiometricAuth = () => {
     [isSupported, isNative],
   );
 
-  return { isSupported, authenticate, register, registerCredential, platform };
+  return {
+    isSupported,
+    authenticate,
+    register,
+    registerCredential,
+    createHealthProfessionalAssertion,
+    platform,
+  };
 };

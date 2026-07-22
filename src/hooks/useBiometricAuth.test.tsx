@@ -66,6 +66,70 @@ beforeEach(() => {
     value: { get: credGet, create: credCreate },
   });
 });
+
+describe('useBiometricAuth - health professional proof', () => {
+  it('returns a serialized assertion bound to the grant-specific challenge', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/health-vault/view/grant-1/challenge') {
+        return okJson({ challengeId: 'health-challenge-1', challenge: CHALLENGE_B64 });
+      }
+      return okJson({});
+    });
+    const { result } = renderHook(() => useBiometricAuth());
+
+    let assertion: Awaited<
+      ReturnType<typeof result.current.createHealthProfessionalAssertion>
+    > = null;
+    await act(async () => {
+      assertion = await result.current.createHealthProfessionalAssertion('grant-1');
+    });
+
+    expect(assertion).toMatchObject({
+      challengeId: 'health-challenge-1',
+      id: 'cred-1',
+      type: 'public-key',
+    });
+    expect(credGet).toHaveBeenCalledWith({
+      publicKey: expect.objectContaining({ userVerification: 'required' }),
+    });
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/webauthn/verify'))).toBe(
+      false,
+    );
+  });
+
+  it('fails closed when the grant challenge is unavailable', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+    const { result } = renderHook(() => useBiometricAuth());
+
+    let assertion: Awaited<
+      ReturnType<typeof result.current.createHealthProfessionalAssertion>
+    > = null;
+    await act(async () => {
+      assertion = await result.current.createHealthProfessionalAssertion('grant-1');
+    });
+
+    expect(assertion).toBeNull();
+    expect(credGet).not.toHaveBeenCalled();
+  });
+
+  it('never treats native local biometrics as a server-verifiable clinical proof', async () => {
+    h.platform = 'android';
+    delete (window as unknown as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+    h.checkBiometry.mockResolvedValue({ isAvailable: true });
+    h.nativeAuthenticate.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useBiometricAuth());
+
+    let assertion: Awaited<
+      ReturnType<typeof result.current.createHealthProfessionalAssertion>
+    > = null;
+    await act(async () => {
+      assertion = await result.current.createHealthProfessionalAssertion('grant-1');
+    });
+
+    expect(assertion).toBeNull();
+    expect(h.nativeAuthenticate).not.toHaveBeenCalled();
+  });
+});
 afterEach(() => {
   vi.unstubAllGlobals();
 });

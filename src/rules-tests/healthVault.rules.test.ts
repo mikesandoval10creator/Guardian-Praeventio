@@ -6,8 +6,8 @@
 // `users/{uid}/health_vault_shares/{tokenId}` (VaultShareToken, QR share tokens)
 // had NO write rule -> default-denied, silently breaking the worker's own
 // active-shares list read (src/pages/HealthVaultShare.tsx:60). Records are
-// server-only (read+write false). Share tokens: owner/doctor/admin read,
-// all client writes denied. Uses the F1 fail-closed harness.
+// server-only (read+write false). Share tokens: owner read only; professional
+// access is mediated by the server and never by a global client role.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -75,6 +75,11 @@ beforeEach(async () => {
     // Server-written share + record on WORKER's vault.
     await setDoc(doc(db, 'users', WORKER, 'health_vault_shares', 'vs_abcd1234_xyz'), shareDoc(WORKER));
     await setDoc(doc(db, 'users', WORKER, 'health_vault', 'rec_1'), recordDoc(WORKER));
+    await setDoc(doc(db, 'users', WORKER, 'medical_exams', 'exam-1'), { result: 'private' });
+    await setDoc(doc(db, 'users', WORKER, 'morning_checkins', '2026-07-21'), { wellness: 4 });
+    await setDoc(doc(db, 'health_professional_identities', DOCTOR), { uid: DOCTOR, status: 'provisional' });
+    await setDoc(doc(db, 'health_professional_identity_indexes', 'opaque-hmac'), { uid: DOCTOR });
+    await setDoc(doc(db, 'health_vault_access_sessions', 'session-1'), { professionalUid: DOCTOR });
   });
 });
 
@@ -95,8 +100,11 @@ describe('health_vault_shares — firestore.rules (Bucket VV)', () => {
   it('owner reads their own share (active-shares list, HealthVaultShare.tsx:60)', async () => {
     await assertSucceeds(getDoc(shareRef(authed(WORKER))));
   });
-  it('occupational doctor may read a worker share', async () => {
-    await assertSucceeds(getDoc(shareRef(authed(DOCTOR, 'medico_ocupacional'))));
+  it('occupational doctor CANNOT read a worker share directly', async () => {
+    await assertFails(getDoc(shareRef(authed(DOCTOR, 'medico_ocupacional'))));
+  });
+  it('admin CANNOT read a worker share directly', async () => {
+    await assertFails(getDoc(shareRef(authed(ADMIN, 'admin'))));
   });
   it('another worker CANNOT read someone else\'s share (non-owner-deny)', async () => {
     await assertFails(getDoc(shareRef(authed(OTHER))));
@@ -127,5 +135,40 @@ describe('health_vault records — firestore.rules (Bucket VV)', () => {
   });
   it('another worker CANNOT read a victim\'s medical records', async () => {
     await assertFails(getDoc(recordRef(authed(OTHER), 'worker')));
+  });
+  it('a global occupational doctor CANNOT read a victim medical record', async () => {
+    await assertFails(getDoc(recordRef(authed(DOCTOR, 'medico_ocupacional'))));
+  });
+});
+
+describe('personal clinical collections — server-mediated professional access', () => {
+  it('owner keeps read access to their medical exam', async () => {
+    const db = authed(WORKER);
+    await assertSucceeds(getDoc(doc(db as any, 'users', WORKER, 'medical_exams', 'exam-1')));
+  });
+  it('doctor cannot read or write another user medical exam through Client SDK', async () => {
+    const db = authed(DOCTOR, 'medico_ocupacional');
+    const ref = doc(db as any, 'users', WORKER, 'medical_exams', 'exam-1');
+    await assertFails(getDoc(ref));
+    await assertFails(updateDoc(ref, { result: 'changed' }));
+  });
+  it('owner keeps morning check-in access while a doctor cannot read it directly', async () => {
+    const ownerRef = doc(authed(WORKER) as any, 'users', WORKER, 'morning_checkins', '2026-07-21');
+    const doctorRef = doc(authed(DOCTOR, 'medico_ocupacional') as any, 'users', WORKER, 'morning_checkins', '2026-07-21');
+    await assertSucceeds(getDoc(ownerRef));
+    await assertFails(getDoc(doctorRef));
+  });
+});
+
+describe('professional identity and access session collections are server-only', () => {
+  it.each([
+    ['health_professional_identities', DOCTOR],
+    ['health_professional_identity_indexes', 'opaque-hmac'],
+    ['health_vault_access_sessions', 'session-1'],
+  ])('denies client reads and writes for %s', async (collectionName, id) => {
+    const db = authed(DOCTOR, 'medico_ocupacional');
+    const ref = doc(db as any, collectionName, id);
+    await assertFails(getDoc(ref));
+    await assertFails(setDoc(ref, { tampered: true }));
   });
 });

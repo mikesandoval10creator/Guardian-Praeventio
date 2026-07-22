@@ -400,161 +400,52 @@ describe('POST /api/health-vault/share', () => {
 // ── GET /view/:tokenId/:secret ───────────────────────────────────────────────
 
 describe('GET /api/health-vault/view/:tokenId/:secret', () => {
-  it('404 for an unknown token', async () => {
+  it('410 without enumerating whether the legacy token exists', async () => {
     const r = await request(buildApp()).get('/api/health-vault/view/nope/secret');
-    expect(r.status).toBe(404);
-    expect(r.body.error).toBe('invalid');
-  });
-
-  it('401 for a wrong secret', async () => {
-    const { record } = makeShare();
-    seedShare(record);
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/wrong-secret`,
-    );
-    expect(r.status).toBe(401);
-    expect(r.body.error).toBe('invalid_token');
-  });
-
-  it('410 for a revoked share', async () => {
-    const { record, secret } = makeShare({ revokedAt: 1_700_000_001_000 });
-    seedShare(record);
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}`,
-    );
     expect(r.status).toBe(410);
-    expect(r.body.error).toBe('revoked');
+    expect(r.body.error).toBe('legacy_share_reissue_required');
   });
 
-  it('410 for an expired share', async () => {
-    const { record, secret } = makeShare({ expiresAt: 1 }); // long past
-    seedShare(record);
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}`,
-    );
-    expect(r.status).toBe(410);
-    expect(r.body.error).toBe('expired');
-  });
-
-  it('410 once max consumes is reached', async () => {
-    const { record, secret } = makeShare({ maxConsumes: 1, consumeCount: 1 });
-    seedShare(record);
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}`,
-    );
-    expect(r.status).toBe(410);
-    expect(r.body.error).toBe('max_consumes_reached');
-  });
-
-  it('200 reveals records via a server-mediated proxy path (NEVER the raw fileUri), increments consume, audits', async () => {
+  it('never reveals records, consumes a view or writes a clinical audit', async () => {
     const { record, secret } = makeShare({ scope: 'full' });
     seedShare(record);
     seedRecord(makeRecord({ id: 'rec-1' }));
-    seedRecord(makeRecord({ id: 'rec-2', uploadedAt: 1_700_000_500_000 }));
-
     const r = await request(buildApp()).get(
       `/api/health-vault/view/${record.id}/${secret}`,
     );
-    expect(r.status).toBe(200);
-    expect(r.body.workerName).toBe('Juan Pérez');
-    expect(Array.isArray(r.body.records)).toBe(true);
-    expect(r.body.records).toHaveLength(2);
-    // Records sorted uploadedAt desc.
-    expect(r.body.records[0].id).toBe('rec-2');
-    // SECURITY: raw storage URI never leaves the server; a proxy path replaces it.
-    const serialized = JSON.stringify(r.body);
-    expect(serialized).not.toContain('gs://');
-    expect(serialized).not.toContain('fileUri');
-    expect(r.body.records[0].fileProxyPath).toContain('/file/');
 
-    // consumeCount incremented on the stored doc.
-    expect(storedShares()[0].consumeCount).toBe(1);
-    // Audit: consumed.
-    const consumed = auditRows().find((a) => a.action === 'health_vault.share.consumed');
-    expect(consumed).toBeDefined();
-    expect(consumed!.userId).toBe(WORKER);
-  });
-
-  it('200 with an empty record list when the vault has nothing in scope', async () => {
-    const { record, secret } = makeShare({ scope: 'full' });
-    seedShare(record);
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}`,
-    );
-    expect(r.status).toBe(200);
-    expect(r.body.records).toEqual([]);
-    // Still consumes a view and audits.
-    expect(storedShares()[0].consumeCount).toBe(1);
+    expect(r.status).toBe(410);
+    expect(r.body.error).toBe('legacy_share_reissue_required');
+    expect(r.body).not.toHaveProperty('records');
+    expect(storedShares()[0].consumeCount).toBe(0);
+    expect(auditRows().some((row) => row.action === 'health_vault.share.consumed')).toBe(false);
   });
 });
 
 // ── GET /view/:tokenId/:secret/file/:recordId ────────────────────────────────
 
 describe('GET /api/health-vault/view/:tokenId/:secret/file/:recordId', () => {
-  it('404 for an unknown token', async () => {
+  it('410 without enumerating whether the legacy file token exists', async () => {
     const r = await request(buildApp()).get(
       '/api/health-vault/view/nope/secret/file/rec-1',
     );
-    expect(r.status).toBe(404);
-    expect(r.body.error).toBe('invalid');
-  });
-
-  it('410 when the share is revoked (revocation applies per file fetch)', async () => {
-    const { record, secret } = makeShare({ revokedAt: 1_700_000_001_000, scope: 'full' });
-    seedShare(record);
-    seedRecord(makeRecord({ id: 'rec-1' }));
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}/file/rec-1`,
-    );
     expect(r.status).toBe(410);
-    expect(r.body.error).toBe('revoked');
+    expect(r.body.error).toBe('legacy_share_reissue_required');
   });
 
-  it('403 out_of_scope for a record outside the share subset', async () => {
-    const { record, secret } = makeShare({ scope: 'topic', topic: 'x', recordIds: ['rec-1'] });
-    seedShare(record);
-    seedRecord(makeRecord({ id: 'rec-2' })); // not in recordIds
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}/file/rec-2`,
-    );
-    expect(r.status).toBe(403);
-    expect(r.body.error).toBe('out_of_scope');
-  });
-
-  it('404 file_unavailable when the in-scope record has no file', async () => {
-    const { record, secret } = makeShare({ scope: 'full' });
-    seedShare(record);
-    seedRecord(makeRecord({ id: 'rec-1', fileUri: undefined }));
-    const r = await request(buildApp()).get(
-      `/api/health-vault/view/${record.id}/${secret}/file/rec-1`,
-    );
-    expect(r.status).toBe(404);
-    expect(r.body.error).toBe('file_unavailable');
-  });
-
-  it('200 streams the blob, audits file_accessed, and does NOT burn a view', async () => {
+  it('never streams or audits a file from a legacy bearer link', async () => {
     const { record, secret } = makeShare({ scope: 'full' });
     seedShare(record);
     seedRecord(makeRecord({ id: 'rec-1' }));
-
     const r = await request(buildApp()).get(
       `/api/health-vault/view/${record.id}/${secret}/file/rec-1`,
     );
-    expect(r.status).toBe(200);
-    expect(r.headers['content-type']).toContain('application/pdf');
-    expect(r.headers['cache-control']).toContain('no-store');
-    // supertest buffers a non-text content-type into res.body (a Buffer); the
-    // streamed bytes are the blob the storage stub produced.
-    const bodyText = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.text;
-    expect(bodyText).toBe('PDF-BYTES');
 
-    // The file-proxy must not consume a maxConsumes unit (a viewer with N files
-    // shouldn't spend N views).
+    expect(r.status).toBe(410);
+    expect(r.body.error).toBe('legacy_share_reissue_required');
+    expect(r.headers['cache-control']).toContain('no-store');
     expect(storedShares()[0].consumeCount).toBe(0);
-    // Audit: file_accessed, identity = worker (vault owner).
-    const accessed = auditRows().find((a) => a.action === 'health_vault.share.file_accessed');
-    expect(accessed).toBeDefined();
-    expect(accessed!.userId).toBe(WORKER);
+    expect(auditRows().some((row) => row.action === 'health_vault.share.file_accessed')).toBe(false);
   });
 });
 

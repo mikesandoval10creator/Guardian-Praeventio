@@ -408,3 +408,13 @@ Crear dashboard `KMS Operations` en Cloud Monitoring con:
 - [docs/security/incident-response.md](../security/incident-response.md) — incidentes de seguridad
 - `apps/server/src/infra/kms/kmsAdapter.ts` — implementación del adapter (referencia de código)
 - [Sprint 20 multi-agent PR #28](https://github.com/dahosandoval/Praeventio/pull/28) — cambio in-memory-dev → cloud-kms
+
+## Professional RUT lookup key rotation
+
+The encrypted professional RUT follows the KMS envelope lifecycle above. Its
+deterministic duplicate-detection index uses the separate versioned secret
+`HEALTH_PROFESSIONAL_LOOKUP_KEYS`; rotate it with the dual-read/reindex procedure
+in `SECRETS_RUNBOOK.md`. Rotating the KMS KEK does not rotate this HMAC secret.
+Replacing the HMAC secret without retaining the prior version can permit
+duplicate civil identities, so removal is allowed only after a server-side
+reindex, count reconciliation, smoke test, and rollback window.

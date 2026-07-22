@@ -1,14 +1,21 @@
+import type {
+  HealthAccessChannel,
+  HealthAccessDurationBucket,
+  HealthAccessOutcomeCode,
+  HealthVerificationStatus,
+} from './healthPrivacy';
+
 /**
  * Analytics — typed event surface (ninth wave, Bucket D).
  *
  * Source-of-truth for the event names + property shapes is the design
  * artefacts shipped in the eighth wave (commit `eebcdbd`):
  *   - `docs/tracking/TRACKING_PLAN.md` (principles)
- *   - `docs/tracking/event-catalog.md` (44 events)
+ *   - `docs/tracking/event-catalog.md` (53 events)
  *   - `docs/tracking/property-glossary.md` (typed properties)
  *   - `.telemetry/proposed-events.yaml` (machine-readable manifest)
  *
- * This file declares ONLY the 5 activation-funnel events the ninth wave
+ * The first declarations are the 5 activation-funnel events the ninth wave
  * actually wires (TRACKING_PLAN §6.1):
  *   1. auth.user.signed_up
  *   2. project.created
@@ -16,8 +23,9 @@
  *   4. risk.reported.manual
  *   5. tarea.completed
  *
- * The remaining 39 events are deferred to subsequent buckets and will
- * extend the `EventName` union + add their per-event prop interfaces.
+ * Subsequent sections append every catalogued event. Health Vault events use
+ * the stricter runtime allowlist in `healthPrivacy.ts` so clinical context
+ * cannot enter analytics.
  *
  * The shape mirrors the YAML: required event-specific props + the common
  * prop block (TRACKING_PLAN §4.8) that the adapter fills in automatically.
@@ -27,7 +35,7 @@
  * time.
  */
 
-// TODO add remaining 39 events from event-catalog.md (auth.user.signed_in,
+// Historical note: later waves added the remaining catalog events (auth.user.signed_in,
 // project.member.accepted, ..., app.mode.switched). Each adds a literal to
 // `EventName`, a `*Properties` interface, and a row in
 // `EventPropertiesMap`. The 5 activation events stay first because
@@ -110,7 +118,16 @@ export type EventName =
   | 'emergency.fall.detected'
   | 'emergency.evacuation.started'
   | 'suseso.form.started'
-  | 'suseso.form.rejected';
+  | 'suseso.form.rejected'
+  // Health Vault funnel. These events intentionally exclude user, patient,
+  // professional, clinical-purpose and record identifiers.
+  | 'health.professional.onboarding_started'
+  | 'health.professional.onboarding_completed'
+  | 'health.professional.verification_pending'
+  | 'health.professional.provisional_approved'
+  | 'health.professional.officially_verified'
+  | 'health.share.recipient_confirmed'
+  | 'health.share.session_started';
 
 /**
  * Common props attached to every event.
@@ -720,6 +737,25 @@ export interface SusesoFormRejectedProperties extends CommonProperties {
   retry_count?: number;
 }
 
+export interface HealthProfessionalOnboardingProperties extends CommonProperties {
+  country: 'CL';
+  outcome_code?: HealthAccessOutcomeCode;
+}
+
+export interface HealthProfessionalVerificationProperties extends CommonProperties {
+  country: 'CL';
+  verification_status: HealthVerificationStatus;
+  outcome_code?: HealthAccessOutcomeCode;
+}
+
+export interface HealthShareFunnelProperties extends CommonProperties {
+  country: 'CL';
+  verification_status: Extract<HealthVerificationStatus, 'provisional' | 'verified'>;
+  channel: HealthAccessChannel;
+  duration_bucket?: HealthAccessDurationBucket;
+  outcome_code?: HealthAccessOutcomeCode;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -779,6 +815,13 @@ export interface EventPropertiesMap {
   'emergency.evacuation.started': EmergencyEvacuationStartedProperties;
   'suseso.form.started': SusesoFormStartedProperties;
   'suseso.form.rejected': SusesoFormRejectedProperties;
+  'health.professional.onboarding_started': HealthProfessionalOnboardingProperties;
+  'health.professional.onboarding_completed': HealthProfessionalOnboardingProperties;
+  'health.professional.verification_pending': HealthProfessionalVerificationProperties;
+  'health.professional.provisional_approved': HealthProfessionalVerificationProperties;
+  'health.professional.officially_verified': HealthProfessionalVerificationProperties;
+  'health.share.recipient_confirmed': HealthShareFunnelProperties;
+  'health.share.session_started': HealthShareFunnelProperties;
 }
 
 /**

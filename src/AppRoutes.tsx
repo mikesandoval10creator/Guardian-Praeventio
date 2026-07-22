@@ -7,7 +7,7 @@
 // App.tsx renders <LandingPage> independently (no Firebase) and only mounts
 // this component once `hasEntered || skipLanding` is true.
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { RootLayout } from "./components/layout/RootLayout";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
@@ -178,6 +178,10 @@ const Accessibility = lazy(() => import('./pages/Accessibility').then(module => 
 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook
 import { useOnboardingStatus } from './components/onboarding/useOnboardingStatus';
+import {
+  safeVaultReturnTo,
+  shouldRequireCompanyOnboarding,
+} from './routes/healthVaultRoutePolicy';
 
 // AppRoutesProps — receives hasEntered/setHasEntered from App so the landing
 // early-return in AppRoutes can still set the flag when the user clicks "Entrar"
@@ -187,6 +191,20 @@ interface AppRoutesInnerProps {
   hasEntered: boolean;
   setHasEntered: (v: boolean) => void;
   skipLanding: boolean;
+}
+
+function LoginRoute({ user }: { user: unknown }) {
+  const location = useLocation();
+  if (!user) return <Login />;
+  const state = location.state as { returnTo?: string; vaultHandoff?: string } | null;
+  const returnTo = safeVaultReturnTo(state?.returnTo);
+  return (
+    <Navigate
+      to={returnTo}
+      replace
+      state={state?.vaultHandoff ? { vaultHandoff: state.vaultHandoff } : undefined}
+    />
+  );
 }
 
 function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInnerProps) {
@@ -272,11 +290,11 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
   // self-service wizard. We wait for `onboarded` to be loaded (non-null)
   // to avoid flashing /onboarding for returning users while the user
   // doc is still in-flight.
-  const needsOnboarding =
-    !!user && onboarded === false &&
-    !window.location.pathname.startsWith('/onboarding') &&
-    !window.location.pathname.startsWith('/invite') &&
-    !window.location.pathname.startsWith('/login');
+  const needsOnboarding = shouldRequireCompanyOnboarding({
+    hasUser: !!user,
+    onboarded,
+    pathname: window.location.pathname,
+  });
 
   if (!hasEntered && !skipLanding && !needsOnboarding) {
     // Show landing page first; after "Entrar" briefly show splash then the app.
@@ -322,11 +340,12 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
       <Routes>
         <Route
           path="/login"
-          element={!user ? <Login /> : <Navigate to="/" />}
+          element={<LoginRoute user={user} />}
         />
                   <Route path="/invite" element={<InviteAccept />} />
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
+                  <Route path="/vault/share/:tokenId" element={<HealthVaultViewer />} />
                   <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
                   {/* Public SUSESO folio verifier (no auth): the QR printed on
                       a DIAT/DIEP points here. A fiscalizador has no account,

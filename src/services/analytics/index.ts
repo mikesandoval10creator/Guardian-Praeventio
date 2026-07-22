@@ -34,6 +34,14 @@ export {
 } from './queue';
 export type { AnalyticsQueue, QueuedAnalyticsEvent } from './queue';
 export { consoleSink, noopSink, sentryBreadcrumbSink } from './sinks';
+export { bucketHealthAccessDuration, buildHealthAnalyticsProperties } from './healthPrivacy';
+export type {
+  HealthAccessChannel,
+  HealthAccessDurationBucket,
+  HealthAccessOutcomeCode,
+  HealthAnalyticsProperties,
+  HealthVerificationStatus,
+} from './healthPrivacy';
 export {
   createInMemoryAnalyticsQueue,
   createServerAnalytics,
@@ -83,6 +91,9 @@ export type {
   EventInputProps,
   EventName,
   EventPropertiesMap,
+  HealthProfessionalOnboardingProperties,
+  HealthProfessionalVerificationProperties,
+  HealthShareFunnelProperties,
   IndustryCode,
   InviteChannel,
   KnowledgeDocViewedProperties,

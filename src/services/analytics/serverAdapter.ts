@@ -45,6 +45,7 @@ import type {
   EventPropertiesMap,
   Sink,
 } from './types';
+import { buildHealthAnalyticsProperties } from './healthPrivacy';
 
 // ---------------------------------------------------------------------------
 // PII guard — same forbidden top-level keys as the browser adapter.
@@ -62,6 +63,16 @@ const PII_FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
   'lng',
   'latitude',
   'longitude',
+  'uid',
+  'patient_uid',
+  'worker_uid',
+  'professional_uid',
+  'purpose',
+  'resource_ids',
+  'record_ids',
+  'specialty',
+  'diagnosis',
+  'medications',
 ]);
 
 /** Plan-level event_version. Bumped per row in the catalog. */
@@ -331,7 +342,10 @@ export function createServerAnalytics(
       try {
         if (isOptedOut()) return;
 
-        const forbidden = findForbiddenKeys(props as object);
+        const safeProps = name.startsWith('health.')
+          ? buildHealthAnalyticsProperties(props as Record<string, unknown>)
+          : props;
+        const forbidden = findForbiddenKeys(safeProps as object);
         if (forbidden.length > 0) {
           await warnSentryAdapter('analytics.track: PII guard dropped event', {
             name,
@@ -345,7 +359,7 @@ export function createServerAnalytics(
           name,
           properties: {
             ...common,
-            ...(props as object),
+            ...(safeProps as object),
           } as EventPropertiesMap[N],
         };
 

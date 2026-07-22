@@ -72,6 +72,27 @@ describe('createServerAnalytics()', () => {
     vi.restoreAllMocks();
   });
 
+  it('enforces the clinical allowlist inside the real server adapter', async () => {
+    const sink = makeMockSink();
+    const analytics = createServerAnalytics({
+      sinks: [sink],
+      queue: createInMemoryAnalyticsQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await analytics.track('health.share.session_started', {
+      country: 'CL',
+      outcome_code: 'success',
+      nested: { diagnosis: 'private' },
+      unexpected: 'private',
+    } as any);
+
+    expect(sink.calls).toHaveLength(1);
+    expect(sink.calls[0].properties).toMatchObject({ country: 'CL', outcome_code: 'success' });
+    expect(JSON.stringify(sink.calls[0].properties)).not.toContain('private');
+  });
+
   it('track happy path — sink receives the event with merged common props', async () => {
     const sink = makeMockSink();
     const analytics = createServerAnalytics({
@@ -165,6 +186,34 @@ describe('createServerAnalytics()', () => {
     });
 
     expect(sink.calls).toHaveLength(0);
+  });
+
+  it('discards clinical purpose and record identifiers even through an untyped caller', async () => {
+    const sink = makeMockSink();
+    const analytics = createServerAnalytics({
+      sinks: [sink],
+      queue: createInMemoryAnalyticsQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await analytics.track('health.share.session_started', {
+      country: 'CL',
+      verification_status: 'verified',
+      channel: 'qr',
+      // @ts-expect-error — runtime privacy guard must still reject this
+      purpose: 'diagnostic_review',
+      record_ids: ['record-1'],
+    });
+
+    expect(sink.calls).toHaveLength(1);
+    expect(sink.calls[0].properties).toMatchObject({
+      country: 'CL',
+      verification_status: 'verified',
+      channel: 'qr',
+    });
+    expect(JSON.stringify(sink.calls[0].properties)).not.toContain('diagnostic_review');
+    expect(JSON.stringify(sink.calls[0].properties)).not.toContain('record-1');
   });
 
   it('opt-out short-circuits track', async () => {

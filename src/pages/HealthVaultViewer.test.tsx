@@ -1,19 +1,57 @@
 // @vitest-environment jsdom
-//
-// SPDX-License-Identifier: MIT
-//
-// Sprint 26 Bucket VV — HealthVaultViewer page tests.
-
 import React from 'react';
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+
 import { HealthVaultViewer } from './HealthVaultViewer';
+import { createVaultSecretHandoff } from '../services/health/vaultSecretHandoff';
+
+const runtime = vi.hoisted(() => ({
+  user: { uid: 'doctor-1' } as { uid: string } | null,
+  assertion: {
+    challengeId: 'challenge-1',
+    id: 'credential-1',
+    rawId: 'raw',
+    type: 'public-key',
+    clientExtensionResults: {},
+    clientDataJSON: 'client',
+    authenticatorData: 'authenticator',
+    signature: 'signature',
+  } as any,
+}));
+const registerCredentialMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({ user: runtime.user }),
+}));
+vi.mock('../hooks/useBiometricAuth', () => ({
+  useBiometricAuth: () => ({
+    createHealthProfessionalAssertion: vi.fn(async () => runtime.assertion),
+    registerCredential: registerCredentialMock,
+  }),
+}));
+vi.mock('../components/health/MedicalDisclaimer', () => ({
+  MedicalDisclaimer: () => <div>Praeventio nunca diagnostica.</div>,
+}));
+vi.mock('../lib/apiAuth', () => ({ apiAuthHeader: vi.fn(async () => 'Bearer doctor-token') }));
 
 const fetchMock = vi.fn();
+const jsonResponse = (status: number, body: unknown) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => body,
+});
 
 beforeEach(() => {
+  runtime.user = { uid: 'doctor-1' };
+  runtime.assertion = {
+    challengeId: 'challenge-1', id: 'credential-1', rawId: 'raw', type: 'public-key',
+    clientExtensionResults: {}, clientDataJSON: 'client', authenticatorData: 'authenticator', signature: 'signature',
+  };
   fetchMock.mockReset();
+  registerCredentialMock.mockReset();
+  registerCredentialMock.mockResolvedValue({ success: true, credentialId: 'credential-new' });
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -22,127 +60,191 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderAt(path: string) {
+function renderAt(options?: { legacy?: boolean; secret?: string }) {
+  const legacy = options?.legacy ?? false;
+  const path = legacy ? '/vault/share/grant-1/legacy-secret' : '/vault/share/grant-1';
+  const entry = legacy
+    ? path
+    : {
+        pathname: path,
+        state: {
+          vaultHandoff: createVaultSecretHandoff(options?.secret ?? 'fragment-secret'),
+        },
+      };
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
+        <Route path="/vault/share/:tokenId" element={<HealthVaultViewer />} />
         <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
-describe('HealthVaultViewer', () => {
-  it('renders MedicalDisclaimer banner permanently (loading state)', async () => {
+describe('HealthVaultViewer v2', () => {
+  it('requires login without sending the QR secret to the server', async () => {
+    runtime.user = null;
+    renderAt();
+
+    expect(await screen.findByText('Identifícate como profesional de salud')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Iniciar sesión/ }).getAttribute('href')).toBe('/login');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('explains that a legacy path-secret link must be reissued', async () => {
+    renderAt({ legacy: true });
+
+    expect(await screen.findByText(/enlace antiguo ya no muestra datos/i)).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('offers independent professional enrollment when the account has no identity', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(404, { error: 'professional_identity_not_found' }));
+    renderAt();
+
+    expect(await screen.findByText('Registrar identidad profesional')).toBeTruthy();
+    expect(screen.getByText(/independiente de cualquier empresa o proyecto/i)).toBeTruthy();
+  });
+
+  it('registers a server-verifiable passkey before submitting professional identity', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(404, { error: 'professional_identity_not_found' }))
+      .mockResolvedValueOnce(jsonResponse(201, { identity: { status: 'pending' } }));
+    renderAt();
+
+    fireEvent.change(await screen.findByLabelText('Nombre profesional'), {
+      target: { value: 'Dra. Elena Morales' },
+    });
+    fireEvent.change(screen.getByLabelText('RUT profesional'), {
+      target: { value: '12.345.678-5' },
+    });
+    fireEvent.change(screen.getByLabelText(/registro profesional/i), {
+      target: { value: 'RNPI-12345' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Registrar huella y enviar/i }));
+
+    expect(await screen.findByText(/profesional est.* pendiente/i)).toBeTruthy();
+    expect(registerCredentialMock).toHaveBeenCalledWith(
+      'Verifica tu identidad para registrar tu perfil profesional',
+    );
+    const enrollmentCall = fetchMock.mock.calls.find(
+      ([url]) => url === '/api/health-professionals/enroll',
+    );
+    expect(enrollmentCall).toBeTruthy();
+  });
+
+  it('fails closed and keeps identity data local when passkey registration fails', async () => {
+    registerCredentialMock.mockResolvedValue({ success: false });
     fetchMock.mockResolvedValueOnce(
-      new Promise(() => {
-        /* never resolves */
-      }) as any,
+      jsonResponse(404, { error: 'professional_identity_not_found' }),
     );
-    renderAt('/vault/share/abc/xyz');
-    expect(screen.getByText('Praeventio nunca diagnostica.')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toMatch(/cargando/i);
-  });
+    renderAt();
 
-  it('renders worker name + records on success', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 200,
-      json: async () => ({
-        workerName: 'Juan Pérez',
-        records: [
-          {
-            id: 'r1',
-            workerUid: 'w1',
-            type: 'lab_result',
-            uploadedAt: Date.now(),
-            uploadedBy: 'self',
-            meta: { title: 'Hemograma' },
-            tags: [],
-            shareScope: 'shared-via-qr',
-          },
-        ],
-        expiresAt: Date.now() + 86_400_000,
-      }),
+    fireEvent.change(await screen.findByLabelText('Nombre profesional'), {
+      target: { value: 'Dra. Elena Morales' },
     });
-    renderAt('/vault/share/tok/sec');
-    await waitFor(() =>
-      expect(screen.getByText(/Juan Pérez/)).toBeTruthy(),
-    );
-    expect(screen.getByText('Hemograma')).toBeTruthy();
-    // Banner + footer ambos llevan la frase. Verificamos que aparece >=1 vez.
+    fireEvent.change(screen.getByLabelText('RUT profesional'), {
+      target: { value: '12.345.678-5' },
+    });
+    fireEvent.change(screen.getByLabelText(/registro profesional/i), {
+      target: { value: 'RNPI-12345' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Registrar huella y enviar/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/dispositivo compatibles con passkeys/i);
     expect(
-      screen.getAllByText(/Praeventio nunca diagnostica/).length,
-    ).toBeGreaterThanOrEqual(1);
+      fetchMock.mock.calls.some(([url]) => url === '/api/health-professionals/enroll'),
+    ).toBe(false);
   });
 
-  it('shows expired message on 410 expired', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 410,
-      json: async () => ({ error: 'expired' }),
+  it('does not release data while professional verification is pending', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { identity: { status: 'pending' } }));
+    renderAt();
+
+    expect(await screen.findByText(/verificación profesional está pendiente/i)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests owner confirmation for an open QR without releasing records', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { identity: { status: 'provisional' } }))
+      .mockResolvedValueOnce(jsonResponse(202, {
+        status: 'pending',
+        confirmationRequired: true,
+      }));
+    renderAt();
+
+    expect(await screen.findByText('El paciente debe confirmar tu acceso')).toBeTruthy();
+    expect(screen.getByText(/TodavÃ­a no se mostrÃ³ ningÃºn dato clÃ­nico/i)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const claimCall = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(claimCall[0]).toBe('/api/health-vault/view/grant-1/claim');
+    expect(JSON.parse(String(claimCall[1].body))).toEqual({ secret: 'fragment-secret' });
+  });
+
+  it('opens a server-verified session and fetches exactly the authorized records', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/health-professionals/me') {
+        return jsonResponse(200, { identity: { status: 'provisional' } });
+      }
+      if (url === '/api/health-vault/view/grant-1/claim') {
+        return jsonResponse(200, { status: 'active', confirmationRequired: false });
+      }
+      if (url === '/api/health-vault/view/grant-1/session') {
+        return jsonResponse(201, { sessionToken: 'hvs_session.session-secret', expiresAt: Date.now() + 60_000 });
+      }
+      if (url === '/api/health-vault/view/grant-1/records') {
+        return jsonResponse(200, {
+          ownerName: 'Paciente Uno',
+          expiresAt: Date.now() + 60_000,
+          records: [
+            {
+              id: 'record-1', workerUid: 'patient-1', type: 'lab_result', uploadedAt: Date.now(),
+              uploadedBy: 'self', meta: { title: 'Hemograma' }, tags: [], shareScope: 'private',
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch ${url} ${init?.method ?? 'GET'}`);
     });
-    renderAt('/vault/share/tok/sec');
-    await waitFor(() =>
-      expect(screen.getByText(/expiró/i)).toBeTruthy(),
+    renderAt({ secret: 'fragment-secret' });
+    fireEvent.click(await screen.findByRole('button', { name: /Verificar huella y abrir/ }));
+
+    expect(await screen.findByText('Hemograma')).toBeTruthy();
+    expect(screen.getByText(/Health Vault de Paciente Uno/)).toBeTruthy();
+    const sessionCall = fetchMock.mock.calls.find(([url]) =>
+      url === '/api/health-vault/view/grant-1/session',
+    ) as [string, RequestInit];
+    expect(sessionCall[0]).not.toContain('fragment-secret');
+    expect(JSON.parse(String(sessionCall[1].body))).toMatchObject({
+      secret: 'fragment-secret',
+      assertion: { challengeId: 'challenge-1' },
+    });
+    const recordsCall = fetchMock.mock.calls.find(([url]) =>
+      url === '/api/health-vault/view/grant-1/records',
+    ) as [string, RequestInit];
+    expect((recordsCall[1].headers as Record<string, string>)['X-Health-Vault-Session']).toBe(
+      'hvs_session.session-secret',
     );
   });
 
-  it('shows revoked message on 410 revoked', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 410,
-      json: async () => ({ error: 'revoked' }),
+  it('shows the server human message instead of a raw 403', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/health-professionals/me') {
+        return jsonResponse(200, { identity: { status: 'verified' } });
+      }
+      if (url === '/api/health-vault/view/grant-1/claim') {
+        return jsonResponse(200, { status: 'active', confirmationRequired: false });
+      }
+      return jsonResponse(403, {
+        error: 'recipient_mismatch',
+        message: 'Este acceso fue autorizado para otro profesional.',
+      });
     });
-    renderAt('/vault/share/tok/sec');
-    await waitFor(() =>
-      expect(screen.getByText(/revocó/i)).toBeTruthy(),
-    );
-  });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Verificar huella y abrir/ }));
 
-  it('shows invalid message on 401', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 401,
-      json: async () => ({ error: 'invalid_token' }),
-    });
-    renderAt('/vault/share/tok/sec');
-    await waitFor(() =>
-      expect(screen.getByText(/inválido/i)).toBeTruthy(),
-    );
-  });
-
-  it('keeps the medical disclaimer banner present even on error states', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 410,
-      json: async () => ({ error: 'expired' }),
-    });
-    renderAt('/vault/share/tok/sec');
-    await waitFor(() => screen.getByText(/expiró/i));
-    expect(screen.getByText('Praeventio nunca diagnostica.')).toBeTruthy();
-  });
-
-  it('renders the file link from server fileProxyPath, never a raw fileUri', async () => {
-    fetchMock.mockResolvedValueOnce({
-      status: 200,
-      json: async () => ({
-        workerName: 'Juan Pérez',
-        records: [
-          {
-            id: 'r1',
-            workerUid: 'w1',
-            type: 'imaging',
-            uploadedAt: Date.now(),
-            uploadedBy: 'doctor',
-            meta: { title: 'RX columna' },
-            tags: [],
-            shareScope: 'shared-via-qr',
-            fileProxyPath: '/api/health-vault/view/tok/sec/file/r1',
-          },
-        ],
-        expiresAt: Date.now() + 86_400_000,
-      }),
-    });
-    renderAt('/vault/share/tok/sec');
-    const link = await screen.findByText('Ver archivo');
-    expect(link.getAttribute('href')).toBe('/api/health-vault/view/tok/sec/file/r1');
-    // never points at a raw Storage / signed URL
-    expect(link.getAttribute('href')).not.toMatch(/^https?:\/\//);
+    expect(await screen.findByText('Este acceso fue autorizado para otro profesional.')).toBeTruthy();
+    expect(screen.queryByText(/^403$/)).toBeNull();
   });
 });

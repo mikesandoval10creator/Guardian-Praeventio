@@ -29,6 +29,7 @@
 | # | Qué necesito | Cómo obtenerlo | Dónde va | Desbloquea |
 |---|---|---|---|---|
 | **C1** | **KMS key (Cloud KMS)** | GCP Console → Security → Key Management → crear keyring + key. Copia el resource name `projects/.../cryptoKeys/...` | `KMS_KEY_RESOURCE_NAME` + `KMS_ADAPTER=cloud-kms` | **Prod NO bootea sin esto** (fail-fast). Cifrado de PII/médico/tokens. |
+| **C1b** | **Índice HMAC de profesionales** | Ejecutar `npm run health:professional:bootstrap-lookup-secret -- --project=praeventio-541ad`; genera 32 bytes sin imprimirlos ni escribirlos localmente | `HEALTH_PROFESSIONAL_LOOKUP_KEYS` | **Prod NO bootea sin esto**. El deploy valida acceso, JSON y fuerza antes del bundle. Detecta RUT duplicado sin persistirlo en claro. |
 | **C2** | **Google Maps API key** | GCP Console → APIs → habilitar Maps JavaScript + restringir por dominio | `VITE_GOOGLE_MAPS_API_KEY` | 4 mapas + Site25D + mapas de evacuación/costero/volcánico (hoy placeholder) |
 | **C3** | **Keystore Android (`.jks`)** + SHA-256 | Android Studio → Generate Signed Bundle → crea/expone keystore; o `keytool -genkey`. Dame el SHA-256 | `assetlinks.json` + `signingConfigs` | Firma Android + deep-links + billing RTDN + HealthConnect |
 | **C4** | **Apple Developer Program ($99/año)** | developer.apple.com → enrolar; luego provisioning profile + APNS `.p8` | iOS provisioning + `apple-app-site-association` TEAMID | Build iOS + push (APNS) + HealthKit |

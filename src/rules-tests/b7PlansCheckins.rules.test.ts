@@ -105,11 +105,11 @@ describe('users/{uid}/morning_checkins — private wellness (B7)', () => {
     });
     await assertFails(getDoc(checkinRef(authed(OTHER), WORKER, '2026-06-03')));
   });
-  it('the occupational-health doctor can read a worker\'s check-in', async () => {
+  it('an occupational-health role cannot bypass worker consent through the client SDK', async () => {
     await requireEnv().withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'users', WORKER, 'morning_checkins', '2026-06-03'), checkin);
     });
-    await assertSucceeds(getDoc(checkinRef(authed(DOCTOR, 'medico_ocupacional'), WORKER, '2026-06-03')));
+    await assertFails(getDoc(checkinRef(authed(DOCTOR, 'medico_ocupacional'), WORKER, '2026-06-03')));
   });
   it('a check-in cannot be deleted', async () => {
     await requireEnv().withSecurityRulesDisabled(async (ctx) => {

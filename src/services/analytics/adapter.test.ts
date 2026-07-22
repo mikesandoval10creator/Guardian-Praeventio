@@ -95,6 +95,26 @@ describe('AnalyticsAdapter (adapter.ts)', () => {
     vi.restoreAllMocks();
   });
 
+  it('enforces the clinical allowlist inside the real browser adapter', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('health.share.session_started', {
+      country: 'CL',
+      outcome_code: 'success',
+      nested: { medications: ['private'] },
+      unexpected: 'private',
+    } as any);
+
+    expect(sink.calls).toHaveLength(1);
+    expect(JSON.stringify(sink.calls[0].properties)).not.toContain('private');
+  });
+
   it('track happy path — sink receives the event', async () => {
     const sink = makeMockSink();
     const queue = makeMockQueue();
