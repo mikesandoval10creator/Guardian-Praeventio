@@ -19,7 +19,10 @@ export interface ProfessionalIdentityRepository {
   get(uid: string): Promise<HealthProfessionalIdentity | null>;
   findByRutLookupHmac(rutLookupHmac: string): Promise<HealthProfessionalIdentity | null>;
   createUnique(identity: HealthProfessionalIdentity): Promise<ProfessionalIdentityCreateResult>;
-  replace(identity: HealthProfessionalIdentity): Promise<void>;
+  replaceWithAudit(
+    identity: HealthProfessionalIdentity,
+    auditEntry: Record<string, unknown>,
+  ): Promise<void>;
   listEligible(limit: number): Promise<HealthProfessionalIdentity[]>;
 }
 
@@ -208,7 +211,15 @@ export function createHealthProfessionalIdentityStore(deps: {
         evidenceReferenceHash: `sha256:${createHash('sha256').update(reference).digest('hex')}`,
         at: now(),
       });
-      await deps.repository.replace(updated);
+      await deps.repository.replaceWithAudit(updated, {
+        action: 'health.professional.provisional_approved',
+        actorUid: input.reviewerUid,
+        targetUid: input.targetUid,
+        resourceType: 'health_professional_identity',
+        decisionMethod: 'manual_official_registry_review',
+        evidenceReferenceHash: updated.identityAssurance?.evidenceReferenceHash,
+        timestamp: updated.updatedAt,
+      });
       return updated;
     },
   };

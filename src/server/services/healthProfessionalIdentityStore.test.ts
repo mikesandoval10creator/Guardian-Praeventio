@@ -29,7 +29,7 @@ function memoryRepository(): ProfessionalIdentityRepository & {
       rows.set(identity.uid, identity);
       return 'created';
     },
-    async replace(identity) {
+    async replaceWithAudit(identity) {
       rows.set(identity.uid, identity);
     },
     async listEligible() {

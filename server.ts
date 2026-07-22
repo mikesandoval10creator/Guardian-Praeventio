@@ -68,6 +68,7 @@ import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 // Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
 import healthVaultRouter from "./src/server/routes/healthVault.js";
+import healthProfessionalsRouter from "./src/server/routes/healthProfessionals.js";
 // §2.28 (2026-05-21) — Server-side photogrammetry (COLMAP/Modal) DESCARTADO
 // por directiva usuario: digital twin + maqueta 3D deben procesarse ON-DEVICE
 // (celular del usuario) para reducir costos. Stack on-device:
@@ -729,6 +730,7 @@ app.use("/api", healthRouter);
 // por IP. Mount BEFORE el limiter global de /api/* para no consumir el
 // presupuesto compartido del paciente.
 app.use("/api/health-vault", healthVaultRouter);
+app.use("/api/health-professionals", healthProfessionalsRouter);
 // §2.28 (2026-05-21) — `/api/photogrammetry` removido (server-side COLMAP
 // descartado). Toda la lógica de mesh generation vive ahora on-device
 // (WebXR + Three.js client-side). Si futuro un cliente B2D enterprise
