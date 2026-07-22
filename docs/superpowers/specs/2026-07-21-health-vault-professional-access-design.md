@@ -340,7 +340,7 @@ Estas tareas preservarán las capacidades, capacitaciones, certificaciones y exp
 
 ## 17. Evidencia de implementación
 
-- 244 pruebas focalizadas verdes en 19 archivos: dominio, cifrado, WebAuthn, rutas legacy/v2, UI y analítica.
+- 246 pruebas focalizadas verdes en 19 archivos: dominio, cifrado, WebAuthn, rutas legacy/v2, UI y analítica.
 - 17 pruebas verdes con emuladores de Firestore y Storage para titular, tercero, médico y administrador.
 - `typecheck:ci`, `lint:connectivity`, `lint:rules` y `npm run build` terminaron con código 0.
 - Catálogo y manifiesto de analítica alineados en 53 eventos; la allowlist del embudo elimina identificadores y contexto clínico en runtime.
