@@ -500,3 +500,73 @@ describe('signIperAssessment', () => {
     expect(logAuditActionMock).not.toHaveBeenCalled();
   });
 });
+
+// DS 44/2024 — the evaluation must survive as legal evidence, not just live in
+// memory: the differentiated-population lens and the disaster scenario are part
+// of what an inspector reads back from the record.
+describe('recordIperAssessment — DS 44 (enfoque de género + gestión de desastres)', () => {
+  beforeEach(() => {
+    setDocMock.mockClear();
+    logAuditActionMock.mockClear();
+    (setDocMock as any).mockImplementation((..._args: unknown[]) => undefined);
+  });
+
+  it('persists the gender lens, the disaster hazard and the cited recommendations', async () => {
+    await recordIperAssessment({
+      ...basePayload,
+      inputs: {
+        probability: 3 as const,
+        severity: 3 as const,
+        genderLens: { maternityExposure: true },
+        disasterHazard: 'sismo' as const,
+      },
+      ds44Recommendations: [
+        {
+          text: 'Se recomienda evaluar la reasignación…',
+          basis: 'Código del Trabajo art. 202 · DS 44/2024',
+          suggestedLevel: 'importante',
+        },
+        { text: 'Amenaza de sismo: se recomienda…', basis: 'DS 44/2024' },
+      ],
+    });
+
+    const written = setDocMock.mock.calls[0][1] as Record<string, any>;
+    expect(written.inputs.genderLens).toEqual({ maternityExposure: true });
+    expect(written.inputs.disasterHazard).toBe('sismo');
+    expect(written.ds44Recommendations).toHaveLength(2);
+    // The legal basis travels with the record so it can be verified later.
+    expect(written.ds44Recommendations[0].basis).toMatch(/202/);
+    // The classification stays the prevencionista's: only a suggestion is kept.
+    expect(written.ds44Recommendations[0].suggestedLevel).toBe('importante');
+    expect(written.level).toBe(basePayload.level);
+  });
+
+  it('records in the audit trail that the DS 44 considerations were surfaced', async () => {
+    await recordIperAssessment({
+      ...basePayload,
+      inputs: {
+        probability: 3 as const,
+        severity: 3 as const,
+        genderLens: { maternityExposure: true },
+      },
+      ds44Recommendations: [
+        { text: 'Se recomienda evaluar la reasignación…', basis: 'art. 202' },
+      ],
+    });
+
+    const details = logAuditActionMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(details.ds44RecommendationCount).toBe(1);
+  });
+
+  it('leaves the persisted payload byte-identical when no DS 44 input is given', async () => {
+    await recordIperAssessment(basePayload);
+
+    const written = setDocMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(written).not.toHaveProperty('ds44Recommendations');
+    expect(written.inputs).not.toHaveProperty('genderLens');
+    expect(written.inputs).not.toHaveProperty('disasterHazard');
+
+    const details = logAuditActionMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(details).not.toHaveProperty('ds44RecommendationCount');
+  });
+});

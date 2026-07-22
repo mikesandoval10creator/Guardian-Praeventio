@@ -68,7 +68,14 @@ export function MatrizIper() {
     setSavedOk(false);
     try {
       const durationMin = Math.max(1, Math.ceil((Date.now() - openedAtMs) / 60_000));
-      const { probability, severity, controlEffectiveness } = current.input;
+      const {
+        probability,
+        severity,
+        controlEffectiveness,
+        genderLens,
+        disasterHazard,
+        emergencyPlanInPlace,
+      } = current.input;
       await recordIperAssessment({
         description: description.trim(),
         projectId,
@@ -77,10 +84,19 @@ export function MatrizIper() {
           probability,
           severity,
           ...(controlEffectiveness ? { controlEffectiveness } : {}),
+          // DS 44: what the prevencionista actually considered, kept as
+          // evidence of the analysis alongside the recommendations below.
+          ...(genderLens ? { genderLens } : {}),
+          ...(disasterHazard
+            ? { disasterHazard, emergencyPlanInPlace: Boolean(emergencyPlanInPlace) }
+            : {}),
         },
         level: current.result.level,
         rawScore: current.result.rawScore,
         recommendation: current.result.recommendation,
+        ...(current.result.ds44Recommendations
+          ? { ds44Recommendations: current.result.ds44Recommendations }
+          : {}),
         // No AI in this quick flow — control suggestions live in IPERCAnalysis.
         suggestedControls: [],
         computedAt: new Date().toISOString(),

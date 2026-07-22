@@ -9,8 +9,20 @@ import { useTranslation } from 'react-i18next';
 import { Grid3x3 } from 'lucide-react';
 import {
   calculateIper,
+  type DisasterHazard,
+  type IperGenderLens,
   type IperInput,
 } from '../../services/protocols/iper.js';
+
+const DISASTER_OPTIONS: ReadonlyArray<{ value: DisasterHazard; label: string }> = [
+  { value: 'sismo', label: 'Sismo' },
+  { value: 'tsunami', label: 'Tsunami' },
+  { value: 'inundacion', label: 'Inundación' },
+  { value: 'incendio_forestal', label: 'Incendio forestal' },
+  { value: 'aluvion', label: 'Aluvión' },
+  { value: 'erupcion_volcanica', label: 'Erupción volcánica' },
+  { value: 'viento_extremo', label: 'Viento extremo' },
+];
 
 interface IperMatrixCardProps {
   /** Initial probability 1-5. */
@@ -35,17 +47,50 @@ export function IperMatrixCard({
     IperInput['controlEffectiveness']
   >(initialControlEffectiveness);
 
-  const result = useMemo(
-    () => calculateIper({ probability, severity, controlEffectiveness }),
-    [probability, severity, controlEffectiveness],
-  );
+  // DS 44/2024 — enfoque de género + gestión de desastres. These only ADD
+  // recommendations; they never change the computed level (see iper.ts).
+  const [maternityExposure, setMaternityExposure] = useState(false);
+  const [differentiatedBySex, setDifferentiatedBySex] = useState(false);
+  const [ppeAnthropometryGap, setPpeAnthropometryGap] = useState(false);
+  const [genderedPsychosocial, setGenderedPsychosocial] = useState(false);
+  const [disasterHazard, setDisasterHazard] = useState<DisasterHazard | ''>('');
+  const [emergencyPlanInPlace, setEmergencyPlanInPlace] = useState(false);
+
+  const input = useMemo<IperInput>(() => {
+    const lens: IperGenderLens = {};
+    if (maternityExposure) lens.maternityExposure = true;
+    if (differentiatedBySex) lens.differentiatedBySex = true;
+    if (ppeAnthropometryGap) lens.ppeAnthropometryGap = true;
+    if (genderedPsychosocial) lens.genderedPsychosocial = true;
+
+    return {
+      probability,
+      severity,
+      controlEffectiveness,
+      // Omitted when empty so records without the DS 44 lens stay identical.
+      ...(Object.keys(lens).length > 0 ? { genderLens: lens } : {}),
+      ...(disasterHazard ? { disasterHazard, emergencyPlanInPlace } : {}),
+    };
+  }, [
+    probability,
+    severity,
+    controlEffectiveness,
+    maternityExposure,
+    differentiatedBySex,
+    ppeAnthropometryGap,
+    genderedPsychosocial,
+    disasterHazard,
+    emergencyPlanInPlace,
+  ]);
+
+  const result = useMemo(() => calculateIper(input), [input]);
 
   // Notify listeners AFTER commit, not during render: calling a parent's
   // setState from inside this component's useMemo is a React anti-pattern
   // ("Cannot update a component while rendering a different component").
   useEffect(() => {
-    onChange?.({ probability, severity, controlEffectiveness }, result);
-  }, [probability, severity, controlEffectiveness, result, onChange]);
+    onChange?.(input, result);
+  }, [input, result, onChange]);
 
   return (
     <section
@@ -125,6 +170,98 @@ export function IperMatrixCard({
           <option value="high">{t('iper.controlHigh', 'Alta')}</option>
         </select>
       </label>
+
+      {/* DS 44/2024 — enfoque de género + gestión de desastres. Marcar un
+          factor NO reclasifica el riesgo: agrega una recomendación citando la
+          norma, para que el prevencionista decida. */}
+      <fieldset className="rounded border border-default-token p-3 space-y-2">
+        <legend className="px-1 text-[10px] uppercase text-secondary-token">
+          Consideraciones DS 44 (opcional)
+        </legend>
+
+        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          {([
+            ['iper-ds44-maternity', maternityExposure, setMaternityExposure,
+              'Hay trabajadoras embarazadas o en lactancia expuestas'],
+            ['iper-ds44-differentiated', differentiatedBySex, setDifferentiatedBySex,
+              'La exposición difiere según sexo'],
+            ['iper-ds44-ppe', ppeAnthropometryGap, setPpeAnthropometryGap,
+              'Falta EPP en la talla/antropometría de quienes lo usan'],
+            ['iper-ds44-psychosocial', genderedPsychosocial, setGenderedPsychosocial,
+              'Riesgo psicosocial con incidencia distinta por sexo'],
+          ] as const).map(([testId, checked, setChecked, label]) => (
+            <label key={testId} className="flex items-start gap-2 text-[11px] text-secondary-token">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+                data-testid={testId}
+                className="mt-0.5"
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase text-secondary-token">
+            Amenaza natural evaluada
+          </span>
+          <select
+            value={disasterHazard}
+            onChange={(e) => setDisasterHazard(e.target.value as DisasterHazard | '')}
+            data-testid="iper-ds44-disaster"
+            className="rounded border border-default-token bg-surface px-2 py-1 text-xs"
+          >
+            <option value="">Ninguna</option>
+            {DISASTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {disasterHazard && (
+          <label className="flex items-start gap-2 text-[11px] text-secondary-token">
+            <input
+              type="checkbox"
+              checked={emergencyPlanInPlace}
+              onChange={(e) => setEmergencyPlanInPlace(e.target.checked)}
+              data-testid="iper-ds44-plan"
+              className="mt-0.5"
+            />
+            <span>Existe un plan de emergencia y evacuación vigente para esta amenaza</span>
+          </label>
+        )}
+      </fieldset>
+
+      {result.ds44Recommendations && (
+        <div
+          data-testid="iper-ds44-recommendations"
+          className="space-y-2 rounded border border-violet-500/30 bg-violet-500/5 p-3"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wide text-violet-600">
+            Recomendaciones según normativa — la decisión es tuya
+          </p>
+          <ul className="space-y-2">
+            {result.ds44Recommendations.map((rec) => (
+              <li key={rec.basis + rec.text.slice(0, 24)} className="space-y-1">
+                <p className="text-[11px] text-primary-token">{rec.text}</p>
+                <p className="text-[10px] italic text-secondary-token">{rec.basis}</p>
+                {rec.suggestedLevel && (
+                  <p className="text-[10px] font-bold uppercase text-violet-600">
+                    Nivel sugerido para la población expuesta: {rec.suggestedLevel}
+                    <span className="ml-1 font-normal normal-case italic text-secondary-token">
+                      (sugerencia: no se aplicó a la clasificación)
+                    </span>
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="bg-surface-elevated rounded p-3 space-y-2">
         <div className="flex justify-between items-baseline">

@@ -11,11 +11,22 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAuditAction } from '../auditService';
 import { randomId } from '../../utils/randomId';
+import type {
+  DisasterHazard,
+  Ds44Recommendation,
+  IperGenderLens,
+} from '../protocols/iper';
 
 export interface IperAssessmentInputs {
   probability: 1 | 2 | 3 | 4 | 5;
   severity: 1 | 2 | 3 | 4 | 5;
   controlEffectiveness?: 'none' | 'low' | 'medium' | 'high';
+  /** DS 44/2024 — enfoque de género (see `protocols/iper.ts`). */
+  genderLens?: IperGenderLens;
+  /** DS 44/2024 — natural-hazard scenario evaluated in the matrix. */
+  disasterHazard?: DisasterHazard;
+  /** Whether a current emergency/evacuation plan covers `disasterHazard`. */
+  emergencyPlanInPlace?: boolean;
 }
 
 export interface IperAssessmentPayload {
@@ -39,6 +50,14 @@ export interface IperAssessmentPayload {
    * curriculum aggregator can roll it into `stats.safeHours`. Optional.
    */
   durationMin?: number;
+  /**
+   * DS 44/2024 recommendations raised by the engine (`calculateIper`), each
+   * citing its legal basis. Persisted as evidence of the analysis: an inspector
+   * reads back WHICH differentiated-population or disaster considerations the
+   * evaluation surfaced — and the prevencionista's own classification stays in
+   * `level`, because the lens recommends, it does not decide.
+   */
+  ds44Recommendations?: Ds44Recommendation[];
 }
 
 const COLLECTION = 'iper_assessments';
@@ -91,7 +110,7 @@ export async function recordIperAssessment(
   const id = newId();
   const ref = doc(db, COLLECTION, id);
 
-  const dbPayload = {
+  const dbPayload: Record<string, unknown> = {
     description: payload.description,
     projectId: payload.projectId,
     inputs: payload.inputs,
@@ -105,6 +124,15 @@ export async function recordIperAssessment(
       signedAt: null,
     },
   };
+
+  // DS 44 fields are added ONLY when the evaluation produced them, so records
+  // written without the gender/disaster lens stay byte-identical to today's.
+  if (
+    Array.isArray(payload.ds44Recommendations) &&
+    payload.ds44Recommendations.length > 0
+  ) {
+    dbPayload.ds44Recommendations = payload.ds44Recommendations;
+  }
 
   await setDoc(ref, dbPayload);
 
@@ -123,6 +151,15 @@ export async function recordIperAssessment(
     payload.durationMin > 0
   ) {
     auditDetails.durationMin = payload.durationMin;
+  }
+  // DS 44: the trail shows that the differentiated-population / disaster
+  // considerations WERE surfaced to the prevencionista. The count keeps the
+  // audit entry small; the full texts live in the assessment document.
+  if (
+    Array.isArray(payload.ds44Recommendations) &&
+    payload.ds44Recommendations.length > 0
+  ) {
+    auditDetails.ds44RecommendationCount = payload.ds44Recommendations.length;
   }
 
   await logAuditAction(
