@@ -343,15 +343,15 @@ service cloud.firestore {
       
       // Strict privacy envelope for user's medical exams (Excludes Admin/Supervisor by default unless they are the Doctor)
       match /medical_exams/{examId} {
-        allow read: if isOwner(userId) || isDoctor();
-        allow write: if isDoctor();
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
 
       // Morning wellness self-check (MorningRoutine, hygiene). Private to the
       // worker and the occupational-health doctor; the worker writes their own
       // check-in; the wellness history is never deleted.
       match /morning_checkins/{date} {
-        allow read: if isOwner(userId) || isDoctor();
+        allow read: if isOwner(userId);
         allow create, update: if isOwner(userId);
         allow delete: if false;
       }
@@ -400,9 +400,24 @@ service cloud.firestore {
       // so a read leaks no usable access token. ALL client writes denied →
       // tokens are immutable + unforgeable; only the server mutates state.
       match /health_vault_shares/{tokenId} {
-        allow read: if isOwner(userId) || isDoctor() || isAdmin();
+        allow read: if isOwner(userId);
         allow write: if false;
       }
+    }
+
+    // Professional identity, lookup indexes and clinical access sessions are
+    // server-only. A professional receives a minimal DTO from authenticated
+    // routes; no global role or tenant claim grants Client SDK access here.
+    match /health_professional_identities/{uid} {
+      allow read, write: if false;
+    }
+
+    match /health_professional_identity_indexes/{lookupHash} {
+      allow read, write: if false;
+    }
+
+    match /health_vault_access_sessions/{sessionId} {
+      allow read, write: if false;
     }
 
     match /projects/{projectId} {
