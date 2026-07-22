@@ -55,7 +55,7 @@ export function HealthVaultViewer() {
   const { tokenId = '', secret: legacySecret } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useFirebase() as any;
+  const { user } = useFirebase();
   const { createHealthProfessionalAssertion } = useBiometricAuth();
   const [secret] = useState(() => {
     if (legacySecret) return '';
