@@ -1,7 +1,7 @@
 # Health Vault: acceso soberano para profesionales externos verificados
 
 **Fecha:** 2026-07-21  
-**Estado:** diseño aprobado y plan de implementación revisado
+**Estado:** implementado y verificado para revisión
 **Tarea Notion:** `[P0] Acceso soberano al Health Vault para médico externo verificado`  
 **Principio rector:** la información médica pertenece al usuario y lo acompaña entre empresas, proyectos y prestadores. La empresa no hereda acceso clínico y un médico externo no necesita pertenecer al tenant.
 
@@ -337,3 +337,12 @@ Propiedades permitidas: país, tipo de estado, canal `qr|directory`, duración e
 - `[P1] Pasaporte personal de seguridad laboral portable tras desvinculación`.
 
 Estas tareas preservarán las capacidades, capacitaciones, certificaciones y experiencia del usuario, pero retirarán inmediatamente su acceso a proyectos y datos operacionales de la empresa anterior.
+
+## 17. Evidencia de implementación
+
+- 244 pruebas focalizadas verdes en 19 archivos: dominio, cifrado, WebAuthn, rutas legacy/v2, UI y analítica.
+- 17 pruebas verdes con emuladores de Firestore y Storage para titular, tercero, médico y administrador.
+- `typecheck:ci`, `lint:connectivity`, `lint:rules` y `npm run build` terminaron con código 0.
+- Catálogo y manifiesto de analítica alineados en 53 eventos; la allowlist del embudo elimina identificadores y contexto clínico en runtime.
+- Graphify reconstruido tras extraer los adaptadores Firestore de WebAuthn fuera del router de currículum.
+- La suite global se ejecutó durante cinco minutos sin reportar fallos, pero el proceso local alcanzó el timeout antes del resumen final; GitHub CI queda como autoridad para esa regresión completa.
