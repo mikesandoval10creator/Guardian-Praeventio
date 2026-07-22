@@ -62,6 +62,7 @@ function setup() {
     getRecordsByIds: vi.fn(async (_uid: string, ids: string[]) =>
       ids.map((id) => records.get(id)).filter(Boolean) as HealthRecord[],
     ),
+    getOwnerRecords: vi.fn(async () => [...records.values()]),
     getRecordById: vi.fn(async (_uid: string, id: string) => records.get(id) ?? null),
     getOwnerName: vi.fn(async () => 'Paciente Uno'),
     issueChallenge: vi.fn(async () => ({ challengeId: 'challenge-health-1', challenge: 'eA==' })),
@@ -105,6 +106,15 @@ describe('Health Vault professional v2 routes', () => {
     expect(persisted.ownerUid).toBe('patient-1');
     expect(persisted.resourceIds).toEqual(['record-1', 'record-2']);
     expect(JSON.stringify(persisted)).not.toContain(response.body.secret);
+  });
+
+  it('lists only safe metadata so the owner can choose records explicitly', async () => {
+    const { app } = setup();
+    const response = await request(app).get('/api/health-vault/records');
+
+    expect(response.status).toBe(200);
+    expect(response.body.records.map((row: any) => row.id)).toEqual(['record-1', 'record-2']);
+    expect(response.body.records.every((row: any) => row.fileUri === undefined)).toBe(true);
   });
 
   it('rejects any resource id that is not in the authenticated owner vault', async () => {

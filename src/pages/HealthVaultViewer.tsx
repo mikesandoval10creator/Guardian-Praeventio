@@ -1,248 +1,369 @@
 // SPDX-License-Identifier: MIT
-//
-// Sprint 26 Bucket VV — HealthVaultViewer (página pública sin login).
-//
-// El médico tratante escanea el QR del paciente y aterriza acá. Lee la
-// cartera médica del trabajador en modo lectura, con el disclaimer
-// permanente: Praeventio NO diagnostica. La información está organizada
-// para que el médico tome la mejor decisión clínica.
-//
-// Cumple Ley 20.584 + 21.719 + 16.744.
+// Health Vault v2 — authenticated, consent-bound professional viewer.
 
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
+
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { apiAuthHeader } from '../lib/apiAuth';
 import type { HealthRecord } from '../services/health/vaultRecord';
 
+type SafeRecord = Omit<HealthRecord, 'fileUri'> & { fileAvailable?: boolean };
+
 type ViewerState =
-  | { kind: 'loading' }
-  | { kind: 'success'; data: ViewerSuccessPayload }
-  | { kind: 'expired' }
-  | { kind: 'revoked' }
-  | { kind: 'max_consumes' }
-  | { kind: 'invalid' }
-  | { kind: 'rate_limited' }
-  | { kind: 'network_error' };
+  | { kind: 'checking' }
+  | { kind: 'login_required' }
+  | { kind: 'legacy_reissue' }
+  | { kind: 'professional_enrollment' }
+  | { kind: 'verification_pending'; status: string }
+  | { kind: 'webauthn_required' }
+  | { kind: 'opening' }
+  | { kind: 'authorized'; ownerName: string; records: SafeRecord[]; expiresAt: number }
+  | { kind: 'error'; title: string; message: string };
 
-// El /view ya NO devuelve el fileUri crudo: cada record trae un
-// fileProxyPath emitido por el server, que rutea el blob por el endpoint
-// que re-valida la revocación en cada acceso (nunca sobrevive a la revocación).
-type ViewerRecord = Omit<HealthRecord, 'fileUri'> & { fileProxyPath?: string };
-
-interface ViewerSuccessPayload {
-  workerName: string;
-  records: ViewerRecord[];
-  topicHint?: string;
-  expiresAt: number;
-}
-
-const TYPE_LABELS: Record<HealthRecord['type'], string> = {
-  lab_result: 'Resultado de laboratorio',
-  imaging: 'Imagen diagnóstica',
-  diagnosis_note: 'Nota clínica',
-  medication: 'Medicación',
-  allergy: 'Alergia',
-  family_history: 'Antecedentes familiares',
-  audiometry: 'Audiometría',
-  spirometry: 'Espirometría',
-  ecg: 'Electrocardiograma',
-  ergonomic_log: 'Registro ergonómico',
-};
+type VaultRouteState = { vaultSecret?: string } | null;
 
 function formatDate(value: number | string | undefined): string {
   if (!value) return '';
-  const d = typeof value === 'number' ? new Date(value) : new Date(value);
-  if (isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString('es-CL', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function serverError(body: { error?: string; message?: string }, status: number) {
+  if (body.message) return body.message;
+  if (body.error === 'revoked') return 'El paciente revocó este acceso.';
+  if (body.error === 'expired') return 'Este acceso expiró. Pide al paciente uno nuevo.';
+  if (body.error === 'recipient_mismatch') return 'Este acceso fue autorizado para otro profesional.';
+  if (body.error === 'recipient_confirmation_required') {
+    return 'El paciente todavía debe confirmar tu identidad profesional.';
+  }
+  if (status === 401) return 'Tu sesión no es válida. Inicia sesión e intenta nuevamente.';
+  return 'No pudimos completar el acceso clínico seguro. Intenta nuevamente.';
 }
 
 export function HealthVaultViewer() {
-  const { t } = useTranslation();
-  const params = useParams();
-  const tokenId = params.tokenId ?? '';
-  const secret = params.secret ?? '';
+  const { tokenId = '', secret: legacySecret } = useParams();
+  const location = useLocation();
+  const { user } = useFirebase() as any;
+  const { createHealthProfessionalAssertion } = useBiometricAuth();
+  const [secret] = useState(() => {
+    if (legacySecret) return '';
+    const routeSecret = (location.state as VaultRouteState)?.vaultSecret;
+    if (typeof routeSecret === 'string' && routeSecret) return routeSecret;
+    const fragment = window.location.hash.replace(/^#/, '');
+    if (fragment) {
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+    }
+    return fragment;
+  });
+  const [state, setState] = useState<ViewerState>(() =>
+    legacySecret ? { kind: 'legacy_reissue' } : { kind: 'checking' },
+  );
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  const [state, setState] = useState<ViewerState>({ kind: 'loading' });
+  const returnState = useMemo(
+    () => ({ returnTo: `/vault/share/${encodeURIComponent(tokenId)}`, vaultSecret: secret }),
+    [tokenId, secret],
+  );
 
   useEffect(() => {
+    if (legacySecret) return;
+    if (!user?.uid) {
+      setState({ kind: 'login_required' });
+      return;
+    }
+    if (!tokenId || !secret) {
+      setState({
+        kind: 'error',
+        title: 'Enlace incompleto',
+        message: 'El enlace no contiene el código seguro. Pide al paciente que lo genere nuevamente.',
+      });
+      return;
+    }
     let cancelled = false;
-    async function load() {
+    async function checkProfessional() {
       try {
-        const res = await fetch(
-          `/api/health-vault/view/${encodeURIComponent(tokenId)}/${encodeURIComponent(secret)}`,
-        );
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) throw new Error('authentication_required');
+        const response = await fetch('/api/health-professionals/me', {
+          headers: { Authorization: authHeader },
+        });
         if (cancelled) return;
-        if (res.status === 200) {
-          const data = (await res.json()) as ViewerSuccessPayload;
-          setState({ kind: 'success', data });
+        if (response.status === 404) {
+          setState({ kind: 'professional_enrollment' });
           return;
         }
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (res.status === 410) {
-          if (body.error === 'revoked') return setState({ kind: 'revoked' });
-          if (body.error === 'max_consumes_reached')
-            return setState({ kind: 'max_consumes' });
-          return setState({ kind: 'expired' });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(serverError(body, response.status));
+        const status = body.identity?.status;
+        if (status !== 'provisional' && status !== 'verified') {
+          setState({ kind: 'verification_pending', status: String(status ?? 'pending') });
+          return;
         }
-        if (res.status === 401 || res.status === 404)
-          return setState({ kind: 'invalid' });
-        if (res.status === 429) return setState({ kind: 'rate_limited' });
-        setState({ kind: 'network_error' });
-      } catch {
-        if (!cancelled) setState({ kind: 'network_error' });
+        setState({ kind: 'webauthn_required' });
+      } catch (error: any) {
+        if (!cancelled) {
+          setState({
+            kind: 'error',
+            title: 'No pudimos verificar tu perfil',
+            message: error?.message ?? 'Intenta nuevamente.',
+          });
+        }
       }
     }
-    if (tokenId && secret) void load();
-    else setState({ kind: 'invalid' });
+    void checkProfessional();
     return () => {
       cancelled = true;
     };
-  }, [tokenId, secret]);
+  }, [legacySecret, secret, tokenId, user?.uid]);
+
+  async function openVault() {
+    setState({ kind: 'opening' });
+    try {
+      const [authHeader, assertion] = await Promise.all([
+        apiAuthHeader(),
+        createHealthProfessionalAssertion(tokenId),
+      ]);
+      if (!authHeader || !assertion) {
+        setState({
+          kind: 'error',
+          title: 'Dispositivo no compatible',
+          message:
+            'Este acceso exige una huella o llave WebAuthn verificable por el servidor. Usa un dispositivo compatible.',
+        });
+        return;
+      }
+      const sessionResponse = await fetch(`/api/health-vault/view/${tokenId}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ secret, assertion }),
+      });
+      const sessionBody = await sessionResponse.json().catch(() => ({}));
+      if (!sessionResponse.ok) {
+        throw new Error(serverError(sessionBody, sessionResponse.status));
+      }
+      const nextSessionToken = String(sessionBody.sessionToken ?? '');
+      if (!nextSessionToken) throw new Error('La sesión clínica no pudo iniciarse.');
+      setSessionToken(nextSessionToken);
+      const recordsResponse = await fetch(`/api/health-vault/view/${tokenId}/records`, {
+        headers: {
+          Authorization: authHeader,
+          'X-Health-Vault-Session': nextSessionToken,
+        },
+      });
+      const recordsBody = await recordsResponse.json().catch(() => ({}));
+      if (!recordsResponse.ok) {
+        throw new Error(serverError(recordsBody, recordsResponse.status));
+      }
+      setState({
+        kind: 'authorized',
+        ownerName: String(recordsBody.ownerName ?? 'Paciente'),
+        records: Array.isArray(recordsBody.records) ? recordsBody.records : [],
+        expiresAt: Number(recordsBody.expiresAt),
+      });
+    } catch (error: any) {
+      setState({
+        kind: 'error',
+        title: 'No se pudo abrir el Health Vault',
+        message: error?.message ?? 'Intenta nuevamente.',
+      });
+    }
+  }
+
+  async function openFile(recordId: string) {
+    if (!sessionToken) return;
+    try {
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('authentication_required');
+      const response = await fetch(`/api/health-vault/view/${tokenId}/file/${recordId}`, {
+        headers: {
+          Authorization: authHeader,
+          'X-Health-Vault-Session': sessionToken,
+        },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(serverError(body, response.status));
+      }
+      const url = URL.createObjectURL(await response.blob());
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error: any) {
+      setState({
+        kind: 'error',
+        title: 'No se pudo abrir el archivo',
+        message: error?.message ?? 'Intenta nuevamente.',
+      });
+    }
+  }
 
   return (
-    <div
-      className="min-h-screen bg-zinc-50 dark:bg-zinc-950"
-      data-testid="health-vault-viewer"
-    >
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950" data-testid="health-vault-viewer">
       <MedicalDisclaimer variant="banner" />
-
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-        {state.kind === 'loading' && (
-          <p className="text-secondary-token" role="status">
-            {t('healthVaultViewer.loading', 'Cargando cartera médica…')}
+        {(state.kind === 'checking' || state.kind === 'opening') && (
+          <p role="status" className="text-secondary-token">
+            {state.kind === 'opening' ? 'Verificando tu identidad y consentimiento…' : 'Comprobando acceso seguro…'}
           </p>
         )}
 
-        {state.kind === 'expired' && (
-          <ErrorCard
-            title={t('healthVaultViewer.expiredTitle', 'Este enlace expiró')}
-            body={t('healthVaultViewer.expiredBody', 'El paciente puede generar uno nuevo desde su aplicación.')}
-          />
+        {state.kind === 'login_required' && (
+          <ActionCard title="Identifícate como profesional de salud">
+            <p>El QR no entrega datos por sí solo. Inicia sesión para verificar tu identidad profesional.</p>
+            <Link
+              to="/login"
+              state={returnState}
+              className="inline-block mt-3 rounded-md bg-teal-700 px-4 py-2 text-sm text-white"
+            >
+              Iniciar sesión y volver
+            </Link>
+          </ActionCard>
         )}
-        {state.kind === 'revoked' && (
+
+        {state.kind === 'legacy_reissue' && (
           <ErrorCard
-            title={t('healthVaultViewer.revokedTitle', 'El paciente revocó este enlace')}
-            body={t('healthVaultViewer.revokedBody', 'Por seguridad, el acceso fue cancelado por el dueño de la información.')}
-          />
-        )}
-        {state.kind === 'max_consumes' && (
-          <ErrorCard
-            title={t('healthVaultViewer.maxConsumesTitle', 'Este enlace alcanzó el límite de visualizaciones')}
-            body={t('healthVaultViewer.maxConsumesBody', 'Pídele al paciente que genere uno nuevo si necesitas volver a verlo.')}
-          />
-        )}
-        {state.kind === 'invalid' && (
-          <ErrorCard title={t('healthVaultViewer.invalidTitle', 'Enlace inválido')} body={t('healthVaultViewer.invalidBody', 'El enlace que escaneaste no es reconocible.')} />
-        )}
-        {state.kind === 'rate_limited' && (
-          <ErrorCard
-            title={t('healthVaultViewer.rateLimitedTitle', 'Demasiadas solicitudes')}
-            body={t('healthVaultViewer.rateLimitedBody', 'Espera un momento e intenta de nuevo.')}
-          />
-        )}
-        {state.kind === 'network_error' && (
-          <ErrorCard
-            title={t('healthVaultViewer.networkErrorTitle', 'No se pudo conectar')}
-            body={t('healthVaultViewer.networkErrorBody', 'Revisa tu conexión e intenta de nuevo.')}
+            title="Este enlace antiguo ya no muestra datos médicos"
+            message="Por seguridad, pide al paciente que genere un acceso nuevo ligado a tu identidad profesional."
           />
         )}
 
-        {state.kind === 'success' && <SuccessView data={state.data} />}
+        {state.kind === 'professional_enrollment' && (
+          <ProfessionalEnrollment onPending={() => setState({ kind: 'verification_pending', status: 'pending' })} />
+        )}
+
+        {state.kind === 'verification_pending' && (
+          <ActionCard title="Tu verificación profesional está pendiente">
+            <p>
+              Aún no se liberó información clínica. Un revisor debe comprobar tu registro y dejar la decisión auditada.
+            </p>
+          </ActionCard>
+        )}
+
+        {state.kind === 'webauthn_required' && (
+          <ActionCard title="Confirma tu presencia">
+            <p>Usa tu huella o llave de seguridad registrada para abrir sólo los registros autorizados.</p>
+            <button
+              type="button"
+              onClick={() => void openVault()}
+              className="mt-3 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Verificar huella y abrir
+            </button>
+          </ActionCard>
+        )}
+
+        {state.kind === 'error' && <ErrorCard title={state.title} message={state.message} />}
+        {state.kind === 'authorized' && (
+          <AuthorizedView
+            ownerName={state.ownerName}
+            records={state.records}
+            expiresAt={state.expiresAt}
+            onOpenFile={openFile}
+          />
+        )}
       </main>
     </div>
   );
 }
 
-function ErrorCard({ title, body }: { title: string; body: string }) {
+function ProfessionalEnrollment({ onPending }: { onPending: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [rut, setRut] = useState('');
+  const [registryNumber, setRegistryNumber] = useState('');
+  const [error, setError] = useState('');
+
+  async function enroll(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('Inicia sesión nuevamente.');
+      const response = await fetch('/api/health-professionals/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ displayName, rut, registryNumber }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message ?? 'No se pudo enviar la verificación.');
+      onPending();
+    } catch (submitError: any) {
+      setError(submitError?.message ?? 'No se pudo enviar la verificación.');
+    }
+  }
+
   return (
-    <div
-      role="alert"
-      className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50 p-5"
-    >
-      <h2 className="text-base font-bold text-amber-900 dark:text-amber-200">{title}</h2>
-      <p className="text-sm text-amber-800 dark:text-amber-300/80 mt-1">{body}</p>
+    <form onSubmit={enroll} className="rounded-xl border border-teal-200 bg-white p-5 space-y-3">
+      <h2 className="font-bold">Registrar identidad profesional</h2>
+      <p className="text-sm">Este registro es independiente de cualquier empresa o proyecto.</p>
+      <input aria-label="Nombre profesional" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required className="w-full rounded border p-2" />
+      <input aria-label="RUT profesional" value={rut} onChange={(event) => setRut(event.target.value)} required className="w-full rounded border p-2" />
+      <input aria-label="Número de registro profesional" value={registryNumber} onChange={(event) => setRegistryNumber(event.target.value)} required className="w-full rounded border p-2" />
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <button type="submit" className="rounded bg-teal-700 px-4 py-2 text-sm text-white">Enviar para revisión</button>
+    </form>
+  );
+}
+
+function ActionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border border-teal-200 bg-white p-5">
+      <h2 className="font-bold text-zinc-900">{title}</h2>
+      <div className="mt-2 text-sm text-zinc-700">{children}</div>
+    </section>
+  );
+}
+
+function ErrorCard({ title, message }: { title: string; message: string }) {
+  return (
+    <section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-5">
+      <h2 className="font-bold text-amber-950">{title}</h2>
+      <p className="mt-1 text-sm text-amber-900">{message}</p>
+    </section>
+  );
+}
+
+function AuthorizedView({
+  ownerName,
+  records,
+  expiresAt,
+  onOpenFile,
+}: {
+  ownerName: string;
+  records: SafeRecord[];
+  expiresAt: number;
+  onOpenFile: (recordId: string) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-4">
+      <header className="rounded-xl border border-teal-200 bg-white p-5">
+        <h1 className="text-lg font-bold">Health Vault de {ownerName}</h1>
+        <p className="text-xs text-zinc-600">Acceso válido hasta {formatDate(expiresAt)}</p>
+      </header>
+      <ul className="space-y-3" data-testid="records-list">
+        {records.map((record) => (
+          <li key={record.id} className="rounded-xl border bg-white p-4">
+            <h3 className="font-semibold">{record.meta.title}</h3>
+            <p className="text-xs text-zinc-600">{formatDate(record.meta.issueDate ?? record.uploadedAt)}</p>
+            {record.fileAvailable && (
+              <button type="button" onClick={() => void onOpenFile(record.id)} className="mt-2 text-sm text-teal-800 underline">
+                Abrir archivo de forma segura
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p role="note" className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-xs">
+        {tFallback()}
+      </p>
     </div>
   );
 }
 
-function SuccessView({ data }: { data: ViewerSuccessPayload }) {
-  return (
-    <div className="space-y-4">
-      <header className="rounded-xl border border-teal-200 dark:border-teal-800/50 bg-surface p-5">
-        <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-          Cartera médica de {data.workerName}
-        </h1>
-        {data.topicHint && (
-          <p className="text-sm text-teal-700 dark:text-teal-300 mt-1">
-            Compartido con tema: <span className="font-semibold">{data.topicHint}</span>
-          </p>
-        )}
-        <p className="text-xs text-muted-token mt-2">
-          Acceso válido hasta {formatDate(data.expiresAt)}
-        </p>
-      </header>
-
-      <ul className="space-y-3" data-testid="records-list">
-        {data.records.length === 0 && (
-          <li className="text-sm text-zinc-500 italic">
-            No hay registros que mostrar para este alcance.
-          </li>
-        )}
-        {data.records.map((r) => (
-          <li
-            key={r.id}
-            className="rounded-xl border border-default-token bg-surface p-4"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-zinc-500">
-                  {TYPE_LABELS[r.type] ?? r.type}
-                </p>
-                <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  {r.meta.title}
-                </h3>
-                {r.meta.issueDate && (
-                  <p className="text-xs text-secondary-token mt-1">
-                    Fecha emisión: {formatDate(r.meta.issueDate)}
-                  </p>
-                )}
-                {r.meta.issuer && (
-                  <p className="text-xs text-secondary-token">
-                    Emisor: {r.meta.issuer}
-                  </p>
-                )}
-              </div>
-              {r.fileProxyPath && (
-                <a
-                  href={r.fileProxyPath}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-teal-700 dark:text-teal-300 underline shrink-0"
-                >
-                  Ver archivo
-                </a>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <footer
-        role="note"
-        className="rounded-xl border border-teal-200 dark:border-teal-800/50 bg-teal-50 dark:bg-teal-950/30 p-4"
-      >
-        <p className="text-xs text-teal-900 dark:text-teal-200 leading-relaxed">
-          Tu paciente compartió esto contigo. Praeventio nunca diagnostica — la
-          información está organizada para que tomes la mejor decisión clínica.
-        </p>
-      </footer>
-    </div>
-  );
+function tFallback() {
+  return 'Praeventio nunca diagnostica. El paciente eligió estos registros y puede revocar el acceso.';
 }
 
 export default HealthVaultViewer;

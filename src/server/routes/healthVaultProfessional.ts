@@ -27,6 +27,7 @@ import {
 } from '../../services/health/professionalIdentity.js';
 import {
   getHealthRecordById,
+  getHealthRecords,
   getHealthRecordsByIds,
   type HealthRecord,
 } from '../../services/health/vaultRecord.js';
@@ -55,6 +56,7 @@ export interface HealthVaultProfessionalRouterDeps {
   getSession(id: string): Promise<VaultAccessSession | null>;
   getProfessional(uid: string): Promise<HealthProfessionalIdentity | null>;
   getRecordsByIds(uid: string, ids: string[]): Promise<HealthRecord[]>;
+  getOwnerRecords(uid: string): Promise<HealthRecord[]>;
   getRecordById(uid: string, id: string): Promise<HealthRecord | null>;
   getOwnerName(uid: string): Promise<string>;
   issueChallenge(uid: string, grantId: string): Promise<{ challengeId: string; challenge: string }>;
@@ -319,6 +321,25 @@ export function createHealthVaultProfessionalRouter(
     }
   });
 
+  router.get('/records', verifyAuth, async (req, res) => {
+    const callerUid = req.user?.uid;
+    if (!callerUid) {
+      return res.status(401).json({
+        error: 'authentication_required',
+        message: 'Inicia sesión para elegir tus registros.',
+      });
+    }
+    try {
+      const records = await deps().getOwnerRecords(callerUid);
+      return res.json({ records: records.map(safeRecord) });
+    } catch {
+      return res.status(503).json({
+        error: 'health_vault_temporarily_unavailable',
+        message: 'No pudimos cargar tus registros médicos. Intenta nuevamente.',
+      });
+    }
+  });
+
   router.post('/share/:grantId/confirm-recipient', verifyAuth, async (req, res) => {
     const callerUid = req.user?.uid;
     const parsed = confirmRecipientSchema.safeParse(req.body);
@@ -577,6 +598,7 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
       return snapshot.exists ? (snapshot.data() as HealthProfessionalIdentity) : null;
     },
     getRecordsByIds: getHealthRecordsByIds,
+    getOwnerRecords: getHealthRecords,
     getRecordById: getHealthRecordById,
     async getOwnerName(uid) {
       const snapshot = await db.collection('users').doc(uid).get();

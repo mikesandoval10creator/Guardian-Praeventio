@@ -11,17 +11,31 @@ import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { useFirebase } from '../contexts/FirebaseContext';
-import type { VaultShareScope } from '../services/health/vaultShare';
+import type {
+  HealthAccessPurpose,
+  VaultShareScope,
+} from '../services/health/vaultShare';
+import type { HealthRecord } from '../services/health/vaultRecord';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { humanErrorMessage } from '../lib/humanError';
 
 
 interface CreatedShare {
-  tokenId: string;
+  grantId: string;
   secret: string;
   qrPayload: string;
   expiresAt: number;
+  consentText: string;
 }
+
+interface ProfessionalOption {
+  uid: string;
+  displayName: string;
+  registryNumber: string;
+  status: 'provisional' | 'verified';
+}
+
+type SelectableRecord = Omit<HealthRecord, 'fileUri'> & { fileAvailable?: boolean };
 
 interface ActiveShareSummary {
   id: string;
@@ -40,17 +54,72 @@ const SCOPE_LABELS: Record<VaultShareScope, string> = {
   topic: 'Por tema (selección manual)',
 };
 
+const PURPOSE_LABELS: Record<HealthAccessPurpose, string> = {
+  continuity_of_care: 'Continuidad de atención',
+  second_opinion: 'Segunda opinión',
+  diagnostic_review: 'Revisión diagnóstica',
+  occupational_health: 'Salud ocupacional',
+};
+
 export function HealthVaultShare() {
   const { t } = useTranslation();
   const { user, db } = useFirebase() as any;
 
   const [scope, setScope] = useState<VaultShareScope>('full');
-  const [topic, setTopic] = useState('');
   const [ttlHours, setTtlHours] = useState(24);
+  const [purpose, setPurpose] = useState<HealthAccessPurpose>('continuity_of_care');
+  const [professionals, setProfessionals] = useState<ProfessionalOption[]>([]);
+  const [records, setRecords] = useState<SelectableRecord[]>([]);
+  const [selectedProfessionalUid, setSelectedProfessionalUid] = useState('');
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
+  const [choicesLoading, setChoicesLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [createdShare, setCreatedShare] = useState<CreatedShare | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveShareSummary[]>([]);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    let cancelled = false;
+    async function loadChoices() {
+      try {
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) throw new Error('authentication_required');
+        const [recordsResponse, professionalsResponse] = await Promise.all([
+          fetch('/api/health-vault/records', {
+            headers: { Authorization: authHeader },
+          }),
+          fetch('/api/health-professionals/search?limit=50', {
+            headers: { Authorization: authHeader },
+          }),
+        ]);
+        if (!recordsResponse.ok || !professionalsResponse.ok) {
+          throw new Error('health_vault_temporarily_unavailable');
+        }
+        const [recordsBody, professionalsBody] = await Promise.all([
+          recordsResponse.json(),
+          professionalsResponse.json(),
+        ]);
+        if (cancelled) return;
+        setRecords(Array.isArray(recordsBody.records) ? recordsBody.records : []);
+        setProfessionals(
+          Array.isArray(professionalsBody.professionals)
+            ? professionalsBody.professionals
+            : [],
+        );
+      } catch (loadError: any) {
+        if (!cancelled) {
+          setError(humanErrorMessage(loadError?.message ?? 'unknown_error'));
+        }
+      } finally {
+        if (!cancelled) setChoicesLoading(false);
+      }
+    }
+    void loadChoices();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   // Cargar shares activos del trabajador (Firestore client SDK).
   useEffect(() => {
@@ -104,9 +173,13 @@ export function HealthVaultShare() {
           ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
+          version: 2,
           scope,
-          topic: scope === 'topic' ? topic : undefined,
+          resourceIds: selectedRecordIds,
+          recipientProfessionalUid: selectedProfessionalUid,
+          purpose,
           ttlHours,
+          maxSessions: 5,
         }),
       });
       if (!res.ok) {
@@ -179,20 +252,67 @@ export function HealthVaultShare() {
               </select>
             </label>
 
-            {scope === 'topic' && (
-              <label className="block">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                  {t('healthVaultShare.topic', 'Tema')}
-                </span>
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder={t('healthVaultShare.topicPlaceholder', 'ej. lumbalgia')}
-                  className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
-                />
-              </label>
-            )}
+            <label className="block">
+              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                Profesional destinatario
+              </span>
+              <select
+                aria-label="Profesional destinatario"
+                value={selectedProfessionalUid}
+                onChange={(event) => setSelectedProfessionalUid(event.target.value)}
+                className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
+              >
+                <option value="">Selecciona un profesional verificado</option>
+                {professionals.map((professional) => (
+                  <option key={professional.uid} value={professional.uid}>
+                    {professional.displayName} · {professional.registryNumber} ·{' '}
+                    {professional.status === 'verified' ? 'verificación oficial' : 'verificación provisional'}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                Registros autorizados
+              </legend>
+              {choicesLoading && <p className="text-xs text-zinc-500">Cargando opciones…</p>}
+              {!choicesLoading && records.length === 0 && (
+                <p className="text-xs text-zinc-500">No tienes registros disponibles para compartir.</p>
+              )}
+              {records.map((record) => (
+                <label key={record.id} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedRecordIds.includes(record.id)}
+                    onChange={(event) =>
+                      setSelectedRecordIds((current) =>
+                        event.target.checked
+                          ? [...current, record.id]
+                          : current.filter((id) => id !== record.id),
+                      )
+                    }
+                  />
+                  <span>{record.meta.title}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <label className="block">
+              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                Finalidad del acceso
+              </span>
+              <select
+                aria-label="Finalidad del acceso"
+                value={purpose}
+                onChange={(event) => setPurpose(event.target.value as HealthAccessPurpose)}
+                className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
+              >
+                {Object.entries(PURPOSE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
 
             <label className="block">
               <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
@@ -216,9 +336,22 @@ export function HealthVaultShare() {
               </p>
             )}
 
+            {selectedProfessionalUid && selectedRecordIds.length > 0 && (
+              <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
+                Autorizarás exactamente {selectedRecordIds.length} registro(s) al profesional
+                seleccionado para {PURPOSE_LABELS[purpose].toLocaleLowerCase('es-CL')}, por hasta{' '}
+                {ttlHours} hora(s). Puedes revocar el acceso en cualquier momento.
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={submitting || (scope === 'topic' && !topic)}
+              disabled={
+                submitting ||
+                choicesLoading ||
+                !selectedProfessionalUid ||
+                selectedRecordIds.length === 0
+              }
               className="w-full rounded-md bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-400 px-4 py-2 text-sm font-semibold text-white"
             >
               {submitting ? t('healthVaultShare.generating', 'Generando…') : t('healthVaultShare.generateQr', 'Generar QR')}
@@ -236,6 +369,9 @@ export function HealthVaultShare() {
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 break-all">
               {createdShare.qrPayload}
+            </p>
+            <p className="text-xs text-zinc-700 dark:text-zinc-300">
+              {createdShare.consentText}
             </p>
             <div className="flex gap-2">
               <button
