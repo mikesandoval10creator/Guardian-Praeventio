@@ -125,3 +125,37 @@ describe('AndroidManifest — permissions the plugins do not provide (B21)', () 
     }
   });
 });
+
+// MASVS-NETWORK-1 — no cleartext, dev-only trust overrides. The app carries
+// clinical + location PII, so a release build must never fall back to http and
+// must never trust a user-injected CA.
+describe('AndroidManifest — network security config (MASVS-NETWORK-1)', () => {
+  const manifest = read('android/app/src/main/AndroidManifest.xml');
+  const nsc = read('android/app/src/main/res/xml/network_security_config.xml');
+
+  it('the manifest points <application> at the network security config', () => {
+    expect(manifest).toContain(
+      'android:networkSecurityConfig="@xml/network_security_config"',
+    );
+  });
+
+  it('the manifest never force-enables cleartext globally', () => {
+    expect(manifest).not.toContain('android:usesCleartextTraffic="true"');
+  });
+
+  it('cleartext is disabled by default (base-config)', () => {
+    expect(nsc).toContain('cleartextTrafficPermitted="false"');
+  });
+
+  it('keeps the dev live-reload loopback working (10.0.2.2 cleartext exception)', () => {
+    // capacitor.config dev server is http://10.0.2.2:5173 (removed for store
+    // builds); 10.0.2.2 is non-routable in prod so this cannot weaken release.
+    expect(nsc).toContain('10.0.2.2');
+  });
+
+  it('confines user-CA trust to <debug-overrides> — release never trusts a user CA', () => {
+    const beforeDebug = nsc.split('<debug-overrides>')[0];
+    expect(beforeDebug).not.toContain('src="user"');
+    expect(nsc).toContain('<debug-overrides>');
+  });
+});
