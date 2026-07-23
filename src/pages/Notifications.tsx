@@ -19,10 +19,38 @@ import { Tooltip } from '../components/shared/Tooltip';
 export function Notifications() {
   const { t } = useTranslation();
   const { notifications, markAsRead, markAllAsRead, clearAll } = useNotifications();
-  const { requestPermission, notificationPermissionStatus } = usePushNotifications();
+  const { requestPermission, notificationPermissionStatus, criticalAlertsBlocked } =
+    usePushNotifications();
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      {/* [P1][VIDA] If notifications are OFF, SOS and evacuation alerts cannot
+          reach the worker — and they would never know. Warn loudly and offer to
+          re-enable, since this is a life-safety channel, not a preference. */}
+      {criticalAlertsBlocked && (
+        <div
+          data-testid="critical-alerts-blocked"
+          role="alert"
+          className="mb-4 rounded-2xl border border-rose-300 bg-rose-50 p-4 dark:border-rose-500/40 dark:bg-rose-500/10"
+        >
+          <p className="text-sm font-black uppercase tracking-wide text-rose-700 dark:text-rose-300">
+            Las alertas de emergencia están desactivadas
+          </p>
+          <p className="mt-1 text-xs text-rose-700/90 dark:text-rose-200/90">
+            Con las notificaciones apagadas no recibirás avisos de SOS ni de
+            evacuación, aunque estés en peligro. Actívalas para mantenerte protegido.
+          </p>
+          <button
+            type="button"
+            onClick={requestPermission}
+            data-testid="critical-alerts-enable"
+            className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-rose-700"
+          >
+            Activar alertas de emergencia
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary-token tracking-tight leading-tight">{t('notifications.title')}</h1>
