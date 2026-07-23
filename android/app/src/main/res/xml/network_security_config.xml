@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MASVS-NETWORK-1 — Praeventio Guard network security policy.
+
+  Release builds send NO cleartext to any real host: all API traffic is HTTPS to
+  app.praeventio.net and Google/Firebase endpoints. Guardian carries clinical
+  and location PII, so a silent http fallback (or a lib flipping cleartext on)
+  must be impossible in production.
+
+  Certificate pinning (MASVS-NETWORK-2) is intentionally NOT added here: it needs
+  the real SPKI SHA-256 pins of the production leaf + a backup key, and
+  fabricated pins would break production connectivity. Tracked as a follow-up
+  (extract with `openssl s_client -connect app.praeventio.net:443 | openssl x509
+  -pubkey | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary |
+  openssl enc -base64`).
+-->
+<network-security-config>
+    <!-- Everything defaults to HTTPS-only. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Dev live-reload ONLY. capacitor.config points the emulator at
+         http://10.0.2.2:5173 (the Android emulator's alias for the host
+         machine); that server block is removed before store builds. These
+         addresses are non-routable on a real device/network, so permitting
+         cleartext for them cannot weaken a release build. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+
+    <!-- Debug builds ONLY (android:debuggable=true, which app stores reject):
+         trust user-added CAs so a proxy such as Charles / mitmproxy can inspect
+         traffic during development. This block is absent from release builds, so
+         a production app never trusts a user-injected certificate. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
