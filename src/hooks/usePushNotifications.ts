@@ -18,6 +18,22 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { resolveNotificationDeepLink } from '../services/notifications/notificationDeepLink';
 import { DEEP_LINK_EVENT_NAME } from '../components/shared/DeepLinkHandler';
+import {
+  ensureEmergencyChannel,
+  getCriticalAlertStatus,
+  criticalAlertsBlocked as isCriticalAlertsBlocked,
+} from '../services/notifications/criticalNotificationChannel';
+
+/**
+ * Bind the pure critical-channel service to the live Capacitor plugin. Kept
+ * here (not in the service) so the service stays Capacitor-free and testable.
+ */
+const criticalChannelDeps = {
+  createChannel: (channel: Parameters<typeof PushNotifications.createChannel>[0]) =>
+    PushNotifications.createChannel(channel),
+  listChannels: () => PushNotifications.listChannels(),
+  checkPermissions: () => PushNotifications.checkPermissions(),
+};
 
 /**
  * Turn a tapped push notification into an in-app navigation. Reuses the same
@@ -107,6 +123,10 @@ export function usePushNotifications() {
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [lastRegisteredAt, setLastRegisteredAt] = useState<number | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  // [P1][VIDA] true when the OS will NOT deliver notifications (worker denied
+  // POST_NOTIFICATIONS on Android 13+ / turned them off). In that state SOS and
+  // evacuation are silently dead, so the UI must warn and offer recovery.
+  const [criticalAlertsBlocked, setCriticalAlertsBlocked] = useState<boolean>(false);
 
   // Helper closure that uses the live Firebase auth + global fetch.
   const reportTokenToServer = async (token: string) => {
@@ -140,9 +160,15 @@ export function usePushNotifications() {
         setNotificationPermissionStatus(res.receive as NotificationPermission);
         setHasPermission(res.receive === 'granted');
       });
+      // Surface the "critical alerts are OFF" state so the UI can warn. Fails
+      // closed inside getCriticalAlertStatus, so a read error → blocked.
+      getCriticalAlertStatus(criticalChannelDeps).then((status) =>
+        setCriticalAlertsBlocked(isCriticalAlertsBlocked(status)),
+      );
     } else if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermissionStatus(Notification.permission);
       setHasPermission(Notification.permission === 'granted');
+      setCriticalAlertsBlocked(Notification.permission !== 'granted');
     }
   }, []);
 
@@ -158,9 +184,18 @@ export function usePushNotifications() {
         if (permStatus.receive !== 'granted') {
           logger.warn('User denied push permission');
           setHasPermission(false);
+          // [P1][VIDA] The worker just turned OFF the only channel through which
+          // SOS/evacuation reach them. Flag it so the UI can warn + recover.
+          setCriticalAlertsBlocked(true);
           return;
         }
         setHasPermission(true);
+        setCriticalAlertsBlocked(false);
+
+        // [P1][VIDA] Register the dedicated high-importance emergency channel so
+        // critical FCM messages render as a heads-up popup with sound instead
+        // of the default channel. Idempotent + never throws.
+        await ensureEmergencyChannel(criticalChannelDeps);
 
         await PushNotifications.register();
 
@@ -322,5 +357,7 @@ export function usePushNotifications() {
     registerForPushNotifications,
     lastRegisteredAt,
     registrationError,
+    /** True when SOS/evacuation notifications cannot reach the worker. */
+    criticalAlertsBlocked,
   };
 }
