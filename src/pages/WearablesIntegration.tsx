@@ -83,6 +83,16 @@ interface HrSeries {
 
 const SCOPES = ['heart-rate', 'steps', 'calories', 'sleep'] as const;
 
+export function parseWearableChartDate(value: React.ReactNode): Date | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function formatWearableChartTimestamp(value: React.ReactNode): string {
+  return parseWearableChartDate(value)?.toLocaleString() ?? '';
+}
+
 export function WearablesIntegration() {
   const { t } = useTranslation();
   const [adapter, setAdapter] = useState<HealthAdapter | null>(null);
@@ -485,7 +495,7 @@ export function WearablesIntegration() {
                           border: '1px solid #3f3f46',
                         }}
                         itemStyle={{ color: '#fff' }}
-                        labelFormatter={(v) => new Date(v).toLocaleString()}
+                        labelFormatter={formatWearableChartTimestamp}
                       />
                       <Line
                         type="monotone"

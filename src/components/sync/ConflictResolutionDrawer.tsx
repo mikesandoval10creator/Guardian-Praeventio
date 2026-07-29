@@ -17,15 +17,20 @@
 // "Espera la decisión de tu gerente" — el conflicto queda en queue hasta
 // que un usuario con rol admin/gerente abra la app y resuelva.
 //
-// Wiring: OfflineSyncManager dispatches `sync-critical-conflict` con un
-// `Conflict` payload; este drawer subscribe, queues los conflictos, y
-// emite `sync-critical-conflict-resolved` cuando el SUPERIOR completa
-// el doc. El manager listens for that event y aplica el resolved field
-// set a Firestore.
+// Wiring: el drawer hidrata la cola durable por proyecto desde la API,
+// refresca en foreground/online y cada 5 s para reflejar otros dispositivos,
+// y usa las transiciones server-side mark-in-review/resolve. El evento
+// `sync-critical-conflict` queda solo como fast feedback mientras el enqueue
+// se vuelve visible; en producción nunca autoriza un write directo.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Conflict, ResolutionChoice } from '../../services/sync/conflictResolver';
+import type { ConflictQueueEntry, ConflictQueueStatus } from '../../services/sync/conflictQueue';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { apiAuthHeader } from '../../lib/apiAuth';
+import { humanErrorMessage } from '../../lib/humanError';
+import { logger } from '../../utils/logger';
 
 /**
  * §2.9 fix (2026-05-22) — Roles que pueden APROBAR resolución de
@@ -47,9 +52,8 @@ export interface ConflictResolutionDrawerProps {
   initialConflicts?: Conflict[];
   /**
    * Optional callback invoked when the supervisor commits a per-field
-   * choice. The default behaviour also dispatches a
-   * `sync-critical-conflict-resolved` window event consumed by
-   * OfflineSyncManager, so wiring this prop is optional.
+   * choice from `initialConflicts`. This compatibility seam is not used by
+   * the production durable queue.
    */
   onResolve?: (
     conflict: Conflict,
@@ -59,6 +63,42 @@ export interface ConflictResolutionDrawerProps {
 
 interface InProgressResolution {
   [field: string]: { choice: ResolutionChoice; value: unknown };
+}
+
+interface DrawerQueueItem {
+  conflict: Conflict;
+  queueId?: string;
+  status?: ConflictQueueStatus;
+  /** Test/embedding seam; production window events must wait for durability. */
+  localResolutionAllowed?: boolean;
+}
+
+interface ConflictQueueListResponse {
+  entries?: ConflictQueueEntry[];
+}
+
+const DURABLE_REFRESH_MS = 5_000;
+
+function conflictIdentity(conflict: Conflict): string {
+  return [
+    conflict.collection,
+    conflict.docId,
+    conflict.localUpdatedAt,
+    conflict.serverUpdatedAt,
+  ].join(':');
+}
+
+function durableErrorMessage(code: string | undefined): string {
+  if (code === 'STALE_TARGET') {
+    return 'El registro cambió en otro dispositivo. La cola se actualizó sin sobrescribir esa versión; revisa nuevamente.';
+  }
+  if (code === 'TARGET_SCOPE_MISMATCH') {
+    return 'El conflicto no pertenece al proyecto activo. No se aplicó ningún cambio.';
+  }
+  if (code === 'TARGET_NOT_FOUND') {
+    return 'El registro original ya no existe. El conflicto quedó pendiente para revisión.';
+  }
+  return 'No se pudo guardar la resolución. El conflicto sigue pendiente; inténtalo nuevamente.';
 }
 
 function valueToString(v: unknown): string {
@@ -75,24 +115,100 @@ export function ConflictResolutionDrawer({
   initialConflicts,
   onResolve,
 }: ConflictResolutionDrawerProps = {}) {
-  const [queue, setQueue] = useState<Conflict[]>(initialConflicts ?? []);
+  const [queue, setQueue] = useState<DrawerQueueItem[]>(() =>
+    (initialConflicts ?? []).map((conflict) => ({
+      conflict,
+      localResolutionAllowed: true,
+    })),
+  );
   const [resolution, setResolution] = useState<InProgressResolution>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const reviewRequested = useRef<Set<string>>(new Set());
   // §2.9 (2026-05-22) — role gate: solo admin/gerente puede aprobar.
   // useFirebase devuelve userRole; defaultea a 'worker' (no approver).
   const { userRole } = useFirebase();
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id ?? null;
   const isApprover = canApproveConflict(userRole);
 
-  // Subscribe to manager-emitted critical conflicts.
+  const refreshDurableQueue = useCallback(async () => {
+    if (!projectId) {
+      setQueue((prev) => prev.filter((item) => !item.queueId));
+      return;
+    }
+    try {
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) return;
+      const response = await fetch(
+        `/api/sprint-k/${encodeURIComponent(projectId)}/conflict-queue`,
+        { headers: { Authorization: authHeader } },
+      );
+      if (!response.ok) throw new Error(`conflict queue list failed: ${response.status}`);
+      const body = (await response.json()) as ConflictQueueListResponse;
+      const durable = (Array.isArray(body.entries) ? body.entries : [])
+        .filter((entry) => entry.status === 'pending' || entry.status === 'in_review')
+        .map<DrawerQueueItem>((entry) => ({
+          conflict: entry.conflict,
+          queueId: entry.queueId,
+          status: entry.status,
+        }));
+      const durableKeys = new Set(durable.map((item) => conflictIdentity(item.conflict)));
+      const activeQueueIds = new Set(
+        durable.flatMap((item) => (item.queueId ? [item.queueId] : [])),
+      );
+      for (const requestedId of reviewRequested.current) {
+        if (!activeQueueIds.has(requestedId)) reviewRequested.current.delete(requestedId);
+      }
+      setQueue((prev) => [
+        ...durable,
+        ...prev.filter(
+          (item) => !item.queueId && !durableKeys.has(conflictIdentity(item.conflict)),
+        ),
+      ]);
+    } catch (error) {
+      logger.warn('ConflictResolutionDrawer: durable queue refresh failed', {
+        projectId,
+        error,
+      });
+    }
+  }, [projectId]);
+
+  // Hydrate after login/project selection, then keep multiple devices in sync
+  // with a short authenticated poll plus immediate refresh on foreground/online.
+  useEffect(() => {
+    void refreshDurableQueue();
+    if (!projectId) return undefined;
+    const interval = window.setInterval(() => {
+      void refreshDurableQueue();
+    }, DURABLE_REFRESH_MS);
+    const refresh = () => void refreshDurableQueue();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [projectId, refreshDurableQueue]);
+
+  // Subscribe to manager-emitted critical conflicts. If the server-backed item
+  // arrives on the next refresh it replaces this local fast-path entry.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<Conflict>).detail;
       if (!detail) return;
       setQueue((prev) => {
-        const exists = prev.some(
-          (c) => c.collection === detail.collection && c.docId === detail.docId,
-        );
-        return exists ? prev : [...prev, detail];
+        const key = conflictIdentity(detail);
+        return prev.some((item) => conflictIdentity(item.conflict) === key)
+          ? prev
+          : [...prev, { conflict: detail }];
       });
     };
     window.addEventListener('sync-critical-conflict', handler as EventListener);
@@ -103,19 +219,78 @@ export function ConflictResolutionDrawer({
       );
   }, []);
 
+  const headItem = queue[0];
+  const head = headItem?.conflict;
+  const headKey = headItem
+    ? headItem.queueId ?? `local:${conflictIdentity(headItem.conflict)}`
+    : null;
+
+  // Opening a durable pending item claims the review server-side. The endpoint
+  // is authoritative; a concurrent reviewer may already have advanced it.
+  useEffect(() => {
+    if (
+      !isApprover ||
+      !projectId ||
+      !headItem?.queueId ||
+      headItem.status !== 'pending' ||
+      reviewRequested.current.has(headItem.queueId)
+    ) {
+      return undefined;
+    }
+    const queueId = headItem.queueId;
+    reviewRequested.current.add(queueId);
+    void (async () => {
+      try {
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) throw new Error('missing auth');
+        const response = await fetch(
+          `/api/sprint-k/${encodeURIComponent(projectId)}/conflict-queue/${encodeURIComponent(queueId)}/mark-in-review`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: authHeader,
+            },
+            body: JSON.stringify({}),
+          },
+        );
+        if (!response.ok) {
+          if (response.status === 409 || response.status === 404) {
+            await refreshDurableQueue();
+            return;
+          }
+          throw new Error(`mark in review failed: ${response.status}`);
+        }
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.queueId === queueId ? { ...item, status: 'in_review' } : item,
+          ),
+        );
+      } catch (error) {
+        reviewRequested.current.delete(queueId);
+        logger.warn('ConflictResolutionDrawer: mark-in-review failed', {
+          projectId,
+          queueId,
+          error,
+        });
+      }
+    })();
+    return undefined;
+  }, [headItem, isApprover, projectId, refreshDurableQueue]);
+
   // Reset in-progress map when the front-of-queue conflict changes, and
-  // move keyboard focus into the dialog for WCAG.
-  const head = queue[0];
-  const headKey = head ? `${head.collection}:${head.docId}` : null;
+  // move keyboard focus into the dialog for WCAG. A polling refresh that keeps
+  // the same queueId must not erase choices already made by the reviewer.
   useEffect(() => {
     setResolution({});
-    if (head && dialogRef.current) {
+    setSubmitError(null);
+    if (headKey && dialogRef.current) {
       dialogRef.current.focus();
     }
-  }, [headKey, head]);
+  }, [headKey]);
 
-  // Escape closes the drawer (cancels current resolution; conflict stays
-  // in queue so the supervisor can return to it).
+  // Escape closes the drawer (cancels current resolution; durable conflicts
+  // reappear on the next refresh until the server records a final state).
   useEffect(() => {
     if (!head) return undefined;
     const onKey = (ev: KeyboardEvent) => {
@@ -125,9 +300,9 @@ export function ConflictResolutionDrawer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [head]);
+  }, [headKey, head]);
 
-  if (!head) return null;
+  if (!head || !headItem) return null;
 
   const allResolved = head.fields.every((f) => resolution[f.field]);
 
@@ -138,6 +313,7 @@ export function ConflictResolutionDrawer({
     remoteValue: unknown,
     manualValue?: unknown,
   ) => {
+    setSubmitError(null);
     setResolution((prev) => ({
       ...prev,
       [field]: {
@@ -152,12 +328,70 @@ export function ConflictResolutionDrawer({
     }));
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (!allResolved || submitting) return;
     const resolutions = head.fields.map((f) => ({
       field: f.field,
       choice: resolution[f.field].choice,
       value: resolution[f.field].value,
     }));
+
+    if (!headItem.queueId && projectId && !headItem.localResolutionAllowed) {
+      setSubmitError(
+        'El conflicto aún se está guardando en la cola segura del servidor. No se aplicó ningún cambio; espera la sincronización e inténtalo nuevamente.',
+      );
+      await refreshDurableQueue();
+      return;
+    }
+
+    if (headItem.queueId && projectId) {
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) throw new Error('missing auth');
+        const durableResolution = Object.fromEntries(
+          resolutions.map((item) => [
+            item.field,
+            { chosen: item.choice, value: item.value },
+          ]),
+        );
+        const response = await fetch(
+          `/api/sprint-k/${encodeURIComponent(projectId)}/conflict-queue/${encodeURIComponent(headItem.queueId)}/resolve`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: authHeader,
+            },
+            body: JSON.stringify({ resolution: durableResolution }),
+          },
+        );
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          setSubmitError(durableErrorMessage(body.error));
+          return;
+        }
+        const resolvedQueueId = headItem.queueId;
+        reviewRequested.current.delete(resolvedQueueId);
+        setQueue((prev) => prev.filter((item) => item.queueId !== resolvedQueueId));
+        await refreshDurableQueue();
+      } catch (error) {
+        logger.warn('ConflictResolutionDrawer: durable resolution failed', {
+          projectId,
+          queueId: headItem.queueId,
+          error,
+        });
+        setSubmitError(durableErrorMessage(undefined));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Compatibility path for explicitly injected initialConflicts (tests or
+    // embedders without an active project). Production window events are held
+    // above until the durable queueId exists.
     onResolve?.(head, resolutions);
     window.dispatchEvent(
       new CustomEvent('sync-critical-conflict-resolved', {
@@ -370,6 +604,15 @@ export function ConflictResolutionDrawer({
           })}
         </ul>
 
+        {submitError && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+          >
+            {humanErrorMessage(submitError)}
+          </p>
+        )}
+
         <footer className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -380,11 +623,11 @@ export function ConflictResolutionDrawer({
           </button>
           <button
             type="button"
-            disabled={!allResolved}
-            onClick={submit}
+            disabled={!allResolved || submitting}
+            onClick={() => void submit()}
             className="rounded bg-teal-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
           >
-            Aplicar resolución
+            {submitting ? 'Aplicando…' : 'Aplicar resolución'}
           </button>
         </footer>
       </div>

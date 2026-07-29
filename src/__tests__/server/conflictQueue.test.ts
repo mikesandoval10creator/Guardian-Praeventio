@@ -156,6 +156,11 @@ function auditRows(): Array<Record<string, unknown>> {
 
 /** Enqueue a critical conflict as the worker and return the persisted queueId. */
 async function enqueueCritical(conflict: Conflict = criticalConflict): Promise<string> {
+  H.db!._seed(`${conflict.collection}/${conflict.docId}`, {
+    projectId: PROJECT_ID,
+    updatedAt: conflict.serverUpdatedAt,
+    ...Object.fromEntries(conflict.fields.map((field) => [field.field, field.remoteValue])),
+  });
   const res = await request(buildApp())
     .post(enqueueUrl())
     .set(asWorker)
@@ -510,6 +515,106 @@ describe('POST /:projectId/conflict-queue/:queueId/resolve', () => {
     const audit = auditRows().find((a) => a.action === 'conflict_queue.resolved');
     expect(audit).toBeDefined();
     expect(audit!.userId).toBe(ADMIN_UID);
+  });
+
+  it('applies canonical values and finalizes the queue in one transaction', async () => {
+    const id = await enqueueCritical();
+    const res = await request(buildApp())
+      .post(resolveUrl(id))
+      .set(asAdmin)
+      // A caller cannot smuggle a different value under a local/remote choice.
+      .send({ resolution: { severity: { chosen: 'local', value: 'attacker-value' } } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.entry.status).toBe('resolved');
+    expect(H.db!._dump()['incident_reports/inc-1']?.severity).toBe('high');
+    expect(storedEntry(id)!.status).toBe('resolved');
+  });
+
+  it('409 UNKNOWN_FIELD blocks fields absent from the persisted conflict', async () => {
+    const id = await enqueueCritical();
+    const res = await request(buildApp())
+      .post(resolveUrl(id))
+      .set(asAdmin)
+      .send({
+        resolution: {
+          severity: { chosen: 'remote', value: 'medium' },
+          projectId: { chosen: 'manual', value: 'attacker-project' },
+        },
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('UNKNOWN_FIELD');
+    expect(H.db!._dump()['incident_reports/inc-1']?.projectId).toBe(PROJECT_ID);
+    expect(storedEntry(id)!.status).toBe('pending');
+  });
+
+  it('applies a local deletion choice atomically with queue finalization', async () => {
+    const deletionConflict: Conflict = {
+      ...criticalConflict,
+      isDeletionConflict: true,
+      fields: [
+        {
+          field: '__deletion__',
+          localValue: null,
+          remoteValue: { severity: 'medium' },
+          critical: true,
+        },
+      ],
+    };
+    const id = await enqueueCritical(deletionConflict);
+    const res = await request(buildApp())
+      .post(resolveUrl(id))
+      .set(asAdmin)
+      .send({
+        resolution: {
+          __deletion__: { chosen: 'local', value: null },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(H.db!._dump()['incident_reports/inc-1']).toBeUndefined();
+    expect(storedEntry(id)!.status).toBe('resolved');
+  });
+
+  it('409 STALE_TARGET leaves target and queue untouched after a newer write', async () => {
+    const id = await enqueueCritical();
+    H.db!._seed('incident_reports/inc-1', {
+      projectId: PROJECT_ID,
+      updatedAt: '2026-01-01T00:02:00.000Z',
+      severity: 'critical-from-third-device',
+    });
+
+    const res = await request(buildApp())
+      .post(resolveUrl(id))
+      .set(asAdmin)
+      .send({ resolution: { severity: { chosen: 'local', value: 'high' } } });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('STALE_TARGET');
+    expect(H.db!._dump()['incident_reports/inc-1']?.severity).toBe(
+      'critical-from-third-device',
+    );
+    expect(storedEntry(id)!.status).toBe('pending');
+  });
+
+  it('409 TARGET_SCOPE_MISMATCH never applies a resolution across projects', async () => {
+    const id = await enqueueCritical();
+    H.db!._seed('incident_reports/inc-1', {
+      projectId: 'another-project',
+      updatedAt: criticalConflict.serverUpdatedAt,
+      severity: 'medium',
+    });
+
+    const res = await request(buildApp())
+      .post(resolveUrl(id))
+      .set(asAdmin)
+      .send({ resolution: { severity: { chosen: 'local', value: 'high' } } });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('TARGET_SCOPE_MISMATCH');
+    expect(H.db!._dump()['incident_reports/inc-1']?.severity).toBe('medium');
+    expect(storedEntry(id)!.status).toBe('pending');
   });
 
   it('409 INCOMPLETE_RESOLUTION — a critical field is omitted (engine invariant)', async () => {

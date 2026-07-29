@@ -146,6 +146,11 @@ describe('enqueue', () => {
 
 describe('approver gate + transitions', () => {
   async function enqueue(conflict = criticalConflict): Promise<string> {
+    H.db!._seed(`${conflict.collection}/${conflict.docId}`, {
+      projectId: 'p1',
+      updatedAt: conflict.serverUpdatedAt,
+      ...Object.fromEntries(conflict.fields.map((field) => [field.field, field.remoteValue])),
+    });
     const r = await request(buildApp())
       .post('/api/sprint-k/p1/conflict-queue/enqueue')
       .set(worker)

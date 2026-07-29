@@ -131,6 +131,65 @@ function toEntry(snap: admin.firestore.DocumentSnapshot): ConflictQueueEntry {
   return snap.data() as ConflictQueueEntry;
 }
 
+function timestampMillis(value: unknown): number | null {
+  if (typeof value === 'string' || value instanceof Date) {
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (value && typeof value === 'object') {
+    const candidate = value as { toMillis?: () => number; toDate?: () => Date };
+    if (typeof candidate.toMillis === 'function') {
+      const ms = candidate.toMillis();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof candidate.toDate === 'function') {
+      const ms = candidate.toDate().getTime();
+      return Number.isFinite(ms) ? ms : null;
+    }
+  }
+  return null;
+}
+
+function isSafeRootDocumentPath(collectionName: string, docId: string): boolean {
+  const segment = /^[A-Za-z0-9_-]+$/;
+  return segment.test(collectionName) && segment.test(docId);
+}
+
+function canonicalResolutionPatch(
+  entry: ConflictQueueEntry,
+  resolution: Record<string, { chosen: 'local' | 'remote' | 'manual'; value: unknown }>,
+): { kind: 'update'; patch: Record<string, unknown> } | { kind: 'delete' } | { kind: 'invalid'; code: string } {
+  const knownFields = new Set(entry.conflict.fields.map((field) => field.field));
+  if (Object.keys(resolution).some((field) => !knownFields.has(field))) {
+    return { kind: 'invalid', code: 'UNKNOWN_FIELD' };
+  }
+
+  const patch: Record<string, unknown> = {};
+  let deleteTarget = false;
+  for (const field of entry.conflict.fields) {
+    const selected = resolution[field.field];
+    if (!selected) continue; // completeness is enforced by resolveConflictQueueEntry.
+    if (field.field === '__deletion__') {
+      if (selected.chosen === 'local') deleteTarget = true;
+      else if (selected.chosen !== 'remote') {
+        return { kind: 'invalid', code: 'INVALID_DELETION_RESOLUTION' };
+      }
+      continue;
+    }
+    patch[field.field] =
+      selected.chosen === 'local'
+        ? field.localValue
+        : selected.chosen === 'remote'
+          ? field.remoteValue
+          : selected.value;
+  }
+
+  if (deleteTarget && Object.keys(patch).length > 0) {
+    return { kind: 'invalid', code: 'INVALID_DELETION_RESOLUTION' };
+  }
+  return deleteTarget ? { kind: 'delete' } : { kind: 'update', patch };
+}
+
 // ── Shared zod fragments ──────────────────────────────────────────────
 
 const fieldConflictSchema = z.object({
@@ -340,24 +399,69 @@ router.post(
     if (!g) return undefined;
     try {
       const ref = queueRef(g.tenantId, queueId);
-      const outcome = await admin.firestore().runTransaction(async (tx) => {
+      const db = admin.firestore();
+      const outcome = await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists) return { kind: 'not_found' as const };
+        const entry = toEntry(snap);
+        let next: ConflictQueueEntry;
         try {
-          const next = resolveConflictQueueEntry(
-            toEntry(snap),
+          next = resolveConflictQueueEntry(
+            entry,
             callerUid,
             body.resolution,
             body.notes,
           );
-          tx.set(ref, { ...next, tenantId: g.tenantId });
-          return { kind: 'ok' as const, entry: next };
         } catch (err) {
           if (err instanceof ConflictQueueValidationError) {
             return { kind: 'invalid' as const, code: err.code };
           }
           throw err;
         }
+
+        const { collection, docId, serverUpdatedAt } = entry.conflict;
+        if (!isSafeRootDocumentPath(collection, docId)) {
+          return { kind: 'invalid' as const, code: 'TARGET_PATH_INVALID' };
+        }
+        const targetRef = db.collection(collection).doc(docId);
+        const targetSnap = await tx.get(targetRef);
+        if (!targetSnap.exists) {
+          return { kind: 'invalid' as const, code: 'TARGET_NOT_FOUND' };
+        }
+        const target = targetSnap.data() as Record<string, unknown>;
+        if (
+          target.projectId !== projectId ||
+          (typeof target.tenantId === 'string' && target.tenantId !== g.tenantId)
+        ) {
+          return { kind: 'invalid' as const, code: 'TARGET_SCOPE_MISMATCH' };
+        }
+        const expectedVersion = timestampMillis(serverUpdatedAt);
+        const currentVersion = timestampMillis(target.updatedAt);
+        if (expectedVersion === null || currentVersion === null) {
+          return { kind: 'invalid' as const, code: 'TARGET_VERSION_INVALID' };
+        }
+        if (currentVersion !== expectedVersion) {
+          return { kind: 'invalid' as const, code: 'STALE_TARGET' };
+        }
+
+        const canonical = canonicalResolutionPatch(entry, body.resolution);
+        if (canonical.kind === 'invalid') {
+          return { kind: 'invalid' as const, code: canonical.code };
+        }
+
+        // Target mutation and queue finalization share this transaction. A
+        // concurrent write invalidates the read version and Firestore retries;
+        // the explicit timestamp check then fails closed with STALE_TARGET.
+        if (canonical.kind === 'delete') {
+          tx.delete(targetRef);
+        } else if (Object.keys(canonical.patch).length > 0) {
+          tx.update(targetRef, {
+            ...canonical.patch,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        tx.set(ref, { ...next, tenantId: g.tenantId });
+        return { kind: 'ok' as const, entry: next };
       });
       if (outcome.kind === 'not_found') return res.status(404).json({ error: 'not_found' });
       if (outcome.kind === 'invalid') return res.status(409).json({ error: outcome.code });
