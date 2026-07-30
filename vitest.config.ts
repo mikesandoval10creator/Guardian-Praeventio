@@ -65,17 +65,17 @@ export default defineConfig({
     ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
-    // CI "Tests" gate hang fix (alpha/03-ci-01). The default `forks` pool
-    // crashes workers ("Worker exited unexpectedly") once supertest TCP
-    // handles accumulate — each `request(buildApp())` leaves an `app.listen(0)`
-    // server open. Serialize test files in one worker so leaked handles cannot
-    // destabilize sibling workers. In Vitest 4 `poolOptions.singleFork` was
-    // removed; the supported top-level replacement is `fileParallelism: false`,
-    // which forces maxWorkers=1. The real fix is closing the sockets per file
-    // (afterAll(() => server.close())) across src/__tests__/server — tracked
-    // separately.
+    // Local full-suite stability fix (alpha/03-ci-01). The default `forks`
+    // pool can crash sibling workers ("Worker exited unexpectedly") on Windows
+    // once supertest TCP handles accumulate. Serialize files for local sweeps.
+    //
+    // CI is intentionally different: `.github/workflows/ci.yml` already splits
+    // the suite into four isolated shards with a 10-minute watchdog. Serializing
+    // inside each shard makes a healthy shard exceed that watchdog (exit 124),
+    // so preserve Vitest's file parallelism when GitHub sets CI=true.
+    // The underlying socket leaks remain tracked separately.
     pool: 'forks',
-    fileParallelism: false,
+    fileParallelism: process.env.CI === 'true',
     // Align the local default with CI (`test:ci` passes --test-timeout=30000).
     // The 5s default is too tight for the heavy ratchet / module-import smoke
     // tests under full-suite concurrency: a synchronous test that blows the
