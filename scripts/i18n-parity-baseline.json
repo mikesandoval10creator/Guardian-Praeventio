@@ -1482,6 +1482,7 @@
     "poolGame.validRoute",
     "poolGame.verifyRoute",
     "portableHistory.aptitudes.empty",
+    "portableHistory.consent.adminReadonly",
     "portableHistory.consent.export",
     "portableHistory.consent.incidents",
     "portableHistory.consent.save",
