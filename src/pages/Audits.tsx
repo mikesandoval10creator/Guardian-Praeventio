@@ -20,6 +20,9 @@ import {
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../types';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { buildExpressBundle } from '../hooks/useExpressBundle';
+import { buildExpressBundleData } from '../services/audit/expressBundlePayload';
 import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOManagement } from '../components/audits/ISOManagement';
@@ -36,6 +39,31 @@ export function Audits() {
   const [view, setView] = useState<'history' | 'inspection' | 'iso'>('history');
   const { nodes, loading, error: nodesError } = useRiskEngine();
   const { selectedProject } = useProject();
+  const { user, userRole } = useFirebase();
+
+  async function requestExpressBundle(projectId: string) {
+    if (!selectedProject || selectedProject.id !== projectId) {
+      throw new Error('Proyecto no disponible');
+    }
+
+    const response = await buildExpressBundle(projectId, {
+      projectName: selectedProject.name,
+      generatedBy: {
+        fullName: user?.displayName?.trim() || user?.email?.trim() || 'Usuario autenticado',
+        role: userRole,
+      },
+      data: buildExpressBundleData(nodes, projectId),
+    });
+    const normalizedProjectName = selectedProject.name
+      .trim()
+      .replace(/[^\p{L}\p{N}]+/gu, '_')
+      .replace(/^_+|_+$/g, '');
+    const safeProjectName = (normalizedProjectName || 'Proyecto').slice(0, 80);
+    return {
+      downloadUrl: `data:application/pdf;base64,${response.manifest.indexPdfBase64}`,
+      fileName: `Auditoria_Express_${safeProjectName}_${response.manifest.generatedAt.slice(0, 10)}.pdf`,
+    };
+  }
 
   const audits = nodes.filter(n => 
     n.type === NodeType.AUDIT && 
@@ -98,11 +126,7 @@ export function Audits() {
           {selectedProject && (
             <AuditExpressButton
               projectId={selectedProject.id}
-              onRequest={async (pid) => {
-                const res = await fetch(`/api/audit/express-bundle?projectId=${pid}`, { method: 'POST' });
-                if (!res.ok) throw new Error('Failed to generate audit bundle');
-                return res.json();
-              }}
+              onRequest={requestExpressBundle}
             />
           )}
         </div>

@@ -1,41 +1,56 @@
 // Praeventio Guard — Wire UI #7: <AuditExpressButton />
 //
-// "Carpeta de Fiscalización" — single-click button that triggers the
-// bundle generation (server-side Cloud Function builds ZIP + signed URL).
-// Client only orchestrates the request + spinner + download.
-//
-// Used in: ProjectDetail header. The actual ZIP is built server-side;
-// this component is the UX entry point.
+// Single-click entry point for a browser-downloadable audit index PDF.
+// The caller owns generation/auth; this component owns request state,
+// project-switch invalidation and the final download link.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderArchive, Loader2, Check, AlertTriangle } from 'lucide-react';
 
 interface AuditExpressButtonProps {
   projectId: string;
-  /** Async caller — typically `POST /api/audit/express-bundle?projectId=`. */
-  onRequest: (projectId: string) => Promise<{ downloadUrl: string; expiresAt: string }>;
+  /** Async caller that returns a browser-downloadable audit artifact. */
+  onRequest: (projectId: string) => Promise<{
+    downloadUrl: string;
+    fileName?: string;
+    expiresAt?: string;
+  }>;
   /** Optional: triggered with download URL once ready. */
-  onReady?: (downloadUrl: string, expiresAt: string) => void;
+  onReady?: (downloadUrl: string, expiresAt?: string) => void;
 }
 
 type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ready'; url: string; expiresAt: string }
+  | { kind: 'ready'; url: string; fileName?: string; expiresAt?: string }
   | { kind: 'error'; message: string };
 
 export function AuditExpressButton({ projectId, onRequest, onReady }: AuditExpressButtonProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: 'idle' });
+  const requestGeneration = useRef(0);
+
+  useEffect(() => {
+    requestGeneration.current += 1;
+    setState({ kind: 'idle' });
+  }, [projectId]);
 
   async function trigger() {
+    const generation = ++requestGeneration.current;
     setState({ kind: 'loading' });
     try {
       const result = await onRequest(projectId);
-      setState({ kind: 'ready', url: result.downloadUrl, expiresAt: result.expiresAt });
+      if (generation !== requestGeneration.current) return;
+      setState({
+        kind: 'ready',
+        url: result.downloadUrl,
+        fileName: result.fileName,
+        expiresAt: result.expiresAt,
+      });
       onReady?.(result.downloadUrl, result.expiresAt);
     } catch (err) {
+      if (generation !== requestGeneration.current) return;
       const message = err instanceof Error ? err.message : 'unknown';
       setState({ kind: 'error', message });
     }
@@ -45,13 +60,14 @@ export function AuditExpressButton({ projectId, onRequest, onReady }: AuditExpre
     return (
       <a
         href={state.url}
+        download={state.fileName}
         target="_blank"
         rel="noopener noreferrer"
         data-testid="audit-express-ready"
         className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition-colors"
       >
         <Check className="w-4 h-4" aria-hidden="true" />
-        {t('audit_express.download', 'Descargar Carpeta Fiscalización')}
+        {t('audit_express.download', 'Descargar Índice de Fiscalización')}
       </a>
     );
   }
@@ -91,7 +107,7 @@ export function AuditExpressButton({ projectId, onRequest, onReady }: AuditExpre
       )}
       {state.kind === 'loading'
         ? t('audit_express.generating', 'Generando...')
-        : t('audit_express.prepare', 'Preparar Carpeta Fiscalización')}
+        : t('audit_express.prepare', 'Preparar Índice de Fiscalización')}
     </button>
   );
 }
