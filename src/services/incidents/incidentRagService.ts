@@ -21,8 +21,9 @@
 //     unit-testable sin tener que inicializar firebase-admin.
 //   • `indexIncident(report)`: persiste {tenantId, incidentId, projectId,
 //     summary, embedding, indexedAt}. Idempotente vía .doc(incidentId).set.
-//   • `searchIncidents(tenantId, query, topK=5)`: findNearest gated por
-//     tenantId scope. Si query es vacío, retorna [] (skip explícito).
+//   • `searchIncidents(tenantId, query, topK=5, deps, projectId)`:
+//     findNearest gated by tenant path and mandatory Firestore project filter.
+//     Si query es vacío, retorna [] (skip explícito).
 //   • `reportIncident(uid, payload)`: persiste el incidente bajo
 //     `tenants/{tenantId}/projects/{projectId}/incidents/{incidentId}`,
 //     auto-genera incidentId si el caller no lo aporta, ejecuta
@@ -32,6 +33,7 @@
 //     bajo ninguna circunstancia.
 
 import { randomId } from '../../utils/randomId';
+import { AI_MODEL_INCIDENT_EMBEDDINGS } from '../../config/aiModels.js';
 
 export interface IncidentReport {
   /** Identificador estable del incidente (DIAT, doc id, etc.). */
@@ -68,13 +70,20 @@ export type EmbedFn = (text: string) => Promise<number[]>;
 export interface MinimalFirestore {
   collection(path: string): MinimalCollection;
 }
-export interface MinimalCollection {
-  doc(id: string): MinimalDocRef;
+export interface MinimalVectorQuery {
+  where?(
+    field: string,
+    op: '==',
+    value: unknown,
+  ): MinimalVectorQuery;
   findNearest?(
     field: string,
     vector: unknown,
     opts: { limit: number; distanceMeasure: string },
   ): { get(): Promise<{ docs: MinimalDocSnap[]; empty: boolean }> };
+}
+export interface MinimalCollection extends MinimalVectorQuery {
+  doc(id: string): MinimalDocRef;
 }
 export interface MinimalDocRef {
   set(data: Record<string, unknown>, opts?: { merge?: boolean }): Promise<unknown>;
@@ -88,6 +97,8 @@ export interface MinimalDocSnap {
 export interface IncidentRagDeps {
   db: MinimalFirestore;
   embed: EmbedFn;
+  /** Identifies the semantic vector space. Old/mismatched vectors fail closed. */
+  embeddingModel?: string;
   /** Wraps a numeric vector for Firestore. Default: identity (tests). */
   toVector?: (vec: number[]) => unknown;
   /** Server timestamp factory. Default: () => new Date().toISOString(). */
@@ -124,6 +135,7 @@ export async function indexIncident(
 
   const toVector = deps.toVector ?? DEFAULT_TO_VECTOR;
   const now = deps.now ?? DEFAULT_NOW;
+  const embeddingModel = deps.embeddingModel ?? AI_MODEL_INCIDENT_EMBEDDINGS;
 
   const collection = deps.db.collection(vectorsCollectionPath(report.tenantId));
   await collection.doc(report.id).set(
@@ -134,6 +146,7 @@ export async function indexIncident(
       summary: report.summary,
       occurredAt: report.occurredAt ?? null,
       embedding: toVector(embedding),
+      embeddingModel,
       indexedAt: now(),
     },
     { merge: true },
@@ -143,7 +156,8 @@ export async function indexIncident(
 }
 
 /**
- * Búsqueda semántica restringida al tenant. Si query es vacío, retorna
+ * Búsqueda semántica restringida obligatoriamente al tenant y al proyecto.
+ * Si query es vacío, retorna
  * resultado vacío SIN llamar al embedder (skip explícito; corner case
  * cubierto por test). El scope tenant se garantiza por el path de la
  * colección — Firestore no puede leer fuera de él.
@@ -153,10 +167,13 @@ export async function searchIncidents(
   query: string,
   topK: number,
   deps: IncidentRagDeps,
+  projectId: string,
 ): Promise<IncidentSearchResult> {
   if (!tenantId) return { results: [], citations: [] };
   const trimmed = (query ?? '').trim();
   if (trimmed.length === 0) return { results: [], citations: [] };
+  const scopedProjectId = (projectId ?? '').trim();
+  if (!scopedProjectId) return { results: [], citations: [] };
 
   const k = Math.max(1, Math.min(topK || 5, 20));
   const embedding = await deps.embed(trimmed);
@@ -165,32 +182,38 @@ export async function searchIncidents(
   }
 
   const collection = deps.db.collection(vectorsCollectionPath(tenantId));
-  if (typeof collection.findNearest !== 'function') {
+  let vectorQuery: MinimalVectorQuery = collection;
+  if (typeof collection.where !== 'function') {
+    throw new Error('project_scoped_vector_query_unsupported');
+  }
+  vectorQuery = collection.where('projectId', '==', scopedProjectId);
+  if (typeof vectorQuery.where !== 'function') {
+    throw new Error('embedding_model_scoped_vector_query_unsupported');
+  }
+  const embeddingModel = deps.embeddingModel ?? AI_MODEL_INCIDENT_EMBEDDINGS;
+  vectorQuery = vectorQuery.where('embeddingModel', '==', embeddingModel);
+  if (typeof vectorQuery.findNearest !== 'function') {
     return { results: [], citations: [] };
   }
   const toVector = deps.toVector ?? DEFAULT_TO_VECTOR;
-  const snap = await collection
+  const snap = await vectorQuery
     .findNearest('embedding', toVector(embedding), { limit: k, distanceMeasure: 'COSINE' })
     .get();
 
   if (snap.empty) return { results: [], citations: [] };
 
-  const results: IncidentSearchHit[] = snap.docs.map((d) => {
-    const data = d.data() ?? {};
-    return {
-      incidentId: String(data.incidentId ?? d.id),
-      projectId: String(data.projectId ?? ''),
-      summary: String(data.summary ?? ''),
-      occurredAt: typeof data.occurredAt === 'string' ? data.occurredAt : undefined,
-    };
-  });
-
-  // Defensa en profundidad: descarta hits cuyo tenantId no coincide
-  // (en teoría imposible por el path scoping, pero documenta la invariante).
-  const filtered = snap.docs
+  // Defense in depth: vector-query prefilters are a performance/security
+  // boundary, but the returned documents are still validated independently.
+  // Missing/mismatched tenant metadata or a different project always fails
+  // closed; never fall back to the unfiltered snapshot.
+  const finalResults = snap.docs
     .filter((d) => {
       const data = d.data() ?? {};
-      return !data.tenantId || data.tenantId === tenantId;
+      return (
+        data.tenantId === tenantId &&
+        data.projectId === scopedProjectId &&
+        data.embeddingModel === embeddingModel
+      );
     })
     .map((d) => {
       const data = d.data() ?? {};
@@ -201,8 +224,6 @@ export async function searchIncidents(
         occurredAt: typeof data.occurredAt === 'string' ? data.occurredAt : undefined,
       } as IncidentSearchHit;
     });
-
-  const finalResults = filtered.length > 0 ? filtered : results;
 
   return {
     results: finalResults,

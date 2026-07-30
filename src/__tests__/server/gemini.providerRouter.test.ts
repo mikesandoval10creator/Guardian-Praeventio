@@ -72,6 +72,7 @@ vi.mock('firebase-admin/firestore', () => ({
 // RAG used by the self-hosted getChatResponse prompt builder.
 vi.mock('../../services/ragService.js', () => ({
   searchRelevantContext: vi.fn(async () => 'CONTEXTO-LEGAL-MOCK'),
+  generateIncidentEmbedding: vi.fn(async () => [0.1]),
 }));
 
 import geminiRouter from '../../server/routes/gemini.js';

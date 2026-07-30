@@ -45,7 +45,7 @@ import {
   type ReportIncidentInput,
 } from '../../services/incidents/incidentRagService.js';
 import { awardXp } from '../../services/gamification/positiveXp.js';
-import { generateEmbedding } from '../../services/ragService.js';
+import { generateIncidentEmbedding } from '../../services/ragService.js';
 
 const router = Router();
 
@@ -124,7 +124,7 @@ router.post(
       };
       const deps: ReportIncidentDeps = {
         db: db as unknown as ReportIncidentDeps['db'],
-        embed: generateEmbedding,
+        embed: generateIncidentEmbedding,
         toVector: (vec) => admin.firestore.FieldValue.vector(vec),
         now: () => admin.firestore.FieldValue.serverTimestamp(),
         awardXp,

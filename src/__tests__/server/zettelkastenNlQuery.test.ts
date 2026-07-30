@@ -16,7 +16,7 @@ import request from 'supertest';
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
   searchIncidents: null as
-    | ((tenantId: string, query: string, topK: number, deps: unknown) => Promise<unknown>)
+    | ((tenantId: string, query: string, topK: number, deps: unknown, projectId?: string) => Promise<unknown>)
     | null,
 }));
 
@@ -37,7 +37,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
 // Spy the RAG collaborator so we assert WHICH scope the handler passes it.
 vi.mock('../../services/incidents/incidentRagService.js', () => ({
   searchIncidents: (...args: unknown[]) =>
-    H.searchIncidents!(...(args as [string, string, number, unknown])),
+    H.searchIncidents!(...(args as [string, string, number, unknown, string?])),
 }));
 
 import zettelkastenRouter from '../../server/routes/zettelkasten.js';
@@ -115,6 +115,9 @@ describe('POST /api/zettelkasten/nl-query — real tenant scoping', () => {
     // (which is what made the old code read a never-written vector path).
     expect(firstArg).toBe(TENANT_ID);
     expect(firstArg).not.toBe(PROJECT_ID);
+    expect(
+      (H.searchIncidents as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][4],
+    ).toBe(PROJECT_ID);
     expect(res.body.results[0].incidentId).toBe('inc-1');
   });
 

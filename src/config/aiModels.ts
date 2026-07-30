@@ -54,6 +54,7 @@ export const GEMINI_MODEL_IDS = {
   FLASH_IMAGE_31_PREVIEW: 'gemini-3.1-flash-image-preview',
   PRO_31_PREVIEW: 'gemini-3.1-pro-preview',
   TEXT_EMBEDDING_004: 'text-embedding-004',
+  GEMINI_EMBEDDING_001: 'gemini-embedding-001',
 } as const;
 
 /**
@@ -105,3 +106,14 @@ export const AI_MODEL_TTS = fromEnv('AI_MODEL_TTS') ?? GEMINI_MODEL_IDS.FLASH_TT
 /** Vector embeddings for RAG / semantic search. */
 export const AI_MODEL_EMBEDDINGS =
   fromEnv('AI_MODEL_EMBEDDINGS') ?? GEMINI_MODEL_IDS.TEXT_EMBEDDING_004;
+
+/**
+ * Incident vectors have their own versioned embedding contract. Keeping this
+ * separate prevents a ticket-scoped incident migration from mixing semantic
+ * spaces in the existing normative/Pinecone indexes.
+ */
+export const AI_MODEL_INCIDENT_EMBEDDINGS =
+  fromEnv('AI_MODEL_INCIDENT_EMBEDDINGS') ?? GEMINI_MODEL_IDS.GEMINI_EMBEDDING_001;
+
+/** Firestore vector index width for incident embeddings. */
+export const INCIDENT_EMBEDDING_OUTPUT_DIMENSIONS = 768;
