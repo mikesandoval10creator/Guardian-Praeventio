@@ -236,6 +236,37 @@ describe('<WorkerPortableHistory /> page wrapper (Sprint 42 F.18)', () => {
     expect(jsonBtn.disabled).toBe(false);
   });
 
+  it('hides consent toggles and save button when an admin views another worker', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockIsAdmin = true;
+    mockUser = { uid: 'admin-1', email: 'admin@x.cl', displayName: 'Admin Test' };
+    const bundle = makeBundle({
+      consent: {
+        allowsPortableExport: true,
+        includesIncidents: false,
+        updatedAt: '2026-05-17T10:00:00Z',
+        updatedByUid: 'w-1',
+      },
+      identity: { fullName: 'Juan Pérez', rut: '12.345.678-9', email: 'juan@x.cl' },
+    });
+    mockResp = {
+      data: { bundle },
+      loading: false,
+      error: null,
+      refetch: refetchMock,
+    };
+    render(<WorkerPortableHistory />);
+    expect(
+      screen.queryByTestId('portable-history-consent'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('portable-history-consent-save'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('portable-history-consent-export'),
+    ).not.toBeInTheDocument();
+  });
+
   it('guarda el consentimiento llamando updatePortableConsent con los flags correctos', async () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     const bundle = makeBundle();

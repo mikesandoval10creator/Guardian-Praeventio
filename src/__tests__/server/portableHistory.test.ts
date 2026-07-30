@@ -9,6 +9,7 @@ import request from 'supertest';
 
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  auditServerEvent: vi.fn(),
 }));
 
 vi.mock('firebase-admin', async () => {
@@ -30,6 +31,9 @@ vi.mock('../../server/middleware/validate.js', () => ({
   validate: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 vi.mock('../../server/middleware/captureRouteError.js', () => ({ captureRouteError: vi.fn() }));
+vi.mock('../../server/middleware/auditLog.js', () => ({
+  auditServerEvent: (...args: unknown[]) => H.auditServerEvent(...args),
+}));
 vi.mock('../../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -62,6 +66,8 @@ function seedConsent(allowsPortableExport: boolean, includesIncidents: boolean) 
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  H.auditServerEvent.mockReset();
+  H.auditServerEvent.mockResolvedValue(true);
   H.db._seed('projects/p1', { tenantId: 't1' });
 });
 
@@ -160,6 +166,29 @@ describe('POST consent — owner-only', () => {
       .set('x-test-uid', 'stranger')
       .send({ allowsPortableExport: true, includesIncidents: true });
     expect(res.status).toBe(403);
+  });
+
+  it('403 for an admin trying to change another worker consent and audits without PHI', async () => {
+    seedWorker();
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/workers/w1/portable-history/consent')
+      .set('x-test-uid', 'admin1')
+      .set('x-test-admin', 'true')
+      .send({ allowsPortableExport: true, includesIncidents: true });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('consent_owner_required');
+    expect(H.db!._dump()[CONSENT]).toBeUndefined();
+    expect(H.auditServerEvent).toHaveBeenCalledTimes(1);
+    const [, action, module, details, options] = H.auditServerEvent.mock.calls[0];
+    expect(action).toBe('portableHistory.rejectedConsentAttempt');
+    expect(module).toBe('portableHistory');
+    expect(options).toEqual({ projectId: 'p1' });
+    expect(details).toEqual({
+      workerUid: 'w1',
+      reason: 'caller_is_not_worker',
+    });
+    expect(JSON.stringify(details)).not.toMatch(/Juan|Pérez|12\.345\.678|juan@x\.cl/i);
   });
 
   it('200 owner updates + persists consent', async () => {
