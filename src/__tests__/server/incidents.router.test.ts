@@ -52,7 +52,9 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
 vi.mock('../../services/incidents/incidentRagService.js', () => ({
   reportIncident: (...a: unknown[]) => H.report(...a),
 }));
-vi.mock('../../services/ragService.js', () => ({ generateEmbedding: vi.fn(async () => [0.1]) }));
+vi.mock('../../services/ragService.js', () => ({
+  generateIncidentEmbedding: vi.fn(async () => [0.1]),
+}));
 vi.mock('../../services/gamification/positiveXp.js', () => ({ awardXp: vi.fn(async () => undefined) }));
 
 import incidentsRouter from '../../server/routes/incidents.js';

@@ -158,6 +158,23 @@ describe('generateEmbedding', () => {
     const result = await ragService.generateEmbedding('Ley 16.744 art. 3');
     expect(result).toEqual(CANNED_EMBEDDING);
     expect(result).toHaveLength(768);
+    expect(embedContentSpy).toHaveBeenCalledWith({
+      model: 'text-embedding-004',
+      contents: 'Ley 16.744 art. 3',
+    });
+  });
+
+  it('uses the isolated 768-dimension model contract for incident vectors', async () => {
+    embedContentSpy.mockResolvedValue({ embeddings: [{ values: CANNED_EMBEDDING }] });
+
+    const result = await ragService.generateIncidentEmbedding('Caída desde andamio');
+
+    expect(result).toEqual(CANNED_EMBEDDING);
+    expect(embedContentSpy).toHaveBeenCalledWith({
+      model: 'gemini-embedding-001',
+      contents: 'Caída desde andamio',
+      config: { outputDimensionality: 768 },
+    });
   });
 
   it('returns empty array when API response has no embeddings', async () => {

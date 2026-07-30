@@ -3,7 +3,11 @@ import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
-import { AI_MODEL_EMBEDDINGS } from '../config/aiModels.js';
+import {
+  AI_MODEL_EMBEDDINGS,
+  AI_MODEL_INCIDENT_EMBEDDINGS,
+  INCIDENT_EMBEDDING_OUTPUT_DIMENSIONS,
+} from '../config/aiModels.js';
 import { MIN_SIMILARITY } from './rag/safeNormativeQuery.js';
 import * as Sentry from '@sentry/core';
 
@@ -72,6 +76,26 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
     })
   );
   
+  return response.embeddings?.[0]?.values || [];
+};
+
+/**
+ * Generates an incident-vector embedding under the versioned Firestore index
+ * contract. Kept separate from generateEmbedding so normative/Pinecone data
+ * are never queried with a different semantic vector space without a backfill.
+ */
+export const generateIncidentEmbedding = async (text: string): Promise<number[]> => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await withExponentialBackoff(() =>
+    ai.models.embedContent({
+      model: AI_MODEL_INCIDENT_EMBEDDINGS,
+      contents: text,
+      config: { outputDimensionality: INCIDENT_EMBEDDING_OUTPUT_DIMENSIONS },
+    })
+  );
+
   return response.embeddings?.[0]?.values || [];
 };
 

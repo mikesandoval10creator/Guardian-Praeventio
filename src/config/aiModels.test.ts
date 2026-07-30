@@ -25,6 +25,7 @@ const ALL_ENV_VARS = [
   'AI_MODEL_IMAGE_GENERATION',
   'AI_MODEL_TTS',
   'AI_MODEL_EMBEDDINGS',
+  'AI_MODEL_INCIDENT_EMBEDDINGS',
 ] as const;
 
 async function freshImport() {
@@ -42,8 +43,8 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('aiModels defaults (exact pre-centralization model ids)', () => {
-  it('preserves the historical model id per use case', async () => {
+describe('aiModels defaults', () => {
+  it('uses the configured model id per use case and a supported embedding model', async () => {
     const m = await freshImport();
     expect(m.AI_MODEL_CHAT).toBe('gemini-3.1-pro-preview');
     expect(m.AI_MODEL_REASONING).toBe('gemini-3.1-pro-preview');
@@ -56,6 +57,8 @@ describe('aiModels defaults (exact pre-centralization model ids)', () => {
     expect(m.AI_MODEL_IMAGE_GENERATION).toBe('gemini-2.0-flash-preview-image-generation');
     expect(m.AI_MODEL_TTS).toBe('gemini-2.5-flash-preview-tts');
     expect(m.AI_MODEL_EMBEDDINGS).toBe('text-embedding-004');
+    expect(m.AI_MODEL_INCIDENT_EMBEDDINGS).toBe('gemini-embedding-001');
+    expect(m.INCIDENT_EMBEDDING_OUTPUT_DIMENSIONS).toBe(768);
   });
 
   it('exposes raw SKU literals via GEMINI_MODEL_IDS for pricing keys', async () => {
@@ -64,6 +67,8 @@ describe('aiModels defaults (exact pre-centralization model ids)', () => {
     expect(m.GEMINI_MODEL_IDS.FLASH_25).toBe('gemini-2.5-flash');
     expect(m.GEMINI_MODEL_IDS.FLASH_31_PREVIEW).toBe('gemini-3.1-flash-preview');
     expect(m.GEMINI_MODEL_IDS.PRO_31_PREVIEW).toBe('gemini-3.1-pro-preview');
+    expect(m.GEMINI_MODEL_IDS.TEXT_EMBEDDING_004).toBe('text-embedding-004');
+    expect(m.GEMINI_MODEL_IDS.GEMINI_EMBEDDING_001).toBe('gemini-embedding-001');
   });
 });
 

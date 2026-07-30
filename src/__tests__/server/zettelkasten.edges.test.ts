@@ -41,7 +41,9 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
   return { ...actual, assertProjectMember: vi.fn(async () => undefined) };
 });
 // Heavy sibling-route deps — stub so the import never loads genai/embeddings.
-vi.mock('../../services/ragService.js', () => ({ generateEmbedding: vi.fn(async () => [0.1]) }));
+vi.mock('../../services/ragService.js', () => ({
+  generateIncidentEmbedding: vi.fn(async () => [0.1]),
+}));
 vi.mock('../../services/incidents/incidentRagService.js', () => ({
   searchIncidents: vi.fn(async () => ({ results: [] })),
 }));

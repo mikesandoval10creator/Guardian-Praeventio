@@ -42,7 +42,9 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
 });
 // Heavy deps pulled in by sibling routes in the same router — stub so this
 // unit test never loads genai / the embedding model.
-vi.mock('../../services/ragService.js', () => ({ generateEmbedding: vi.fn(async () => [0.1]) }));
+vi.mock('../../services/ragService.js', () => ({
+  generateIncidentEmbedding: vi.fn(async () => [0.1]),
+}));
 vi.mock('../../services/incidents/incidentRagService.js', () => ({
   searchIncidents: vi.fn(async () => ({ results: [] })),
 }));

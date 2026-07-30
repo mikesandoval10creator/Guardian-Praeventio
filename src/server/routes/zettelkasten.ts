@@ -44,7 +44,7 @@ import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing across the node-write batch.
 import { tracedAsync } from '../../services/observability/tracing.js';
 // Sprint 29 Bucket AA F-B — incident RAG service para /nl-query.
-import { generateEmbedding } from '../../services/ragService.js';
+import { generateIncidentEmbedding } from '../../services/ragService.js';
 import {
   searchIncidents,
   type IncidentRagDeps,
@@ -381,10 +381,16 @@ router.post(
     try {
       const deps: IncidentRagDeps = {
         db: db as unknown as IncidentRagDeps['db'],
-        embed: generateEmbedding,
+        embed: generateIncidentEmbedding,
         toVector: (vec) => admin.firestore.FieldValue.vector(vec),
       };
-      const result = await searchIncidents(tenantId, query, topK ?? 5, deps);
+      const result = await searchIncidents(
+        tenantId,
+        query,
+        topK ?? 5,
+        deps,
+        projectId,
+      );
       return res.json(result);
     } catch (error: any) {
       logger.error('zettelkasten_nl_query_failed', {
