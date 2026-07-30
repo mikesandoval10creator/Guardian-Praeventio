@@ -11,10 +11,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('<AuditExpressButton />', () => {
-  it('idle muestra botón "Preparar"', () => {
+  it('idle muestra botón "Preparar Índice"', () => {
     const onRequest = vi.fn().mockResolvedValue({ downloadUrl: 'x', expiresAt: 'y' });
     render(<AuditExpressButton projectId="p1" onRequest={onRequest} />);
-    expect(screen.getByTestId('audit-express-button')).toHaveTextContent(/Preparar/);
+    expect(screen.getByTestId('audit-express-button')).toHaveTextContent(/Preparar Índice/);
   });
 
   it('al click llama onRequest con projectId y muestra spinner', async () => {
@@ -39,6 +39,7 @@ describe('<AuditExpressButton />', () => {
     fireEvent.click(screen.getByTestId('audit-express-button'));
     const ready = await screen.findByTestId('audit-express-ready');
     expect(ready.getAttribute('href')).toBe('https://storage.cloud/zip');
+    expect(ready).toHaveTextContent(/Descargar Índice/);
   });
 
   it('onReady callback se invoca con url y expiresAt', async () => {
@@ -51,6 +52,47 @@ describe('<AuditExpressButton />', () => {
     fireEvent.click(screen.getByTestId('audit-express-button'));
     await screen.findByTestId('audit-express-ready');
     expect(onReady).toHaveBeenCalledWith('https://x.zip', '2026-05-11T13:00:00Z');
+  });
+
+  it('descarta el enlace listo cuando cambia el proyecto activo', async () => {
+    const onRequest = vi.fn().mockResolvedValue({
+      downloadUrl: 'data:application/pdf;base64,JVBERg==',
+      fileName: 'Auditoria_p1.pdf',
+    });
+    const { rerender } = render(
+      <AuditExpressButton projectId="p1" onRequest={onRequest} />,
+    );
+    fireEvent.click(screen.getByTestId('audit-express-button'));
+    await screen.findByTestId('audit-express-ready');
+
+    rerender(<AuditExpressButton projectId="p2" onRequest={onRequest} />);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('audit-express-ready')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('audit-express-button')).toHaveTextContent(/Preparar/);
+  });
+
+  it('ignora una generación en vuelo del proyecto anterior', async () => {
+    let resolve: (value: { downloadUrl: string; fileName: string }) => void = () => {};
+    const onRequest = vi.fn(() => new Promise<{ downloadUrl: string; fileName: string }>((done) => {
+      resolve = done;
+    }));
+    const { rerender } = render(
+      <AuditExpressButton projectId="p1" onRequest={onRequest} />,
+    );
+    fireEvent.click(screen.getByTestId('audit-express-button'));
+
+    rerender(<AuditExpressButton projectId="p2" onRequest={onRequest} />);
+    resolve({
+      downloadUrl: 'data:application/pdf;base64,UFJPSkVDVE8x',
+      fileName: 'Auditoria_p1.pdf',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('audit-express-button')).toHaveTextContent(/Preparar/);
+    });
+    expect(screen.queryByTestId('audit-express-ready')).not.toBeInTheDocument();
   });
 
   it('error muestra mensaje + reintentar', async () => {

@@ -145,12 +145,45 @@ describe('createSiteBookEntry', () => {
 });
 
 describe('requestAuditExpressBundle', () => {
-  it('devuelve downloadUrl + expiresAt', async () => {
-    mockFetch(() =>
-      jsonResponse({ downloadUrl: 'https://storage/abc.zip', expiresAt: '2026-05-11T11:00:00Z' }),
-    );
-    const result = await requestAuditExpressBundle('p1');
-    expect(result.downloadUrl).toBe('https://storage/abc.zip');
+  it('POSTs the canonical authenticated build contract', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    mockFetch((url, init) => {
+      capturedUrl = url;
+      capturedInit = init;
+      return jsonResponse({ manifest: { generatedAt: '2026-07-30T00:00:00.000Z' } });
+    });
+    const input = {
+      projectName: 'Faena Norte',
+      generatedBy: { fullName: 'Ana González', role: 'prevencionista' },
+      data: {
+        documents: [],
+        iperMatrix: [],
+        trainings: [],
+        eppAssignments: [],
+        activeWorkers: [],
+        applicableProtocols: [],
+        photoEvidences: [],
+        recentAuditLogs: [],
+        complianceSnapshot: {
+          overall: 'yellow' as const,
+          byCategory: [],
+          score: 50,
+          computedAt: '2026-07-30T00:00:00.000Z',
+        },
+      },
+    };
+
+    const result = await requestAuditExpressBundle('project-1', input);
+
+    expect(capturedUrl).toBe('/api/sprint-k/project-1/express-bundle/build');
+    expect(capturedInit?.method).toBe('POST');
+    expect(capturedInit?.headers).toMatchObject({
+      Authorization: 'Bearer fake-token',
+      'Content-Type': 'application/json',
+    });
+    expect(JSON.parse(String(capturedInit?.body))).toEqual(input);
+    expect(result.manifest.generatedAt).toBe('2026-07-30T00:00:00.000Z');
   });
 });
 

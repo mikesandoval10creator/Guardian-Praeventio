@@ -24,6 +24,11 @@ import type { SafetyTalkSuggestion } from '../services/safetyTalks/talkTopicSugg
 import type { RoleViewState, RoleCard } from '../services/roleViews/roleViewBuilder';
 import type { SiteBookEntry } from '../services/siteBook/siteBookService';
 import { apiAuthHeader } from '../lib/apiAuth';
+import {
+  buildExpressBundle,
+  type BuildExpressBundleInput,
+  type BuildExpressBundleResponse,
+} from './useExpressBundle';
 
 interface FetchState<T> {
   data: T | null;
@@ -169,16 +174,7 @@ export async function createSiteBookEntry(
 
 export async function requestAuditExpressBundle(
   projectId: string,
-): Promise<{ downloadUrl: string; expiresAt: string }> {
-  // §2.20 (2026-05-23) — apiAuthHeader unified.
-  const authHeader = await apiAuthHeader();
-  const res = await fetch(`/api/audit/express-bundle?projectId=${encodeURIComponent(projectId)}`, {
-    method: 'POST',
-    headers: authHeader ? { Authorization: authHeader } : undefined,
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { downloadUrl: string; expiresAt: string };
+  input: BuildExpressBundleInput,
+): Promise<BuildExpressBundleResponse> {
+  return buildExpressBundle(projectId, input);
 }
