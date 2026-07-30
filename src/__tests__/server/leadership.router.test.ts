@@ -176,8 +176,12 @@ describe('GET /:projectId/leadership/decisions', () => {
   it('200 filters by supervisorUid query param', async () => {
     seedDecision(H.db!, 'ld-sup1', { supervisorUid: CALLER_UID });
     seedDecision(H.db!, 'ld-sup2', { supervisorUid: OTHER_UID });
+    // Opt out of the rolling 90-day default window: the fixed 2026-05-01
+    // decidedAt fixtures fall outside the default cutoff as the system clock
+    // moves forward, dropping both rows before the supervisorUid filter runs.
+    // period=all keeps the test deterministic regardless of when it runs.
     const res = await request(buildApp())
-      .get(`${url}?supervisorUid=${OTHER_UID}`)
+      .get(`${url}?supervisorUid=${OTHER_UID}&period=all`)
       .set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
     const { decisions } = res.body as { decisions: Record<string, unknown>[] };
