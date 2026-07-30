@@ -1269,35 +1269,150 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     return res.json({ result: { ok: true, action } });
   });
 
-  // â”€â”€â”€ /api/reports/generate-pdf â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Body-size handler: the per-route express.json parser (mounted at
-  // app-init above with '2mb' limit) emits a 413 entity.too.large for
-  // bodies past 2MB. We add an error-handler middleware specific to
-  // this path to return a JSON 413 instead of express's default HTML.
+  // ─── /api/reports/draft + /api/reports/generate-pdf ─────────────────
+  // Both routes share the same BORRADOR-only contract (P0 fabrication
+  // fix ticket 39baa66d-73fe-8113-92d3-f77c21e69724). They DO NOT claim
+  // SUSESO / Minsal status; the official reconstruction endpoint is
+  // /api/sprint-k/:projectId/incidents/:incidentId/report and is
+  // covered below.
+  const draftPdfHandler = async (req: Request, res: Response) => {
+    const { content, title } = req.body ?? {};
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'content is required' });
+    }
+    // Synthetic body — PDFKit is not run in tests, but we still embed
+    // the BORRADOR marker so assertions can verify the contract.
+    const safeTitle = typeof title === 'string' && title.length > 0 ? title : 'Borrador';
+    const body = Buffer.from(
+      `BORRADOR — NO ES REPORTE OFICIAL\nNO VALIDO COMO REGISTRO ANTE SUSESO O MINSAL\nTitle: ${safeTitle}\nBytes: ${content.length}`,
+      'utf8',
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Borrador_test.pdf"`);
+    res.setHeader('X-Praeventio-Doc-Tier', 'draft');
+    return res.status(200).send(body);
+  };
+
+  app.post('/api/reports/draft', verifyAuth, draftPdfHandler);
+  app.post('/api/reports/generate-pdf', verifyAuth, draftPdfHandler);
+
+  // ─── /api/sprint-k/:projectId/incidents/:incidentId/report ─────────
+  // Official reconstruction: server-side only, no client content, with
+  // signature. Mirrors src/server/routes/incidentReport.ts so tests can
+  // exercise the same behavior without booting the production app.
   app.post(
-    '/api/reports/generate-pdf',
-    (
-      err: any,
-      _req: Request,
-      res: Response,
-      next: NextFunction,
-    ) => {
-      if (err && (err.type === 'entity.too.large' || err.status === 413)) {
-        return res.status(413).json({ error: 'payload_too_large' });
-      }
-      return next(err);
-    },
+    '/api/sprint-k/:projectId/incidents/:incidentId/report',
     verifyAuth,
     async (req: Request, res: Response) => {
-      const { content } = req.body ?? {};
-      if (typeof content !== 'string') {
-        return res.status(400).json({ error: 'content is required' });
+      const callerUid = req.user!.uid;
+      const { projectId, incidentId } = req.params;
+      try {
+        await assertProjectMember(callerUid, projectId!, deps.firestore as any);
+      } catch (err) {
+        if (err instanceof ProjectMembershipError) {
+          return res.status(err.httpStatus).json({ error: 'forbidden' });
+        }
+        throw err;
       }
-      // We don't actually render PDFKit in tests — assert that a
-      // legitimately large body (200kb+) is accepted and a small ACK
-      // is returned. The 2MB ceiling is enforced by the body parser.
+      const projSnap = await deps.firestore
+        .collection('projects')
+        .doc(projectId!)
+        .get();
+      const projData = projSnap.exists ? projSnap.data() : null;
+      if (!projData || typeof projData.tenantId !== 'string') {
+        return res.status(404).json({ error: 'tenant_not_found' });
+      }
+      const incSnap = await deps.firestore.collection('incidents').doc(incidentId!).get();
+      if (!incSnap.exists) {
+        return res.status(404).json({ error: 'incident_not_found' });
+      }
+      const incData = incSnap.data() ?? {};
+      if (typeof incData.projectId !== 'string' || incData.projectId !== projectId) {
+        // Cross-project smuggling — same response as not-found to avoid
+        // leaking the existence of foreign incidents.
+        return res.status(403).json({ error: 'cross_project_forbidden' });
+      }
+      const occurredAt =
+        typeof incData.occurredAt === 'string'
+          ? incData.occurredAt
+          : typeof incData.createdAt === 'string'
+            ? incData.createdAt
+            : null;
+      const reportedAt =
+        typeof incData.reportedAt === 'string' ? incData.reportedAt : occurredAt;
+      if (!occurredAt) {
+        return res.status(422).json({ error: 'incident_missing_timestamp' });
+      }
+      const canonical = {
+        id: incidentId,
+        projectId,
+        occurredAt,
+        reportedAt,
+        severity: String(incData.severity ?? 'medium'),
+        summary: String(incData.summary ?? incData.description ?? incidentId),
+        description: typeof incData.description === 'string' ? incData.description : undefined,
+        locationLabel: undefined as string | undefined,
+        reportedByUid: String(incData.reportedByUid ?? incData.userId ?? 'unknown'),
+      };
+      const sha256 = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(canonical, Object.keys(canonical).sort()))
+        .digest('hex');
+      const text = [
+        'Praeventio Guard — Reporte Oficial de Incidente',
+        '',
+        `Doc ID: ${canonical.id}`,
+        `Resumen autoritativo del incidente: ${canonical.summary}`,
+        `Signature (SHA-256 canonical JSON): ${sha256}`,
+        'Documento reconstruido server-side desde datos autoritativos. Válido como registro interno conforme a directrices Minsal.',
+      ].join('\n');
+      const buf = Buffer.from(text, 'utf8');
       res.setHeader('Content-Type', 'application/pdf');
-      return res.status(200).send(Buffer.from(`PDF:${content.length}`));
+      res.setHeader('Content-Disposition', `attachment; filename="Reporte_Oficial_${canonical.id}.pdf"`);
+      res.setHeader('X-Report-Sha256', sha256);
+      res.setHeader('X-Report-Incident-Id', canonical.id);
+      res.setHeader('X-Praeventio-Doc-Tier', 'official');
+      return res.status(200).send(buf);
+    },
+  );
+
+  // ─── /api/sprint-k/:projectId/reports/draft (project-scoped draft) ─
+  // Drafts scoped to a project: caller MUST be a member. Same BORRADOR
+  // contract as the global /api/reports/draft.
+  app.post(
+    '/api/sprint-k/:projectId/reports/draft',
+    verifyAuth,
+    async (req: Request, res: Response) => {
+      const callerUid = req.user!.uid;
+      const { projectId } = req.params;
+      try {
+        await assertProjectMember(callerUid, projectId!, deps.firestore as any);
+      } catch (err) {
+        if (err instanceof ProjectMembershipError) {
+          return res.status(err.httpStatus).json({ error: 'forbidden' });
+        }
+        throw err;
+      }
+      const projSnap = await deps.firestore
+        .collection('projects')
+        .doc(projectId!)
+        .get();
+      if (!projSnap.exists) {
+        return res.status(404).json({ error: 'project_not_found' });
+      }
+      const { content, title } = req.body ?? {};
+      if (typeof content !== 'string' && typeof title !== 'string') {
+        return res.status(400).json({ error: 'content or title required' });
+      }
+      const safeTitle = typeof title === 'string' && title.length > 0 ? title : 'Borrador';
+      const buf = Buffer.from(
+        `BORRADOR — NO ES REPORTE OFICIAL\nNO VALIDO COMO REGISTRO ANTE SUSESO O MINSAL\nTitle: ${safeTitle}\nProject: ${projectId}`,
+        'utf8',
+      );
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Borrador_${projectId}.pdf"`);
+      res.setHeader('X-Praeventio-Doc-Tier', 'draft');
+      return res.status(200).send(buf);
     },
   );
 

@@ -106,6 +106,7 @@ import geminiRouter from "./src/server/routes/gemini.js";
 // dispatch surface in /api/gemini).
 import aiFeedbackRouter from "./src/server/routes/aiFeedback.js";
 import reportsRouter from "./src/server/routes/reports.js";
+import incidentReportRouter from "./src/server/routes/incidentReport.js";
 import susesoRouter from "./src/server/routes/suseso.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
@@ -1127,6 +1128,11 @@ app.use('/api/sprint-k', syncStatusRouter);
 app.use('/api/sprint-k', conflictQueueRouter);
 app.use('/api/sprint-k', portableHistoryRouter);
 app.use('/api/sprint-k', confidentialReportsRouter);
+
+// P0 fabrication guard (ticket 39baa66d-73fe-8113-92d3-f77c21e69724):
+// official incident report is reconstructed server-side, never built
+// from client content, and SHA-256 signed.
+app.use('/api/sprint-k', incidentReportRouter);
 app.use('/api/sprint-k', apprenticeshipRouter);
 app.use('/api/sprint-k', lessonsLearnedRouter);
 app.use('/api/sprint-k', riskRadarRouter);

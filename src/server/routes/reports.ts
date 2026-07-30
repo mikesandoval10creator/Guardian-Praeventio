@@ -1,34 +1,25 @@
 // Praeventio Guard — Round 19 R2 Phase 4 split.
 //
-// PDF report generation extracted from server.ts:
-//   • POST /api/reports/generate-pdf — server-side PDFKit pipeline.
-//     Renders an A4 occupational-safety report (header band, metadata box,
-//     pseudo-markdown body, footer with page numbers + Minsal disclaimer)
-//     and streams the resulting Buffer back as `application/pdf`.
+// PDF generation endpoints. After the P0 fabrication fix (ticket
+// 39baa66d-73fe-8113-92d3-f77c21e69724) the public contract changed:
+//   • POST /api/reports/draft — ad-hoc PDFs marked BORRADOR. They DO
+//     NOT carry the SUSESO / Minsal official claim and DO NOT bear the
+//     `Reporte_SUSESO_*` filename. Used for supervisor notes and
+//     other client-authored artefacts that are NOT legal records.
+//   • POST /api/sprint-k/:projectId/incidents/:incidentId/report —
+//     the official reconstruction. Title/content/metadata come from
+//     the canonical incident, the PDF is SHA-256 signed and carries
+//     the official footer. See ./incidentReport.ts.
 //
-// Body limit: this endpoint legitimately needs >64kb payloads (the report
-// `content` block is the entire incident narrative + AI-generated summary).
-// The per-route `largeBodyJson` opt-in lives in server.ts as a
-// `req.path === '/api/reports/generate-pdf'` short-circuit BEFORE the global
-// JSON parser — that wiring stays in server.ts because moving it would
-// require restructuring how the body parser is mounted globally.
+// The legacy POST /api/reports/generate-pdf path now behaves like
+// /draft and is kept as a deprecated alias for clients that still
+// reference it (e.g. Emergency.tsx). It is NEVER a SUSESO report.
 //
-// Mounted via `app.use('/api', reportsRouter)`. The route declares the full
-// `/reports/generate-pdf` suffix so the on-the-wire path remains
-// /api/reports/generate-pdf byte-for-byte.
-//
-// Audit trail (Round 17 R1): emits `reports.pdf_generated` AFTER the buffer
-// is concatenated. Wrapped in try/catch — observability MUST NOT taint the
-// already-sent response.
+// Body limit: the per-route 2MB JSON parser is mounted in server.ts.
 
 import { Router } from 'express';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
-// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
-// Note: the user-spec endpoint name was `/reports/incident`; this router
-// only exposes `/reports/generate-pdf` (the PDFKit pipeline that renders
-// SUSESO-style incident reports). We apply the schema HERE because it is
-// the de-facto incident-report endpoint.
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { getErrorTracker } from '../../services/observability/index.js';
@@ -50,32 +41,31 @@ function sentryCapture(
 
 const router = Router();
 
-// Sprint 28 Bucket B3 — schema for the incident-report PDF generator.
-// `content` is large (full narrative), so we cap at 64kB to match the
-// per-route `largeBodyJson` limit set in server.ts.
-const reportsGeneratePdfSchema = z.object({
+// Schema for both /draft and the legacy /generate-pdf endpoint.
+// `content` is large (full narrative), so we cap at 64kB; the per-route
+// body parser in server.ts allows up to 2MB to tolerate bulky payloads.
+const draftSchema = z.object({
   type: z.enum(['general', 'incident', 'safety', 'compliance', 'inspection', 'training']).default('general'),
   title: z.string().min(1).max(256),
   description: z.string().max(8192).optional(),
   content: z.string().max(65536).optional(),
   projectId: z.string().min(1).max(128).optional(),
-  incidentId: z.string().max(128).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
-router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSchema), async (req, res) => {
-  const { incidentId, title, content, type = 'general', metadata = {} } = req.body;
-
+async function renderDraftPdf(
+  req: import('express').Request,
+  res: import('express').Response,
+  body: z.infer<typeof draftSchema>,
+): Promise<void> {
+  const { title, content, type = 'general' } = body;
   try {
     const PDFDocument = (await import('pdfkit')).default;
-
-    // Create a document with styling and margins appropriate for legal/occupational reports
     const doc = new PDFDocument({
       size: 'A4',
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
       info: {
-        Title: title || 'Reporte de Seguridad',
-        Author: 'Praeventio Guard AI',
+        Title: title || 'Borrador',
+        Author: 'Praeventio Guard',
       },
     });
 
@@ -83,101 +73,44 @@ router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSche
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', () => {
       const pdfData = Buffer.concat(buffers);
-
-      // We could optionally save this buffer to Firebase Storage here before sending it down
-
       res.setHeader('Content-Type', 'application/pdf');
+      const safeName = `Borrador_${Date.now()}.pdf`;
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename=Reporte_SUSESO_${incidentId || Date.now()}.pdf`,
+        `attachment; filename="${safeName}"`,
       );
+      res.setHeader('X-Praeventio-Doc-Tier', 'draft');
       res.setHeader('Content-Length', pdfData.length.toString());
       res.end(pdfData);
-      // P0 fix (was Round 17 R1): emit audit row on successful generation.
-      // The `doc.on('end', ...)` handler is sync so we can't `await`;
-      // chain .then() to branch on the helper's boolean return (Codex P2
-      // 3308579646: auditServerEvent never throws, so .catch() never
-      // fires). The response has already been ended, so this path never
-      // blocks delivery — it only ensures audit gaps are visible.
-      auditServerEvent(req, 'reports.pdf_generated', 'reports', {
+      auditServerEvent(req, 'reports.draft_generated', 'reports', {
         type,
-        incidentId: incidentId ?? null,
         bytes: pdfData.length,
       }).then((ok: boolean) => {
         if (!ok) {
           sentryCapture(new Error('audit_write_failed'), {
-            endpoint: 'POST /api/reports/generate-pdf',
-            tags: { audit_event: 'reports.pdf_generated' },
+            endpoint: 'POST /api/reports/draft',
+            tags: { audit_event: 'reports.draft_generated' },
           });
         }
       });
     });
 
-    // --- PDF Construction ---
+    // Header — explicitly BORRADOR (NOT an official Praeventio record).
+    doc.rect(0, 0, doc.page.width, 80).fill('#f59e0b'); // amber
+    doc.fill('#000000').fontSize(20).font('Helvetica-Bold').text('BORRADOR', 50, 25);
+    doc.fontSize(9).font('Helvetica').text('NO ES REPORTE OFICIAL. NO VÁLIDO COMO REGISTRO ANTE SUSESO / MINSAL.', 50, 55);
 
-    // 1. Header (Logo/Brand Placeholder)
-    doc.rect(0, 0, doc.page.width, 100).fill('#0f172a'); // Slate 900 background header
-    doc.fill('#ffffff').fontSize(24).font('Helvetica-Bold').text('Praeventio Guard', 50, 35);
-    doc
-      .fontSize(10)
-      .font('Helvetica')
-      .text('Sistema Integrado de Gestión de Riesgos', 50, 65);
-    doc.text(`Doc ID: ${incidentId || `REQ-${Date.now()}`}`, 400, 35, { align: 'right' });
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`, 400, 50, { align: 'right' });
-    doc.text(`Tipo: ${type.toUpperCase()}`, 400, 65, { align: 'right' });
-
-    doc.moveDown(5); // Move below header
-
-    // 2. Title Section
-    doc
-      .fillColor('#000000')
-      .fontSize(18)
-      .font('Helvetica-Bold')
-      .text(title || 'Documento Oficial de Seguridad Ocupacional', { align: 'center' });
+    doc.moveDown(3);
+    doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold').text(title || 'Borrador', { align: 'center' });
     doc.moveDown(1);
 
-    // 3. Divider Line
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#e2e8f0');
-    doc.moveDown(1);
-
-    // 4. Metadata Box (If any, e.g., location, severity, supervisor)
-    if (Object.keys(metadata).length > 0) {
-      doc.rect(50, doc.y, 495, Object.keys(metadata).length * 20 + 10).fill('#f8fafc');
-      doc.fillColor('#334155').fontSize(10).font('Helvetica');
-      let currentY = doc.y + 5;
-      for (const [key, value] of Object.entries(metadata)) {
-        doc
-          .font('Helvetica-Bold')
-          .text(`${key.toUpperCase()}: `, 60, currentY, { continued: true })
-          .font('Helvetica')
-          .text(String(value));
-        currentY += 20;
-      }
-      doc.y = currentY + 15;
-    }
-
-    // 5. Main Content (Markdown roughly converted or plain text)
-    doc.fillColor('#1e293b').fontSize(11).font('Helvetica');
-
-    // Simple pseudo-markdown parsing for the PDF
     const lines = content ? content.split('\n') : ['Sin contenido registrado.'];
+    doc.fillColor('#000000').fontSize(11).font('Helvetica');
     lines.forEach((line: string) => {
       if (line.startsWith('# ')) {
-        doc
-          .moveDown()
-          .font('Helvetica-Bold')
-          .fontSize(14)
-          .text(line.replace('# ', ''))
-          .font('Helvetica')
-          .fontSize(11);
+        doc.moveDown().font('Helvetica-Bold').fontSize(14).text(line.replace('# ', '')).font('Helvetica').fontSize(11);
       } else if (line.startsWith('## ')) {
-        doc
-          .moveDown()
-          .font('Helvetica-Bold')
-          .fontSize(12)
-          .text(line.replace('## ', ''))
-          .font('Helvetica')
-          .fontSize(11);
+        doc.moveDown().font('Helvetica-Bold').fontSize(12).text(line.replace('## ', '')).font('Helvetica').fontSize(11);
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
         doc.text(`  • ${line.substring(2)}`, { indent: 10 });
       } else if (line.trim() === '') {
@@ -187,29 +120,29 @@ router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSche
       }
     });
 
-    // 6. Footer (Page numbers and legal disclaimer)
-    const totalPages = doc.bufferedPageRange().count;
-    for (let i = 0; i < totalPages; i++) {
-      doc.switchToPage(i);
-      doc.rect(0, doc.page.height - 50, doc.page.width, 50).fill('#f1f5f9');
-      doc
-        .fillColor('#94a3b8')
-        .fontSize(8)
-        .font('Helvetica')
-        .text(
-          'Documento generado por Praeventio AI. Válido como registro interno conforme a directrices Minsal.',
-          50,
-          doc.page.height - 35,
-        );
-      doc.text(`Página ${i + 1} de ${totalPages}`, 450, doc.page.height - 35, { align: 'right' });
-    }
+    doc.moveDown(2);
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica').text(
+      `Tipo: ${type.toUpperCase()} · Generado: ${new Date().toISOString()} · Tier: BORRADOR`,
+      { align: 'right' },
+    );
 
     doc.end();
   } catch (error) {
-    logger.error('report_pdf_generation_failed', error);
-    sentryCapture(error, { endpoint: '/api/reports/generate-pdf', tags: { method: 'POST', type: type ?? 'general', incidentId: incidentId ?? null } });
-    res.status(500).json({ error: 'Internal server error during PDF generation' });
+    logger.error('report_draft_pdf_generation_failed', error);
+    sentryCapture(error, { endpoint: '/api/reports/draft', tags: { method: 'POST', type: type ?? 'general' } });
+    res.status(500).json({ error: 'internal_error' });
   }
+}
+
+// New canonical path.
+router.post('/reports/draft', verifyAuth, validate(draftSchema), async (req, res) => {
+  await renderDraftPdf(req, res, req.body);
+});
+
+// Legacy alias — same behavior. Kept so clients (e.g. Emergency.tsx)
+// continue to work without claiming official status.
+router.post('/reports/generate-pdf', verifyAuth, validate(draftSchema), async (req, res) => {
+  await renderDraftPdf(req, res, req.body);
 });
 
 export default router;
