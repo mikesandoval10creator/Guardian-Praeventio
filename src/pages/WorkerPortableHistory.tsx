@@ -405,7 +405,11 @@ export function WorkerPortableHistory() {
 
       {effectiveWorkerUid && !loading && !hookError && bundle && draft && (
         <>
-          {/* Consent panel */}
+          {/* Consent panel — owner-only. An admin viewing another worker's
+              bundle must not see controls that appear to represent the
+              worker's will (the backend rejects the POST anyway, but the UI
+              must not even offer the affordance). */}
+          {!isAdmin && (
           <section
             className="rounded-2xl border border-default-token bg-surface p-4 space-y-3"
             data-testid="portable-history-consent"
@@ -471,8 +475,20 @@ export function WorkerPortableHistory() {
               </p>
             )}
           </section>
-
-          {/* Identity */}
+          )}
+          {isAdmin && (
+            <section
+              className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4"
+              data-testid="portable-history-consent-readonly"
+            >
+              <p className="text-sm text-secondary-token">
+                {t(
+                  'portableHistory.consent.adminReadonly',
+                  'El consentimiento de exportación es una decisión personal del trabajador (Ley 19.628). Sólo él puede activarlo o desactivarlo.',
+                )}
+              </p>
+            </section>
+          )}
           <Section
             title={t('portableHistory.section.identity', 'Identidad')}
             icon={<User className="w-4 h-4" aria-hidden="true" />}

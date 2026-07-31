@@ -102,6 +102,23 @@ function isOwnerOrAdmin(callerUid: string, workerUid: string, isAdmin: boolean):
   return isAdmin || callerUid === workerUid;
 }
 
+async function auditRejectedConsentAttempt(
+  req: import('express').Request,
+  projectId: string,
+  workerUid: string,
+): Promise<void> {
+  await auditServerEvent(
+    req,
+    'portableHistory.rejectedConsentAttempt',
+    'portableHistory',
+    {
+      workerUid,
+      reason: 'caller_is_not_worker',
+    },
+    { projectId },
+  );
+}
+
 // ── Bundle builder ────────────────────────────────────────────────────
 
 async function buildPortableHistoryBundle(
@@ -348,14 +365,14 @@ router.post(
   validate(consentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
     const { projectId, workerUid } = req.params;
     if (!projectId || !workerUid) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof consentSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
-    if (!isOwnerOrAdmin(callerUid, workerUid, isAdmin)) {
-      return res.status(403).json({ error: 'forbidden_not_owner_or_admin' });
+    if (callerUid !== workerUid) {
+      await auditRejectedConsentAttempt(req, projectId, workerUid);
+      return res.status(403).json({ error: 'consent_owner_required' });
     }
     try {
       const db = admin.firestore();
