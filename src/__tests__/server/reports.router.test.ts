@@ -98,8 +98,13 @@ describe('POST /api/reports/generate-pdf', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toBe('application/pdf');
-    // Filename is derived from incidentId (real handler behavior).
-    expect(res.headers['content-disposition']).toContain('Reporte_SUSESO_INC-42.pdf');
+    // P0 fabrication fix: the legacy endpoint is now BORRADOR-only. It MUST
+    // NOT carry the SUSESO claim even when the caller passes an incidentId.
+    // The filename falls back to a Date.now() suffix when the BORRADOR flow
+    // is used. See ticket 39baa66d-73fe-8113-92d3-f77c21e69724.
+    expect(res.headers['content-disposition']).toMatch(/Borrador.*\.pdf/);
+    expect(res.headers['content-disposition']).not.toMatch(/SUSESO/);
+    expect(res.headers['x-praeventio-doc-tier']).toBe('draft');
     const body = res.body as Buffer;
     // A real PDF starts with the "%PDF-" magic header and ends with %%EOF.
     expect(body.length).toBeGreaterThan(500);
@@ -119,8 +124,11 @@ describe('POST /api/reports/generate-pdf', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toBe('application/pdf');
-    // No incidentId → filename falls back to a Date.now() suffix, not "undefined".
-    expect(res.headers['content-disposition']).toMatch(/Reporte_SUSESO_\d+\.pdf/);
+    // P0 fabrication fix: the legacy endpoint is BORRADOR-only. No
+    // incidentId means a Date.now() suffix, still BORRADOR.
+    expect(res.headers['content-disposition']).toMatch(/Borrador.*\.pdf/);
+    expect(res.headers['content-disposition']).not.toMatch(/SUSESO/);
+    expect(res.headers['x-praeventio-doc-tier']).toBe('draft');
     expect((res.body as Buffer).subarray(0, 5).toString('latin1')).toBe('%PDF-');
   });
 
