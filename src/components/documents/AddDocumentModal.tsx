@@ -111,27 +111,35 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
         
         showToast(t('documents.toast_offline_added', 'Documento guardado para sincronización cuando haya conexión.'), 'info');
       } else {
-        // 1. Upload file to Firebase Storage
+        // 1. Upload file to Firebase Storage.
+        // P0 security (ticket 39baa66d-73fe-8135-8644-c88016a6badf): do NOT
+        // persist the bearer download URL — it embeds a long-lived token
+        // in the query string that survives membership revocation. Store
+        // only the storage path so the server (or a fresh client call)
+        // can mint a short-lived URL on each download.
         const storageRef = ref(storage, storagePath);
-        
-        await uploadBytes(storageRef, file);
-        const downloadUrl = await getDownloadURL(storageRef);
 
-        // 2. Save document metadata to Firestore
+        await uploadBytes(storageRef, file);
+
+        // 2. Save document metadata to Firestore.
+        // NOTE: `url` is intentionally absent. The download endpoint
+        // (future P1 ticket) will resolve a fresh signed URL on each
+        // request and verify assertProjectMember before streaming.
         const docRef = await addDoc(collection(db, `projects/${projectId}/documents`), {
           name: formData.name,
           type: fileExtension?.toUpperCase() || 'FILE',
           category: formData.category,
           version: formData.version,
           status: formData.status,
-          url: downloadUrl,
           storagePath: storageRef.fullPath,
           updatedAt: new Date().toISOString(),
           projectId: projectId,
           createdAt: serverTimestamp()
         });
 
-        // 3. Create Risk Node
+        // 3. Create Risk Node. The node metadata references the doc id
+        // and the storage path; the download endpoint is the source of
+        // truth for a fresh signed URL.
         await addNode({
           type: NodeType.DOCUMENT,
           title: `Documento: ${formData.name}`,
@@ -141,7 +149,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
           connections: [],
           metadata: {
             documentId: docRef.id,
-            url: downloadUrl,
+            storagePath: storageRef.fullPath,
             status: formData.status
           }
         });

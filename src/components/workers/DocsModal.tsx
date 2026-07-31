@@ -109,12 +109,16 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         file = await compressImage(e.target.files[0]);
       }
 
-      // 1. Upload to Firebase Storage
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      // 1. Upload to Firebase Storage.
+      // P0 security (ticket 39baa66d-73fe-8135-8644-c88016a6badf): do NOT
+      // persist the bearer download URL — it embeds a long-lived token in
+      // the query string that survives membership revocation. Store only
+      // the storage path so the server (or a fresh client call) can mint
+      // a short-lived URL on each download.
+      const { ref, uploadBytes } = await import('firebase/storage');
       const { storage } = await import('../../services/firebase');
       const storageRef = ref(storage, `documents/${worker.id}/${Date.now()}_${docName}`);
       await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
 
       // 2. AI Compliance Check
       const compliance = await analyzeDocumentCompliance(docName, worker.role);
@@ -122,7 +126,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
       const newDoc = {
         name: docName,
         type: (file instanceof File ? file.name : 'upload').split('.').pop()?.toUpperCase() || 'FILE',
-        url: downloadURL,
+        storagePath: storageRef.fullPath,
         createdAt: new Date().toISOString(),
         workerId: worker.id,
         // Required by the onSnapshot listener's where('archived', '==', false)
