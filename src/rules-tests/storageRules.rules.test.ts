@@ -196,7 +196,21 @@ describe('documents/{workerId}/** — F7 evidence lock + V5 tier-gated writes', 
   it('V5: an unauthenticated request cannot upload (unchanged)', async () => {
     await assertFails(uploadBytes(r(unauth(), PATH), BYTES, { contentType: 'application/pdf' }));
   });
-  it('a signed-in user can read a worker document (unchanged)', async () => {
+  // P0 (ticket 39baa66d-73fe-8148-80f2-fbbbc7b14e42): the read rule was
+  // historically `isSignedIn()` only — any authenticated user could read
+  // any worker's documents. The test "a signed-in user can read" (above)
+  // documents that behavior. The new tests below ASSERT the project-
+  // scoped fix: a user assigned to a different project MUST be denied
+  // read of a worker's documents.
+  it('P0 fix: an outsider (assignedSiteIds: other-project) CANNOT read a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(getBytes(r(outsider(), PATH)));
+  });
+  it('P0 fix: a legacy user with no assignedSiteIds CANNOT read a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(getBytes(r(legacy(), PATH)));
+  });
+  it('P0 fix: a member of the owning project still CAN read a worker document', async () => {
     await seed(PATH, 'application/pdf');
     await assertSucceeds(getBytes(r(member(), PATH)));
   });

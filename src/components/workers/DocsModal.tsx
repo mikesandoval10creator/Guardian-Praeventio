@@ -115,9 +115,21 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
       // the query string that survives membership revocation. Store only
       // the storage path so the server (or a fresh client call) can mint
       // a short-lived URL on each download.
+      // P0 (ticket 39baa66d-73fe-8148-80f2-fbbbc7b14e42): the storage
+      // path now lives under projects/{projectId}/workers/{workerId}/...
+      // so storage.rules can gate reads/writes with memberOfSite(projectId).
+      // The legacy documents/{workerId}/... path was readable by ANY
+      // authenticated user — that was the bug. projectId is required
+      // (the prop is already passed by every supervisor surface).
       const { ref, uploadBytes } = await import('firebase/storage');
       const { storage } = await import('../../services/firebase');
-      const storageRef = ref(storage, `documents/${worker.id}/${Date.now()}_${docName}`);
+      if (!projectId) {
+        throw new Error('DocsModal: projectId is required to scope the document upload.');
+      }
+      const storageRef = ref(
+        storage,
+        `projects/${projectId}/workers/${worker.id}/documents/${Date.now()}_${docName}`,
+      );
       await uploadBytes(storageRef, file);
 
       // 2. AI Compliance Check
