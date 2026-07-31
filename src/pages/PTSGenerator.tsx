@@ -283,25 +283,31 @@ export function PTSGenerator() {
         });
         showPtsToast('Documento guardado — se sincronizará cuando haya conexión.', true);
       } else {
-        // 2. Upload to Storage
+        // 2. Upload to Storage.
+        // P0 security (ticket 39baa66d-73fe-8135-8644-c88016a6badf): do NOT
+        // persist the bearer download URL — it embeds a long-lived token
+        // in the query string that survives membership revocation. Store
+        // only the storage path so the server (or a fresh client call)
+        // can mint a short-lived URL on each download.
         const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, pdfBlob);
-        const downloadUrl = await getDownloadURL(storageRef);
 
-        // 3. Save document to Firestore
+        // 3. Save document to Firestore. `url` is intentionally absent.
         const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
           ...documentData,
-          url: downloadUrl,
+          storagePath: storageRef.fullPath,
           createdAt: serverTimestamp()
         });
 
-        // 4. Add to Risk Network
+        // 4. Add to Risk Network. The node metadata references the doc id
+        // and storage path; a download endpoint (future P1 ticket) will
+        // resolve a fresh signed URL after assertProjectMember.
         const newNode = await addNode({
           ...nodeData,
           metadata: {
             ...nodeData.metadata,
             documentId: docRef.id,
-            pdfUrl: downloadUrl
+            storagePath: storageRef.fullPath
           }
         });
 

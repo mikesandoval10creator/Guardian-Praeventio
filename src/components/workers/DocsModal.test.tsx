@@ -143,6 +143,31 @@ describe('DocsModal', () => {
     expect(written.name).toBe('certificado.pdf');
   });
 
+  it('P0 security: does NOT persist the Firebase Storage bearer URL in the written doc', async () => {
+    // Spec: 39baa66d-73fe-8135-8644-c88016a6badf — Firebase Storage download
+    // URLs embed a long-lived bearer token in the query string. Persisting
+    // them in Firestore means a revoked membership can still download the
+    // file with a copied URL forever. The component must store ONLY the
+    // storagePath and resolve a fresh URL on every render.
+    const { container } = render(
+      <DocsModal isOpen={true} onClose={() => {}} worker={worker} projectId="proj-1" />
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['%PDF-1.4'], 'privado.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
+    const written = (addDocMock.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    // The Firestore doc MUST NOT contain a Firebase Storage download URL.
+    expect(written.url).toBeUndefined();
+    // The Firestore doc SHOULD carry the storage path so the server can
+    // resolve a fresh, short-lived signed URL on each download.
+    if (written.storagePath !== undefined) {
+      expect(typeof written.storagePath).toBe('string');
+      // The storage path must NOT contain a token query string.
+      expect(written.storagePath as string).not.toMatch(/[?&]token=/);
+    }
+  });
+
   it('F7: archive writes archived:true and NEVER calls deleteDoc (evidence lock)', async () => {
     render(<DocsModal isOpen={true} onClose={() => {}} worker={worker} projectId="proj-1" />);
     lastSnapshotCb?.({
