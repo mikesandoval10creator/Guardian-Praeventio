@@ -41,7 +41,9 @@ vi.mock('firebase-admin', async () => {
           ? { role: 'admin' }
           : uid === 'gerente-user'
             ? { role: 'gerente' }
-            : { role: 'worker' }, // non-admin → 403
+            : uid === 'platform-op-user'
+              ? { role: 'platform_operator' }
+              : { role: 'worker' }, // non-admin → 403
     }),
     verifyIdToken: async () => ({ uid: 'test' }),
   });
@@ -303,6 +305,42 @@ describe('POST /api/admin/b2d/keys', () => {
     expect((res.body as Record<string, unknown>).error).toMatch(/Invalid scope/);
   });
 
+  // P0 (ticket 39baa66d-73fe-819b-b360-c3ee42de836f): `suite.all` is a
+  // GLOBAL scope that bypasses any per-customer tenant check. Before this
+  // fix, any tenantAdmin (`admin` / `gerente`) could mint a global
+  // B2D key on a customerId they own, then use that key against any
+  // other tenant. The new contract:
+  //   - tenant-scoped scopes (climate.read, etc.) → tenantAdmin OK.
+  //   - global scope (suite.all)               → platform_operator only.
+  it('P0: a tenantAdmin CANNOT create a key with the global `suite.all` scope', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'admin-user')
+      .send({ ...validBody, scopes: ['suite.all'] });
+    expect(res.status).toBe(403);
+  });
+  it('P0: a gerente CANNOT create a key with the global `suite.all` scope', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'gerente-user')
+      .send({ ...validBody, scopes: ['suite.all'] });
+    expect(res.status).toBe(403);
+  });
+  it('P0: a platform_operator CAN create a key with the global `suite.all` scope', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'platform-op-user')
+      .send({ ...validBody, scopes: ['suite.all'] });
+    expect(res.status).toBe(200);
+  });
+  it('P0: a worker CANNOT create a key with the global `suite.all` scope', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'worker-user')
+      .send({ ...validBody, scopes: ['suite.all'] });
+    expect(res.status).toBe(403);
+  });
+
   it('201/200 happy path — rawKey returned, Firestore stores hash not plaintext', async () => {
     const res = await request(buildApp())
       .post(URL)
@@ -388,10 +426,10 @@ describe('POST /api/admin/b2d/keys', () => {
     expect(storedDoc.expiresAt as number).toBeLessThanOrEqual(maxExpiry);
   });
 
-  it('POST /keys with suite.all scope succeeds', async () => {
+  it('POST /keys with suite.all scope succeeds (platform_operator only)', async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('x-test-uid', 'admin-user')
+      .set('x-test-uid', 'platform-op-user')
       .send({ ...validBody, tier: 'suite-pro', scopes: ['suite.all'] });
     expect(res.status).toBe(200);
     expect((res.body as Record<string, unknown>).ok).toBe(true);

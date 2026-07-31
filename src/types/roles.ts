@@ -15,6 +15,16 @@
 
 export const ADMIN_ROLES = ['admin', 'gerente'] as const;
 
+// P0 (ticket 39baa66d-73fe-819b-b360-c3ee42de836f): a platform
+// operator is a tenant-INDEPENDENT role. Admin/gerente are tenantAdmin
+// (scoped to their own tenant). A platform_operator mints B2D keys
+// with the global `suite.all` scope, accesses cross-tenant metrics,
+// and rotates platform-wide secrets (bucket BB writes). Misclassifying
+// a tenantAdmin as a platform operator is the bug closed by this
+// commit — the assertPlatformOperator helper below is the only thing
+// the b2dAdmin / future-global-routes need to check.
+export const PLATFORM_OPERATOR_ROLES = ['platform_operator'] as const;
+
 export const SUPERVISOR_ROLES = [
   'supervisor',
   'prevencionista',
@@ -40,6 +50,7 @@ export const WORKER_ROLES = [
 
 const _allUnique = [
   ...ADMIN_ROLES,
+  ...PLATFORM_OPERATOR_ROLES,
   ...SUPERVISOR_ROLES,
   ...DOCTOR_ROLES,
   ...WORKER_ROLES,
@@ -48,13 +59,18 @@ const _allUnique = [
 export const ALL_ROLES: readonly string[] = Array.from(new Set(_allUnique));
 
 export type AdminRole = typeof ADMIN_ROLES[number];
+export type PlatformOperatorRole = typeof PLATFORM_OPERATOR_ROLES[number];
 export type SupervisorRole = typeof SUPERVISOR_ROLES[number];
 export type DoctorRole = typeof DOCTOR_ROLES[number];
 export type WorkerRole = typeof WORKER_ROLES[number];
-export type Role = AdminRole | SupervisorRole | DoctorRole | WorkerRole;
+export type Role = AdminRole | PlatformOperatorRole | SupervisorRole | DoctorRole | WorkerRole;
 
 export function isAdminRole(role: unknown): role is AdminRole {
   return typeof role === 'string' && (ADMIN_ROLES as readonly string[]).includes(role);
+}
+
+export function isPlatformOperatorRole(role: unknown): role is PlatformOperatorRole {
+  return typeof role === 'string' && (PLATFORM_OPERATOR_ROLES as readonly string[]).includes(role);
 }
 
 export function isSupervisorRole(role: unknown): role is SupervisorRole {
