@@ -167,7 +167,13 @@ describe('ConflictResolutionDrawer', () => {
 
     render(<ConflictResolutionDrawer />);
     fireEvent.click(await screen.findByRole('button', { name: 'Mantener mía' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar resolución' }));
+    // Race-tolerant: wait for the apply button to BECOME enabled rather
+    // than reading hasAttribute on a cached node reference. React 18's
+    // batched commits can race against direct DOM reads; findByRole +
+    // waitFor(not.toBeDisabled) retries across the commit boundary.
+    const applyBtn = await screen.findByRole('button', { name: 'Aplicar resolución' });
+    await waitFor(() => expect(applyBtn).not.toBeDisabled());
+    fireEvent.click(applyBtn);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -219,8 +225,15 @@ describe('ConflictResolutionDrawer', () => {
 
     render(<ConflictResolutionDrawer />);
     fireEvent.click(await screen.findByRole('button', { name: 'Mantener mía' }));
-    const apply = screen.getByRole('button', { name: 'Aplicar resolución' });
-    await waitFor(() => expect(apply.hasAttribute('disabled')).toBe(false));
+    // Wait for the apply button to BECOME enabled (race-tolerant). The
+    // initial render sets disabled=true because resolution={}. After the
+    // click on "Mantener mía" schedules setResolution, React commits, and
+    // the apply button transitions to disabled=false. waitFor retries
+    // through microtasks so it captures the post-commit state, whereas a
+    // direct hasAttribute read on the cached node can race against React's
+    // batched update.
+    const apply = await screen.findByRole('button', { name: 'Aplicar resolución' });
+    await waitFor(() => expect(apply).not.toBeDisabled());
     fireEvent.click(apply);
 
     await waitFor(() =>

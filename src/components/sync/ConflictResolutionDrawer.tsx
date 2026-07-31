@@ -281,9 +281,16 @@ export function ConflictResolutionDrawer({
   // Reset in-progress map when the front-of-queue conflict changes, and
   // move keyboard focus into the dialog for WCAG. A polling refresh that keeps
   // the same queueId must not erase choices already made by the reviewer.
+  // The guard skips the very first headKey assignment (initial hydration)
+  // and skips re-resets when headKey is unchanged across re-renders caused
+  // by polling replacing the queue with a structurally-identical item.
+  const previousHeadKey = useRef<string | null>(null);
   useEffect(() => {
-    setResolution({});
     setSubmitError(null);
+    if (headKey !== previousHeadKey.current && previousHeadKey.current !== null) {
+      setResolution({});
+    }
+    previousHeadKey.current = headKey;
     if (headKey && dialogRef.current) {
       dialogRef.current.focus();
     }
