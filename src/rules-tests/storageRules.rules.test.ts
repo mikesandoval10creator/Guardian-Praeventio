@@ -175,20 +175,27 @@ describe('reconstructions/{pid}/** — binary 3D models', () => {
   });
 });
 
-describe('documents/{workerId}/** — F7 evidence lock + V5 tier-gated writes', () => {
-  const PATH = 'documents/worker-7/contract.pdf';
+// P0 (ticket 39baa66d-73fe-8148-80f2-fbbbc7b14e42): the worker document
+// path was migrated from the legacy top-level `documents/{workerId}/...`
+// (read was historically `isSignedIn()` only — any authenticated user
+// could read any worker's documents) to the project-scoped
+// `projects/{projectId}/workers/{workerId}/documents/...` path. The
+// legacy path is now hard-deny; only the project-scoped path is
+// exercised below. PID is the project the caller is a member of.
+describe('projects/{pid}/workers/{wid}/documents/{all}** — P0 project-scoped ACL', () => {
+  const PATH = `projects/${PID}/workers/worker-7/documents/contract.pdf`;
 
   // V5 (audit §3.2): create/update demand admin/supervisor tier — before, ANY
   // signed-in user could write into another worker's namespace. Depends on the
   // role-claims sync trigger being live (claims minted).
   it('V5: an admin-tier user can upload a worker document', async () => {
-    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { role: 'admin' }), PATH), BYTES, { contentType: 'application/pdf' }));
+    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'admin' }), PATH), BYTES, { contentType: 'application/pdf' }));
   });
   it('V5: a supervisor-tier user (prevencionista) can upload a worker document', async () => {
-    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { role: 'prevencionista' }), PATH), BYTES, { contentType: 'application/pdf' }));
+    await assertSucceeds(uploadBytes(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'prevencionista' }), PATH), BYTES, { contentType: 'application/pdf' }));
   });
   it('V5: a worker-role user CANNOT upload (was open to any signed-in user)', async () => {
-    await assertFails(uploadBytes(r(storageOf(MEMBER, { role: 'worker' }), PATH), BYTES, { contentType: 'application/pdf' }));
+    await assertFails(uploadBytes(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'worker' }), PATH), BYTES, { contentType: 'application/pdf' }));
   });
   it('V5: a signed-in user with NO role claim CANNOT upload (presence-guarded, silent deny)', async () => {
     await assertFails(uploadBytes(r(member(), PATH), BYTES, { contentType: 'application/pdf' }));
@@ -198,10 +205,8 @@ describe('documents/{workerId}/** — F7 evidence lock + V5 tier-gated writes', 
   });
   // P0 (ticket 39baa66d-73fe-8148-80f2-fbbbc7b14e42): the read rule was
   // historically `isSignedIn()` only — any authenticated user could read
-  // any worker's documents. The test "a signed-in user can read" (above)
-  // documents that behavior. The new tests below ASSERT the project-
-  // scoped fix: a user assigned to a different project MUST be denied
-  // read of a worker's documents.
+  // any worker's documents. The new project-scoped rule gates reads with
+  // memberOfSite(projectId).
   it('P0 fix: an outsider (assignedSiteIds: other-project) CANNOT read a worker document', async () => {
     await seed(PATH, 'application/pdf');
     await assertFails(getBytes(r(outsider(), PATH)));
@@ -217,23 +222,22 @@ describe('documents/{workerId}/** — F7 evidence lock + V5 tier-gated writes', 
 
   // F7 (founder decision 2026-07-02): worker documents are legal evidence —
   // client-side delete is an evidence-destruction primitive. NOBODY deletes
-  // from the client, not even admin tier. (Supersedes V3's tier-gated
-  // delete, which was also functionally dead: no flow mints role claims.)
+  // from the client, not even admin tier.
   it('F7: an admin-tier claim CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'admin' }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { assignedSiteIds: [PID], email_verified: true, role: 'admin' }), PATH)));
   });
   it('F7: a supervisor-tier claim CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'supervisor' }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { assignedSiteIds: [PID], email_verified: true, role: 'supervisor' }), PATH)));
   });
   it('F7: a worker-role user CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'worker' }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { assignedSiteIds: [PID], email_verified: true, role: 'worker' }), PATH)));
   });
   it('F7: a user with no role claim CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
-    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true }), PATH)));
+    await assertFails(deleteObject(r(storageOf(MEMBER, { assignedSiteIds: [PID], email_verified: true }), PATH)));
   });
   it('F7: an unauthenticated user CANNOT delete a worker document', async () => {
     await seed(PATH, 'application/pdf');
