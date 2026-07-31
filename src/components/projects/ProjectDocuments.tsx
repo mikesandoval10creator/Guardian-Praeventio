@@ -246,14 +246,25 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
+                {doc.url ? (
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all"
+                    title="Descargar archivo original"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <span
+                    className="p-2 rounded-lg text-zinc-600 cursor-not-allowed"
+                    title="Sin archivo original"
+                    aria-label="Sin archivo original disponible"
+                  >
+                    <Download className="w-4 h-4" />
+                  </span>
+                )}
                 <button
                   onClick={() => handleArchive(doc.id)}
                   disabled={!isOnline}
