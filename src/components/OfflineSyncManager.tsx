@@ -228,9 +228,13 @@ export function OfflineSyncManager() {
             } catch { /* use original if compression fails */ }
           }
           await uploadBytes(storageRef, fileToUpload);
-          const downloadUrl = await getDownloadURL(storageRef);
 
-          // Add document to Firestore
+          // Add document to Firestore.
+          // P0 security (debt follow-up to ticket 39baa66d-73fe-8135): do NOT
+          // persist the bearer download URL — it embeds a long-lived token
+          // in the query string that survives membership revocation. Store
+          // only the storage path. A future P1 server endpoint will resolve
+          // a fresh signed URL after assertProjectMember.
           try {
             // Same idempotent id as the create path. The storage upload above
             // is already idempotent (deterministic storagePath), but this
@@ -239,7 +243,7 @@ export function OfflineSyncManager() {
             docId = offlineOpDocId(action.collection, 'upload', action.data);
             await setDoc(doc(db, action.collection, docId), {
               ...action.data.documentData,
-              url: downloadUrl,
+              storagePath: action.data.storagePath,
             });
           } catch (error) {
             handleFirestoreError(error, OperationType.CREATE, action.collection);
@@ -263,14 +267,14 @@ export function OfflineSyncManager() {
             updatedAt: now,
           };
 
-          // Update metadata with the new document ID if it's an upload
+          // Update metadata with the new document ID if it's an upload.
+          // P0 security (debt follow-up to ticket 39baa66d-73fe-8135): do
+          // NOT resolve or persist the bearer download URL — store only
+          // the storage path.
           if (action.type === 'upload' && newNode.metadata) {
              newNode.metadata.documentId = docId;
-             // We need to get the download URL again if it was an upload
              if (action.data.storagePath) {
-                 const storageRef = ref(storage, action.data.storagePath);
-                 const downloadUrl = await getDownloadURL(storageRef);
-                 newNode.metadata.url = downloadUrl;
+                 newNode.metadata.storagePath = action.data.storagePath;
              }
           }
 

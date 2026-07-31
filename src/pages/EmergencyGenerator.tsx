@@ -135,9 +135,13 @@ export function EmergencyGenerator() {
       const fileName = `PE_${scenario.replace(/\s+/g, '_')}_${timestamp}.pdf`;
       const storageRef = ref(storage, `projects/${selectedProject.id}/documents/${fileName}`);
       await uploadBytes(storageRef, pdfBlob);
-      const downloadUrl = await getDownloadURL(storageRef);
 
-      // 3. Save document to Firestore
+      // 3. Save document to Firestore.
+      // P0 security (debt follow-up to ticket 39baa66d-73fe-8135): do NOT
+      // persist the bearer download URL — it embeds a long-lived token
+      // in the query string that survives membership revocation. Store
+      // only the storage path. A future P1 server endpoint will resolve
+      // a fresh signed URL after assertProjectMember.
       const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
         name: `Plan de Emergencia: ${scenario}`,
         category: 'Plan de Emergencia',
@@ -146,7 +150,7 @@ export function EmergencyGenerator() {
         uploadedBy: user.displayName || user.email || 'Usuario',
         projectId: selectedProject.id,
         content: generatedPlan, // Storing the structured JSON
-        url: downloadUrl, // Storing the PDF URL
+        storagePath: storageRef.fullPath,
         isGenerated: true,
         createdAt: serverTimestamp()
       });
@@ -164,7 +168,7 @@ export function EmergencyGenerator() {
           category: 'Plan de Emergencia',
           status: 'Vigente',
           isGenerated: true,
-          pdfUrl: downloadUrl
+          storagePath: storageRef.fullPath
         }
       });
 
