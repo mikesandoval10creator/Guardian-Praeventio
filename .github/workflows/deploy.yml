@@ -373,13 +373,87 @@ jobs:
             "/api/admin/jobs/weekly-digest" \
             "Weekly safety digest emailed to supervisors (Sprint 22 Y)."
 
+          echo "✓ Maintenance scheduler jobs setup complete"
+
+      # P0 (ticket 39baa66d-73fe-81a8-b57a-f2852c966e6c) — life-safety cron
+      # setup: lone-worker escalation and man-down escalation are LIFE SAFETY
+      # (AUDIT-2026-06 B19 + OLA 1). A solo worker who misses check-ins OR a
+      # fallen / immobile worker whose phone fired one detection alert must
+      # escalate to supervisor → brigade → emergency services WITHOUT anyone
+      # pressing a button. The legacy continue-on-error:true on the single
+      # step meant that if Scheduler permissions / API / service-account
+      # were missing, GitHub Actions still went green and the deployment
+      # succeeded with NO escalation running — i.e. a worker could be
+      # unconscious and the system would never page the brigade. The fix
+      # splits the two vital crons into their own step with NO
+      # continue-on-error, and adds a post-deploy existence+2xx check.
+      - name: Setup Cloud Scheduler — vital life-safety crons
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          SCHEDULER_SA="climate-scan-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+          SCHEDULER_LOCATION="us-central1"
+
+          ensure_vital_job() {
+            local name="$1"
+            local schedule="$2"
+            local path="$3"
+            local description="$4"
+
+            # Update or create. Either way, exit non-zero on failure so
+            # the deploy step fails the workflow if the cron can't be
+            # provisioned.
+            if gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              gcloud scheduler jobs update http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --quiet
+              echo "✓ Updated $name"
+            else
+              gcloud scheduler jobs create http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --description="$description" \
+                --quiet
+              echo "✓ Created $name"
+            fi
+
+            # Post-create existence check. `gcloud describe` returns 0 only
+            # if the job exists. If it doesn't (race, eventual consistency,
+            # IAM glitch), the deploy step fails. This is the SPEC's
+            # "verificacion post-deploy obligatoria de existencia".
+            if ! gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              echo "::error::Vital cron $name was NOT provisioned (describe failed post-create)." >&2
+              exit 1
+            fi
+          }
+
           # AUDIT-2026-06 B19 — lone-worker escalation (every 5 minutes). LIFE
           # SAFETY: a solo worker who misses check-ins must escalate to
           # supervisor → brigade → emergency services WITHOUT anyone pressing
           # a button. The cron was never provisioned, so the escalation only
           # ever ran when an operator manually POSTed the endpoint.
-          ensure_job "lone-worker-escalation" \
-            "*/5 * * * *" \
+          ensure_vital_job "lone-worker-escalation" \
+            "*/5* * * *" \
             "/api/maintenance/run-lone-worker-escalation" \
             "Lone-worker escalation sweep every 5 min (AUDIT-2026-06 B19). Reads active lone_worker_sessions, applies the pure escalation engine, multicasts FCM to supervisor/brigade/emergency_services."
 
@@ -389,9 +463,9 @@ jobs:
           # button if no acknowledgment arrives. 1-min cadence (vs 5-min lone
           # worker) because the worker may be unconscious; thresholds are
           # 60/240/540s. Reads active projects/{pid}/mandown_events.
-          ensure_job "man-down-escalation" \
+          ensure_vital_job "man-down-escalation" \
             "* * * * *" \
             "/api/maintenance/run-man-down-escalation" \
             "Man-down escalation sweep every minute (OLA 1). Reads active mandown_events, applies the pure stage resolver, multicasts FCM to supervisor/brigade/emergency_services. Idempotent by (eventId, level, day)."
 
-          echo "✓ Maintenance scheduler jobs setup complete"
+          echo "✓ Vital life-safety scheduler jobs setup complete"
