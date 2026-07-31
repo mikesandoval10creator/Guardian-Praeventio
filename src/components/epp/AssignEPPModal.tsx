@@ -101,15 +101,19 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
       const pdfBlob = await generatePDF(worker, item, assignmentRef.id);
       const storageRef = ref(storage, `projects/${projectId}/documents/epp_acta_${assignmentRef.id}.pdf`);
       await uploadBytes(storageRef, pdfBlob);
-      const downloadUrl = await getDownloadURL(storageRef);
 
-      // Save document metadata
+      // Save document metadata.
+      // P0 security (debt follow-up to ticket 39baa66d-73fe-8135): do NOT
+      // persist the bearer download URL — it embeds a long-lived token
+      // in the query string that survives membership revocation. Store
+      // only the storage path. A future P1 server endpoint will resolve
+      // a fresh signed URL after assertProjectMember.
       const docRef = await addDoc(collection(db, `projects/${projectId}/documents`), {
         name: `Acta de Entrega EPP - ${worker.name} - ${item.name}`,
         category: 'SST',
         type: 'Acta de Entrega',
         status: 'Vigente',
-        url: downloadUrl,
+        storagePath: storageRef.fullPath,
         uploadDate: new Date().toISOString(),
         uploadedBy: user.displayName || user.email || 'Sistema',
         projectId,
@@ -138,7 +142,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
           assignedAt: new Date().toISOString(),
           expiresAt: expiresAt || null,
           status: 'active',
-          pdfUrl: downloadUrl
+          storagePath: storageRef.fullPath
         }
       });
 

@@ -168,18 +168,22 @@ export function ReportGenerator() {
       
       const pdfBlob = doc.output('blob');
       
-      const { storage, ref, uploadBytes, getDownloadURL, collection, addDoc, db, handleFirestoreError, OperationType } = await import('../../services/firebase');
+      const { storage, ref, uploadBytes, collection, addDoc, db, handleFirestoreError, OperationType } = await import('../../services/firebase');
       const fileName = `Praeventio_${reportType}_${Date.now()}.pdf`;
       const storageRef = ref(storage, `ai_reports/${selectedProject.id}/${fileName}`);
-      
+
       await uploadBytes(storageRef, pdfBlob);
-      const downloadUrl = await getDownloadURL(storageRef);
-      
+
+      // P0 security (debt follow-up to ticket 39baa66d-73fe-8135): do NOT
+      // persist the bearer download URL — it embeds a long-lived token
+      // in the query string that survives membership revocation. Store
+      // only the storage path. A future P1 server endpoint will resolve
+      // a fresh signed URL after assertProjectMember.
       try {
         await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
           name: `${reportType} Generado por IA`,
           type: 'pdf',
-          url: downloadUrl,
+          storagePath: storageRef.fullPath,
           projectId: selectedProject.id,
           category: 'SST',
           status: 'Vigente',
