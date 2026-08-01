@@ -477,3 +477,57 @@ describe('/api/emergency/sos', () => {
     expect(blocked.status).toBe(429);
   });
 });
+
+// P0 (ticket 3a3aa66d-73fe-81b9-b499-f064a3d52a61): iOS Critical Alerts.
+// The legacy push was a background-only payload
+// (aps: { 'content-available': 1 }) which iOS suppresses when the device
+// is in Silent Mode or Do Not Disturb. A worker hitting SOS on a silenced
+// iPhone would never see the alert.
+//
+// This is a static check over the production source because the unit
+// suite's InMemoryFirestore mock does not implement subcollection
+// queries (the production `sendToProjectSupervisors` reads
+// `projects/{pid}/members` as a subcollection). The actual behaviour is
+// covered by the integration tests that hit the real Firestore + FCM
+// emulator. This regex check pins the iOS APNs config so a regression
+// to the background-payload form fails the suite immediately.
+describe('emergency.ts source — iOS Critical Alerts config (P0)', () => {
+  // Pinned: any change to these strings requires a deliberate update
+  // here AND a review of the Apple Critical Alerts entitlement status.
+  // Tracking: ticket 3a3aa66d-73fe-81b9-b499 requests the entitlement
+  // from Apple (developer.apple.com/contact/request/notifications-
+  // critical-alerts-entitlement) — until granted, iOS downgrades the
+  // sound to default. The banner still surfaces on a silenced device,
+  // which is the safety floor this fix raises.
+  const SRC = 'src/server/routes/emergency.ts';
+
+  it('apns config sets priority 10 + push-type alert + alert payload + critical sound', async () => {
+    const fs = await import('node:fs/promises');
+    const src = await fs.readFile(SRC, 'utf8');
+    // Find the apns block.
+    const apnsMatch = src.match(/apns:\s*\{[\s\S]*?\n\s*\}/);
+    expect(apnsMatch, 'apns: { ... } block not found in emergency.ts').not.toBeNull();
+    const apns = apnsMatch![0];
+    // Headers: immediate delivery, alert push type, no expiration
+    // (zero = best-effort until device reconnects).
+    expect(apns).toMatch(/'apns-priority':\s*'10'/);
+    expect(apns).toMatch(/'apns-push-type':\s*'alert'/);
+    expect(apns).toMatch(/'apns-expiration':\s*'0'/);
+    // APS payload: a real alert (not just content-available) with
+    // a critical sound. The presence of an `aps.alert` dict is the
+    // surface-level change that iOS uses to render a banner even when
+    // the device is silenced — the legacy form had no `alert` dict.
+    expect(apns).toMatch(/aps:\s*\{[\s\S]*alert:\s*\{/);
+    expect(apns).toMatch(/'content-available':\s*1/); // legacy wake-up hint preserved
+    expect(apns).toMatch(/sound:\s*\{[\s\S]*critical:\s*true/);
+  });
+
+  it('android priority stays at high (unchanged)', async () => {
+    const fs = await import('node:fs/promises');
+    const src = await fs.readFile(SRC, 'utf8');
+    // The Android leg is unchanged — `priority: 'high'` for FCM high-
+    // priority delivery (which iOS would receive as the FCM transport
+    // path, separate from the APNs critical alert).
+    expect(src).toMatch(/android:\s*\{\s*priority:\s*'high'/);
+  });
+});

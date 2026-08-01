@@ -218,7 +218,7 @@ export async function sendToProjectSupervisors(
     notification: { title: payload.title, body: payload.body },
     data: payload.data ?? {},
     android: { priority: 'high' },
-    apns: { payload: { aps: { 'content-available': 1 } } },
+    apns: { headers: { 'apns-priority': '10', 'apns-push-type': 'alert', 'apns-expiration': '0' }, payload: { aps: { alert: { title: payload.title, body: payload.body }, sound: { critical: true, name: 'default', volume: 1 }, 'content-available': 1, 'mutable-content': 1 } } },
   });
   return {
     notified: result.successCount,
