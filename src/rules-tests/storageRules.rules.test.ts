@@ -19,7 +19,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, deleteObject, updateMetadata } from 'firebase/storage';
 
 const PROJECT_ID = 'praeventio-storage-test';
 const PID = 'site-1';
@@ -202,6 +202,25 @@ describe('projects/{pid}/workers/{wid}/documents/{all}** — P0 project-scoped A
   });
   it('V5: an unauthenticated request cannot upload (unchanged)', async () => {
     await assertFails(uploadBytes(r(unauth(), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('P0 fix: an outsider CANNOT upload a worker document through the generic project rule', async () => {
+    await assertFails(uploadBytes(r(outsider(), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('P0 fix: the generic project rule cannot write elsewhere under workers/**', async () => {
+    const unclassifiedWorkerPath = `projects/${PID}/workers/worker-7/avatar.png`;
+    await assertFails(uploadBytes(r(member(), unclassifiedWorkerPath), BYTES, { contentType: 'image/png' }));
+  });
+  it('V5: an admin-tier user can update worker-document metadata', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertSucceeds(updateMetadata(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'admin' }), PATH), {
+      customMetadata: { classification: 'contract' },
+    }));
+  });
+  it('V5: a worker-role user CANNOT update worker-document metadata', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(updateMetadata(r(storageOf(MEMBER, { assignedSiteIds: [PID], role: 'worker' }), PATH), {
+      customMetadata: { classification: 'tampered' },
+    }));
   });
   // P0 (ticket 39baa66d-73fe-8148-80f2-fbbbc7b14e42): the read rule was
   // historically `isSignedIn()` only — any authenticated user could read

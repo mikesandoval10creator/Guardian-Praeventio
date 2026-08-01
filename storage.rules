@@ -95,9 +95,17 @@ service firebase.storage {
     // TacticalOnboardingModal (workers/{wid}/documents), AssignEPPModal (EPP
     // actas), EmergencyGenerator (PDF), CrisisChat (audio/), SafetyFeed (feed/),
     // OfflineSyncManager replays. <=100 MB (video/audio/model headroom).
-    match /projects/{projectId}/{allPaths=**} {
+    // Firebase OR-combines every matching `allow`; a narrower match does not
+    // override a broader one. Capture the first segment and explicitly keep
+    // workers/** out of this generic writer so it cannot bypass the role-gated
+    // worker-document ACL below. All real workers/** Storage uploads are under
+    // workers/{workerId}/documents/** and are handled by that specific match.
+    match /projects/{projectId}/{scope}/{allPaths=**} {
       allow read: if memberOfSite(projectId);
-      allow create, update: if memberOfSite(projectId) && isAllowedUpload() && isUnder(100 * 1024 * 1024);
+      allow create, update: if scope != 'workers'
+        && memberOfSite(projectId)
+        && isAllowedUpload()
+        && isUnder(100 * 1024 * 1024);
       // F7 (founder decision 2026-07-02): project files ARE the
       // compliance/legal trail (PTS, EPP actas, emergency plans, incident
       // photos) — a client delete is an evidence-destruction primitive.
