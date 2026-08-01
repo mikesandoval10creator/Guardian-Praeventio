@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 import { InMemoryFirestore, type FakeAuth } from './test-server.js';
+import { buildEmergencyMulticastMessage } from '../../server/routes/emergency.js';
 
 interface SosTestDeps {
   firestore: InMemoryFirestore;
@@ -475,5 +476,59 @@ describe('/api/emergency/sos', () => {
       .set('Authorization', 'Bearer test:u1:u1@t.com')
       .send({ type: 'sos', projectId: 'p1' });
     expect(blocked.status).toBe(429);
+  });
+});
+
+// P0 (ticket 3a3aa66d-73fe-81b9-b499-f064a3d52a61): pin the exact object
+// passed to Firebase Admin. This exercises production construction rather
+// than searching source text, so moving/removing any APNs field breaks the
+// same contract that `sendEachForMulticast` receives.
+describe('buildEmergencyMulticastMessage — iOS Critical Alerts config (P0)', () => {
+  it('builds immediate APNs alert + critical sound while preserving Android high priority', () => {
+    const message = buildEmergencyMulticastMessage(
+      ['token-ios', 'token-android'],
+      {
+        title: 'SOS dinámico',
+        body: 'Ayuda en proyecto p1',
+        data: { projectId: 'p1', alertId: 'alert-7' },
+      },
+    );
+
+    expect(message).toEqual({
+      tokens: ['token-ios', 'token-android'],
+      notification: { title: 'SOS dinámico', body: 'Ayuda en proyecto p1' },
+      data: { projectId: 'p1', alertId: 'alert-7' },
+      android: { priority: 'high' },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+          'apns-push-type': 'alert',
+          'apns-expiration': '0',
+        },
+        payload: {
+          aps: {
+            alert: { title: 'SOS dinámico', body: 'Ayuda en proyecto p1' },
+            sound: { critical: true, name: 'default', volume: 1 },
+          },
+        },
+      },
+    });
+  });
+
+  it('uses an empty data map when optional data is omitted', () => {
+    const message = buildEmergencyMulticastMessage(
+      ['token-ios'],
+      { title: 'Brigada', body: 'Nueva emergencia' },
+    );
+
+    expect(message.data).toEqual({});
+    expect(message.apns?.payload?.aps.alert).toEqual({
+      title: 'Brigada',
+      body: 'Nueva emergencia',
+    });
+    expect(message.apns?.payload?.aps).not.toHaveProperty('content-available');
+    expect(message.apns?.payload?.aps).not.toHaveProperty('contentAvailable');
+    expect(message.apns?.payload?.aps).not.toHaveProperty('mutable-content');
+    expect(message.apns?.payload?.aps).not.toHaveProperty('mutableContent');
   });
 });
