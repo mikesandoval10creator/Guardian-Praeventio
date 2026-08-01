@@ -330,6 +330,30 @@ describe('POST /api/emergency/sos', () => {
     expect(H.fcmSendEach).toHaveBeenCalledTimes(1);
     const fcmCall = H.fcmSendEach.mock.calls[0][0] as Record<string, unknown>;
     expect((fcmCall.tokens as string[]).sort()).toContain('tok-sup1');
+    expect(fcmCall).toMatchObject({
+      android: { priority: 'high' },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+          'apns-push-type': 'alert',
+          'apns-expiration': '0',
+        },
+        payload: {
+          aps: {
+            sound: { critical: true, name: 'default', volume: 1 },
+          },
+        },
+      },
+    });
+    const notification = fcmCall.notification as Record<string, string>;
+    const apns = fcmCall.apns as {
+      payload: { aps: Record<string, unknown> & { alert: Record<string, string> } };
+    };
+    expect(apns.payload.aps.alert).toEqual(notification);
+    expect(apns.payload.aps).not.toHaveProperty('content-available');
+    expect(apns.payload.aps).not.toHaveProperty('contentAvailable');
+    expect(apns.payload.aps).not.toHaveProperty('mutable-content');
+    expect(apns.payload.aps).not.toHaveProperty('mutableContent');
   });
 
   it('200: uses projectId as tenantId when project has no tenantId field', async () => {

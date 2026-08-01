@@ -158,9 +158,45 @@ function validateGeo(g: unknown): GeoPoint | null {
  * role, payload)` helper can adopt this same shape without churning the
  * call sites.
  */
+type EmergencyPushPayload = {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
+
+/**
+ * Build the exact cross-platform message passed to Firebase Admin.
+ * Keeping construction pure makes the life-safety delivery contract
+ * executable without mocking Firestore membership traversal.
+ */
+export function buildEmergencyMulticastMessage(
+  tokens: string[],
+  payload: EmergencyPushPayload,
+): admin.messaging.MulticastMessage {
+  return {
+    tokens,
+    notification: { title: payload.title, body: payload.body },
+    data: payload.data ?? {},
+    android: { priority: 'high' },
+    apns: {
+      headers: {
+        'apns-priority': '10',
+        'apns-push-type': 'alert',
+        'apns-expiration': '0',
+      },
+      payload: {
+        aps: {
+          alert: { title: payload.title, body: payload.body },
+          sound: { critical: true, name: 'default', volume: 1 },
+        },
+      },
+    },
+  };
+}
+
 export async function sendToProjectSupervisors(
   projectId: string,
-  payload: { title: string; body: string; data?: Record<string, string> },
+  payload: EmergencyPushPayload,
   db: FirebaseFirestore.Firestore,
   messaging: admin.messaging.Messaging,
 ): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
@@ -213,13 +249,9 @@ export async function sendToProjectSupervisors(
   if (tokens.length === 0) {
     return { notified: 0, failed: 0, supervisorEmails };
   }
-  const result = await messaging.sendEachForMulticast({
-    tokens,
-    notification: { title: payload.title, body: payload.body },
-    data: payload.data ?? {},
-    android: { priority: 'high' },
-    apns: { headers: { 'apns-priority': '10', 'apns-push-type': 'alert', 'apns-expiration': '0' }, payload: { aps: { alert: { title: payload.title, body: payload.body }, sound: { critical: true, name: 'default', volume: 1 }, 'content-available': 1, 'mutable-content': 1 } } },
-  });
+  const result = await messaging.sendEachForMulticast(
+    buildEmergencyMulticastMessage(tokens, payload),
+  );
   return {
     notified: result.successCount,
     failed: result.failureCount,
