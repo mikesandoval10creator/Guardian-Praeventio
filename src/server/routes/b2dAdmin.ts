@@ -24,7 +24,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
-import { isAdminRole } from '../../types/roles.js';
+import { isAdminRole, isPlatformOperatorRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
@@ -43,6 +43,29 @@ const VALID_TIER_IDS: ReadonlySet<string> = new Set(API_TIERS.map((t) => t.id));
 const CUSTOMER_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 const KEY_DOC_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 
+// Closed scope vocabulary lives in services/b2d/apiKeyService.ts. We mirror
+// it here so input validation can reject unknown scopes before reaching
+// the service layer (which would also reject, but later).
+const VALID_SCOPES: ReadonlySet<B2dScope> = new Set<B2dScope>([
+  'climate.read',
+  'climate.forecast',
+  'hazmat.calculate',
+  'normativa.search',
+  'normativa.validate',
+  'suite.all',
+]);
+
+// P0 (ticket 39baa66d-73fe-819b-b360-c3ee42de836f): the global
+// `suite.all` scope bypasses any per-customer tenant check — a key
+// with that scope can hit any tenant. Granting it required the
+// platform_operator role. tenantAdmin (`admin` / `gerente`) can mint
+// tenant-scoped keys (climate.read, etc.) but never the global one.
+const GLOBAL_SCOPES: ReadonlySet<B2dScope> = new Set<B2dScope>(['suite.all']);
+
+function isGlobalScopeRequested(scopes: readonly B2dScope[]): boolean {
+  return scopes.some((s) => GLOBAL_SCOPES.has(s));
+}
+
 async function assertAdmin(req: any, res: any): Promise<boolean> {
   const callerUid = req.user?.uid;
   if (!callerUid) {
@@ -58,23 +81,39 @@ async function assertAdmin(req: any, res: any): Promise<boolean> {
     return true;
   } catch (error) {
     logger.error('b2d_admin_assert_failed', error, { callerUid });
-    captureRouteError(error, 'b2dAdmin.assert_admin', { callerUid });
+    captureRouteError(error, 'b2dAdmin.assert_admin');
     res.status(500).json({ error: 'Internal server error' });
     return false;
   }
 }
 
-// Closed scope vocabulary lives in services/b2d/apiKeyService.ts. We mirror
-// it here so input validation can reject unknown scopes before reaching
-// the service layer (which would also reject, but later).
-const VALID_SCOPES: ReadonlySet<B2dScope> = new Set<B2dScope>([
-  'climate.read',
-  'climate.forecast',
-  'hazmat.calculate',
-  'normativa.search',
-  'normativa.validate',
-  'suite.all',
-]);
+// P0 (ticket 39baa66d-73fe-819b-b360-c3ee42de836f): the global
+// `suite.all` scope bypasses any per-customer tenant check. A
+// platform_operator is the ONLY role that can request it. A
+// tenantAdmin (`admin` / `gerente`) who requests `suite.all` is
+// rejected with 403 even though they can mint tenant-scoped keys —
+// the original bug let a tenantAdmin mint a global key and use it
+// cross-tenant.
+async function assertGlobalScopeCaller(req: any, res: any): Promise<boolean> {
+  const callerUid = req.user?.uid;
+  if (!callerUid) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  try {
+    const callerRecord = await admin.auth().getUser(callerUid);
+    if (!isPlatformOperatorRole(callerRecord.customClaims?.role)) {
+      res.status(403).json({ error: 'Forbidden: suite.all requires platform_operator' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.error('b2d_admin_global_assert_failed', error, { callerUid });
+    captureRouteError(error, 'b2dAdmin.assert_global');
+    res.status(500).json({ error: 'Internal server error' });
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/b2d/keys[?customerId=X]
@@ -123,14 +162,29 @@ router.get('/keys', verifyAuth, async (req, res) => {
 // Returns rawKey EXACTLY ONCE — caller must store/show it then.
 // ---------------------------------------------------------------------------
 router.post('/keys', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return undefined;
-  const callerUid = req.user!.uid;
+  // P0 (ticket 39baa66d-73fe-819b-b360-c3ee42de836f): the global
+  // `suite.all` scope bypasses any per-customer tenant check. ONLY
+  // a platform_operator may request it. A tenantAdmin (admin/gerente)
+  // requesting `suite.all` is rejected with 403 BEFORE the key is
+  // minted. The role gate is per-scope, not "any admin role passes":
+  //   - scopes include `suite.all`  →  require platform_operator
+  //   - scopes are tenant-scoped     →  require admin OR gerente
+  // We do NOT call assertAdmin() before assertGlobalScopeCaller() because
+  // platform_operator is a different role from admin/gerente.
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const customerId = typeof body.customerId === 'string' ? body.customerId : '';
-  const tier = typeof body.tier === 'string' ? body.tier : '';
   const scopes = Array.isArray(body.scopes)
     ? body.scopes.filter((s): s is string => typeof s === 'string').slice(0, 32)
     : [];
+
+  if (isGlobalScopeRequested(scopes as B2dScope[])) {
+    if (!(await assertGlobalScopeCaller(req, res))) return undefined;
+  } else {
+    if (!(await assertAdmin(req, res))) return undefined;
+  }
+
+  const callerUid = req.user!.uid;
+  const customerId = typeof body.customerId === 'string' ? body.customerId : '';
+  const tier = typeof body.tier === 'string' ? body.tier : '';
   const expiresInDays = typeof body.expiresInDays === 'number' && body.expiresInDays > 0
     ? Math.min(body.expiresInDays, 3650)
     : undefined;
