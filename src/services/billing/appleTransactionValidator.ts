@@ -129,6 +129,9 @@ export interface AppleTestSeam {
 let injectedSeam: AppleTestSeam | null = null;
 
 export function __setAppleSeamForTests(seam: AppleTestSeam | null): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('Apple transaction validator seam injection is test-only');
+  }
   injectedSeam = seam;
 }
 
