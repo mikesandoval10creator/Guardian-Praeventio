@@ -1,6 +1,7 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
-import { NodeType } from '../types';
+import { NodeType, type RiskNode } from '../types';
+import { risks } from '../data/risks';
+import { createGraphNode } from './zettelkasten/graphMutations';
+import { logger } from '../utils/logger';
 
 interface SeedNode {
   type: NodeType;
@@ -41,14 +42,25 @@ const SEED_TEMPLATES: SeedNode[] = [
   { block: 'VIII', type: NodeType.DIGITAL_TWIN, title: 'Gemelo Digital del Sitio', description: 'Representación digital del sitio para simulación de escenarios de riesgo.', tags: ['gemelo-digital', 'simulación', 'IA'] },
 ];
 
+const ALL_SEED_TEMPLATES: Array<SeedNode & { sourceTemplateId?: string }> = [
+  ...risks.map((risk) => ({
+    block: 'I' as const,
+    type: NodeType.RISK,
+    title: risk.title,
+    description: risk.description,
+    tags: [risk.category, 'Seed'],
+    sourceTemplateId: risk.id,
+  })),
+  ...SEED_TEMPLATES,
+];
+
 export async function seedProjectNodes(projectId: string, userId: string): Promise<number> {
-  const col = collection(db, 'nodes');
   const now = new Date().toISOString();
   let seeded = 0;
 
-  for (const template of SEED_TEMPLATES) {
+  for (const template of ALL_SEED_TEMPLATES) {
     try {
-      await addDoc(col, {
+      const node: Omit<RiskNode, 'id'> = {
         type: template.type,
         title: template.title,
         description: template.description,
@@ -56,23 +68,30 @@ export async function seedProjectNodes(projectId: string, userId: string): Promi
         projectId,
         connections: [],
         isPublic: false,
-        isTemplate: true,
-        block: template.block,
         metadata: {
           seededBy: 'nodeSeedService',
+          isTemplate: true,
           seededAt: now,
           createdBy: userId,
+          block: template.block,
+          ...(template.sourceTemplateId ? { sourceTemplateId: template.sourceTemplateId } : {}),
         },
         createdAt: now,
         updatedAt: now,
-      });
+      };
+      await createGraphNode(node, projectId);
       seeded++;
-    } catch {
+    } catch (error) {
       // Non-fatal: continue seeding remaining nodes
+      logger.error('Project node seed enqueue failed', {
+        projectId,
+        title: template.title,
+        error,
+      });
     }
   }
 
   return seeded;
 }
 
-export const SEED_COUNT = SEED_TEMPLATES.length;
+export const SEED_COUNT = ALL_SEED_TEMPLATES.length;

@@ -94,7 +94,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'projects', PID), {
       name: 'Nodes RUT Test',
       createdBy: AUTHOR,
-      members: [AUTHOR, PEER],
+      members: [AUTHOR, PEER, ADMIN, SUPERVISOR],
     });
     await setDoc(doc(db, 'nodes', PII_NODE), piiNode());
     await setDoc(doc(db, 'nodes', PLAIN_NODE), plainNode());

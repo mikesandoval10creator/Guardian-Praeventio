@@ -88,8 +88,10 @@ import {
   GraphQueryParseError,
   type QueryableNode,
 } from '../../services/zettelkasten/structuredQuery.js';
+import { registerZettelkastenGraphMutationRoutes } from './zettelkastenGraphMutations.js';
 
 const router = Router();
+registerZettelkastenGraphMutationRoutes(router);
 
 const VALID_SEVERITIES = new Set(['info', 'low', 'medium', 'high', 'critical']);
 // Canonical allowlist shared with the supertest mirror (test-server.ts) so the

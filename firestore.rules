@@ -215,6 +215,7 @@ service cloud.firestore {
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 50)) &&
              (!('connections' in data) || (data.connections is list && data.connections.size() <= 200)) &&
              (!('isPublic' in data) || data.isPublic is bool) &&
+             data.metadata is map &&
              isValidId(data.projectId) &&
              data.createdAt is string &&
              data.updatedAt is string;
@@ -1126,26 +1127,25 @@ service cloud.firestore {
       // is therefore membership-scoped (verified author/admin/supervisor/member),
       // mirroring the verified branch of the old `read` rule with no public clause.
       allow get: if (existing().isPublic == true && !nodeHasWorkerRut(existing()))
-        || (isEmailVerified() && (
-          existing().metadata.authorId == request.auth.uid ||
+        || (isProjectMemberTenantScoped(existing().projectId) && (
+          !nodeHasWorkerRut(existing()) ||
+          existing().metadata.get('authorId', '') == request.auth.uid ||
           isAdmin() ||
           isSupervisor() ||
-          (isProjectMemberTenantScoped(existing().projectId) && !nodeHasWorkerRut(existing()))
+          isSupervisorOfTenant(projectTenantId(existing().projectId))
         ));
-      allow list: if isEmailVerified() && (
-          existing().metadata.authorId == request.auth.uid ||
+      allow list: if isProjectMemberTenantScoped(existing().projectId) && (
+          !nodeHasWorkerRut(existing()) ||
+          existing().metadata.get('authorId', '') == request.auth.uid ||
           isAdmin() ||
           isSupervisor() ||
-          (isProjectMemberTenantScoped(existing().projectId) && !nodeHasWorkerRut(existing()))
+          isSupervisorOfTenant(projectTenantId(existing().projectId))
         );
-      allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
-      allow update: if isEmailVerified() && isValidNode(incoming()) && (
-        isAdmin() || 
-        isSupervisor() || 
-        existing().metadata.authorId == request.auth.uid ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['connections', 'updatedAt'])
-      );
-      allow delete: if isAdmin() || isSupervisor();
+      // P0 server authority (2026-08-02): all graph mutations travel through
+      // authenticated, project-scoped and audited server routes. The Admin SDK
+      // bypasses rules; denying every client mutation closes unaudited direct
+      // writes without removing create/connect/migrate/offline capabilities.
+      allow create, update, delete: if false;
     }
 
     match /user_stats/{userId} {

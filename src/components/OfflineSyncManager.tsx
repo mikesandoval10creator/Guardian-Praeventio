@@ -19,6 +19,11 @@ import { offlineOpDocId } from '../utils/offlineOpId';
 import { logAuditAction } from '../services/auditService';
 import { useProjectOptional } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
+import {
+  enqueueGraphNode,
+  executeGraphSyncOperation,
+  ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
+} from '../services/zettelkasten/graphMutations';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
@@ -279,8 +284,14 @@ export function OfflineSyncManager() {
           }
 
           try {
-            await setDoc(doc(db, 'nodes', nodeId), newNode);
-            logger.info('Created Risk node for synced action', { nodeId });
+            const projectId =
+              typeof newNode.projectId === 'string' && newNode.projectId
+                ? newNode.projectId
+                : activeProjectId;
+            if (!projectId) throw new Error('Derived Risk node missing project scope');
+            const { id: _id, projectId: _projectId, ...nodePayload } = newNode;
+            await enqueueGraphNode(nodePayload, projectId, nodeId);
+            logger.info('Queued Risk node for server-authoritative sync', { nodeId, projectId });
 
             // If it was a create action, update the document with the nodeId
             if (action.type === 'create') {
@@ -337,6 +348,10 @@ export function OfflineSyncManager() {
     // multiple times just overwrites the previous reference.
     offlineSync.setExecutor(async (op: SyncOperation) => {
       const collectionName = op.collection;
+      if (collectionName === ZETTELKASTEN_GRAPH_SYNC_COLLECTION) {
+        await executeGraphSyncOperation(op);
+        return;
+      }
       if (op.type === 'create') {
         // Mirror of the legacy path above: same derived id, and the same
         // control keys stripped, so it does not matter which queue drains

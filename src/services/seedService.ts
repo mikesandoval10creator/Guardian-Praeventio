@@ -1,9 +1,10 @@
-import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { createGraphNode } from './zettelkasten/graphMutations';
 
 export const seedCommunityGlossary = async () => {
   // Round 14 (A5 audit) — `/api/seed-glossary` is gated by verifyAuth on the
@@ -63,15 +64,15 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
     if (projectId && industry) {
       logger.info(`Seeding IPER nodes for project ${projectId} (${industry})...`);
       const nodesToSeed = INDUSTRY_IPER_BASE[industry] || INDUSTRY_IPER_BASE['General'];
-      const nodesRef = collection(db, 'nodes');
-
       for (const baseNode of nodesToSeed) {
-        await addDoc(nodesRef, {
+        const now = new Date().toISOString();
+        await createGraphNode({
           type: NodeType.RISK,
           title: baseNode.title,
           description: `Peligro: ${baseNode.description}\nRiesgo: ${baseNode.riesgo}\nConsecuencia: ${baseNode.consecuencia}`,
           tags: baseNode.tags,
-          projectId: projectId,
+          projectId,
+          connections: [],
           metadata: {
             actividad: baseNode.actividad,
             probabilidad: baseNode.probabilidad,
@@ -79,9 +80,9 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
             riesgoPuro: baseNode.probabilidad * baseNode.severidad,
             controles: baseNode.controles
           },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
+          createdAt: now,
+          updatedAt: now,
+        }, projectId);
       }
       logger.info('Project IPER nodes seeded successfully.');
     }
