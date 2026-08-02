@@ -1611,3 +1611,24 @@ Behavioral contracts:
      stale instance retries — the signed-artifact query detects legacy nodes,
      while the stable create-only document prevents overwrite or duplication
      even if both instances reach persistence.
+
+## Apple App Store signed-data trust boundary (P0, added 2026-08-02)
+
+App Store Server Notifications v2 and signed transaction responses are accepted
+only after Apple's official `SignedDataVerifier` validates the full `x5c` chain
+against pinned Apple PKI roots. Production additionally binds the JWS to the
+configured `APPLE_BUNDLE_ID`, `APPLE_IAP_ENVIRONMENT`, and numeric
+`APPLE_APP_ID`. Any nested `signedTransactionInfo` or `signedRenewalInfo` is
+verified independently before entitlement logic reads it. Rejection happens
+before idempotency locks, entitlement writes, or accepted-attempt audit rows.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+183. **Self-Signed App Store Notification**: an attacker signs a syntactically
+     valid outer JWS and supplies their own certificate in `x5c[0]` — rejected
+     because the chain does not terminate at a pinned Apple root.
+184. **Cross-App Apple Replay**: a valid Apple-signed Sandbox/Production JWS for
+     another bundle, environment, or production app ID — rejected by app binding.
+185. **Nested Transaction Substitution**: a valid outer notification embeds a
+     tampered or attacker-signed transaction/renewal JWS — the entire notification
+     is rejected before any subscription persistence.

@@ -12,53 +12,18 @@
 // RTDN's `processed_pubsub` pattern; we use `processed_apple_ssn` keyed
 // by Apple's per-notification UUID).
 //
-// CONTRACT — what this module promises and what it explicitly defers:
-//
-//   1. Promise: every notification we accept (returns ok=true) has had
-//      its outermost JWS verified against the leaf cert in the JWS
-//      header's x5c chain (Apple's signing leaf).
-//   2. Defer: full Apple Root CA (G3) chain verification is a follow-up.
-//      The leaf-only check still rejects forged JWTs that don't carry a
-//      valid Apple-issued cert, but it does NOT prove the cert chains to
-//      Apple's root. We audit `verified_chain: false` in
-//      `apple_ssn_attempts` for every notification so ops can spot any
-//      cert-rotation event during the follow-up window.
-//
-// Why ship the intermediate version? The full chain verifier is ~80 LOC
-// of node:crypto X.509 validation (Apple Root G3 PEM bundled, x5c[1] →
-// x5c[2] → root, expiry + signature for each link). Decoupling lets us
-// close the entitlement gap NOW and harden chain verification in the
-// next bucket — same shape as the MercadoPago IPN landing (raw HMAC
-// first, manifest format later).
-//
-// FOLLOW-UP TICKET — full Apple Root chain verification:
-//   • Bundle Apple Root CA G3 (https://www.apple.com/appleca/AppleIncRootCertificate.cer
-//     → re-encode as PEM) in `src/services/billing/appleRootG3.pem` OR
-//     load via env `APPLE_ROOT_CA_PEM`.
-//   • Replace `verifyJwsLeafOnly` with `verifyJwsFullChain` that:
-//       (a) parses each base64-DER cert in x5c[],
-//       (b) for i=0..n-2 verifies x5c[i] is signed by x5c[i+1]'s public key,
-//       (c) confirms x5c[n-1] is signed by Apple Root G3,
-//       (d) checks notBefore/notAfter on each.
-//   • Replace `verified_chain: false` with `verified_chain: true` in the
-//     audit row.
-//   • Add a unit test fixture with a multi-cert chain rooted in a test
-//     CA so the chain-walk is exercised in CI.
+// Authentication contract: every accepted notification has its outer JWS,
+// certificate chain, app identity, environment, and nested transaction /
+// renewal JWS values verified by Apple's official SignedDataVerifier. The
+// trust roots are pinned server-side; no certificate supplied by the request
+// can become a trust anchor.
 //
 // Apple SSN v2 reference (canonical):
 //   https://developer.apple.com/documentation/appstoreservernotifications/responsebodyv2
 
-import crypto from 'crypto';
-import {
-  importX509,
-  jwtVerify,
-  decodeProtectedHeader,
-  decodeJwt,
-  errors as joseErrors,
-} from 'jose';
-
 import { logger } from '../../utils/logger.js';
 import { cycleFromProductId } from '../pricing/subscriptionPlan.js';
+import { verifyAppleNotification } from './appleSignedDataVerifier.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Apple notification types we care about.
@@ -145,100 +110,15 @@ export interface AppleRenewalInfo {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// JWS verification.
-//
-// Apple sends `{ signedPayload: "<JWS>" }` with a JWS whose protected
-// header carries `x5c: [leaf, intermediate, root]`. The signing
-// algorithm is ES256 (Apple's signing keys are P-256).
-//
-// `verifyJwsLeafOnly` decodes the header, imports the leaf cert as a
-// public key, and `jwtVerify`s the JWS against it. This catches
-// "garbage JWS" and "wrong-leaf attack" but NOT "forged-cert attack" —
-// see contract note above.
+// JWS verification errors keep the public route contract stable while the
+// cryptographic implementation lives in appleSignedDataVerifier.ts.
 // ───────────────────────────────────────────────────────────────────────────
-
-export interface VerifiedJws<T> {
-  payload: T;
-  /** True when the JWS chain was fully verified up to Apple Root G3. We
-   * always set this `false` until the follow-up ships — see file header. */
-  verifiedChain: boolean;
-}
 
 export class AppleSsnVerificationError extends Error {
   constructor(reason: string) {
     super(`Apple SSN verification failed: ${reason}`);
     this.name = 'AppleSsnVerificationError';
   }
-}
-
-/** PEM-encode a base64-DER certificate (the form Apple uses in `x5c`). */
-function derToPem(b64Der: string): string {
-  // Standard 64-char-line wrap. Apple already supplies single-line base64.
-  const lines = b64Der.match(/.{1,64}/g) ?? [b64Der];
-  return `-----BEGIN CERTIFICATE-----\n${lines.join('\n')}\n-----END CERTIFICATE-----\n`;
-}
-
-/** Verify a JWS against the public key of the leaf cert in its x5c header. */
-export async function verifyJwsLeafOnly<T>(jws: string): Promise<VerifiedJws<T>> {
-  let header: ReturnType<typeof decodeProtectedHeader>;
-  try {
-    header = decodeProtectedHeader(jws);
-  } catch (err) {
-    throw new AppleSsnVerificationError(
-      `bad_jws_header: ${err instanceof Error ? err.message : 'unknown'}`,
-    );
-  }
-  const x5c = header.x5c;
-  if (!Array.isArray(x5c) || x5c.length === 0 || typeof x5c[0] !== 'string') {
-    throw new AppleSsnVerificationError('missing_x5c_chain');
-  }
-  const alg = typeof header.alg === 'string' ? header.alg : 'ES256';
-
-  let publicKey: crypto.KeyObject | CryptoKey;
-  try {
-    const pem = derToPem(x5c[0] as string);
-    publicKey = await importX509(pem, alg);
-  } catch (err) {
-    throw new AppleSsnVerificationError(
-      `import_leaf_failed: ${err instanceof Error ? err.message : 'unknown'}`,
-    );
-  }
-
-  try {
-    const { payload } = await jwtVerify(jws, publicKey, { algorithms: [alg] });
-    return { payload: payload as unknown as T, verifiedChain: false };
-  } catch (err) {
-    if (err instanceof joseErrors.JOSEError) {
-      throw new AppleSsnVerificationError(`jose_${err.code}`);
-    }
-    throw new AppleSsnVerificationError(
-      `verify_failed: ${err instanceof Error ? err.message : 'unknown'}`,
-    );
-  }
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Outer envelope decoding — Apple wraps the actionable data in nested
-// JWTs. `signedPayload` carries `data.signedTransactionInfo` and
-// optionally `data.signedRenewalInfo`, each of which is itself a JWS.
-//
-// All inner JWTs are signed by the SAME chain as the outer envelope, so
-// in principle we should verify each. The intermediate-mode shortcut:
-// we verify the outer JWS leaf-only and `decodeJwt` the inner two
-// (signature-skipped). This is acceptable for the audit row — the
-// outer JWS already proves the inner blobs came from Apple — but the
-// follow-up that introduces full-chain verification will switch the
-// inner decodes to `verifyJwsLeafOnly` as well.
-// ───────────────────────────────────────────────────────────────────────────
-
-interface AppleOuterJwtPayload {
-  notificationUUID?: string;
-  notificationType?: string;
-  subtype?: string;
-  data?: {
-    signedTransactionInfo?: string;
-    signedRenewalInfo?: string;
-  };
 }
 
 /**
@@ -251,8 +131,15 @@ export async function verifyAndDecodeAppleSsn(
   if (typeof signedPayload !== 'string' || signedPayload.length === 0) {
     throw new AppleSsnVerificationError('empty_signed_payload');
   }
-  const verified = await verifyJwsLeafOnly<AppleOuterJwtPayload>(signedPayload);
-  const outer = verified.payload;
+  let verified;
+  try {
+    verified = await verifyAppleNotification(signedPayload);
+  } catch (error) {
+    throw new AppleSsnVerificationError(
+      error instanceof Error ? error.message : 'verification_failed',
+    );
+  }
+  const outer = verified.notification;
   if (!outer || typeof outer.notificationUUID !== 'string') {
     throw new AppleSsnVerificationError('missing_notification_uuid');
   }
@@ -260,58 +147,35 @@ export async function verifyAndDecodeAppleSsn(
     throw new AppleSsnVerificationError('missing_notification_type');
   }
 
-  let transactionInfo: AppleTransactionInfo | undefined;
-  if (outer.data?.signedTransactionInfo) {
-    try {
-      const tx = decodeJwt(outer.data.signedTransactionInfo) as Record<string, unknown>;
-      transactionInfo = {
-        appAccountToken: typeof tx.appAccountToken === 'string' ? tx.appAccountToken : undefined,
-        productId: typeof tx.productId === 'string' ? tx.productId : undefined,
-        originalTransactionId:
-          typeof tx.originalTransactionId === 'string' ? tx.originalTransactionId : undefined,
-        transactionId: typeof tx.transactionId === 'string' ? tx.transactionId : undefined,
-        expiresDate: typeof tx.expiresDate === 'number' ? tx.expiresDate : undefined,
-        purchaseDate: typeof tx.purchaseDate === 'number' ? tx.purchaseDate : undefined,
+  const tx = verified.transactionInfo;
+  const transactionInfo: AppleTransactionInfo | undefined = tx
+    ? {
+        appAccountToken: tx.appAccountToken,
+        productId: tx.productId,
+        originalTransactionId: tx.originalTransactionId,
+        transactionId: tx.transactionId,
+        expiresDate: tx.expiresDate,
+        purchaseDate: tx.purchaseDate,
         type: typeof tx.type === 'string' ? tx.type : undefined,
-      };
-    } catch (err) {
-      // Don't fail the whole notification — Apple sometimes ships
-      // malformed inner JWTs during sandbox testing. Log and continue;
-      // the outer verification + UUID idempotency are what matter.
-      logger.warn('apple_ssn_inner_tx_decode_failed', {
-        reason: err instanceof Error ? err.message : 'unknown',
-      });
-    }
-  }
+      }
+    : undefined;
 
-  let renewalInfo: AppleRenewalInfo | undefined;
-  if (outer.data?.signedRenewalInfo) {
-    try {
-      const ri = decodeJwt(outer.data.signedRenewalInfo) as Record<string, unknown>;
-      renewalInfo = {
-        productId: typeof ri.productId === 'string' ? ri.productId : undefined,
-        autoRenewProductId:
-          typeof ri.autoRenewProductId === 'string' ? ri.autoRenewProductId : undefined,
+  const ri = verified.renewalInfo;
+  const renewalInfo: AppleRenewalInfo | undefined = ri
+    ? {
+        productId: ri.productId,
+        autoRenewProductId: ri.autoRenewProductId,
         autoRenewStatus:
           typeof ri.autoRenewStatus === 'number' ? ri.autoRenewStatus : undefined,
-        originalTransactionId:
-          typeof ri.originalTransactionId === 'string' ? ri.originalTransactionId : undefined,
+        originalTransactionId: ri.originalTransactionId,
         expirationIntent:
           typeof ri.expirationIntent === 'number' ? ri.expirationIntent : undefined,
-        gracePeriodExpiresDate:
-          typeof ri.gracePeriodExpiresDate === 'number'
-            ? ri.gracePeriodExpiresDate
-            : undefined,
-      };
-    } catch (err) {
-      logger.warn('apple_ssn_inner_renewal_decode_failed', {
-        reason: err instanceof Error ? err.message : 'unknown',
-      });
-    }
-  }
+        gracePeriodExpiresDate: ri.gracePeriodExpiresDate,
+      }
+    : undefined;
 
   return {
-    verifiedChain: verified.verifiedChain,
+    verifiedChain: true,
     payload: {
       notificationUUID: outer.notificationUUID,
       notificationType: outer.notificationType,

@@ -63,9 +63,8 @@
 
 | # | Qué necesito | Notas |
 |---|---|---|
-| **E1** | Apple Root CA G3 PEM (full-chain) | Descarga oficial de Apple — para verificar Apple SSN |
-| **E2** | Traducciones humanas profesionales | fr/de/it/ja/zh-CN/ar/ko/hi/ru (hoy shells ~1-2%). es-CL/en/pt-BR ya están |
-| **E3** | Acuerdos con mutualidades (ACHS/IST/Mutual) | Proceso comercial — opcional para Day-1 |
+| **E1** | Traducciones humanas profesionales | fr/de/it/ja/zh-CN/ar/ko/hi/ru (hoy shells ~1-2%). es-CL/en/pt-BR ya están |
+| **E2** | Acuerdos con mutualidades (ACHS/IST/Mutual) | Proceso comercial — opcional para Day-1 |
 
 ---
 

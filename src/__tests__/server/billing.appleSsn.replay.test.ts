@@ -22,15 +22,37 @@
 // avoid duplicating the (verbose) ASN.1 cert-builder. Importing from the
 // sibling test file is intentionally avoided — vitest treats it as a test
 // file and would re-run those describes here. We instead depend on the
-// service module's own cert-tolerant verifyJwsLeafOnly path, building a
-// fresh self-signed P-256 keypair per-suite.
+// service module's test-only verifier seam, building a fresh self-signed
+// P-256 keypair per-suite. The seam decodes without enforcing chain trust
+// because the fixture is not Apple-issued; production uses SignedDataVerifier.
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import { generateKeyPairSync, createSign, randomBytes } from 'node:crypto';
-import { SignJWT, importPKCS8 } from 'jose';
+import { SignJWT, decodeJwt, importPKCS8 } from 'jose';
+import type {
+  JWSRenewalInfoDecodedPayload,
+  JWSTransactionDecodedPayload,
+  ResponseBodyV2DecodedPayload,
+} from '@apple/app-store-server-library';
 
 import { buildTestServer, type TestServerHandle, InMemoryFirestore } from './test-server.js';
+import {
+  __setAppleSignedDataVerifierForTests,
+  type AppleSignedDataVerifierLike,
+} from '../../services/billing/appleSignedDataVerifier.js';
+
+const decodingBusinessVerifier: AppleSignedDataVerifierLike = {
+  async verifyAndDecodeNotification(jws) {
+    return decodeJwt(jws) as ResponseBodyV2DecodedPayload;
+  },
+  async verifyAndDecodeTransaction(jws) {
+    return decodeJwt(jws) as JWSTransactionDecodedPayload;
+  },
+  async verifyAndDecodeRenewalInfo(jws) {
+    return decodeJwt(jws) as JWSRenewalInfoDecodedPayload;
+  },
+};
 
 // ───────────────────────────────────────────────────────────────────────────
 // Fixture: minimal self-signed P-256 cert + signing helpers. Mirrors
@@ -156,6 +178,7 @@ beforeAll(() => {
 
 describe('Apple SSN replay defense — POST /api/billing/webhook/apple', () => {
   beforeEach(() => {
+    __setAppleSignedDataVerifierForTests(decodingBusinessVerifier);
     fs = new InMemoryFirestore();
     handle = buildTestServer({ firestore: fs });
   });
@@ -231,6 +254,9 @@ describe('Apple SSN replay defense — POST /api/billing/webhook/apple', () => {
   });
 
   it('case 3: tampered signature → 401 invalid_signature, no Firestore mutations', async () => {
+    __setAppleSignedDataVerifierForTests(null);
+    process.env.APPLE_BUNDLE_ID = 'com.praeventio.guard';
+    process.env.APPLE_IAP_ENVIRONMENT = 'Sandbox';
     fs.store.set('users/uid-replay-3', {
       subscription: { appleAppAccountToken: 'aat-3' },
     });
@@ -256,6 +282,9 @@ describe('Apple SSN replay defense — POST /api/billing/webhook/apple', () => {
   });
 
   it('case 4: forged JWS without x5c header → 401, no writes', async () => {
+    __setAppleSignedDataVerifierForTests(null);
+    process.env.APPLE_BUNDLE_ID = 'com.praeventio.guard';
+    process.env.APPLE_IAP_ENVIRONMENT = 'Sandbox';
     const key = await importPKCS8(sigMat.privateKeyPem, 'ES256');
     // Build a JWT WITHOUT the x5c header — verifier should reject before
     // any state mutation. This mirrors an attacker who tries to ship a

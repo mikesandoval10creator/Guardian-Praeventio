@@ -41,10 +41,9 @@ import { sentryCapture } from './shared.js';
 //   • ALWAYS ACK 200 except when the JWS itself fails verification
 //     (401) — Apple retries on 5xx for ~24h; we suppress retries for
 //     anything we've already accepted by writing the lock doc,
-//   • writes `apple_ssn_attempts/{auto}` for every accepted
-//     notification with `verified_chain: false` (intermediate mode —
-//     see the file header in services/billing/appleSsn.ts for the
-//     follow-up to ship full Apple Root G3 chain verification).
+//   • writes `apple_ssn_attempts/{auto}` for every accepted notification
+//     with `verified_chain: true`; outer and nested JWS values are verified
+//     against pinned official Apple roots and the configured app/environment.
 //
 // Why no shared-secret token like the RTDN handler? Apple SSN v2 is
 // authenticated via the JWS signature alone — Apple's docs explicitly

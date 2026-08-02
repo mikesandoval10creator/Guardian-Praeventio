@@ -17,10 +17,8 @@
 //     env. Tokens live ≤15 min (we re-sign per request — they're cheap).
 //   • Audience MUST be `appstoreconnect-v1`.
 //
-// JWS verification of the response is delegated to the existing
-// `verifyJwsLeafOnly` helper in `./appleSsn.ts` — same Apple WWDR
-// signing chain as SSN v2, so any future full-chain upgrade lands
-// in both call sites at once.
+// JWS verification of the response is delegated to Apple's official
+// SignedDataVerifier through the shared trusted-root boundary used by SSN v2.
 //
 // Sandbox routing: Apple's "try-prod, fall-back-to-sandbox on 21007"
 // trick is for the legacy endpoint. For the Server API we get a 404
@@ -38,9 +36,9 @@ import path from 'node:path';
 import { SignJWT, importPKCS8 } from 'jose';
 
 import {
-  verifyJwsLeafOnly,
-  AppleSsnVerificationError,
-} from './appleSsn.js';
+  AppleSignedDataVerificationError,
+  verifyAppleTransaction,
+} from './appleSignedDataVerifier.js';
 import { logger } from '../../utils/logger.js';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -131,6 +129,9 @@ export interface AppleTestSeam {
 let injectedSeam: AppleTestSeam | null = null;
 
 export function __setAppleSeamForTests(seam: AppleTestSeam | null): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('Apple transaction validator seam injection is test-only');
+  }
   injectedSeam = seam;
 }
 
@@ -298,13 +299,15 @@ export async function validateAppleTransaction(
 
   let payload: AppleTransactionPayload;
   try {
-    const verifyJws = injectedSeam?.verifyJws ?? verifyJwsLeafOnly;
-    const verified = await verifyJws<AppleTransactionPayload>(
-      signedTransactionInfo,
-    );
-    payload = verified.payload;
+    if (injectedSeam?.verifyJws) {
+      payload = (
+        await injectedSeam.verifyJws<AppleTransactionPayload>(signedTransactionInfo)
+      ).payload;
+    } else {
+      payload = await verifyAppleTransaction(signedTransactionInfo, environment);
+    }
   } catch (err) {
-    if (err instanceof AppleSsnVerificationError) {
+    if (err instanceof AppleSignedDataVerificationError) {
       return {
         ok: false,
         reason: 'jws_invalid',

@@ -108,6 +108,17 @@ for that proof.
 - `APPLE_KEY_ID` — 10-char Key ID alongside the `.p8`. Required.
 - `APPLE_ISSUER_ID` — UUID Issuer ID from App Store Connect (NOT the
   Team ID — common confusion). Required.
+- `APPLE_IAP_ENVIRONMENT` — exactly `Production` or `Sandbox`; the signed
+  notification/API payload must match. Required.
+- `APPLE_APP_ID` — numeric App Store Connect app ID. Required in `Production`.
+- `APPLE_SSN_ONLINE_CHECKS` — enables Apple certificate OCSP checks; defaults
+  to `true` (fail closed). Set `false` only for controlled connectivity
+  diagnosis, never as a permanent production workaround.
+
+The official Apple root certificates are bundled from
+<https://www.apple.com/certificateauthority/>. `SignedDataVerifier` validates
+the full `x5c` chain, certificate dates/OCSP, bundle ID, environment, production
+app ID, outer notification JWS, and nested transaction/renewal JWS values.
 
 The `.p8` file is read on every validate call (~milliseconds), so
 rotation is just an atomic file replace; no service restart needed.
@@ -163,14 +174,15 @@ uses the same `processed_pubsub` lock pattern as the Webpay return.
 - [ ] `ANDROID_PACKAGE_NAME` env set and matches the Play listing.
 - [ ] `GOOGLE_APPLICATION_CREDENTIALS` set (or Workload Identity in Cloud
   Run) with `Manage orders and subscriptions` access on the SA.
-- [ ] `APPLE_BUNDLE_ID`, `APPLE_API_KEY_PATH`, `APPLE_KEY_ID`,
-  `APPLE_ISSUER_ID` env set; `.p8` file mounted via Secret Manager.
+- [ ] `APPLE_BUNDLE_ID`, `APPLE_IAP_ENVIRONMENT`, production `APPLE_APP_ID`,
+  `APPLE_API_KEY_PATH`, `APPLE_KEY_ID`, `APPLE_ISSUER_ID` env set; `.p8` file
+  mounted via Secret Manager.
 - [ ] RTDN Pub/Sub topic configured + push subscription wired to
   `POST /api/billing/webhook` with shared-secret header.
 - [ ] App Store Connect → App Information → App Store Server Notifications
   v2 URL points at `POST /api/billing/webhook/apple` — JWS verification
-  is already implemented (`appleSsn.ts`, leaf-only; full Apple Root G3
-  chain is a documented follow-up).
+  is implemented through Apple's `SignedDataVerifier`, pinned official roots,
+  app/environment binding, and nested-JWS verification.
 - [ ] "Restore Purchases" button visible somewhere in the app UI (App
   Store Review Guideline 3.1.1).
 - [ ] Receipt logs (`iap_receipt_attempts`) reviewed in dashboard for
@@ -183,7 +195,8 @@ uses the same `processed_pubsub` lock pattern as the Webpay return.
 - `src/services/billing/iapAdapter.test.ts` — unit tests
 - `src/services/billing/googlePlayValidator.ts` + `.test.ts` — Sprint 39 synchronous Play validator
 - `src/services/billing/appleTransactionValidator.ts` + `.test.ts` — Sprint 39 synchronous Apple validator
-- `src/services/billing/appleSsn.ts` — Apple SSN v2 webhook verifier (shared JWS helper)
+- `src/services/billing/appleSignedDataVerifier.ts` — trusted Apple roots and official JWS verifier
+- `src/services/billing/appleSsn.ts` — Apple SSN v2 entitlement mapping/idempotency
 - `src/pages/Pricing.tsx` — call site
 - `src/server/routes/billing.ts` — `/api/billing/{google-play,app-store}/validate-receipt`
 - `src/services/billing/webpayAdapter.ts` / `mercadoPagoAdapter.ts` / `khipuAdapter.ts` — web rails
