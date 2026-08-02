@@ -3,7 +3,7 @@
 ## Data Invariants
 1. **User Role Integrity**: A user cannot assign themselves the 'admin' or 'supervisor' role. This must be handled by an existing admin or backend.
 2. **Project Isolation**: Users can only read/write data in projects where they are members.
-3. **Node Ownership**: Only the creator or an admin/supervisor can modify a knowledge node (except for connecting nodes).
+3. **Node Server Authority**: Clients cannot mutate knowledge nodes directly. Authenticated, project-scoped server routes create, migrate and connect nodes and stamp the actor/audit trail.
 4. **Immutable Audit Trail**: Audit logs cannot be updated or deleted.
 5. **PII Protection**: User profile data (like email) is restricted to the owner and admins.
 6. **Temporal Integrity**: All `createdAt` and `updatedAt` fields must match `request.time`.
@@ -1511,3 +1511,43 @@ files. Now fail-closed. Rejected payloads:
   record IDs are sent in request bodies, never analytics or log URLs.
 - Session activation, claim, confirmation, revocation and professional status
   changes reconstruct state from fresh transaction snapshots.
+
+## Knowledge graph `/nodes` — tenant reads + audited server mutations (P0, added 2026-08-02)
+
+The canonical knowledge graph remains a root collection for cross-feature lookup,
+but every private read is derived from the node's `projectId` through
+`isProjectMemberTenantScoped`. A global role or stale `metadata.authorId` grants
+no cross-tenant access. Public non-RUT nodes retain single-document anonymous
+GET for QR links; anonymous LIST remains denied and `metadata.workerRut` always
+disables the public branch.
+
+All client create/update/delete operations are denied. Universal Knowledge,
+offline-derived nodes, project/IPER seeds and SafetyFeed mutations enqueue stable
+operations that drain through authenticated server routes. The server verifies
+project membership, derives migration data from stored nodes, creates reciprocal
+connections transactionally, stamps actor/timestamps and writes `audit_logs`.
+
+Rules tests: `src/rules-tests/nodesTenantIsolation.rules.test.ts` and
+`src/rules-tests/nodesWorkerRut.rules.test.ts`. Router behavior:
+`src/__tests__/server/zettelkasten.graphMutations.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+167. **Cross-Tenant Node Read**: a verified user or global admin from tenant B
+     reads a private ordinary node owned by a project in tenant A — denied.
+168. **Expelled-Author Read**: a former project member relies on stale
+     `metadata.authorId` to read the private node after removal — denied.
+169. **Unaudited Node Create**: any client `setDoc('/nodes/x', ...)`, including
+     an in-project author with an otherwise valid schema — denied; use the server.
+170. **Unaudited Edge Injection**: a client updates `connections` directly to
+     create a one-sided or cross-project edge — denied; the server transaction
+     validates both endpoints and updates both sides.
+171. **Client Migration Forgery**: a client rewrites a legacy node or supplies
+     invented migrated content — denied; the server reads and migrates stored data.
+172. **Cross-Project Server Mutation**: a caller submits another project's
+     `projectId`, node ID or connection endpoint to the graph API — membership and
+     stored-node project checks reject it before mutation.
+173. **Queued Endpoint Substitution**: an offline record points at an arbitrary
+     URL instead of the graph endpoint allowlist — the client drain rejects it.
+174. **Public Graph Enumeration**: an anonymous caller lists `/nodes` to crawl
+     public knowledge — denied; only a single known non-RUT public node ID is GET-able.

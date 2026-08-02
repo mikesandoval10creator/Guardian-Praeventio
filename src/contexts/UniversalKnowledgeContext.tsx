@@ -1,17 +1,20 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { RiskNode, EnvironmentContext } from '../types';
 import { db, collection, onSnapshot, query, orderBy, where, handleFirestoreError, OperationType } from '../services/firebase';
-import { addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirebase } from './FirebaseContext';
 import { useProject } from './ProjectContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
+import {
+  connectGraphNodes,
+  createGraphNode,
+  migrateGraphNodes,
+} from '../services/zettelkasten/graphMutations';
 
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
 import {
   applyMigrations,
   needsUpgrade,
-  CURRENT_RISK_NODE_VERSION,
 } from '../services/migration/registry';
 
 export interface KnowledgeGraph {
@@ -141,21 +144,15 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       // Fire-and-forget background persist of upgraded shapes.
       if (upgradesPending.length > 0) {
         const persist = () => {
-          upgradesPending.forEach(({ id, node }) => {
-            // Only write the fields that migrations may have touched, plus
-            // the schemaVersion stamp. We deliberately avoid clobbering
-            // server-managed timestamps.
-            const patch: Record<string, any> = {
-              schemaVersion: CURRENT_RISK_NODE_VERSION,
-              tags: node.tags,
-              connections: node.connections,
-              metadata: node.metadata,
-              updatedAt: serverTimestamp(),
-            };
-            updateDoc(doc(db, 'nodes', id), patch).catch((err) => {
-              // Non-fatal: a permission error here just means we'll retry
-              // next read. Don't surface to the user.
-              logger.warn('Lazy schema upgrade persist failed', { nodeId: id, error: String(err) });
+          // Send only ids. The server re-reads authoritative documents,
+          // verifies membership and computes the pure migrations itself.
+          void migrateGraphNodes(
+            upgradesPending.map(({ id }) => id),
+            selectedProject.id,
+          ).catch((err) => {
+            logger.warn('Lazy schema upgrade queue failed', {
+              nodeIds: upgradesPending.map(({ id }) => id),
+              error: String(err),
             });
           });
         };
@@ -221,25 +218,40 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   }, [nodes]);
 
   const createNode = useCallback(async (data: Omit<RiskNode, 'id'>): Promise<string> => {
-    const ref = await addDoc(collection(db, 'nodes'), {
+    if (!user) throw new Error('User must be authenticated to create nodes');
+    if (!selectedProject) throw new Error('A project must be selected to create nodes');
+
+    const nodeId = await createGraphNode(data, selectedProject.id);
+    const now = new Date().toISOString();
+    // Preserve Firestore SDK's previous latency-compensated UX while the
+    // server-authoritative operation drains from the offline queue.
+    setNodes((current) => [{
       ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    return ref.id;
-  }, []);
+      id: nodeId,
+      projectId: selectedProject.id,
+      metadata: { ...data.metadata, authorId: user.uid },
+      createdAt: now,
+      updatedAt: now,
+      isPendingSync: true,
+    }, ...current.filter((node) => node.id !== nodeId)]);
+    return nodeId;
+  }, [user, selectedProject]);
 
   const createEdge = useCallback(async (fromId: string, toId: string): Promise<void> => {
-    const fromNode = nodes.find(n => n.id === fromId);
-    const toNode = nodes.find(n => n.id === toId);
-    if (!fromNode || !toNode) return;
-    const fromConns = Array.from(new Set([...fromNode.connections, toId]));
-    const toConns = Array.from(new Set([...toNode.connections, fromId]));
-    await Promise.all([
-      updateDoc(doc(db, 'nodes', fromId), { connections: fromConns, updatedAt: serverTimestamp() }),
-      updateDoc(doc(db, 'nodes', toId), { connections: toConns, updatedAt: serverTimestamp() }),
-    ]);
-  }, [nodes]);
+    if (!selectedProject) throw new Error('A project must be selected to connect nodes');
+    if (fromId === toId) throw new Error('A node cannot connect to itself');
+
+    await connectGraphNodes(fromId, toId, selectedProject.id);
+    setNodes((current) => current.map((node) => {
+      if (node.id === fromId) {
+        return { ...node, connections: Array.from(new Set([...node.connections, toId])), isPendingSync: true };
+      }
+      if (node.id === toId) {
+        return { ...node, connections: Array.from(new Set([...node.connections, fromId])), isPendingSync: true };
+      }
+      return node;
+    }));
+  }, [selectedProject]);
 
   const stats = useMemo(() => {
     const nodesByType: Record<string, number> = {};

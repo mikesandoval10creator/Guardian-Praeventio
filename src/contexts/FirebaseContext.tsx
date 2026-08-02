@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, testConnection } from '../services/firebase';
-import { risks } from '../data/risks';
-import { NodeType } from '../types';
+import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, testConnection } from '../services/firebase';
 import { logger } from '../utils/logger';
 import { isE2EMode, getE2EUser } from '../lib/e2eAuth';
 
@@ -147,26 +145,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             setUserIndustry(userData.industry || 'General');
             setOnboarded(userData.onboarded === true);
           }
-
-          // Seed initial nodes if collection is empty
-          const nodesSnapshot = await getDocs(collection(db, 'nodes'));
-          if (nodesSnapshot.empty) {
-            logger.debug('Seeding initial nodes...');
-            for (const risk of risks) {
-              const now = new Date().toISOString();
-              await setDoc(doc(db, 'nodes', risk.id), {
-                id: risk.id,
-                type: NodeType.RISK,
-                title: risk.title,
-                description: risk.description,
-                tags: [risk.category, 'Seed'],
-                metadata: { color: risk.color, icon: risk.icon },
-                connections: [],
-                createdAt: now,
-                updatedAt: now,
-              });
-            }
-          }
+          // Node seeds are project-scoped and queued by ProjectContext through
+          // seedProjectNodes(). The old global login seed had no projectId or
+          // authorId, could never pass rules, and is now consolidated there.
         } catch (error) {
           logger.error("Error during auth state change handling:", error);
           // Fallback to safe defaults if Firestore fails

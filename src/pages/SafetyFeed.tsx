@@ -29,7 +29,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { apiAuthHeaders } from '../lib/apiAuth';
-import { SafetyPost, SafetySolution, NodeType } from '../types';
+import { SafetyPost, SafetySolution, NodeType, type RiskNode } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { SkeletonCard } from '../components/shared/Skeleton';
@@ -41,7 +41,7 @@ export function SafetyFeed() {
   const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const { addNode } = useRiskEngine();
+  const { addNode, updateNode } = useRiskEngine();
   const [isPosting, setIsPosting] = useState(false);
   const { toasts, show: showToast, dismiss } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -83,7 +83,7 @@ export function SafetyFeed() {
       // 1. Analyze post with Gemini to see if it belongs to the Risk Network
       const analysis = await analyzeFeedPostForRiskNetwork(newPost.content, newPost.imageBase64, user.displayName || 'Usuario');
       
-      let riskNodeId: string | null = null;
+      let riskNode: RiskNode | null = null;
 
       if (analysis.isRelevant) {
         // 2. Create Risk Node
@@ -92,7 +92,7 @@ export function SafetyFeed() {
         // classifies. Default `criticidad` to 'Baja' until the prevencionista
         // runs P×S; Ley 16.744 / DS 44/2024 require the legal classification to
         // come from the deterministic matrix, not from Gemini.
-        const node = await addNode({
+        riskNode = await addNode({
           type: analysis.type === 'INCIDENT' ? NodeType.INCIDENT : NodeType.RISK,
           title: analysis.title,
           description: analysis.description,
@@ -105,7 +105,6 @@ export function SafetyFeed() {
             author: user.displayName
           }
         });
-        riskNodeId = node?.id ?? null;
       }
 
       let imageUrl: string | null = null;
@@ -146,11 +145,12 @@ export function SafetyFeed() {
       const { postId } = await postRes.json();
       const postRef = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
 
-      if (riskNodeId) {
-        // Update the Risk node to link back to the post
-        const nodeRef = doc(db, 'nodes', riskNodeId);
-        await updateDoc(nodeRef, {
-          'metadata.sourceId': postRef.id
+      if (riskNode) {
+        // Coalesce the source link into useRiskEngine's durable node queue.
+        // This preserves offline behavior and flushes through the authenticated,
+        // audited server batch instead of writing `nodes` from the browser.
+        await updateNode(riskNode.id, {
+          metadata: { ...riskNode.metadata, sourceId: postRef.id },
         });
       }
       setNewPost({ content: '', type: 'SafetyMoment', imageBase64: null });

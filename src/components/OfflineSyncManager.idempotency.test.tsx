@@ -16,6 +16,7 @@ import { render } from '@testing-library/react';
 import type { SyncOperation } from '../services/sync/syncStateMachine';
 
 const setDocCalls: Array<{ path: string; data: Record<string, unknown> }> = [];
+const graphNodeCalls: Array<{ projectId: string; nodeId: string }> = [];
 
 /** Captures the executor the component registers on the state machine. */
 let registeredExecutor: ((op: SyncOperation) => Promise<void>) | null = null;
@@ -59,6 +60,16 @@ vi.mock('../services/sync/syncStateMachine', () => ({
   },
 }));
 
+vi.mock('../services/zettelkasten/graphMutations', () => ({
+  ZETTELKASTEN_GRAPH_SYNC_COLLECTION: 'zettelkasten_graph_mutations',
+  executeGraphSyncOperation: vi.fn(async () => undefined),
+  enqueueGraphNode: vi.fn(
+    async (_node: Record<string, unknown>, projectId: string, nodeId: string) => {
+      graphNodeCalls.push({ projectId, nodeId });
+    },
+  ),
+}));
+
 vi.mock('../services/sync/conflictResolver', () => ({
   detectConflicts: vi.fn(() => []),
   partitionFields: vi.fn(() => ({ auto: [], manual: [] })),
@@ -95,6 +106,7 @@ const stateMachineOp = (data: Record<string, unknown>): SyncOperation =>
 describe('OfflineSyncManager — one operation, one document', () => {
   beforeEach(() => {
     setDocCalls.length = 0;
+    graphNodeCalls.length = 0;
     pendingActions.length = 0;
     registeredExecutor = null;
   });
@@ -156,7 +168,19 @@ describe('OfflineSyncManager — one operation, one document', () => {
       id: 1,
       type: 'create',
       collection: 'incidents',
-      data: { ...payload, createNode: true, nodeData: { kind: 'hazard' } },
+      data: {
+        ...payload,
+        createNode: true,
+        nodeData: {
+          projectId: 'project-1',
+          type: 'RISK',
+          title: 'Casco faltante',
+          description: 'Trabajador sin casco',
+          tags: ['EPP'],
+          metadata: { kind: 'hazard' },
+          connections: [],
+        },
+      },
     };
     pendingActions.push(action);
 
@@ -167,9 +191,9 @@ describe('OfflineSyncManager — one operation, one document', () => {
     render(<OfflineSyncManager />);
     await flush();
 
-    const nodeWrites = setDocCalls.filter((c) => c.path.startsWith('nodes/'));
-    expect(nodeWrites.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(nodeWrites.map((c) => c.path)).size).toBe(1);
+    expect(graphNodeCalls.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(graphNodeCalls.map((c) => c.nodeId)).size).toBe(1);
+    expect(new Set(graphNodeCalls.map((c) => c.projectId))).toEqual(new Set(['project-1']));
   });
 
   it('keeps two distinct reports as two documents', async () => {
