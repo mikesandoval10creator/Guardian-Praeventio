@@ -1573,9 +1573,12 @@ Cloud Run instance affinity is not part of the security model.
 Challenge single-use is not treated as order single-sign: two independently
 issued valid challenges may race. After assertion verification, `sign-order`
 claims the existing suggested node through a Firestore transaction with an
-expiring lease. Exactly one instance may persist the legal signed node; success
-replaces the lease with the authoritative `signedNodeId`, while a failed write
-releases it for a fresh challenge.
+expiring lease. The legal artifact itself then uses a stable business key per
+project/order and Firestore `Transaction.create()`: its source-of-truth node and
+audit row commit atomically, and a competing signer receives `created:false`
+without overwriting the winner. The claim also checks pre-existing signed
+artifacts, covering legacy IDs and crashes before the suggested-node marker.
+Success replaces the lease with `signedNodeId`; a failed write releases it.
 
 Behavioral contracts:
 `src/__tests__/server/eppFlow.test.ts`,
@@ -1601,5 +1604,10 @@ Behavioral contracts:
      authority is stamped instead.
 181. **Parallel Double Signature**: two valid assertions from distinct
      challenges target the same pending order concurrently — the transactional
-     claim on the suggested node permits one persistence and rejects the other
-     with HTTP 409, including across Cloud Run instances.
+     claim plus immutable create-once artifact permit one persistence and reject
+     the other with HTTP 409, including across Cloud Run instances.
+182. **Crash Between Signature and Marker**: an instance persists the legal node
+     and dies before stamping the suggested-node marker; after lease expiry a
+     stale instance retries — the signed-artifact query detects legacy nodes,
+     while the stable create-only document prevents overwrite or duplication
+     even if both instances reach persistence.

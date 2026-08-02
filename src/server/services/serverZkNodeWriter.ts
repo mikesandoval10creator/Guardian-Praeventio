@@ -21,6 +21,7 @@
 // (a flow that runs once on-device and once server-side won't duplicate).
 
 import admin from 'firebase-admin';
+import { createHash } from 'node:crypto';
 import {
   materializeNode,
   canonicalNodePath,
@@ -41,6 +42,102 @@ export interface ZkWriteActor {
   createdByEmail?: string | null;
 }
 
+export interface CreateNodeOnceResult {
+  ok: boolean;
+  id: string;
+  created: boolean;
+}
+
+/**
+ * Create a legal/auditable node at most once for a stable business key.
+ * The legacy source-of-truth document and its audit row are committed in the
+ * same transaction, so a competing payload cannot overwrite the winner.
+ */
+export async function serverCreateNodeOnce(
+  node: RiskNodePayload,
+  ctx: WriteContext,
+  actor: ZkWriteActor,
+  stableKey: string,
+): Promise<CreateNodeOnceResult> {
+  const db = admin.firestore();
+  const { projectId } = ctx;
+  const id = createHash('sha256')
+    .update(`zettelkasten-node-once|${projectId}|${stableKey}`, 'utf8')
+    .digest('hex')
+    .slice(0, 16);
+  const ref = db.collection('zettelkasten_nodes').doc(id);
+  const auditRef = db.collection('audit_logs').doc();
+
+  const created = await db.runTransaction(async (tx) => {
+    const existing = await tx.get(ref);
+    if (existing.exists) return false;
+    tx.create(ref, {
+      title: node.title,
+      description: node.description,
+      type: node.type,
+      severity: node.severity,
+      metadata: node.metadata,
+      connections: node.connections,
+      references: node.references,
+      projectId,
+      createdBy: actor.createdBy,
+      createdByEmail: actor.createdByEmail ?? null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      idempotencyKey: id,
+      stableBusinessKey: stableKey,
+    });
+    tx.create(auditRef, {
+      action: 'zettelkasten.node.write',
+      module: 'zettelkasten',
+      details: {
+        nodeId: id,
+        type: node.type,
+        severity: node.severity,
+        source: 'server-flow-create-once',
+        stableBusinessKey: stableKey,
+      },
+      userId: actor.createdBy,
+      userEmail: actor.createdByEmail ?? null,
+      projectId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+
+  if (!created) return { ok: true, id, created: false };
+
+  // The transaction above is authoritative. The canonical graph mirror stays
+  // best-effort, matching serverWriteNodes' existing dual-write policy.
+  try {
+    let tenantId: string | undefined;
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    const projectData = projectSnap.exists
+      ? (projectSnap.data() as { tenantId?: string } | undefined)
+      : undefined;
+    if (typeof projectData?.tenantId === 'string' && projectData.tenantId.length > 0) {
+      tenantId = projectData.tenantId;
+    }
+    const canonical = materializeNode({
+      zkNodeId: id,
+      payload: node,
+      projectId,
+      tenantId,
+      extraTags: ['server-flow-write', 'create-once'],
+    });
+    await db
+      .doc(canonicalNodePath({ tenantId, projectId, zkNodeId: id }))
+      .set(canonical, { merge: true });
+  } catch (err) {
+    logger.warn?.('serverCreateNodeOnce.canonical_dual_write_failed', {
+      nodeId: id,
+      projectId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return { ok: true, id, created: true };
+}
+
 /**
  * Build a `writeNodes`-shaped function bound to the authenticated actor, for
  * injection into a flow's deps (`{ writeNodes, ... }`). Matches the browser
@@ -56,6 +153,16 @@ export function makeServerWriteNodes(
   actor: ZkWriteActor,
 ): (nodes: RiskNodePayload[], ctx: WriteContext) => Promise<WriteResult> {
   return (nodes, ctx) => serverWriteNodes(nodes, ctx, actor);
+}
+
+export function makeServerCreateNodeOnce(
+  actor: ZkWriteActor,
+): (
+  node: RiskNodePayload,
+  ctx: WriteContext,
+  stableKey: string,
+) => Promise<CreateNodeOnceResult> {
+  return (node, ctx, stableKey) => serverCreateNodeOnce(node, ctx, actor, stableKey);
 }
 
 export async function serverWriteNodes(

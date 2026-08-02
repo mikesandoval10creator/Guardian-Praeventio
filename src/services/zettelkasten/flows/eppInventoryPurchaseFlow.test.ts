@@ -3,7 +3,7 @@
 // Cubre la cadena completa (epp-inspection -> ... -> purchase-order-pdf)
 // y los caminos cortos (sin failed items, sin proveedor, etc.).
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   onEppInspectionCompleted,
   createEppInspectionNode,
@@ -88,6 +88,7 @@ function makeDeps(overrides: Partial<EppFlowDeps> = {}): {
   return {
     deps: {
       writeNodes: overrides.writeNodes ?? w.fn,
+      createNodeOnce: overrides.createNodeOnce,
       edgeStore: overrides.edgeStore ?? edgeStore,
       tenantId: overrides.tenantId ?? 'tenant-A',
       createdBy: overrides.createdBy ?? 'worker-1',
@@ -427,6 +428,41 @@ describe('persistSignedNode / persistPdfNode', () => {
     expect(r.edge).not.toBeNull();
     expect(r.edge?.type).toBe<EdgeType>('documented_by');
     expect(edgeStore._all()).toHaveLength(1);
+  });
+
+  it('persistSignedNode uses the immutable business key and does not edge a losing write', async () => {
+    const createNodeOnce = vi.fn().mockResolvedValue({
+      ok: true,
+      id: 'signed-once-id',
+      created: false,
+    });
+    const { deps, edgeStore, writeNodesCalls } = makeDeps({ createNodeOnce });
+
+    const r = await persistSignedNode(
+      {
+        signature: {
+          orderId: 'oc-race',
+          signerUid: 'admin-2',
+          signedAt: '2026-05-20T11:00:01.000Z',
+          challengeId: 'challenge-b',
+        },
+        draftTotalClp: 100000,
+        suggestedNodeId: 'suggested-id',
+      },
+      deps,
+      { projectId: 'proj-1' },
+    );
+
+    expect(createNodeOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ sourceType: 'purchase-order-signed' }),
+      }),
+      { projectId: 'proj-1' },
+      'epp-order-signature:proj-1:oc-race',
+    );
+    expect(r).toMatchObject({ nodeId: 'signed-once-id', created: false, edge: null });
+    expect(writeNodesCalls).toEqual([]);
+    expect(edgeStore._all()).toEqual([]);
   });
 
   it('persistPdfNode writes pdf node + edge generated_by from signed', async () => {

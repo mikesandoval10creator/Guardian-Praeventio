@@ -1042,6 +1042,50 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     expect(H.persistSignedNode).not.toHaveBeenCalled();
   });
 
+  it('rejects stale cached pending state when a signed artifact exists without its marker', async () => {
+    await seedPendingOrder();
+    H.db!._seed('zettelkasten_nodes/signed-by-crashed-instance', {
+      type: 'safety-learning',
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-signed',
+        orderId: ORDER_ID,
+        signerUid: 'other-admin',
+        challengeId: 'challenge-from-crashed-instance',
+      },
+    });
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'order_already_signed' });
+    expect(H.persistSignedNode).not.toHaveBeenCalled();
+  });
+
+  it('returns conflict when the immutable signed artifact was won by another instance', async () => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+    H.persistSignedNode.mockResolvedValueOnce({
+      ...flowMock.signedResult,
+      created: false,
+    });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'order_already_signed' });
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(1);
+  });
+
   it('releases the distributed claim when persistence fails so a new challenge can retry', async () => {
     await seedPendingOrder();
     H.verifyWebAuthnAssertion.mockResolvedValue({ verified: true });

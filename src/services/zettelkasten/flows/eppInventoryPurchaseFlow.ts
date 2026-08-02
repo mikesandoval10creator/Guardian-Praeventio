@@ -132,6 +132,12 @@ export interface EppFlowDeps {
     nodes: RiskNodePayload[],
     ctx: WriteContext,
   ) => Promise<WriteResult>;
+  /** Server-only create-if-absent boundary for legal order signatures. */
+  createNodeOnce?: (
+    node: RiskNodePayload,
+    ctx: WriteContext,
+    stableKey: string,
+  ) => Promise<{ ok: boolean; id: string; created: boolean }>;
   /**
    * Store de edges (DI from edges.ts). En produccion = adapter Firestore.
    * En tests = in-memory map.
@@ -665,12 +671,22 @@ export async function persistSignedNode(
   input: SignOrderInput,
   deps: EppFlowDeps,
   opts: { projectId: string },
-): Promise<{ nodeId: string; edge: ZkEdge | null; ok: boolean }> {
+): Promise<{ nodeId: string; edge: ZkEdge | null; ok: boolean; created: boolean }> {
   const node = createPurchaseOrderSignedNode(input.signature, input.draftTotalClp);
-  const written = await deps.writeNodes([node], { projectId: opts.projectId });
+  const createdOnce = deps.createNodeOnce
+    ? await deps.createNodeOnce(
+        node,
+        { projectId: opts.projectId },
+        `epp-order-signature:${opts.projectId}:${input.signature.orderId}`,
+      )
+    : null;
+  const written = createdOnce
+    ? { ok: createdOnce.ok, ids: [createdOnce.id] }
+    : await deps.writeNodes([node], { projectId: opts.projectId });
   const nodeId = written.ids?.[0] ?? '';
+  const created = createdOnce?.created ?? true;
   let edge: ZkEdge | null = null;
-  if (nodeId && nodeId !== input.suggestedNodeId) {
+  if (created && nodeId && nodeId !== input.suggestedNodeId) {
     const built = buildEdge({
       fromNodeId: input.suggestedNodeId,
       toNodeId: nodeId,
@@ -683,7 +699,7 @@ export async function persistSignedNode(
     await deps.edgeStore.saveEdge(built);
     edge = built;
   }
-  return { nodeId, edge, ok: written.ok };
+  return { nodeId, edge, ok: written.ok, created };
 }
 
 export interface GeneratePdfInput {

@@ -47,7 +47,10 @@ import {
   type EppFlowDeps,
   type FlowRunResult,
 } from '../../services/zettelkasten/flows/eppInventoryPurchaseFlow.js';
-import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
+import {
+  makeServerCreateNodeOnce,
+  makeServerWriteNodes,
+} from '../services/serverZkNodeWriter.js';
 import type { EdgeStore, ZkEdge } from '../../services/zettelkasten/edges.js';
 import {
   suggestPurchaseOrder,
@@ -541,14 +544,31 @@ function readEppSigningClaim(metadata: Record<string, unknown>): EppSigningClaim
 }
 
 async function claimEppOrderForSigning(
+  projectId: string,
+  orderId: string,
   suggestedNodeId: string,
   challengeId: string,
   signerUid: string,
 ): Promise<EppSigningClaimResult> {
   const db = admin.firestore();
   const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
+  const signedQuery = db
+    .collection('zettelkasten_nodes')
+    .where('projectId', '==', projectId)
+    .where('type', '==', 'safety-learning');
   const nowMs = Date.now();
   return db.runTransaction(async (tx) => {
+    const signedSnap = await tx.get(signedQuery);
+    const signedArtifactExists = signedSnap.docs.some((doc) => {
+      const data = doc.data() as {
+        metadata?: { sourceType?: unknown; orderId?: unknown };
+      };
+      return (
+        data.metadata?.sourceType === 'purchase-order-signed' &&
+        data.metadata.orderId === orderId
+      );
+    });
+    if (signedArtifactExists) return 'already_signed';
     const snap = await tx.get(ref);
     if (!snap.exists) return 'missing';
     const data = snap.data() as { metadata?: Record<string, unknown> } | undefined;
@@ -924,6 +944,8 @@ router.post(
       signingOrders.add(key);
       try {
         const claimResult = await claimEppOrderForSigning(
+          projectId,
+          orderId,
           pending.suggestedNodeId,
           assertion.challengeId,
           callerUid,
@@ -944,6 +966,10 @@ router.post(
           // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
           // server writer, stamped with the verified actor.
           writeNodes: makeServerWriteNodes({
+            createdBy: callerUid,
+            createdByEmail: req.user?.email ?? null,
+          }),
+          createNodeOnce: makeServerCreateNodeOnce({
             createdBy: callerUid,
             createdByEmail: req.user?.email ?? null,
           }),
@@ -979,6 +1005,23 @@ router.post(
             captureRouteError(releaseErr, 'eppFlow.signOrder.releaseClaim');
           }
           throw err;
+        }
+
+        if (signed.created === false) {
+          try {
+            await releaseEppSigningClaim(pending.suggestedNodeId, assertion.challengeId);
+          } catch (releaseErr) {
+            logger.error?.('eppFlow.signing_claim_release_failed', releaseErr);
+            captureRouteError(releaseErr, 'eppFlow.signOrder.releaseDuplicateClaim');
+          }
+          await auditEppEventNonBlocking(
+            req,
+            'eppFlow.sign-order-conflict',
+            { projectId, orderId, claimResult: 'artifact_already_created' },
+            projectId,
+            'eppFlow.signOrder.audit-create-conflict',
+          );
+          return res.status(409).json({ error: 'order_already_signed' });
         }
 
         pending.status = 'signed';
