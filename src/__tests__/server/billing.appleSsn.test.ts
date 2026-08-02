@@ -8,21 +8,25 @@
 //   • DID_RENEW renews (status=active, expiryDate updated).
 //   • REFUND revokes (status=revoked).
 //   • Idempotency on notificationUUID — second delivery is a replay.
-//   • Audit row written with verified_chain=false (intermediate mode).
+//   • Audit row written with verified_chain=true after trusted verification.
 //
-// Fixture strategy: we cannot ship a real Apple-signed JWS in CI, so we
-// generate a P-256 keypair + a self-signed X.509 cert at runtime, sign
-// the outer envelope (and inner blobs) with that key, and inject the
-// DER form into the JWS x5c header. The `verifyJwsLeafOnly` path
-// imports the cert from x5c[0] regardless of issuer, so the test
-// fixture chain ("self-signed P-256 leaf, no Apple root") exercises
-// exactly the same code path as production minus the chain walk
-// (which is the deferred follow-up — see appleSsn.ts file header).
+// Fixture strategy: trusted-chain tests use Apple's official library fixtures
+// and SignedDataVerifier itself. Runtime-generated self-signed JWS values prove
+// the former exploit is rejected. Business/idempotency cases use an explicit
+// NODE_ENV=test-only verifier seam and do not stand in for cryptographic proof.
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { generateKeyPairSync, createSign, randomBytes } from 'node:crypto';
-import { SignJWT, importPKCS8 } from 'jose';
+import { SignJWT, decodeJwt, importPKCS8 } from 'jose';
+import {
+  Environment,
+  SignedDataVerifier,
+  type JWSRenewalInfoDecodedPayload,
+  type JWSTransactionDecodedPayload,
+  type ResponseBodyV2DecodedPayload,
+} from '@apple/app-store-server-library';
 
 import { buildTestServer, type TestServerHandle, InMemoryFirestore } from './test-server.js';
 import {
@@ -31,6 +35,48 @@ import {
   actionForNotificationType,
   applyAppleEntitlement,
 } from '../../services/billing/appleSsn.js';
+import {
+  __setAppleSignedDataVerifierForTests,
+  type AppleSignedDataVerifierLike,
+} from '../../services/billing/appleSignedDataVerifier.js';
+
+const FIXTURE_ROOT = new URL('../fixtures/apple-ssn/testCA.der', import.meta.url);
+const FIXTURE_NOTIFICATION = new URL(
+  '../fixtures/apple-ssn/testNotification.jws',
+  import.meta.url,
+);
+const FIXTURE_TRANSACTION = new URL(
+  '../fixtures/apple-ssn/transactionInfo.jws',
+  import.meta.url,
+);
+const FIXTURE_RENEWAL = new URL(
+  '../fixtures/apple-ssn/renewalInfo.jws',
+  import.meta.url,
+);
+const ORIGINAL_APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID;
+const ORIGINAL_APPLE_IAP_ENVIRONMENT = process.env.APPLE_IAP_ENVIRONMENT;
+const ORIGINAL_APPLE_APP_ID = process.env.APPLE_APP_ID;
+
+const decodingBusinessVerifier: AppleSignedDataVerifierLike = {
+  async verifyAndDecodeNotification(jws) {
+    return decodeJwt(jws) as ResponseBodyV2DecodedPayload;
+  },
+  async verifyAndDecodeTransaction(jws) {
+    return decodeJwt(jws) as JWSTransactionDecodedPayload;
+  },
+  async verifyAndDecodeRenewalInfo(jws) {
+    return decodeJwt(jws) as JWSRenewalInfoDecodedPayload;
+  },
+};
+
+function officialFixtureVerifier(bundleId = 'com.example'): SignedDataVerifier {
+  return new SignedDataVerifier(
+    [readFileSync(FIXTURE_ROOT)],
+    false,
+    Environment.SANDBOX,
+    bundleId,
+  );
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Fixture: generate a P-256 keypair + self-signed cert that we can
@@ -246,6 +292,19 @@ beforeAll(() => {
   signingMaterial = generateTestSigningMaterial();
 });
 
+afterEach(() => {
+  __setAppleSignedDataVerifierForTests(null);
+  if (ORIGINAL_APPLE_BUNDLE_ID === undefined) delete process.env.APPLE_BUNDLE_ID;
+  else process.env.APPLE_BUNDLE_ID = ORIGINAL_APPLE_BUNDLE_ID;
+  if (ORIGINAL_APPLE_IAP_ENVIRONMENT === undefined) {
+    delete process.env.APPLE_IAP_ENVIRONMENT;
+  } else {
+    process.env.APPLE_IAP_ENVIRONMENT = ORIGINAL_APPLE_IAP_ENVIRONMENT;
+  }
+  if (ORIGINAL_APPLE_APP_ID === undefined) delete process.env.APPLE_APP_ID;
+  else process.env.APPLE_APP_ID = ORIGINAL_APPLE_APP_ID;
+});
+
 describe('services/billing/appleSsn — pure helpers', () => {
   it('actionForNotificationType maps the documented types', () => {
     expect(actionForNotificationType('SUBSCRIBED')).toBe('grant');
@@ -274,7 +333,25 @@ describe('services/billing/appleSsn — pure helpers', () => {
     );
   });
 
+  it('rejects an attacker-signed JWS whose x5c chain is self-signed', async () => {
+    process.env.APPLE_BUNDLE_ID = 'com.praeventio.guard';
+    process.env.APPLE_IAP_ENVIRONMENT = 'Sandbox';
+    const attackerJws = await signOuter({
+      notificationType: 'SUBSCRIBED',
+      notificationUUID: 'attacker-self-signed',
+      transactionInfo: {
+        appAccountToken: 'attacker-controlled-token',
+        productId: 'praeventio_premium_monthly',
+      },
+    });
+
+    await expect(verifyAndDecodeAppleSsn(attackerJws)).rejects.toBeInstanceOf(
+      AppleSsnVerificationError,
+    );
+  });
+
   it('verifyAndDecodeAppleSsn flattens nested transactionInfo/renewalInfo', async () => {
+    __setAppleSignedDataVerifierForTests(decodingBusinessVerifier);
     const jws = await signOuter({
       notificationType: 'SUBSCRIBED',
       notificationUUID: 'uuid-flatten-1',
@@ -297,8 +374,147 @@ describe('services/billing/appleSsn — pure helpers', () => {
     expect(payload.transactionInfo?.productId).toBe('praeventio_premium_monthly');
     expect(payload.transactionInfo?.appAccountToken).toBe('aat-1');
     expect(payload.renewalInfo?.autoRenewStatus).toBe(1);
-    // Intermediate mode — chain not yet verified end-to-end.
-    expect(verifiedChain).toBe(false);
+    expect(verifiedChain).toBe(true);
+  });
+
+  it('accepts an outer JWS only when it chains to the configured trusted root', async () => {
+    __setAppleSignedDataVerifierForTests(officialFixtureVerifier());
+    const fixture = readFileSync(FIXTURE_NOTIFICATION, 'utf8').trim();
+
+    const verified = await verifyAndDecodeAppleSsn(fixture);
+
+    expect(verified.verifiedChain).toBe(true);
+    expect(verified.payload.notificationUUID).toBe(
+      '9ad56bd2-0bc6-42e0-af24-fd996d87a1e6',
+    );
+  });
+
+  it('rejects a trusted-chain notification for a different bundle id', async () => {
+    __setAppleSignedDataVerifierForTests(
+      officialFixtureVerifier('com.praeventio.guard'),
+    );
+    const fixture = readFileSync(FIXTURE_NOTIFICATION, 'utf8').trim();
+
+    await expect(verifyAndDecodeAppleSsn(fixture)).rejects.toBeInstanceOf(
+      AppleSsnVerificationError,
+    );
+  });
+
+  it('rejects a trusted-chain notification from the wrong App Store environment', async () => {
+    const productionVerifier = new SignedDataVerifier(
+      [readFileSync(FIXTURE_ROOT)],
+      false,
+      Environment.PRODUCTION,
+      'com.example',
+      1234,
+    );
+    __setAppleSignedDataVerifierForTests(productionVerifier);
+    const sandboxFixture = readFileSync(FIXTURE_NOTIFICATION, 'utf8').trim();
+
+    await expect(verifyAndDecodeAppleSsn(sandboxFixture)).rejects.toBeInstanceOf(
+      AppleSsnVerificationError,
+    );
+  });
+
+  it('fails closed when Production is missing APPLE_APP_ID', async () => {
+    __setAppleSignedDataVerifierForTests(null);
+    process.env.APPLE_BUNDLE_ID = 'com.praeventio.guard';
+    process.env.APPLE_IAP_ENVIRONMENT = 'Production';
+    delete process.env.APPLE_APP_ID;
+
+    await expect(verifyAndDecodeAppleSsn('attacker-controlled')).rejects.toThrow(
+      /APPLE_APP_ID/,
+    );
+  });
+
+  it('verifies nested transaction and renewal JWS values before exposing them', async () => {
+    const realVerifier = officialFixtureVerifier();
+    const signedTransactionInfo = readFileSync(FIXTURE_TRANSACTION, 'utf8').trim();
+    const signedRenewalInfo = readFileSync(FIXTURE_RENEWAL, 'utf8').trim();
+    __setAppleSignedDataVerifierForTests({
+      async verifyAndDecodeNotification() {
+        return {
+          notificationUUID: 'nested-fixture',
+          notificationType: 'DID_RENEW',
+          data: {
+            bundleId: 'com.example',
+            environment: Environment.SANDBOX,
+            signedTransactionInfo,
+            signedRenewalInfo,
+          },
+        };
+      },
+      verifyAndDecodeTransaction: (jws) =>
+        realVerifier.verifyAndDecodeTransaction(jws),
+      verifyAndDecodeRenewalInfo: (jws) =>
+        realVerifier.verifyAndDecodeRenewalInfo(jws),
+    });
+
+    const verified = await verifyAndDecodeAppleSsn('verified-outer-fixture');
+
+    expect(verified.verifiedChain).toBe(true);
+    expect(verified.payload.transactionInfo).toBeDefined();
+    expect(verified.payload.renewalInfo).toBeDefined();
+  });
+
+  it('rejects the entire notification when a nested transaction signature is tampered', async () => {
+    const realVerifier = officialFixtureVerifier();
+    const signedTransactionInfo = readFileSync(FIXTURE_TRANSACTION, 'utf8').trim();
+    const parts = signedTransactionInfo.split('.');
+    const signature = Buffer.from(parts[2], 'base64url');
+    signature[0] ^= 0xff;
+    const tamperedTransaction = `${parts[0]}.${parts[1]}.${signature.toString('base64url')}`;
+    __setAppleSignedDataVerifierForTests({
+      async verifyAndDecodeNotification() {
+        return {
+          notificationUUID: 'tampered-inner',
+          notificationType: 'SUBSCRIBED',
+          data: {
+            bundleId: 'com.example',
+            environment: Environment.SANDBOX,
+            signedTransactionInfo: tamperedTransaction,
+          },
+        };
+      },
+      verifyAndDecodeTransaction: (jws) =>
+        realVerifier.verifyAndDecodeTransaction(jws),
+      verifyAndDecodeRenewalInfo: (jws) =>
+        realVerifier.verifyAndDecodeRenewalInfo(jws),
+    });
+
+    await expect(
+      verifyAndDecodeAppleSsn('verified-outer-with-tampered-inner'),
+    ).rejects.toBeInstanceOf(AppleSsnVerificationError);
+  });
+
+  it('rejects the entire notification when a nested renewal signature is tampered', async () => {
+    const realVerifier = officialFixtureVerifier();
+    const signedRenewalInfo = readFileSync(FIXTURE_RENEWAL, 'utf8').trim();
+    const parts = signedRenewalInfo.split('.');
+    const signature = Buffer.from(parts[2], 'base64url');
+    signature[0] ^= 0xff;
+    const tamperedRenewal = `${parts[0]}.${parts[1]}.${signature.toString('base64url')}`;
+    __setAppleSignedDataVerifierForTests({
+      async verifyAndDecodeNotification() {
+        return {
+          notificationUUID: 'tampered-renewal',
+          notificationType: 'DID_RENEW',
+          data: {
+            bundleId: 'com.example',
+            environment: Environment.SANDBOX,
+            signedRenewalInfo: tamperedRenewal,
+          },
+        };
+      },
+      verifyAndDecodeTransaction: (jws) =>
+        realVerifier.verifyAndDecodeTransaction(jws),
+      verifyAndDecodeRenewalInfo: (jws) =>
+        realVerifier.verifyAndDecodeRenewalInfo(jws),
+    });
+
+    await expect(
+      verifyAndDecodeAppleSsn('verified-outer-with-tampered-renewal'),
+    ).rejects.toBeInstanceOf(AppleSsnVerificationError);
   });
 
   it('applyAppleEntitlement returns noop without touching firestore for unknown types', async () => {
@@ -317,6 +533,7 @@ describe('services/billing/appleSsn — pure helpers', () => {
 
 describe('POST /api/billing/webhook/apple', () => {
   beforeEach(() => {
+    __setAppleSignedDataVerifierForTests(decodingBusinessVerifier);
     fs = new InMemoryFirestore();
     handle = buildTestServer({ firestore: fs });
   });
@@ -327,6 +544,9 @@ describe('POST /api/billing/webhook/apple', () => {
   });
 
   it('returns 401 on a bad signature (tampered JWS)', async () => {
+    __setAppleSignedDataVerifierForTests(null);
+    process.env.APPLE_BUNDLE_ID = 'com.praeventio.guard';
+    process.env.APPLE_IAP_ENVIRONMENT = 'Sandbox';
     const jws = await signOuter({
       notificationType: 'SUBSCRIBED',
       transactionInfo: { appAccountToken: 'a' },
@@ -341,6 +561,14 @@ describe('POST /api/billing/webhook/apple', () => {
       .send({ signedPayload: tampered });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_signature');
+    expect(
+      [...fs.store.keys()].filter(
+        (key) =>
+          key.startsWith('processed_apple_ssn/') ||
+          key.startsWith('apple_ssn_attempts/') ||
+          key.startsWith('users/'),
+      ),
+    ).toHaveLength(0);
   });
 
   it('SUBSCRIBED activates entitlement on the matched user', async () => {
@@ -372,12 +600,12 @@ describe('POST /api/billing/webhook/apple', () => {
     expect(user.subscription.appleOriginalTransactionId).toBe('orig-A');
     // Idempotency lock landed.
     expect(fs.store.get('processed_apple_ssn/uuid-subscribed-1')?.status).toBe('done');
-    // Audit row landed with verified_chain=false (intermediate mode).
+    // Audit row truthfully records full-chain verification.
     const auditKey = [...fs.store.keys()].find((k) =>
       k.startsWith('apple_ssn_attempts/'),
     );
     expect(auditKey).toBeDefined();
-    expect(fs.store.get(auditKey!).verified_chain).toBe(false);
+    expect(fs.store.get(auditKey!).verified_chain).toBe(true);
     expect(fs.store.get(auditKey!).action).toBe('grant');
     // A grant stamps the purchased cycle on the audit row (observability).
     expect(fs.store.get(auditKey!).cycle).toBe('monthly');
