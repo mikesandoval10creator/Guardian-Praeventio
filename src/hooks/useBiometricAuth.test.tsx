@@ -68,6 +68,46 @@ beforeEach(() => {
 });
 
 describe('useBiometricAuth - health professional proof', () => {
+  it('returns a serialized assertion bound to the EPP order challenge', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/sprint-k/proj-1/epp-flow/sign-challenge/order-1') {
+        return okJson({
+          challengeId: 'epp-challenge-1',
+          challenge: CHALLENGE_B64,
+          rpId: 'praeventio.test',
+        });
+      }
+      return okJson({});
+    });
+    const { result } = renderHook(() => useBiometricAuth());
+
+    let assertion: Awaited<
+      ReturnType<typeof result.current.createEppOrderAssertion>
+    > = null;
+    await act(async () => {
+      assertion = await result.current.createEppOrderAssertion('proj-1', 'order-1');
+    });
+
+    expect(assertion).toMatchObject({
+      challengeId: 'epp-challenge-1',
+      id: 'cred-1',
+      type: 'public-key',
+    });
+    expect(credGet).toHaveBeenCalledWith({
+      publicKey: expect.objectContaining({
+        rpId: 'praeventio.test',
+        userVerification: 'required',
+      }),
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/sprint-k/proj-1/epp-flow/sign-challenge/order-1',
+      { headers: { Authorization: 'Bearer test-token' } },
+    );
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/webauthn/verify'))).toBe(
+      false,
+    );
+  });
+
   it('returns a serialized assertion bound to the grant-specific challenge', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url === '/api/health-vault/view/grant-1/challenge') {

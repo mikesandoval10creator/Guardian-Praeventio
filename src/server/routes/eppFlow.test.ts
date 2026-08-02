@@ -36,28 +36,33 @@ describe('eppFlowRouter (wire-up contract)', () => {
     expect(hasPost('/:projectId/epp-flow/sign-order/:orderId')).toBe(true);
   });
 
+  it('registers GET /:projectId/epp-flow/sign-challenge/:orderId', () => {
+    expect(hasGet('/:projectId/epp-flow/sign-challenge/:orderId')).toBe(true);
+  });
+
   it('registers GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     expect(hasGet('/:projectId/epp-flow/order-pdf/:orderId')).toBe(true);
   });
 
-  it('exposes a layer count >= 4 (one per endpoint)', () => {
+  it('exposes a layer count >= 5 (one per endpoint)', () => {
     const routeLayers = layers.filter((l) => l.route);
-    expect(routeLayers.length).toBeGreaterThanOrEqual(4);
+    expect(routeLayers.length).toBeGreaterThanOrEqual(5);
   });
 
-  it('only registers the four documented endpoints (no accidental extras)', () => {
+  it('only registers the five documented endpoints (no accidental extras)', () => {
     const paths = new Set(
       layers.filter((l) => l.route).map((l) => l.route!.path),
     );
     expect(paths.has('/:projectId/epp-flow/inspection')).toBe(true);
     expect(paths.has('/:projectId/epp-flow/pending-orders')).toBe(true);
+    expect(paths.has('/:projectId/epp-flow/sign-challenge/:orderId')).toBe(true);
     expect(paths.has('/:projectId/epp-flow/sign-order/:orderId')).toBe(true);
     expect(paths.has('/:projectId/epp-flow/order-pdf/:orderId')).toBe(true);
     // No router-level catch-alls accidentally registered.
-    expect(paths.size).toBe(4);
+    expect(paths.size).toBe(5);
   });
 
-  it('all 4 endpoints route under /:projectId/epp-flow/* (consistent prefix)', () => {
+  it('all 5 endpoints route under /:projectId/epp-flow/* (consistent prefix)', () => {
     const routePaths = layers
       .filter((l) => l.route)
       .map((l) => l.route!.path);

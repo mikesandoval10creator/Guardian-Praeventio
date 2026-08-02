@@ -1551,3 +1551,55 @@ Rules tests: `src/rules-tests/nodesTenantIsolation.rules.test.ts` and
      URL instead of the graph endpoint allowlist — the client drain rejects it.
 174. **Public Graph Enumeration**: an anonymous caller lists `/nodes` to crawl
      public knowledge — denied; only a single known non-RUT public node ID is GET-able.
+
+## EPP purchase-order signatures — canonical WebAuthn boundary (P0, added 2026-08-02)
+
+An EPP purchase order is legally signed only by
+`POST /api/sprint-k/:projectId/epp-flow/sign-order/:orderId`. The authenticated
+caller first obtains a cryptographically random, expiring challenge from the
+order-specific `sign-challenge` endpoint. That challenge is stored single-use
+and bound to the verified UID plus immutable metadata: tenant, project, order,
+suggested-node ID and authoritative CLP total.
+
+`sign-order` accepts a complete WebAuthn assertion, invokes the canonical
+server verifier in that same persistence boundary and checks credential
+ownership, challenge bytes/state, RP ID, origin and exact metadata. Signer UID,
+RUT, timestamp, tenant, node and total are derived from authentication,
+Firestore and the persisted pending order; legacy client fields are ignored.
+No signed node or success audit is written when verification fails. The
+Firestore-backed pending order can be reconstructed after process loss, so
+Cloud Run instance affinity is not part of the security model.
+
+Challenge single-use is not treated as order single-sign: two independently
+issued valid challenges may race. After assertion verification, `sign-order`
+claims the existing suggested node through a Firestore transaction with an
+expiring lease. Exactly one instance may persist the legal signed node; success
+replaces the lease with the authoritative `signedNodeId`, while a failed write
+releases it for a fresh challenge.
+
+Behavioral contracts:
+`src/__tests__/server/eppFlow.test.ts`,
+`src/hooks/useBiometricAuth.test.tsx`, and `src/pages/EPP.test.tsx`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+175. **Challenge-ID-Only Signature**: an authenticated admin submits a chosen or
+     previously observed `challengeId` without an assertion — rejected as an
+     invalid payload before any legal signature is persisted.
+176. **Foreign Credential Signature**: an admin submits an assertion produced
+     by a credential registered to another UID — canonical credential ownership
+     verification rejects it.
+177. **Replay / Expired Challenge**: a valid assertion is reused or its challenge
+     has expired — the single-use challenge store rejects it before persistence.
+178. **Cross-Order Challenge Swap**: an assertion issued for another tenant,
+     project, order, node or CLP total is presented — exact metadata binding
+     rejects it.
+179. **Origin / RP Substitution**: an assertion from a phishing origin or foreign
+     RP ID is submitted — canonical WebAuthn origin and RP checks reject it.
+180. **Signer / Amount Forgery**: the body supplies another `signerUid`, tenant,
+     timestamp, node or total — those legacy fields are ignored and server
+     authority is stamped instead.
+181. **Parallel Double Signature**: two valid assertions from distinct
+     challenges target the same pending order concurrently — the transactional
+     claim on the suggested node permits one persistence and rejects the other
+     with HTTP 409, including across Cloud Run instances.

@@ -6,7 +6,7 @@
 // item-by-item: ok / warning / failed), este orquestador detecta los items
 // failed (vencidos o danados), ajusta el inventario y -si el stock cae bajo
 // el umbral de reorden- emite una sugerencia de orden de compra. El admin
-// debe firmar la OC con WebAuthn (purpose: 'claim-signing') y el resultado
+// debe firmar la OC con WebAuthn (purpose: 'epp_order_signing') y el resultado
 // se exporta como PDF descargable. NO auto-enviamos al proveedor — cumple
 // la directiva 4-directivas: "Praeventio NUNCA hace push a APIs externas;
 // genera el documento, la empresa lo firma + entrega".
@@ -22,8 +22,8 @@
 //
 // Cada paso es deterministico dado el input. La firma biometrica del admin
 // es un side-effect externo (route layer): cuando la route llama
-// `createPurchaseOrderSignedNode` ya se asume que el WebAuthn /verify
-// devolvio { verified: true }.
+// `createPurchaseOrderSignedNode` ya recibió un verdict WebAuthn canónico y
+// server-side `{ verified: true }` desde el mismo endpoint de persistencia.
 //
 // Diseno:
 //   - Las NodeFactory functions son puras: input -> RiskNodePayload, sin IO.
@@ -342,7 +342,7 @@ export function createPurchaseOrderSuggestedNode(
       `Orden de compra sugerida automaticamente por trigger Bloque 4.2. ` +
       `${lineCount} lineas, total CLP ${draft.totalClp}, ` +
       `entrega estimada semana ${draft.deliveryWeekHint}. ` +
-      `Pendiente de firma del admin (WebAuthn 'claim-signing'). ` +
+      `Pendiente de firma del admin (WebAuthn 'epp_order_signing'). ` +
       `Inspeccion origen: ${inspection.inspectionId}.`,
     type: SAFETY_LEARNING_TYPE,
     severity: hasEmergency ? 'critical' : 'medium',
@@ -374,7 +374,7 @@ export interface PurchaseOrderSignatureInput {
   /** ISO de la firma. */
   signedAt: string;
   /**
-   * `challengeId` consumido en /api/auth/webauthn/verify. NO la firma
+   * `challengeId` consumido por el verificador del endpoint sign-order. NO la firma
    * cruda — basta con el id para auditoria sin guardar bytes sensibles.
    */
   challengeId: string;
@@ -388,7 +388,7 @@ export function createPurchaseOrderSignedNode(
     title: `OC firmada ${signature.orderId}`,
     description:
       `Orden de compra ${signature.orderId} firmada por admin ` +
-      `${signature.signerUid} via WebAuthn (claim-signing). ` +
+      `${signature.signerUid} via WebAuthn (epp_order_signing). ` +
       `ChallengeId consumido: ${signature.challengeId}. ` +
       `La empresa puede ahora descargar el PDF y enviarlo manualmente ` +
       `al proveedor — Praeventio NO empuja al proveedor automaticamente.`,
@@ -818,7 +818,7 @@ export async function renderPurchaseOrderPdf(
         if (input.signerName) doc.text(`Nombre: ${input.signerName}`, { indent: 10 });
         if (input.signerRut) doc.text(`RUT: ${input.signerRut}`, { indent: 10 });
         if (input.signedAt) doc.text(`Fecha firma: ${input.signedAt}`, { indent: 10 });
-        doc.text('Mecanismo: WebAuthn claim-signing (Ley 19.799 art. 3).', {
+        doc.text('Mecanismo: WebAuthn epp_order_signing (Ley 19.799 art. 3).', {
           indent: 10,
         });
       } else {

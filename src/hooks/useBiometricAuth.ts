@@ -101,6 +101,8 @@ export interface HealthProfessionalWebAuthnAssertion {
   signature: string;
 }
 
+export type EppOrderWebAuthnAssertion = HealthProfessionalWebAuthnAssertion;
+
 function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -406,6 +408,62 @@ export const useBiometricAuth = () => {
     [],
   );
 
+  /**
+   * Creates the assertion consumed directly by the EPP sign-order route.
+   * The challenge endpoint binds it to one project/order and the server later
+   * verifies and consumes it before persisting any signature evidence.
+   */
+  const createEppOrderAssertion = useCallback(
+    async (
+      projectId: string,
+      orderId: string,
+    ): Promise<EppOrderWebAuthnAssertion | null> => {
+      if (!projectId || !orderId || !detectWebAuthnSupport()) return null;
+      try {
+        if (!auth.currentUser) return null;
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return null;
+        const response = await fetch(
+          `/api/sprint-k/${encodeURIComponent(projectId)}/epp-flow/sign-challenge/${encodeURIComponent(orderId)}`,
+          { headers: { Authorization: authHeader } },
+        );
+        if (!response.ok) return null;
+        const body = await response.json();
+        if (
+          typeof body?.challengeId !== 'string' ||
+          typeof body?.challenge !== 'string' ||
+          typeof body?.rpId !== 'string' ||
+          body.rpId.length === 0
+        ) {
+          return null;
+        }
+        const credential = (await navigator.credentials.get({
+          publicKey: {
+            challenge: base64ToBytes(body.challenge),
+            rpId: body.rpId,
+            userVerification: 'required',
+          },
+        })) as PublicKeyCredential | null;
+        if (!credential || credential.type !== 'public-key') return null;
+        const assertion = credential.response as AuthenticatorAssertionResponse;
+        return {
+          challengeId: body.challengeId,
+          id: credential.id,
+          rawId: arrayBufferToBase64Url(credential.rawId),
+          type: 'public-key',
+          clientExtensionResults: credential.getClientExtensionResults(),
+          clientDataJSON: arrayBufferToBase64Url(assertion.clientDataJSON),
+          authenticatorData: arrayBufferToBase64Url(assertion.authenticatorData),
+          signature: arrayBufferToBase64Url(assertion.signature),
+        };
+      } catch (error) {
+        console.warn('[biometric] EPP order assertion failed', error);
+        return null;
+      }
+    },
+    [],
+  );
+
   const register = useCallback(
     async (username: string): Promise<boolean> => {
       if (!isSupported) return false;
@@ -623,6 +681,7 @@ export const useBiometricAuth = () => {
     register,
     registerCredential,
     createHealthProfessionalAssertion,
+    createEppOrderAssertion,
     platform,
   };
 };
