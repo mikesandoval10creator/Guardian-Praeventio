@@ -102,9 +102,15 @@ vi.mock('../hooks/useEppFlow', () => ({
   downloadEppOrderPdf: (...a: unknown[]) => downloadEppOrderPdf(...a),
 }));
 
-// Biometric ceremony used by <PurchaseOrderSignModal /> — supported, no-op.
+const authenticateBiometric = vi.fn();
+const createEppOrderAssertion = vi.fn();
+// Biometric ceremony used by <PurchaseOrderSignModal />.
 vi.mock('../hooks/useBiometricAuth', () => ({
-  useBiometricAuth: () => ({ isSupported: true, authenticate: vi.fn(async () => true) }),
+  useBiometricAuth: () => ({
+    isSupported: true,
+    authenticate: (...args: unknown[]) => authenticateBiometric(...args),
+    createEppOrderAssertion: (...args: unknown[]) => createEppOrderAssertion(...args),
+  }),
 }));
 
 vi.mock('../components/epp/AssignEPPModal', () => ({
@@ -129,6 +135,23 @@ vi.mock('../utils/logger', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  authenticateBiometric.mockResolvedValue(true);
+  createEppOrderAssertion.mockResolvedValue({
+    challengeId: 'challenge-server-issued',
+    id: 'credential-1',
+    rawId: 'credential-1',
+    type: 'public-key',
+    clientExtensionResults: {},
+    clientDataJSON: 'client-data',
+    authenticatorData: 'authenticator-data',
+    signature: 'signature',
+  });
+  signEppOrder.mockImplementation(async (_projectId, _orderId, _input) => ({
+    ok: true,
+    signedNodeId: 'signed-node-1',
+    edgeId: 'edge-1',
+    order: { ...pendingOrderFixture(_orderId), status: 'signed', signerUid: 'admin-1' },
+  }));
   mockProject = { id: 'proj-1', name: 'Faena Norte' };
   mockTenant = { tenantId: 'tenant-1', loading: false };
   mockFirebase = {
@@ -279,5 +302,28 @@ describe('<EPP /> — PendingPurchaseOrdersPanel mount (Bloque 4.2)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('oc-sign-modal')).toBeInTheDocument(),
     );
+  });
+
+  it('firma con la assertion EPP server-bound y no con un booleano biométrico reutilizable', async () => {
+    mockFirebase = { user: { uid: 'admin-1', displayName: 'Jefe' }, userRole: 'admin', isAdmin: true };
+    mockPendingOrders = [pendingOrderFixture('oc-real-10')];
+    render(<EPP />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('pending-order:oc-real-10')).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId('pending-order-review:oc-real-10'));
+    fireEvent.click(await screen.findByTestId('oc-sign-modal-submit'));
+
+    await waitFor(() =>
+      expect(createEppOrderAssertion).toHaveBeenCalledWith('proj-1', 'oc-real-10'),
+    );
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    expect(signEppOrder).toHaveBeenCalledWith('proj-1', 'oc-real-10', {
+      assertion: expect.objectContaining({
+        challengeId: 'challenge-server-issued',
+        id: 'credential-1',
+      }),
+    });
   });
 });

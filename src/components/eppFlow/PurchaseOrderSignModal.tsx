@@ -2,7 +2,7 @@
 //
 // Modal de review + firma de OC. Patron alineado con StoppageResumeModal:
 //   1. Muestra lineas del draft + total CLP.
-//   2. Corre el ceremony WebAuthn 'claim-signing' (sensitive, fail-closed).
+//   2. Corre la ceremony WebAuthn `epp_order_signing` ligada a esta OC.
 //   3. Solo si la firma fue exitosa, llama a signEppOrder(...).
 //   4. Tras firmar, ofrece boton "Descargar PDF" (no auto-envia al proveedor).
 //
@@ -51,14 +51,11 @@ export function PurchaseOrderSignModal({
   projectId,
   tenantId,
   order,
-  adminUid,
-  adminRut,
-  adminName,
   onClose,
   onSigned,
   onError,
 }: PurchaseOrderSignModalProps) {
-  const { isSupported, authenticate } = useBiometricAuth();
+  const { isSupported, createEppOrderAssertion } = useBiometricAuth();
 
   const [signing, setSigning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -81,19 +78,16 @@ export function PurchaseOrderSignModal({
     }
 
     setSigning(true);
-    let bioOk = false;
+    let assertion = null;
     try {
-      bioOk = await authenticate(
-        `Firmar orden de compra: ${order.orderId} (CLP ${order.draft.totalClp})`,
-        'claim-signing',
-      );
+      assertion = await createEppOrderAssertion(projectId, order.orderId);
     } catch {
-      bioOk = false;
+      assertion = null;
     } finally {
       setSigning(false);
     }
 
-    if (!bioOk) {
+    if (!assertion) {
       const msg = 'La firma biometrica no se completo. OC NO firmada.';
       setError(msg);
       onError?.(msg);
@@ -102,20 +96,8 @@ export function PurchaseOrderSignModal({
 
     setSubmitting(true);
     try {
-      // MVP: usamos un placeholder challengeId equivalente al que ya
-      // consumio el ceremony interno de useBiometricAuth. Una iteracion
-      // siguiente debe propagar el challengeId desde useBiometricAuth.
-      // Por ahora derivamos uno determinista para idempotencia + auditoria.
-      const challengeId = `chal-${order.orderId}-${Date.now()}`;
       const r = await signEppOrder(projectId, order.orderId, {
-        challengeId,
-        signerUid: adminUid,
-        signerRut: adminRut,
-        signerName: adminName,
-        signedAt: new Date().toISOString(),
-        suggestedNodeId: order.suggestedNodeId,
-        draftTotalClp: order.draft.totalClp,
-        tenantId,
+        assertion,
       });
       setSigned(r.order);
       onSigned?.(r.order);

@@ -25,6 +25,13 @@ const H = vi.hoisted(() => ({
   db: null as ReturnType<
     typeof import('../helpers/fakeFirestore').createFakeFirestore
   > | null,
+  verifyWebAuthnAssertion: vi.fn(),
+  generateWebAuthnChallenge: vi.fn(),
+  storeWebAuthnChallenge: vi.fn(),
+  persistSignedNode: vi.fn(),
+  persistPdfNode: vi.fn(),
+  auditServerEvent: vi.fn(),
+  captureRouteError: vi.fn(),
 }));
 
 // ────────────────────────────────────────────────────────────────────────
@@ -76,8 +83,33 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../server/middleware/auditLog.js', () => ({
+  auditServerEvent: (...args: unknown[]) => H.auditServerEvent(...args),
+}));
+
+vi.mock('../../server/middleware/captureRouteError.js', () => ({
+  captureRouteError: (...args: unknown[]) => H.captureRouteError(...args),
+}));
+
 vi.mock('../../services/observability/index.js', () => ({
   getErrorTracker: () => ({ captureException: vi.fn() }),
+}));
+
+// Canonical WebAuthn seam. Its cryptographic implementation has dedicated
+// tests; this real-router suite proves eppFlow cannot persist before the seam
+// returns a verified verdict.
+vi.mock('../../server/auth/webauthnAssertion.js', () => ({
+  verifyWebAuthnAssertion: (...args: unknown[]) => H.verifyWebAuthnAssertion(...args),
+}));
+
+vi.mock('../../server/routes/curriculum.js', () => ({
+  buildWebAuthnDb: () => ({ kind: 'challenge-db' }),
+  buildWebAuthnCredentialsDb: () => ({ kind: 'credential-db' }),
+}));
+
+vi.mock('../../services/auth/webauthnChallenge.js', () => ({
+  generateWebAuthnChallenge: () => H.generateWebAuthnChallenge(),
+  storeWebAuthnChallenge: (...args: unknown[]) => H.storeWebAuthnChallenge(...args),
 }));
 
 // ────────────────────────────────────────────────────────────────────────
@@ -121,8 +153,8 @@ const flowMock = {
 
 vi.mock('../../services/zettelkasten/flows/eppInventoryPurchaseFlow.js', () => ({
   onEppInspectionCompleted: vi.fn(async () => flowMock.inspectionResult),
-  persistSignedNode: vi.fn(async () => flowMock.signedResult),
-  persistPdfNode: vi.fn(async () => ({ ok: true, nodeId: 'pdf-node-1', edge: null })),
+  persistSignedNode: (...args: unknown[]) => H.persistSignedNode(...args),
+  persistPdfNode: (...args: unknown[]) => H.persistPdfNode(...args),
   renderPurchaseOrderPdf: vi.fn(async () => Buffer.from('%PDF-1.4 fake')),
 }));
 
@@ -210,12 +242,54 @@ function signOrderBody(signerUid: string, suggestedNodeId = 'fake-node-0') {
   };
 }
 
+function assertionSignOrderBody(
+  signerUid: string,
+  suggestedNodeId = 'fake-node-0',
+) {
+  return {
+    assertion: {
+      challengeId: 'challenge-server-issued',
+      id: 'credential-1',
+      rawId: 'credential-1',
+      type: 'public-key',
+      clientExtensionResults: {},
+      clientDataJSON: 'client-data',
+      authenticatorData: 'authenticator-data',
+      signature: 'signature',
+    },
+    signerUid,
+    signedAt: '2026-05-30T11:00:00.000Z',
+    suggestedNodeId,
+    draftTotalClp: 150000,
+    tenantId: TENANT_ID,
+  };
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // beforeEach — fresh db + clear in-memory pending orders map.
 // ────────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  H.verifyWebAuthnAssertion.mockReset();
+  H.verifyWebAuthnAssertion.mockResolvedValue({
+    verified: false,
+    reason: 'signature_invalid',
+  });
+  H.generateWebAuthnChallenge.mockReset();
+  H.generateWebAuthnChallenge.mockReturnValue({
+    challengeId: 'challenge-server-issued',
+    challenge: new Uint8Array([1, 2, 3, 4]),
+  });
+  H.storeWebAuthnChallenge.mockReset();
+  H.storeWebAuthnChallenge.mockResolvedValue(undefined);
+  H.persistSignedNode.mockReset();
+  H.persistSignedNode.mockImplementation(async () => flowMock.signedResult);
+  H.persistPdfNode.mockReset();
+  H.persistPdfNode.mockResolvedValue({ ok: true, nodeId: 'pdf-node-1', edge: null });
+  H.auditServerEvent.mockReset();
+  H.auditServerEvent.mockResolvedValue(undefined);
+  H.captureRouteError.mockReset();
   // Seed the project so assertProjectMember passes for MEMBER_UID.
   H.db._seed(`projects/${PROJECT_ID}`, {
     members: [MEMBER_UID],
@@ -438,7 +512,7 @@ describe('cross-tenant guard — eppFlow tenant is token-authoritative', () => {
     expect(res.body.error).toBe('no_tenant_binding');
   });
 
-  it('403 tenant_mismatch on sign-order when body.tenantId forges a foreign tenant', async () => {
+  it('403 tenant_mismatch on sign-order when the verified token belongs to a foreign tenant', async () => {
     // Seed a pending order whose suggestedNodeId is 'fake-node-0'.
     flowMock.inspectionResult = {
       ok: true,
@@ -460,7 +534,8 @@ describe('cross-tenant guard — eppFlow tenant is token-authoritative', () => {
       .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/sign-order/oc-xt`)
       .set('x-test-uid', MEMBER_UID)
       .set('x-test-role', 'supervisor')
-      .send({ ...signOrderBody(MEMBER_UID, 'fake-node-0'), tenantId: 'tenant-evil' });
+      .set('x-test-tenant', 'tenant-evil')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('tenant_mismatch');
   });
@@ -684,6 +759,93 @@ describe('GET /:projectId/epp-flow/pending-orders', () => {
 // 3. POST /:projectId/epp-flow/sign-order/:orderId
 // ────────────────────────────────────────────────────────────────────────
 
+describe('GET /:projectId/epp-flow/sign-challenge/:orderId', () => {
+  const CHALLENGE_URL = `/api/sprint-k/${PROJECT_ID}/epp-flow/sign-challenge/order-001`;
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).get(CHALLENGE_URL);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    const res = await request(buildApp())
+      .get(CHALLENGE_URL)
+      .set('x-test-uid', OTHER_UID)
+      .set('x-test-role', 'supervisor');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('403 when a project member lacks an elevated signing role', async () => {
+    const res = await request(buildApp())
+      .get(CHALLENGE_URL)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
+  it('404 when the authoritative pending order does not exist', async () => {
+    const res = await request(buildApp())
+      .get(CHALLENGE_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('order_not_found');
+    expect(H.storeWebAuthnChallenge).not.toHaveBeenCalled();
+  });
+
+  it('issues and stores a challenge bound to the authoritative pending order', async () => {
+    flowMock.inspectionResult = {
+      ok: true,
+      nodes: [
+        { metadata: { sourceType: 'epp-inspection-event' } },
+        { metadata: { sourceType: 'purchase-order-suggested', orderId: 'order-001' } },
+      ],
+      nodeIds: ['n0', 'fake-node-0'],
+      edges: [],
+      suggestedOrder: {
+        lines: [{ kind: 'casco', quantity: 4, estimatedUnitCostClp: 12000, supplierId: 's1', urgency: 'routine' }],
+        totalClp: 48000,
+        deliveryWeekHint: 2,
+        notes: [],
+      },
+      notes: [],
+    };
+    await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/inspection`)
+      .set('x-test-uid', MEMBER_UID)
+      .send({ ...baseInspectionBody, orderId: 'order-001' });
+
+    const res = await request(buildApp())
+      .get(CHALLENGE_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      challengeId: 'challenge-server-issued',
+      challenge: 'AQIDBA==',
+      rpId: expect.any(String),
+    });
+    expect(H.storeWebAuthnChallenge).toHaveBeenCalledWith(
+      MEMBER_UID,
+      'challenge-server-issued',
+      new Uint8Array([1, 2, 3, 4]),
+      { kind: 'challenge-db' },
+      {
+        metadata: {
+          purpose: 'epp_order_signing',
+          tenantId: TENANT_ID,
+          projectId: PROJECT_ID,
+          orderId: 'order-001',
+          suggestedNodeId: 'fake-node-0',
+          draftTotalClp: 48000,
+        },
+      },
+    );
+  });
+});
+
 describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
   const ORDER_ID = 'oc-sign-test';
   const SIGN_URL = `/api/sprint-k/${PROJECT_ID}/epp-flow/sign-order/${ORDER_ID}`;
@@ -717,6 +879,17 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
       .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/inspection`)
       .set('x-test-uid', MEMBER_UID)
       .send({ ...baseInspectionBody, orderId });
+    H.db!._seed('zettelkasten_nodes/fake-node-0', {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-suggested',
+        orderId,
+        tenantId: TENANT_ID,
+        inspectionId: baseInspectionBody.inspection.inspectionId,
+        suggestedAt: '2026-05-30T10:00:00.000Z',
+        draft: flowMock.inspectionResult.suggestedOrder,
+      },
+    });
   }
 
   it('401 without a token', async () => {
@@ -730,7 +903,7 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', OTHER_UID)
-      .send(signOrderBody(OTHER_UID));
+      .send(assertionSignOrderBody(OTHER_UID));
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
@@ -744,6 +917,306 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     expect(res.body.error).toBe('invalid_payload');
   });
 
+  it('rejects the legacy challengeId-only body before persisting a legal signature', async () => {
+    await seedPendingOrder();
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(signOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_payload');
+    expect(res.body.signedNodeId).toBeUndefined();
+  });
+
+  it('401 when the canonical verifier rejects a complete WebAuthn assertion', async () => {
+    await seedPendingOrder();
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: 'webauthn_verification_failed',
+      reason: 'signature_invalid',
+    });
+    expect(res.body.signedNodeId).toBeUndefined();
+    expect(H.verifyWebAuthnAssertion).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    'credential_not_found',
+    'challenge_used',
+    'challenge_expired',
+    'origin_mismatch',
+  ])('rejects %s before any legal signature is persisted', async (reason) => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: false, reason });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: 'webauthn_verification_failed', reason });
+    expect(H.persistSignedNode).not.toHaveBeenCalled();
+  });
+
+  it('keeps a persisted signature successful when audit logging fails', async () => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+    H.auditServerEvent.mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'admin')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(200);
+    expect(res.body.order.status).toBe('signed');
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(1);
+    expect(H.captureRouteError).toHaveBeenCalledWith(
+      expect.any(Error),
+      'eppFlow.signOrder.audit',
+    );
+  });
+
+  it('allows only one legal signature when distinct valid challenges target the same order', async () => {
+    await seedPendingOrder();
+    let enteredVerifier = 0;
+    let releaseVerifier!: () => void;
+    const verifierGate = new Promise<void>((resolve) => {
+      releaseVerifier = resolve;
+    });
+    H.verifyWebAuthnAssertion.mockImplementation(async () => {
+      enteredVerifier += 1;
+      if (enteredVerifier === 2) releaseVerifier();
+      await verifierGate;
+      return { verified: true };
+    });
+    const firstBody = assertionSignOrderBody(MEMBER_UID, 'fake-node-0');
+    const secondBody = assertionSignOrderBody(MEMBER_UID, 'fake-node-0');
+    secondBody.assertion.challengeId = 'challenge-server-issued-2';
+
+    const [first, second] = await Promise.all([
+      request(buildApp())
+        .post(SIGN_URL)
+        .set('x-test-uid', MEMBER_UID)
+        .set('x-test-role', 'admin')
+        .send(firstBody),
+      request(buildApp())
+        .post(SIGN_URL)
+        .set('x-test-uid', MEMBER_UID)
+        .set('x-test-role', 'admin')
+        .send(secondBody),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect([first.body.error, second.body.error]).toContain('order_already_signed');
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects signing when another instance already persisted the authoritative marker', async () => {
+    await seedPendingOrder();
+    await H.db!.doc('zettelkasten_nodes/fake-node-0').update({
+      'metadata.eppSignedNodeId': 'signed-by-other-instance',
+    });
+    H.verifyWebAuthnAssertion.mockResolvedValue({ verified: true });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'admin')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('order_already_signed');
+    expect(H.persistSignedNode).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale cached pending state when a signed artifact exists without its marker', async () => {
+    await seedPendingOrder();
+    H.db!._seed('zettelkasten_nodes/signed-by-crashed-instance', {
+      type: 'safety-learning',
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-signed',
+        orderId: ORDER_ID,
+        signerUid: 'other-admin',
+        challengeId: 'challenge-from-crashed-instance',
+      },
+    });
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'order_already_signed' });
+    expect(H.persistSignedNode).not.toHaveBeenCalled();
+  });
+
+  it('returns conflict when the immutable signed artifact was won by another instance', async () => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+    H.persistSignedNode.mockResolvedValueOnce({
+      ...flowMock.signedResult,
+      created: false,
+    });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'order_already_signed' });
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the distributed claim when persistence fails so a new challenge can retry', async () => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValue({ verified: true });
+    H.persistSignedNode
+      .mockRejectedValueOnce(new Error('firestore write failed'))
+      .mockImplementationOnce(async () => flowMock.signedResult);
+
+    const failed = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'admin')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+    const retryBody = assertionSignOrderBody(MEMBER_UID, 'fake-node-0');
+    retryBody.assertion.challengeId = 'challenge-server-issued-retry';
+    const retried = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'admin')
+      .send(retryBody);
+
+    expect(failed.status).toBe(500);
+    expect(retried.status).toBe(200);
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes exact server-authoritative metadata into the canonical verifier', async () => {
+    await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockImplementationOnce(async (raw: unknown) => {
+      const input = raw as {
+        uid: string;
+        expectedOrigin: string;
+        expectedRpId: string;
+        challengeMetadataValidator(metadata: unknown): boolean;
+      };
+      expect(input.uid).toBe(MEMBER_UID);
+      expect(input.expectedOrigin).toMatch(/^https?:\/\//);
+      expect(input.expectedRpId).toBeTruthy();
+      expect(input.challengeMetadataValidator({
+        purpose: 'epp_order_signing',
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        orderId: 'oc-sign-test',
+        suggestedNodeId: 'fake-node-0',
+        draftTotalClp: 48000,
+      })).toBe(true);
+      expect(input.challengeMetadataValidator({
+        purpose: 'epp_order_signing',
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        orderId: 'another-order',
+        suggestedNodeId: 'fake-node-0',
+        draftTotalClp: 48000,
+      })).toBe(false);
+      return { verified: true };
+    });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(200);
+  });
+
+  it('derives actor, tenant, timestamp, node and total instead of trusting legacy body fields', async () => {
+    await seedPendingOrder();
+    H.db!._seed(`users/${MEMBER_UID}`, {
+      rut: '12.345.678-K',
+      displayName: 'Admin Real',
+    });
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+    const forged = {
+      ...assertionSignOrderBody('uid-impersonator', 'wrong-node'),
+      signedAt: '2000-01-01T00:00:00.000Z',
+      draftTotalClp: 999999999,
+      tenantId: 'foreign-tenant',
+    };
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(forged);
+
+    expect(res.status).toBe(200);
+    expect(H.persistSignedNode).toHaveBeenCalledTimes(1);
+    const [input, deps] = H.persistSignedNode.mock.calls[0] as [
+      Record<string, unknown>,
+      Record<string, unknown>,
+    ];
+    expect(input).toMatchObject({
+      signature: {
+        orderId: 'oc-sign-test',
+        signerUid: MEMBER_UID,
+        signerRut: '12.345.678-K',
+        challengeId: 'challenge-server-issued',
+      },
+      draftTotalClp: 48000,
+      suggestedNodeId: 'fake-node-0',
+    });
+    const signature = input.signature as Record<string, unknown>;
+    expect(signature.signedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(signature.signedAt).not.toBe('2000-01-01T00:00:00.000Z');
+    expect(deps).toMatchObject({ tenantId: TENANT_ID, createdBy: MEMBER_UID });
+  });
+
+  it('signs a persisted order after the process-local pending cache is lost', async () => {
+    await seedPendingOrder();
+    const persisted = H.db!._dump()['zettelkasten_nodes/fake-node-0'];
+    H.db!._seed('zettelkasten_nodes/fake-node-0', {
+      ...persisted,
+      projectId: PROJECT_ID,
+    });
+    __resetPendingOrdersForTests();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
+
+    expect(res.status).toBe(200);
+    expect(H.persistSignedNode).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedNodeId: 'fake-node-0', draftTotalClp: 48000 }),
+      expect.objectContaining({ tenantId: TENANT_ID, createdBy: MEMBER_UID }),
+      { projectId: PROJECT_ID },
+    );
+  });
+
   it('403 forbidden_role when caller is a member but lacks an elevated role', async () => {
     await seedPendingOrder();
     // signerUid matches the caller, order exists & node matches — the ONLY
@@ -752,21 +1225,21 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID) // member, but no x-test-role
-      .send(signOrderBody(MEMBER_UID, 'fake-node-0'));
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden_role');
   });
 
-  it('403 when signerUid does not match the authenticated caller', async () => {
+  it('ignores a legacy signerUid and stamps the authenticated caller', async () => {
     await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
       .set('x-test-role', 'supervisor')
-      .send(signOrderBody('uid-impersonator')); // signerUid != MEMBER_UID
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('forbidden');
-    expect(res.body.message).toMatch(/signerUid/);
+      .send(assertionSignOrderBody('uid-impersonator'));
+    expect(res.status).toBe(200);
+    expect(res.body.order.signerUid).toBe(MEMBER_UID);
   });
 
   it('404 when the order is not found in pendingOrders', async () => {
@@ -774,27 +1247,31 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
       .set('x-test-role', 'supervisor')
-      .send(signOrderBody(MEMBER_UID));
+      .send(assertionSignOrderBody(MEMBER_UID));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('order_not_found');
   });
 
-  it('400 when suggestedNodeId in body does not match what was stored', async () => {
+  it('ignores a legacy suggestedNodeId and uses the authoritative pending node', async () => {
     await seedPendingOrder();
-    const body = signOrderBody(MEMBER_UID, 'WRONG-NODE-ID');
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
+    const body = assertionSignOrderBody(MEMBER_UID, 'WRONG-NODE-ID');
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
       .set('x-test-role', 'supervisor')
       .send(body);
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('suggestedNodeId_mismatch');
+    expect(res.status).toBe(200);
+    expect(H.persistSignedNode.mock.calls[0]?.[0]).toMatchObject({
+      suggestedNodeId: 'fake-node-0',
+    });
   });
 
   it('200 happy path — order signed, status updated to signed', async () => {
     await seedPendingOrder();
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
     // The stored suggestedNodeId is 'fake-node-0' (second node, index 1 of nodeIds).
-    const body = signOrderBody(MEMBER_UID, 'fake-node-0');
+    const body = assertionSignOrderBody(MEMBER_UID, 'fake-node-0');
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
@@ -858,11 +1335,12 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
 
     // 2) Sign the order.
     flowMock.signedResult = { ok: true, nodeId: 'signed-pdf-node', edge: null };
+    H.verifyWebAuthnAssertion.mockResolvedValueOnce({ verified: true });
     await request(buildApp())
       .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/sign-order/${ORDER_ID}`)
       .set('x-test-uid', MEMBER_UID)
       .set('x-test-role', 'supervisor')
-      .send(signOrderBody(MEMBER_UID, 'fake-node-0'));
+      .send(assertionSignOrderBody(MEMBER_UID, 'fake-node-0'));
   }
 
   it('401 without a token', async () => {
@@ -971,5 +1449,50 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     expect(res.headers['x-praeventio-pushed-to-supplier']).toBe('false');
     // Body should be the mocked PDF buffer.
     expect(Buffer.isBuffer(res.body) || res.body instanceof Buffer).toBe(true);
+  });
+
+  it('reconstructs a signed order and links its PDF after the process-local cache is lost', async () => {
+    const draft = {
+      lines: [{ kind: 'chaleco', quantity: 2, estimatedUnitCostClp: 35000, supplierId: 's3', urgency: 'urgent' }],
+      totalClp: 70000,
+      deliveryWeekHint: 1,
+      notes: [],
+    };
+    H.db!._seed('zettelkasten_nodes/suggested-persisted', {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-suggested',
+        orderId: ORDER_ID,
+        tenantId: TENANT_ID,
+        inspectionId: 'inspection-persisted',
+        suggestedAt: '2026-05-30T10:00:00.000Z',
+        draft,
+      },
+    });
+    H.db!._seed('zettelkasten_nodes/signed-persisted', {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-signed',
+        orderId: ORDER_ID,
+        signerUid: MEMBER_UID,
+        signerRut: '12.345.678-K',
+        signedAt: '2026-05-30T11:00:00.000Z',
+        totalClp: 70000,
+        status: 'signed',
+      },
+    });
+    __resetPendingOrdersForTests();
+
+    const res = await request(buildApp())
+      .get(`${PDF_URL}?tenantId=${TENANT_ID}`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    expect(H.persistPdfNode).toHaveBeenCalledWith(
+      expect.objectContaining({ signedNodeId: 'signed-persisted' }),
+      expect.objectContaining({ tenantId: TENANT_ID, createdBy: MEMBER_UID }),
+      { projectId: PROJECT_ID },
+    );
   });
 });

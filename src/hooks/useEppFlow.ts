@@ -17,6 +17,7 @@ import type {
   SupplierCatalogEntry,
   PurchaseOrderDraft,
 } from '../services/financialAnalytics/purchaseOrderSuggester';
+import type { EppOrderWebAuthnAssertion } from './useBiometricAuth';
 
 async function authedFetch(
   path: string,
@@ -107,21 +108,12 @@ export async function listPendingEppOrders(
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// 3. signOrder — admin firma OC. La firma WebAuthn 'claim-signing' DEBE
-//    ejecutarse antes (en el modal) y el resultado se valida con
-//    /api/auth/webauthn/verify. El `challengeId` aqui es el mismo que
-//    el cliente acaba de consumir.
+// 3. signOrder — admin firma OC. La assertion completa se verifica y el
+//    challenge se consume dentro de la misma ruta que persiste la firma.
 // ────────────────────────────────────────────────────────────────────────
 
 export interface SignOrderInput {
-  challengeId: string;
-  signerUid: string;
-  signerRut?: string;
-  signerName?: string;
-  signedAt: string;
-  suggestedNodeId: string;
-  draftTotalClp: number;
-  tenantId: string;
+  assertion: EppOrderWebAuthnAssertion;
 }
 
 export interface SignOrderResponse {

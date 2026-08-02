@@ -21,7 +21,11 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-import { serverWriteNodes, makeServerWriteNodes } from './serverZkNodeWriter';
+import {
+  serverCreateNodeOnce,
+  serverWriteNodes,
+  makeServerWriteNodes,
+} from './serverZkNodeWriter';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
 const NODE = {
@@ -102,5 +106,38 @@ describe('serverWriteNodes', () => {
       await H.db!.collection('zettelkasten_nodes').doc(r.ids![0]).get()
     ).data() as Record<string, unknown>;
     expect(legacy.createdBy).toBe('bound-user');
+  });
+
+  it('creates one immutable legal node for a stable idempotency key', async () => {
+    H.db!._seed('projects/p1', { tenantId: 't1' });
+
+    const first = await serverCreateNodeOnce(
+      NODE,
+      { projectId: 'p1' },
+      { createdBy: 'u1', createdByEmail: 'u1@praeventio.test' },
+      'epp-order-signature:p1:oc-1',
+    );
+    const competingNode = {
+      ...NODE,
+      description: 'Competing legal signature that must not overwrite the first',
+      metadata: { ...NODE.metadata, challengeId: 'challenge-b' },
+    } as RiskNodePayload;
+    const second = await serverCreateNodeOnce(
+      competingNode,
+      { projectId: 'p1' },
+      { createdBy: 'u2', createdByEmail: 'u2@praeventio.test' },
+      'epp-order-signature:p1:oc-1',
+    );
+
+    expect(first).toMatchObject({ ok: true, created: true });
+    expect(second).toMatchObject({ ok: true, created: false, id: first.id });
+    const persisted = (
+      await H.db!.collection('zettelkasten_nodes').doc(first.id).get()
+    ).data() as Record<string, unknown>;
+    expect(persisted.description).toBe(NODE.description);
+    expect(persisted.createdBy).toBe('u1');
+    expect(
+      Object.keys(H.db!._dump()).filter((path) => path.startsWith('audit_logs/')),
+    ).toHaveLength(1);
   });
 });

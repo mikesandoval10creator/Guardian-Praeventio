@@ -1,10 +1,12 @@
 // Praeventio Guard — Bloque 4.2: EPP Inventory Purchase Flow HTTP surface.
 //
-// 4 endpoints sobre el orquestador
+// 5 endpoints sobre el orquestador
 // `src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts`:
 //
 //   POST /:projectId/epp-flow/inspection        (worker reporta inspeccion)
 //   GET  /:projectId/epp-flow/pending-orders    (admin lista OC sugeridas)
+//   GET  /:projectId/epp-flow/sign-challenge/:orderId
+//                                               (challenge ligado a la OC)
 //   POST /:projectId/epp-flow/sign-order/:orderId
 //                                               (admin firma OC con WebAuthn)
 //   GET  /:projectId/epp-flow/order-pdf/:orderId
@@ -14,12 +16,10 @@
 // empresa lo envia por sus canales habituales. El campo `pushedToSupplier`
 // en el nodo PDF queda en `false` siempre.
 //
-// Directiva firma biometrica: la firma de OC usa WebAuthn 'claim-signing'.
-// El cliente (modal) corre el ceremony y le pasa al server `challengeId` +
-// estado de verificacion. El server CONFIA en el ceremony del cliente
-// porque el flow ya paso por /api/auth/webauthn/verify antes de llamar al
-// endpoint sign-order (mismo patron que StoppageResumeModal -> resumeStoppage).
-// TODO: una proxima iteracion puede revalidar la firma en el server-side.
+// Directiva firma biometrica: la firma de OC usa una assertion WebAuthn con
+// purpose `epp_order_signing`. El endpoint sign-order verifica directamente
+// credencial, usuario, challenge single-use, RP ID, origen y metadata ligada
+// a tenant/proyecto/orden antes de persistir cualquier evidencia legal.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -30,6 +30,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { getWebauthnExpectedOrigin, getWebauthnRpId } from '../auth/rpId.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -46,8 +47,11 @@ import {
   type EppFlowDeps,
   type FlowRunResult,
 } from '../../services/zettelkasten/flows/eppInventoryPurchaseFlow.js';
-import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
-import type { EdgeStore, ZkEdge, EdgeType } from '../../services/zettelkasten/edges.js';
+import {
+  makeServerCreateNodeOnce,
+  makeServerWriteNodes,
+} from '../services/serverZkNodeWriter.js';
+import type { EdgeStore, ZkEdge } from '../../services/zettelkasten/edges.js';
 import {
   suggestPurchaseOrder,
   type InventoryItem,
@@ -214,25 +218,51 @@ const inspectionPostSchema = z.object({
   orderId: z.string().min(1).max(200).optional(),
 });
 
-const signOrderSchema = z.object({
-  /** El cliente ya corrio /api/auth/webauthn/verify y obtuvo true. */
+const webAuthnAssertionSchema = z.object({
   challengeId: z.string().min(1).max(256),
-  /** UID del admin firmante (debe == callerUid en check). */
-  signerUid: z.string().min(1).max(200),
-  signerRut: z.string().min(1).max(50).optional(),
-  signerName: z.string().min(1).max(200).optional(),
-  signedAt: z.string().min(10).max(64),
-  /** nodeId del 'purchase-order-suggested'. */
-  suggestedNodeId: z.string().min(1).max(64),
-  /** Draft total CLP (auditoria). */
-  draftTotalClp: z.number().nonnegative().max(1e12),
-  tenantId: z.string().min(1).max(200),
+  id: z.string().min(1).max(512),
+  rawId: z.string().min(1).max(512),
+  type: z.literal('public-key'),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+  clientDataJSON: z.string().min(1).max(16_384),
+  authenticatorData: z.string().min(1).max(16_384),
+  signature: z.string().min(1).max(16_384),
 });
 
+const signOrderSchema = z.object({
+  /** Assertion WebAuthn completa; un challengeId aislado nunca es una firma. */
+  assertion: webAuthnAssertionSchema,
+});
+
+interface EppOrderSigningChallengeMetadata {
+  purpose: 'epp_order_signing';
+  tenantId: string;
+  projectId: string;
+  orderId: string;
+  suggestedNodeId: string;
+  draftTotalClp: number;
+}
+
+function matchesEppOrderSigningChallenge(
+  metadata: unknown,
+  expected: EppOrderSigningChallengeMetadata,
+): metadata is EppOrderSigningChallengeMetadata {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+  const candidate = metadata as Record<string, unknown>;
+  return (
+    candidate.purpose === expected.purpose &&
+    candidate.tenantId === expected.tenantId &&
+    candidate.projectId === expected.projectId &&
+    candidate.orderId === expected.orderId &&
+    candidate.suggestedNodeId === expected.suggestedNodeId &&
+    candidate.draftTotalClp === expected.draftTotalClp &&
+    Object.keys(candidate).length === 6
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────
-// In-memory pending orders cache (per server instance).
-// MVP: rapidly-evicted store. La fuente de verdad real son los nodos ZK.
-// La proxima iteracion debe persistir esto en Firestore.
+// Cache por proceso de OC pendientes. La fuente de verdad son los nodos ZK
+// persistidos en Firestore; todos los límites legales pueden reconstruirla.
 // ────────────────────────────────────────────────────────────────────────
 
 interface PendingOrderRecord {
@@ -246,9 +276,14 @@ interface PendingOrderRecord {
   status: 'pending_signature' | 'signed';
   signedAt?: string;
   signerUid?: string;
+  signerRut?: string;
+  signerName?: string;
+  signedNodeId?: string;
 }
 
 const pendingOrders = new Map<string, PendingOrderRecord>();
+const signingOrders = new Set<string>();
+const EPP_SIGNING_LEASE_MS = 5 * 60 * 1000;
 
 function pendingKey(projectId: string, orderId: string): string {
   return `${projectId}:${orderId}`;
@@ -315,6 +350,10 @@ interface SuggestedNodeDoc {
     inspectionId?: string;
     suggestedAt?: string;
     draft?: PurchaseOrderDraft;
+    signerUid?: string;
+    signerRut?: string;
+    signedAt?: string;
+    status?: string;
   };
 }
 
@@ -370,6 +409,228 @@ async function readPersistedPendingOrders(
     });
   }
   return out;
+}
+
+async function resolvePendingOrder(
+  projectId: string,
+  orderId: string,
+): Promise<PendingOrderRecord | undefined> {
+  const key = pendingKey(projectId, orderId);
+  const cached = pendingOrders.get(key);
+  if (cached?.status === 'pending_signature') return cached;
+
+  const persisted = (await readPersistedPendingOrders(projectId)).find(
+    (order) => order.orderId === orderId,
+  );
+  if (persisted) pendingOrders.set(key, persisted);
+  return persisted;
+}
+
+async function readPersistedSignedOrder(
+  projectId: string,
+  orderId: string,
+): Promise<PendingOrderRecord | undefined> {
+  const col = admin.firestore().collection('zettelkasten_nodes');
+  const [suggestedSnap, signedSnap] = await Promise.all([
+    col
+      .where('projectId', '==', projectId)
+      .where('metadata.sourceType', '==', 'purchase-order-suggested')
+      .get(),
+    col
+      .where('projectId', '==', projectId)
+      .where('metadata.sourceType', '==', 'purchase-order-signed')
+      .get(),
+  ]);
+  const suggestedDoc = suggestedSnap.docs.find(
+    (doc) => (doc.data() as SuggestedNodeDoc).metadata?.orderId === orderId,
+  );
+  const signedDoc = signedSnap.docs.find(
+    (doc) => (doc.data() as SuggestedNodeDoc).metadata?.orderId === orderId,
+  );
+  if (!suggestedDoc || !signedDoc) return undefined;
+
+  const suggested = suggestedDoc.data() as SuggestedNodeDoc;
+  const signed = signedDoc.data() as SuggestedNodeDoc;
+  const suggestedMeta = suggested.metadata;
+  const signedMeta = signed.metadata;
+  if (!suggestedMeta?.draft || !Array.isArray(suggestedMeta.draft.lines)) {
+    return undefined;
+  }
+  if (!signedMeta?.signerUid || !signedMeta.signedAt) return undefined;
+  const signerIdentity = await readSignerIdentity(signedMeta.signerUid);
+  return {
+    orderId,
+    projectId,
+    tenantId: suggestedMeta.tenantId ?? '',
+    inspectionId: suggestedMeta.inspectionId ?? '',
+    suggestedNodeId: suggestedDoc.id,
+    draft: suggestedMeta.draft,
+    suggestedAt: suggestedMeta.suggestedAt ?? '',
+    status: 'signed',
+    signedAt: signedMeta.signedAt,
+    signerUid: signedMeta.signerUid,
+    signerRut: signedMeta.signerRut || signerIdentity.signerRut,
+    signerName: signerIdentity.signerName,
+    signedNodeId: signedDoc.id,
+  };
+}
+
+async function readSignerIdentity(
+  uid: string,
+): Promise<{ signerRut?: string; signerName?: string }> {
+  try {
+    const snap = await admin.firestore().collection('users').doc(uid).get();
+    if (!snap.exists) return {};
+    const data = snap.data() as Record<string, unknown> | undefined;
+    const rut = typeof data?.rut === 'string' ? data.rut.trim() : '';
+    const displayName =
+      typeof data?.displayName === 'string' ? data.displayName.trim() : '';
+    return {
+      ...(rut ? { signerRut: rut } : {}),
+      ...(displayName ? { signerName: displayName } : {}),
+    };
+  } catch (err) {
+    logger.warn?.('eppFlow.signer_identity_read_failed', {
+      uid,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {};
+  }
+}
+
+async function auditEppEventNonBlocking(
+  req: import('express').Request,
+  action: string,
+  details: Record<string, unknown>,
+  projectId: string,
+  captureContext: string,
+): Promise<void> {
+  try {
+    await auditServerEvent(req, action, 'eppFlow', details, { projectId });
+  } catch (err) {
+    logger.error?.('eppFlow.audit_failed', {
+      action,
+      projectId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    captureRouteError(err, captureContext);
+  }
+}
+
+type EppSigningClaimResult = 'claimed' | 'already_signed' | 'in_progress' | 'missing';
+
+interface EppSigningClaim {
+  challengeId: string;
+  signerUid: string;
+  expiresAtMs: number;
+}
+
+function readEppSigningClaim(metadata: Record<string, unknown>): EppSigningClaim | undefined {
+  const raw = metadata.eppSigningClaim;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const claim = raw as Record<string, unknown>;
+  if (
+    typeof claim.challengeId !== 'string' ||
+    typeof claim.signerUid !== 'string' ||
+    typeof claim.expiresAtMs !== 'number'
+  ) {
+    return undefined;
+  }
+  return {
+    challengeId: claim.challengeId,
+    signerUid: claim.signerUid,
+    expiresAtMs: claim.expiresAtMs,
+  };
+}
+
+async function claimEppOrderForSigning(
+  projectId: string,
+  orderId: string,
+  suggestedNodeId: string,
+  challengeId: string,
+  signerUid: string,
+): Promise<EppSigningClaimResult> {
+  const db = admin.firestore();
+  const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
+  const signedQuery = db
+    .collection('zettelkasten_nodes')
+    .where('projectId', '==', projectId)
+    .where('type', '==', 'safety-learning');
+  const nowMs = Date.now();
+  return db.runTransaction(async (tx) => {
+    const signedSnap = await tx.get(signedQuery);
+    const signedArtifactExists = signedSnap.docs.some((doc) => {
+      const data = doc.data() as {
+        metadata?: { sourceType?: unknown; orderId?: unknown };
+      };
+      return (
+        data.metadata?.sourceType === 'purchase-order-signed' &&
+        data.metadata.orderId === orderId
+      );
+    });
+    if (signedArtifactExists) return 'already_signed';
+    const snap = await tx.get(ref);
+    if (!snap.exists) return 'missing';
+    const data = snap.data() as { metadata?: Record<string, unknown> } | undefined;
+    const metadata = data?.metadata ?? {};
+    if (typeof metadata.eppSignedNodeId === 'string' && metadata.eppSignedNodeId) {
+      return 'already_signed';
+    }
+    const activeClaim = readEppSigningClaim(metadata);
+    if (activeClaim && activeClaim.expiresAtMs > nowMs) return 'in_progress';
+    tx.update(ref, {
+      'metadata.eppSigningClaim': {
+        challengeId,
+        signerUid,
+        expiresAtMs: nowMs + EPP_SIGNING_LEASE_MS,
+      },
+    });
+    return 'claimed';
+  });
+}
+
+async function releaseEppSigningClaim(
+  suggestedNodeId: string,
+  challengeId: string,
+): Promise<void> {
+  const db = admin.firestore();
+  const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data() as { metadata?: Record<string, unknown> } | undefined;
+    const activeClaim = readEppSigningClaim(data?.metadata ?? {});
+    if (activeClaim?.challengeId !== challengeId) return;
+    tx.update(ref, {
+      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+    });
+  });
+}
+
+async function markEppOrderSigned(
+  suggestedNodeId: string,
+  challengeId: string,
+  signedNodeId: string,
+  signedAt: string,
+  signerUid: string,
+): Promise<void> {
+  const db = admin.firestore();
+  const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data() as { metadata?: Record<string, unknown> } | undefined;
+    const activeClaim = readEppSigningClaim(data?.metadata ?? {});
+    if (activeClaim?.challengeId !== challengeId) {
+      throw new Error('epp_signing_claim_lost');
+    }
+    tx.update(ref, {
+      'metadata.eppSignedNodeId': signedNodeId,
+      'metadata.eppSignedAt': signedAt,
+      'metadata.eppSignerUid': signerUid,
+      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+    });
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -545,7 +806,60 @@ router.get(
 );
 
 // ────────────────────────────────────────────────────────────────────────
-// 3. POST /:projectId/epp-flow/sign-order/:orderId
+// 3. GET /:projectId/epp-flow/sign-challenge/:orderId
+// ────────────────────────────────────────────────────────────────────────
+
+router.get(
+  '/:projectId/epp-flow/sign-challenge/:orderId',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, orderId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    if (!callerCanSignEpp(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
+    const tenantId = callerTenantOr403(req, res, undefined);
+    if (tenantId === null) return undefined;
+
+    try {
+      const pending = await resolvePendingOrder(projectId, orderId);
+      if (!pending) return res.status(404).json({ error: 'order_not_found' });
+      if (!pending.tenantId || pending.tenantId !== tenantId) {
+        return res.status(403).json({ error: 'tenant_mismatch' });
+      }
+
+      const metadata: EppOrderSigningChallengeMetadata = {
+        purpose: 'epp_order_signing',
+        tenantId,
+        projectId,
+        orderId,
+        suggestedNodeId: pending.suggestedNodeId,
+        draftTotalClp: pending.draft.totalClp,
+      };
+      const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+        '../../services/auth/webauthnChallenge.js'
+      );
+      const { buildWebAuthnDb } = await import('./curriculum.js');
+      const { challengeId, challenge } = generateWebAuthnChallenge();
+      await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb(), {
+        metadata,
+      });
+      return res.json({
+        challengeId,
+        challenge: Buffer.from(challenge).toString('base64'),
+        rpId: getWebauthnRpId(),
+      });
+    } catch (err) {
+      logger.error?.('eppFlow.signChallenge.error', err);
+      captureRouteError(err, 'eppFlow.signChallenge');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 4. POST /:projectId/epp-flow/sign-order/:orderId
 // ────────────────────────────────────────────────────────────────────────
 
 router.post(
@@ -562,68 +876,193 @@ router.post(
       return res.status(403).json({ error: 'forbidden_role' });
     }
 
-    // Solo el admin que dice ser puede firmar. Anti-blame estilo readReceipts.
-    if (body.signerUid !== callerUid) {
-      return res.status(403).json({
-        error: 'forbidden',
-        message: 'signerUid must match the authenticated caller.',
-      });
-    }
-    // Cross-tenant guard (#700/#707/#708): tenant from the verified token, not body.
-    const tenantId = callerTenantOr403(req, res, body.tenantId);
+    // Actor and tenant come exclusively from the verified token. Legacy body
+    // fields are stripped by Zod and cannot influence the legal signature.
+    const tenantId = callerTenantOr403(req, res, undefined);
     if (tenantId === null) return undefined;
 
     try {
       const key = pendingKey(projectId, orderId);
-      const pending = pendingOrders.get(key);
+      const pending = await resolvePendingOrder(projectId, orderId);
       if (!pending) {
         return res.status(404).json({ error: 'order_not_found' });
       }
-      if (pending.suggestedNodeId !== body.suggestedNodeId) {
-        return res.status(400).json({ error: 'suggestedNodeId_mismatch' });
+      if (!pending.tenantId || pending.tenantId !== tenantId) {
+        return res.status(403).json({ error: 'tenant_mismatch' });
       }
 
-      const deps: EppFlowDeps = {
-        // Codex P1 (#650): in the Express runtime the browser `writeNodes`
-        // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
-        // server writer, stamped with the verified actor.
-        writeNodes: makeServerWriteNodes({
-          createdBy: callerUid,
-          createdByEmail: req.user?.email ?? null,
-        }),
-        edgeStore: buildFirestoreEdgeStore(),
+      const expectedChallengeMetadata: EppOrderSigningChallengeMetadata = {
+        purpose: 'epp_order_signing',
         tenantId,
-        createdBy: callerUid,
+        projectId,
+        orderId,
+        suggestedNodeId: pending.suggestedNodeId,
+        draftTotalClp: pending.draft.totalClp,
       };
-
-      const signed = await persistSignedNode(
-        {
-          signature: {
-            orderId,
-            signerUid: body.signerUid,
-            signerRut: body.signerRut,
-            signedAt: body.signedAt,
-            challengeId: body.challengeId,
-          },
-          draftTotalClp: body.draftTotalClp,
-          suggestedNodeId: body.suggestedNodeId,
-        },
-        deps,
-        { projectId },
-      );
-
-      pending.status = 'signed';
-      pending.signedAt = body.signedAt;
-      pending.signerUid = body.signerUid;
-      pendingOrders.set(key, pending);
-
-      await auditServerEvent(req, 'eppFlow.sign-order', 'eppFlow', { projectId, orderId }, { projectId });
-      return res.json({
-        ok: signed.ok,
-        signedNodeId: signed.nodeId,
-        edgeId: signed.edge?.id ?? null,
-        order: pending,
+      const assertion = body.assertion;
+      const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+      const { buildWebAuthnDb, buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+      const verdict = await verifyWebAuthnAssertion({
+        uid: callerUid,
+        credentialId: assertion.id,
+        rawId: assertion.rawId,
+        clientDataJSON: assertion.clientDataJSON,
+        authenticatorData: assertion.authenticatorData,
+        signature: assertion.signature,
+        clientExtensionResults: assertion.clientExtensionResults,
+        type: assertion.type,
+        challengeId: assertion.challengeId,
+        expectedOrigin: getWebauthnExpectedOrigin(),
+        expectedRpId: getWebauthnRpId(),
+        challengesDb: buildWebAuthnDb(),
+        credentialsDb: buildWebAuthnCredentialsDb(),
+        challengeMetadataValidator: (metadata) =>
+          matchesEppOrderSigningChallenge(metadata, expectedChallengeMetadata),
       });
+      if (!verdict.verified) {
+        await auditEppEventNonBlocking(
+          req,
+          'eppFlow.sign-order-failed',
+          {
+            projectId,
+            orderId,
+            credentialId: assertion.id,
+            reason: verdict.reason ?? 'verification_failed',
+          },
+          projectId,
+          'eppFlow.signOrder.audit-rejection',
+        );
+        return res.status(401).json({
+          error: 'webauthn_verification_failed',
+          reason: verdict.reason ?? 'verification_failed',
+        });
+      }
+
+      if (signingOrders.has(key)) {
+        return res.status(409).json({ error: 'order_already_signed' });
+      }
+      signingOrders.add(key);
+      try {
+        const claimResult = await claimEppOrderForSigning(
+          projectId,
+          orderId,
+          pending.suggestedNodeId,
+          assertion.challengeId,
+          callerUid,
+        );
+        if (claimResult !== 'claimed') {
+          await auditEppEventNonBlocking(
+            req,
+            'eppFlow.sign-order-conflict',
+            { projectId, orderId, claimResult },
+            projectId,
+            'eppFlow.signOrder.audit-conflict',
+          );
+          return res.status(409).json({ error: 'order_already_signed' });
+        }
+
+        const deps: EppFlowDeps = {
+          // Codex P1 (#650): in the Express runtime the browser `writeNodes`
+          // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
+          // server writer, stamped with the verified actor.
+          writeNodes: makeServerWriteNodes({
+            createdBy: callerUid,
+            createdByEmail: req.user?.email ?? null,
+          }),
+          createNodeOnce: makeServerCreateNodeOnce({
+            createdBy: callerUid,
+            createdByEmail: req.user?.email ?? null,
+          }),
+          edgeStore: buildFirestoreEdgeStore(),
+          tenantId,
+          createdBy: callerUid,
+        };
+        const signedAt = new Date().toISOString();
+        const signerIdentity = await readSignerIdentity(callerUid);
+
+        let signed: Awaited<ReturnType<typeof persistSignedNode>>;
+        try {
+          signed = await persistSignedNode(
+            {
+              signature: {
+                orderId,
+                signerUid: callerUid,
+                signerRut: signerIdentity.signerRut,
+                signedAt,
+                challengeId: assertion.challengeId,
+              },
+              draftTotalClp: pending.draft.totalClp,
+              suggestedNodeId: pending.suggestedNodeId,
+            },
+            deps,
+            { projectId },
+          );
+        } catch (err) {
+          try {
+            await releaseEppSigningClaim(pending.suggestedNodeId, assertion.challengeId);
+          } catch (releaseErr) {
+            logger.error?.('eppFlow.signing_claim_release_failed', releaseErr);
+            captureRouteError(releaseErr, 'eppFlow.signOrder.releaseClaim');
+          }
+          throw err;
+        }
+
+        if (signed.created === false) {
+          try {
+            await releaseEppSigningClaim(pending.suggestedNodeId, assertion.challengeId);
+          } catch (releaseErr) {
+            logger.error?.('eppFlow.signing_claim_release_failed', releaseErr);
+            captureRouteError(releaseErr, 'eppFlow.signOrder.releaseDuplicateClaim');
+          }
+          await auditEppEventNonBlocking(
+            req,
+            'eppFlow.sign-order-conflict',
+            { projectId, orderId, claimResult: 'artifact_already_created' },
+            projectId,
+            'eppFlow.signOrder.audit-create-conflict',
+          );
+          return res.status(409).json({ error: 'order_already_signed' });
+        }
+
+        pending.status = 'signed';
+        pending.signedAt = signedAt;
+        pending.signerUid = callerUid;
+        pending.signerRut = signerIdentity.signerRut;
+        pending.signerName = signerIdentity.signerName;
+        pending.signedNodeId = signed.nodeId;
+        pendingOrders.set(key, pending);
+
+        try {
+          await markEppOrderSigned(
+            pending.suggestedNodeId,
+            assertion.challengeId,
+            signed.nodeId,
+            signedAt,
+            callerUid,
+          );
+        } catch (markErr) {
+          // The signed node is already authoritative. Keep the user-facing
+          // success and surface the marker repair failure operationally.
+          logger.error?.('eppFlow.signed_marker_failed', markErr);
+          captureRouteError(markErr, 'eppFlow.signOrder.markSigned');
+        }
+
+        await auditEppEventNonBlocking(
+          req,
+          'eppFlow.sign-order',
+          { projectId, orderId },
+          projectId,
+          'eppFlow.signOrder.audit',
+        );
+        return res.json({
+          ok: signed.ok,
+          signedNodeId: signed.nodeId,
+          edgeId: signed.edge?.id ?? null,
+          order: pending,
+        });
+      } finally {
+        signingOrders.delete(key);
+      }
     } catch (err) {
       logger.error?.('eppFlow.signOrder.error', err);
       captureRouteError(err, 'eppFlow.signOrder');
@@ -655,9 +1094,17 @@ router.get(
 
     try {
       const key = pendingKey(projectId, orderId);
-      const order = pendingOrders.get(key);
+      const cached = pendingOrders.get(key);
+      const persistedSigned =
+        cached?.status === 'signed'
+          ? undefined
+          : await readPersistedSignedOrder(projectId, orderId);
+      const order = cached?.status === 'signed' ? cached : (persistedSigned ?? cached);
       if (!order) {
         return res.status(404).json({ error: 'order_not_found' });
+      }
+      if (!order.tenantId || order.tenantId !== tenantId) {
+        return res.status(403).json({ error: 'tenant_mismatch' });
       }
       if (order.status !== 'signed') {
         return res.status(409).json({ error: 'order_not_signed' });
@@ -668,6 +1115,8 @@ router.get(
         orderId,
         companyName: 'Empresa', // MVP: idealmente lookup en projects/{projectId}
         signerUid: order.signerUid,
+        signerRut: order.signerRut,
+        signerName: order.signerName,
         signedAt: order.signedAt,
         lines: order.draft.lines,
         totalClp: order.draft.totalClp,
@@ -676,10 +1125,7 @@ router.get(
       });
       const pdfSha256Hex = createHash('sha256').update(pdf).digest('hex');
 
-      // Persistimos el nodo PDF en la cadena ZK.
-      // Buscamos el signedNodeId desde pendingOrders.signedNodeId (lo
-      // grabamos en sign-order). MVP: si no tenemos, hacemos un best-effort.
-      // El persistPdfNode skipea edge si los ids coinciden (defensive path).
+      // Persistimos el nodo PDF enlazado al nodo firmado autoritativo.
       const deps: EppFlowDeps = {
         // Codex P1 (#650): in the Express runtime the browser `writeNodes`
         // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
@@ -693,12 +1139,7 @@ router.get(
         createdBy: callerUid,
       };
       const generatedAt = new Date().toISOString();
-      // Para una version mas robusta, signedNodeId deberia persistirse en
-      // pendingOrders. MVP: lo dejamos como vacio y persistPdfNode no crea
-      // edge cuando se omite. La cadena queda con el nodo firmado + nodo
-      // PDF, y la route de auditoria puede vincularlos por orderId.
-      const signedNodeId = (order as PendingOrderRecord & { signedNodeId?: string })
-        .signedNodeId ?? '';
+      const signedNodeId = order.signedNodeId ?? '';
       if (signedNodeId) {
         await persistPdfNode(
           {
@@ -739,6 +1180,7 @@ router.get(
 
 export function __resetPendingOrdersForTests(): void {
   pendingOrders.clear();
+  signingOrders.clear();
 }
 
 export default router;
