@@ -37,6 +37,50 @@ import { normalizeSubscriptionProvider } from "../../services/pricing/subscripti
 
 export const subscriptionRouter = Router();
 
+/**
+ * Período de vigencia que una factura paid representa. Una factura solo
+ * reactiva el plan dentro del período que compró: [referencia, referencia +
+ * duración(cycle)]. Fuera de él está vencida y NO concede un período nuevo.
+ *
+ * - Referencia temporal: `paidAtIso` (lo escribe mark-paid) o `issuedAt`
+ *   (buildInvoice). Sin referencia parseable → `null` (no verificable).
+ * - Duración: annual = 365d, monthly (default) = 30d.
+ *
+ * P0 39baa66d-8182: antes, /upgrade aceptaba CUALQUIER invoice paid
+ * histórico — una factura de hace un año reactivaba el plan indefinidamente.
+ */
+export function invoicePeriodExpiredMs(
+  invoiceData: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!invoiceData) return null;
+  const referenceIso =
+    typeof invoiceData.paidAtIso === 'string'
+      ? invoiceData.paidAtIso
+      : typeof invoiceData.issuedAt === 'string'
+        ? invoiceData.issuedAt
+        : null;
+  if (!referenceIso || !Number.isFinite(Date.parse(referenceIso))) return null;
+  const durationMs =
+    invoiceData.cycle === 'annual' ? 365 * 24 * 3600_000 : 30 * 24 * 3600_000;
+  return Date.parse(referenceIso) + durationMs;
+}
+
+/** Error interno — la tx de consumo detectó una factura ya consumida. */
+class InvoiceConsumedError extends Error {
+  constructor() {
+    super('invoice already consumed');
+    this.name = 'InvoiceConsumedError';
+  }
+}
+
+/** Error interno — la tx de consumo detectó una factura vencida. */
+class InvoiceExpiredInTxError extends Error {
+  constructor() {
+    super('invoice expired');
+    this.name = 'InvoiceExpiredInTxError';
+  }
+}
+
 subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   const uid = req.user?.uid;
   if (!uid) {
@@ -55,11 +99,22 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   // in-memory because Firestore can't index nested array fields directly.
   // Volume per-user is low (a paying customer has <50 lifetime invoices)
   // so this is well within latency budget.
+  //
+  // P0 39baa66d-8182: a paid invoice is NOT a perpetual entitlement key.
+  // The invoice represents ONE purchased period — it must be (a) not yet
+  // consumed (consumedAt absent) and (b) within its validity window
+  // (issuedAt/paidAtIso + cycle). Otherwise a user who paid once could
+  // re-run this endpoint after expiry and re-activate the plan forever.
   let paidTierId: string | null = null;
   // Capture the SAME invoice that matched the requested plan so we persist its
   // cycle (not the first paid invoice's) onto the subscription doc.
   let paidInvoiceData: Record<string, unknown> | null = null;
+  let paidInvoiceRef: ReturnType<ReturnType<typeof db.collection>['doc']> | null = null;
   let paidPaymentMethod: unknown = null;
+  let consumedMatch: boolean = false;
+  let expiredMatch: boolean = false;
+  let unverifiableMatch: boolean = false;
+  const nowMs = Date.now();
   try {
     const paidInvoices = await db
       .collection("invoices")
@@ -67,31 +122,66 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
       .where("status", "==", "paid")
       .get();
 
-    const hasPaidForPlan = paidInvoices.docs.some((docSnap) => {
+    for (const docSnap of paidInvoices.docs) {
       const data = docSnap.data();
       // Newest schema: lineItems is an array of { tierId, quantity, ... }
       const lineItems = Array.isArray(data?.lineItems) ? data.lineItems : [];
       const lineItem = lineItems.find((item: any) =>
         subscriptionPlanMatchesPaidTier(planId, item?.tierId),
       );
-      if (lineItem?.tierId) {
-        paidTierId = lineItem.tierId;
-        paidInvoiceData = data;
-        paidPaymentMethod = data?.paymentMethod;
-        return true;
-      }
-      // Legacy schema: top-level tierId
-      if (subscriptionPlanMatchesPaidTier(planId, data?.tierId)) {
-        paidTierId = data.tierId;
-        paidInvoiceData = data;
-        paidPaymentMethod = data?.paymentMethod;
-        return true;
-      }
-      return false;
-    });
+      const tierId = lineItem?.tierId ?? data?.tierId;
+      const matchesPlan = Boolean(
+        lineItem?.tierId
+          ? true
+          : subscriptionPlanMatchesPaidTier(planId, data?.tierId),
+      );
+      if (!matchesPlan) continue;
 
-    if (!hasPaidForPlan) {
+      // (a) idempotency — an invoice used for a previous upgrade is dead.
+      if (data?.consumedAt) {
+        consumedMatch = true;
+        continue;
+      }
+      // (b) validity window — the purchased period must still be live.
+      const periodEndMs = invoicePeriodExpiredMs(data);
+      if (periodEndMs === null) {
+        // No parseable issuedAt/paidAtIso: cannot prove the period is live.
+        // Fail closed — never grant on unverifiable age.
+        unverifiableMatch = true;
+        continue;
+      }
+      if (nowMs > periodEndMs) {
+        expiredMatch = true;
+        continue;
+      }
+
+      paidTierId = tierId ?? null;
+      paidInvoiceData = data;
+      paidInvoiceRef = docSnap.ref as ReturnType<ReturnType<typeof db.collection>['doc']>;
+      paidPaymentMethod = data?.paymentMethod;
+      break;
+    }
+
+    if (!paidInvoiceRef || !paidInvoiceData) {
       logger.warn("subscription_upgrade_no_payment", { uid, planId });
+      if (consumedMatch) {
+        return res.status(403).json({
+          error: "invoice_already_consumed",
+          message: "This invoice has already been used to activate a plan.",
+        });
+      }
+      if (expiredMatch) {
+        return res.status(403).json({
+          error: "invoice_expired",
+          message: "The purchased period for this invoice has expired. Complete a new checkout.",
+        });
+      }
+      if (unverifiableMatch) {
+        return res.status(403).json({
+          error: "invoice_unverifiable",
+          message: "Invoice age could not be verified. Complete a new checkout.",
+        });
+      }
       return res.status(403).json({
         error: "no_paid_invoice_for_plan",
         message: "No paid invoice found for this plan. Complete a checkout first.",
@@ -119,25 +209,58 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   }
 
   // Payment exists — update via Admin SDK (bypasses client rules).
+  // The invoice consumption is ATOMIC with the grant: both happen inside
+  // one transaction, so two concurrent /upgrade calls with the same
+  // invoice cannot both win (Firestore retries the losing tx, which then
+  // sees consumedAt and aborts). P0 39baa66d-8182 idempotency.
   try {
-    await db.collection("users").doc(uid).set(
-      {
-        subscriptionPlan: normalizedPlanId,
-        subscription: {
-          planId: normalizedPlanId,
-          tierId: paidTierId ?? normalizedPlanId,
-          status: "active",
-          paymentMethod,
-          provider: paymentMethod,
-          expiryDate: null,
-          gracePeriodEnd: null,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          cycle,
+    await db.runTransaction(async (tx) => {
+      const invoiceSnap = await tx.get(paidInvoiceRef!);
+      const invoiceData = invoiceSnap.data();
+      if (invoiceData?.consumedAt) {
+        throw new InvoiceConsumedError();
+      }
+      const periodEndMs = invoicePeriodExpiredMs(invoiceData);
+      if (periodEndMs === null || Date.now() > periodEndMs) {
+        throw new InvoiceExpiredInTxError();
+      }
+      await tx.update(paidInvoiceRef!, {
+        consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await tx.set(
+        db.collection("users").doc(uid),
+        {
+          subscriptionPlan: normalizedPlanId,
+          subscription: {
+            planId: normalizedPlanId,
+            tierId: paidTierId ?? normalizedPlanId,
+            status: "active",
+            paymentMethod,
+            provider: paymentMethod,
+            expiryDate: null,
+            gracePeriodEnd: null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            cycle,
+          },
         },
-      },
-      { merge: true },
-    );
+        { merge: true },
+      );
+    });
   } catch (writeErr) {
+    if (writeErr instanceof InvoiceConsumedError) {
+      logger.warn("subscription_upgrade_invoice_consumed", { uid, planId });
+      return res.status(403).json({
+        error: "invoice_already_consumed",
+        message: "This invoice has already been used to activate a plan.",
+      });
+    }
+    if (writeErr instanceof InvoiceExpiredInTxError) {
+      logger.warn("subscription_upgrade_invoice_expired_tx", { uid, planId });
+      return res.status(403).json({
+        error: "invoice_expired",
+        message: "The purchased period for this invoice has expired. Complete a new checkout.",
+      });
+    }
     logger.error("subscription_upgrade_write_failed", writeErr as Error, {
       uid,
       planId,
