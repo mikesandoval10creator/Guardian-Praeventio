@@ -1641,20 +1641,88 @@ describe('POST /api/billing/app-store/validate-receipt', () => {
   });
 
   it('200 happy path — valid Apple transaction', async () => {
+    H.db!._seed('users/uid-A', {});
     const { validateAppleTransaction } = await import('../../services/billing/appleTransactionValidator.js');
     (validateAppleTransaction as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      productId: 'praeventio.oro.monthly',
+      productId: 'praeventio_oro_monthly',
       expiryMs: Date.now() + 1000000,
-      environment: 'Sandbox',
+      environment: 'sandbox',
       originalTransactionId: 'orig-1',
+      payload: {
+        appAccountToken: 'aat-1',
+        originalTransactionId: 'orig-1',
+        productId: 'praeventio_oro_monthly',
+      },
     });
     const res = await request(buildApp())
       .post('/api/billing/app-store/validate-receipt')
       .set('x-test-uid', 'uid-A')
-      .send({ productId: 'praeventio.oro.monthly', receiptId: 'txn-apple-1' });
+      .send({ productId: 'praeventio_oro_monthly', receiptId: 'txn-apple-1' });
     expect(res.status).toBe(200);
     expect((res.body as Record<string, unknown>).ok).toBe(true);
+  });
+
+  it('200 — persists appAccountToken + originalTransactionId + planId so SSN can find the user', async () => {
+    // P0 39baa66d-816f: validate-receipt (iOS) no guardaba
+    // appleAppAccountToken ni appleOriginalTransactionId en el user doc.
+    // applyAppleEntitlement (appleSsn.ts) busca al usuario por esos campos —
+    // sin escritor inicial, las notificaciones SSN (renovaciones, refunds)
+    // no encontraban a nadie.
+    H.db!._seed('users/uid-A', {});
+    const { validateAppleTransaction } = await import('../../services/billing/appleTransactionValidator.js');
+    (validateAppleTransaction as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      productId: 'praeventio_oro_monthly',
+      expiryMs: Date.now() + 1000000,
+      environment: 'sandbox',
+      originalTransactionId: 'orig-1',
+      payload: {
+        appAccountToken: 'aat-1',
+        originalTransactionId: 'orig-1',
+        productId: 'praeventio_oro_monthly',
+      },
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/app-store/validate-receipt')
+      .set('x-test-uid', 'uid-A')
+      .send({ productId: 'praeventio_oro_monthly', receiptId: 'txn-apple-1' });
+    expect(res.status).toBe(200);
+
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user.subscription?.appleAppAccountToken).toBe('aat-1');
+    expect(user.subscription?.appleOriginalTransactionId).toBe('orig-1');
+    expect(user.subscription?.planId).toBe('oro');
+    expect(user.subscription?.status).toBe('active');
+    expect(user.subscription?.provider).toBe('app-store');
+    expect(user.subscription?.paymentMethod).toBe('app-store');
+    expect(typeof user.subscription?.expiryDate).toBe('string');
+  });
+
+  it('400 unknown_product — valid Apple transaction for an unmapped SKU does NOT grant', async () => {
+    H.db!._seed('users/uid-A', {});
+    const { validateAppleTransaction } = await import('../../services/billing/appleTransactionValidator.js');
+    (validateAppleTransaction as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      productId: 'praeventio_not_registered_monthly',
+      expiryMs: Date.now() + 1000000,
+      environment: 'sandbox',
+      originalTransactionId: 'orig-2',
+      payload: {
+        appAccountToken: 'aat-2',
+        originalTransactionId: 'orig-2',
+        productId: 'praeventio_not_registered_monthly',
+      },
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/app-store/validate-receipt')
+      .set('x-test-uid', 'uid-A')
+      .send({ productId: 'praeventio_not_registered_monthly', receiptId: 'txn-apple-2' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toBe('unknown_product');
+
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user?.subscription?.appleAppAccountToken).toBeUndefined();
   });
 
   it('400 on rejected Apple transaction (expired)', async () => {
