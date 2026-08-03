@@ -126,6 +126,8 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     seedInvoice('inv1', {
       createdBy: 'u1',
       status: 'paid',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       lineItems: [{ tierId: 'oro' }],
     });
     const res = await request(buildApp())
@@ -150,6 +152,8 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
       createdBy: 'u1',
       status: 'paid',
       paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       lineItems: [{ tierId: 'oro' }],
     });
     const res = await request(buildApp())
@@ -173,6 +177,8 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
       createdBy: 'u1',
       status: 'paid',
       paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       lineItems: [{ tierId: 'oro' }],
     });
     // The plan write at the top of the handler already succeeded; the audit
@@ -203,6 +209,8 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
       createdBy: 'u1',
       status: 'paid',
       paymentMethod: 'manual-transfer',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       tierId: 'titanio',
     });
     const res = await request(buildApp())
@@ -214,5 +222,98 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     expect(user.subscription.planId).toBe('titanio');
     expect(user.subscription.paymentMethod).toBe('manual');
     expect(user.subscription.provider).toBe('manual');
+  });
+
+  it('403 SECURITY: a consumed invoice cannot reactivate the plan (idempotency per invoice)', async () => {
+    // P0 39baa66d-8182: /upgrade aceptaba cualquier invoice paid histórico.
+    // Un usuario que pagó un mes podía re-ejecutar el endpoint tras expirar
+    // y recuperar el plan indefinidamente. Una factura usada queda marcada
+    // `consumedAt` y nunca vuelve a conceder.
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
+      consumedAt: new Date(Date.now() - 30_000).toISOString(),
+      lineItems: [{ tierId: 'oro' }],
+    });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('invoice_already_consumed');
+    const user = (await H.db!.collection('users').doc('u1').get()).data();
+    expect(user).toBeFalsy();
+    expect(H.audit).not.toHaveBeenCalled();
+  });
+
+  it('403 SECURITY: an expired invoice cannot reactivate a NEW period', async () => {
+    // El periodo adquirido por la factura (issuedAt + cycle) ya venció.
+    // Una factura no reactiva un periodo nuevo.
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 90 * 24 * 3600_000).toISOString(), // 90 días atrás (monthly)
+      cycle: 'monthly',
+      lineItems: [{ tierId: 'oro' }],
+    });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('invoice_expired');
+    const user = (await H.db!.collection('users').doc('u1').get()).data();
+    expect(user).toBeFalsy();
+  });
+
+  it('200 — a successful upgrade marks the invoice as consumed (consumedAt)', async () => {
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
+      lineItems: [{ tierId: 'oro' }],
+    });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(res.status).toBe(200);
+    const invoice = (await H.db!.collection('invoices').doc('inv1').get()).data() as Record<string, any>;
+    expect(invoice.consumedAt).toBeDefined();
+  });
+
+  it('403 SECURITY: re-running upgrade with the SAME invoice after expiry is denied (full loop)', async () => {
+    // Loop completo del abuso: compra → upgrade OK → factura consumida →
+    // expira el plan → re-ejecuta con la misma factura → DENEGADO.
+    seedInvoice('inv1', {
+      createdBy: 'u1',
+      status: 'paid',
+      paymentMethod: 'webpay',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
+      lineItems: [{ tierId: 'oro' }],
+    });
+    const first = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(first.status).toBe(200);
+
+    // La factura quedó consumida; aunque el plan expire después, el reuso
+    // de la misma factura debe fallar.
+    const invoice = (await H.db!.collection('invoices').doc('inv1').get()).data() as Record<string, any>;
+    expect(invoice.consumedAt).toBeDefined();
+    const second = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(second.status).toBe(403);
+    expect(second.body.error).toBe('invoice_already_consumed');
   });
 });

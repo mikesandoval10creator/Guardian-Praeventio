@@ -41,6 +41,7 @@ import {
   subscriptionPlanMatchesPaidTier,
   planFromIapProductId,
 } from '../../services/pricing/subscriptionPlan.js';
+import { invoicePeriodExpiredMs } from '../../server/routes/subscription.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -1468,9 +1469,13 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     return res.json({ success: true });
   });
 
-  // â”€â”€â”€ /api/subscription/upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Closes DT-01/DT-05: only callers with a paid invoice for the
-  // requested plan may upgrade. Mirrors the production gate.
+  // ─── /api/subscription/upgrade ───────────────────────────────────────────────
+  // Closes DT-01/DT-05 + P0 39baa66d-8182: only callers with a paid invoice
+  // for the requested plan may upgrade, AND the invoice must not be already
+  // consumed nor outside its purchased period. Mirrors the production gate
+  // (src/server/routes/subscription.ts) — same helper, same observable
+  // behaviour (consumedAt marking + 403s). Atomicity itself (runTransaction)
+  // is covered by the real-router test; this mirror replicates the decisions.
   app.post('/api/subscription/upgrade', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const { planId } = req.body ?? {};
@@ -1483,23 +1488,48 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       .where('status', '==', 'paid')
       .get();
     let paidTierId: string | null = null;
-    const hasPaidForPlan = paid.docs.some((d) => {
+    let paidInvoiceRef: FakeDocRef | null = null;
+    let consumedMatch = false;
+    let expiredMatch = false;
+    let unverifiableMatch = false;
+    const nowMs = Date.now();
+    for (const d of paid.docs) {
       const data = d.data() ?? {};
       const lineItems = Array.isArray(data.lineItems) ? data.lineItems : [];
       const lineItem = lineItems.find((li: any) =>
         subscriptionPlanMatchesPaidTier(planId, li?.tierId),
       );
-      if (lineItem?.tierId) {
-        paidTierId = lineItem.tierId;
-        return true;
+      const matchesPlan = lineItem?.tierId
+        ? true
+        : subscriptionPlanMatchesPaidTier(planId, data.tierId);
+      if (!matchesPlan) continue;
+      if (data.consumedAt) {
+        consumedMatch = true;
+        continue;
       }
-      if (subscriptionPlanMatchesPaidTier(planId, data.tierId)) {
-        paidTierId = data.tierId;
-        return true;
+      const periodEndMs = invoicePeriodExpiredMs(data);
+      if (periodEndMs === null) {
+        unverifiableMatch = true;
+        continue;
       }
-      return false;
-    });
-    if (!hasPaidForPlan) {
+      if (nowMs > periodEndMs) {
+        expiredMatch = true;
+        continue;
+      }
+      paidTierId = lineItem?.tierId ?? data.tierId ?? null;
+      paidInvoiceRef = d.ref;
+      break;
+    }
+    if (!paidInvoiceRef) {
+      if (consumedMatch) {
+        return res.status(403).json({ error: 'invoice_already_consumed' });
+      }
+      if (expiredMatch) {
+        return res.status(403).json({ error: 'invoice_expired' });
+      }
+      if (unverifiableMatch) {
+        return res.status(403).json({ error: 'invoice_unverifiable' });
+      }
       return res.status(403).json({
         error: 'no_paid_invoice_for_plan',
         message: 'No paid invoice found for this plan. Complete a checkout first.',
@@ -1517,6 +1547,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       },
       { merge: true },
     );
+    await deps.firestore.collection('invoices').doc(paidInvoiceRef.id).update({
+      consumedAt: new Date().toISOString(),
+    });
     await deps.firestore.collection('audit_logs').add({
       action: 'subscription.upgraded',
       module: 'subscription',

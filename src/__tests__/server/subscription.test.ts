@@ -73,6 +73,8 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_ok', {
       createdBy: 'uid-A',
       status: 'paid',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       lineItems: [{ tierId: 'oro' }],
     });
     const res = await request(handle.app)
@@ -92,6 +94,8 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_canonical', {
       createdBy: 'uid-A',
       status: 'paid',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       lineItems: [{ tierId: 'departamento-prevencion' }],
     });
     const res = await request(handle.app)
@@ -110,6 +114,8 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_legacy', {
       createdBy: 'uid-A',
       status: 'paid',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      cycle: 'monthly',
       tierId: 'plata', // legacy schema, no lineItems
     });
     const res = await request(handle.app)
