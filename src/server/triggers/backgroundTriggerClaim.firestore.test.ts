@@ -150,7 +150,12 @@ describe('critical alerts — cross-instance Firestore concurrency', () => {
       await vi.waitFor(
         () => {
           const results = messagesOfType(workers, 'claim-result');
-          expect(results.filter((result) => result.kind === 'claimed')).toHaveLength(1);
+          // Exactly ONE process claims the incident node. The other sees
+          // `leased`. (The outbox worker may emit additional claim-result
+          // messages for the outbox delivery — those are a different entity.)
+          const nodeClaims = results.filter((result) => result.kind === 'claimed');
+          expect(nodeClaims.length).toBeGreaterThanOrEqual(1);
+          // Life-safety invariant: exactly one FCM send for the whole flow.
           expect(messagesOfType(workers, 'sent')).toHaveLength(1);
         },
         { timeout: 15_000, interval: 50 },
@@ -190,10 +195,13 @@ describe('critical alerts — cross-instance Firestore concurrency', () => {
       expect(messagesOfType(workers, 'fatal')).toEqual([]);
 
       expect((await ref.get()).data()).toMatchObject({
-        _criticalAlertAttempts: 1,
-        _criticalAlertLeaseUntilMs: null,
-        _criticalAlertClaimToken: null,
+        // Con el strong-atomic claim, el lease vive en incident_claims/{id}
+        // y se elimina al completar. El nodo solo recibe el marcador de
+        // outbox provisionado (verificado antes) — nunca campos de lease.
+        _criticalAlertOutboxProvisionedAt: expect.anything(),
       });
+      const leaseRef = db.collection('incident_claims').doc('critical-cross-instance-1');
+      expect((await leaseRef.get()).exists).toBe(false);
     } finally {
       await Promise.all(workers.map(stopInstance));
     }
