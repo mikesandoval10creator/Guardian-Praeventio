@@ -182,7 +182,10 @@ export function setupBackgroundTriggers(
   const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   try {
-    const { db, messaging, resend, firestoreNamespace } = deps;
+    const { db, messaging, firestoreNamespace } = deps;
+    // `resend` queda en BackgroundTriggersDeps por compatibilidad; el envío de
+    // email CPHS ahora lo hace el worker de outbox vía sendCphsEmail().
+    void deps.resend;
     const nowMs = deps.nowMs ?? Date.now;
     const createClaimToken = deps.createClaimToken ?? randomUUID;
 
@@ -212,8 +215,14 @@ export function setupBackgroundTriggers(
 
             void serializeByKey(`incident:${change.doc.id}`, async () => {
             let claimToken: string | null = null;
+            let claimRef: ReturnType<ReturnType<typeof db.collection>['doc']> | null = null;
             try {
               const token = createClaimToken();
+              // Strong-atomic claim: the lease lives in a dedicated doc
+              // `incident_claims/{nodeId}` rather than embedded in the node.
+              // Two processes racing on the same incident hit tx.create →
+              // exactly one winner, race-free in prod AND the emulator.
+              claimRef = db.collection('incident_claims').doc(change.doc.id);
               const claim = await claimBackgroundWork({
                 db,
                 ref: change.doc.ref,
@@ -221,6 +230,7 @@ export function setupBackgroundTriggers(
                 nowMs: nowMs(),
                 leaseMs: TRIGGER_LEASE_MS,
                 token,
+                claimRef,
               });
               if (claim.kind === 'completed') {
                 logger.info('incident_alert_skipped_idempotent', {
@@ -303,6 +313,7 @@ export function setupBackgroundTriggers(
                   ref: change.doc.ref,
                   fields: CRITICAL_CLAIM_FIELDS,
                   token,
+                  claimRef,
                   completionPatch: {
                     _criticalAlertOutboxProvisionedAt:
                       firestoreNamespace.FieldValue.serverTimestamp(),
@@ -356,6 +367,7 @@ export function setupBackgroundTriggers(
                 ref: change.doc.ref,
                 fields: CRITICAL_CLAIM_FIELDS,
                 token,
+                claimRef,
                 completionPatch: {
                   _criticalAlertOutboxProvisionedAt:
                     firestoreNamespace.FieldValue.serverTimestamp(),
@@ -369,12 +381,13 @@ export function setupBackgroundTriggers(
                 trigger: 'criticalIncidentProvision',
                 tags: { phase: 'outbox-provision' },
               });
-              if (claimToken) {
+              if (claimToken && claimRef) {
                 await releaseBackgroundWork({
                   db,
                   ref: change.doc.ref,
                   fields: CRITICAL_CLAIM_FIELDS,
                   token: claimToken,
+                  claimRef: claimRef,
                   failurePatch: {
                     _criticalAlertLastError:
                       err instanceof Error ? err.message : String(err),

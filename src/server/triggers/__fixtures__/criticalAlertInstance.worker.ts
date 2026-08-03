@@ -52,7 +52,13 @@ const triggerDb = {
       await released;
     }
 
-    const result = await db.runTransaction(updateFunction);
+    let result: T;
+    try {
+      result = await db.runTransaction(updateFunction);
+    } catch (error) {
+      send({ type: 'fatal', instanceId, error: `tx-error: ${error instanceof Error ? error.message : String(error)}` });
+      throw error;
+    }
     if (
       result !== null &&
       typeof result === 'object' &&

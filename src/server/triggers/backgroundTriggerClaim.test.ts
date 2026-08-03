@@ -6,15 +6,23 @@ import {
 } from './backgroundTriggerClaim';
 
 function fakeStore(initial: Record<string, unknown> = {}) {
-  let data = { ...initial };
+  let data: Record<string, unknown> = { ...initial };
   const ref = { id: 'doc-1' };
   const db = {
     runTransaction: async <T>(fn: (tx: {
-      get: () => Promise<{ data: () => Record<string, unknown> }>;
+      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> }>;
+      create: (_ref: unknown, value: Record<string, unknown>) => void;
       update: (_ref: unknown, patch: Record<string, unknown>) => void;
     }) => Promise<T>) =>
       fn({
-        get: async () => ({ data: () => ({ ...data }) }),
+        get: async () => ({
+          exists: Object.keys(data).length > 0,
+          data: () => ({ ...data }),
+        }),
+        create: (_ref, value) => {
+          if (Object.keys(data).length > 0) throw new Error('doc already exists');
+          data = { ...value };
+        },
         update: (_ref, patch) => {
           data = { ...data, ...patch };
         },

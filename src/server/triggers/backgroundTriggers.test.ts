@@ -93,10 +93,11 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
         }),
       };
     }
-    if (name === 'critical_alert_outbox') {
+    if (name === 'critical_alert_outbox' || name === 'incident_claims') {
       return {
         doc: (id: string) => ({
           id,
+          path: `${name}/${id}`,
           get: () => Promise.resolve({ exists: false, data: () => ({}) }),
         }),
         where: (_field: string, _op: string, _vals: string[]) => ({
@@ -146,9 +147,9 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
     };
     const txApi = {
       get: async (ref: any) => {
-        const id = typeof ref.id === 'string' ? ref.id : null;
-        if (id && outboxCreates[id]) {
-          return { exists: true, data: () => ({ ...outboxCreates[id] }) };
+        const key = typeof ref.path === 'string' ? ref.path : typeof ref.id === 'string' ? ref.id : null;
+        if (key && outboxCreates[key]) {
+          return { exists: true, data: () => ({ ...outboxCreates[key] }) };
         }
         const state = getRefState(ref);
         let fallback: Record<string, unknown> = { ...state };
@@ -159,10 +160,10 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
         return { exists: Object.keys(fallback).length > 0, data: () => ({ ...fallback }) };
       },
       create: (ref: any, value: Record<string, unknown>) => {
-        const id = typeof ref.id === 'string' ? ref.id : null;
-        if (id) {
-          if (outboxCreates[id]) throw new Error('doc already exists');
-          outboxCreates[id] = { ...value };
+        const key = typeof ref.path === 'string' ? ref.path : typeof ref.id === 'string' ? ref.id : null;
+        if (key) {
+          if (outboxCreates[key]) throw new Error('doc already exists');
+          outboxCreates[key] = { ...value };
         }
         const state = getRefState(ref);
         if (Object.keys(state).length === 0) {
@@ -172,9 +173,9 @@ function makeFakeDb(captured: CapturedListener[], overrides: {
         }
       },
       update: (ref: any, patch: Record<string, unknown>) => {
-        const id = typeof ref.id === 'string' ? ref.id : null;
-        if (id) {
-          outboxCreates[id] = { ...(outboxCreates[id] ?? {}), ...patch };
+        const key = typeof ref.path === 'string' ? ref.path : typeof ref.id === 'string' ? ref.id : null;
+        if (key) {
+          outboxCreates[key] = { ...(outboxCreates[key] ?? {}), ...patch };
         }
         const state = getRefState(ref);
         Object.assign(state, patch);
@@ -278,14 +279,14 @@ describe('setupBackgroundTriggers', () => {
     await new Promise((r) => setImmediate(r));
 
     // El primer snapshot tras restart provisiona el outbox.
-    expect(db.outboxCreates['n-recovery']).toMatchObject({
+    expect(db.outboxCreates['critical_alert_outbox/n-recovery']).toMatchObject({
       status: 'pending',
       payload: { supervisorUids: ['u1'], fcmTokens: ['tok-1'] },
     });
     // El segundo snapshot (replay) es idempotente — el claim ya está completado.
     await incidents.next(initialSnapshot);
     await new Promise((r) => setImmediate(r));
-    expect(db.outboxCreates['n-recovery'].status).toBe('pending'); // sin mutar
+    expect(db.outboxCreates['critical_alert_outbox/n-recovery'].status).toBe('pending'); // sin mutar
   });
 
   it('provisions the outbox with multiple supervisors and union of fcm tokens + emails', async () => {
@@ -331,7 +332,7 @@ describe('setupBackgroundTriggers', () => {
     });
     await new Promise((r) => setImmediate(r));
 
-    expect(db.outboxCreates['n42']).toMatchObject({
+    expect(db.outboxCreates['critical_alert_outbox/n42']).toMatchObject({
       payload: {
         supervisorUids: ['u1', 'u2'],
         fcmTokens: ['tok-1', 'tok-2'],
@@ -376,7 +377,7 @@ describe('setupBackgroundTriggers', () => {
     });
     await new Promise((r) => setImmediate(r));
 
-    expect(db.outboxCreates['n-no-sent-yet']).toMatchObject({ status: 'pending' });
+    expect(db.outboxCreates['critical_alert_outbox/n-no-sent-yet']).toMatchObject({ status: 'pending' });
     const patches = ref.update.mock.calls.map((c) => c[0]);
     expect(patches.some((p) => '_criticalAlertSentAt' in p)).toBe(false);
   });
@@ -433,7 +434,7 @@ describe('setupBackgroundTriggers', () => {
     const patches = ref.update.mock.calls.map((c) => c[0]);
     expect(patches.some((p) => p._criticalAlertOutboxProvisionedAt === '__SERVER_TS__')).toBe(true);
     // El outbox tiene el payload congelado con tokens + emails.
-    expect(db.outboxCreates['n-partial']).toMatchObject({
+    expect(db.outboxCreates['critical_alert_outbox/n-partial']).toMatchObject({
       status: 'pending',
       payload: {
         projectId: 'p1',
@@ -467,7 +468,7 @@ describe('setupBackgroundTriggers', () => {
     await new Promise((r) => setImmediate(r));
 
     expect(messaging.sendEachForMulticast).not.toHaveBeenCalled();
-    expect(db.outboxCreates['n-email']).toMatchObject({
+    expect(db.outboxCreates['critical_alert_outbox/n-email']).toMatchObject({
       status: 'pending',
       payload: {
         fcmTokens: [],
@@ -496,7 +497,7 @@ describe('setupBackgroundTriggers', () => {
     await new Promise((r) => setImmediate(r));
 
     // El listener no decide si la entrega fue exitosa — solo provisiona.
-    expect(db.outboxCreates['n-dead']).toMatchObject({ status: 'pending' });
+    expect(db.outboxCreates['critical_alert_outbox/n-dead']).toMatchObject({ status: 'pending' });
     const patches = ref.update.mock.calls.map((c) => c[0]);
     expect(patches.some((p) => '_criticalAlertSentAt' in p)).toBe(false);
     expect(patches.some((p) => p._criticalAlertOutboxProvisionedAt === '__SERVER_TS__')).toBe(true);
@@ -524,7 +525,7 @@ describe('setupBackgroundTriggers', () => {
     await new Promise((r) => setImmediate(r));
 
     // El listener provisiona el outbox aunque no haya FCM tokens.
-    expect(db.outboxCreates['n-noone']).toMatchObject({
+    expect(db.outboxCreates['critical_alert_outbox/n-noone']).toMatchObject({
       status: 'pending',
       payload: {
         fcmTokens: [],
@@ -588,7 +589,7 @@ describe('setupBackgroundTriggers', () => {
 
     // El outbox congeló el union de tokens (legacy fcmToken + canonical
     // fcmTokens[]), con dedup: tok-2 aparece en ambas fuentes.
-    expect(db.outboxCreates['n50'].payload.fcmTokens.sort()).toEqual([
+    expect(db.outboxCreates['critical_alert_outbox/n50'].payload.fcmTokens.sort()).toEqual([
       'tok-2',
       'tok-m1',
       'tok-m2',
