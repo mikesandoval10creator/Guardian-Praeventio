@@ -258,6 +258,12 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
       };
       const uid = req.user?.uid;
 
+      // verifyAuth garantiza req.user, pero TS no lo infiere. Fail-closed:
+      // sin uid autenticado no hay a quién concederle nada.
+      if (!uid) {
+        return res.status(401).json({ error: 'unauthorized' });
+      }
+
       if (!productId || !receiptId) {
         return res.status(400).json({ error: 'missing_fields' });
       }
@@ -347,6 +353,52 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
         }
 
         const success = result;
+
+        // ───────────────────────────────────────────────────────────────
+        // P0 39baa66d-816f — persist the Apple correlation + grant.
+        //
+        // Before this fix, /validate-receipt (iOS) validated the
+        // transaction server-to-server but wrote NOTHING to the user doc:
+        // no appleAppAccountToken, no appleOriginalTransactionId, no
+        // planId. applyAppleEntitlement (appleSsn.ts) looks the user up by
+        // `subscription.appleAppAccountToken` then
+        // `subscription.appleOriginalTransactionId` — so SSN renewals/
+        // refunds arrived and found nobody.
+        //
+        // Persist the same shape the SSN grant updates (provider
+        // app-store, cycle from the SKU, planId fail-loud on unmapped
+        // SKU — never over-grant a fallback tier).
+        // ───────────────────────────────────────────────────────────────
+        const resolvedPlan = planFromIapProductId(productId);
+        if (resolvedPlan === null) {
+          logger.error('iap_unknown_product', undefined, { uid, productId, type: 'subscription' });
+          sentryCapture(new Error(`iap_unknown_product:${productId}`), {
+            endpoint: '/api/billing/app-store/validate-receipt',
+            tags: { method: 'POST', uid },
+          });
+          await recordAttempt('rejected', 'unknown_product');
+          return res.status(400).json({ error: 'unknown_product' });
+        }
+        const resolvedCycle = cycleFromProductId(productId);
+
+        await admin
+          .firestore()
+          .collection('users')
+          .doc(uid)
+          .update({
+            'subscription.planId': resolvedPlan,
+            'subscription.status': 'active',
+            'subscription.expiryDate': new Date(success.expiryMs).toISOString(),
+            'subscription.provider': 'app-store',
+            'subscription.paymentMethod': 'app-store',
+            'subscription.gracePeriodEnd': null,
+            'subscription.appleAppAccountToken':
+              success.payload?.appAccountToken ?? null,
+            'subscription.appleOriginalTransactionId': success.originalTransactionId,
+            'subscription.cycle': resolvedCycle,
+            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          });
+
         await recordAttempt('granted');
         logger.info('iap_validate_receipt_granted', {
           provider: 'app-store',

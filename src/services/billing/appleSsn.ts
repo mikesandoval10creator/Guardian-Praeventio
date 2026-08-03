@@ -22,7 +22,7 @@
 //   https://developer.apple.com/documentation/appstoreservernotifications/responsebodyv2
 
 import { logger } from '../../utils/logger.js';
-import { cycleFromProductId } from '../pricing/subscriptionPlan.js';
+import { cycleFromProductId, planFromIapProductId } from '../pricing/subscriptionPlan.js';
 import { verifyAppleNotification } from './appleSignedDataVerifier.js';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -347,6 +347,21 @@ export async function applyAppleEntitlement(
   // clobber the cycle the user originally bought.
   if (action === 'grant') {
     subscriptionUpdate['subscription.cycle'] = cycleFromProductId(tx?.productId);
+    // P0 39baa66d-816f: el grant DEBE asignar el plan comprado. Antes solo
+    // actualizaba estado/ciclo/expiración — el tier quedaba stale o vacío
+    // para usuarios que llegaron vía SSN sin validate-receipt previo.
+    // planFromIapProductId resuelve el SKU → tier; si no resuelve (config
+    // bug), NO clobber: se loguea y se conserva el planId existente, igual
+    // que hace el RTDN de Google (googleplay.ts:297).
+    const grantedPlan = planFromIapProductId(tx?.productId);
+    if (grantedPlan !== null) {
+      subscriptionUpdate['subscription.planId'] = grantedPlan;
+    } else {
+      logger.warn('apple_ssn_grant_unmapped_sku', {
+        userId,
+        productId: tx?.productId ?? null,
+      });
+    }
   }
   await userRef.update(subscriptionUpdate);
 

@@ -582,7 +582,7 @@ describe('POST /api/billing/webhook/apple', () => {
       notificationUUID: 'uuid-subscribed-1',
       transactionInfo: {
         appAccountToken: 'aat-A',
-        productId: 'praeventio_premium_monthly',
+        productId: 'praeventio_oro_monthly',
         originalTransactionId: 'orig-A',
         expiresDate: expiresMs,
       },
@@ -598,6 +598,10 @@ describe('POST /api/billing/webhook/apple', () => {
     expect(user.subscription.provider).toBe('app-store');
     expect(user.subscription.paymentMethod).toBe('app-store');
     expect(user.subscription.appleOriginalTransactionId).toBe('orig-A');
+    // P0 39baa66d-816f: applyAppleEntitlement NO asignaba el planId comprado
+    // en el grant — actualizaba estado/ciclo/expiración pero el tier quedaba
+    // stale. El SKU del transactionInfo resuelve el plan (planFromIapProductId).
+    expect(user.subscription.planId).toBe('oro');
     // Idempotency lock landed.
     expect(fs.store.get('processed_apple_ssn/uuid-subscribed-1')?.status).toBe('done');
     // Audit row truthfully records full-chain verification.
