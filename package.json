@@ -37,6 +37,8 @@
     "lint:conventions": "node scripts/check-convention-guard.cjs",
     "lint:i18n": "node scripts/validate-i18n.cjs",
     "lint:any": "node scripts/check-any-ratchet.cjs",
+    "pricing:doc": "node scripts/regenerate-pricing-doc.cjs",
+    "pricing:doc:check": "node scripts/regenerate-pricing-doc.cjs --check",
     "lint:connectivity": "node scripts/check-connectivity-ratchet.cjs",
     "lint:user-facing-errors": "node scripts/check-user-facing-errors.cjs",
     "lint:router-tests": "node scripts/check-router-test-ratchet.cjs",
