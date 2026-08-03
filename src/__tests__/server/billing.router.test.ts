@@ -1536,10 +1536,11 @@ describe('POST /api/billing/google-play/validate-receipt', () => {
   });
 
   it('200 happy path — valid receipt returns ok:true', async () => {
+    H.db!._seed('users/uid-A', {}); // el doc existe en prod (se crea al registrarse)
     const { validateGooglePlaySubscription } = await import('../../services/billing/googlePlayValidator.js');
     (validateGooglePlaySubscription as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      productId: 'praeventio.oro.monthly',
+      productId: 'praeventio_oro_monthly',
       expiryMs: Date.now() + 1000000,
       regionCode: 'CL',
       subscriptionState: 'active',
@@ -1547,9 +1548,61 @@ describe('POST /api/billing/google-play/validate-receipt', () => {
     const res = await request(buildApp())
       .post('/api/billing/google-play/validate-receipt')
       .set('x-test-uid', 'uid-A')
-      .send({ productId: 'praeventio.oro.monthly', receiptId: 'tok-gp-1' });
+      .send({ productId: 'praeventio_oro_monthly', receiptId: 'tok-gp-1' });
     expect(res.status).toBe(200);
     expect((res.body as Record<string, unknown>).ok).toBe(true);
+  });
+
+  it('200 — persists purchaseToken + grants entitlement so RTDN can find the user', async () => {
+    // P0 39baa66d-818a: validate-receipt validaba server-to-server pero NO
+    // guardaba subscription.purchaseToken ni concedía el plan. El webhook RTDN
+    // busca al usuario por `subscription.purchaseToken` (googleplay.ts:275) —
+    // sin esta escritura, renovaciones/cancelaciones quedaban mudas.
+    H.db!._seed('users/uid-A', {}); // el doc existe en prod (se crea al registrarse)
+    const { validateGooglePlaySubscription } = await import('../../services/billing/googlePlayValidator.js');
+    (validateGooglePlaySubscription as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      productId: 'praeventio_oro_monthly',
+      expiryMs: Date.now() + 1000000,
+      regionCode: 'CL',
+      subscriptionState: 'active',
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/google-play/validate-receipt')
+      .set('x-test-uid', 'uid-A')
+      .send({ productId: 'praeventio_oro_monthly', receiptId: 'tok-gp-1' });
+    expect(res.status).toBe(200);
+
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user).toBeDefined();
+    expect(user.subscription?.purchaseToken).toBe('tok-gp-1');
+    expect(user.subscription?.planId).toBe('oro');
+    expect(user.subscription?.status).toBe('active');
+    expect(user.subscription?.provider).toBe('google-play');
+    expect(user.subscription?.paymentMethod).toBe('google-play');
+    expect(typeof user.subscription?.expiryDate).toBe('string');
+  });
+
+  it('400 unknown_product — valid receipt for an unmapped SKU does NOT grant', async () => {
+    // Fail-loud como /api/billing/verify: un SKU no registrado en iapSkus es
+    // un config bug, no una compra válida. Nunca over-grant con fallback.
+    const { validateGooglePlaySubscription } = await import('../../services/billing/googlePlayValidator.js');
+    (validateGooglePlaySubscription as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      productId: 'praeventio_not_registered_monthly',
+      expiryMs: Date.now() + 1000000,
+      regionCode: 'CL',
+      subscriptionState: 'active',
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/google-play/validate-receipt')
+      .set('x-test-uid', 'uid-A')
+      .send({ productId: 'praeventio_not_registered_monthly', receiptId: 'tok-gp-2' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toBe('unknown_product');
+
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user?.subscription?.purchaseToken).toBeUndefined();
   });
 
   it('400 on rejected receipt (token_invalid)', async () => {

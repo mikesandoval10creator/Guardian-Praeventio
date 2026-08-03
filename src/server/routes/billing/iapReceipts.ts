@@ -20,6 +20,10 @@ import { logger } from '../../../utils/logger.js';
 // See file headers in each for the auth/env contract.
 import { validateGooglePlaySubscription } from '../../../services/billing/googlePlayValidator.js';
 import { validateAppleTransaction } from '../../../services/billing/appleTransactionValidator.js';
+import {
+  cycleFromProductId,
+  planFromIapProductId,
+} from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -56,6 +60,12 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
         receiptId?: string;
       };
       const uid = req.user?.uid;
+
+      // verifyAuth garantiza req.user, pero TS no lo infiere. Fail-closed:
+      // sin uid autenticado no hay a quién concederle nada.
+      if (!uid) {
+        return res.status(401).json({ error: 'unauthorized' });
+      }
 
       if (!productId || !receiptId) {
         return res.status(400).json({ error: 'missing_fields' });
@@ -153,6 +163,55 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
 
         // result.ok === true here.
         const success = result;
+
+        // ───────────────────────────────────────────────────────────────
+        // P0 39baa66d-818a — grant the entitlement SYNCHRONOUSLY.
+        //
+        // Before this fix, /validate-receipt validated the token
+        // server-to-server but wrote NOTHING to the user doc: no
+        // subscription.purchaseToken, no planId, no status. The RTDN
+        // webhook (googleplay.ts) looks the user up by
+        // `subscription.purchaseToken` — so renewals/cancellations/refunds
+        // arrived and found nobody. Users who paid never got their plan.
+        //
+        // The validation above is already authoritative (Google Play
+        // Developer API, defense-in-depth checks). Persisting here mirrors
+        // exactly what POST /api/billing/verify does (googleplay.ts:145),
+        // so both paths converge on the same user-doc shape and the RTDN
+        // can find the subscription by token.
+        //
+        // Fail-loud: an unmapped SKU is a server config bug, never a valid
+        // purchase — reject instead of over-granting a fallback tier.
+        // ───────────────────────────────────────────────────────────────
+        const resolvedPlan = planFromIapProductId(productId);
+        if (resolvedPlan === null) {
+          logger.error('iap_unknown_product', undefined, { uid, productId, type: 'subscription' });
+          sentryCapture(new Error(`iap_unknown_product:${productId}`), {
+            endpoint: '/api/billing/google-play/validate-receipt',
+            tags: { method: 'POST', uid },
+          });
+          await recordAttempt('rejected', 'unknown_product');
+          return res.status(400).json({ error: 'unknown_product' });
+        }
+        const resolvedCycle = cycleFromProductId(productId);
+
+        await admin
+          .firestore()
+          .collection('users')
+          .doc(uid)
+          .update({
+            'subscription.planId': resolvedPlan,
+            'subscription.status': 'active',
+            'subscription.expiryDate': new Date(success.expiryMs).toISOString(),
+            'subscription.provider': 'google-play',
+            'subscription.paymentMethod': 'google-play',
+            'subscription.gracePeriodEnd': null,
+            'subscription.purchaseToken': receiptId,
+            'subscription.orderId': null,
+            'subscription.cycle': resolvedCycle,
+            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          });
+
         await recordAttempt('granted');
         logger.info('iap_validate_receipt_granted', {
           provider: 'google-play',
