@@ -24,6 +24,24 @@ allprojects {
     }
 }
 
+// Capacitor 8 generates Java 21 compileOptions for modern plugins, but
+// @kiwi-health/capacitor-health-connect still uses Kotlin Gradle Plugin 1.8.20.
+// That compiler does not understand JVM target 21 (`Unknown Kotlin JVM target:
+// 21`), so cap only that legacy native plugin at 17. Do not force all plugins
+// down to 17: newer plugins such as @capacitor-community/admob compile their
+// Java tasks at 21 and Gradle rejects mixed Java/Kotlin targets inside a module.
+subprojects { subproject ->
+    if (subproject.name == 'kiwi-health-capacitor-health-connect') {
+        subproject.plugins.withId('kotlin-android') {
+            subproject.tasks.configureEach { task ->
+                if (task.hasProperty('kotlinOptions')) {
+                    task.kotlinOptions.jvmTarget = "17"
+                }
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
