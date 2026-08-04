@@ -45,6 +45,7 @@ import type { TelemetrySample } from './types.js';
 
 interface MemDoc {
   collection: (n: string) => MemCollection;
+  id: string;
   set: (data: any) => Promise<void>;
 }
 interface MemCollection {
@@ -64,6 +65,7 @@ function makeMemDb() {
       },
       doc(id: string): MemDoc {
         return {
+          id,
           collection: (n: string) => makeCol(`${parentPath}/${id}/${n}`),
           async set(data: any) {
             writes.push({ path: `${parentPath}/${id}`, data });
@@ -105,7 +107,9 @@ describe('bridgeMqttToFirestore', () => {
         },
         doc: () => ({
           collection: () => ({ add: async () => ({ id: 'x' }) }),
-          set: async () => undefined,
+          set: async () => {
+            throw new Error('firestore unavailable');
+          },
         }),
       }),
     } as unknown as FirebaseFirestore.Firestore;
@@ -275,5 +279,66 @@ describe('bridgeMqttToFirestore', () => {
     });
     expect(result.telemetryId).toBeNull();
     expect(topLevelTelemetry(writes)).toHaveLength(0);
+  });
+});
+
+// ── Tarea P1 mqtt-dedup: redelivery QoS 1 no duplica ─────────────────────
+describe('bridgeMqttToFirestore — QoS 1 redelivery guard', () => {
+  const criticalSample: TelemetrySample = {
+    deviceId: 'dev-101',
+    timestamp: 1_700_000_000_000,
+    metric: 'gas_co_ppm',
+    value: 75, // > 50 → critical (telemetry + alert + audit + FCM)
+    unit: 'ppm',
+    kind: 'gas-sensor',
+  };
+
+  it('la segunda entrega del MISMO mensaje no escribe nada (duplicated=true)', async () => {
+    const { db, writes } = makeMemDb();
+    const seen = new Set<string>();
+    const dedup = {
+      isDuplicate: (id: string) => seen.has(id),
+      remember: (id: string) => seen.add(id),
+    };
+    const ctx = { tenantId: 't1', projectId: 'p1', db, messaging: {} as any, dedup };
+
+    const first = await bridgeMqttToFirestore(criticalSample, ctx);
+    const writesAfterFirst = writes.length;
+    expect(sendToProjectSupervisors).toHaveBeenCalledTimes(1);
+
+    // Redelivery del broker: el MISMO payload llega de nuevo.
+    vi.mocked(sendToProjectSupervisors).mockClear();
+    const second = await bridgeMqttToFirestore(criticalSample, ctx);
+
+    expect(second.duplicated).toBe(true);
+    expect(second.telemetryId).toBeNull();
+    expect(second.alertId).toBeNull();
+    expect(second.notified).toBe(0);
+    // 0 filas, 0 alertas, 0 auditorías y 0 FCM extra.
+    expect(writes.length).toBe(writesAfterFirst);
+    expect(sendToProjectSupervisors).not.toHaveBeenCalled();
+    expect(first.notified).toBe(2);
+    expect(first.duplicated).toBeUndefined();
+  });
+
+  it('doc id determinístico: misma muestra → mismo doc (set sobrescribe)', async () => {
+    const { db, writes } = makeMemDb();
+    const sample: TelemetrySample = {
+      deviceId: 'dev-100',
+      timestamp: 1_700_000_000_000,
+      metric: 'gas_co_ppm',
+      value: 30,
+      unit: 'ppm',
+      kind: 'gas-sensor',
+    };
+    // Sin ventana de dedup (dos réplicas): el doc id es ESTABLE → la
+    // segunda réplica sobrescribe el mismo doc, nunca crea fila duplicada.
+    await bridgeMqttToFirestore(sample, { tenantId: 't1', projectId: 'p1', db, messaging: {} as any });
+    await bridgeMqttToFirestore(sample, { tenantId: 't1', projectId: 'p1', db, messaging: {} as any });
+
+    const tel = topLevelTelemetry(writes);
+    expect(tel).toHaveLength(2); // dos writes (mismo path)
+    expect(tel[0].path).toBe(tel[1].path); // MISMO doc id idempotente
+    expect(tel[0].path.startsWith('telemetry_events/telemetry_')).toBe(true);
   });
 });

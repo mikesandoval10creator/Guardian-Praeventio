@@ -69,6 +69,11 @@ import {
 } from '../../services/iot/mqttAdapter.js';
 import { bridgeMqttToFirestore } from '../../services/iot/firestoreBridge.js';
 import type { TelemetrySample, IotDeviceKind } from '../../services/iot/types.js';
+import {
+  deriveStableEventId,
+  InMemoryDeduplicator,
+  EVENT_ID_RE,
+} from '../../services/iot/deduplicator.js';
 import { canonicalize } from '../middleware/canonicalBody.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
 import { logger } from '../../utils/logger.js';
@@ -215,7 +220,14 @@ const DEVICE_KINDS: ReadonlySet<string> = new Set<IotDeviceKind>([
 ]);
 
 export type SampleVerdict =
-  | { ok: true; sample: TelemetrySample; zoneId: string | null; sig: string | null }
+  | {
+      ok: true;
+      sample: TelemetrySample;
+      zoneId: string | null;
+      sig: string | null;
+      /** Identidad estable enviada por el dispositivo (opcional, validada). */
+      eventId: string | null;
+    }
   | {
       ok: false;
       reason:
@@ -237,7 +249,7 @@ export function sanitizeInboundSample(
   raw: Record<string, unknown>,
   nowMs: number,
 ): SampleVerdict {
-  const { deviceId, metric, value, unit, timestamp, kind, zoneId, sig } = raw;
+  const { deviceId, metric, value, unit, timestamp, kind, zoneId, sig, eventId } = raw;
   if (typeof deviceId !== 'string' || !DEVICE_ID_RE.test(deviceId)) {
     return { ok: false, reason: 'invalid_device_id' };
   }
@@ -274,6 +286,8 @@ export function sanitizeInboundSample(
         ? zoneId
         : null,
     sig: typeof sig === 'string' && sig.length > 0 && sig.length <= 256 ? sig : null,
+    eventId:
+      typeof eventId === 'string' && EVENT_ID_RE.test(eventId) ? eventId : null,
   };
 }
 
@@ -389,12 +403,18 @@ export interface MessageHandlerDeps {
   messaging?: admin.messaging.Messaging;
   gate: DeviceGate;
   nowMs?: () => number;
+  /**
+   * Ventana de deduplicación QoS 1 (redelivery del broker). Sin ella, una
+   * repetición crea 2 filas/alerta/auditoría/FCM (tarea P1 mqtt-dedup).
+   */
+  deduplicator?: InMemoryDeduplicator;
 }
 
 export type MessageOutcome =
   | { outcome: 'persisted'; telemetryId: string | null }
   | { outcome: 'failed'; telemetryId: string | null }
   | { outcome: 'rejected'; reason: string }
+  | { outcome: 'duplicate'; reason: string }
   | { outcome: 'error' };
 
 /**
@@ -445,12 +465,29 @@ export function makeMqttMessageHandler(deps: MessageHandlerDeps) {
         });
         return { outcome: 'rejected', reason: 'bad_signature' };
       }
+      // QoS 1 redelivery guard (tarea P1 mqtt-dedup): identidad estable por
+      // muestra (eventId del dispositivo o hash determinístico). Una
+      // repetición del MISMO mensaje corta aquí: 0 filas/alertas/auditorías
+      // y 0 FCM extra.
+      const stableId = deriveStableEventId(verdict.sample, verdict.eventId);
+      if (deps.deduplicator?.isDuplicate(stableId)) {
+        return { outcome: 'duplicate', reason: 'qos1_redelivery' };
+      }
+      deps.deduplicator?.remember(stableId);
       const result = await bridgeMqttToFirestore(verdict.sample, {
         tenantId: ctx.tenantId,
         projectId: ctx.projectId,
         zoneId: verdict.zoneId,
         db: deps.db,
         messaging: deps.messaging,
+        // Segunda capa: doc determinístico + doble-check de dedup.
+        eventId: stableId,
+        dedup: deps.deduplicator
+          ? {
+              isDuplicate: (id) => deps.deduplicator!.isDuplicate(id),
+              remember: (id) => deps.deduplicator!.remember(id),
+            }
+          : undefined,
       });
       if (result.persistFailed) {
         // Anti-silent-loss: the telemetry row did NOT land in Firestore. Surface
@@ -531,7 +568,12 @@ export async function startMqttTelemetryBridge(
           });
 
     const gate = deps.gate ?? makeDeviceGate({ db });
-    const handler = makeMqttMessageHandler({ db, messaging: deps.messaging, gate });
+    const handler = makeMqttMessageHandler({
+      db,
+      messaging: deps.messaging,
+      gate,
+      deduplicator: new InMemoryDeduplicator(),
+    });
 
     const connected: ConnectedBroker = await connectMqttBroker({
       adapter: config.mode,

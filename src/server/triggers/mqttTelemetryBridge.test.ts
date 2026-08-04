@@ -58,6 +58,7 @@ import {
   type MqttConnectModule,
 } from '../../services/iot/mqttAdapter.js';
 import { evaluateGasTelemetry } from '../../services/workPermits/gasGate.js';
+import { InMemoryDeduplicator } from '../../services/iot/deduplicator.js';
 import type { TelemetrySample } from '../../services/iot/types.js';
 
 const NOW = 1_750_000_000_000;
@@ -428,9 +429,14 @@ describe('makeMqttMessageHandler', () => {
         if (n === 'telemetry_events') {
           return {
             ...col,
-            add: async () => {
-              throw new Error('firestore unavailable');
-            },
+            // El bridge persiste con doc(id).set() (doc determinístico) —
+            // simular el fallo en el SET, que es el camino real.
+            doc: (id: string) => ({
+              ...col.doc(id),
+              set: async () => {
+                throw new Error('firestore unavailable');
+              },
+            }),
           };
         }
         return col;
@@ -772,5 +778,45 @@ describe('startMqttTelemetryBridge', () => {
     expect(verdict.reasons.map((r) => r.code)).toContain('GAS_OXYGEN_LOW');
     await _activeHandle!.stop();
     _activeHandle = null; // already stopped
+  });
+});
+
+// ── Tarea P1 mqtt-dedup: el handler corta el redelivery QoS 1 ────────────
+describe('makeMqttMessageHandler — QoS 1 redelivery dedup', () => {
+  beforeEach(() => {
+    H.db = createFakeFirestore();
+    H.db._seed('tenants/t1/iot_devices/gas-7', { projectId: 'p1', status: 'active' });
+  });
+
+  const ctx = () => ({
+    tenantId: 't1',
+    projectId: 'p1',
+    deviceId: 'gas-7',
+    topic: buildTopic('t1', 'p1', 'gas-7', 'telemetry'),
+  });
+
+  it('la segunda entrega del MISMO mensaje responde duplicate sin persistir', async () => {
+    const deduplicator = new InMemoryDeduplicator();
+    const h = makeMqttMessageHandler({
+      db: H.db! as unknown as FirebaseFirestore.Firestore,
+      messaging: {} as never,
+      gate: makeDeviceGate({ db: H.db! as unknown as FirebaseFirestore.Firestore }),
+      nowMs: () => NOW,
+      deduplicator,
+    });
+
+    const payload = wireSample({ eventId: 'evt-redelivery-1' }) as unknown as TelemetrySample;
+
+    const first = await h(payload, ctx());
+    expect(first.outcome).toBe('persisted');
+
+    const second = await h(payload, ctx());
+    expect(second.outcome).toBe('duplicate');
+
+    const telemetryDocs = Object.entries(H.db!._dump()).filter(([k]) =>
+      k.startsWith('telemetry_events/'),
+    );
+    // 1 fila, no 2 — el redelivery no duplicó telemetría.
+    expect(telemetryDocs).toHaveLength(1);
   });
 });
