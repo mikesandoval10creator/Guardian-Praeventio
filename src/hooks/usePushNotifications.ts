@@ -200,7 +200,9 @@ export function usePushNotifications() {
         await PushNotifications.register();
 
         PushNotifications.addListener('registration', async (token) => {
-          logger.info('Push registration success', { token: token.value });
+          // Redacción (tarea P1 secretos): el token FCM es una credencial —
+          // solo el sufijo corto para correlación, nunca el token completo.
+          logger.info('Push registration success', { tokenSuffix: token.value.slice(-8) });
           setFcmToken(token.value);
           // Fire-and-forget Firestore mirror (kept for backward compat).
           if (auth.currentUser) {
