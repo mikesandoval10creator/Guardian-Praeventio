@@ -1,5 +1,24 @@
 apply plugin: 'com.android.application'
 
+import java.util.Properties
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+def signingValue = { String propertyName, String envName ->
+    def injectedPropertyName = "android.injected.signing.${propertyName}"
+    if (project.hasProperty(injectedPropertyName)) {
+        return project.property(injectedPropertyName)?.toString()
+    }
+    if (keystoreProperties[propertyName]) {
+        return keystoreProperties[propertyName].toString()
+    }
+    return System.getenv(envName)
+}
+
 android {
     namespace = "com.praeventio.guard"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -18,8 +37,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            def releaseStoreFile = signingValue('store.file', 'KEYSTORE_PATH')
+            if (releaseStoreFile) {
+                storeFile file(releaseStoreFile)
+            }
+            storePassword signingValue('store.password', 'ANDROID_KEYSTORE_PASSWORD')
+            keyAlias signingValue('key.alias', 'KEY_ALIAS')
+            keyPassword signingValue('key.password', 'KEY_PASSWORD')
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

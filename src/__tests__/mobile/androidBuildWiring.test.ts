@@ -126,6 +126,49 @@ describe('AndroidManifest — permissions the plugins do not provide (B21)', () 
   });
 });
 
+describe('Android Gradle release signing — Play Store AAB', () => {
+  const appBuildGradle = read('android/app/build.gradle');
+  const androidGitignore = read('android/.gitignore');
+
+  it('wires buildTypes.release to signingConfigs.release', () => {
+    expect(appBuildGradle).toMatch(/signingConfigs\s*\{[\s\S]*release\s*\{/);
+    expect(appBuildGradle).toMatch(
+      /buildTypes\s*\{[\s\S]*release\s*\{[\s\S]*signingConfig\s+signingConfigs\.release/,
+    );
+  });
+
+  it('loads release signing credentials from keystore.properties or environment variables', () => {
+    expect(appBuildGradle).toContain('rootProject.file("keystore.properties")');
+    for (const token of [
+      'KEYSTORE_PATH',
+      'ANDROID_KEYSTORE_PASSWORD',
+      'KEY_ALIAS',
+      'KEY_PASSWORD',
+    ]) {
+      expect(appBuildGradle).toContain(token);
+    }
+  });
+
+  it('does not allow local signing material to be committed accidentally', () => {
+    const activeIgnoreLines = androidGitignore
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+
+    expect(activeIgnoreLines).toContain('*.jks');
+    expect(activeIgnoreLines).toContain('*.keystore');
+    expect(activeIgnoreLines).toContain('keystore.properties');
+  });
+});
+
+describe('Android native SDK floor — Health Connect Play Store compatibility', () => {
+  const variablesGradle = read('android/variables.gradle');
+
+  it('keeps minSdkVersion at 26 because Health Connect connect-client requires API 26', () => {
+    expect(variablesGradle).toContain('minSdkVersion = 26');
+  });
+});
+
 // MASVS-NETWORK-1 — no cleartext, dev-only trust overrides. The app carries
 // clinical + location PII, so a release build must never fall back to http and
 // must never trust a user-injected CA.
