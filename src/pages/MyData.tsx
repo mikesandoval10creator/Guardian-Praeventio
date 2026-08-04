@@ -33,6 +33,7 @@ import { apiAuthHeader } from '../lib/apiAuth';
 // diagnostica" en banner/card/compact.
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { humanErrorMessage } from '../lib/humanError';
+import { applyAnalyticsConsentToLocalStorage } from '../services/compliance/consentSync';
 
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
@@ -75,6 +76,10 @@ export function MyData() {
       if (res.ok) {
         const body = await res.json();
         setConsents(body.consents || {});
+        // Firestore es la fuente del consentimiento de analítica: traduce el
+        // estado al storage que consulta AnalyticsAdapter para que el opt-out
+        // de 'Mis datos' detenga eventos y breadcrumbs (tarea P1 privacidad).
+        applyAnalyticsConsentToLocalStorage(body.consents);
       }
     } finally {
       setLoadingConsents(false);
