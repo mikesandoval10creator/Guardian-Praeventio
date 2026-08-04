@@ -20,6 +20,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
+import net from 'node:net';
 import admin from 'firebase-admin';
 import { healthDeepLimiter } from '../middleware/limiters.js';
 
@@ -262,6 +263,172 @@ export async function checkPhotogrammetryWorker(): Promise<{ skipped: boolean }>
 export type ProbeResult = void | { skipped: boolean };
 export type Probe = () => Promise<ProbeResult>;
 
+// ─────────────────────────────────────────────────────────────────────
+// Vital capability probes (tarea P1 — "El health check no cubre las
+// funciones que salvan vidas").
+//
+// Un /health/deep verde DEBE significar que las funciones vida-safety
+// tienen su superficie server operativa: FCM (notificaciones de
+// emergencia), Cloud Scheduler (jobs de escalación), MQTT (telemetría de
+// sensores), Mesh (relay de paquetes), colas offline (outbox de
+// emergencia), geocercas, hombre caído (System Engine), wearables
+// (bridge de telemetría) y SLM offline.
+//
+// Semántica honesta por entorno:
+//   - PRODUCCIÓN: una capacidad vital sin configurar o inalcanzable es
+//     FAIL (rojo). Un deploy que no provisiona el broker MQTT o la auth
+//     de Scheduler NO puede declararse sano.
+//   - Dev/test: las capacidades sin configurar se reportan skipped (como
+//     photogrammetry) para no romper el flujo local. Las capacidades
+//     on-device (SLM, detección ManDown, mesh BLE) verifican el CONTRATO
+//     del módulo server que las sostiene y se reportan skipped con
+//     `scope: server`.
+// ─────────────────────────────────────────────────────────────────────
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+/** FCM — entrega de notificaciones de emergencia. E2E barato: enviar a un
+ *  token inválido valida credenciales + red contra los servidores de FCM
+ *  sin entregar nada (FCM rechaza el token y no consume cuota de entrega).
+ *  En dev sin credenciales reales se reporta skipped. */
+export async function checkFcmCapability(): Promise<ProbeResult> {
+  try {
+    await admin.messaging().send({
+      token: 'health-probe-invalid-token',
+      notification: { title: 'health', body: 'probe' },
+    });
+    // Un token inválido SIEMPRE debe rechazarse; llegar aquí es raro.
+    throw new Error('fcm_unexpected_success');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // FCM alcanzable: rechazó el token inválido (o reportó argumento malo).
+    if (/registration-token-not-registered|invalid-registration-token|messaging\/invalid|InvalidRegistration|invalid-argument/i.test(msg)) {
+      return;
+    }
+    if (!isProduction()) return { skipped: true };
+    throw new Error('fcm_unreachable', { cause: err });
+  }
+}
+
+/** Scheduler — jobs de escalación/expiración. La auth (secret compartido o
+ *  SA pinnable OIDC) es el contrato que los jobs de Cloud Scheduler usan
+ *  para invocar endpoints internos; sin ella, ningún cron corre en prod. */
+export async function checkSchedulerCapability(): Promise<ProbeResult> {
+  const configured = Boolean(
+    process.env.SCHEDULER_SHARED_SECRET ||
+      process.env.SCHEDULER_SERVICE_ACCOUNT ||
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.GCLOUD_PROJECT,
+  );
+  if (configured) return;
+  if (isProduction()) throw new Error('scheduler_auth_not_configured');
+  return { skipped: true };
+}
+
+/** MQTT — telemetría de sensores (gas, atmósfera). El bridge se apaga
+ *  limpiamente sin MQTT_BROKER_URL; en prod eso deja la telemetría caída. */
+export async function checkMqttCapability(): Promise<ProbeResult> {
+  const url = process.env.MQTT_BROKER_URL;
+  if (!url) {
+    if (isProduction()) throw new Error('mqtt_broker_not_configured');
+    return { skipped: true };
+  }
+  const { host, port } = parseBrokerUrl(url);
+  await tcpPing(host, port);
+}
+
+function parseBrokerUrl(url: string): { host: string; port: number } {
+  try {
+    const u = new URL(url);
+    const port = Number(u.port || (u.protocol === 'mqtts:' ? 8883 : 1883));
+    return { host: u.hostname, port };
+  } catch {
+    throw new Error('mqtt_broker_url_invalid');
+  }
+}
+
+/** TCP reachability probe con auto-timeout para no filtrar sockets. El
+ *  orquestador además corta a TIMEOUT_MS, pero este timeout propio limpia
+ *  el handle si el host no responde. */
+export function tcpPing(host: string, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const sock = net.connect(port, host);
+    let settled = false;
+    const finish = (fn: () => void, err?: Error) => {
+      if (settled) return;
+      settled = true;
+      sock.destroy();
+      if (err) reject(err);
+      else fn();
+    };
+    sock.setTimeout(TIMEOUT_MS);
+    sock.once('connect', () => finish(resolve));
+    sock.once('error', () => finish(() => undefined, new Error('mqtt_broker_unreachable')));
+    sock.once('timeout', () => finish(() => undefined, new Error('mqtt_broker_timeout')));
+  });
+}
+
+/** Mesh — relay server de paquetes BLE. La colección mesh_keys es la
+ *  superficie server del mesh (claves por proyecto); consultable valida
+ *  que Firestore y el contrato del relay siguen operativos. */
+export async function checkMeshCapability(): Promise<void> {
+  await admin.firestore().collection('mesh_keys').limit(1).get();
+}
+
+/** Offline — outbox de emergencia (colas offline de alertas vida-safety).
+ *  Verifica el contrato del módulo: si un refactor rompe los exports del
+ *  outbox, el health se pone rojo en vez de un deploy verde falso. */
+export async function checkOfflineOutboxCapability(): Promise<void> {
+  const mod = await import('../triggers/criticalAlertOutbox.js');
+  if (
+    typeof mod.createCriticalAlertOutbox !== 'function' ||
+    typeof mod.claimOutboxForDelivery !== 'function'
+  ) {
+    throw new Error('offline_outbox_unavailable');
+  }
+}
+
+/** Geocercas — motor de decisión de permisos + colección de geocercas. */
+export async function checkGeofenceCapability(): Promise<void> {
+  const mod = await import('../../services/geofence/permissionUXDecision.js');
+  if (typeof mod.decidePermissionUX !== 'function') {
+    throw new Error('geofence_engine_unavailable');
+  }
+  await admin.firestore().collection('geofences').limit(1).get();
+}
+
+/** Hombre caído — correlación del System Engine (trigger server-side que
+ *  convierte telemetría en alertas). On-device por naturaleza; verificamos
+ *  el contrato del trigger que sostiene la correlación. */
+export async function checkManDownCapability(): Promise<void> {
+  const mod = await import('../triggers/systemEngineTrigger.js');
+  if (typeof mod.setupSystemEngineTrigger !== 'function') {
+    throw new Error('system_engine_unavailable');
+  }
+}
+
+/** Wearables — bridge MQTT→telemetry_events + colección de telemetría. */
+export async function checkWearablesCapability(): Promise<void> {
+  const mod = await import('../triggers/mqttTelemetryBridge.js');
+  if (typeof mod.startMqttTelemetryBridge !== 'function') {
+    throw new Error('telemetry_bridge_unavailable');
+  }
+  await admin.firestore().collection('telemetry_events').limit(1).get();
+}
+
+/** SLM offline — motor de consulta sin conexión (on-device). El servidor
+ *  verifica el contrato del módulo y reporta skipped (sin superficie
+ *  server que sondear); el global NO se pone rojo por esto. */
+export async function checkSlmCapability(): Promise<ProbeResult> {
+  const mod = await import('../../services/slm/guardianOffline.js');
+  if (typeof mod.rankChunks !== 'function') {
+    throw new Error('slm_unavailable');
+  }
+  return { skipped: true };
+}
+
 /** Resolver map. EXPORTED so the test harness can override individual
  *  probes (`{ ...defaults, gemini: customStub }`) instead of mocking
  *  network/firebase-admin globally. */
@@ -272,6 +439,16 @@ export const DEFAULT_PROBES: Record<string, Probe> = {
   resend: checkResend,
   openMeteo: checkOpenMeteo,
   photogrammetry: checkPhotogrammetryWorker,
+  // Vital capability probes (tarea P1).
+  fcm: checkFcmCapability,
+  scheduler: checkSchedulerCapability,
+  mqtt: checkMqttCapability,
+  mesh: checkMeshCapability,
+  offline: checkOfflineOutboxCapability,
+  geofence: checkGeofenceCapability,
+  manDown: checkManDownCapability,
+  wearables: checkWearablesCapability,
+  slm: checkSlmCapability,
 };
 
 export type ProbeMap = Record<string, Probe>;
