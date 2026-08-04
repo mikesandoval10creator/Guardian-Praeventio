@@ -35,10 +35,18 @@ describe('operations — sin API_KEY', () => {
     );
   });
 
-  it('analyzeDocumentCompliance throws', async () => {
-    await expect(analyzeDocumentCompliance('doc', 'norm')).rejects.toThrow(
-      'GEMINI_API_KEY is not configured',
-    );
+  it('analyzeDocumentCompliance throws sin API_KEY cuando hay texto analizable', async () => {
+    await expect(
+      analyzeDocumentCompliance('texto real del documento '.repeat(4), 'norm'),
+    ).rejects.toThrow('GEMINI_API_KEY is not configured');
+  });
+
+  it('analyzeDocumentCompliance NO declara cumplimiento sin texto analizable', async () => {
+    // Sin API_KEY y con texto insuficiente: el guard de análisis gana y
+    // devuelve el resultado explícito en vez de lanzar (tarea P1).
+    const result = await analyzeDocumentCompliance('', 'norm');
+    expect(result.isCompliant).toBe(false);
+    expect(result.complianceScore).toBe(0);
   });
 
   it('investigateIncidentWithAI throws', async () => {
