@@ -6,6 +6,7 @@ import { db } from '../services/firebase';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 import { logger } from '../utils/logger';
+import { canRequestLocationPermission } from '../services/location/locationPermissionRequest';
 // §16.2.1 sensorBus wiring: every accepted fix is mirrored to the central bus
 // so correlation rules (man-down → "send the rescue pair to the last GPS")
 // have a fresh last-known location. Reuses the existing watch callback only.
@@ -157,6 +158,14 @@ export const useGeolocationTracking = () => {
         try {
           const permissions = await Geolocation.checkPermissions();
           if (permissions.location !== 'granted') {
+            // Play Console (permisos sensibles): la divulgación prominente
+            // in-app DEBE preceder al prompt del SO. LocationPermissionGate
+            // muestra el modal y dispara requestPermissions(); hasta que el
+            // usuario acepta, este hook difiere su propio request.
+            if (!canRequestLocationPermission(true)) {
+              logger.warn('Geolocation request deferred: location disclosure not acknowledged yet.');
+              return null;
+            }
             const request = await Geolocation.requestPermissions();
             if (request.location !== 'granted') {
               logger.warn('Geolocation permissions denied.');
