@@ -52,9 +52,17 @@ vi.mock('../../hooks/useRiskEngine', () => ({
 vi.mock('../../services/geminiService', () => ({
   analyzeDocumentCompliance: vi.fn(async () => ({
     isCompliant: true,
-    reason: 'OK',
-    urgency: 'low',
+    complianceScore: 85,
+    findings: ['OK'],
+    recommendations: ['Mantener archivo actualizado'],
   })),
+}));
+
+// Tarea P1 (AI Compliance Check): la extracción de texto es client-side con
+// tesseract.js — stub para que los tests no disparen OCR real.
+vi.mock('../../services/gemini/documentCompliance', () => ({
+  extractDocumentText: vi.fn(async () => 'texto extraído del documento de prueba'),
+  buildNormativeContext: vi.fn((role: string) => `Contexto: ${role}`),
 }));
 
 vi.mock('../../services/analytics', () => ({

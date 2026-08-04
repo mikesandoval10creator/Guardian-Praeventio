@@ -5,6 +5,10 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { db, collection, addDoc, onSnapshot, query, where, limit, handleFirestoreError, OperationType, doc, updateDoc } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeDocumentCompliance } from '../../services/geminiService';
+import {
+  extractDocumentText,
+  buildNormativeContext,
+} from '../../services/gemini/documentCompliance';
 import { Worker, NodeType } from '../../types';
 import { analytics } from '../../services/analytics';
 
@@ -132,8 +136,14 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
       );
       await uploadBytes(storageRef, file);
 
-      // 2. AI Compliance Check
-      const compliance = await analyzeDocumentCompliance(docName, worker.role);
+      // 2. AI Compliance Check — extrae el texto REAL del documento (no solo
+      // el nombre) + normativa aplicable. Tarea P1: sin texto analizable, el
+      // servicio devuelve un resultado explícito sin declarar cumplimiento.
+      const extractedText = await extractDocumentText(file, docName);
+      const compliance = await analyzeDocumentCompliance(
+        extractedText,
+        buildNormativeContext(worker.role),
+      );
 
       const newDoc = {
         name: docName,
@@ -153,7 +163,9 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
       const docNode = await addNode({
         type: NodeType.DOCUMENT,
         title: docName,
-        description: `Documento para ${worker.name}: ${docName}\n\nAnálisis IA: ${compliance.reason}`,
+        description: `Documento para ${worker.name}: ${docName}\n\nAnálisis IA: ${
+          compliance.recommendations?.join(' ') || 'Sin recomendaciones del análisis.'
+        }`,
         tags: ['documento', 'trabajador', String(worker.name || '').toLowerCase(), compliance.isCompliant ? 'cumple' : 'pendiente'],
         metadata: { 
           documentId: docRef.id, 

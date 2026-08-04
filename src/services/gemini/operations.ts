@@ -28,6 +28,12 @@ import { logger } from '../../utils/logger';
 import { redactPii } from '../observability/piiRedactor';
 import { searchRelevantContext } from '../ragService';
 import { parseGeminiJson, withExponentialBackoff } from './parsing';
+import {
+  documentComplianceResultSchema,
+  hasAnalyzableText,
+  UNANALYZED_DOCUMENT_RESULT,
+  type DocumentComplianceResult,
+} from './documentCompliance';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -203,7 +209,12 @@ export const auditAISuggestion = async (
 export const analyzeDocumentCompliance = async (
   documentText: string,
   normativeContext: string,
-): Promise<unknown> => {
+): Promise<DocumentComplianceResult> => {
+  // Tarea P1 (AI Compliance Check): nunca declarar cumplimiento sin análisis.
+  // Texto insuficiente (nombre de archivo, blob vacío, OCR fallido) →
+  // resultado explícito, sin gastar llamada al modelo.
+  if (!hasAnalyzableText(documentText)) return UNANALYZED_DOCUMENT_RESULT;
+
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -232,7 +243,10 @@ export const analyzeDocumentCompliance = async (
     },
   });
 
-  return parseGeminiJson(response);
+  // Contrato único (Zod) compartido con la UI: si el modelo devuelve otra
+  // forma (p.ej. reason/urgency), el parse falla en vez de propagar
+  // undefined a la interfaz.
+  return documentComplianceResultSchema.parse(parseGeminiJson(response));
 };
 
 export const investigateIncidentWithAI = async (
