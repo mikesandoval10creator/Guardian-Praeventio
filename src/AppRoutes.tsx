@@ -20,6 +20,7 @@ import { useAutoLogout } from "./hooks/useAutoLogout";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { EmergencyOverlay } from "./components/shared/EmergencyOverlay";
 import { GeolocationTracker } from "./components/GeolocationTracker";
+import { LocationPermissionGate } from "./components/location/LocationPermissionGate";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { SosDeadLetterBanner } from "./components/emergency/SosDeadLetterBanner";
 const GuardianVoiceAssistant = lazy(() => import('./components/ai/GuardianVoiceAssistant').then(m => ({ default: m.GuardianVoiceAssistant })));
@@ -325,6 +326,10 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
 
   return (
     <AppProviders>
+      {/* Play Console: la divulgación prominente de ubicación debe mostrarse
+          ANTES de que GeolocationTracker (o cualquier consumidor) pida el
+          permiso al sistema operativo. */}
+      <LocationPermissionGate />
       <GeolocationTracker />
       <EmergencyOverlay />
       {/* Sprint 36 audit P1 §1.4 — lazy companions; null fallback because
