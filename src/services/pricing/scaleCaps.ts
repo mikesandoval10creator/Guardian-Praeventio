@@ -54,7 +54,7 @@ function capsForNormalizedPlan(normalized: SubscriptionPlan): ScaleCaps {
   return { trabajadoresMax, proyectosMax };
 }
 
-/** Free-plan caps, the fail-closed floor (gratis tier → 10 / 1). */
+/** Free-plan caps, the fail-closed floor (gratis tier → 3 / 1). */
 const FREE_CAPS: ScaleCaps = capsForNormalizedPlan('free');
 
 export function scaleCapsForPlan(plan: unknown): ScaleCaps {
