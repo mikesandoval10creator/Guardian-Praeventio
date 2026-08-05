@@ -59,6 +59,10 @@ import { logger } from '../../utils/logger.js';
 // cap, to validate the caps table in prod before enforcing. ADR 0021: this is
 // a management/scale cap (adding a teammate), never a life-safety action.
 import { readSubscriptionPlanId } from '../middleware/requireTier.js';
+// [P0][pagos] Tier enforcement flag (TIER-GATING-SERVER-SIDE-SPEC.md §4).
+// Deploy-time rollout: REPORT-ONLY logs `tier_gate_would_block` but serves
+// the request; TIER_GATE_ENFORCE=true hard-blocks (402) the scale caps below.
+import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
 
 function sentryCapture(
@@ -239,6 +243,25 @@ projectsRouter.post('/', verifyAuth, async (req, res) => {
         delta: 1,
       });
       if (!decision.withinCap) {
+        // [P0][pagos] Enforce mode: hard-block (402) instead of report-only.
+        // TIER_GATE_ENFORCE=true is set in prod (deploy.yml); the request is
+        // rejected BEFORE the write so a free-tier caller cannot keep opening
+        // projects past `proyectosMax` while paying nothing.
+        if (tierGateEnforced()) {
+          logger.warn('tier_gate_blocked', {
+            gate: 'projects',
+            mode: 'enforce',
+            ownerUid: callerUid,
+            plan: decision.plan,
+            cap: decision.cap,
+            current: decision.current,
+            projected: decision.projected,
+          });
+          return res.status(402).json({
+            error: 'plan_limit_reached',
+            message: `Tu plan (${decision.plan}) permite hasta ${decision.cap} proyectos activos.`,
+          });
+        }
         logger.warn('tier_gate_would_block', {
           gate: 'projects',
           mode: 'report-only',
@@ -374,6 +397,26 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
           delta: 1,
         });
         if (!decision.withinCap) {
+          // [P0][pagos] Enforce mode: hard-block (402) instead of
+          // report-only. TIER_GATE_ENFORCE=true is set in prod — the invite
+          // is rejected BEFORE the invitation doc is written so a free-tier
+          // owner cannot keep adding seats past `trabajadoresMax`.
+          if (tierGateEnforced()) {
+            logger.warn('tier_gate_blocked', {
+              gate: 'workers',
+              mode: 'enforce',
+              projectId,
+              ownerUid,
+              plan: decision.plan,
+              cap: decision.cap,
+              current: decision.current,
+              projected: decision.projected,
+            });
+            return res.status(402).json({
+              error: 'plan_limit_reached',
+              message: `Tu plan (${decision.plan}) permite hasta ${decision.cap} trabajadores por proyecto.`,
+            });
+          }
           logger.warn('tier_gate_would_block', {
             gate: 'workers',
             mode: 'report-only',
