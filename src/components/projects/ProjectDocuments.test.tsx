@@ -11,13 +11,14 @@
 
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, cleanup, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 const updateDocMock = vi.fn(async (..._args: any[]) => undefined);
 const deleteDocMock = vi.fn(async (..._args: any[]) => undefined);
 const deleteObjectMock = vi.fn(async (..._args: any[]) => undefined);
+const addDocMock = vi.fn(async (..._args: any[]) => ({ id: 'doc-new' }));
 
 vi.mock('../../services/firebase', () => ({
   db: {},
@@ -27,7 +28,7 @@ vi.mock('../../services/firebase', () => ({
   getDownloadURL: vi.fn(async () => 'https://example.test/doc.pdf'),
   deleteObject: (...args: any[]) => deleteObjectMock(...args),
   collection: vi.fn((_db: any, path: string) => ({ path })),
-  addDoc: vi.fn(async () => ({ id: 'doc-new' })),
+  addDoc: (...args: unknown[]) => addDocMock(...(args as [unknown, unknown])),
   query: vi.fn(),
   where: vi.fn(),
   onSnapshot: vi.fn(() => () => {}),
@@ -47,6 +48,10 @@ vi.mock('../../hooks/useFirestoreCollection', () => ({
         id: 'doc-archived', name: 'Plan antiguo.pdf', url: 'https://x/b', type: 'PDF',
         size: 1024, projectId: 'proj-1', uploadedBy: 'u1', createdAt: '2026-05-01T00:00:00Z',
         archived: true,
+      },
+      {
+        id: 'doc-newstyle', name: 'Contrato.pdf', storagePath: 'projects/proj-1/documents/1_Contrato.pdf',
+        type: 'PDF', size: 2048, projectId: 'proj-1', uploadedBy: 'u1', createdAt: '2026-06-04T00:00:00Z',
       },
     ],
     loading: false,
@@ -105,7 +110,7 @@ describe('ProjectDocuments — F7 evidence lock', () => {
 
   it('F7: archiving writes archived:true to project_documents and deletes NOTHING', async () => {
     render(<ProjectDocuments projectId="proj-1" />);
-    fireEvent.click(screen.getByTitle('Archivar documento (la evidencia se conserva)'));
+    fireEvent.click(screen.getAllByTitle('Archivar documento (la evidencia se conserva)')[0]);
     expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
     expect(screen.getByText('Archivar documento')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('confirm-dialog-accept'));
@@ -115,5 +120,44 @@ describe('ProjectDocuments — F7 evidence lock', () => {
     // The evidence-destruction primitives are NEVER invoked.
     expect(deleteDocMock).not.toHaveBeenCalled();
     expect(deleteObjectMock).not.toHaveBeenCalled();
+  });
+
+  // [P0] security — persist `storagePath`, NEVER a long-lived bearer
+  // getDownloadURL. A bearer URL keeps working after the doc is archived
+  // or the worker leaves, for anyone who saw it. The rules gate the path;
+  // the URL must be derived on demand at download time.
+  it('[P0] upload persists storagePath + fileName, NOT a bearer url', async () => {
+    render(<ProjectDocuments projectId="proj-1" />);
+    const file = new File(['pdf-bytes'], 'contrato.pdf', { type: 'application/pdf' });
+    const input = screen.getByLabelText(/subir documento/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
+    const added = (addDocMock.mock.calls[0]?.[1] ?? {}) as Record<string, unknown>;
+    expect(added.storagePath).toMatch(/^projects\/proj-1\/documents\/\d+_contrato\.pdf$/);
+    expect(added.fileName).toBe('contrato.pdf');
+    expect(added.url).toBeUndefined(); // NEVER persist the bearer URL
+  });
+
+  // [P0] security — downloads are derived ON DEMAND from storagePath via
+  // getDownloadURL at click time (re-checks storage.rules against CURRENT
+  // membership). Legacy rows with a persisted bearer url keep working.
+  it('[P0] download from storagePath derives a fresh URL via getDownloadURL', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const getDownloadURLMock = vi.fn(async () => 'https://fresh.example/derived-url');
+    const firebase = await import('../../services/firebase');
+    vi.mocked(firebase.getDownloadURL).mockImplementation(getDownloadURLMock);
+
+    render(<ProjectDocuments projectId="proj-1" />);
+    // Two rows render download links: doc-active (legacy url) and
+    // doc-newstyle (storagePath only). Click the NEW-style one — the
+    // derived-URL path is what this test pins.
+    const links = screen.getAllByTitle('Descargar archivo original');
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(links[links.length - 1]);
+    await waitFor(() => expect(getDownloadURLMock).toHaveBeenCalledTimes(1));
+    expect(openSpy).toHaveBeenCalledWith('https://fresh.example/derived-url', '_blank', 'noopener,noreferrer');
+    openSpy.mockRestore();
   });
 });
