@@ -31,6 +31,11 @@ import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import {
+  resolveFeedbackTenantId,
+  isFeedbackReader,
+  type FeedbackUser,
+} from './aiFeedbackAccess.js';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PII redaction (pure, exported for tests).
@@ -189,7 +194,18 @@ router.post(
   validate(feedbackBodySchema),
   async (req, res) => {
     const body = req.validated as z.infer<typeof feedbackBodySchema>;
-    const tenantId: string = req.user?.uid ?? 'unknown';
+    // Tarea P1: el tenantId REAL del claim, no el uid. Un user que
+    // pertenece a un tenant (claims.tenantId) NO se confunde con un
+    // uid. Si falta, fallback a uid (no colapsamos silenciosamente
+    // user→tenant). El helper de auth lanza si nada resuelve.
+    const user = req.user as unknown as FeedbackUser | undefined;
+    const tenantId: string = user
+      ? resolveFeedbackTenantId({
+          uid: user.uid ?? '',
+          email: user.email ?? null,
+          claims: (user.claims ?? {}) as Record<string, unknown>,
+        })
+      : 'unknown';
     const callerEmail: string | null = req.user?.email ?? null;
     // Sprint 33 — replay-attack guard. Without `force`, a duplicate POST on
     // the same (tenantId, messageId) tuple is rejected with 409. Why: the
@@ -305,8 +321,15 @@ router.post(
 );
 
 router.get('/feedback/summary', verifyAuth, async (req, res) => {
-  const isAdmin = Boolean(req.user?.admin);
-  if (!isAdmin) {
+  // Tarea P1: alinear con el claim role:admin|gerente. El boolean
+  // legacy `admin: true` sigue funcionando (compat con tokens viejos).
+  const user = req.user as unknown as FeedbackUser | undefined;
+  if (!isFeedbackReader({
+    uid: user?.uid ?? '',
+    email: user?.email ?? null,
+    claims: (user?.claims ?? {}) as Record<string, unknown>,
+    admin: user?.admin as boolean | undefined,
+  })) {
     return res.status(403).json({ error: 'forbidden' });
   }
   const tenantQ = req.query.tenantId;
