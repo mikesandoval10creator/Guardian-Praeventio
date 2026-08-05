@@ -38,7 +38,9 @@ import {
   getConsentStatus,
   requestDataAccess,
   getDataAccessRequest,
+  listDataAccessRequests,
   processDataAccessRequest,
+  type DataAccessRequest,
   exportUserData,
   eraseUserData,
   getProcessingActivities,
@@ -281,6 +283,25 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
       { uid, type },
     );
     captureRouteError(err, 'compliance.data_request', { uid, type });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.get('/data-requests', verifyAuth, async (_req, res) => {
+  const uid = _req.user!.uid;
+  try {
+    // Tarea P1 privacidad: bandeja de seguimiento del usuario. El uid
+    // SIEMPRE viene de auth (no del cliente) — la defensa está en el
+    // service (where uid==) y se refuerza acá.
+    const requests = await listDataAccessRequests(getDb(), uid);
+    return res.json({ requests });
+  } catch (err) {
+    logger.error(
+      'compliance_list_requests_failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { uid },
+    );
+    captureRouteError(err, 'compliance.list_requests', { uid });
     return res.status(500).json({ error: 'internal_error' });
   }
 });
