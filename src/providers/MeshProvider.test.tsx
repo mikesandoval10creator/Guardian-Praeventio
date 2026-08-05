@@ -68,6 +68,10 @@ vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => h.refs.project,
 }));
 
+vi.mock('../contexts/EmergencyContext', () => ({
+  useEmergency: () => ({ triggerEmergency: vi.fn(async () => undefined) }),
+}));
+
 // ── Import under test (after mocks) ───────────────────────────────────────
 
 import { MeshProvider } from './MeshProvider';

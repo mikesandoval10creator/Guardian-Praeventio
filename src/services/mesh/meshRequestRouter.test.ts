@@ -5,9 +5,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPacket,
+  type EventToSupervisorPayload,
   type FileChunkPayload,
   type FileRequestPayload,
   type MeshPacket,
+  type SosPayload,
 } from './meshPacket';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { MeshRequestRouter, type FileRequestRecord } from './meshRequestRouter';
@@ -25,6 +27,8 @@ function makeRouter(opts: {
   chunkSize?: number;
   localFiles?: Map<string, { blob: Blob; contentHash: string }>;
   onFileComplete?: (r: FileRequestRecord) => void;
+  onSosReceived?: (p: MeshPacket & { type: 'sos'; payload: SosPayload }) => void;
+  onSupervisorEventReceived?: (p: MeshPacket & { type: 'event_to_supervisor'; payload: EventToSupervisorPayload }) => void;
 } = {}) {
   const queue = new MeshRelayQueue({
     selfUid: SELF,
@@ -39,6 +43,8 @@ function makeRouter(opts: {
     queue,
     localFileLookup: async (nodeId) => localFiles.get(nodeId) ?? null,
     onFileComplete,
+    onSosReceived: opts.onSosReceived,
+    onSupervisorEventReceived: opts.onSupervisorEventReceived,
     chunkSize: opts.chunkSize,
     now: opts.now,
   });
@@ -388,5 +394,82 @@ describe('MeshRequestRouter', () => {
       }),
     ]);
     expect(queue.size()).toBe(0);
+  });
+
+  // ─── [P0][VIDA] SOS / supervisor-event dispatch ───────────────────────────
+  // A verified SOS arriving via mesh must reach a local consumer (alarm +
+  // brigade notify + promote-to-emergency). Previously the router ignored
+  // every non-file packet, so a supervisor physically in range got NOTHING.
+  it('[P0][VIDA] sos packet dispatches onSosReceived with the verified packet', async () => {
+    const onSosReceived = vi.fn();
+    const { router } = makeRouter({ now, onSosReceived });
+
+    const sosPayload: SosPayload = {
+      workerUid: 'worker-x',
+      location: { lat: -33.45, lng: -70.66, accuracyM: 12 },
+      capturedAtMs: 5_000,
+      triggerReason: 'fall_detected',
+      projectId: PROJECT,
+    };
+    const sosPacket = buildPacket({
+      type: 'sos',
+      fromUid: PEER,
+      toUid: 'broadcast',
+      payload: sosPayload,
+      bornAtMs: 5_000,
+      projectId: PROJECT,
+    });
+
+    await router.processIncomingPackets([sosPacket]);
+    expect(onSosReceived).toHaveBeenCalledTimes(1);
+    expect(onSosReceived.mock.calls[0][0].payload).toEqual(sosPayload);
+  });
+
+  it('[P0][VIDA] event_to_supervisor dispatches onSupervisorEventReceived', async () => {
+    const onSupervisorEventReceived = vi.fn();
+    const { router } = makeRouter({ now, onSupervisorEventReceived });
+
+    const eventPayload: EventToSupervisorPayload = {
+      eventType: 'incident',
+      workerUid: 'worker-x',
+      location: { lat: -33.45, lng: -70.66, accuracyM: 12 },
+      capturedAtMs: 5_000,
+      description: 'Trabajador reporta dolor en tobillo',
+      projectId: PROJECT,
+    };
+    const eventPacket = buildPacket({
+      type: 'event_to_supervisor',
+      fromUid: PEER,
+      toUid: SELF,
+      payload: eventPayload,
+      bornAtMs: 5_000,
+      projectId: PROJECT,
+    });
+
+    await router.processIncomingPackets([eventPacket]);
+    expect(onSupervisorEventReceived).toHaveBeenCalledTimes(1);
+    expect(onSupervisorEventReceived.mock.calls[0][0].payload).toEqual(eventPayload);
+  });
+
+  it('[P0][VIDA] sos sin callback no rompe el procesamiento (noop)', async () => {
+    const { router, queue } = makeRouter({ now });
+    const sosPayload: SosPayload = {
+      workerUid: 'worker-x',
+      location: { lat: -33.45, lng: -70.66, accuracyM: 12 },
+      capturedAtMs: 5_000,
+      triggerReason: 'manual',
+      projectId: PROJECT,
+    };
+    const sosPacket = buildPacket({
+      type: 'sos',
+      fromUid: PEER,
+      toUid: 'broadcast',
+      payload: sosPayload,
+      bornAtMs: 5_000,
+      projectId: PROJECT,
+    });
+
+    await expect(router.processIncomingPackets([sosPacket])).resolves.toBeUndefined();
+    expect(queue.size()).toBe(0); // SOS is consumed, not enqueued again
   });
 });

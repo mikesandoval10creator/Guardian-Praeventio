@@ -45,14 +45,17 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { isAdminRole, isSupervisorRole } from '../types/roles';
 import { useProject } from '../contexts/ProjectContext';
 import { registerMeshTransport } from '../services/emergency/meshFallback';
+import { useEmergency } from '../contexts/EmergencyContext';
 import { MeshRelayQueue } from '../services/mesh/meshRelayQueue';
 import { makeRelayXpHandler } from '../services/mesh/meshRelayXpWire';
+import { MeshRequestRouter } from '../services/mesh/meshRequestRouter';
 import {
   getMeshSigningKey,
   provisionMeshSigningKey,
 } from '../services/mesh/meshKeyStore';
 import { TransportFacade } from '../services/mesh/transportFacade';
 import { getErrorTracker } from '../services/observability/index.js';
+import { logger } from '../utils/logger';
 
 interface MeshProviderProps {
   children: ReactNode;
@@ -75,6 +78,10 @@ function reportMeshError(err: unknown, step: string): void {
 export function MeshProvider({ children }: MeshProviderProps) {
   const { user, userRole } = useFirebase();
   const { selectedProject } = useProject();
+  // [P0][VIDA] Emergency escalation for incoming mesh SOS — the local
+  // supervisor responds even when the network is down (mesh is the offline
+  // transport). triggerEmergency fans out to brigade + Firestore.
+  const { triggerEmergency } = useEmergency();
 
   const uid = user?.uid ?? null;
   const projectId = selectedProject?.id ?? null;
@@ -129,6 +136,37 @@ export function MeshProvider({ children }: MeshProviderProps) {
         peerId: uid,
         projectId,
         queue,
+        // [P0][VIDA] Route verified incoming packets to the local consumers.
+        // Without a router the facade dropped every forLocal packet silently:
+        // a supervisor physically in range of a worker's SOS got NOTHING.
+        router: new MeshRequestRouter({
+          selfUid: uid,
+          projectId,
+          queue,
+          localFileLookup: async () => null,
+          onFileComplete: () => {},
+          // A verified SOS addressed to us/broadcast → local escalation.
+          // Dedup: triggerEmergency is idempotent per type/project (the
+          // Firestore write guards on existing open emergencies), and the
+          // relay queue only delivers a packet once per node.
+          onSosReceived: (packet) => {
+            logger.info('mesh_sos_received', {
+              fromUid: packet.fromUid ?? 'unknown',
+              projectId: packet.payload.projectId,
+              reason: packet.payload.triggerReason,
+            });
+            void triggerEmergency('fall', packet.payload.projectId || projectId || undefined);
+          },
+          // Supervisor-addressed events (B16): logged for observability;
+          // per-type consumers (breadcrumbs, edge events) land in later
+          // tickets — the router no longer drops them.
+          onSupervisorEventReceived: (packet) => {
+            logger.info('mesh_supervisor_event', {
+              fromUid: packet.fromUid ?? 'unknown',
+              eventType: packet.payload.eventType,
+            });
+          },
+        }),
       });
 
       try {
