@@ -52,8 +52,8 @@ const RULES_PATH = resolve(__dirname, '../../firestore.rules');
 // Common token shape used throughout. The rules call `email_verified == true`
 // on essentially every privileged path, so unverified-email contexts behave
 // like unauthenticated for those branches.
-function verifiedToken(role: string, email = 'user@example.com') {
-  return { email, email_verified: true, role };
+function verifiedToken(role: string, email = 'user@example.com', extraClaims: Record<string, unknown> = {}) {
+  return { email, email_verified: true, role, ...extraClaims };
 }
 
 let testEnv: RulesTestEnvironment | null = null;
@@ -1333,6 +1333,114 @@ describe('firestore.rules', () => {
           ts: new Date().toISOString(),
         }),
       );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // [P0][seguridad] telemetry_events read is TENANT-SCOPED. Before this
+  // fix `allow read: if isAdmin() || isSupervisor()` let ANY supervisor
+  // read ANY project's telemetry: tenant A's supervisor could watch tenant
+  // B's live sensors, and Evacuation could react to a foreign project's
+  // critical event. Now a supervisor may only read events whose project
+  // belongs to their own tenant (isSupervisorOfTenant(projectTenantId(...))).
+  // `global`/unscoped events resolve to a non-existent project → '' → denied.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('telemetry_events/{eventId} — tenant-scoped read', () => {
+    async function seedTenantProject(projectId: string, tenantId: string) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'projects', projectId), {
+          name: 'Project ' + projectId,
+          members: ['sup-a'],
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          createdBy: 'sup-a',
+          tenantId,
+        });
+      });
+    }
+
+    async function seedEvent(eventId: string, projectId: string, tenantId: string) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'telemetry_events', eventId), {
+          type: 'wearable',
+          source: 'dev-' + eventId,
+          metric: 'heart_rate',
+          value: 120,
+          projectId,
+          tenantId,
+        });
+      });
+    }
+
+    it('allows a supervisor of the event\'s tenant to read', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('sup-a', 'supervisor');
+      await seedTenantProject('proj-A', 'tenant-A');
+      await seedEvent('ev-A', 'proj-A', 'tenant-A');
+      // Multi-tenant claim: tenant-A → supervisor-tier.
+      const sup = env.authenticatedContext(
+        'sup-a',
+        verifiedToken('supervisor', 'sup-a@example.com', {
+          tenants: { 'tenant-A': 'supervisor' },
+        }),
+      );
+      await assertSucceeds(getDoc(doc(sup.firestore(), 'telemetry_events', 'ev-A')));
+    });
+
+    it('DENIES a supervisor reading a DIFFERENT tenant\'s project event', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('sup-a', 'supervisor');
+      await seedTenantProject('proj-A', 'tenant-A');
+      await seedTenantProject('proj-B', 'tenant-B');
+      await seedEvent('ev-A', 'proj-A', 'tenant-A');
+      await seedEvent('ev-B', 'proj-B', 'tenant-B');
+      // Supervisor only holds tenant-A; event ev-B belongs to tenant-B.
+      const sup = env.authenticatedContext(
+        'sup-a',
+        verifiedToken('supervisor', 'sup-a@example.com', {
+          tenants: { 'tenant-A': 'supervisor' },
+        }),
+      );
+      await assertSucceeds(getDoc(doc(sup.firestore(), 'telemetry_events', 'ev-A')));
+      await assertFails(getDoc(doc(sup.firestore(), 'telemetry_events', 'ev-B')));
+    });
+
+    it('DENIES a supervisor reading an unscoped/global event (fail-closed)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('sup-a', 'supervisor');
+      await seedTenantProject('proj-A', 'tenant-A');
+      await seedEvent('ev-global', 'global', '');
+      const sup = env.authenticatedContext(
+        'sup-a',
+        verifiedToken('supervisor', 'sup-a@example.com', {
+          tenants: { 'tenant-A': 'supervisor' },
+        }),
+      );
+      await assertFails(getDoc(doc(sup.firestore(), 'telemetry_events', 'ev-global')));
+    });
+
+    it('allows admin to read any project event (full visibility)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('adm-1', 'admin');
+      await seedTenantProject('proj-B', 'tenant-B');
+      await seedEvent('ev-B', 'proj-B', 'tenant-B');
+      const adm = env.authenticatedContext('adm-1', verifiedToken('admin'));
+      await assertSucceeds(getDoc(doc(adm.firestore(), 'telemetry_events', 'ev-B')));
+    });
+
+    it('DENIES a supervisor with NO tenant claim at all', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('sup-no', 'supervisor');
+      await seedTenantProject('proj-A', 'tenant-A');
+      await seedEvent('ev-A', 'proj-A', 'tenant-A');
+      // Single global supervisor without tenants claim → no tenant scope.
+      const sup = env.authenticatedContext('sup-no', verifiedToken('supervisor'));
+      await assertFails(getDoc(doc(sup.firestore(), 'telemetry_events', 'ev-A')));
     });
   });
 

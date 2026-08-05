@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { calculateDynamicEvacuationRoute, generateEmergencyPlan } from '../services/geminiService';
-import { db, collection, addDoc, serverTimestamp, query, orderBy, limit } from '../services/firebase';
+import { db, collection, addDoc, serverTimestamp, query, orderBy, limit, where } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { NodeType } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -121,10 +121,20 @@ export function Evacuation() {
   const emergencyNodes = nodes.filter(n => (n.type === NodeType.EMERGENCY || n.type === NodeType.ASSET) && n.metadata?.lat && n.metadata?.lng);
   const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT);
 
-  // Listen for critical IoT events to trigger recalculation
+  // Listen for critical IoT events to trigger recalculation — [P0][seguridad]
+  // scoped to the SELECTED project. Evacuation must react only to the current
+  // faena's critical event; a foreign project's event could trigger a false
+  // evacuation. No selected project → no global fallback (empty list).
+  const recentEventsQuery = useMemo(() => {
+    const projectId = selectedProject?.id;
+    return projectId
+      ? [where('projectId', '==', projectId), orderBy('timestamp', 'desc'), limit(1)]
+      : [orderBy('timestamp', 'desc'), limit(1), where('projectId', '==', '__none__')];
+  }, [selectedProject?.id]);
+
   const { data: recentEvents } = useFirestoreCollection<IoTEvent>(
     'telemetry_events',
-    [orderBy('timestamp', 'desc'), limit(1)]
+    recentEventsQuery
   );
 
   const onLoad = useCallback(function callback(map: google.maps.Map) {
