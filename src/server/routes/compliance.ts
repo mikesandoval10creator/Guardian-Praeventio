@@ -53,6 +53,11 @@ import {
 // Admin gate for the ARCO processing endpoints — role re-read from Firebase
 // Auth custom claims (mirrors firestore.rules' isAdmin() and admin.ts).
 import { isAdminRole } from '../../types/roles.js';
+// [P0][privacidad] Unified erasure: the ARCO /erase endpoint must not leave a
+// live Firebase account. `eraseUserData` sweeps top-level docs; `anonymizeUser`
+// disables Auth + revokes sessions + scrubs PII + writes the immutable proof.
+// Both run under one orchestration so 'Mis datos' and 'Configuración' converge.
+import { anonymizeUser } from '../services/anonymizeUser.js';
 // Sprint 31 Bucket MM — multi-regime privacy compliance.
 import {
   getActiveRegimes,
@@ -512,6 +517,17 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
     // compliance_data_requests rows (they carry the uid), so we re-persist
     // the request row afterwards as compliance evidence via set(merge) —
     // a plain processDataAccessRequest update() would hit NOT_FOUND.
+    //
+    // [P0][privacidad] Unified erasure: anonymizeUser FIRST (disable Auth +
+    // revoke sessions + claims anonymized + scrub PII + immutable proof) so a
+    // mid-flight failure never leaves a live account behind a 'completed'
+    // request. eraseUserData then sweeps the top-level exportable collections.
+    // This closes the gap where 'Mis datos' left a fully active Firebase
+    // account after reporting 'completed'.
+    const anonymizeResult = await anonymizeUser(
+      { authAdmin: admin.auth, db: admin.firestore() },
+      { uid: existing.uid },
+    );
     const result = await eraseUserData(getDb(), existing.uid, { keepLegalRecords: true });
 
     const completedAt = Date.now();
@@ -531,12 +547,20 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
       targetUid: existing.uid,
       erased: result.erased,
       preserved: result.preserved,
+      authDisabled: anonymizeResult.applied,
+      anonymizationEvent: `anonymization_events/${existing.uid}`,
     });
 
     return res.json({
       ok: true,
       request: { id: requestId, uid: existing.uid, type: existing.type, status: 'completed', requestedAt: existing.requestedAt, completedAt },
       result,
+      anonymization: {
+        applied: anonymizeResult.applied,
+        authDisabled: true,
+        fieldsRedacted: anonymizeResult.fieldsRedacted,
+        proof: `anonymization_events/${existing.uid}`,
+      },
     });
   } catch (err) {
     if (err instanceof ComplianceError) {
