@@ -329,13 +329,15 @@ export function registerWebpayRoutes(
           await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
             replay: true,
             source: 'webpay',
-            txn: tokenWs,
+            // Redacción (tarea P1 secretos): token_ws es token-equivalente —
+            // solo sufijo corto para correlación, nunca el token completo.
+            txnSuffix: tokenWs.slice(-8),
             invoiceId: lock.invoiceId ?? null,
             previousOutcome: lock.outcome,
           }).then((ok: boolean) => {
             // P0 informe 2026-06-12: antes `.catch(() => {})` silenciaba la
             // falla de audit. auditServerEvent nunca lanza — devuelve boolean.
-            if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'webpay', txn: tokenWs });
+            if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'webpay', txnSuffix: tokenWs.slice(-8) });
           });
           return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
         }
@@ -613,7 +615,8 @@ export function registerWebpayRoutes(
       // Deliberate: do NOT update processed_webpay here. Leaving the doc as
       // 'in_progress' allows the staleness window to grant a future
       // redelivery a fresh attempt — same approach as the RTDN handler.
-      logger.error('webpay_return_failed', error, { tokenWs });
+      // Redacción (tarea P1 secretos): nunca el token_ws completo en logs.
+      logger.error('webpay_return_failed', error, { tokenWsSuffix: tokenWs?.slice(-8) });
       sentryCapture(error, { endpoint: '/billing/webpay/return', tags: { method: 'GET' } });
       recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
       return res.redirect(`/pricing/failed?error=webpay`);

@@ -12,10 +12,20 @@
 // module preserves the monolith's exact route-registration order.
 
 import type { Router } from 'express';
+import crypto from 'node:crypto';
 import admin from 'firebase-admin';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
 import { logger } from '../../../utils/logger.js';
+
+/**
+ * Hash SHA-256 del receipt id (tarea P1 secretos): el campo receiptIdHash
+ * contenía los primeros 16 caracteres del recibo (material sensible en
+ * reposo). Con hash real se conserva la correlación sin exponer el recibo.
+ */
+export function hashReceiptId(receiptId: string): string {
+  return crypto.createHash('sha256').update(receiptId).digest('hex');
+}
 // Sprint 39 P0.3 — synchronous server-to-server IAP receipt validators.
 // See file headers in each for the auth/env contract.
 import { validateGooglePlaySubscription } from '../../../services/billing/googlePlayValidator.js';
@@ -82,7 +92,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             userId: uid ?? null,
             productId,
             tierId: tierId ?? null,
-            receiptIdHash: receiptId.slice(0, 16) + '…',
+            receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -276,7 +286,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             userId: uid ?? null,
             productId,
             tierId: tierId ?? null,
-            receiptIdHash: receiptId.slice(0, 16) + '…',
+            receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
