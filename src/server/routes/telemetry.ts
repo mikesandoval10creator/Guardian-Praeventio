@@ -206,6 +206,19 @@ router.post('/telemetry/ingest', async (req, res) => {
       ? rawZoneId
       : null;
 
+  // [P0][datos] Schema parity with the MQTT rail (firestoreBridge): the device
+  // timestamp (epoch ms) is device-controlled → sanitized; anything malformed
+  // degrades to null rather than rejecting the sample. Auditors can then
+  // reconstruct the origin even when server-side receipt lagged, matching the
+  // MQTT rail's `deviceTimestamp: sample.timestamp`.
+  const rawDeviceTimestamp = (req.body ?? {}).deviceTimestamp;
+  const deviceTimestamp =
+    typeof rawDeviceTimestamp === 'number' &&
+    Number.isFinite(rawDeviceTimestamp) &&
+    rawDeviceTimestamp > 0
+      ? rawDeviceTimestamp
+      : null;
+
   // [P0][seguridad] projectId authorization. Authentication proved the caller,
   // NOT which project it may write into. An explicit projectId must belong to
   // the request's tenant scope — reject a mismatch (or a specific project with
@@ -250,6 +263,7 @@ router.post('/telemetry/ingest', async (req, res) => {
       // filter by tenant instead of trusting a client-supplied field later.
       tenantId: tenantId ?? null,
       zoneId,
+      deviceTimestamp,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 
