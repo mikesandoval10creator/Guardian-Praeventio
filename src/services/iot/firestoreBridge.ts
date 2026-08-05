@@ -44,6 +44,7 @@
 import admin from 'firebase-admin';
 import type { TelemetrySample, IngestRule, IngestDecision, IotDeviceKind } from './types.js';
 import { evaluateSample } from './ingestRuleEngine.js';
+import { deriveStableEventId } from './deduplicator.js';
 import { classifyGasMetric } from '../workPermits/gasGate.js';
 import { sendToProjectSupervisors } from '../../server/routes/emergency.js';
 import { logger } from '../../utils/logger.js';
@@ -66,6 +67,17 @@ export interface BridgeContext {
   db?: FirebaseFirestore.Firestore;
   /** Optional FCM messaging handle (defaults to `admin.messaging()`). */
   messaging?: admin.messaging.Messaging;
+  /**
+   * Identidad estable de la muestra (tarea P1 mqtt-dedup): eventId del
+   * dispositivo o hash determinístico. Se usa como doc id idempotente.
+   */
+  eventId?: string | null;
+  /**
+   * Ventana de deduplicación QoS 1. Si `isDuplicate` responde true para el
+   * eventId, el bridge NO persiste ni notifica (0 filas/alertas/auditorías/
+   * FCM extra).
+   */
+  dedup?: { isDuplicate: (id: string) => boolean; remember: (id: string) => void };
 }
 
 /**
@@ -98,6 +110,8 @@ export interface BridgeResult {
    *  swallows the error (observability never breaks the rail), but the caller
    *  MUST NOT report 'persisted' — that would mask silent data loss. */
   persistFailed: boolean;
+  /** True when the sample was a QoS 1 redelivery (dedup cortó el pipeline). */
+  duplicated?: boolean;
 }
 
 /**
@@ -124,28 +138,47 @@ export async function bridgeMqttToFirestore(
   const isCritical = decision.alerts.some((a) => a.severity === 'critical');
   const hasWarning = decision.alerts.some((a) => a.severity === 'warning');
 
+  // QoS 1 redelivery guard (tarea P1 mqtt-dedup): identidad estable →
+  // ventana de deduplicación. Un duplicado NO escribe fila, alerta,
+  // auditoría ni FCM.
+  const stableId = deriveStableEventId(sample, ctx.eventId ?? null);
+  if (ctx.dedup && ctx.dedup.isDuplicate(stableId)) {
+    result.duplicated = true;
+    return result;
+  }
+  ctx.dedup?.remember(stableId);
+
   // Step 1 — top-level telemetry_events row, ingest-schema compatible.
   // Gas-gate metrics (O₂/LEL) ALWAYS persist — the confined-space gate
   // needs fresh normal readings, not just anomalies (see header).
   const mustPersist = decision.persist || classifyGasMetric(sample.metric) !== null;
   if (mustPersist) {
     try {
-      const telRef = await db.collection('telemetry_events').add({
-        type: kindToIngestType(sample.kind),
-        source: sample.deviceId,
-        metric: sample.metric,
-        value: sample.value,
-        unit: sample.unit,
-        status: isCritical || hasWarning ? 'alert' : 'normal',
-        threatLevel: isCritical ? 'High' : hasWarning ? 'Medium' : 'None',
-        // MQTT rail uses the deterministic rule engine, not Gemini (header).
-        aiValidation: null,
-        projectId: ctx.projectId,
-        tenantId: ctx.tenantId,
-        zoneId: ctx.zoneId ?? null,
-        deviceTimestamp: sample.timestamp,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      // Doc id determinístico (tarea P1 mqtt-dedup): la segunda entrega de
+      // un QoS 1 redelivery sobrescribe el MISMO doc en vez de crear una
+      // fila duplicada.
+      const telRef = db
+        .collection('telemetry_events')
+        .doc(`telemetry_${stableId}`);
+      await telRef.set(
+        {
+          type: kindToIngestType(sample.kind),
+          source: sample.deviceId,
+          metric: sample.metric,
+          value: sample.value,
+          unit: sample.unit,
+          status: isCritical || hasWarning ? 'alert' : 'normal',
+          threatLevel: isCritical ? 'High' : hasWarning ? 'Medium' : 'None',
+          // MQTT rail uses the deterministic rule engine, not Gemini (header).
+          aiValidation: null,
+          projectId: ctx.projectId,
+          tenantId: ctx.tenantId,
+          zoneId: ctx.zoneId ?? null,
+          deviceTimestamp: sample.timestamp,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
       result.telemetryId = telRef.id;
     } catch (err: any) {
       // Required persist failed → the sample is lost from Firestore. Flag it so
@@ -168,24 +201,28 @@ export async function bridgeMqttToFirestore(
 
   if (!isCritical) return result;
 
-  // Step 2a — iot_alerts row.
+  // Step 2a — iot_alerts row (doc id determinístico, idempotente).
   try {
     const alertRef = await db
       .collection('tenants')
       .doc(ctx.tenantId)
       .collection('iot_alerts')
-      .add({
-        deviceId: sample.deviceId,
-        projectId: ctx.projectId,
-        metric: sample.metric,
-        value: sample.value,
-        unit: sample.unit,
-        severity: 'critical',
-        alerts: decision.alerts,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        deviceTimestamp: sample.timestamp,
-      });
-    result.alertId = alertRef.id;
+      .doc(`alert_${stableId}`)
+      .set(
+        {
+          deviceId: sample.deviceId,
+          projectId: ctx.projectId,
+          metric: sample.metric,
+          value: sample.value,
+          unit: sample.unit,
+          severity: 'critical',
+          alerts: decision.alerts,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          deviceTimestamp: sample.timestamp,
+        },
+        { merge: true },
+      );
+    result.alertId = `alert_${stableId}`;
   } catch (err: any) {
     logger.error('iot_bridge_alert_write_failed', err, {
       tenantId: ctx.tenantId,
