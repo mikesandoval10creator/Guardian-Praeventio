@@ -89,8 +89,10 @@ export const EDGE_INVERSES = {
 
 export type InverseEdgeType = (typeof EDGE_INVERSES)[EdgeType];
 
+export type EdgeDecayFn = 'none' | 'linear' | 'exp';
+
 export interface ZkEdge {
-  /** Content-addressed id: sha256(fromNodeId + toNodeId + type). Idempotent. */
+  /** Content-addressed id: sha256(from + to + type + weight + validFrom + validUntil). Idempotent. */
   id: string;
   fromNodeId: string;
   toNodeId: string;
@@ -105,6 +107,17 @@ export interface ZkEdge {
   tenantId: string;
   /** Project scope opcional (solo cuando ambos nodos viven en el mismo proyecto). */
   projectId?: string;
+  /** Fuerza/confianza de la arista ∈ [0, 1]. Default 1 (pleno). Para integrar
+   *  con el modelo de queso suizo: 1 - weight = tamaño del agujero. */
+  weight?: number;
+  /** Inicio de validez de la arista (ISO-8601). Opcional. */
+  validFrom?: string;
+  /** Fin de validez (ISO-8601). Posterior a validFrom si ambos están. */
+  validUntil?: string;
+  /** Función de decaimiento del peso con el tiempo. Default 'none'. */
+  decayFn?: EdgeDecayFn;
+  /** Mitad de vida del peso exponencial (ms). Solo aplica cuando decayFn='exp'. */
+  decayHalfLifeMs?: number;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -112,15 +125,21 @@ export interface ZkEdge {
 // ────────────────────────────────────────────────────────────────────────
 
 /**
- * Compute the content-addressed edge id. Idempotent: misma terna
- * (from, to, type) → mismo id, así crear dos veces es un no-op.
+ * Compute the content-addressed edge id. Idempotent: misma quintuple
+ * (from, to, type, weight, validFrom, validUntil) → mismo id. Crear la
+ * misma arista con peso distinto produce OTRO id — al actualizar el
+ * peso de un control, las queries inversas ven la versión nueva y la
+ * vieja se queda como huella histórica hasta que se reevaluate.
  */
 export function computeEdgeId(
   fromNodeId: string,
   toNodeId: string,
   type: EdgeType,
+  weight: number = 1,
+  validFrom?: string,
+  validUntil?: string,
 ): string {
-  const canonical = `${fromNodeId}\x00${toNodeId}\x00${type}`;
+  const canonical = `${fromNodeId}\x00${toNodeId}\x00${type}\x00${weight}\x00${validFrom ?? ''}\x00${validUntil ?? ''}`;
   return bytesToHex(sha256(new TextEncoder().encode(canonical))).slice(0, 32);
 }
 
@@ -137,6 +156,11 @@ export function buildEdge(input: {
   projectId?: string;
   /** Override `createdAt` — only for tests / deterministic seeding. */
   createdAt?: string;
+  weight?: number;
+  validFrom?: string;
+  validUntil?: string;
+  decayFn?: EdgeDecayFn;
+  decayHalfLifeMs?: number;
 }): ZkEdge {
   if (input.fromNodeId === input.toNodeId) {
     throw new EdgeValidationError('SELF_LOOP', input.fromNodeId, input.toNodeId, input.type);
@@ -144,8 +168,16 @@ export function buildEdge(input: {
   if (!EDGE_TYPES.includes(input.type)) {
     throw new EdgeValidationError('UNKNOWN_TYPE', input.fromNodeId, input.toNodeId, input.type);
   }
+  const weight = input.weight ?? 1;
+  if (typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0 || weight > 1) {
+    throw new EdgeValidationError('WEIGHT_OUT_OF_RANGE', input.fromNodeId, input.toNodeId, input.type);
+  }
+  if (input.validFrom && input.validUntil && input.validFrom > input.validUntil) {
+    throw new EdgeValidationError('INVALID_VALIDITY', input.fromNodeId, input.toNodeId, input.type);
+  }
+  const decayFn: EdgeDecayFn = input.decayFn ?? 'none';
   return {
-    id: computeEdgeId(input.fromNodeId, input.toNodeId, input.type),
+    id: computeEdgeId(input.fromNodeId, input.toNodeId, input.type, weight, input.validFrom, input.validUntil),
     fromNodeId: input.fromNodeId,
     toNodeId: input.toNodeId,
     type: input.type,
@@ -154,7 +186,49 @@ export function buildEdge(input: {
     createdBy: input.createdBy,
     tenantId: input.tenantId,
     projectId: input.projectId,
+    weight,
+    validFrom: input.validFrom,
+    validUntil: input.validUntil,
+    decayFn,
+    decayHalfLifeMs: input.decayHalfLifeMs,
   };
+}
+
+/**
+ * Peso EFECTIVO de la arista en el instante `now` (ms epoch).
+ *
+ *   - Antes de validFrom o después de validUntil: 0 (no aplica).
+ *   - decayFn='none'   → weight base.
+ *   - decayFn='linear'  → weight base * (1 - elapsed/total).
+ *   - decayFn='exp'     → weight base * 0.5^(elapsed / halfLifeMs).
+ *
+ * El Asesor y el modelo de queso suizo (salud de barrera) consumen el
+ * peso efectivo; el peso base sirve para auditoría ("cuánto pesaba
+ * cuando se emitió").
+ */
+export function effectiveWeight(edge: ZkEdge, now: number): number {
+  const w = edge.weight ?? 1;
+  const fn: EdgeDecayFn = edge.decayFn ?? 'none';
+  if (edge.validFrom && new Date(edge.validFrom).getTime() > now) return 0;
+  if (edge.validUntil) {
+    const end = new Date(edge.validUntil).getTime();
+    if (now >= end) return 0;
+    if (fn === 'linear') {
+      const start = edge.validFrom ? new Date(edge.validFrom).getTime() : end - 1;
+      const total = end - start;
+      const elapsed = now - start;
+      if (total <= 0) return w;
+      const fraction = Math.max(0, 1 - elapsed / total);
+      return w * fraction;
+    }
+    if (fn === 'exp') {
+      const half = edge.decayHalfLifeMs;
+      if (!half || half <= 0) return w;
+      const elapsed = now - (edge.validFrom ? new Date(edge.validFrom).getTime() : now);
+      return w * Math.pow(0.5, elapsed / half);
+    }
+  }
+  return w;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -186,7 +260,7 @@ export interface EdgeStore {
 
 export class EdgeValidationError extends Error {
   constructor(
-    public readonly reason: 'SELF_LOOP' | 'UNKNOWN_TYPE' | 'BIDIRECTIONALITY_VIOLATION',
+    public readonly reason: 'SELF_LOOP' | 'UNKNOWN_TYPE' | 'BIDIRECTIONALITY_VIOLATION' | 'WEIGHT_OUT_OF_RANGE' | 'INVALID_VALIDITY',
     public readonly fromNodeId: string,
     public readonly toNodeId: string,
     public readonly type: string,
