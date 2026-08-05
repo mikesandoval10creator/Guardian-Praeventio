@@ -695,14 +695,22 @@ app.use((req, res, next) => {
 //
 // In dev (Vite middleware mode), these explicit handlers also win over
 // Vite's static `public/` serving because Express runs them first.
+// iOS Universal Links (AASA) — tarea P1 universal-links. Apple swcutil +
+// las CDN comunes IGNORAN el AASA si: no llega status 200 directo (un
+// redirect 30x cuenta), el content-type no es application/json, o el
+// servidor no emite Cache-Control. Garantizamos los tres acá.
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.type('application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(
     path.resolve(process.cwd(), 'public/.well-known/apple-app-site-association'),
   );
 });
 app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.type('application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(
     path.resolve(process.cwd(), 'public/.well-known/assetlinks.json'),
   );
