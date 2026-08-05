@@ -524,6 +524,80 @@ describe('POST /api/telemetry/ingest — autoValidateTelemetry integration', () 
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// POST /api/telemetry/ingest — schema parity with the MQTT rail
+// [P0][datos] Both rails write telemetry_events with the SAME shape:
+//   type, source, metric, value, unit, status, threatLevel, aiValidation,
+//   projectId, tenantId, zoneId, deviceTimestamp, timestamp.
+// The MQTT rail (firestoreBridge) always stamps deviceTimestamp from the
+// device sample. The HTTP rail MUST accept deviceTimestamp (epoch ms) and
+// persist it identically — a device timestamp lets auditors reconstruct the
+// origin even when server-side receipt lagged (spec: reconstrucción del
+// origen). Missing/invalid deviceTimestamp degrades to null, never rejects.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('POST /api/telemetry/ingest — schema parity with MQTT (deviceTimestamp)', () => {
+  it('persists deviceTimestamp when the device sends epoch ms (parity with MQTT)', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, deviceTimestamp: 1712345678901 });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.deviceTimestamp).toBe(1712345678901);
+  });
+
+  it('persists deviceTimestamp alongside tenantId + projectId on the same doc', async () => {
+    H.db!._seed('projects/proj-A', { tenantId: TENANT_ID });
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .set('x-tenant-id', TENANT_ID)
+      .send({
+        ...validPayload,
+        projectId: 'proj-A',
+        deviceTimestamp: 1712345678901,
+      });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.projectId).toBe('proj-A');
+    expect(stored.tenantId).toBe(TENANT_ID);
+    expect(stored.deviceTimestamp).toBe(1712345678901);
+  });
+
+  it('degrades deviceTimestamp to null when absent (device without clock)', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send(validPayload);
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.deviceTimestamp).toBeNull();
+  });
+
+  it('degrades deviceTimestamp to null when invalid (non-number, no rejection)', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, deviceTimestamp: 'not-a-ms' });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.deviceTimestamp).toBeNull();
+  });
+
+  it('persists a server timestamp on the same doc (receipt time, not device time)', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, deviceTimestamp: 1712345678901 });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.deviceTimestamp).toBe(1712345678901);
+    // Server receipt timestamp is a Firestore serverTimestamp sentinel in the
+    // fake — present as a field even when the device timestamp is absent.
+    expect('timestamp' in stored).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // POST /api/admin/iot/rotate-secret — admin-only secret rotation
 // ══════════════════════════════════════════════════════════════════════════════
 describe('POST /api/admin/iot/rotate-secret', () => {
