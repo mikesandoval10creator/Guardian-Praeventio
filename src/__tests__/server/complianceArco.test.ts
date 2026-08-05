@@ -21,13 +21,28 @@ import request from 'supertest';
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
   roles: {} as Record<string, string | undefined>,
+  auth: null as {
+    updateUser: ReturnType<typeof vi.fn>;
+    revokeRefreshTokens: ReturnType<typeof vi.fn>;
+    setCustomUserClaims: ReturnType<typeof vi.fn>;
+  } | null,
 }));
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  const auth = {
-    getUser: async (uid: string) => ({ uid, customClaims: { role: H.roles[uid] } }),
-  };
+  // adminMock calls `auth()` — the impl must BE the callable auth module.
+  const auth = Object.assign(
+    async () => ({ uid: 'test' }),
+    {
+      getUser: async (uid: string) => ({ uid, customClaims: { role: H.roles[uid] } }),
+      // [P0][privacidad] Erasure now orchestrates anonymizeUser: the auth
+      // surface must record disable + revoke + claims for the happy path.
+      updateUser: vi.fn(async () => ({})),
+      revokeRefreshTokens: vi.fn(async () => {}),
+      setCustomUserClaims: vi.fn(async () => {}),
+    },
+  );
+  H.auth = auth;
   return adminMock(() => H.db!, auth);
 });
 
@@ -290,6 +305,41 @@ describe('POST /api/compliance/admin/data-request/:id/erase', () => {
     expect((executed[0].details as Record<string, unknown>).requestId).toBe('req-er-1');
     expect((executed[0].details as Record<string, unknown>).targetUid).toBe('victim');
     expect(Array.isArray((executed[0].details as Record<string, unknown>).erased)).toBe(true);
+  });
+
+  // [P0][privacidad] The ARCO erasure must NOT leave a live Firebase account.
+  // `eraseUserData` alone only swept docs — the account stayed enabled with
+  // active sessions. The route now orchestrates anonymizeUser() too: Auth
+  // disabled + refresh tokens revoked + claims anonymized + proof written.
+  it('200 unifies erasure: disables Auth, revokes sessions, anonymizes, writes proof', async () => {
+    seedErasureWorld();
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-er-1/erase')
+      .set(asUser('admin1'))
+      .send({ confirm: 'req-er-1' });
+    expect(res.status).toBe(200);
+
+    // 1. Firebase Auth disabled (never deleteUser — uid must survive for
+    //    referential integrity of audit/incident rows).
+    const updateUserCalls = H.auth!.updateUser.mock.calls;
+    expect(updateUserCalls.length).toBeGreaterThan(0);
+    const [updateUid, updateProps] = updateUserCalls[0] as [string, Record<string, unknown>];
+    expect(updateUid).toBe('victim');
+    expect(updateProps.disabled).toBe(true);
+    // 2. Refresh tokens revoked → live sessions die immediately.
+    const revokeCalls = H.auth!.revokeRefreshTokens.mock.calls;
+    expect(revokeCalls.length).toBeGreaterThan(0);
+    expect(revokeCalls[0][0]).toBe('victim');
+    // 3. Custom claims anonymized (supersedes any prior role).
+    const claimsCalls = H.auth!.setCustomUserClaims.mock.calls;
+    expect(claimsCalls.length).toBeGreaterThan(0);
+    expect(claimsCalls[0][0]).toBe('victim');
+    expect((claimsCalls[0][1] as Record<string, unknown>).role).toBe('anonymized');
+    // 4. Immutable proof written (server-side, LAST — only records a
+    //    completed scrub).
+    const proof = H.db!._store.get('anonymization_events/victim');
+    expect(proof).toBeTruthy();
+    expect((proof as Record<string, unknown>).authDisabled).toBe(true);
   });
 
   it('200 idempotent: erasing an already-completed request is a no-op (no second sweep)', async () => {

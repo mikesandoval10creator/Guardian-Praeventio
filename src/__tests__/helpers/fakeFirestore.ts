@@ -114,6 +114,13 @@ function passes(doc: DocData, f: Filter): boolean {
 export interface FakeFirestore {
   collection(path: string): FakeCollectionRef;
   doc(path: string): FakeDocRef;
+  /**
+   * Collection-group query over all `{name}` collections (anonymizeUser).
+   * Optional so legacy test shims that polyfill it with a conditional
+   * (`if (proxy.collectionGroup)`) keep type-checking — a required method
+   * makes that guard always-truthy (TS2774).
+   */
+  collectionGroup?(name: string): FakeQuery;
   getAll(...refs: FakeDocRef[]): Promise<FakeDocSnap[]>;
   runTransaction<T>(fn: (txn: FakeTxn) => Promise<T>): Promise<T>;
   batch(): FakeBatch;
@@ -137,6 +144,8 @@ interface FakeDocRef {
   update(data: DocData): Promise<void>;
   delete(): Promise<void>;
   collection(name: string): FakeCollectionRef;
+  /** List direct child docs under this ref (anonymizeUser purge needs it). */
+  listDocuments(): Promise<FakeDocRef[]>;
 }
 interface FakeQuery {
   where(field: string, op: string, value: unknown): FakeQuery;
@@ -148,6 +157,7 @@ interface FakeQuery {
 interface FakeCollectionRef extends FakeQuery {
   doc(id?: string): FakeDocRef;
   add(data: DocData): Promise<FakeDocRef>;
+  listDocuments(): Promise<FakeDocRef[]>;
   path: string;
 }
 interface FakeQuerySnap {
@@ -205,6 +215,19 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       },
       collection(name) {
         return collectionRef(`${path}/${name}`);
+      },
+      async listDocuments() {
+        // Direct child docs of this ref: keys that extend `path/<id>` with
+        // exactly ONE extra segment.
+        const prefix = `${path}/`;
+        const refs: FakeDocRef[] = [];
+        for (const key of store.keys()) {
+          if (!key.startsWith(prefix)) continue;
+          const rest = key.slice(prefix.length);
+          if (rest.includes('/')) continue; // nested subcollection, not a doc
+          refs.push(docRef(key));
+        }
+        return refs;
       },
     };
   }
@@ -275,6 +298,19 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
         store.set(path, { ...data });
         return docRef(path);
       },
+      async listDocuments() {
+        // Direct child docs of this collection: keys that extend
+        // `colPath/<id>` with exactly ONE extra segment.
+        const prefix = `${colPath}/`;
+        const refs: FakeDocRef[] = [];
+        for (const key of store.keys()) {
+          if (!key.startsWith(prefix)) continue;
+          const rest = key.slice(prefix.length);
+          if (rest.includes('/')) continue; // nested subcollection, not a doc
+          refs.push(docRef(key));
+        }
+        return refs;
+      },
     };
   }
 
@@ -305,6 +341,65 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
   return {
     collection: (path) => collectionRef(path),
     doc: (path) => docRef(path),
+    collectionGroup: (name) => {
+      // Collection-group query: matches every collection whose LAST segment
+      // equals `name`, across all documents at any depth (anonymizeUser
+      // scrubs safety_posts across projects via collectionGroup).
+      const filters: Filter[] = [];
+      let order: { field: string; dir: string } | null = null;
+      let lim: number | null = null;
+      const run = () => {
+        let docs: FakeDocSnap[] = [];
+        for (const [key, value] of store.entries()) {
+          const segments = key.split('/');
+          // Firestore doc keys ALWAYS alternate collection/doc → even count
+          // ('commute_sessions/sess1' = 2, 'projects/p1/safety_posts/post1'
+          // = 4). Odd counts are collection paths / partial keys.
+          if (segments.length % 2 !== 0) continue;
+          if (segments[segments.length - 2] !== name) continue;
+          let ok = true;
+          for (const f of filters) {
+            if (!passes(value, f)) { ok = false; break; }
+          }
+          if (!ok) continue;
+          docs.push(snapOf(key));
+        }
+        const ord = order;
+        if (ord) {
+          docs.sort((a, b) => {
+            const av = a.get(ord.field);
+            const bv = b.get(ord.field);
+            if (av === bv) return 0;
+            const gt = (av ?? 0) > (bv ?? 0);
+            return ord.dir === 'asc' ? (gt ? 1 : -1) : (gt ? -1 : 1);
+          });
+        }
+        if (lim !== null) docs = docs.slice(0, lim);
+        return {
+          empty: docs.length === 0,
+          size: docs.length,
+          docs,
+          forEach: (cb: (d: FakeDocSnap) => void) => docs.forEach(cb),
+        };
+      };
+      const groupQ = () => ({
+        where: (field: string, op: string, value: unknown) => {
+          filters.push({ field, op, value });
+          return groupQ();
+        },
+        orderBy: (field: string, dir: 'asc' | 'desc' = 'asc') => {
+          order = { field, dir };
+          return groupQ();
+        },
+        limit: (n: number) => {
+          lim = n;
+          return groupQ();
+        },
+        get: async () => run(),
+        count: () => ({ get: async () => ({ data: () => ({ count: run().size }) }) }),
+      });
+      return groupQ();
+    },
     _failReads(pathSubstring = '') {
       failReadsMatch = pathSubstring;
     },
