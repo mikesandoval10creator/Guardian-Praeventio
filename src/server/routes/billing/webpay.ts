@@ -59,6 +59,49 @@ import {
 } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
+/**
+ * [P0][pagos] Server-authoritative account quantities. The client-sent
+ * `totalWorkers`/`totalProjects` were used verbatim to compute overage — a
+ * caller could declare 0 workers/projects and pay only the base tier. The
+ * real counts must be resolved from Firestore under the authenticated
+ * identity; client values are only a comparison (see max() in checkout).
+ *
+ * - Projects: documents where the caller is a member OR creator.
+ * - Workers: sum of the `workers` subcollection across those projects
+ *   (deterministic count via Firestore `count()` aggregation).
+ */
+export async function resolveAccountQuantities(
+  callerUid: string,
+  db: FirebaseFirestore.Firestore,
+): Promise<{ totalWorkers: number; totalProjects: number }> {
+  const memberProjects = await db
+    .collection('projects')
+    .where('members', 'array-contains', callerUid)
+    .get();
+  const createdProjects = await db
+    .collection('projects')
+    .where('createdBy', '==', callerUid)
+    .get();
+
+  const projectIds = new Set<string>();
+  for (const snap of [memberProjects, createdProjects]) {
+    for (const docSnap of snap.docs) projectIds.add(docSnap.id);
+  }
+
+  let totalWorkers = 0;
+  for (const projectId of projectIds) {
+    const workerCount = await db
+      .collection('projects')
+      .doc(projectId)
+      .collection('workers')
+      .count()
+      .get();
+    totalWorkers += workerCount.data().count ?? 0;
+  }
+
+  return { totalWorkers, totalProjects: projectIds.size };
+}
+
 export function registerWebpayRoutes(
   billingApiRouter: Router,
   billingWebpayRouter: Router,
@@ -114,12 +157,42 @@ export function registerWebpayRoutes(
         return res.status(400).json({ error: 'Unknown tierId' });
       }
 
+      // [P0][pagos] Server-authoritative quantities. The client's declared
+      // totalWorkers/totalProjects were used verbatim to compute overage — a
+      // caller could declare 0 and pay only the base tier while using dozens
+      // of workers. Resolve the REAL counts from Firestore under the
+      // authenticated identity; the client value is only a floor for
+      // honest up-sell (declaring more than current usage), never a way to
+      // under-declare.
+      const db = admin.firestore();
+      const actualQuantities = await resolveAccountQuantities(callerUid, db);
+      const totalWorkers = Math.max(
+        body.totalWorkers as number,
+        actualQuantities.totalWorkers,
+      );
+      const totalProjects = Math.max(
+        body.totalProjects as number,
+        actualQuantities.totalProjects,
+      );
+      if (
+        totalWorkers > (body.totalWorkers as number) ||
+        totalProjects > (body.totalProjects as number)
+      ) {
+        logger.info('billing_checkout_quantities_raised_from_firestore', {
+          uid: callerUid,
+          declaredWorkers: body.totalWorkers,
+          resolvedWorkers: totalWorkers,
+          declaredProjects: body.totalProjects,
+          resolvedProjects: totalProjects,
+        });
+      }
+
       const checkoutRequest: CheckoutRequest = {
         tierId: body.tierId,
         cycle: body.cycle,
         currency: body.currency,
-        totalWorkers: body.totalWorkers,
-        totalProjects: body.totalProjects,
+        totalWorkers,
+        totalProjects,
         cliente: {
           nombre: cliente.nombre,
           email: cliente.email,
@@ -135,8 +208,8 @@ export function registerWebpayRoutes(
       // Compute overage off the tier limits. For now only Comité Paritario
       // and Departamento have variable overage in the fallback; the real
       // calculation belongs in pricing/tiers.ts.
-      const workerOverage = Math.max(0, body.totalWorkers - 25);
-      const projectOverage = Math.max(0, body.totalProjects - 3);
+      const workerOverage = Math.max(0, totalWorkers - 25);
+      const projectOverage = Math.max(0, totalProjects - 3);
 
       const invoice = buildInvoice(
         checkoutRequest,
@@ -152,7 +225,6 @@ export function registerWebpayRoutes(
         },
       );
 
-      const db = admin.firestore();
       // Use the locally generated invoice.id as the Firestore doc id so the
       // CheckoutResponse and the Firestore document agree.
       await db.collection('invoices').doc(invoice.id).set({

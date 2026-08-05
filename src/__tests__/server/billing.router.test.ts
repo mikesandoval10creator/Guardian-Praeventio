@@ -509,6 +509,76 @@ describe('POST /api/billing/checkout', () => {
     expect(invoice.createdBy).toBe('uid-A');
   });
 
+  // [P0][pagos] Anti-fraud: a caller declaring 0 workers/projects must NOT
+  // pay only the base tier while using real ones. Quantities are resolved
+  // from Firestore under the authenticated identity; the declared values are
+  // only a floor (honest up-sell), never a way to under-declare.
+  it('200 resolves REAL quantities from Firestore when the client under-declares', async () => {
+    // uid-A is member of project-1 (30 workers) and creator of project-2
+    // (5 workers) → real totals: 35 workers, 2 projects. Client declares 0/0.
+    H.db!._seed('projects/project-1', {
+      name: 'Faena Uno',
+      members: ['uid-A'],
+      createdBy: 'otro-uid',
+      status: 'active',
+    });
+    H.db!._seed('projects/project-2', {
+      name: 'Faena Dos',
+      members: ['uid-B'],
+      createdBy: 'uid-A',
+      status: 'active',
+    });
+    for (let i = 0; i < 30; i++) {
+      H.db!._seed(`projects/project-1/workers/w${i}`, { name: `W${i}` });
+    }
+    for (let i = 0; i < 5; i++) {
+      H.db!._seed(`projects/project-2/workers/w${i}`, { name: `W${i}` });
+    }
+
+    const res = await request(buildApp())
+      .post('/api/billing/checkout')
+      .set('x-test-uid', 'uid-A')
+      .set('x-test-email', 'a@empresa.test')
+      .send({ ...validCheckout, totalWorkers: 0, totalProjects: 0 });
+    expect(res.status).toBe(200);
+
+    const invoiceId = (res.body as Record<string, unknown>).invoiceId as string;
+    const invoice = H.db!._store.get(`invoices/${invoiceId}`) as Record<string, any>;
+    // Overage line items must reflect the SERVER-RESOLVED quantities
+    // (35 workers - 25 included = 10 adicionales), not the declared 0s.
+    const overageLines = (invoice.lineItems ?? []).filter(
+      (li: Record<string, unknown>) => li.isOverage === true,
+    );
+    expect(overageLines.length).toBeGreaterThan(0);
+    const workersLine = overageLines.find(
+      (li: Record<string, unknown>) => String(li.description).includes('Trabajadores'),
+    );
+    expect(workersLine).toBeTruthy();
+    expect((workersLine as Record<string, unknown>).quantity).toBe(10);
+  });
+
+  it('200 keeps the DECLARED quantities when they exceed current usage (honest up-sell)', async () => {
+    // uid-A has no projects in Firestore → resolved 0/0. Declaring 10/1 is
+    // an honest up-sell (planning growth) and must be honored, not clamped.
+    const res = await request(buildApp())
+      .post('/api/billing/checkout')
+      .set('x-test-uid', 'uid-A')
+      .set('x-test-email', 'a@empresa.test')
+      .send(validCheckout); // totalWorkers: 10, totalProjects: 1
+    expect(res.status).toBe(200);
+
+    const invoiceId = (res.body as Record<string, unknown>).invoiceId as string;
+    const invoice = H.db!._store.get(`invoices/${invoiceId}`) as Record<string, any>;
+    // Declared 10 workers ≤ 25 included → NO workers overage line.
+    const overageLines = (invoice.lineItems ?? []).filter(
+      (li: Record<string, unknown>) => li.isOverage === true,
+    );
+    const workersLine = overageLines.find(
+      (li: Record<string, unknown>) => String(li.description).includes('Trabajadores'),
+    );
+    expect(workersLine).toBeUndefined();
+  });
+
   it('200 without cliente.rut — omits rut instead of persisting undefined (Firestore rejects undefined)', async () => {
     const { rut: _rut, ...clienteNoRut } = validCheckout.cliente as Record<string, unknown>;
     const res = await request(buildApp())
