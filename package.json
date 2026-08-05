@@ -26,6 +26,7 @@
     "lint:rules:raw": "eslint firestore.rules",
     "test": "vitest run",
     "test:backup-integrity": "node scripts/test-backup-integrity.test.cjs",
+    "test:dr-restore": "tsx scripts/run-dr-rehearsal.ts --export-path=gs://praeventio-backups/firestore-export-LATEST/",
     "test:ci": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run --test-timeout=30000",
     "test:coverage": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run --coverage --test-timeout=30000",
     "test:rules": "firebase emulators:exec --only firestore,storage --project praeventio-rules-test \"vitest run --config vitest.rules.config.ts\"",
