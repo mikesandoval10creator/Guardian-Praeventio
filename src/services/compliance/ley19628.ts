@@ -393,6 +393,28 @@ export async function requestDataAccess(
   return { id: snap.id, ...data };
 }
 
+export async function listDataAccessRequests(
+  db: MinimalComplianceDb,
+  uid: string,
+  limit: number = 50,
+): Promise<DataAccessRequest[]> {
+  if (!uid) {
+    throw new ComplianceError('invalid_uid', 'uid is required', 400);
+  }
+  const safeLimit = Math.max(1, Math.min(limit, 50));
+  // Tarea P1 privacidad: el listado NUNCA acepta un uid del cliente;
+  // lo lee de auth en el route y lo pasa aquí. El filtro where(uid==)
+  // garantiza aislamiento aun si el caller tiene un bug.
+  const snap = await db
+    .collection(REQUESTS_COLLECTION)
+    .where('uid', '==', uid)
+    .get();
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<DataAccessRequest, 'id'>) }))
+    .sort((a, b) => b.requestedAt - a.requestedAt)
+    .slice(0, safeLimit);
+}
+
 export async function getDataAccessRequest(
   db: MinimalComplianceDb,
   requestId: string,
