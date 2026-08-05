@@ -259,6 +259,8 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
   try {
     const request = await requestDataAccess(getDb(), uid, type, {
       rectificationPayload,
+      subjectCountry,
+      dataResidency,
     });
     // CLAUDE.md #3: data-subject request creation is a state-changing write.
     await auditServerEvent(req, 'compliance.dataRequest', 'compliance', {
