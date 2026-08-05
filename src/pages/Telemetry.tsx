@@ -16,7 +16,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../types';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { collection, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, orderBy, limit, where } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../services/firebase';
 import { DigitalTwin } from '../components/telemetry/DigitalTwin';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -149,10 +149,20 @@ export function Telemetry() {
 
   const weather = environment?.weather;
 
-  // Fetch IoT Events
+  // Fetch IoT Events — [P0][seguridad] scoped to the SELECTED project. A
+  // supervisor must never see another project's telemetry: the atmospheric
+  // verdict (gas gate) would use foreign sensors and leak cross-tenant data.
+  // No selected project → no global fallback; read nothing (empty list).
+  const iotEventsQuery = useMemo(() => {
+    const projectId = selectedProject?.id;
+    return projectId
+      ? [where('projectId', '==', projectId), orderBy('timestamp', 'desc'), limit(10)]
+      : [orderBy('timestamp', 'desc'), limit(10), where('projectId', '==', '__none__')];
+  }, [selectedProject?.id]);
+
   const { data: iotEvents } = useFirestoreCollection<IoTEvent>(
     'telemetry_events',
-    [orderBy('timestamp', 'desc'), limit(10)]
+    iotEventsQuery
   );
 
   // Real zone-atmosphere verdict from the canonical gasGate engine (same O₂/LEL

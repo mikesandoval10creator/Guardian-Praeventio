@@ -1200,7 +1200,21 @@ service cloud.firestore {
     }
 
     match /telemetry_events/{eventId} {
-      allow read: if isAdmin() || isSupervisor();
+      // [P0][seguridad] Tenant-scoped read. `isSupervisor()` alone let ANY
+      // supervisor read ANY project's telemetry (cross-tenant leak: a
+      // supervisor of tenant A could watch tenant B's live sensors, and the
+      // evacuation page could react to a foreign project's critical event).
+      // Both rails (HTTP ingest + MQTT bridge) stamp `tenantId` on every
+      // event, so the supervisor check reads the event's OWN tenant scope —
+      // no get() to `projects` (which would be re-evaluated against the
+      // projects rules and is not constraint-safe). Admin keeps full read.
+      // Events without a tenant scope (legacy/global) → `tenantId is string`
+      // fails → denied (fail-closed: no global fallback read).
+      allow read: if isAdmin() || (
+        resource.data.tenantId is string &&
+        resource.data.tenantId.size() > 0 &&
+        isSupervisorOfTenant(resource.data.tenantId)
+      );
       // Client-side creates are forbidden. Telemetry must flow through
       // /api/telemetry/ingest, which verifies a per-tenant HMAC-SHA256
       // signature over the canonical body before the admin SDK writes
