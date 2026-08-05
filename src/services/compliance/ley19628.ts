@@ -77,6 +77,22 @@ export interface DataAccessRequest {
   rectificationPayload?: Record<string, unknown>;
   /** Optional reason for rejection. */
   rejectionReason?: string;
+  /** Sprint 31 Bucket MM (tarea P1 privacidad) — persistidos al crear el
+   *  request para que el control de vencimiento se calcule desde el dato
+   *  guardando, no desde un recalculo cada vez que se relée. */
+  /** ISO-3166-1 alpha-2 país declarado por el titular. */
+  subjectCountry?: string;
+  /** Override opcional de residencia de procesamiento. */
+  dataResidency?: string;
+  /** Régimen aplicable (p.ej. 'LGPD', 'Ley-21.719-CL', 'GDPR'). */
+  regime?: string;
+  /** Días de plazo que aplican según el régimen. */
+  deadlineDays?: number;
+  /** Fecha absoluta (ms epoch) de vencimiento. Es la suma persisted
+   *  requestedAt + deadlineDays*DAY. */
+  deadlineAt?: number;
+  /** Regla de plazo usada (p.ej. 'LGPD-art-18', '21.719-art-15'). */
+  deadlineRule?: string;
 }
 
 /**
@@ -360,11 +376,42 @@ export async function getConsentStatus(
 // Data-subject requests
 // ---------------------------------------------------------------------------
 
+/**
+ * Tarea P1 privacidad: cálculo LOCAL (en el service layer) del régimen
+ * aplicable y la deadline correspondiente, sin acoplar a las funciones
+ * de routes/. Idempotente — la misma country+residence siempre produce
+ * la misma (regime, deadlineDays).
+ */
+export function computeRegimeAndDeadline(
+  subjectCountry?: string,
+  dataResidency?: string,
+): { regime: string | null; deadlineDays: number | null } {
+  const country = (subjectCountry ?? '').toUpperCase();
+  const residency = (dataResidency ?? subjectCountry ?? '').toUpperCase();
+  const c = country || residency;
+  if (c === 'BR') return { regime: 'LGPD', deadlineDays: 15 };
+  if (c === 'CL') return { regime: 'Ley-21.719', deadlineDays: 15 };
+  if (['DE', 'FR', 'IT', 'ES', 'NL', 'PT', 'IE', 'AT', 'BE', 'FI', 'SE', 'DK', 'PL', 'CZ', 'RO', 'GR', 'HU'].includes(c)) {
+    return { regime: 'GDPR', deadlineDays: 30 };
+  }
+  // Default conservador: 30 días. Si el país es desconocido pero existe
+  // procesamiento, esto NUNCA silencia la deadline — el runbook pide
+  // siempre honrar la fecha persistida, no un default silencioso.
+  if (!subjectCountry && !dataResidency) {
+    return { regime: null, deadlineDays: null };
+  }
+  return { regime: 'default', deadlineDays: 30 };
+}
+
 export async function requestDataAccess(
   db: MinimalComplianceDb,
   uid: string,
   type: DataAccessRequestType,
-  extras?: { rectificationPayload?: Record<string, unknown> },
+  extras?: {
+    rectificationPayload?: Record<string, unknown>;
+    subjectCountry?: string;
+    dataResidency?: string;
+  },
 ): Promise<DataAccessRequest> {
   if (!uid) {
     throw new ComplianceError('invalid_uid', 'uid is required', 400);
@@ -378,14 +425,37 @@ export async function requestDataAccess(
   if (!allowed.includes(type)) {
     throw new ComplianceError('invalid_type', `Unsupported request type: ${type}`, 400);
   }
+  const requestedAt = Date.now();
+  // Tarea P1 privacidad: persistir el contexto regulatorio para que el
+  // control de vencimiento NO dependa de recalcularlo al recargar.
+  // Cálculo del régimen y deadline (mismo shape que en la ruta HTTP).
+  // Se mantiene aquí para que la persistencia sea independiente del
+  // router — un job o un test puede crear un request con la deadline
+  // ya persistida, sin rezar para que el router haya pasado.
+  const calc = computeRegimeAndDeadline(extras?.subjectCountry, extras?.dataResidency);
+  const DAY_MS = 24 * 60 * 60 * 1000;
   const payload: Record<string, unknown> = {
     uid,
     type,
     status: 'pending' as DataAccessRequestStatus,
-    requestedAt: Date.now(),
+    requestedAt,
   };
   if (extras?.rectificationPayload !== undefined) {
     payload.rectificationPayload = extras.rectificationPayload;
+  }
+  if (extras?.subjectCountry) {
+    payload.subjectCountry = extras.subjectCountry;
+  }
+  if (extras?.dataResidency) {
+    payload.dataResidency = extras.dataResidency;
+  }
+  if (calc.regime) {
+    payload.regime = calc.regime;
+  }
+  if (calc.deadlineDays !== null) {
+    payload.deadlineDays = calc.deadlineDays;
+    payload.deadlineAt = requestedAt + calc.deadlineDays * DAY_MS;
+    payload.deadlineRule = `${calc.regime ?? 'default'}-art-deadline`;
   }
   const ref = await db.collection(REQUESTS_COLLECTION).add(payload);
   const snap = await ref.get();
