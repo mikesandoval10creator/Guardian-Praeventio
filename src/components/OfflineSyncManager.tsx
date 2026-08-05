@@ -217,6 +217,59 @@ export function OfflineSyncManager() {
           const { id } = action.data;
           if (id) {
             try {
+              // [P0][datos] Route offline DELETEs through the same conflict
+              // engine as updates. A blind deleteDoc can silently destroy
+              // server-side edits made while we were offline — for
+              // safety-critical docs that is destructive evidence loss. If
+              // the remote doc exists and diverged (no local base timestamp
+              // → epoch, so ANY remote write counts as divergence), divert
+              // to the human-resolution flow instead of deleting.
+              const { getDoc } = await import('firebase/firestore');
+              const docSnap = await getDoc(doc(db, action.collection, id));
+              if (docSnap.exists()) {
+                const currentData = docSnap.data();
+                const rawUpdatedAt = currentData.updatedAt;
+                const serverUpdatedAt =
+                  (typeof rawUpdatedAt === 'object' && rawUpdatedAt?.toDate
+                    ? rawUpdatedAt.toDate().toISOString()
+                    : (rawUpdatedAt as string | undefined)) ?? new Date().toISOString();
+
+                const pending: PendingAction = {
+                  docId: id,
+                  collection: action.collection,
+                  type: 'delete',
+                  data: {},
+                  // No base timestamp on offline deletes → epoch. Fail toward
+                  // human review: a spurious prompt beats a silent overwrite
+                  // of safety evidence (same policy as SyncManager).
+                  localUpdatedAt: new Date(0).toISOString(),
+                };
+                const remote: DocSnapshot = {
+                  collection: action.collection,
+                  docId: id,
+                  data: currentData as Record<string, unknown>,
+                  serverUpdatedAt,
+                };
+                const conflicts = detectConflicts([pending], [remote]);
+                if (conflicts.length > 0) {
+                  const c = conflicts[0];
+                  if (requiresManualResolution(c)) {
+                    logger.warn('Offline delete diverted to manual resolution', {
+                      collection: action.collection,
+                      docId: id,
+                      fields: c.fields.length,
+                    });
+                    window.dispatchEvent(
+                      new CustomEvent('sync-critical-conflict', { detail: c }),
+                    );
+                    // Do NOT delete — the supervisor decides in the drawer.
+                    // The action stays queued (no removeSyncedAction) so a
+                    // re-sync re-detects and re-diverts, never deleting
+                    // silently (fail-closed for safety evidence).
+                    return;
+                  }
+                }
+              }
               await deleteDoc(doc(db, action.collection, id));
             } catch (error) {
               handleFirestoreError(error, OperationType.DELETE, action.collection);
