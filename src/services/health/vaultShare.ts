@@ -140,10 +140,12 @@ export function createShareToken(opts: {
   };
 
   // QR payload: URL-safe deeplink que el médico abre en su navegador.
-  // El secret va en el path para que el clipboard del médico no quede
-  // pegajoso con datos sensibles.
+  // [P0] El secret va en el FRAGMENTO (#), no en el path: el fragmento
+  // nunca viaja al servidor ni a logs/proxies/historial. El viewer
+  // (HealthVaultViewer) lo lee de window.location.hash y lo limpia con
+  // replaceState. Mismo contrato que createHealthAccessGrant.
   const baseUrl = process.env.APP_BASE_URL ?? 'https://praeventio.app';
-  const qrPayload = `${baseUrl}/vault/share/${id}/${secret}`;
+  const qrPayload = `${baseUrl}/vault/share/${id}#${secret}`;
 
   return { record, secret, qrPayload };
 }

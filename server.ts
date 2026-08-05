@@ -471,6 +471,9 @@ import {
 } from "./src/server/triggers/mqttTelemetryBridge.js";
 import admin from "firebase-admin";
 import fs from 'fs';
+// [P0] Secret redaction for error-handler URLs (health-vault share legacy
+// path form + generic token-in-path segments).
+import { redactSensitiveUrl } from './src/utils/redactSensitiveUrl.js';
 // `googleapis` import removed in Round 17 R2 Phase 2 — its sole use was the
 // Google Play Developer API client, which moved to billing.ts.
 // `GoogleGenAI` import removed in Round 19 R2 Phase 4 — only /api/ask-guardian
@@ -1538,12 +1541,21 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+/**
+ * [P0] Redact secrets from request URLs before they reach logs/observability.
+ * The health-vault share URL carried its secret in the PATH
+ * (`/vault/share/{tokenId}/{secret}`) — any unhandled error on that route
+ * logged the full secret via req.url (browser history, proxy logs, Sentry,
+ * exception logs). The share now uses a URL fragment (never sent to the
+ * server), but legacy URLs / other token-in-path routes must not leak either.
+ * Applied to every req.url that reaches the error tracker or logger.
+ */
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   try {
     getErrorTracker().captureException(
       err instanceof Error ? err : new Error(String(err)),
       {
-        endpoint: req.url,
+        endpoint: redactSensitiveUrl(req.url),
         tags: { method: req.method },
       },
     );
@@ -1556,7 +1568,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   try {
     logger.error('express_unhandled_error', err instanceof Error ? err : new Error(String(err)), {
       method: req.method,
-      url: req.url,
+      url: redactSensitiveUrl(req.url),
     });
   } catch {
     /* logger faulted — last-ditch fallback below still fires */

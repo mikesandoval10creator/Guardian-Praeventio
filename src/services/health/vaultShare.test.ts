@@ -37,8 +37,15 @@ describe('createShareToken', () => {
     expect(record.consumeCount).toBe(0);
     expect(record.revokedAt).toBeNull();
     expect(secret.length).toBeGreaterThan(20); // ~32 chars URL-safe
-    expect(qrPayload).toMatch(/^https:\/\/praeventio\.app\/vault\/share\//);
-    expect(qrPayload).toContain(secret);
+    // [P0] The secret MUST ride in the URL FRAGMENT (#), never the path.
+    // Path exposure leaks it through browser history, proxy/server logs,
+    // Referer headers, screenshots and exception logs (server.ts error
+    // handler logs req.url). The fragment never reaches the server.
+    expect(qrPayload).toMatch(/^https:\/\/praeventio\.app\/vault\/share\/[^#/]+#/);
+    expect(qrPayload).toContain(`#${secret}`);
+    // And the secret MUST NOT appear in the path portion.
+    const pathPart = qrPayload.split('#')[0];
+    expect(pathPart).not.toContain(secret);
   });
 
   it('honors custom ttl and maxConsumes', () => {
