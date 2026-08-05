@@ -373,6 +373,15 @@ jobs:
             "/api/admin/jobs/weekly-digest" \
             "Weekly safety digest emailed to supervisors (Sprint 22 Y)."
 
+          # Tarea P1 RLHF — aggregate-ai-feedback (Mondays 08:00 Santiago).
+          # Antes el cron existía como endpoint pero deploy.yml no lo creaba,
+          # así que el resumen semanal del feedback de IA nunca se generaba
+          # en producción — admin/gerente recibían 403 o "Sin datos".
+          ensure_job "aggregate-ai-feedback" \
+            "0 8 * * * 1" \
+            "/api/admin/jobs/aggregate-ai-feedback" \
+            "Weekly RLHF aggregate of ai_feedback per tenant (Tarea P1 RLHF)."
+
           echo "✓ Maintenance scheduler jobs setup complete"
 
       # P0 (ticket 39baa66d-73fe-81a8-b57a-f2852c966e6c) — life-safety cron
