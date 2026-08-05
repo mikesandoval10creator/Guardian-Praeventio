@@ -224,14 +224,16 @@ jobs:
       # Esto cierra el ciclo "tiene la lógica" → "ejecuta automáticamente"
       # sin requerir que el operador ejecute gcloud manualmente cada deploy.
       - name: Setup Cloud Scheduler — daily climate risk scan
-        # Non-fatal: the deploy SA (github-guardian-deploy@) intentionally lacks
-        # serviceusage.services.enable + iam.serviceAccounts.create, so it cannot
-        # provision Cloud Scheduler. The DEPLOY + SMOKE already succeeded by here;
-        # failing the whole workflow on this optional cron setup would mask a
-        # green deploy (and block the auto-deploy chain). The scheduler jobs are
-        # provisioned out-of-band by an owner (enable cloudscheduler API + create
-        # the runner SA once); until then this step no-ops without going red.
-        continue-on-error: true
+        # [P0][VIDA] Climate risk scan feeds weather-driven emergency
+        # automation (EmergencyAutoBridge listens for the snapshot it
+        # produces). Failing silently here = a faena can face severe weather
+        # with no auto-escalation while the deploy shows green. This step is
+        # now FATAL by design: the deploy SA must hold scheduler.admin, or
+        # the deploy fails loudly instead of pretending life-safety crons
+        # exist (ticket 39baa66d-73fe-81a8-b57a-f2852c966e6c + consolidation
+        # 39aaa66d-73fe-8168-81b8-de0e9f1b6a24). Provision the SA permissions
+        # once out-of-band; from then on every deploy verifies existence.
+        continue-on-error: false
         env:
           URL: ${{ steps.deploy.outputs.url }}
           PROJECT_ID: ${{ env.PROJECT_ID }}
@@ -308,8 +310,13 @@ jobs:
       # check-overdue-maintenance, weekly-digest, replicate-critical).
       # Idempotente per-job.
       - name: Setup Cloud Scheduler — maintenance jobs
-        # Non-fatal — same rationale as the climate-scan scheduler step above.
-        continue-on-error: true
+        # [P0][VIDA][datos] Maintenance jobs include replicate-critical
+        # (hourly write-through replication of audit_logs + invoices to GCS —
+        # compliance evidence durability). Failing silently here = replication
+        # can die while the deploy shows green. Now FATAL by design, with a
+        # post-create existence check per job (same contract as the vital
+        # life-safety crons step).
+        continue-on-error: false
         env:
           URL: ${{ steps.deploy.outputs.url }}
           PROJECT_ID: ${{ env.PROJECT_ID }}
@@ -352,6 +359,16 @@ jobs:
                 --description="$description" \
                 --quiet
               echo "✓ Created $name"
+            fi
+
+            # Post-create existence check — the deploy FAILS if a required
+            # cron is not actually provisioned (race / IAM glitch / eventual
+            # consistency). No more green deploy with missing crons.
+            if ! gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              echo "::error::Required cron $name was NOT provisioned (describe failed post-create)." >&2
+              exit 1
             fi
           }
 
