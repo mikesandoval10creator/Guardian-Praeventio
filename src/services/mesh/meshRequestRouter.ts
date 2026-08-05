@@ -20,11 +20,15 @@
 
 import {
   buildPacket,
+  isEventToSupervisor,
   isFileChunk,
   isFileRequest,
+  isSos,
+  type EventToSupervisorPayload,
   type FileChunkPayload,
   type FileRequestPayload,
   type MeshPacket,
+  type SosPayload,
 } from './meshPacket';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { chunkBlob, reconstructBlob } from './fileChunker';
@@ -60,6 +64,20 @@ export interface MeshRequestRouterOptions {
   ) => Promise<{ blob: Blob; contentHash: string } | null>;
   /** Llamado cuando un archivo se reconstruye exitosamente. */
   onFileComplete: (record: FileRequestRecord) => void;
+  /**
+   * [P0][VIDA] Llamado cuando llega un SOS verificado dirigido a este peer
+   * (o broadcast). El consumer (MeshProvider) escala: suena alarma local,
+   * notifica a brigada y promueve a emergencia. Dedup por packetId ocurre
+   * en el consumer (los packets relayados pueden re-llegar por múltiples
+   * saltos).
+   */
+  onSosReceived?: (packet: MeshPacket & { type: 'sos'; payload: SosPayload }) => void;
+  /**
+   * [P0][VIDA] Llamado cuando llega un evento verificado para supervisores
+   * (telemetría/eventos dirigidos — B16 wire). Los consumidores filtran por
+   * tipo (breadcrumbs, edge events) y escalan según política.
+   */
+  onSupervisorEventReceived?: (packet: MeshPacket & { type: 'event_to_supervisor'; payload: EventToSupervisorPayload }) => void;
   /** Tamaño de chunk por default (BLE-safe). */
   chunkSize?: number;
   /** Lifetime de un request del lado del requester. */
@@ -81,6 +99,8 @@ export class MeshRequestRouter {
     nodeId: string,
   ) => Promise<{ blob: Blob; contentHash: string } | null>;
   private readonly onFileComplete: (record: FileRequestRecord) => void;
+  private readonly onSosReceived?: (packet: MeshPacket & { type: 'sos'; payload: SosPayload }) => void;
+  private readonly onSupervisorEventReceived?: (packet: MeshPacket & { type: 'event_to_supervisor'; payload: EventToSupervisorPayload }) => void;
   private readonly chunkSize: number;
   private readonly requestLifetimeMs: number;
   private readonly nowFn: () => number;
@@ -95,6 +115,8 @@ export class MeshRequestRouter {
     this.queue = opts.queue;
     this.localFileLookup = opts.localFileLookup;
     this.onFileComplete = opts.onFileComplete;
+    this.onSosReceived = opts.onSosReceived;
+    this.onSupervisorEventReceived = opts.onSupervisorEventReceived;
     this.chunkSize = opts.chunkSize ?? DEFAULT_CHUNK_SIZE;
     this.requestLifetimeMs =
       opts.requestLifetimeMs ?? DEFAULT_REQUEST_LIFETIME_MS;
@@ -171,6 +193,11 @@ export class MeshRequestRouter {
    * Despacha por tipo:
    *   - file_request: si tenemos el archivo → emitimos chunks de respuesta.
    *   - file_chunk:   acumulamos en el record matchando por requestId.
+   *   - sos:          [P0][VIDA] escalamiento local (alarma + notificación +
+   *                   emergencia) via onSosReceived — el supervisor responde
+   *                   aunque el worker esté offline de la red.
+   *   - event_to_supervisor: [P0][VIDA] telemetría/eventos dirigidos al
+   *                   supervisor (B16) — onSupervisorEventReceived.
    * Otros tipos se ignoran silenciosamente (los maneja otro consumer).
    */
   async processIncomingPackets(packets: MeshPacket[]): Promise<void> {
@@ -181,6 +208,14 @@ export class MeshRequestRouter {
       }
       if (isFileChunk(packet)) {
         this.handleIncomingFileChunk(packet);
+        continue;
+      }
+      if (isSos(packet)) {
+        this.onSosReceived?.(packet);
+        continue;
+      }
+      if (isEventToSupervisor(packet)) {
+        this.onSupervisorEventReceived?.(packet);
         continue;
       }
     }
