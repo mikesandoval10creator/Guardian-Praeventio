@@ -154,6 +154,12 @@ jobs:
             ERROR_TRACKER=sentry
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
             SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+            # [P0][pagos] Tier enforcement ON in prod: premium routes (requireTier)
+            # and scale caps (projects/workers in projects.ts) hard-block (402)
+            # when the caller's plan lacks entitlement. TIER-GATING-SERVER-SIDE-
+            # SPEC.md §4 — the report-only rollout validated the table; from here
+            # on a free caller past `proyectosMax`/`trabajadoresMax` is denied.
+            TIER_GATE_ENFORCE=true
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL
           # removidas. Server-side photogrammetry (COLMAP / Modal serverless GPU)
           # DESCARTADA por directiva usuario: digital twin + maqueta 3D deben

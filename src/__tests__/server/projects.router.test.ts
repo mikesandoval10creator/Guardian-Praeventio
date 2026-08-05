@@ -259,6 +259,44 @@ describe('POST / (create project)', () => {
     expect(audit!.details?.projectId).toBe(projectId);
   });
 
+  // [P0][pagos] Scale-cap enforcement. The free plan allows 1 active project;
+  // with TIER_GATE_ENFORCE=true a second create must hard-block (402) BEFORE
+  // any write — the previous behavior logged `tier_gate_would_block` and
+  // created the project anyway (entitlement leak: free callers kept opening
+  // projects while paying nothing).
+  it('402 when TIER_GATE_ENFORCE=true and the free plan is at its projects cap', async () => {
+    process.env.TIER_GATE_ENFORCE = 'true';
+    // u1 is a free user (no subscription doc) with one active project →
+    // cap = 1, current = 1 → this create projects 2 → blocked.
+    H.db!._seed('projects/existing-1', {
+      name: 'Ya tengo uno',
+      createdBy: 'u1',
+      tenantId: 'u1',
+      members: ['u1'],
+      status: 'active',
+    });
+    const res = await request(buildApp()).post('/api/projects').set(as('u1')).send(validBody);
+    expect(res.status).toBe(402);
+    expect((res.body as Record<string, unknown>).error).toBe('plan_limit_reached');
+    // Nothing was written.
+    const created = Object.keys(H.db!._store).filter((k) => k.startsWith('projects/') && k !== 'projects/existing-1');
+    expect(created).toHaveLength(0);
+    delete process.env.TIER_GATE_ENFORCE;
+  });
+
+  it('200 REPORT-ONLY (flag off) still creates past the cap (legacy rollout)', async () => {
+    delete process.env.TIER_GATE_ENFORCE;
+    H.db!._seed('projects/existing-1', {
+      name: 'Ya tengo uno',
+      createdBy: 'u1',
+      tenantId: 'u1',
+      members: ['u1'],
+      status: 'active',
+    });
+    const res = await request(buildApp()).post('/api/projects').set(as('u1')).send(validBody);
+    expect(res.status).toBe(200);
+  });
+
   it('200 ignores client-supplied identity fields (createdBy/tenantId/members spoof)', async () => {
     const res = await request(buildApp())
       .post('/api/projects')
