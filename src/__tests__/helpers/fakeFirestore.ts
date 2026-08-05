@@ -114,8 +114,13 @@ function passes(doc: DocData, f: Filter): boolean {
 export interface FakeFirestore {
   collection(path: string): FakeCollectionRef;
   doc(path: string): FakeDocRef;
-  /** Collection-group query over all `{name}` collections (anonymizeUser). */
-  collectionGroup(name: string): FakeQuery;
+  /**
+   * Collection-group query over all `{name}` collections (anonymizeUser).
+   * Optional so legacy test shims that polyfill it with a conditional
+   * (`if (proxy.collectionGroup)`) keep type-checking — a required method
+   * makes that guard always-truthy (TS2774).
+   */
+  collectionGroup?(name: string): FakeQuery;
   getAll(...refs: FakeDocRef[]): Promise<FakeDocSnap[]>;
   runTransaction<T>(fn: (txn: FakeTxn) => Promise<T>): Promise<T>;
   batch(): FakeBatch;
@@ -347,7 +352,10 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
         let docs: FakeDocSnap[] = [];
         for (const [key, value] of store.entries()) {
           const segments = key.split('/');
-          if (segments.length % 2 !== 1) continue; // doc keys have odd segments
+          // Firestore doc keys ALWAYS alternate collection/doc → even count
+          // ('commute_sessions/sess1' = 2, 'projects/p1/safety_posts/post1'
+          // = 4). Odd counts are collection paths / partial keys.
+          if (segments.length % 2 !== 0) continue;
           if (segments[segments.length - 2] !== name) continue;
           let ok = true;
           for (const f of filters) {
