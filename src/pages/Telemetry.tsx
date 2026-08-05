@@ -16,8 +16,13 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../types';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { collection, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, orderBy, limit, where } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../services/firebase';
+import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
+import {
+  evaluateHeartRateWindow,
+  type HeartRateSample,
+} from '../services/sensorBus/heartRateWindow';
 import { DigitalTwin } from '../components/telemetry/DigitalTwin';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
@@ -71,6 +76,8 @@ export function Telemetry() {
   const { triggerEmergency } = useEmergency();
   const { toasts, show: showToast, dismiss } = useToast();
   const triggeredEarthquakeKeys = useRef(new Set<string>());
+  /** Sustained-window buffer for BLE heart-rate readings (P0 VIDA). */
+  const hrWindowRef = useRef<HeartRateSample[]>([]);
 
 
   // Bucket B.3 — Dike hydrostatic monitor (DS 248/2007, Resolución 1500 SERNAGEOMIN).
@@ -204,11 +211,37 @@ export function Telemetry() {
           lastSync: new Date()
         }));
 
-        if (heartRate > 120) {
-          setAlerts(prev => {
-            const msg = `Alerta BLE: Ritmo cardíaco elevado (${heartRate} bpm).`;
-            return prev.includes(msg) ? prev : [...prev, msg];
-          });
+        // [P0][VIDA] Cardiac alerts reach the safety system. Previously a
+        // single >120 bpm sample only appended local text; it never reached
+        // the sensorBus (so manDown/correlation rules never saw it), never
+        // persisted, and escalated on ONE sample (artifact-prone). Now:
+        //  1. the clinical window kernel CONFIRMS sustained elevation before
+        //     escalation (single critical ceiling still escalates at once);
+        //  2. every reading is published to the sensorBus so correlation
+        //     rules (hr+gas, noise+hr) and supervisor escalation can fire;
+        //  3. the local alert mirrors the confirmed severity.
+        const sample = { bpm: heartRate, atMs: Date.now() };
+        const verdict = evaluateHeartRateWindow(hrWindowRef.current, sample);
+        hrWindowRef.current = verdict.window;
+
+        publishSensorEvent({
+          kind: 'heart_rate',
+          severity: verdict.severity,
+          workerUid: auth.currentUser?.uid ?? null,
+          projectId: selectedProject?.id ?? null,
+          value: heartRate,
+          unit: 'bpm',
+          meta: {
+            source: 'TelemetryBLE',
+            sustained: verdict.severity !== 'info',
+            windowMs: hrWindowRef.current.length,
+          },
+        });
+
+        if (verdict.severity !== 'info') {
+          const level = verdict.severity === 'critical' ? 'Crítica' : 'Elevada';
+          const msg = `Alerta BLE: Ritmo cardíaco ${level} (${heartRate} bpm, confirmado por ${hrWindowRef.current.length} lecturas).`;
+          setAlerts(prev => (prev.includes(msg) ? prev : [...prev, msg]));
         }
       });
 
