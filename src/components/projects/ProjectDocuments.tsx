@@ -36,7 +36,10 @@ import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 interface ProjectDocument {
   id: string;
   name: string;
-  url: string;
+  /** Legacy rows persisted a long-lived bearer URL — kept for back-compat. */
+  url?: string;
+  /** New rows persist the storage PATH; a fresh URL is derived on demand. */
+  storagePath?: string;
   type: string;
   size: number;
   projectId: string;
@@ -95,13 +98,18 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
         showUploadToast('Archivo guardado. Se subirá cuando recuperes la conexión.', true);
       } else {
         const uploadFile = await compressImage(file);
-        const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, uploadFile);
-        const url = await getDownloadURL(snapshot.ref);
+        const storagePath = `projects/${projectId}/documents/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        await uploadBytes(storageRef, uploadFile);
 
+        // [P0] security — persist the storage PATH, never a long-lived bearer
+        // getDownloadURL. A bearer URL keeps working for anyone who saw it,
+        // even after archive/rotation; the path is gated by storage.rules
+        // (memberOfSite) and a fresh URL is derived on demand at download.
         await addDoc(collection(db, 'project_documents'), {
           name: file.name,
-          url,
+          storagePath,
+          fileName: file.name,
           type: file.type,
           size: file.size,
           projectId,
@@ -117,6 +125,24 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   };
 
   const handleArchive = (docId: string) => setArchiveTarget({ id: docId });
+
+  // [P0] security — downloads are derived ON DEMAND from the storage path.
+  // Legacy rows persist a long-lived bearer `url` (kept for back-compat);
+  // new rows store `storagePath` and we mint a fresh getDownloadURL at click
+  // time, which re-checks storage.rules (memberOfSite) against the CURRENT
+  // membership — a worker who left the project can no longer download.
+  const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, doc: { url?: string; storagePath?: string }) => {
+    e.preventDefault();
+    try {
+      let url = doc.url;
+      if (!url && doc.storagePath) {
+        url = await getDownloadURL(ref(storage, doc.storagePath));
+      }
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('ProjectDocuments: download failed', err);
+    }
+  };
 
   // F7 (founder decision 2026-07-02): project documents are legal evidence
   // (PTS, EPP actas, emergency plans — DS 44 / Ley 16.744 trail). Nothing is
@@ -193,6 +219,7 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
           <input 
             type="file" 
             className="hidden" 
+            aria-label="Subir documento"
             onChange={handleFileUpload} 
             disabled={uploading || !isOnline} 
           />
@@ -246,9 +273,10 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {doc.url ? (
+                {doc.url || doc.storagePath ? (
                   <a
-                    href={doc.url}
+                    href="#"
+                    onClick={(e) => handleDownload(e, doc)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all"
