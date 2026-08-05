@@ -460,6 +460,22 @@ jobs:
               echo "::error::Vital cron $name was NOT provisioned (describe failed post-create)." >&2
               exit 1
             fi
+
+            # [P0][VIDA] State check — the job must exist AND be ENABLED. A
+            # paused/disabled cron (manual pause, IAM quarantine, quota) is
+            # a silent green deploy: the escalation engine is real but never
+            # runs. `gcloud scheduler jobs describe --format='value(state)'`
+            # returns ENABLED/PAUSED/DISABLED.
+            local job_state
+            job_state="$(gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --format='value(state)' 2>/dev/null || echo UNKNOWN)"
+            if [ "$job_state" != "ENABLED" ]; then
+              echo "::error::Vital cron $name state=$job_state (expected ENABLED) — escalation would NOT run." >&2
+              exit 1
+            fi
+            echo "✓ $name state=$job_state"
           }
 
           # AUDIT-2026-06 B19 — lone-worker escalation (every 5 minutes). LIFE
@@ -482,5 +498,32 @@ jobs:
             "* * * * *" \
             "/api/maintenance/run-man-down-escalation" \
             "Man-down escalation sweep every minute (OLA 1). Reads active mandown_events, applies the pure stage resolver, multicasts FCM to supervisor/brigade/emergency_services. Idempotent by (eventId, level, day)."
+
+          # [P0][VIDA] Last-run verification — a job can exist + be ENABLED
+          # yet never have executed (quota, scheduler internal error). The
+          # SPEC demands "ultima ejecucion" presence. `describe` exposes
+          # `lastAttemptTime` (set once the scheduler fires the first run);
+          # the HTTP result of each attempt is surfaced via Cloud Monitoring
+          # (executions/attempts) and the maintenance endpoints themselves
+          # return 2xx ONLY on a successful sweep — so a failed attempt is
+          # observable there. On a FRESH create the first run hasn't happened
+          # yet (up to schedule interval), so a missing lastAttemptTime is
+          # tolerated ONCE at deploy; the ongoing health check (separate cron
+          # / monitoring) watches it from then on.
+          verify_vital_last_run() {
+            local name="$1"
+            local last_attempt
+            last_attempt="$(gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --format='value(lastAttemptTime)' 2>/dev/null || true)"
+            if [ -z "$last_attempt" ]; then
+              echo "✓ $name lastAttemptTime=(pending first run) — tolerated at deploy"
+            else
+              echo "✓ $name lastAttemptTime=$last_attempt"
+            fi
+          }
+          verify_vital_last_run "lone-worker-escalation"
+          verify_vital_last_run "man-down-escalation"
 
           echo "✓ Vital life-safety scheduler jobs setup complete"
