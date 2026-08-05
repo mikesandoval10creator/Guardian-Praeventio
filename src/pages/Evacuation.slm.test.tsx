@@ -95,6 +95,7 @@ vi.mock('../services/firebase', () => ({
   query: vi.fn(),
   orderBy: vi.fn(),
   limit: vi.fn(),
+  where: vi.fn(),
 }));
 
 vi.mock('idb-keyval', () => ({
