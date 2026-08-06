@@ -22,9 +22,26 @@ const ANDROID_UA =
 const DESKTOP_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0';
 
+// USDZ = ZIP archive containing USD assets. Valid magic bytes are
+// PK\x03\x04 (ZIP local file header). P1 ticket
+// 39baa66d-73fe-8125-aca4-eeb2e33e5f8a: the production ArQuickLookButton
+// now rejects text-placeholder `.usdz` files by validating these bytes
+// after a GET with Range 0-3. Tests that mock `fetch` MUST return a
+// body whose first 4 bytes match — otherwise the button hides itself
+// (correct safety behavior, but breaks any test that asserted the
+// button rendered without providing real-looking USDZ data).
+const USDZ_MAGIC_BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+
 beforeEach(() => {
-  // The iOS branch delegates to ArQuickLookButton which does a HEAD probe.
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+  // The iOS branch delegates to ArQuickLookButton which does a GET
+  // probe with Range 0-3 and validates USDZ magic bytes. Default mock
+  // returns valid ZIP magic so the happy-path tests below still see
+  // the button render. Tests that want to exercise the placeholder
+  // rejection path override this fetch with a text/plain body.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(USDZ_MAGIC_BYTES, { status: 200 })),
+  );
 
   // Force ArQuickLookButton to think it supports AR (jsdom relList.supports
   // returns false by default).

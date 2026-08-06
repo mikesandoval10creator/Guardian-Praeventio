@@ -9,5 +9,11 @@
 #
 # Build pipeline: scripts/generate-ar-usdz.mjs invokes the Cloud Run service
 # for each kind in PlacedObjectKind and uploads the resulting .usdz to GCS.
-# This file exists only so HEAD probes from ArQuickLookButton return 200
-# during local dev / smoke tests before the converter runs.
+#
+# SAFETY NOTE (P1 ticket 39baa66d-73fe-8125-aca4-eeb2e33e5f8a):
+# This file is INTENTIONALLY a text placeholder. The ArQuickLookButton
+# component now validates USDZ magic bytes (PK\x03\x04 ZIP header) before
+# rendering the "Ver en AR" affordance, so iOS will NOT open Quick Look
+# on this placeholder. The button stays hidden until a real .usdz binary
+# replaces this file via the Cloud Run converter. Do not change this file
+# to a real USDZ binary unless you are running scripts/generate-ar-usdz.mjs.

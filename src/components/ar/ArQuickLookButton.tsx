@@ -60,6 +60,34 @@ function detectArQuickLookSupport(): boolean {
 const TRANSPARENT_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
 
+/**
+ * Magic bytes de un archivo ZIP (y por extensión USDZ, que es un ZIP
+ * contenedor de assets USD según Apple AR Quick Look spec).
+ * USDZ NO empieza con "USDA"; empieza con `PK\x03\x04` (local file
+ * header de un ZIP estándar). Validamos los primeros 4 bytes del body.
+ */
+const USDZ_MAGIC_BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+
+/**
+ * Devuelve true si los primeros 4 bytes del body coinciden con la firma
+ * ZIP (USDZ válido). Falsos positivos posibles si un server devuelve un
+ * PNG cuyo header coincida por accidente (no documentado en práctica);
+ * usamos los 4 bytes completos (no 2) para minimizarlo.
+ *
+ * Refs: P1 ticket 39baa66d-73fe-8125-aca4-eeb2e33e5f8a — los archivos
+ * .usdz placeholder en public/models/ar/*.usdz eran texto plano que
+ * respondía HEAD 200, pero iOS abría un archivo inválido al hacer click.
+ */
+export function validateUsdzMagicBytes(body: Uint8Array | null): boolean {
+  if (!body || body.length < 4) return false;
+  return (
+    body[0] === USDZ_MAGIC_BYTES[0] &&
+    body[1] === USDZ_MAGIC_BYTES[1] &&
+    body[2] === USDZ_MAGIC_BYTES[2] &&
+    body[3] === USDZ_MAGIC_BYTES[3]
+  );
+}
+
 export function ArQuickLookButton({
   modelPath,
   posterPath,
@@ -88,15 +116,30 @@ export function ArQuickLookButton({
   useEffect(() => {
     if (!supported) return undefined;
     let cancelled = false;
-    // HEAD probe — si el archivo no existe (404) o el server-side está
-    // mal configurado, fallback gracefully a no renderizar el botón.
-    // Algunos servers (incluyendo el dev de Vite) no permiten HEAD; en ese
-    // caso GET con range 0-0 funciona pero no vale el peso, así que tratamos
-    // cualquier no-2xx como "no disponible".
-    fetch(modelPath, { method: 'HEAD' })
-      .then((res) => {
+    // P1 ticket 39baa66d-73fe-8125-aca4-eeb2e33e5f8a:
+    // Antes este bloque hacía HEAD al modelPath — confiaba en que un 200
+    // significara un USDZ válido. En realidad los placeholders
+    // (texto "REPLACE WITH REAL .usdz") devuelven 200 al HEAD, así que el
+    // botón mostraba "Ver en AR" y iOS abría un archivo inválido en sesión
+    // Quick Look fullscreen (vida-safety: extintor/AED/hidrante no se
+    // renderizaba en AR → el supervisor no podía identificar la pieza).
+    //
+    // Fix: GET con Range 0-3 (cheap — solo primeros 4 bytes), validamos
+    // magic bytes ZIP (PK\x03\x04). Si no coincide, fallback a no
+    // renderizar. Mantiene el comportamiento de "no rompe UX con un
+    // download que falla" pero ahora honesto sobre disponibilidad.
+    fetch(modelPath, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-3' },
+    })
+      .then(async (res) => {
         if (cancelled) return;
-        setUsdzAvailable(res.ok);
+        if (!res.ok) {
+          setUsdzAvailable(false);
+          return;
+        }
+        const buf = new Uint8Array(await res.arrayBuffer());
+        setUsdzAvailable(validateUsdzMagicBytes(buf));
       })
       .catch(() => {
         if (cancelled) return;
