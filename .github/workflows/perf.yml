@@ -11,6 +11,10 @@ concurrency:
   group: perf-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   size:
     name: Bundle size budget

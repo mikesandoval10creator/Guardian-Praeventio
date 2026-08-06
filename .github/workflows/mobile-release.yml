@@ -38,6 +38,9 @@ on:
     tags:
       - 'mobile-v*'
 
+permissions:
+      contents: write
+
 jobs:
   # Pre-flight: detect which platforms have their secrets provisioned so the
   # downstream jobs can skip cleanly instead of failing CI on a fresh repo.

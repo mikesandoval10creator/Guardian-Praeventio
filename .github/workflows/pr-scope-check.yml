@@ -26,6 +26,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
+permissions:
+      contents: read
+      pull-requests: read
+
 jobs:
   pr-scope-check:
     name: PR scope gate (anti-phantom-config-touch)

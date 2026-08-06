@@ -38,6 +38,10 @@ on:
         type: string
         default: ''
 
+permissions:
+      contents: read
+      pull-requests: read
+
 jobs:
   validate-parser:
     if: github.event_name == 'pull_request'

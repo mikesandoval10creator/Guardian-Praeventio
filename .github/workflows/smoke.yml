@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+      contents: read
+      pull-requests: read
+
 # Cancel in-progress smoke runs when a new commit is pushed to the same PR.
 concurrency:
   group: smoke-${{ github.head_ref || github.run_id }}
