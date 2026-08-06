@@ -1,1 +1,1 @@
-# REPLACE WITH REAL .usdz — Sprint 30 Bucket JJ placeholder. See extinguisher_pqs.usdz for build pipeline notes.
+# REPLACE WITH REAL .usdz — placeholder; ArQuickLookButton hides the affordance until scripts/generate-ar-usdz.mjs produces a real USDZ binary (P1 ticket 39baa66d-73fe-8125-aca4-eeb2e33e5f8a).
