@@ -48,7 +48,13 @@ jobs:
           # in any other file or any other rule will still fail CI.
           config_path: .gitleaks.toml
         env:
-          # GITHUB_TOKEN is provided automatically by the action.
+          # gitleaks-action@v2 requires GITHUB_TOKEN explicitly when
+          # scanning pull requests (added in newer versions of the action).
+          # Without this, the job fails with "GITHUB_TOKEN is now required
+          # to scan pull requests".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is optional (only used by org-mode). Empty
+          # string falls back to "individual user" mode (no license needed).
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           # Enable uploads of the SARIF report to the Security tab.
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
