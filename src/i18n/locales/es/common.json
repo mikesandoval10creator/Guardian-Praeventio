@@ -2975,19 +2975,19 @@
     "fgs_not_native": "Plataforma web — foreground service no aplica.",
     "fgs_no_plugin": "Plugin no disponible en este build.",
     "fgs_error_unknown": "desconocido",
-    "select_project": "Seleccioná un proyecto para usar el check-in de trabajo solitario.",
-    "no_active_session": "No tenés una sesión de trabajo solitario activa.",
+    "select_project": "Selecciona un proyecto para usar el check-in de trabajo solitario.",
+    "no_active_session": "No tienes una sesión de trabajo solitario activa.",
     "start_session": "Iniciar sesión ({{min}} min)",
-    "start_need_project": "Seleccioná un proyecto para iniciar tu sesión.",
-    "persist_failed": "No se pudo guardar el check-in. Reintentá.",
+    "start_need_project": "Selecciona un proyecto para iniciar tu sesión.",
+    "persist_failed": "No se pudo guardar el check-in. Reintenta.",
     "help_not_sent": "⚠️ Tu pedido de AYUDA no se guardó. Avisa por radio o teléfono AHORA — la escalación automática NO saldrá.",
-    "checkin_not_saved": "El check-in no se guardó. Reintentá; si persiste, avisa a tu supervisor.",
+    "checkin_not_saved": "El check-in no se guardó. Reintenta; si persiste, avisa a tu supervisor.",
     "session_load_failed": "No se pudo cargar tu sesión de trabajo solitario. Revisá tu conexión — NO inicies otra para no duplicar.",
     "retry": "Reintentar"
   },
   "zone_editor": {
     "title": "Editor de zonas restringidas",
-    "no_project": "Seleccioná un proyecto para definir sus zonas restringidas.",
+    "no_project": "Selecciona un proyecto para definir sus zonas restringidas.",
     "need_role": "Solo admin, prevencionista o supervisor pueden definir zonas restringidas.",
     "loading_map": "Cargando mapa…",
     "draw_hint": "Dibujá el perímetro en el mapa con la herramienta de polígono.",
@@ -3004,7 +3004,7 @@
     "saved": "Zona guardada.",
     "clear": "Limpiar",
     "count": "{{n}} zonas definidas en este proyecto.",
-    "err_name": "Ingresá un nombre para la zona.",
+    "err_name": "Ingresa un nombre para la zona.",
     "err_kind": "Tipo de zona inválido.",
     "err_perimeter": "Dibujá el perímetro de la zona en el mapa (mínimo 3 puntos).",
     "err_responsible": "Indicá el responsable de la zona.",
@@ -3016,7 +3016,7 @@
   "sif_page": {
     "title": "Precursores SIF",
     "subtitle": "Cuasi-accidentes con potencial de lesión grave o fatal (SIF). Requieren revisión ejecutiva y, si corresponde, notificación al mandante.",
-    "no_project": "Seleccioná un proyecto para ver sus precursores SIF.",
+    "no_project": "Selecciona un proyecto para ver sus precursores SIF.",
     "load_failed": "No se pudieron cargar los precursores SIF.",
     "reviewed_ok": "Revisión ejecutiva registrada.",
     "notified_ok": "Notificación al mandante registrada.",
@@ -3024,11 +3024,11 @@
   },
   "evac_dashboard": {
     "title": "Tablero de evacuación",
-    "no_project": "Seleccioná un proyecto para gestionar su evacuación.",
+    "no_project": "Selecciona un proyecto para gestionar su evacuación.",
     "no_attendance": "Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.",
-    "attendance_error": "No se pudo cargar la asistencia de hoy. Reintentá; sin la nómina no se puede iniciar un conteo de evacuación confiable.",
-    "no_tenant": "Tu sesión no tiene una organización asignada (o no se pudo leer). Reintentá; si persiste, iniciá sesión con tu cuenta de la empresa.",
-    "lookup_failed": "No se pudo verificar si hay una evacuación en curso. Reintentá antes de iniciar una nueva para no duplicar el conteo.",
+    "attendance_error": "No se pudo cargar la asistencia de hoy. Reintenta; sin la nómina no se puede iniciar un conteo de evacuación confiable.",
+    "no_tenant": "Tu sesión no tiene una organización asignada (o no se pudo leer). Reintenta; si persiste, iniciá sesión con tu cuenta de la empresa.",
+    "lookup_failed": "No se pudo verificar si hay una evacuación en curso. Reintenta antes de iniciar una nueva para no duplicar el conteo.",
     "retry": "Reintentar"
   },
   "lone_worker_page": {
@@ -3154,7 +3154,7 @@
       "reason_placeholder": "Describí el riesgo identificado, condiciones observadas, normativa aplicable…",
       "preconditions_note": "Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico. Podés editarlas después por stoppage individual.",
       "submit": "Declarar",
-      "voluntary_only": "Como trabajador podés declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente."
+      "voluntary_only": "Como trabajador puedes declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente."
     },
     "feedback": {
       "need_project": "Necesitás un proyecto activo y estar autenticado.",
@@ -3180,7 +3180,7 @@
       "approver_only": "La reanudación debe firmarla un supervisor, prevencionista o gerente.",
       "success": "Reanudación firmada y registrada ({{id}})."
     },
-    "sub_error": "No se pudieron cargar las paralizaciones. Reintentá; no asumas que no hay ninguna activa.",
+    "sub_error": "No se pudieron cargar las paralizaciones. Reintenta; no asumas que no hay ninguna activa.",
     "history": {
       "heading": "Historial reciente",
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
@@ -3434,7 +3434,7 @@
     "title": "Escenarios de costo preventivo",
     "subtitle": "Compará el costo de un incidente sin prevención vs el ahorro estimado con prevención activa, y guardá escenarios para revisarlos con la gerencia. Cifras referenciales (Ley 16.744, SUSESO/DT) — no reemplazan asesoría legal.",
     "empty": {
-      "select_project": "Seleccioná un proyecto para simular y guardar escenarios de costo."
+      "select_project": "Selecciona un proyecto para simular y guardar escenarios de costo."
     },
     "saved": {
       "label": "Escenarios guardados del proyecto",
@@ -3448,7 +3448,7 @@
     "title": "Control de cambios (MOC)",
     "subtitle": "Declará cambios operacionales, seguí la cobertura de confirmación de lectura y confirmá los que te afectan. Muchos accidentes ocurren por cambios mal comunicados — ISO 45001 §8.1.3.",
     "empty": {
-      "select_project": "Seleccioná un proyecto para gestionar sus cambios operacionales."
+      "select_project": "Selecciona un proyecto para gestionar sus cambios operacionales."
     },
     "tabs": {
       "label": "Vistas de control de cambios",
