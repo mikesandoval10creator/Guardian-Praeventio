@@ -83,7 +83,7 @@ jobs:
           cache: 'npm'
 
       - name: Install JS deps
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build web bundle
         run: npm run build
@@ -165,7 +165,7 @@ jobs:
           cache: 'npm'
 
       - name: Install JS deps
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build web bundle
         run: npm run build

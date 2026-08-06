@@ -55,7 +55,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies (vitest only)
-        run: npm ci --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
         env:
           CI: 'true'
 
