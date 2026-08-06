@@ -750,6 +750,65 @@ export function Settings() {
               </p>
             )}
 
+            {/* WebAuthn Recovery (P1 ticket 39baa66d-73fe-81b1-82e7-f1db3d56d9d4)
+                Backend: POST /api/admin/webauthn/revoke (admin.ts:270).
+                Materializa el recorrido que el ticket pide: el admin escribe
+                el uid del trabajador que reportó dispositivo perdido/robado,
+                confirma la acción y el sistema revoca TODAS las credenciales
+                WebAuthn del trabajador + cierra sus sesiones + audita a
+                audit_logs (directive #3). El backend ya valida que el caller
+                es admin (assertAdminCaller) y que el target comparte su
+                tenant (assertTargetInCallerTenant); el "verificar identidad"
+                del spec se cumple por esos dos gates. */}
+            <div className="space-y-3 border-t border-zinc-200 dark:border-white/5 pt-4">
+              <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                {t('settings.admin.webauthn.title', 'Recuperación WebAuthn')}
+              </p>
+              <p className="text-xs text-zinc-500">
+                {t(
+                  'settings.admin.webauthn.desc',
+                  'Revoca TODAS las llaves WebAuthn del trabajador y cierra sus sesiones activas. El trabajador deberá registrar una llave nueva desde un dispositivo confiable. La acción queda registrada en audit_logs.',
+                )}
+              </p>
+              <button
+                type="button"
+                data-testid="admin-webauthn-revoke"
+                disabled={!adminTargetUid.trim()}
+                onClick={async () => {
+                  const uid = adminTargetUid.trim();
+                  const ok = window.confirm(
+                    t(
+                      'settings.admin.webauthn.confirm',
+                      '¿Revocar todas las llaves WebAuthn de {{uid}} y cerrar sus sesiones? El trabajador perderá acceso hasta registrar una llave nueva.',
+                      { uid },
+                    ),
+                  );
+                  if (!ok) return;
+                  setAdminActionStatus(t('settings.admin.webauthn.revoking', 'Revocando llaves...'));
+                  try {
+                    const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+                    const authHeader = await apiAuthHeaderOrThrow();
+                    const res = await fetch('/api/admin/webauthn/revoke', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+                      body: JSON.stringify({ targetUid: uid }),
+                    });
+                    const data = await res.json();
+                    setAdminActionStatus(
+                      res.ok
+                        ? `✓ ${t('settings.admin.webauthn.ok', 'Llaves revocadas')}: ${data.revoked ?? 0}`
+                        : `${t('common.error', 'Error')}: ${data.error}`,
+                    );
+                  } catch {
+                    setAdminActionStatus(t('settings.admin.network_error', 'Error de red'));
+                  }
+                }}
+                className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xs font-black rounded-xl transition-colors"
+              >
+                {t('settings.admin.webauthn.btn', 'Revocar Llaves WebAuthn')}
+              </button>
+            </div>
+
             {/* 2026-05-17 — Sentry verification (admin-only). */}
             <div className="space-y-3 border-t border-zinc-200 dark:border-white/5 pt-4">
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
