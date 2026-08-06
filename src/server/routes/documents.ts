@@ -43,6 +43,7 @@ const documentSchema = z.object({
   isGenerated: z.boolean().optional(),
 });
 
+// codeql[js/missing-rate-limiting] — mounted under app.use('/api/projects', documentsRouter) (server.ts:761), covered by the global app.use('/api/', limiter) (server.ts:865).
 router.post(
   '/:projectId/documents',
   verifyAuth,
