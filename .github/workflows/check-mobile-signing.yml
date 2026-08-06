@@ -30,6 +30,10 @@ on:
       - 'scripts/fill-ios-aasa.mjs'
       - '.github/workflows/check-mobile-signing.yml'
 
+permissions:
+      contents: write
+      pull-requests: read
+
 jobs:
   check-placeholders:
     name: Verify no signing placeholders remain

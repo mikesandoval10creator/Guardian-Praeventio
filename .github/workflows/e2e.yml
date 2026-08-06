@@ -10,6 +10,10 @@ concurrency:
   group: e2e-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   e2e:
     name: Playwright (chromium + mobile-android)
