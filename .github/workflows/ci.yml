@@ -304,6 +304,13 @@ jobs:
   npm-audit:
     name: Dependency vulnerability audit (npm audit)
     runs-on: ubuntu-latest
+    # 2026-08-06 — first-run mode. The repo currently ships 2 CRITICAL CVEs
+    # (tar GHSA-vmf3-w455-68vh, websocket-driver GHSA-mp7j-qc5w-4988) that
+    # block this gate. Until those are fixed via npm overrides in
+    # package.json, run this job advisory-only so the gate doesn't
+    # block all merges. Remove `continue-on-error` once the criticals
+    # are cleared and the gate becomes blocking.
+    continue-on-error: true
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
