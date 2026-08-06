@@ -228,6 +228,7 @@
     "b2dAdmin.actions.createKey",
     "b2dAdmin.actions.revoke",
     "b2dAdmin.alerts.revokeFailed",
+    "b2dAdmin.cohorts.emptyNote",
     "b2dAdmin.cohorts.title",
     "b2dAdmin.common.loading",
     "b2dAdmin.confirms.revoke",
