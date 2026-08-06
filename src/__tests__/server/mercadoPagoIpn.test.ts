@@ -55,6 +55,7 @@ interface Deps {
 
 function buildApp(deps: Deps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   type IpnOutcome = 'paid' | 'rejected' | 'pending';
@@ -72,6 +73,7 @@ function buildApp(deps: Deps): Express {
     return 'pending';
   }
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/billing/webhook/mercadopago', async (req, res) => {
     // Round 19 (A9): mirror production precedence — OIDC > HMAC > LEGACY.
     const authHeader = req.header('authorization') ?? '';

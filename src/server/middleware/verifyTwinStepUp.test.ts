@@ -24,12 +24,14 @@ function buildApp(opts: {
 }) {
   const app = express();
   // Stub verifyAuth: populate req.user.uid like real verifyAuth would.
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use((req, _res, next) => {
     if (opts.uid) {
       (req as Request & { user?: { uid: string } }).user = { uid: opts.uid };
     }
     next();
   });
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get(
     '/twin/:projectId/data',
     verifyTwinStepUp({ secret: SECRET, ...opts.middlewareOpts }),

@@ -111,6 +111,7 @@ function buildTestChallengesDb(
 
 function buildVerifyApp(deps: VerifyTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const now = deps.now ?? (() => Date.now());
@@ -132,6 +133,7 @@ function buildVerifyApp(deps: VerifyTestDeps): Express {
   };
 
   // Verbatim copy of the production handler (curriculum.ts /webauthn/verify).
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/auth/webauthn/verify', verifyAuth, async (req: any, res) => {
     const callerUid = req.user.uid;
     const { challengeId, clientDataJSON, authenticatorData, signature } = req.body ?? {};
@@ -497,6 +499,7 @@ interface CryptoVerifyTestDeps extends VerifyTestDeps {
 
 function buildCryptoVerifyApp(deps: CryptoVerifyTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const now = deps.now ?? (() => Date.now());
@@ -957,6 +960,7 @@ interface RateLimitedTestDeps extends VerifyTestDeps {
  */
 function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const now = deps.now ?? (() => Date.now());
@@ -988,6 +992,7 @@ function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
   });
 
   // Mounted AFTER verifyAuth so keyGenerator can read req.user.uid.
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/auth/webauthn/verify', verifyAuth, limiter, async (req: any, res) => {
     const callerUid = req.user.uid;
     const { challengeId, clientDataJSON, authenticatorData, signature } = req.body ?? {};

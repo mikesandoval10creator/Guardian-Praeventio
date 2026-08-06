@@ -43,6 +43,7 @@ interface PushTestDeps {
 
 function buildPushApp(deps: PushTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const verifyAuth = async (req: any, res: any, next: any) => {
@@ -62,6 +63,7 @@ function buildPushApp(deps: PushTestDeps): Express {
 
   const router = Router();
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   router.post('/register-token', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
@@ -106,6 +108,7 @@ function buildPushApp(deps: PushTestDeps): Express {
     }
   });
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use('/api/push', router);
   return app;
 }

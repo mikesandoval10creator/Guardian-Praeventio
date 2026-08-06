@@ -340,6 +340,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // incident narrative + AI summary), capped at 2MB. Mounted BEFORE the
   // global 64kb parser so the limit applies per request path.
   app.use('/api/reports/generate-pdf', express.json({ limit: '2mb' }));
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   // verifyAuth middleware
@@ -399,6 +400,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   };
 
   // â”€â”€â”€ /api/health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/health', async (_req, res) => {
     const checks: Record<string, 'ok' | 'fail'> = {};
     let allOk = true;
@@ -418,6 +420,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/audit-log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/audit-log', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email ?? null;
@@ -467,6 +470,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/admin/set-role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/admin/set-role', verifyAuth, async (req, res) => {
     const { uid, role } = req.body ?? {};
     const callerUid = req.user!.uid;
@@ -503,6 +507,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/admin/revoke-access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/admin/revoke-access', verifyAuth, async (req, res) => {
     const { targetUid } = req.body ?? {};
     const callerUid = req.user!.uid;
@@ -589,6 +594,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/billing/checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/billing/checkout', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email ?? null;
@@ -688,6 +694,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/billing/invoice/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/billing/invoice/:id', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const invoiceId = req.params.id;
@@ -722,6 +729,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/billing/webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/billing/webhook', async (req, res) => {
     const expectedToken = deps.webhookSecret;
     if (!expectedToken) {
@@ -812,6 +820,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /billing/webpay/return â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/billing/webpay/return', async (req, res) => {
     const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
     if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {
@@ -897,6 +906,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/curriculum/claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/curriculum/claim', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email ?? null;
@@ -957,6 +967,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/curriculum/referee/:token (POST) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/curriculum/referee/:token', async (req, res) => {
     const rawToken = req.params.token ?? '';
     const { action, method, signature } = req.body ?? {};
@@ -1039,6 +1050,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/projects/:id/invite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/projects/:id/invite', verifyAuth, async (req, res) => {
     const projectId = req.params.id;
     const callerUid = req.user!.uid;
@@ -1111,6 +1123,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/invitations/info/:token (public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/invitations/info/:token', async (req, res) => {
     const { token } = req.params;
     try {
@@ -1137,6 +1150,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/invitations/:token/accept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/invitations/:token/accept', verifyAuth, async (req, res) => {
     const { token } = req.params;
     const callerUid = req.user!.uid;
@@ -1262,6 +1276,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     'getChatResponse',
     'searchRelevantContext',
   ]);
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/gemini', verifyAuth, async (req, res) => {
     const { action } = req.body ?? {};
     if (typeof action !== 'string' || !ALLOWED_GEMINI_ACTIONS.has(action)) {
@@ -1294,7 +1309,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     return res.status(200).send(body);
   };
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/reports/draft', verifyAuth, draftPdfHandler);
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/reports/generate-pdf', verifyAuth, draftPdfHandler);
 
   // ─── /api/sprint-k/:projectId/incidents/:incidentId/report ─────────
@@ -1573,6 +1590,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const VALID_ZK_SEVERITIES = new Set(['info', 'low', 'medium', 'high', 'critical']);
   const ZK_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/zettelkasten/nodes', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email ?? null;
