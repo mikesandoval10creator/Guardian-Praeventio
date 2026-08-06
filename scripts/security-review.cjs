@@ -114,7 +114,86 @@ function scanFile(rel) {
 
 // ─────────────────────────────────────────────────────────────
 // Firestore rules coverage check
+//
+// Ticket 39aaa66d-73fe-8134-8321-d1c755ead1f8 — flat regex on
+// `allow ... : if true` flagged the 4 DELIBERATE anonymous-readable
+// collections (DEA / normatives / community_glossary / global_templates)
+// as Critical on every run, drowning the real signal.
+//
+// Fix: parse the enclosing match chain and subtract the baseline
+// allowlist (scripts/open-reads-ratchet-baseline.json). New or
+// tightened-wrong collections still surface as Critical.
 // ─────────────────────────────────────────────────────────────
+const ROOT_RE_OPEN_READS = /^\/databases\/\{[^}]+\}\/documents$/;
+
+function sanitizeLineOpenReads(line) {
+  let s = line.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, "''");
+  const slash = s.indexOf('//');
+  if (slash !== -1) s = s.slice(0, slash);
+  return s;
+}
+
+/**
+ * Pure helper exported for vitest (src/__tests__/scripts/securityReview.test.ts).
+ * Map each `allow read|write : if true` to its enclosing match chain (root
+ * /databases/{db}/documents frame dropped) and return only the paths
+ * NOT in the allowlist. Line numbers are 1-based.
+ *
+ * Mirrors the heuristic of scripts/check-open-reads-ratchet.cjs so the
+ * two gates stay coherent.
+ */
+function evaluateOpenReads(rulesText, allowed) {
+  const allowSet = new Set(allowed || []);
+  const findings = [];
+  const src = rulesText.split(/\r?\n/);
+  const stack = []; // { path, depth }
+  let depth = 0;
+
+  for (let i = 0; i < src.length; i++) {
+    const lineNo = i + 1;
+    const raw = src[i];
+    const cleaned = sanitizeLineOpenReads(raw);
+    let s = cleaned;
+    while (/\{[^{}]*\}/.test(s)) s = s.replace(/\{[^{}]*\}/g, '');
+
+    if (/(allow\s+(read|write)\s*:\s*if\s+true|allow\s+(read|write|read,\s*write)\s*:\s*if\s+true)/.test(cleaned)) {
+      const frames = stack
+        .map((f) => f.path)
+        .filter((p) => !ROOT_RE_OPEN_READS.test(p));
+      const chain = frames.join('') || '(top-level)';
+      if (!allowSet.has(chain)) {
+        findings.push({ path: chain, line: lineNo });
+      }
+    }
+
+    const decl = /^\s*match\s+(\S+)/.exec(cleaned);
+    let pushedForThisLine = false;
+    for (const ch of s) {
+      if (ch === '{') {
+        depth += 1;
+        if (decl && !pushedForThisLine) {
+          stack.push({ path: decl[1], depth });
+          pushedForThisLine = true;
+        }
+      } else if (ch === '}') {
+        if (stack.length && stack[stack.length - 1].depth === depth) stack.pop();
+        depth -= 1;
+      }
+    }
+  }
+  return findings;
+}
+
+function loadOpenReadsBaseline() {
+  const baselinePath = path.join(ROOT, 'scripts', 'open-reads-ratchet-baseline.json');
+  try {
+    const data = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+    return Array.isArray(data.allowed) ? data.allowed : [];
+  } catch {
+    return [];
+  }
+}
+
 function checkFirestoreRulesCoverage() {
   const rulesPath = path.join(ROOT, 'firestore.rules');
   if (!fs.existsSync(rulesPath)) {
@@ -122,8 +201,17 @@ function checkFirestoreRulesCoverage() {
     return;
   }
   const rules = fs.readFileSync(rulesPath, 'utf8');
-  if (/allow\s+(read|write)\s*:\s*if\s+true/.test(rules)) {
-    flag('Critical', 'OWASP-A01', 'firestore.rules', 0, 'allow ... if true detected', 'Reemplazar por reglas con auth/role/tenant checks.');
+  const allowed = loadOpenReadsBaseline();
+  const offenders = evaluateOpenReads(rules, allowed);
+  for (const o of offenders) {
+    flag(
+      'Critical',
+      'OWASP-A01',
+      'firestore.rules',
+      o.line,
+      `open read/write (allow ... if true) at ${o.path} is NOT in the deliberate-public allowlist`,
+      'Reemplazar por reglas con auth/role/tenant checks, o justificar inline y agregar a scripts/open-reads-ratchet-baseline.json.',
+    );
   }
 }
 
@@ -170,4 +258,12 @@ function main() {
   }
 }
 
-main();
+// Only run main() when invoked as a CLI entry point (`npm run security:review`).
+// When vitest imports this script via createRequire, require.main !== module
+// and we want to keep the side-effects (process.exitCode, file writes) silent.
+if (require.main === module) {
+  main();
+}
+
+// Exported for vitest (src/__tests__/scripts/securityReview.test.ts).
+module.exports = { evaluateOpenReads, sanitizeLineOpenReads, ROOT_RE_OPEN_READS };
