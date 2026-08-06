@@ -17,6 +17,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Secret scanning (gitleaks).
+  # 2026-08-06 — CI hardening (Oleada 0 #0.2, Daniel-authorised). Guardian
+  # handles WebAuthn credentials, KEK envelopes, session tokens, GCP/Firebase
+  # service-account keys — any secret leaked in a commit becomes a
+  # credential-theft vulnerability. Gitleaks scans the working tree and
+  # PR diff for ~120 secret patterns (AWS, GCP, Firebase, Stripe, GitHub
+  # PATs, OpenAI, private keys, etc.) and fails the build on any hit.
+  #
+  # We use the official action (gitleaks/gitleaks-action@v2) with the
+  # upstream default ruleset. Custom rules land in .gitleaks.toml (out of
+  # scope for this PR — the default ruleset catches >95% of real leaks).
+  #
+  # Position in CI: runs FIRST so a leak fails the job before we waste
+  # 30 minutes on npm ci / build / tests.
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history so gitleaks can scan merge commits and old
+          # branches in a push event. For PRs the default is fine.
+          fetch-depth: 0
+
+      - name: Run gitleaks (with local allowlist)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          # Local config (`.gitleaks.toml` at repo root) provides the
+          # upstream default ruleset + our narrow allowlist for
+          # known test fixtures (piiRedactor.test.ts uses fake
+          # API-key-shaped strings as PII redactor input). A real leak
+          # in any other file or any other rule will still fail CI.
+          config_path: .gitleaks.toml
+        env:
+          # gitleaks-action@v2 requires GITHUB_TOKEN explicitly when
+          # scanning pull requests (added in newer versions of the action).
+          # Without this, the job fails with "GITHUB_TOKEN is now required
+          # to scan pull requests".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is optional (only used by org-mode). Empty
+          # string falls back to "individual user" mode (no license needed).
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          # Enable uploads of the SARIF report to the Security tab.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
+          GITLEAKS_ENABLE_SUMMARY: true
   verify-roles:
     name: RBAC roles sync
     runs-on: ubuntu-latest
