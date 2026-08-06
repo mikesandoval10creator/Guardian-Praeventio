@@ -77,6 +77,7 @@ function makeAuth(role: string = ''): FakeAuth {
 
 function buildApp(deps: Deps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const verifyAuth = async (req: Request, res: Response, next: NextFunction) => {
@@ -96,6 +97,7 @@ function buildApp(deps: Deps): Express {
   };
 
   // â”€â”€â”€ /api/telemetry/ingest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/telemetry/ingest', async (req, res) => {
     const headerTenantId = req.header('x-tenant-id');
     const bodyTenantId = (req.body ?? {}).tenantId;
@@ -159,6 +161,7 @@ function buildApp(deps: Deps): Express {
   });
 
   // â”€â”€â”€ /api/admin/iot/rotate-secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
     const { tenantId } = req.body ?? {};

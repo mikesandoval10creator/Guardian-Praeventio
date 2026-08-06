@@ -137,6 +137,7 @@ describe('verifySchedulerToken — shared secret (legacy, synchronous paths)', (
 
 function makeApp() {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/job', verifySchedulerToken, (req, res) => {
     res.json({ ok: true, scheduler: req.schedulerInvocation === true });
   });
@@ -243,6 +244,7 @@ describe('verifySchedulerOrFallback — scheduler OR human admin', () => {
       next();
     });
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.post('/job', verifySchedulerOrFallback(fallback), (req, res) => {
       res.json({
         scheduler: req.schedulerInvocation === true,

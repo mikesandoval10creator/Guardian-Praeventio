@@ -101,7 +101,9 @@ function makeAuth(): FakeAuth {
 
 function buildApp(deps: Deps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(
     session({
       secret: 'test-secret',
@@ -127,6 +129,7 @@ function buildApp(deps: Deps): Express {
   };
 
   // 1) /api/oauth/unlink
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/oauth/unlink', verifyAuth, async (req, res) => {
     try {
       await auditServerEvent(req, deps.fs, 'oauth.unlink', 'oauth', {
@@ -144,6 +147,7 @@ function buildApp(deps: Deps): Express {
     sess.oauthInitiator = { uid: req.body.uid, provider: 'google' };
     res.json({ ok: true });
   });
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/auth/google/callback', async (req, res) => {
     const sess = req.session as any;
     if (!req.query.state || req.query.state !== sess.oauthState) {
@@ -161,6 +165,7 @@ function buildApp(deps: Deps): Express {
   });
 
   // 3) /api/calendar/sync
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/calendar/sync', verifyAuth, async (req, res) => {
     const { challenges } = req.body;
     try {
@@ -195,6 +200,7 @@ function buildApp(deps: Deps): Express {
   });
 
   // 5) /api/gamification/points
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/gamification/points', verifyAuth, async (req, res) => {
     const { amount, reason } = req.body;
     try {
@@ -207,6 +213,7 @@ function buildApp(deps: Deps): Express {
   });
 
   // 6) /api/gamification/check-medals
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/gamification/check-medals', verifyAuth, async (req, res) => {
     try {
       await auditServerEvent(req, deps.fs, 'gamification.medals_checked', 'gamification', {
@@ -217,6 +224,7 @@ function buildApp(deps: Deps): Express {
   });
 
   // 7) /api/reports/generate-pdf
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/reports/generate-pdf', verifyAuth, async (req, res) => {
     const { incidentId, type = 'general' } = req.body ?? {};
     try {

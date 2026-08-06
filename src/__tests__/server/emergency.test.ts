@@ -33,6 +33,7 @@ interface SosTestDeps {
 
 function buildSosApp(deps: SosTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   // Sprint 27 P0 H7 — mirror of the in-process token cache from
@@ -103,6 +104,7 @@ function buildSosApp(deps: SosTestDeps): Express {
     return { lat, lng };
   }
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/emergency/sos', verifyAuth, sosLimiter, async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;

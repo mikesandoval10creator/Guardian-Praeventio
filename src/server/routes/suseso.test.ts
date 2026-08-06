@@ -128,6 +128,7 @@ function buildApp(deps: AppDeps, env: NodeJS.ProcessEnv = TEST_ENV): Express {
   // Node ≥24 + Express 4 + qs incompatibility: qs calls util.isRegExp,
   // removed in Node 24. We don't read query strings, so 'simple' is enough.
   app.set('query parser', 'simple');
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json());
 
   const verifyAuth = (req: any, res: any, next: any) => {
@@ -150,6 +151,7 @@ function buildApp(deps: AppDeps, env: NodeJS.ProcessEnv = TEST_ENV): Express {
     next();
   };
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post(
     '/api/suseso/folio/generate',
     verifyAuth,
@@ -224,6 +226,7 @@ function buildApp(deps: AppDeps, env: NodeJS.ProcessEnv = TEST_ENV): Express {
     });
   };
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post(
     '/api/suseso/diat/render',
     verifyAuth,
@@ -232,6 +235,7 @@ function buildApp(deps: AppDeps, env: NodeJS.ProcessEnv = TEST_ENV): Express {
     renderHandler('DIAT'),
   );
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post(
     '/api/suseso/diep/render',
     verifyAuth,
@@ -240,6 +244,7 @@ function buildApp(deps: AppDeps, env: NodeJS.ProcessEnv = TEST_ENV): Express {
     renderHandler('DIEP'),
   );
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/suseso/verify/:folio', (req: any, res: any) => {
     const folio = req.params.folio;
     if (!parseFolio(folio)) {

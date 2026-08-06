@@ -36,6 +36,7 @@ const AASA_PATH = path.resolve(
 // mocks Firebase). Aquí verificamos el contrato HTTP/heredoc del AASA.
 function makeApp() {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/.well-known/apple-app-site-association', (_req, res) => {
     res.type('application/json');
     res.setHeader('X-Content-Type-Options', 'nosniff');

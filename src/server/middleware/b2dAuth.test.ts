@@ -24,6 +24,7 @@ import { b2dAuth } from './b2dAuth.js';
 
 function makeApp() {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/probe', b2dAuth('climate.read'), (req, res) => {
     res.json({ ok: true, customerId: req.b2dKey?.customerId });
   });

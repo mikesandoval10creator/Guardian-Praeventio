@@ -116,6 +116,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
     const { verifyAuth } = await import('./verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app)
@@ -139,6 +140,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
     const { verifyAuth } = await import('./verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid });
     });
@@ -216,6 +218,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid, email: req.user!.email });
     });
@@ -244,6 +247,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     // does NOT degrade to verifyIdToken('') silently.
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app)
@@ -265,6 +269,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     // would silently accept lowercase. We assert the rejection.
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app)
@@ -290,6 +295,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({
         uid: req.user!.uid,
@@ -327,6 +333,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid });
     });
@@ -350,6 +357,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid });
     });
@@ -374,6 +382,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app)
@@ -393,6 +402,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     // StringLiteral occurrences.
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app).get('/protected');
@@ -408,6 +418,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
 
     const res = await request(app)
@@ -428,6 +439,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     });
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
     const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
     expect(res.status).toBe(200);
@@ -443,6 +455,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     });
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
     const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
     expect(res.status).toBe(401);
@@ -458,6 +471,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     });
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
     const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
     // Cuando el token no incluye auth_time (edge case), no podemos

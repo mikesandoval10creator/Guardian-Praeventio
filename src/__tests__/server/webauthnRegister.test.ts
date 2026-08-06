@@ -189,6 +189,7 @@ interface RegisterTestDeps {
  */
 function buildRegisterApp(deps: RegisterTestDeps): Express {
   const app = express();
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use(express.json({ limit: '64kb' }));
 
   const now = deps.now ?? (() => Date.now());
@@ -225,6 +226,7 @@ function buildRegisterApp(deps: RegisterTestDeps): Express {
   const EXPECTED_ORIGIN = deps.expectedOrigin ?? 'http://localhost:3000';
   const EXPECTED_RP_ID = deps.expectedRPID ?? 'localhost';
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post(
     '/api/auth/webauthn/register/options',
     verifyAuth,
@@ -260,6 +262,7 @@ function buildRegisterApp(deps: RegisterTestDeps): Express {
     },
   );
 
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post(
     '/api/auth/webauthn/register/verify',
     verifyAuth,

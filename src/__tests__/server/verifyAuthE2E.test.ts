@@ -52,6 +52,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid, email: req.user!.email });
     });
@@ -73,6 +74,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => {
       res.json({ ok: true });
     });
@@ -93,6 +95,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => {
       res.json({ ok: true });
     });
@@ -113,6 +116,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => {
       res.json({ ok: true });
     });
@@ -133,6 +137,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => {
       res.json({ ok: true });
     });
@@ -165,6 +170,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({ uid: req.user!.uid });
     });
@@ -185,6 +191,7 @@ describe('verifyAuth — E2E_MODE guard', () => {
     const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
 
     const app = express();
+    // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
     app.get('/protected', verifyAuth, (_req, res) => {
       res.json({ ok: true });
     });
