@@ -249,4 +249,58 @@ describe('templates render valid HTML with payload fields', () => {
     expect(html).toContain('Crítica');
     expect(html).toContain('inc_99');
   });
+
+  // Refs: Notion 39aaa66d-73fe-8185-bc6c-cf5252765485 — ticket spec pointed at
+  // `src/server/triggers/backgroundTriggers.ts:270` ("el correo automatico de
+  // incidentes inserta directamente titulo, descripcion..."). After the
+  // transactional outbox refactor, that line now builds the `frozenPayload`
+  // (JSON), not HTML. The HTML lives in `incidentAlertTemplate` (this file's
+  // producer), and its `escapeHtml()` helper already wraps every
+  // user-controllable field. These ratchet assertions prove it stays that
+  // way: any regression that drops a field's escape fails here.
+  describe('incidentAlertTemplate escapes user-controllable fields (XSS ratchet)', () => {
+    const evilTitle = '<script>alert("xss")</script>Caída';
+    const evilDescription = '<img src=x onerror=alert(1)> fractura de tobillo';
+    const evilReporter = '"><a href=javascript:alert(1)>x</a>';
+    const evilLocation = '&lt;fake&gt; & Obra 2 ';
+
+    const base = {
+      incidentId: 'inc_xss',
+      severity: 'critical' as const,
+      title: evilTitle,
+      description: evilDescription,
+      projectId: 'proj_1',
+      projectName: '<b>Obra Norte</b>',
+      occurredAt: '2026-05-04T11:00:00Z',
+      reporterName: evilReporter,
+      location: evilLocation,
+    };
+
+    it('does NOT emit raw <script>/<img> tags as functional elements', () => {
+      const html = incidentAlertTemplate(base);
+      // Raw <script ...>...</script> or self-closing <img ...> as live HTML.
+      expect(html).not.toMatch(/<script[\s>]/i);
+      expect(html).not.toMatch(/<img\b/i);
+    });
+
+    it('does NOT emit raw <a href="javascript:"> attribute (the dangerous form)', () => {
+      const html = incidentAlertTemplate(base);
+      // Match ONLY if the href is inside an actual <a> tag's attribute list
+      // (i.e. before any '>'). Text-only mentions of "javascript:" inside
+      // escaped content are harmless.
+      expect(html).not.toMatch(/<a\b[^>]*\bhref\s*=\s*["']?javascript:/i);
+    });
+
+    it('escapes HTML special chars in title, description, projectName, reporter, location', () => {
+      const html = incidentAlertTemplate(base);
+      // Each user-controllable field appears ENTITLED-escaped (no raw angle brackets).
+      expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;Caída');
+      expect(html).toContain('&lt;img src=x onerror=alert(1)&gt; fractura de tobillo');
+      expect(html).toContain('&lt;b&gt;Obra Norte&lt;/b&gt;');
+      expect(html).toContain('&quot;&gt;&lt;a href=javascript:alert(1)&gt;x&lt;/a&gt;');
+      // `&lt;` inside `evilLocation` is a double-escape on purpose — verify it
+      // stays encoded (no raw `<fake>`).
+      expect(html).toContain('&amp;lt;fake&amp;gt; &amp; Obra 2');
+    });
+  });
 });
