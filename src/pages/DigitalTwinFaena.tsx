@@ -669,7 +669,10 @@ export function DigitalTwinFaena() {
                 role="radio"
                 aria-checked={mode === 'gpu'}
                 aria-disabled="true"
-                onClick={() => show('GPU Modal.run pendiente de habilitar; usando CPU COLMAP.', 'error')}
+                onClick={() => show(
+                  'El gemelo digital ahora se reconstruye on-device (CPU local). GPU cloud no está habilitado.',
+                  'info',
+                )}
                 className={`p-3 rounded-xl border transition-all opacity-60 cursor-not-allowed ${
                   mode === 'gpu'
                     ? 'bg-cyan-500/15 border-cyan-500/50 ring-2 ring-cyan-500/30'
@@ -678,7 +681,7 @@ export function DigitalTwinFaena() {
               >
                 <Zap className={`w-5 h-5 mb-1 ${mode === 'gpu' ? 'text-cyan-400' : 'text-muted-token'}`} aria-hidden="true" />
                 <p className={`text-xs font-black ${mode === 'gpu' ? 'text-primary' : 'text-secondary'}`}>GPU Cloud</p>
-                <p className="text-[9px] text-muted-token mt-0.5">Pendiente</p>
+                <p className="text-[9px] text-muted-token mt-0.5">No habilitado</p>
               </button>
               <button
                 role="radio"
