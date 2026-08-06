@@ -123,7 +123,7 @@ jobs:
           cache: 'npm'
       - name: Install JS deps (PR only)
         if: github.event_name == 'pull_request'
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Run signing-script unit tests (PR only)
         if: github.event_name == 'pull_request'
         run: npx vitest run src/__tests__/scripts/fillAndroidAssetlinks.test.ts src/__tests__/scripts/fillIosAasa.test.ts
