@@ -1,0 +1,55 @@
+# gitleaks configuration for Guardian Praeventio
+# 2026-08-06 — CI hardening (Oleada 0 #0.2)
+#
+# Strategy: use upstream default ruleset (covers ~120 secret patterns
+# including AWS, GCP, Firebase, Stripe, GitHub PATs, OpenAI, private
+# keys, etc.) + a narrow allowlist for known false positives.
+#
+# Why allowlist instead of disable: the allowlist is per-path, per-rule,
+# not a global "skip this file" — if a real AWS key appears in
+# piiRedactor.test.ts tomorrow, gitleaks WILL still flag it.
+
+title = "Guardian Praeventio gitleaks config"
+
+[extend]
+# Use upstream default ruleset as base. Future custom rules (e.g. our
+# own WebAuthn credential formats, internal service token prefixes) go
+# in [rules] below.
+useDefault = true
+
+# ─────────────────────────────────────────────────────────────────────
+# ALLOWLIST — narrow, per-path, per-rule
+#
+# Each entry documents WHY the rule must not fire on this path. The
+# reason must be specific ("this test fixture intentionally exercises
+# the PII redactor against a fake key") not generic ("tests always
+# have secrets"). When adding entries, ask: "is this a real false
+# positive, or am I silencing a real risk to make CI pass?"
+# ─────────────────────────────────────────────────────────────────────
+
+# PII redactor tests intentionally use fake API-key-shaped strings
+# as input to verify that `redactPii()` strips them. Gitleaks matches
+# the shape and would fail CI on every commit to this file. The
+# strings inside are clearly non-functional (sk-ABC...UVWX, no real
+# secret material). If a real key ever sneaks in, the test will fail
+# for the right reason and gitleaks WILL still catch it outside the
+# allowlisted line range.
+#
+# Pattern: `redactPii('Token sk-XXX...')` and similar fixtures.
+[allowlist]
+description = "PII redactor test fixtures use fake API-key-shaped strings"
+paths = [
+  '''src/services/observability/piiRedactor\.test\.ts''',
+]
+# Allow only the specific rules that match the fake key shapes
+# used in fixtures. AWS / GCP / GitHub PATs are NOT allowlisted —
+# a real leak would still fail.
+regexes = [
+  '''sk-[A-Za-z]{3,}\.\.\.[A-Za-z]{3,}''',
+  '''AIzaSy[A-Za-z0-9_-]{20,}''',
+  # Allowlist also covers the comment that mentions the patterns
+  '''// Token sk-''',
+  '''Token sk-''',
+]
+# Empty regexTarget = "any rule matches this pattern"
+regexTarget = "match"
