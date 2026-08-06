@@ -138,7 +138,11 @@ export function GlossarySearchPanel({
         />
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — hide the FAQ tab entirely when no faqs are passed
+          (ref: Notion 39aaa66d-73fe-8152-9f93-c4a49eaec3dd). A tab that
+          shows "Preguntas (0)" is a dishonest affordance — it promises
+          content that will never load. The caller knows whether a FAQ
+          feed is available; we trust that signal. */}
       <div className="flex gap-1 mb-3" role="tablist">
         <button
           type="button"
@@ -151,17 +155,19 @@ export function GlossarySearchPanel({
           <BookOpen className="w-3 h-3 inline -mt-0.5 mr-1" aria-hidden="true" />
           {t('glossary.tabTerms', 'Términos')} ({termResults.length})
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'faqs'}
-          onClick={() => setTab('faqs')}
-          data-testid="glossary-tab-faqs"
-          className={`px-3 py-1 rounded-md border text-xs font-bold ${tabClass(tab === 'faqs')}`}
-        >
-          <HelpCircle className="w-3 h-3 inline -mt-0.5 mr-1" aria-hidden="true" />
-          {t('glossary.tabFaqs', 'Preguntas')} ({faqResults.length})
-        </button>
+        {faqs.length > 0 && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'faqs'}
+            onClick={() => setTab('faqs')}
+            data-testid="glossary-tab-faqs"
+            className={`px-3 py-1 rounded-md border text-xs font-bold ${tabClass(tab === 'faqs')}`}
+          >
+            <HelpCircle className="w-3 h-3 inline -mt-0.5 mr-1" aria-hidden="true" />
+            {t('glossary.tabFaqs', 'Preguntas')} ({faqResults.length})
+          </button>
+        )}
       </div>
 
       {/* Results */}

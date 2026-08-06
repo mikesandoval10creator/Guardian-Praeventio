@@ -308,8 +308,18 @@ export function B2dAdminPanel() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted-token mb-2">
               {t('b2dAdmin.cohorts.title', 'Cohortes de retención')}
             </h3>
-            {/* Placeholder: real cohort matrix needs a monthly snapshot job. */}
+            {/* Honest empty state (ref: Notion 39aaa66d-73fe-8152-9f93-c4a49eaec3dd):
+                the cohort matrix needs a monthly snapshot job that does not
+                exist yet. Showing a blank heatmap with no caption is a
+                dishonest affordance — we render an explicit note explaining
+                what would feed this surface and why nothing shows up. */}
             <ChurnCohortHeatmap cohorts={[]} />
+            <p className="mt-2 text-[10px] text-muted-token leading-relaxed">
+              {t(
+                'b2dAdmin.cohorts.emptyNote',
+                'Las cohortes mensuales requieren un cron de snapshots que aún no está habilitado. Esta sección se poblará automáticamente cuando se active la captura periódica de churn por cohorte de signup.',
+              )}
+            </p>
           </div>
         </section>
 

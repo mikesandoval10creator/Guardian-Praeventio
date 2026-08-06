@@ -56,6 +56,33 @@ describe('<GlossarySearchPanel />', () => {
     expect(screen.queryByTestId('glossary-faq-results')).toBeNull();
   });
 
+  // Refs: Notion 39aaa66d-73fe-8152-9f93-c4a49eaec3dd
+  // "Superficies con datos vacios + copy desactualizado (honestidad de producto)"
+  // When the caller passes faqs=[] (no FAQ feed available server-side),
+  // the FAQ tab itself is dishonest to render — it promises content that
+  // will never load. Hide the tab so the only visible affordance is
+  // "Términos", matching the data actually present.
+  it('hides the FAQ tab when faqs prop is empty (no server feed available)', () => {
+    render(
+      <GlossarySearchPanel
+        terms={[term({ id: 't1' })]}
+        faqs={[]}
+      />,
+    );
+    expect(screen.queryByTestId('glossary-tab-faqs')).toBeNull();
+    expect(screen.getByTestId('glossary-tab-terms')).toBeInTheDocument();
+  });
+
+  it('shows the FAQ tab when faqs prop is non-empty', () => {
+    render(
+      <GlossarySearchPanel
+        terms={[term({ id: 't1' })]}
+        faqs={[faq({ id: 'q1' })]}
+      />,
+    );
+    expect(screen.getByTestId('glossary-tab-faqs')).toBeInTheDocument();
+  });
+
   it('switching a tab faqs muestra preguntas', () => {
     render(
       <GlossarySearchPanel
