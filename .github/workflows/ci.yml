@@ -333,34 +333,28 @@ jobs:
           # run the real prepackage (they don't set this).
           SLM_PREPACKAGE_SKIP: '1'
 
-  # Dependency vulnerability audit (npm audit).
-  # 2026-08-06 — Guardian CI hardening. Guardian handles WebAuthn credentials,
-  # KEK envelopes, session refresh tokens, and Firestore rules — any CVE in a
-  # crypto/auth/network dep is a vida-safety risk. This gate fails the PR if
-  # any CRITICAL CVE is present in the dependency tree (forcing reviewers
-  # to either bump the dep or accept the risk explicitly).
+  # Dependency vulnerability audit (npm audit) — BLOCKING.
+  # 2026-08-06 — CI hardening (Oleada 0 #0.4, Daniel-authorised).
   #
-  # Today (audit --audit-level=critical): 2 CVEs — tar (node-tar PAX header
-  # override, GHSA-vmf3-w455-68vh) and websocket-driver (resource limit
-  # bypass via compression, GHSA-mp7j-qc5w-4988). 14 additional HIGH
-  # CVEs ship silently (axios, js-yaml, form-data, sharp, react-router,
-  # brace-expansion, etc.) and are tracked as backlog tickets — bump
-  # `audit-level` to `high` once those are resolved.
+  # Fails the PR if any CRITICAL CVE is present in the dependency tree.
+  # Today (audit --audit-level=critical): 2 CVEs ship silently:
+  #   - tar (node-tar) GHSA-vmf3-w455-68vh — PAX header override
+  #   - websocket-driver GHSA-mp7j-qc5w-4988 — resource limit bypass
+  # The first run of this gate after merge will FAIL until those are
+  # addressed via npm overrides in package.json. Follow-up tickets
+  # will bump these deps and re-enable the merge.
   #
-  # Output goes to JSON via `npm audit --json` and uploads as an
-  # artifact so reviewers can audit the audit. Threshold enforcement
-  # uses a final grep on the JSON payload so the failure reason is
-  # explicit in the job log.
+  # 14 additional HIGH CVEs also ship silently (axios, js-yaml, form-data,
+  # sharp, react-router, brace-expansion, etc.) — tracked as backlog.
+  # Once cleared, raise the threshold to `--audit-level=high` (one-line).
+  #
+  # The artifact `npm-audit-report.json` is uploaded with retention 30d
+  # so reviewers can inspect the full advisory list (not just threshold
+  # violations). Threshold enforcement uses a final grep + node one-liner
+  # to fail the job with `::error::` and list the offending packages.
   npm-audit:
     name: Dependency vulnerability audit (npm audit)
     runs-on: ubuntu-latest
-    # 2026-08-06 — first-run mode. The repo currently ships 2 CRITICAL CVEs
-    # (tar GHSA-vmf3-w455-68vh, websocket-driver GHSA-mp7j-qc5w-4988) that
-    # block this gate. Until those are fixed via npm overrides in
-    # package.json, run this job advisory-only so the gate doesn't
-    # block all merges. Remove `continue-on-error` once the criticals
-    # are cleared and the gate becomes blocking.
-    continue-on-error: true
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -371,17 +365,16 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # `--no-audit` skips npm's built-in audit at install time (we
-        # run our own with --json below). `--prefer-offline` reuses the
-        # cache populated by the setup-node action.
-        run: npm ci --no-audit --prefer-offline
+        # `--ignore-scripts` (added by PR #1401) prevents postinstall scripts
+        # from running. `--no-audit` skips npm's built-in audit (we run
+        # our own with --json below). `--prefer-offline` reuses the cache.
+        run: npm ci --ignore-scripts --no-audit --prefer-offline
 
       - name: Run npm audit (JSON)
         id: audit
-        # `--audit-level=critical` makes npm audit exit non-zero on critical
-        # only. 14 high-severity CVEs ship silently in `package-lock.json` today
-        # and need dedicated bump tickets (see Notion backlog). The 2 critical
-        # CVEs (tar / websocket-driver) are addressed inline by this gate.
+        # `--audit-level=critical` makes npm audit exit non-zero on critical.
+        # The 14 high-severity CVEs need dedicated bump tickets (Notion
+        # backlog). The 2 critical CVEs are addressed inline.
         run: |
           set +e
           npm audit --json --audit-level=critical > npm-audit.json
@@ -392,8 +385,8 @@ jobs:
 
       - name: Upload audit artifact
         if: always()
-        # Always upload the artifact, even on failure, so reviewers can audit
-        # the audit.
+        # Always upload, even on failure — reviewers need to see WHICH
+        # CVEs triggered the gate.
         uses: actions/upload-artifact@v4
         with:
           name: npm-audit-report
@@ -402,8 +395,7 @@ jobs:
 
       - name: Fail on critical CVEs
         if: always()
-        # The audit step exited non-zero already if any critical exists; this
-        # final check makes the failure reason explicit in the job log.
+        # Final grep makes the failure reason explicit in the job log.
         run: |
           if [ -s npm-audit.json ] && grep -qE '"severity":"critical"' npm-audit.json; then
             echo "::error::npm audit found CRITICAL CVEs in the dependency tree. See the npm-audit-report artifact for the full list."
@@ -414,7 +406,7 @@ jobs:
               const names = Object.entries(adv)
                 .filter(([, v]) => v.severity === 'critical')
                 .map(([name, v]) => \`- \${name} [\${v.severity}] via \${v.via[0]?.title || v.via[0]?.name || 'see advisory'}\`);
-              console.log(names.join('\\n'));
+              console.log(names.join('\n'));
             " || true
             exit 1
           else
