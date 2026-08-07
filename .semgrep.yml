@@ -1,0 +1,185 @@
+# Praeventio Guard — semgrep custom rules for vida-safety.
+#
+# These rules fill gaps that CodeQL does not cover natively for TS/JS:
+#   1. Math.random() used in security-sensitive contexts (KEK rotation,
+#      token generation, idempotency keys, session IDs)
+#   2. eval() / new Function() used outside the documented Vite loader
+#      trick (logger.ts uses `(0, eval)('require')` legitimately)
+#   3. child_process.exec/spawnSync with user-controlled input
+#   4. crypto PRNG misuse (Math.random/Math.floor for token generation)
+#   5. Clear-text secrets in logs (password, secret, token, apiKey in
+#      console.log/info/warn/error strings)
+#
+# Rule format: https://semgrep.dev/docs/writing-rules/pattern-syntax/
+# Severity levels: ERROR (blocks CI), WARNING (gates but allows override),
+#                  INFO (report only).
+
+rules:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. Math.random() in security-sensitive contexts
+  # ─────────────────────────────────────────────────────────────────────
+  # Life-safety: if a random value is used to generate a KEK, nonce,
+  # session ID, or token, the entropy is broken (predictable from seed).
+  # CodeQL does not flag this; semgrep does via pattern+metavariable.
+  - id: guardian-no-math-random-in-security-context
+    message: >-
+      Math.random() is being used inside a function whose name suggests
+      security/cryptographic purpose. Math.random() is NOT a CSPRNG and
+      MUST NOT be used for KEK rotation, token generation, nonce creation,
+      session IDs, or any value that an attacker could predict.
+      Use `crypto.randomBytes()` (Node) or `crypto.getRandomValues()`
+      (browser) instead. See src/utils/deterministicRandom.ts for the
+      Guardian-validated wrapper.
+    severity: ERROR
+    languages: [ts, javascript]
+    paths:
+      exclude:
+        - "*.test.ts"
+        - "*.test.tsx"
+        - "*__tests__*"
+        - "*spec*"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              function $FUNC(...) {
+                ...
+                Math.random(...)
+                ...
+              }
+          - pattern: |
+              const $FUNC = (...) => {
+                ...
+                Math.random(...)
+                ...
+              }
+          - pattern: |
+              $FUNC(...) {
+                ...
+                Math.random(...)
+                ...
+              }
+      - metavariable-regex:
+          metavariable: $FUNC
+          # Match security/crypto keywords but NOT randomInRange (confetti)
+          # or randomXxx generic helpers that are clearly non-security.
+          regex: '(?i)(kek|nonce|token|session|secret|entropy|secure|deriveId|gen.*[Tt]oken|gen.*[Ss]ecret|gen.*[Kk]ey|gen.*[Nn]once|generateLock|generateId|createToken|createSecret|createNonce|deriveKey)'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. eval() / new Function() outside the documented Vite loader pattern
+  # ─────────────────────────────────────────────────────────────────────
+  # Life-safety: dynamic code execution is a high-risk primitive. The only
+  # legitimate use in this repo is `(0, eval)('require')` in
+  # src/utils/logger.ts to avoid Vite resolving `node:async_hooks` for the
+  # browser bundle. Any other use is a red flag.
+  - id: guardian-no-eval-or-function-constructor
+    message: >-
+      eval() or new Function() detected outside the documented Vite loader
+      pattern. The ONLY allowed use in this repo is
+      `(0, eval)('require')` in src/utils/logger.ts. Any other use
+      introduces dynamic code execution risk (code injection,
+      sandbox-escape). Replace with a static import, an allowlisted
+      dispatch table, or a documented safe wrapper.
+    severity: ERROR
+    languages: [ts, javascript]
+    paths:
+      exclude:
+        - "*.test.ts"
+        - "*.test.tsx"
+        - "*__tests__*"
+        - "*spec*"
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: new Function(...)
+          - pattern: Function(...)
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. child_process.exec with user-controlled input
+  # ─────────────────────────────────────────────────────────────────────
+  # Life-safety: shell command injection is a top-10 OWASP vector. If a
+  # command is built from req.body, req.query, req.params, or any other
+  # attacker-controlled string, the server is RCE-vulnerable.
+  - id: guardian-no-shell-exec-with-user-input
+    message: >-
+      child_process.exec / execSync / spawnSync with a string that may
+      contain user-controlled input (req.body, req.query, req.params,
+      env from client, etc.). This is a shell command injection vector.
+      Use execFile/spawn with an array of arguments and validate each
+      one against an allowlist before calling.
+    severity: ERROR
+    languages: [ts, javascript]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              { exec, execSync, spawn, spawnSync } = require('child_process')
+              ...
+          - pattern: import { exec, execSync, spawn, spawnSync } from 'child_process'
+      - pattern-either:
+          - pattern: $FN(`...${$X}...`)
+          - pattern: $FN(`...${$X}...`, ...)
+          - pattern: $FN(`...${$X}...${$Y}...`)
+      - metavariable-regex:
+          metavariable: $FN
+          regex: '^(exec|execSync|spawnSync|spawn)$'
+      - metavariable-regex:
+          metavariable: $X
+          regex: '^(req|req\.body|req\.query|req\.params|body|query|params|input|user|userInput|userInput)$'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. Insecure PRNG pattern for hex/base64 token generation
+  # ─────────────────────────────────────────────────────────────────────
+  # Common anti-pattern: `Math.floor(Math.random() * 0x100000000).toString(16)`
+  # to generate a "random" token. This is NOT cryptographically secure.
+  # The captured tokening pattern in slmRuntimeWorkerProtocol.ts:202 was
+  # exactly this; the result is predictable from Math.random()'s seed.
+  - id: guardian-no-math-random-as-token-generator
+    message: >-
+      Math.random() is being used to generate a hex/base36 token via
+      Math.floor and toString. This is predictable from the PRNG seed and
+      MUST NOT be used for tokens, IDs, or nonces. Use crypto.randomBytes
+      or crypto.randomUUID instead.
+    severity: ERROR
+    languages: [ts, javascript]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Math.random()...toString(...)
+          - pattern: |
+              Math.floor(Math.random() * ...)...
+          - pattern: |
+              Math.floor(Math.random() * ...).toString(...)
+      - pattern: |
+          ... .toString(16) ...
+      - pattern: |
+          ... .toString(36) ...
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 5. Clear-text secrets in logs
+  # ─────────────────────────────────────────────────────────────────────
+  # Reports when variable names matching secret-bearing patterns appear
+  # in console.log/info/warn/error or logger.* calls. Errors are
+  # tolerated (the `error` var is the throwable, not a secret), but
+  # everything else is a leak surface.
+  - id: guardian-no-secrets-in-log-statements
+    message: >-
+      A variable whose name suggests a secret (password, token, secret,
+      apiKey, jwt, Authorization, cookie) is being passed to a console.*
+      or logger.* call. Logs are shipped to Cloud Logging and may be
+      retained for weeks. Redact with `[REDACTED]` or hash before logging.
+    severity: WARNING
+    languages: [ts, javascript]
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $X, ...)
+          - pattern: console.info(..., $X, ...)
+          - pattern: console.warn(..., $X, ...)
+          - pattern: console.error(..., $X, ...)
+          - pattern: logger.info(..., $X, ...)
+          - pattern: logger.warn(..., $X, ...)
+          - pattern: logger.debug(..., $X, ...)
+          - pattern: logger.error(..., $X, ...)
+          - pattern: logger.critical(..., $X, ...)
+      - metavariable-regex:
+          metavariable: $X
+          regex: '(?i)(password|passwd|secret|token|jwt|apiKey|api_key|auth|authorization|cookie|sessionId|bearer)'
