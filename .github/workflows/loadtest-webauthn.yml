@@ -1,0 +1,89 @@
+# k6 load tests vida-safety Guardian Praeventio.
+#
+# Ejecuta loadtest/k6/webauthn-challenge.js contra endpoints vida-safety
+# (GET /api/auth/webauthn/challenge) en CI ad-hoc (workflow_dispatch).
+# El PR workflow no corre k6 por defecto (tarda ~6 min con boot de emulator).
+#
+# Uso:
+#   gh workflow run loadtest-webauthn.yml -f endpoint=challenge
+#   gh workflow run loadtest-webauthn.yml -f endpoint=revoke
+#   gh workflow run loadtest-webauthn.yml -f endpoint=both
+#
+# Output:
+#   - k6 summary HTML + JSON subidos como artifacts
+#   - threshold failures abortan el run con exit code != 0
+
+name: k6 Load Test (WebAuthn vida-safety)
+
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: 'Endpoint(s) to load test'
+        required: true
+        default: 'challenge'
+        type: choice
+        options:
+          - challenge
+          - revoke
+          - both
+
+concurrency:
+  group: k6-webauthn-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A36442D574F49C486EB085579
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --legacy-peer-deps
+
+      - name: Build web bundle (skip SLM prepackage)
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          SLM_PREPACKAGE_SKIP: '1'
+
+      - name: Run k6 load test
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          E2E_TEST_SECRET: e2e-test-secret-do-not-use-in-prod
+          E2E_MODE: '1'
+        run: bash loadtest/k6/run-webauthn.sh ${{ inputs.endpoint }}
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k6-results-${{ inputs.endpoint }}
+          path: |
+            k6-summary.json
+            k6-summary.html
+          if-no-files-found: warn

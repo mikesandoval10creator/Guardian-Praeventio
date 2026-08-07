@@ -102,6 +102,26 @@ export default [
     },
   },
 
+  // ── 1d. k6 load test scripts (loadtest/k6/*.js) ───────────────────────────
+  // Oleada 4 PR k6: los scripts usan ES modules + globals k6 (__ENV, __VU,
+  // __ITER) que el runtime de k6 inyecta. Sin declararlos aquí, ESLint
+  // marca `no-undef` en cada script. Node 22 + k6 0.50+ soportan los
+  // globals sin shim adicional.
+  {
+    files: ['loadtest/k6/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+        // k6 expone http, check, sleep, group, Trend, Counter — pero
+        // vienen via `import` desde 'k6/http' etc., no son globals.
+      },
+    },
+  },
+
 
   // ── 3. Reglas TS/TSX del proyecto + react-hooks ──────────────────────────
   {
