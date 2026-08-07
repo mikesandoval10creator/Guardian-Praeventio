@@ -316,6 +316,21 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
     const form = await formStore.loadForm(tenantId, req.params.formId);
     if (!form) return res.status(404).json({ error: 'not_found' });
     const bytes = generateDs67Pdf(form);
+    // Oleada 2 — Ley 21.719 (Chile) requiere trazabilidad de acceso a
+    // datos personales sensibles. El PDF incluye RUT, dirección, y
+    // datos médicos ocupacionales. Auditar cada lectura.
+    const auditOk = await auditServerEvent(req, 'compliance.ds67_pdf_read', 'compliance', {
+      folio: form.folio,
+      tenantId,
+      formId: req.params.formId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds67.pdf.audit', {
+        audit_event: 'compliance.ds67_pdf_read',
+        folio: form.folio,
+        tenantId,
+      });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -350,6 +365,22 @@ router.get('/ds67/:formId/sign-challenge', verifyAuth, async (req, res) => {
         storeWebAuthnChallenge(uid, challengeId, challenge, challengesDb, options),
       now: challengesDb.now,
     });
+    // Oleada 2 — auditar generacion de challenge para trazabilidad del
+    // intento de firma. Junto con el audit del POST /sign, permite
+    // reconstruir el flow completo de firma y detectar challenges
+    // emitidos pero nunca consumidos (posible DoS o abandono).
+    const auditOk = await auditServerEvent(req, 'compliance.ds67_challenge_issued', 'compliance', {
+      tenantId,
+      formId: req.params.formId,
+      challengeId: issued.challengeId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds67.challenge.audit', {
+        audit_event: 'compliance.ds67_challenge_issued',
+        tenantId,
+        formId: req.params.formId,
+      });
+    }
     res.json({
       challengeId: issued.challengeId,
       challenge: Buffer.from(issued.challenge).toString('base64'),
@@ -479,6 +510,21 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
     const form = await formStore.loadForm(tenantId, req.params.formId);
     if (!form) return res.status(404).json({ error: 'not_found' });
     const bytes = generateDs76Pdf(form);
+    // Oleada 2 — Ley 21.719 (Chile) requiere trazabilidad de acceso a
+    // datos personales sensibles. El PDF incluye RUT, dirección, y
+    // datos médicos ocupacionales. Auditar cada lectura.
+    const auditOk = await auditServerEvent(req, 'compliance.ds76_pdf_read', 'compliance', {
+      folio: form.folio,
+      tenantId,
+      formId: req.params.formId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds76.pdf.audit', {
+        audit_event: 'compliance.ds76_pdf_read',
+        folio: form.folio,
+        tenantId,
+      });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -511,6 +557,22 @@ router.get('/ds76/:formId/sign-challenge', verifyAuth, async (req, res) => {
         storeWebAuthnChallenge(uid, challengeId, challenge, challengesDb, options),
       now: challengesDb.now,
     });
+    // Oleada 2 — auditar generacion de challenge para trazabilidad del
+    // intento de firma. Junto con el audit del POST /sign, permite
+    // reconstruir el flow completo de firma y detectar challenges
+    // emitidos pero nunca consumidos.
+    const auditOk = await auditServerEvent(req, 'compliance.ds76_challenge_issued', 'compliance', {
+      tenantId,
+      formId: req.params.formId,
+      challengeId: issued.challengeId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds76.challenge.audit', {
+        audit_event: 'compliance.ds76_challenge_issued',
+        tenantId,
+        formId: req.params.formId,
+      });
+    }
     res.json({
       challengeId: issued.challengeId,
       challenge: Buffer.from(issued.challenge).toString('base64'),
