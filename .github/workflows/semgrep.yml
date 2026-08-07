@@ -1,0 +1,51 @@
+# Semgrep custom rules scan — vida-safety Guardian Praeventio.
+#
+# Corre las 5 reglas custom de .semgrep.yml en cada PR + push a main.
+# Bloquea merge si hay findings ERROR no suprimidos.
+# WARNING findings se reportan pero no bloquean.
+
+name: Semgrep (custom vida-safety)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.semgrep.yml'
+      - '.github/workflows/semgrep.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.semgrep.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: semgrep-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: .semgrep.yml
+          # Block on ERROR findings. WARNING findings are reported but don't fail.
+          auditMode: false
+          # Generate SARIF for GitHub Security tab upload
+          generateSarif: '1'
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-custom

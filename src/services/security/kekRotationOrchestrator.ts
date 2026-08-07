@@ -154,7 +154,7 @@ export function __generateLockIdForTests(): string {
   return generateLockId();
 }
 
-function generateLockId(): string {
+function generateLockId(): string { // nosemgrep: guardian-no-math-random-in-security-context — lock ID is NOT a secret; CSPRNG preferred, Math.random fallback is for inter-tab uniqueness only (see L168-183). Real DEKs use node:crypto.randomBytes.
   // Random ID por tab para detectar reentry. Prefiere Web Crypto CSPRNG;
   // cae a Math.random + counter + ms cuando crypto.getRandomValues no
   // existe (SSR / older Node / restricted webview).
@@ -181,7 +181,7 @@ function generateLockId(): string {
     // Counter monotónico se mantiene en bytes[4..5] para resolver el caso
     // raro donde Math.random colisiona dentro del mismo tab en el mismo
     // ms (Math.random no garantiza no-repetición consecutiva).
-    const r32 = Math.floor(Math.random() * 0x100000000) >>> 0;
+    const r32 = Math.floor(Math.random() * 0x100000000) >>> 0; // nosemgrep: guardian-no-math-random-in-security-context — lock ID is NOT a secret; CSPRNG preferred above but Math.random fallback is acceptable for inter-tab uniqueness (see comment block L168-183). Real DEKs use node:crypto.randomBytes via kmsEnvelope/kmsAdapter.
     lockIdFallbackCounter = (lockIdFallbackCounter + 1) >>> 0;
     const ms16 = Date.now() & 0xffff;
     const mix = (lockIdFallbackCounter ^ ms16) >>> 0;
