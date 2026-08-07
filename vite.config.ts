@@ -4,6 +4,7 @@ import path from 'path';
 import {defineConfig, loadEnv, type Plugin} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import viteCompression from 'vite-plugin-compression';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 /*
  * Sprint 20 13th wave Bucket C — CSP nonce placeholder injection.
@@ -198,7 +199,24 @@ export default defineConfig(({mode}) => {
             }
           ]
         }
-      })
+      }),
+      // Oleada 1 — bundle composition analysis. Generates dist/stats.html
+      // (interactive sunburst) + dist/stats.json (machine-readable) on every
+      // build. Artifact uploaded by the workflow; gate enforces 15 chunks
+      // already in .size-limit.json.
+      //
+      // Gzip template matches .size-limit.json (the canonical source of
+      // truth). gzipSize + brotliSize would double the artifact and
+      // confuse the CI parser — we keep gzip.
+      visualizer({
+        filename: 'dist/stats.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: false,
+        gzipSizeLabel: 'gz',
+        json: true,
+        jsonFilename: 'dist/stats.json',
+      }),
     ],
     resolve: {
       alias: {

@@ -61,6 +61,19 @@ jobs:
           script: 'size'
           skip_step: install
 
+      # Oleada 1 — bundle composition analysis. The visualizer plugin in
+      # vite.config.ts writes dist/stats.html (interactive treemap) +
+      # dist/stats.json (machine-readable) on every build. Upload both
+      # as artifacts so reviewers can spot accidental deps inflation
+      # (e.g. someone adding a 200KB util to the main chunk).
+      - name: Upload bundle composition report
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-composition
+          path: |
+            dist/stats.html
+            dist/stats.json
+
   lighthouse:
     name: Lighthouse CI
     runs-on: ubuntu-latest
