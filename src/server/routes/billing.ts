@@ -59,12 +59,19 @@ import { registerMercadoPagoRoutes } from './billing/mercadopago.js';
 import { registerKhipuRoutes } from './billing/khipu.js';
 import { registerIapReceiptRoutes } from './billing/iapReceipts.js';
 import { registerAppleSsnRoutes } from './billing/appstore.js';
+import { webpayReturnLimiter } from '../middleware/limiters.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Routers — see header for the two-router rationale.
 // ────────────────────────────────────────────────────────────────────────────
 export const billingApiRouter = Router();
 export const billingWebpayRouter = Router();
+
+// Oleada 0.5 PR-3 — rate limit para el router webpay externo (/billing/*).
+// `billingWebpayRouter` se monta en `/billing` (server.ts:1422), FUERA del
+// limiter global `/api/`. El limiter por-IP defiende el callback público
+// GET /billing/webpay/return contra spam/enumeración de token_ws.
+billingWebpayRouter.use(webpayReturnLimiter);
 
 // Registration order mirrors the pre-split monolith exactly:
 //   /verify, /webhook, /checkout, /invoice/:id/mark-paid, GET /invoice/:id,

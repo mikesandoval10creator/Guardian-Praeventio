@@ -72,6 +72,7 @@ vi.mock('../../server/middleware/idempotencyKey.js', () => ({
 vi.mock('../../server/middleware/limiters.js', () => ({
   invoiceStatusLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
   googlePlayWebhookLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
+  webpayReturnLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────

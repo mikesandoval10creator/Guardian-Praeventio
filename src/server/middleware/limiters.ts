@@ -388,3 +388,29 @@ export const geminiGlobalDailyLimiter = rateLimit({
   skipFailedRequests: true, // no contar requests fallados (4xx/5xx) hacia el cap
   store: makeIaRateLimitStore('gemini-global:'),
 });
+
+// Oleada 0.5 PR-3 — rate limiter para el router webpay externo.
+//
+// `billingWebpayRouter` se monta en `/billing` (server.ts:1422), FUERA del
+// limiter global `/api/` (server.ts:865). El único handler es
+// GET /billing/webpay/return — callback público de Transbank que recibe
+// `token_ws` (query param) y redirige al cliente. Por diseño NO lleva
+// verifyAuth: Transbank no firma con nuestro JWT.
+//
+// Por qué un limiter por-IP: el callback es GET y su latencia es trivial
+// (read Firestore + redirect), pero un atacante puede:
+//   1. Enumerar token_ws con fuerza bruta (256 bits de entropía hacen
+//      la enumeración inviable, pero el limiter es defensa en profundidad)
+//   2. Usar el endpoint como reflector/amplificador (GET barato)
+//   3. Saturar el rate-limit store Firestore compartido
+//
+// 300 req / 15 min por IP es generoso para el tráfico legítimo (Transbank
+// redirige 1-2 veces por pago real) y corta cualquier intento de spam.
+export const webpayReturnLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  keyGenerator: ipOnlyKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados retornos de pago. Intenta de nuevo en 15 minutos.' },
+});
