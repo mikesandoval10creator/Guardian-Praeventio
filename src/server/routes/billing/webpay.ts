@@ -110,6 +110,7 @@ export function registerWebpayRoutes(
   // (Chile) o manual-transfer (B2B enterprise). USD checkout pasa por
   // manual-transfer (Stripe descartado §2.12); LATAM no-Chile vía
   // MercadoPago (endpoint separado `/checkout/mp`).
+  // codeql[js/missing-rate-limiting] — billingApiRouter is mounted at /api/billing (server.ts:1416), covered by the global app.use('/api/', limiter) (server.ts:865). The only billing surface OUTSIDE /api/ is /billing/webpay/return, protected by webpayReturnLimiter (PR-3 Oleada 0.5).
   billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
