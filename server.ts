@@ -702,6 +702,7 @@ app.use((req, res, next) => {
 // las CDN comunes IGNORAN el AASA si: no llega status 200 directo (un
 // redirect 30x cuenta), el content-type no es application/json, o el
 // servidor no emite Cache-Control. Garantizamos los tres acá.
+// codeql[js/missing-rate-limiting] — static public file, 1h Cache-Control, no state/DB/auth; polling by Apple/Google validators is expected and cheap. Mounted above /api/ limiter by design.
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.type('application/json');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -710,6 +711,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
     path.resolve(process.cwd(), 'public/.well-known/apple-app-site-association'),
   );
 });
+// codeql[js/missing-rate-limiting] — static public file, 1h Cache-Control, no state/DB/auth; polling by Apple/Google validators is expected and cheap. Mounted above /api/ limiter by design.
 app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.type('application/json');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -722,10 +724,12 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
 // SEO: serve robots.txt and sitemap.xml with correct MIME types so crawlers
 // read real directives instead of the SPA shell. Same pattern as .well-known:
 // explicit sendFile mounted above the Vite/SPA middleware.
+// codeql[js/missing-rate-limiting] — static public file, no state/DB/auth; crawler + health-check traffic is expected and cheap. Mounted above /api/ limiter by design.
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');
   res.sendFile(path.resolve(process.cwd(), 'public/robots.txt'));
 });
+// codeql[js/missing-rate-limiting] — static public file, no state/DB/auth; crawler + health-check traffic is expected and cheap. Mounted above /api/ limiter by design.
 app.get('/sitemap.xml', (_req, res) => {
   res.type('application/xml');
   res.sendFile(path.resolve(process.cwd(), 'public/sitemap.xml'));
