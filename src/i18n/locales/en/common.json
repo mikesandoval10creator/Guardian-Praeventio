@@ -1873,7 +1873,10 @@
     "toast": {
       "near_miss": "Near-miss recorded. Stay alert.",
       "incident": "Incident reported. Base has been notified.",
-      "arrived": "Arrival confirmed. Safe travels."
+      "arrived": "Arrival confirmed. Safe travels.",
+      "report_persisted": "Report saved. Dispatch has been notified.",
+      "report_failed": "Could not send the report. Check your connection.",
+      "arrived_local_only": "Local ack only — not sent to server (no arrival endpoint yet)."
     },
     "speedometer": {
       "aria": "Current speed {{kmh}} kilometers per hour",
@@ -1890,6 +1893,10 @@
       "near_miss": "Near-miss",
       "incident": "Incident",
       "arrived": "Arrived"
+    },
+    "report": {
+      "near_miss_default": "Near-miss during driving",
+      "incident_default": "Incident during driving"
     }
   },
   "emergency_page": {
@@ -2810,7 +2817,7 @@
   },
   "pricingCalc": {
     "pyme": {
-      "maturityTitle": "SME Preventive Maturity"
+      "maturityTitle": "PYME Preventive Maturity"
     },
     "header": {
       "title": "Pricing & ROI Calculator",
@@ -2895,9 +2902,6 @@
       "fine": "Estimated fine (from)",
       "stoppage": "Stoppage cost",
       "disclaimer": "Reference estimate based on Chilean historicals + SUSESO/DT publications. Not legal advice."
-    },
-    "pyme": {
-      "maturityTitle": "PYME Preventive Maturity"
     }
   },
   "oc": {

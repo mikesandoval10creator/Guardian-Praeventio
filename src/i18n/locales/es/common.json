@@ -1873,7 +1873,10 @@
     "toast": {
       "near_miss": "Near-miss registrado. Continúa atento.",
       "incident": "Incidente reportado. Se notificó a la base.",
-      "arrived": "Llegada confirmada. Buen viaje."
+      "arrived": "Llegada confirmada. Buen viaje.",
+      "report_persisted": "Reporte guardado. Se notificó a la base.",
+      "report_failed": "No se pudo enviar el reporte. Revisa tu conexión.",
+      "arrived_local_only": "Aviso local — no se envió al servidor (sin endpoint de llegada)."
     },
     "speedometer": {
       "aria": "Velocidad actual {{kmh}} kilómetros por hora",
@@ -1890,6 +1893,10 @@
       "near_miss": "Near-miss",
       "incident": "Incidente",
       "arrived": "Llegué"
+    },
+    "report": {
+      "near_miss_default": "Near-miss durante conducción",
+      "incident_default": "Incidente durante conducción"
     }
   },
   "emergency_page": {
@@ -2895,9 +2902,6 @@
       "fine": "Multa estimada (desde)",
       "stoppage": "Costo de paralización",
       "disclaimer": "Estimación referencial basada en históricos chilenos + publicaciones SUSESO/DT. No reemplaza asesoría legal."
-    },
-    "pyme": {
-      "maturityTitle": "Madurez Preventiva PYME"
     }
   },
   "oc": {

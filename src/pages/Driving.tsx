@@ -58,6 +58,9 @@ import { useSpeedMonitor } from '../services/driving/speedTrigger';
 import { useBrakeTelemetry } from '../hooks/useDriving';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { apiAuthHeaders } from '../lib/apiAuth';
+import { logger } from '../utils/logger';
 import {
   eonetAdapter,
   bboxFromCenter,
@@ -82,12 +85,14 @@ export function Driving(): React.ReactElement {
   const { t } = useTranslation();
   const { mode } = useAppMode();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const speed = useSpeedMonitor(mode === 'driving');
   // Best-effort brake telemetry over the same GPS feed (offline tolerated).
   useBrakeTelemetry(selectedProject?.id ?? null, speed, mode === 'driving');
   const { toasts, show, dismiss } = useToast(2500);
 
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const [isReporting, setIsReporting] = useState(false);
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
@@ -165,14 +170,75 @@ export function Driving(): React.ReactElement {
   const phone = selectedProject?.phone?.trim();
   const baseEnabled = Boolean(phone && phone.length > 0);
 
+  // Sprint 50 E.8 P1 H4 — "Reportar near-miss" / "Reportar incidente" / "Llegué
+  // a destino" used to emit a toast only — the user believed they had
+  // reported something and nothing happened (Vida-XX: silent loss of safety
+  // reports). Now near-miss + incidente persist via the same endpoint the
+  // /safe-driving / IncidentReportForm flow uses; "Llegué a destino" still
+  // emits a local ack (no canonical arrival endpoint exists yet — see ticket
+  // 39baa66d-tracking-arrival-endpoint).
+  const reportPersisted = async (
+    severity: 'low' | 'medium',
+    description: string,
+  ): Promise<void> => {
+    if (!selectedProject?.id || !user?.uid || isReporting) return;
+    setIsReporting(true);
+    try {
+      const authHeaders = await apiAuthHeaders();
+      const payload = {
+        incidentId: `${selectedProject.id}-${Date.now()}`,
+        occurredAtIso: new Date().toISOString(),
+        description,
+        severity,
+        location: center
+          ? `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`
+          : undefined,
+      };
+      const res = await fetch(
+        `/api/sprint-k/${selectedProject.id}/incident-flow/report`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        logger.error('driving.report.failed', {
+          status: res.status,
+          detail: detail.slice(0, 200),
+        });
+        show(t('driving.toast.report_failed'), 'error');
+        return;
+      }
+      show(t('driving.toast.report_persisted', severity), 'success');
+    } catch (err) {
+      logger.error('driving.report.threw', err);
+      show(t('driving.toast.report_failed'), 'error');
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
   const handleNearMiss = (): void => {
-    show(t('driving.toast.near_miss'), 'warning');
+    void reportPersisted(
+      'low',
+      t('driving.report.near_miss_default', 'Near-miss durante conducción'),
+    );
   };
   const handleIncidente = (): void => {
-    show(t('driving.toast.incident'), 'error');
+    void reportPersisted(
+      'medium',
+      t('driving.report.incident_default', 'Incidente durante conducción'),
+    );
   };
+  // "Llegué a destino" still emits a local ack only — no canonical arrival
+  // endpoint exists. The label is honest: "Avisa al equipo" not "Registra".
   const handleArrived = (): void => {
-    show(t('driving.toast.arrived'), 'success');
+    show(t('driving.toast.arrived_local_only'), 'success');
   };
 
   return (
@@ -345,7 +411,9 @@ export function Driving(): React.ReactElement {
         <button
           type="button"
           onClick={handleNearMiss}
-          className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl active:scale-95 transition-transform"
+          disabled={isReporting}
+          data-testid="driving-report-near-miss"
+          className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: 'var(--bg-elevated, #18181b)',
             color: 'var(--accent-warning, #f59e0b)',
@@ -358,7 +426,9 @@ export function Driving(): React.ReactElement {
         <button
           type="button"
           onClick={handleIncidente}
-          className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl active:scale-95 transition-transform"
+          disabled={isReporting}
+          data-testid="driving-report-incident"
+          className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: 'var(--bg-elevated, #18181b)',
             color: 'var(--accent-danger, #ef4444)',
@@ -371,6 +441,7 @@ export function Driving(): React.ReactElement {
         <button
           type="button"
           onClick={handleArrived}
+          data-testid="driving-report-arrived"
           className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl active:scale-95 transition-transform"
           style={{
             background: 'var(--bg-elevated, #18181b)',
