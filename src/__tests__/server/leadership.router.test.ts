@@ -462,7 +462,11 @@ describe('GET /:projectId/leadership/ranking', () => {
       decidedAt: '2026-05-11T08:00:00.000Z',
     });
     const res = await request(buildApp())
-      .get(url)
+      // period=all to bypass the default 90-day cutoff. Without this,
+      // decisions older than 90 days are silently filtered out — this
+      // regression has hidden the test before (the ratchet in
+      // validateEnv.test.ts used to mask it on different shards).
+      .get(`${url}?period=all`)
       .set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
     const { ranking } = res.body as { ranking: Record<string, unknown>[] };
