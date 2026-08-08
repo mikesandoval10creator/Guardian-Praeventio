@@ -28,7 +28,9 @@ import {
 } from './types';
 
 const CLOUD_MONITORING_INSTALL = 'npm install @google-cloud/monitoring';
-const PROMETHEUS_INSTALL = 'npm install prom-client';
+// NOTE: PROMETHEUS_INSTALL removed in Sprint 50 E.9 — prometheusAdapter is now
+// real (zero-dep in-process registry). Round 2+ may swap the body for
+// prom-client for histograms with buckets; see OBSERVABILITY.md §4.
 
 /**
  * Format `(name, labels)` as a single `name{k=v,k=v}` string for log

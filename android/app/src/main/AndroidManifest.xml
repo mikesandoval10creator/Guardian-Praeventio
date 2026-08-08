@@ -118,4 +118,26 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Sprint 50 E.10 P1 H6 — Health Connect integration (Ticket
+         39baa66d-73fe-81d8-a477-cb1f50948819). The TS adapter is real
+         (src/services/health/healthConnectAdapter.ts uses
+         @kiwi-health/capacitor-health-connect@^0.0.40) but the Android
+         binary lacked the manifest declarations + permission contract.
+         READ_* permissions match the record types consumed by the
+         adapter (HeartRate, Steps, Calories, SleepSession). -->
+
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+
+    <!-- Health Connect (Android 14+) needs explicit <queries> so the
+         package visibility model lets us resolve the HealthConnect provider.
+         Without this, `isAvailable()` returns 'notInstalled' even on a
+         device that has the Health Connect app installed. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
 </manifest>
