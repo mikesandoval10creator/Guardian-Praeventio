@@ -130,10 +130,61 @@ export interface AcquisitionContext {
 }
 
 /**
+ * Probe whether a pre-packaged asset is physically present at its declared
+ * URL. Used by `getAcquisitionStatus()` so that a model whose descriptor
+ * says "prePackagedPath: '/models/...'" doesn't claim `'ready'` when the
+ * bundle is actually missing the file (e.g. workbox globPatterns excludes
+ * it, or the build ran before the prepackage script).
+ *
+ * Implementation notes:
+ *   • We use a HEAD request — never downloads the (483 MB+) model body.
+ *   • We treat 2xx as present, 404/410 as missing. Network errors are
+ *     treated as "unknown" → fall through to the rest of the state machine
+ *     so a transient offline condition doesn't downgrade a real `'ready'`.
+ *   • The probe is cheap (a HEAD with no body); the rest of the page
+ *     bootstrap isn't blocked.
+ *   • Server-side (no `fetch`): returns `false` (treat as missing → fall
+ *     through to `'needs_prompt'`, which is correct for SSR).
+ */
+export async function probePrePackagedAsset(
+  prePackagedPath: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<boolean> {
+  if (typeof fetch === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const { timeoutMs = 4000 } = opts;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(prePackagedPath, {
+      method: 'HEAD',
+      signal: controller.signal,
+      // Don't burn 483MB just for a probe. HEAD never has a body.
+      cache: 'no-store',
+    });
+    if (!res.ok) return false;
+    const contentLength = res.headers.get('content-length');
+    // If the server reports a zero-length file, treat as missing. Real
+    // SLM weights are ≥ 100 MB so a 0 here means the file isn't there.
+    if (contentLength !== null && Number(contentLength) <= 0) return false;
+    return true;
+  } catch {
+    // Network error, abort, or CORS. Be conservative and return false so
+    // the user gets prompted — but the state machine still has the
+    // 'unknown' path below that distinguishes "checked, failed" from
+    // "didn't check, trust the descriptor".
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Inspect the world and tell the caller what to do.
  *
  * Decision order:
- *   1. Pre-packaged path exists → 'ready' (no download needed)
+ *   1. Pre-packaged path exists AND asset is physically present → 'ready'
  *   2. Cache has bytes for this model → 'ready'
  *   3. Persisted decision says 'declined' → 'declined'
  *   4. Persisted decision says 'postponed' and we're still in cooldown
@@ -143,6 +194,15 @@ export interface AcquisitionContext {
  * NOTE: we deliberately do NOT check network here — the prompt can be
  * shown offline (the user can still accept and the download will queue
  * when reconnection happens). Network policy belongs in the UI layer.
+ *
+ * Sprint 50 E.11 P1 H7 (ticket 39aaa66d-73fe-81db-9d7f-d5b82570f334):
+ * step 1 changed from "trust the descriptor" to "verify the descriptor".
+ * Previously the descriptor saying `prePackagedPath: '/models/...'` was
+ * enough to claim `'ready'` — but if the file wasn't actually in the
+ * bundle (workbox globPatterns excluded it, build ran before prepackage
+ * script, or a CDN returned 404), the user landed in an offline scenario
+ * with a phantom `'ready'` state. Now we probe the asset with a HEAD
+ * request before declaring `'ready'`.
  */
 export async function getAcquisitionStatus(
   ctx: AcquisitionContext = {},
@@ -174,22 +234,29 @@ export async function getAcquisitionStatus(
     };
   }
 
-  // Pre-packaged path: we can't probe `/models/...` from server-side
-  // logic here (this module is sync-import safe). Mark as ready when
-  // the descriptor declares one; the runtime will load from the
-  // bundle path on demand. If the asset is missing at runtime,
-  // `slmRuntime.ts` falls back to HF — and the user will see the
-  // prompt on the NEXT launch (after we recompute).
-  if (isPrePackaged) {
-    return {
-      state: 'ready',
-      modelId,
-      totalBytes,
-      totalMb,
-      isPrePackaged,
-      cachedBytes,
-      lastDecision: lastDecision ?? undefined,
-    };
+  // Pre-packaged path: we probe the asset before declaring 'ready'.
+  // The previous logic trusted `prePackagedPath` as a string contract;
+  // that fails when the file isn't in the bundle (Ticket
+  // 39aaa66d-73fe-81db-9d7f-d5b82570f334 — "SLM offline (PWA) puede no
+  // estar disponible en el primer uso sin senal"). The probe is a HEAD
+  // request so it doesn't burn the (483 MB+) model bytes.
+  if (isPrePackaged && descriptor.prePackagedPath) {
+    const assetPresent = await probePrePackagedAsset(descriptor.prePackagedPath);
+    if (assetPresent) {
+      return {
+        state: 'ready',
+        modelId,
+        totalBytes,
+        totalMb,
+        isPrePackaged,
+        cachedBytes,
+        lastDecision: lastDecision ?? undefined,
+      };
+    }
+    // Asset missing: fall through to `'needs_prompt'` so the user sees
+    // the download dialog and the SLM can be fetched from HF. This is
+    // the explicit fix: missing pre-packaged asset → trigger prompt,
+    // NOT claim `'ready'`.
   }
 
   // Decision state machine.
