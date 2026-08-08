@@ -130,11 +130,12 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Run Stryker (healthvault — Oleada 3 group)
-        # thresholds.break=null evita que Stryker aborte cuando los
-        # archivos del grupo (sin baseline) tienen score < 50. El
-        # report.json se sube como artifact para que el developer vea
-        # el score real sin bloquear el job.
-        run: npm run test:mutation:healthvault -- --reporters=json --thresholds.break=null
+        # stryker.soft.config.json tiene thresholds.break:0 (vs core's
+        # break:50). Stryker 9.6.1 no soporta override de thresholds
+        # por CLI (--thresholds.break es rechazado), asi que los soft
+        # signals usan un config alternativo. El core sigue usando
+        # stryker.config.json (required check, contrato intacto).
+        run: npx stryker run stryker.soft.config.json --mutate=src/server/routes/healthVault.ts,src/server/routes/healthVaultProfessional.ts,src/routes/healthVaultRoutePolicy.ts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Upload Stryker JSON report (healthvault)
@@ -162,7 +163,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Run Stryker (webauthn — Oleada 3 group)
-        run: npm run test:mutation:webauthn -- --reporters=json --thresholds.break=null
+        run: npx stryker run stryker.soft.config.json --mutate=src/services/auth/webauthnChallenge.ts,src/services/auth/webauthnCredentialStore.ts,src/server/auth/webauthnAssertion.ts,src/server/services/complianceWebAuthnSigning.ts,src/server/auth/webauthnFirestoreDb.ts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Upload Stryker JSON report (webauthn)
@@ -190,7 +191,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Run Stryker (admin — Oleada 3 group)
-        run: npm run test:mutation:admin -- --reporters=json --thresholds.break=null
+        run: npx stryker run stryker.soft.config.json --mutate=src/server/routes/admin.ts,src/server/routes/adminJobs.ts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Upload Stryker JSON report (admin)

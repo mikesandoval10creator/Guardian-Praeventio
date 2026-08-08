@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Soft-signal Stryker config para grupos sin baseline (Oleada 2 PR-3 — #1414). El core Stryker (required check) usa stryker.config.json con break:50. Los soft signals (healthvault, webauthn, admin) usan ESTE config con break:0 para NO abortar cuando los archivos nuevos tienen score < 50. Stryker 9.6.1 no soporta override de thresholds por CLI (ver --help, no hay --thresholds.break), asi que la unica forma de cambiar thresholds es con un config file alternativo.",
+  "packageManager": "npm",
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.stryker.config.ts" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "dryRunTimeoutMinutes": 25,
+  "ignoreStatic": true,
+  "thresholds": { "high": 100, "low": 0, "break": 0 },
+  "mutator": {
+    "excludedMutations": ["ArrayDeclaration"]
+  }
+}
