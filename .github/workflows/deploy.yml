@@ -201,6 +201,12 @@ jobs:
             KHIPU_RECEIVER_ID=KHIPU_RECEIVER_ID:latest
             KHIPU_SECRET=KHIPU_SECRET:latest
             DWG_CONVERTER_TOKEN=DWG_CONVERTER_TOKEN:latest
+            # Sprint 50 E.14 P1 H10 — QR signature secret.
+            # Ticket 39aaa66d-73fe-8152-a481-f9896815828a.
+            # /api/qr-signature/challenge returns 500 if this is absent
+            # or < 16 chars. Mounted from Secret Manager to match
+            # validate-env.cjs and the smoke test contract.
+            QR_SIG_SECRET=QR_SIG_SECRET:latest
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
