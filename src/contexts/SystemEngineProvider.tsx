@@ -27,6 +27,9 @@ import {
 import {
   useSubscriptionContextAdapter,
 } from '../services/systemEngine/adapters/subscriptionContextAdapter';
+import {
+  useProjectContextAdapter,
+} from '../services/systemEngine/adapters/projectContextAdapter';
 import { bindExecutor, execute, unbindExecutor } from '../services/systemEngine/executor';
 import { decide } from '../services/systemEngine/decisionEngine';
 import { drainOutbox, onLocalEmit } from '../services/systemEngine/eventLog';
@@ -99,6 +102,11 @@ function SystemEngineInner({
   useEmergencyContextAdapter({ tenantId });
   useSubscriptionContextAdapter({ tenantId });
   useSensorContextAdapter({ tenantId });
+  // Sprint 50 E.15 P1 H11 — projectContextAdapter now emits a real
+  // `tier_changed` event on selectedProject.id transitions, so the
+  // existing tierChangeReactivityPolicy picks up project switches
+  // without any further wiring. Ticket 39aaa66d-73fe-81a6-84f8-fd311af55f45.
+  useProjectContextAdapter({ tenantId });
 
   // Bind the executor so policies can dispatch actions into the live
   // React contexts. Sprint 50 E.12 P1 H8 — wired the previously-missing
