@@ -175,7 +175,12 @@ describe('validate-env (Bucket U.1)', () => {
     expect(SECRET_MANAGER_SECRETS).toContain('SENTRY_DSN');
     expect(SECRET_MANAGER_SECRETS).toContain('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON');
     expect(SECRET_MANAGER_SECRETS).toContain('HEALTH_PROFESSIONAL_LOOKUP_KEYS');
-    expect(SECRET_MANAGER_SECRETS.length).toBe(23);
+    expect(SECRET_MANAGER_SECRETS).toContain('QR_SIG_SECRET'); // Sprint 50 E.14
+    // The expected count is the SOURCE OF TRUTH — every time a new
+    // secret gets wired into deploy.yml, validate-env.cjs and
+    // SECRET_MANAGER_SECRETS, bump this number AND add a `.toContain(...)`
+    // assertion above (or below). Today: 24.
+    expect(SECRET_MANAGER_SECRETS.length).toBe(24);
     // No duplicates.
     expect(new Set(SECRET_MANAGER_SECRETS).size).toBe(SECRET_MANAGER_SECRETS.length);
   });
