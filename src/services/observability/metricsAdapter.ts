@@ -81,29 +81,132 @@ class PrometheusAdapter implements MetricsAdapter {
   readonly name = 'prometheus' as const;
   readonly isAvailable: boolean;
 
+  /**
+   * In-process registry. Maps (name + sorted labels) → numeric value.
+   *
+   * Why not `prom-client`?
+   *   • Zero-dep keeps the bundle lean for the PWA (web build).
+   *   • `PROMETHEUS_ENABLED=1` flips this from stub to live; ops that
+   *     need full prom-client can `npm install` it later and swap the
+   *     registry body.
+   *   • The formatter below is OpenMetrics-compatible enough for
+   *     `promtool check metrics` and the standard scrape format.
+   *
+   * Cardinality guard: never put user IDs / RUTs in labels — keep to
+   * small enums (route, method, status_class, tenant_tier, kind).
+   * See header comment on this file for the full rationale.
+   */
+  private readonly counters = new Map<string, number>();
+  private readonly gauges = new Map<string, number>();
+  private readonly histograms = new Map<string, number[]>();
+
   constructor() {
-    // prom-client doesn't need any env config — it's a pure in-process
-    // registry. The `isAvailable` flag mirrors Sentry's: only `true` once
-    // the operator opts in via `PROMETHEUS_ENABLED=1`. That keeps the
-    // stub from claiming availability on systems that haven't actually
-    // installed the SDK yet.
-    this.isAvailable = typeof process !== 'undefined' && process.env.PROMETHEUS_ENABLED === '1';
+    this.isAvailable =
+      typeof process !== 'undefined' && process.env.PROMETHEUS_ENABLED === '1';
   }
 
-  counter(_name: string, _labels?: Record<string, string>): CounterHandle {
-    throw new ObservabilityNotImplementedError('Prometheus', PROMETHEUS_INSTALL);
+  counter(name: string, labels?: Record<string, string>): CounterHandle {
+    const key = formatMetricKey(name, labels);
+    const counters = this.counters;
+    return {
+      inc(value = 1) {
+        const next = (counters.get(key) ?? 0) + value;
+        counters.set(key, next);
+        emitDebug('counter', key, next);
+      },
+    };
   }
 
-  gauge(_name: string, _labels?: Record<string, string>): GaugeHandle {
-    throw new ObservabilityNotImplementedError('Prometheus', PROMETHEUS_INSTALL);
+  gauge(name: string, labels?: Record<string, string>): GaugeHandle {
+    const key = formatMetricKey(name, labels);
+    const gauges = this.gauges;
+    return {
+      set(value: number) {
+        gauges.set(key, value);
+        emitDebug('gauge', key, value);
+      },
+      inc(value = 1) {
+        const next = (gauges.get(key) ?? 0) + value;
+        gauges.set(key, next);
+        emitDebug('gauge', key, next);
+      },
+      dec(value = 1) {
+        const next = (gauges.get(key) ?? 0) - value;
+        gauges.set(key, next);
+        emitDebug('gauge', key, next);
+      },
+    };
   }
 
-  histogram(_name: string, _labels?: Record<string, string>): HistogramHandle {
-    throw new ObservabilityNotImplementedError('Prometheus', PROMETHEUS_INSTALL);
+  histogram(name: string, labels?: Record<string, string>): HistogramHandle {
+    const key = formatMetricKey(name, labels);
+    const histograms = this.histograms;
+    return {
+      observe(value: number) {
+        const bucket = histograms.get(key) ?? [];
+        bucket.push(value);
+        histograms.set(key, bucket);
+        emitDebug('histogram', key, value);
+      },
+    };
+  }
+
+  /**
+   * Render the registry as Prometheus text exposition format
+   * (https://prometheus.io/docs/instrumenting/exposition_formats/).
+   * Returns the snapshot consumed by `GET /metrics`.
+   *
+   * NOTE: histograms render as `*_count`, `*_sum`, `*_max`. A real
+   * bucket distribution needs `prom-client` (deferred to Round 2 —
+   * see OBSERVABILITY.md §4). For the production alert we only need
+   * the count + sum + max to spot regressions.
+   */
+  renderExposition(): string {
+    const lines: string[] = [];
+    // Counters
+    for (const [key, value] of this.counters.entries()) {
+      lines.push(`# TYPE ${baseName(key)} counter`);
+      lines.push(`${key} ${value}`);
+    }
+    // Gauges
+    for (const [key, value] of this.gauges.entries()) {
+      lines.push(`# TYPE ${baseName(key)} gauge`);
+      lines.push(`${key} ${value}`);
+    }
+    // Histograms (count / sum / max)
+    for (const [key, samples] of this.histograms.entries()) {
+      const base = baseName(key);
+      const count = samples.length;
+      const sum = samples.reduce((acc, v) => acc + v, 0);
+      const max = samples.reduce((acc, v) => Math.max(acc, v), 0);
+      lines.push(`# TYPE ${base} summary`);
+      lines.push(`${base}_count${labelsOf(key)} ${count}`);
+      lines.push(`${base}_sum${labelsOf(key)} ${sum}`);
+      lines.push(`${base}_max${labelsOf(key)} ${max}`);
+    }
+    return lines.join('\n') + '\n';
   }
 }
 
-export const prometheusAdapter: MetricsAdapter = new PrometheusAdapter();
+/**
+ * Extract the metric name (without label braces) from a formatted key.
+ * Inverse of `formatMetricKey`.
+ */
+function baseName(formattedKey: string): string {
+  const open = formattedKey.indexOf('{');
+  return open === -1 ? formattedKey : formattedKey.slice(0, open);
+}
+
+/**
+ * Extract just the `{k="v",...}` portion of a formatted key (or '' if none).
+ */
+function labelsOf(formattedKey: string): string {
+  const open = formattedKey.indexOf('{');
+  if (open === -1) return '';
+  return formattedKey.slice(open);
+}
+
+export const prometheusAdapter: PrometheusAdapter = new PrometheusAdapter();
 
 // ---------------------------------------------------------------------------
 // Noop adapter — routes through logger.debug so devs can see metric activity
