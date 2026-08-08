@@ -92,6 +92,14 @@ interface SubscriptionContextType {
   canAccessExecutiveDashboard: boolean;
   features: SubscriptionFeatures;
   upgradePlan: (newPlan: SubscriptionPlan) => Promise<void>;
+  /**
+   * Sprint 50 E.12 P1 H8 — re-fetch the plan + recompute features from
+   * the server. Used by `bindExecutor` so the SystemEngine's tier_change
+   * policy can force a refresh without a reload (ticket
+   * 39aaa66d-73fe-81b4-a298-ccd8e31beb15 — "pagas y ves plan viejo").
+   * Returns a Promise that resolves when the state has been updated.
+   */
+  refresh: () => Promise<void>;
   loading: boolean;
   totalWorkers: number;
   recommendedPlan: SubscriptionPlan;
@@ -128,42 +136,54 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // The current plan can no longer host the biggest faena legally/contractually.
   const requiresUpgrade = maxFaenaWorkers > planWorkerCap(plan);
 
-  useEffect(() => {
-    const fetchSubscription = async () => {
-      if (!user) {
+  /**
+   * Sprint 50 E.12 P1 H8 — public refresh primitive (re-fetches the
+   * user's plan from Firestore + recomputes `features`). Same body as
+   * the initial `useEffect` so the user who just paid sees the new
+   * plan without reloading the page.
+   *
+   * Ticket: 39aaa66d-73fe-81b4-a298-ccd8e31beb15 — the SystemEngine
+   * `tier_change_reactivity` policy emits
+   * `invalidate_context('subscription')` + `refresh_feature_flags`
+   * after a webhook. Both bindings were missing because no `refresh`
+   * existed on this context. Now they do.
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setPlan('free');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        setPlan(resolveEffectiveSubscriptionPlan(userData));
+      } else {
+        await setDoc(docRef, {
+          subscriptionPlan: 'free',
+          subscription: {
+            planId: 'free',
+            status: 'active',
+            updatedAt: new Date().toISOString()
+          }
+        }, { merge: true });
         setPlan('free');
-        setLoading(false);
-        return;
       }
-
-      try {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const userData = docSnap.data();
-          setPlan(resolveEffectiveSubscriptionPlan(userData));
-        } else {
-          await setDoc(docRef, {
-            subscriptionPlan: 'free',
-            subscription: {
-              planId: 'free',
-              status: 'active',
-              updatedAt: new Date().toISOString()
-            }
-          }, { merge: true });
-          setPlan('free');
-        }
-      } catch (error) {
-        logger.error('Error fetching subscription:', error);
-        setPlan('free');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSubscription();
+    } catch (error) {
+      logger.error('Error fetching subscription:', error);
+      setPlan('free');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   // Round 22 — audit fix CRITICAL #1 (DT-01): NO escribir directo via cliente.
   // El audit detectó que cualquier user autenticado podía auto-asignarse
@@ -225,6 +245,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       canAccessExecutiveDashboard,
       features,
       upgradePlan,
+      refresh,
       loading,
       totalWorkers,
       recommendedPlan,
@@ -237,6 +258,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       canAccessExecutiveDashboard,
       features,
       upgradePlan,
+      refresh,
       loading,
       totalWorkers,
       recommendedPlan,
