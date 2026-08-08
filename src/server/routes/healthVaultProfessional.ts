@@ -49,6 +49,8 @@ import {
 import { logger } from '../../utils/logger.js';
 import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
 import { bucketHealthAccessDuration } from '../../services/analytics/healthPrivacy.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 type VerifiedAssertion = { verified: boolean; credentialId?: string; reason?: string };
 type FilePayload = {
@@ -464,6 +466,26 @@ export function createHealthVaultProfessionalRouter(
         maxSessions: parsed.data.maxSessions,
       });
       await service.createGrant(created.record);
+      // Oleada 2 — audit log vida-safety. Ley 21.719 (Chile) requiere
+      // trazabilidad de cada acceso a datos medicos sensibles. POST /share
+      // crea un grant que da acceso a health records del caller a un
+      // profesional. Sin audit, no hay forma de detectar accesos no
+      // autorizados o compromiso de credenciales.
+      const shareAuditOk = await auditServerEvent(req, 'health_vault.share_created', 'health_vault', {
+        grantId: created.record.id,
+        ownerUid: callerUid,
+        recipientProfessionalUid: parsed.data.recipientProfessionalUid,
+        resourceCount: parsed.data.resourceIds.length,
+        scope: parsed.data.scope,
+        ttlHours,
+        purpose: parsed.data.purpose,
+      });
+      if (!shareAuditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'healthVaultProfessional.share.audit', {
+          audit_event: 'health_vault.share_created',
+          grantId: created.record.id,
+        });
+      }
       if (professional) {
         try {
           await analytics.track('health.share.recipient_confirmed', {
