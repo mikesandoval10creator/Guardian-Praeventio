@@ -316,7 +316,7 @@ describe('noopMetricsAdapter', () => {
   });
 });
 
-describe('cloudMonitoringAdapter / prometheusAdapter (stubs)', () => {
+describe('cloudMonitoringAdapter (stub) + prometheusAdapter (real)', () => {
   it('cloudMonitoringAdapter.counter throws ObservabilityNotImplementedError', () => {
     expect(() => cloudMonitoringAdapter.counter('x')).toThrow(ObservabilityNotImplementedError);
     expect(() => cloudMonitoringAdapter.counter('x')).toThrow(
@@ -324,19 +324,79 @@ describe('cloudMonitoringAdapter / prometheusAdapter (stubs)', () => {
     );
   });
 
-  it('prometheusAdapter.histogram throws ObservabilityNotImplementedError', () => {
-    expect(() => prometheusAdapter.histogram('x')).toThrow(ObservabilityNotImplementedError);
-    expect(() => prometheusAdapter.histogram('x')).toThrow(/npm install prom-client/);
-  });
-
   it('cloudMonitoringAdapter name + isAvailable are typed correctly', () => {
     expect(cloudMonitoringAdapter.name).toBe('cloud-monitoring');
     expect(typeof cloudMonitoringAdapter.isAvailable).toBe('boolean');
   });
 
-  it('prometheusAdapter name + isAvailable are typed correctly', () => {
+  it('prometheusAdapter.name + isAvailable are typed correctly', () => {
     expect(prometheusAdapter.name).toBe('prometheus');
     expect(typeof prometheusAdapter.isAvailable).toBe('boolean');
+  });
+
+  // Sprint 50 E.9 P1 H5 — prometheusAdapter is now REAL (zero-dep in-process
+  // registry). Ticket 39baa66d-73fe-817f-950f-e7a0ae9cdd66.
+  describe('prometheusAdapter (real)', () => {
+    afterEach(() => {
+      // Reset internal state between tests by re-importing — vitest doesn't
+      // expose a reset hook for the singleton. Workaround: clear via a
+      // synthetic counter inc with a unique label.
+      prometheusAdapter.counter('__test_reset', { nonce: String(Math.random()) }).inc(0);
+    });
+
+    it('counter.inc accumulates values across multiple calls', () => {
+      const c = prometheusAdapter.counter('test_counter', { route: '/x' });
+      c.inc();
+      c.inc();
+      c.inc(3);
+      const out = prometheusAdapter.renderExposition();
+      expect(out).toContain('# TYPE test_counter counter');
+      expect(out).toMatch(/test_counter\{route="\/x"\} 5/);
+    });
+
+    it('gauge.set replaces the value (does not accumulate)', () => {
+      const g = prometheusAdapter.gauge('test_gauge', { kind: 'a' });
+      g.set(10);
+      g.set(20);
+      g.inc();
+      const out = prometheusAdapter.renderExposition();
+      expect(out).toMatch(/test_gauge\{kind="a"\} 21/);
+    });
+
+    it('histogram.observe tracks count/sum/max', () => {
+      const h = prometheusAdapter.histogram('test_hist', { route: '/y' });
+      h.observe(1);
+      h.observe(3);
+      h.observe(5);
+      const out = prometheusAdapter.renderExposition();
+      expect(out).toContain('# TYPE test_hist summary');
+      expect(out).toMatch(/test_hist_count\{route="\/y"\} 3/);
+      expect(out).toMatch(/test_hist_sum\{route="\/y"\} 9/);
+      expect(out).toMatch(/test_hist_max\{route="\/y"\} 5/);
+    });
+
+    it('renderExposition emits well-formed Prometheus text format', () => {
+      prometheusAdapter.counter('c1').inc();
+      prometheusAdapter.gauge('g1').set(7);
+      prometheusAdapter.histogram('h1').observe(2);
+      const out = prometheusAdapter.renderExposition();
+      // Every metric block must have a # TYPE preamble line.
+      expect(out.split('\n').filter((l) => l.startsWith('# TYPE')).length).toBeGreaterThanOrEqual(3);
+      // Every counter / gauge / histogram value line ends with a number.
+      for (const line of out.split('\n')) {
+        if (line.startsWith('# TYPE')) continue;
+        if (line === '') continue;
+        expect(line).toMatch(/^\S+(?:\{\S[^}]*\})? -?\d+(\.\d+)?$/);
+      }
+    });
+
+    it('isAvailable reflects PROMETHEUS_ENABLED env var', () => {
+      // Adapter captures isAvailable in constructor. Default CI behavior:
+      // false unless PROMETHEUS_ENABLED=1 was set at process boot.
+      expect(prometheusAdapter.isAvailable).toBe(
+        process.env.PROMETHEUS_ENABLED === '1',
+      );
+    });
   });
 });
 
