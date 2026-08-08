@@ -70,6 +70,7 @@ import {
   geminiGlobalDailyLimiter,
   susesoVerifyLimiter,
   aiFeedbackLimiter,
+  webpayReturnLimiter,
   // Aliased: the file already has a local 2-arg `uidOrIpKey(uid, ip)` mirror
   // (used to compute expected keys for resetKey()). This is the real exported
   // production function (Request → string) that the mutation-coverage tests
@@ -310,6 +311,15 @@ const LIMITER_TABLE = [
     // the { error } discriminator used by the other limiters — override.
     expectedErrorMsg: 'verify_rate_limited',
     expectedBody: { valid: false, reason: 'verify_rate_limited' } as Record<string, unknown>,
+    statusOn429: 429,
+  },
+  {
+    name: 'webpayReturnLimiter',
+    limiter: webpayReturnLimiter,
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    keyKind: 'ip' as const,
+    expectedErrorMsg: 'Demasiados retornos de pago. Intenta de nuevo en 15 minutos.',
     statusOn429: 429,
   },
 ] as const;
@@ -698,6 +708,9 @@ describe('limiters constants — 18th wave Bucket A: numeric literal pins', () =
     ).toBe(30);
     expect(LIMITER_TABLE.find((c) => c.name === 'erpSyncLimiter')!.max).toBe(
       30,
+    );
+    expect(LIMITER_TABLE.find((c) => c.name === 'webpayReturnLimiter')!.max).toBe(
+      300,
     );
   });
 });
