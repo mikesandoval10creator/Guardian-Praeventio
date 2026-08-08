@@ -781,6 +781,24 @@ export function createHealthVaultProfessionalRouter(
         action: 'health_vault.grant.revoked',
         actorUid: callerUid,
       });
+      // Oleada 2 PR-5 — audit log del revoke. Cierra el lifecycle del grant
+      // (share_created en #1417 + share_revoked aca). Sin este evento,
+      // no se puede reconstruir cuanto tiempo estuvo activo un grant,
+      // ni detectar revokes sospechosos (e.g. cuenta comprometida
+      // que revoca grants legitimos del owner).
+      const revokeAuditOk = await auditServerEvent(req, 'health_vault.share_revoked', 'health_vault', {
+        grantId: revoked.id,
+        ownerUid: revoked.ownerUid,
+        revokedBy: callerUid,
+        revokedAt: revoked.revokedAt,
+        recipientProfessionalUid: revoked.recipientProfessionalUid,
+      });
+      if (!revokeAuditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'healthVaultProfessional.revoke.audit', {
+          audit_event: 'health_vault.share_revoked',
+          grantId: revoked.id,
+        });
+      }
       return res.json({ ok: true, revokedAt: revoked.revokedAt });
     } catch (error) {
       if (error instanceof VaultShareError) return grantError(res, error);
