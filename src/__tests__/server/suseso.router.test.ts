@@ -678,17 +678,17 @@ describe('GET /api/suseso/form/:id/sign-challenge', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/suseso/form/:id/submit
 // ═══════════════════════════════════════════════════════════════════════════
-describe('POST /api/suseso/form/:id/submit', () => {
+describe('POST /api/suseso/form/:id/mark-local-submitted', () => {
   it('401 without a token', async () => {
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .send({ tenantId: TENANT });
     expect(res.status).toBe(401);
   });
 
   it('400 invalid_payload when tenantId missing', async () => {
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .send({});
     expect(res.status).toBe(400);
@@ -704,7 +704,7 @@ describe('POST /api/suseso/form/:id/submit', () => {
     mockSubmitToMutualidad.mockResolvedValueOnce(submittedForm);
 
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .send({ tenantId: TENANT });
 
@@ -725,7 +725,7 @@ describe('POST /api/suseso/form/:id/submit', () => {
     mockSubmitToMutualidad.mockResolvedValueOnce(submittedForm);
 
     await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .send({ tenantId: TENANT });
 
@@ -737,24 +737,24 @@ describe('POST /api/suseso/form/:id/submit', () => {
     expect(callFormId).toBe(FORM_ID);
   });
 
-  it('400 suseso_submit_failed when form not found', async () => {
+  it('400 suseso_mark_local_failed when form not found', async () => {
     mockSubmitToMutualidad.mockRejectedValueOnce(
       new Error(`Form not found: ${TENANT}/${FORM_ID}`),
     );
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .send({ tenantId: TENANT });
     expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe('suseso_submit_failed');
+    expect((res.body as Record<string, unknown>).error).toBe('suseso_mark_local_failed');
   });
 
-  it('400 suseso_submit_failed when form unsigned (cannot submit unsigned)', async () => {
+  it('400 suseso_mark_local_failed when form unsigned (cannot submit unsigned)', async () => {
     mockSubmitToMutualidad.mockRejectedValueOnce(
       new Error('Cannot submit unsigned form to mutualidad.'),
     );
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .send({ tenantId: TENANT });
     expect(res.status).toBe(400);
@@ -810,7 +810,7 @@ describe('regulatory role gate — create / sign / submit', () => {
 
   it('403 forbidden_role submitting a form as "worker"', async () => {
     const res = await request(buildApp())
-      .post(`/api/suseso/form/${FORM_ID}/submit`)
+      .post(`/api/suseso/form/${FORM_ID}/mark-local-submitted`)
       .set('x-test-uid', 'u1')
       .set('x-test-role', 'worker')
       .send({ tenantId: TENANT });

@@ -256,7 +256,7 @@ clave ver `docs/api-routes.md`.
 - `POST /api/public/suseso/form`
 - `POST /api/public/suseso/form/:id/sign`
 - `GET /api/public/suseso/form/:id/sign-challenge`
-- `POST /api/public/suseso/form/:id/submit`
+- `POST /api/public/suseso/form/:id/mark-local-submitted`
 - `POST /api/public/suseso/forms/:formId/mark-submitted`
 - `GET /api/public/suseso/verify/:folio`
 
@@ -1126,7 +1126,7 @@ clave ver `docs/api-routes.md`.
 - `POST /api/suseso/form`
 - `POST /api/suseso/form/:id/sign`
 - `GET /api/suseso/form/:id/sign-challenge`
-- `POST /api/suseso/form/:id/submit`
+- `POST /api/suseso/form/:id/mark-local-submitted`
 - `POST /api/suseso/forms/:formId/mark-submitted`
 - `GET /api/suseso/verify/:folio`
 

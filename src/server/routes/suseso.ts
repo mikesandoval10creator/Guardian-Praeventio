@@ -382,23 +382,41 @@ router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
 });
 
 router.post(
-  '/form/:id/submit',
+  '/form/:id/mark-local-submitted',
   verifyAuth,
   validate(submitSchema),
   async (req, res) => {
     const { tenantId: bodyTenantId } = req.validated as z.infer<typeof submitSchema>;
     const tenantId = callerTenantOr403(req, res, bodyTenantId);
     if (tenantId === null) return;
-    // [P0][compliance] Submitting sends the filing to the mutualidad.
+    // [P0][compliance] Renamed from /form/:id/submit → /form/:id/mark-local-submitted
+    // (Sprint 50 E.7 P1 H3 — ticket 39aaa66d-73fe-81e6-851e-d35711278ec3).
+    // The previous name suggested an actual mutualidad submission; in fact
+    // this endpoint only records the timestamp on the local form (no HTTP
+    // call to ACHS/Mutual/IST). The honest name makes the contract clear:
+    // "mark locally that we sent it" is auditable, "submit" was misleading.
+    // For the formal mutualidad-upload flow use /forms/:formId/mark-submitted
+    // (admin SDK; flips the badge to "Enviado por la empresa" and stops the
+    // reminder cron).
     if (!callerHasRegulatoryRole(req, res)) return;
     try {
       const updated = await submitToMutualidad(tenantId, req.params.id, {
         formStore: buildFormStore(),
       });
-      return res.json({ form: updated });
+      return res.json({
+        form: updated,
+        // The contract: this endpoint NEVER contacted the mutualidad. The
+        // timestamp only proves the operator marked the form as ready for
+        // manual upload via the mutualidad portal.
+        delivery: {
+          contacted_mutualidad: false,
+          delivery_method: 'local_mark_only',
+          follow_up_action: 'operator_uploads_via_mutualidad_portal',
+        },
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
-      return res.status(400).json({ error: 'suseso_submit_failed', detail: msg });
+      return res.status(400).json({ error: 'suseso_mark_local_failed', detail: msg });
     }
   },
 );
