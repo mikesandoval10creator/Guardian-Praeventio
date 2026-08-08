@@ -1873,7 +1873,10 @@
     "toast": {
       "near_miss": "Quase-acidente registrado. Continue atento.",
       "incident": "Incidente reportado. A base foi notificada.",
-      "arrived": "Chegada confirmada. Boa viagem."
+      "arrived": "Chegada confirmada. Boa viagem.",
+      "report_persisted": "Relatório salvo. A base foi notificada.",
+      "report_failed": "Não foi possível enviar o relatório. Verifique sua conexão.",
+      "arrived_local_only": "Aviso local — não enviado ao servidor (sem endpoint de chegada)."
     },
     "speedometer": {
       "aria": "Velocidade atual {{kmh}} quilômetros por hora",
@@ -1890,6 +1893,10 @@
       "near_miss": "Quase-acidente",
       "incident": "Incidente",
       "arrived": "Cheguei"
+    },
+    "report": {
+      "near_miss_default": "Quase-acidente durante a condução",
+      "incident_default": "Incidente durante a condução"
     }
   },
   "emergency_page": {
@@ -3463,7 +3470,7 @@
   },
   "pricingCalc": {
     "pyme": {
-      "maturityTitle": "Maturidade Preventiva PME"
+      "maturityTitle": "Maturidade Preventiva PYME"
     },
     "header": {
       "title": "Calculadora de Preços e ROI",
@@ -3548,9 +3555,6 @@
       "fine": "Multa estimada (a partir de)",
       "stoppage": "Custo de paralisação",
       "disclaimer": "Estimativa referencial baseada em históricos chilenos + publicações SUSESO/DT. Não substitui assessoria jurídica."
-    },
-    "pyme": {
-      "maturityTitle": "Maturidade Preventiva PYME"
     }
   },
   "brigade": {
