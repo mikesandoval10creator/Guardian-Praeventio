@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   __resetCacheForTests,
@@ -13,6 +13,7 @@ import {
   detectNetworkAdvisory,
   formatBytesHuman,
   getAcquisitionStatus,
+  probePrePackagedAsset,
   recordAccepted,
   recordDeclined,
   recordPostponed,
@@ -24,6 +25,30 @@ import { MODEL_REGISTRY } from './registry';
 const QWEN_ID = 'qwen-2.5-0.5b'; // pre-packaged
 const PHI_ID = 'phi-3-mini';
 const GEMMA_ID = 'gemma-2-2b'; // gated, no pre-pack
+
+// Helper: stub fetch with a deterministic response builder so we can
+// verify the new pre-pack probe (HEAD) works without burning real
+// network. Sprint 50 E.11 P1 H7 added `probePrePackagedAsset` to
+// verify the file is physically present.
+function stubFetch(responses: Record<string, { ok: boolean; contentLength?: number | null }>): ReturnType<typeof vi.spyOn> {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(
+    async (input: unknown): Promise<Response> => {
+      const candidate =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request)?.url ?? '';
+      const key = Object.keys(responses).find((k) => candidate.endsWith(k)) ?? candidate;
+      const spec = responses[key] ?? { ok: false };
+      const headers = new Headers();
+      if (spec.contentLength !== null && spec.contentLength !== undefined) {
+        headers.set('content-length', String(spec.contentLength));
+      }
+      return new Response(null, { status: spec.ok ? 200 : 404, headers });
+    },
+  );
+}
 
 // Helper: clear localStorage. fake-indexeddb leaves global storage intact.
 function clearStorage() {
@@ -50,10 +75,57 @@ describe('slmAcquisitionService', () => {
   });
 
   describe('getAcquisitionStatus', () => {
-    it('Qwen (pre-packaged en registry): ready sin descarga', async () => {
+    it('Qwen (pre-packaged en registry + asset presente): ready', async () => {
+      // Sprint 50 E.11 P1 H7 — now requires the file to be physically
+      // present (HEAD probe). Stub fetch to return 200 with a real
+      // content-length so the probe resolves to true.
+      stubFetch({ 'model_q4f16.onnx': { ok: true, contentLength: 483003582 } });
       const s = await getAcquisitionStatus({ modelId: QWEN_ID });
       expect(s.state).toBe('ready');
       expect(s.isPrePackaged).toBe(true);
+    });
+
+    it('Qwen con prePackagedPath declarado pero asset 404: needs_prompt', async () => {
+      // Ticket 39aaa66d-73fe-81db-9d7f-d5b82570f334 — the original bug:
+      // trust the descriptor string and claim 'ready' even though the
+      // file is missing in the bundle. Now the HEAD probe forces the
+      // user to see the download prompt.
+      stubFetch({ 'model_q4f16.onnx': { ok: false } });
+      const s = await getAcquisitionStatus({ modelId: QWEN_ID });
+      expect(s.state).toBe('needs_prompt');
+      expect(s.isPrePackaged).toBe(true); // still flagged for context
+    });
+
+    it('Qwen con prePackagedPath declarado pero content-length 0: needs_prompt', async () => {
+      // A zero-length file at the pre-pack URL is treated as missing
+      // (real SLM weights are >100MB).
+      stubFetch({ 'model_q4f16.onnx': { ok: true, contentLength: 0 } });
+      const s = await getAcquisitionStatus({ modelId: QWEN_ID });
+      expect(s.state).toBe('needs_prompt');
+    });
+
+    it('probePrePackagedAsset returns true on 200 OK with content-length', async () => {
+      stubFetch({ '/models/test.onnx': { ok: true, contentLength: 100 } });
+      const present = await probePrePackagedAsset('/models/test.onnx');
+      expect(present).toBe(true);
+    });
+
+    it('probePrePackagedAsset returns false on 404', async () => {
+      stubFetch({ '/models/missing.onnx': { ok: false } });
+      const present = await probePrePackagedAsset('/models/missing.onnx');
+      expect(present).toBe(false);
+    });
+
+    it('probePrePackagedAsset returns false on content-length=0', async () => {
+      stubFetch({ '/models/empty.onnx': { ok: true, contentLength: 0 } });
+      const present = await probePrePackagedAsset('/models/empty.onnx');
+      expect(present).toBe(false);
+    });
+
+    it('probePrePackagedAsset returns false on fetch throw (network error)', async () => {
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
+      const present = await probePrePackagedAsset('/models/whatever.onnx');
+      expect(present).toBe(false);
     });
 
     it('Phi-3 (no pre-packaged) + cache vacío + sin decisión previa: needs_prompt', async () => {
