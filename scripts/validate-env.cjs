@@ -53,6 +53,11 @@ const REQUIRED_PROD = [
 
   // === Telemetry & Errors ===
   { name: 'IOT_WEBHOOK_SECRET', purpose: 'HMAC telemetry HMAC', mode: 'prod', minLength: 32 },
+  // === QR Signing (Sprint 50 E.14 — ticket 39aaa66d-73fe-8152-a481-f9896815828a)
+  // /api/qr-signature/challenge returns 500 if QR_SIG_SECRET is absent or
+  // < 16 chars (qrSignature.ts:170). 32-char minimum matches the HMAC-SHA256
+  // key-strength convention used by IOT_WEBHOOK_SECRET and SESSION_SECRET. ===
+  { name: 'QR_SIG_SECRET', purpose: 'HMAC QR signing challenge', mode: 'prod', minLength: 32 },
   // MQTT → telemetry_events bridge (claude/mqtt-wire 2026-06). Opcional por
   // diseño: ausente ⇒ bridge limpiamente OFF (sin conexiones, un log al boot).
   // Si está presente debe ser real (placeholder regex aplica); el resolver de
@@ -271,6 +276,9 @@ const SECRET_MANAGER_SECRETS = [
   'PHOTOGRAMMETRY_WORKER_TOKEN',
   'DWG_CONVERTER_TOKEN',
   'MODAL_TOKEN',
+  // Sprint 50 E.14 — QR signing secret (ticket 39aaa66d-73fe-8152-a481-f9896815828a).
+  // Mirrors the deploy.yml mapping and the validate-env REQUIRED_PROD entry.
+  'QR_SIG_SECRET',
 ];
 
 /**
