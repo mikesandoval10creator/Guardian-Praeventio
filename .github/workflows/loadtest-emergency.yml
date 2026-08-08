@@ -1,0 +1,83 @@
+# k6 load test para POST /api/emergency/sos — vida-safety directo.
+#
+# /api/emergency/sos es el endpoint más sensible de Guardian: si no
+# responde <5s bajo carga, el sistema falla su promesa principal
+# ("trabajador recibe ayuda"). Distinto de webauthn porque es POST
+# con payload crítico (geo + idempotency-key) y disparar fan-out a
+# supervisores via push/email.
+#
+# Uso:
+#   gh workflow run loadtest-emergency.yml
+#
+# Output:
+#   - k6 summary HTML + JSON subidos como artifacts
+#   - threshold failures abortan el run con exit code != 0
+
+name: k6 Load Test (Emergency SOS vida-safety)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: k6-emergency-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A36442D574F49C486EB085579
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --legacy-peer-deps
+
+      - name: Build web bundle (skip SLM prepackage)
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          SLM_PREPACKAGE_SKIP: '1'
+
+      - name: Run k6 load test (emergency-sos)
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          E2E_TEST_SECRET: e2e-test-secret-do-not-use-in-prod
+          E2E_MODE: '1'
+          # PROJECT_ID debe estar seed-eado en el emulator antes de
+          # este run. Para reproducir localmente:
+          #   node scripts/seed-and-assert.cjs
+          PROJECT_ID: loadtest-project-001
+        run: bash loadtest/k6/run-emergency.sh
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k6-results-emergency
+          path: |
+            k6-summary.json
+            k6-summary.html
+          if-no-files-found: warn
