@@ -5,6 +5,31 @@ name: Mutation Testing (Stryker)
 # script. Honest gating: if mutation coverage falls below thresholds,
 # the PR is red. Mantiene CODEX P1-6 "CI warning-only" cerrado.
 #
+# Oleada 2 PR-3 — matrix expansion. El job `core` (15 módulos originales)
+# se mantiene como **required check** y sigue corriendo los scripts
+# `test:mutation:auth|slm|ergonomics|protocols|safety` ya en CI (visible
+# via "all" en report).
+#
+# Se agregan 3 jobs paralelos **soft signal** (NO required) que corren
+# los 4 grupos vida-safety identificados por el research de Oleada 3:
+# healthvault, webauthn, admin. auth-core se omite del matrix por ser
+# chico (~48 mutantes) y porque la mayoría de sus archivos viven
+# en `test:mutation:auth` ya — se mide via dry-run local en su lugar.
+#
+# Por que soft signal:
+# 1. Los archivos nuevos NO tienen baseline en scripts/check-mutation-thresholds.cjs.
+#    Aplicar ratchet a archivos sin baseline los falla inmediatamente
+#    (score "n/a" se cuenta como fail en el script actual).
+# 2. El script de thresholds lee reports/mutation/report.json UNICO.
+#    Con jobs paralelos, cada uno escribe su propio report.json — el
+#    script no sabe a cual aplicar el ratchet.
+# 3. Refactor del script para multi-report es deuda de 2-3h (Oleada 2
+#    follow-up). Mientras tanto, los jobs paralelos dan VISIBILIDAD sin
+#    bloquear merges.
+#
+# Cuando los grupos soft signal alcancen baseline (5-PR history), se
+# promueven a required y se refactoriza check-mutation-thresholds.cjs.
+#
 # Runner: ubuntu-latest. Windows local sigue con
 # STATUS_STACK_BUFFER_OVERRUN en `limiters.ts` (deuda separada).
 
@@ -19,29 +44,25 @@ on:
     - cron: '17 3 * * *'
 
 permissions:
-      contents: read
-      pull-requests: read
+  contents: read
+  pull-requests: read
 
 # Cancel in-progress mutation runs when a new commit is pushed to the same PR.
+# Cada job tiene su propio concurrency group para que rebase no cancele
+# el matrix entero — solo el job del branch actual.
 concurrency:
   group: mutation-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  mutation:
+  # ───────────────────────────────────────────────────────────────────
+  # REQUIRED: grupo core — 15 módulos originales. Mantiene el contrato
+  # de Sprint 39 Fase B.1 (required check, sin continue-on-error).
+  # ───────────────────────────────────────────────────────────────────
+  core:
     name: Stryker mutation testing (Linux)
     runs-on: ubuntu-latest
-    # Sprint 34 baseline: ~3-5 min historically on Windows local; CI cold
-    # cache + ubuntu-latest single-host adds margin. 60 min is the hard
-    # ceiling — anything slower indicates pathological mutant set or
-    # regression in test runtime.
     timeout-minutes: 60
-    # Sprint 39 Fase B.1: continue-on-error removido — el job ahora
-    # bloquea merge si la mutación cae bajo thresholds. Esto cierra
-    # CODEX P1-6 (CI warning-only). Si el threshold se vuelve flaky
-    # por una razón legítima (mutant equivalente, oracle drift), ajustar
-    # el script en scripts/check-mutation-thresholds.cjs, no re-activar
-    # continue-on-error.
     steps:
       - uses: actions/checkout@v7
 
@@ -55,7 +76,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
-      - name: Run Stryker mutation testing
+      - name: Run Stryker mutation testing (core, 15 módulos)
         run: npm run mutation
         env:
           NODE_OPTIONS: --max-old-space-size=4096
@@ -68,20 +89,116 @@ jobs:
         # ahora falla el job si los thresholds no se cumplen.
         run: node scripts/check-mutation-thresholds.cjs
 
-      - name: Upload Stryker HTML report
+      - name: Upload Stryker HTML report (core)
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: stryker-mutation-report
+          name: stryker-mutation-report-core
           path: |
             reports/mutation/
           retention-days: 14
 
-      - name: Upload Stryker JSON report
+      - name: Upload Stryker JSON report (core)
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: stryker-mutation-json
+          name: stryker-mutation-json-core
           path: reports/mutation/report.json
           retention-days: 30
+          if-no-files-found: warn
+
+  # ───────────────────────────────────────────────────────────────────
+  # SOFT SIGNAL: grupos vida-safety nuevos (Oleada 3 research).
+  # Corren en paralelo al `core`, NO bloquean merge. Cuando alcancen
+  # baseline estable (5-PR history), se promueven a required.
+  # ───────────────────────────────────────────────────────────────────
+  healthvault:
+    name: Stryker mutation testing (healthvault — soft signal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Soft signal: NO bloquea merge, pero falla la corrida para que el
+    # developer vea el score y pueda investigar.
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Run Stryker (healthvault — Oleada 3 group)
+        # stryker.soft.config.json tiene thresholds.break:0 (vs core's
+        # break:50). Stryker 9.6.1 no soporta override de thresholds
+        # por CLI (--thresholds.break es rechazado), asi que los soft
+        # signals usan un config alternativo. El core sigue usando
+        # stryker.config.json (required check, contrato intacto).
+        run: npx stryker run stryker.soft.config.json --mutate=src/server/routes/healthVault.ts,src/server/routes/healthVaultProfessional.ts,src/routes/healthVaultRoutePolicy.ts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Upload Stryker JSON report (healthvault)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stryker-mutation-json-healthvault
+          path: reports/mutation/report.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  webauthn:
+    name: Stryker mutation testing (webauthn — soft signal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Run Stryker (webauthn — Oleada 3 group)
+        run: npx stryker run stryker.soft.config.json --mutate=src/services/auth/webauthnChallenge.ts,src/services/auth/webauthnCredentialStore.ts,src/server/auth/webauthnAssertion.ts,src/server/services/complianceWebAuthnSigning.ts,src/server/auth/webauthnFirestoreDb.ts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Upload Stryker JSON report (webauthn)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stryker-mutation-json-webauthn
+          path: reports/mutation/report.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  admin:
+    name: Stryker mutation testing (admin — soft signal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Run Stryker (admin — Oleada 3 group)
+        run: npx stryker run stryker.soft.config.json --mutate=src/server/routes/admin.ts,src/server/routes/adminJobs.ts
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Upload Stryker JSON report (admin)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stryker-mutation-json-admin
+          path: reports/mutation/report.json
+          retention-days: 14
           if-no-files-found: warn
