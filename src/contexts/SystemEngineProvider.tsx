@@ -101,19 +101,26 @@ function SystemEngineInner({
   useSensorContextAdapter({ tenantId });
 
   // Bind the executor so policies can dispatch actions into the live
-  // React contexts. SubscriptionContext does not expose a `refresh`
-  // primitive today (the plan is fetched on uid change). The
-  // invalidateSubscription/refreshFeatureFlags bindings are intentionally
-  // omitted here — the executor will log a missing-binding warning, which
-  // is the desired soft-failure behaviour. A follow-up that adds a
-  // `refresh()` method to SubscriptionContext will wire them.
+  // React contexts. Sprint 50 E.12 P1 H8 — wired the previously-missing
+  // bindings (ticket 39aaa66d-73fe-81b4-a298-ccd8e31beb15):
+  //   - `invalidateSubscription` calls `sub.refresh()` so a tier change
+  //     reaches the running session without a reload.
+  //   - `refreshFeatureFlags` is an alias for the same refresh — feature
+  //     flags are derived from `plan` inside SubscriptionContext, so a
+  //     plan refresh IS a feature-flag refresh. Single source of truth.
+  // Both bindings are stable (useCallback) so the executor's bind/unbind
+  // doesn't churn on every render. The dependency list intentionally
+  // includes `sub.refresh` (not the whole `sub` object) so a plan
+  // change doesn't re-bind the executor.
   useEffect(() => {
     bindExecutor({
       triggerEmergency,
       addNotification: addNotification as never,
+      invalidateSubscription: sub.refresh,
+      refreshFeatureFlags: sub.refresh,
     });
     return () => unbindExecutor();
-  }, [triggerEmergency, addNotification, sub]);
+  }, [triggerEmergency, addNotification, sub.refresh]);
 
   // Subscribe to every event type and run the decision engine.
   // Closure-stable: cb captures latest tenantId/projectId from refs.
