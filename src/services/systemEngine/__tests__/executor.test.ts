@@ -85,4 +85,29 @@ describe('executor', () => {
     expect(triggerEmergency).toHaveBeenCalled();
     expect(addNotification).toHaveBeenCalled();
   });
+
+  // Sprint 50 E.12 P1 H8 — tier_change_reactivity bindings.
+  // Ticket 39aaa66d-73fe-81b4-a298-ccd8e31beb15: these were previously
+  // missing from SystemEngineProvider.bindExecutor(). Now we test them.
+  it('routes invalidate_context(subscription) to invalidateSubscription binding', async () => {
+    const invalidateSubscription = vi.fn().mockResolvedValue(undefined);
+    bindExecutor({ invalidateSubscription });
+
+    await execute([
+      { kind: 'invalidate_context', contextName: 'subscription' } as Action,
+    ]);
+
+    expect(invalidateSubscription).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes refresh_feature_flags to refreshFeatureFlags binding with userId', async () => {
+    const refreshFeatureFlags = vi.fn().mockResolvedValue(undefined);
+    bindExecutor({ refreshFeatureFlags });
+
+    await execute([
+      { kind: 'refresh_feature_flags', userId: 'user-42' } as Action,
+    ]);
+
+    expect(refreshFeatureFlags).toHaveBeenCalledWith('user-42');
+  });
 });
