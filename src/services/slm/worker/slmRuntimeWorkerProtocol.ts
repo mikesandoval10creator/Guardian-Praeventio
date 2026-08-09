@@ -191,15 +191,19 @@ export interface ErrorEvent {
 
 /**
  * Genera un `requestId` monotonic que también incluye un sufijo
- * random para evitar colisiones entre instancias paralelas del proxy.
- * No es cryptographically secure — solo necesita unicidad dentro del
- * lifetime del worker.
+ * aleatorio criptográficamente fuerte para evitar colisiones predecibles
+ * entre instancias paralelas del proxy.
  */
 let counter = 0;
 export function newRequestId(prefix = 'req'): string {
   counter = (counter + 1) | 0;
   const ts = Date.now().toString(36);
-  const rnd = Math.floor(Math.random() * 0xffff).toString(36);
+  let rnd = 'fallback';
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const entropy = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(entropy);
+    rnd = entropy[0].toString(36);
+  }
   return `${prefix}-${ts}-${counter.toString(36)}-${rnd}`;
 }
 

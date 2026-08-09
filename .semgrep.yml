@@ -15,7 +15,6 @@
 #                  INFO (report only).
 
 rules:
-
   # ─────────────────────────────────────────────────────────────────────
   # 1. Math.random() in security-sensitive contexts
   # ─────────────────────────────────────────────────────────────────────
@@ -38,7 +37,6 @@ rules:
         - "*.test.ts"
         - "*.test.tsx"
         - "*__tests__*"
-        - "*spec*"
     patterns:
       - pattern-either:
           - pattern: |
@@ -63,7 +61,7 @@ rules:
           metavariable: $FUNC
           # Match security/crypto keywords but NOT randomInRange (confetti)
           # or randomXxx generic helpers that are clearly non-security.
-          regex: '(?i)(kek|nonce|token|session|secret|entropy|secure|deriveId|gen.*[Tt]oken|gen.*[Ss]ecret|gen.*[Kk]ey|gen.*[Nn]once|generateLock|generateId|createToken|createSecret|createNonce|deriveKey)'
+          regex: "(?i)(kek|nonce|token|session|secret|entropy|secure|deriveId|gen.*[Tt]oken|gen.*[Ss]ecret|gen.*[Kk]ey|gen.*[Nn]once|generateLock|generateId|createToken|createSecret|createNonce|deriveKey)"
 
   # ─────────────────────────────────────────────────────────────────────
   # 2. eval() / new Function() outside the documented Vite loader pattern
@@ -87,7 +85,6 @@ rules:
         - "*.test.ts"
         - "*.test.tsx"
         - "*__tests__*"
-        - "*spec*"
     patterns:
       - pattern-either:
           - pattern: eval(...)
@@ -121,7 +118,7 @@ rules:
           - pattern: $FN(`...${$X}...${$Y}...`)
       - metavariable-regex:
           metavariable: $FN
-          regex: '^(exec|execSync|spawnSync|spawn)$'
+          regex: "^(exec|execSync|spawnSync|spawn)$"
       - metavariable-regex:
           metavariable: $X
           regex: '^(req|req\.body|req\.query|req\.params|body|query|params|input|user|userInput|userInput)$'
@@ -141,18 +138,17 @@ rules:
       or crypto.randomUUID instead.
     severity: ERROR
     languages: [ts, javascript]
+    paths:
+      exclude:
+        - "*.test.ts"
+        - "*.test.tsx"
+        - "*__tests__*"
     patterns:
       - pattern-either:
-          - pattern: |
-              Math.random()...toString(...)
-          - pattern: |
-              Math.floor(Math.random() * ...)...
-          - pattern: |
-              Math.floor(Math.random() * ...).toString(...)
-      - pattern: |
-          ... .toString(16) ...
-      - pattern: |
-          ... .toString(36) ...
+          - pattern: Math.random().toString(16)
+          - pattern: Math.random().toString(36)
+          - pattern: Math.floor(Math.random() * $MAX).toString(16)
+          - pattern: Math.floor(Math.random() * $MAX).toString(36)
 
   # ─────────────────────────────────────────────────────────────────────
   # 5. Clear-text secrets in logs
@@ -182,4 +178,4 @@ rules:
           - pattern: logger.critical(..., $X, ...)
       - metavariable-regex:
           metavariable: $X
-          regex: '(?i)(password|passwd|secret|token|jwt|apiKey|api_key|auth|authorization|cookie|sessionId|bearer)'
+          regex: "(?i)(password|passwd|secret|token|jwt|apiKey|api_key|auth|authorization|cookie|sessionId|bearer)"

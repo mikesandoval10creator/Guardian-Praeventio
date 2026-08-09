@@ -10,14 +10,15 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/**'
-      - '.semgrep.yml'
-      - '.github/workflows/semgrep.yml'
+      - "src/**"
+      - ".semgrep.yml"
+      - ".github/workflows/semgrep.yml"
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - '.semgrep.yml'
+      - "src/**"
+      - ".semgrep.yml"
+      - ".github/workflows/semgrep.yml"
   workflow_dispatch:
 
 concurrency:
@@ -26,26 +27,38 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
+  security-events: write
 
 jobs:
   semgrep:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    container:
+      # Pin the scanner so CI and local validation use the same rule parser.
+      image: semgrep/semgrep:1.172.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Semgrep scan
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: .semgrep.yml
-          # Block on ERROR findings. WARNING findings are reported but don't fail.
-          auditMode: false
-          # Generate SARIF for GitHub Security tab upload
-          generateSarif: '1'
+      - name: Validate custom rules
+        run: semgrep scan --validate --config .semgrep.yml --metrics=off
+
+      - name: Generate Semgrep SARIF
+        run: semgrep scan --config .semgrep.yml --sarif --output semgrep.sarif --metrics=off
+
+      - name: Enforce ERROR findings
+        # Keep WARNING findings in SARIF while only ERROR severity blocks CI.
+        run: semgrep scan --config .semgrep.yml --severity ERROR --error --metrics=off
 
       - name: Upload Semgrep SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        # Fork PR tokens are read-only. The scan/gate still runs, but uploading
+        # their SARIF would fail with "Resource not accessible by integration".
+        if: >-
+          always() &&
+          hashFiles('semgrep.sarif') != '' &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep-custom
