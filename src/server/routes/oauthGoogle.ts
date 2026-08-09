@@ -159,7 +159,7 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
 // List upcoming Calendar events (next 30 days) for predictive features.
 // Used by useCalendarPredictions to detect already-scheduled CPHS meetings,
 // ODI trainings, etc. and suppress duplicate suggestions.
-oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
+oauthGoogleApiRouter.get('/calendar/list', verifyAuth, requireTier('titanio'), async (req, res) => {
   const uid = req.user!.uid;
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },
@@ -199,7 +199,7 @@ oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
   }
 });
 
-oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
+oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, requireTier('titanio'), async (req, res) => {
   const { challenges } = req.body;
   const uid = req.user!.uid;
 

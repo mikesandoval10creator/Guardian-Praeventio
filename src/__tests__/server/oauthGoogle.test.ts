@@ -195,6 +195,29 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(saveTokensMock).not.toHaveBeenCalled();
   });
 
+  it('tier gate (#11): a below-titanio caller cannot list Google Calendar events', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/api/calendar/list')
+      .set('Authorization', 'Bearer test:uid-free');
+    expect(res.status).toBe(402);
+    expect(res.body.error).toBe('upgrade_required');
+    expect(res.body.requiredPlan).toBe('titanio');
+    expect(getValidAccessTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('tier gate (#11): a below-titanio caller cannot sync Google Calendar events', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/calendar/sync')
+      .set('Authorization', 'Bearer test:uid-free')
+      .send({ challenges: ['Inspección semanal'] });
+    expect(res.status).toBe(402);
+    expect(res.body.error).toBe('upgrade_required');
+    expect(res.body.requiredPlan).toBe('titanio');
+    expect(getValidAccessTokenMock).not.toHaveBeenCalled();
+  });
+
   it('tier gate (#11): a below-titanio caller cannot initiate the Drive OAuth grant', async () => {
     const app = await buildApp();
     const res = await request(app)
