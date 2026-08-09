@@ -172,11 +172,19 @@ function routeRegistration(call, handlers) {
   let pathNode;
   let handlerArgs;
   const receiver = call.expression.expression;
-  if (
-    ts.isCallExpression(receiver) &&
-    propertyName(receiver.expression) === "route"
-  ) {
-    pathNode = receiver.arguments[0];
+  let routeChain = ts.isCallExpression(receiver) ? receiver : null;
+  while (routeChain) {
+    if (propertyName(routeChain.expression) === "route") {
+      pathNode = routeChain.arguments[0];
+      break;
+    }
+    routeChain =
+      ts.isPropertyAccessExpression(routeChain.expression) &&
+      ts.isCallExpression(routeChain.expression.expression)
+        ? routeChain.expression.expression
+        : null;
+  }
+  if (pathNode) {
     handlerArgs = [...call.arguments];
   } else {
     pathNode = call.arguments[0];
@@ -200,6 +208,25 @@ function routeRegistration(call, handlers) {
 function isInsideAwait(node, handler) {
   for (let cur = node.parent; cur && cur !== handler; cur = cur.parent) {
     if (ts.isAwaitExpression(cur)) return true;
+    // An await outside a nested callback does not await a promise that the
+    // callback neither awaits nor returns (for example, `await p.then(() =>
+    // audit())`). Stop at the function boundary instead of climbing into the
+    // enclosing awaited call.
+    if (isFunctionLike(cur)) return false;
+  }
+  return false;
+}
+
+function isInsideAwaitedTransaction(node, handler) {
+  for (let cur = node.parent; cur && cur !== handler; cur = cur.parent) {
+    if (!isFunctionLike(cur)) continue;
+    const transactionCall = cur.parent;
+    return (
+      ts.isCallExpression(transactionCall) &&
+      propertyName(transactionCall.expression) === "runTransaction" &&
+      transactionCall.arguments.some((argument) => argument === cur) &&
+      isInsideAwait(transactionCall, handler)
+    );
   }
   return false;
 }
@@ -266,6 +293,12 @@ function controlContexts(node, handler) {
       if (child === parent.whenFalse) contexts.add(`cond:${parent.pos}:false`);
     } else if (ts.isCaseClause(parent) || ts.isDefaultClause(parent)) {
       contexts.add(`switch:${parent.parent.parent.pos}:clause:${parent.pos}`);
+    } else if (ts.isCatchClause(parent)) {
+      // An audit that only runs on the error path cannot cover a successful
+      // mutation in the sibling try path. We intentionally do not tag try
+      // blocks: a best-effort audit in a separate try after the write remains
+      // a compatible handler-owned audit.
+      contexts.add(`catch:${parent.parent.pos}`);
     }
     child = parent;
   }
@@ -292,11 +325,13 @@ function buildAuditHelperNames(handlers) {
         if (ownsAwaitedAudit) return;
         if (ts.isCallExpression(node)) {
           const callName = propertyName(node.expression);
+          const directAudit = isDirectAuditLogMutation(node);
           if (
-            isInsideAwait(node, fn) &&
+            (isInsideAwait(node, fn) ||
+              (directAudit && isInsideAwaitedTransaction(node, fn))) &&
             (callName === "auditServerEvent" ||
               auditHelpers.has(callName) ||
-              isDirectAuditLogMutation(node))
+              directAudit)
           ) {
             ownsAwaitedAudit = true;
             return;
@@ -322,7 +357,11 @@ function inspectHandler(handler, sourceFile, auditHelpers) {
     if (ts.isCallExpression(node)) {
       const name = propertyName(node.expression);
       const directAudit = isDirectAuditLogMutation(node);
-      if (directAudit && isInsideAwait(node, handler)) {
+      if (
+        directAudit &&
+        (isInsideAwait(node, handler) ||
+          isInsideAwaitedTransaction(node, handler))
+      ) {
         awaitedAudits.push({
           position: node.getStart(sourceFile),
           contexts: controlContexts(node, handler),

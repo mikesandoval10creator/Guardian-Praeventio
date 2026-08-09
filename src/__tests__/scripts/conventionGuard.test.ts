@@ -125,6 +125,23 @@ describe("convention-guard (CLAUDE.md #3/#19 ratchet)", () => {
     ]);
   });
 
+  it("does not let a catch-only audit cover a successful try-path mutation", () => {
+    const source = `
+      router.post('/try-catch', async (req, res) => {
+        try {
+          await ref.set({ x: 1 });
+        } catch (error) {
+          await auditServerEvent(req, 'thing.failed', 'thing');
+        }
+        res.sendStatus(201);
+      });
+    `;
+
+    expect(guard.scanSource(source, "synthetic")).toEqual([
+      "synthetic POST /try-catch",
+    ]);
+  });
+
   it("allows one awaited audit after an entire conditional mutation block", () => {
     const source = `
       router.patch('/branches', async (req, res) => {
@@ -185,11 +202,41 @@ describe("convention-guard (CLAUDE.md #3/#19 ratchet)", () => {
     ]);
   });
 
+  it("does not treat an outer await as awaiting a fire-and-forget nested audit", () => {
+    const source = `
+      router.patch('/nested-fire-and-forget', async (req, res) => {
+        await ref.update({ x: 1 });
+        await Promise.resolve().then(() => {
+          auditServerEvent(req, 'thing.update', 'thing');
+        });
+        res.sendStatus(204);
+      });
+    `;
+
+    expect(guard.scanSource(source, "synthetic")).toEqual([
+      "synthetic PATCH /nested-fire-and-forget",
+    ]);
+  });
+
   it("accepts a transactional audit_logs write whose doc ref is an argument", () => {
     const source = `
       router.patch('/transactional-audit', async (_req, res) => {
         await tx.update(entityRef, { x: 1 });
         await tx.set(db.collection('audit_logs').doc(), { action: 'thing.update' });
+        res.sendStatus(204);
+      });
+    `;
+
+    expect(guard.scanSource(source, "synthetic")).toEqual([]);
+  });
+
+  it("accepts a synchronous audit_logs tx.set inside an awaited transaction", () => {
+    const source = `
+      router.patch('/transactional-audit', async (_req, res) => {
+        await db.runTransaction(async (tx) => {
+          tx.update(entityRef, { x: 1 });
+          tx.set(db.collection('audit_logs').doc(), { action: 'thing.update' });
+        });
         res.sendStatus(204);
       });
     `;
@@ -233,6 +280,21 @@ describe("convention-guard (CLAUDE.md #3/#19 ratchet)", () => {
 
     expect(guard.scanSource(namedHandler, "synthetic")).toEqual([
       "synthetic PUT /named",
+    ]);
+  });
+
+  it("resolves handlers after another method in a chained router.route registration", () => {
+    const source = `
+      router.route('/items')
+        .get(async (_req, res) => res.json([]))
+        .post(async (_req, res) => {
+          await ref.set({ x: 1 });
+          res.sendStatus(201);
+        });
+    `;
+
+    expect(guard.scanSource(source, "synthetic")).toEqual([
+      "synthetic POST /items",
     ]);
   });
 
