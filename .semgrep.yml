@@ -37,7 +37,6 @@ rules:
         - "*.test.ts"
         - "*.test.tsx"
         - "*__tests__*"
-        - "*spec*"
     patterns:
       - pattern-either:
           - pattern: |
@@ -86,7 +85,6 @@ rules:
         - "*.test.ts"
         - "*.test.tsx"
         - "*__tests__*"
-        - "*spec*"
     patterns:
       - pattern-either:
           - pattern: eval(...)
@@ -145,7 +143,6 @@ rules:
         - "*.test.ts"
         - "*.test.tsx"
         - "*__tests__*"
-        - "*spec*"
     patterns:
       - pattern-either:
           - pattern: Math.random().toString(16)
