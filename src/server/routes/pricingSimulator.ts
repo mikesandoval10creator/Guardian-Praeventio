@@ -11,16 +11,16 @@
 // `src/services/pricingSimulator/pricingSimulator.ts`:
 //
 //   POST /:projectId/pricing/estimate-bill
-//     body: { tier, usage, options? }
+//     body: { tier, usage }
 //     200:  { estimate: BillEstimate }
 //     400:  PricingError → { error }
 //
 //   POST /:projectId/pricing/compare-tiers
-//     body: { currentTier, usage, options? }
+//     body: { currentTier, usage }
 //     200:  { comparisons: TierComparison[] }
 //
 //   POST /:projectId/pricing/worker-break-even
-//     body: { currentTier, nextTier, baseUsage, options? }
+//     body: { currentTier, nextTier, baseUsage }
 //     200:  { workers, found }
 //
 // Pure compute — no Firestore writes. Caller decides whether to expose
@@ -42,8 +42,8 @@ import {
   compareTiers,
   workerBreakEven,
   PricingError,
-  type EstimateOptions,
 } from '../../services/pricingSimulator/pricingSimulator.js';
+import { TIER_IDS } from '../../services/pricing/tiers.js';
 
 const router = Router();
 
@@ -64,8 +64,6 @@ async function guard(
   return true;
 }
 
-const TIERS = ['free', 'starter', 'pro', 'enterprise'] as const;
-
 const usageSchema = z.object({
   workers: z.number().nonnegative().max(1_000_000),
   projects: z.number().nonnegative().max(100_000),
@@ -73,39 +71,14 @@ const usageSchema = z.object({
   storageGb: z.number().nonnegative().max(1_000_000),
 });
 
-const tierLimitsSchema = z.object({
-  monthlyBaseClp: z.number().nonnegative(),
-  maxWorkers: z.number().positive(),
-  maxProjects: z.number().positive(),
-  includedAiCalls: z.number().nonnegative(),
-  includedStorageGb: z.number().nonnegative(),
-});
-
-const overageRatesSchema = z.object({
-  perWorkerClp: z.number().nonnegative(),
-  perProjectClp: z.number().nonnegative(),
-  perAiCallClp: z.number().nonnegative(),
-  perStorageGbClp: z.number().nonnegative(),
-});
-
-const optionsSchema = z
-  .object({
-    rates: overageRatesSchema.optional(),
-    customTiers: z
-      .record(z.enum(TIERS), tierLimitsSchema.optional())
-      .optional(),
-  })
-  .optional() as unknown as z.ZodType<EstimateOptions | undefined>;
-
 // ────────────────────────────────────────────────────────────────────────
 // 1. estimate-bill
 // ────────────────────────────────────────────────────────────────────────
 
 const estimateSchema = z.object({
-  tier: z.enum(TIERS),
+  tier: z.enum(TIER_IDS),
   usage: usageSchema,
-  options: optionsSchema,
-});
+}).strict();
 
 router.post(
   '/:projectId/pricing/estimate-bill',
@@ -117,7 +90,7 @@ router.post(
     const body = req.body as z.infer<typeof estimateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const estimate = estimateBill(body.tier, body.usage, body.options);
+      const estimate = estimateBill(body.tier, body.usage);
       return res.json({ estimate });
     } catch (err) {
       if (err instanceof PricingError) {
@@ -135,10 +108,9 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 const compareSchema = z.object({
-  currentTier: z.enum(TIERS),
+  currentTier: z.enum(TIER_IDS),
   usage: usageSchema,
-  options: optionsSchema,
-});
+}).strict();
 
 router.post(
   '/:projectId/pricing/compare-tiers',
@@ -150,11 +122,7 @@ router.post(
     const body = req.body as z.infer<typeof compareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const comparisons = compareTiers(
-        body.currentTier,
-        body.usage,
-        body.options,
-      );
+      const comparisons = compareTiers(body.currentTier, body.usage);
       return res.json({ comparisons });
     } catch (err) {
       if (err instanceof PricingError) {
@@ -172,11 +140,10 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 const breakEvenSchema = z.object({
-  currentTier: z.enum(TIERS),
-  nextTier: z.enum(TIERS),
+  currentTier: z.enum(TIER_IDS),
+  nextTier: z.enum(TIER_IDS),
   baseUsage: usageSchema,
-  options: optionsSchema,
-});
+}).strict();
 
 router.post(
   '/:projectId/pricing/worker-break-even',
@@ -188,12 +155,7 @@ router.post(
     const body = req.body as z.infer<typeof breakEvenSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const result = workerBreakEven(
-        body.currentTier,
-        body.nextTier,
-        body.baseUsage,
-        body.options,
-      );
+      const result = workerBreakEven(body.currentTier, body.nextTier, body.baseUsage);
       return res.json(result);
     } catch (err) {
       if (err instanceof PricingError) {

@@ -20,14 +20,17 @@
  * per-region data residency (UF indexation deferred; CLP placeholder for now).
  */
 
-export type TierId =
-  | 'gratis'
-  | 'cobre'
-  | 'plata'
-  | 'oro'
-  | 'titanio'
-  | 'platino'
-  | 'diamante';
+export const TIER_IDS = [
+  'gratis',
+  'cobre',
+  'plata',
+  'oro',
+  'titanio',
+  'platino',
+  'diamante',
+] as const;
+
+export type TierId = (typeof TIER_IDS)[number];
 
 /**
  * Sprint 31 OO — Data residency tiers.

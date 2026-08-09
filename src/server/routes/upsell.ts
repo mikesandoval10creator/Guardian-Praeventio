@@ -26,6 +26,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { suggestUpsell } from '../../services/upsell/painBasedUpsellSuggester.js';
+import { TIER_IDS } from '../../services/pricing/tiers.js';
 
 const router = Router();
 
@@ -46,15 +47,13 @@ async function guard(
   return true;
 }
 
-const TIERS = ['free', 'starter', 'pro', 'enterprise'] as const;
-
 const signalsSchema = z.object({
   manualReportsPerWeek: z.number().nonnegative().max(10_000),
   exceptionsRaisedLast30d: z.number().nonnegative().max(100_000),
   dataConfidenceScore: z.number().min(0).max(1),
-  currentTier: z.enum(TIERS),
+  currentTier: z.enum(TIER_IDS),
   activeProjectCount: z.number().int().nonnegative().max(10_000).optional(),
-});
+}).strict();
 
 router.post(
   '/:projectId/upsell/suggest',

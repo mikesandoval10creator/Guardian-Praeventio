@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Calculator, AlertTriangle } from 'lucide-react';
 import { estimateBillFor } from '../../hooks/usePricingSimulator';
 import type { BillEstimate, Tier } from '../../services/pricingSimulator/pricingSimulator';
+import { TIERS } from '../../services/pricing/tiers';
 import { humanErrorMessage } from '../../lib/humanError';
 
 
@@ -20,13 +21,10 @@ interface PricingSimulatorPanelProps {
   projectId: string;
 }
 
-// Closed vocabulary — mirrors the Tier union in the pricing engine.
-const TIER_OPTIONS: Array<{ value: Tier; label: string }> = [
-  { value: 'free', label: 'Free' },
-  { value: 'starter', label: 'Starter' },
-  { value: 'pro', label: 'Pro' },
-  { value: 'enterprise', label: 'Enterprise' },
-];
+const TIER_OPTIONS: Array<{ value: Tier; label: string }> = TIERS.map((tier) => ({
+  value: tier.id,
+  label: tier.nombre,
+}));
 
 // CLP formatter (es-CL): $1.234.567 — no decimals for currency.
 const CLP = new Intl.NumberFormat('es-CL', {
@@ -37,9 +35,9 @@ const CLP = new Intl.NumberFormat('es-CL', {
 
 export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps) {
   const { t } = useTranslation();
-  const [workers, setWorkers] = useState<number>(25);
+  const [workers, setWorkers] = useState<number>(24);
   const [projects, setProjects] = useState<number>(3);
-  const [tier, setTier] = useState<Tier>('starter');
+  const [tier, setTier] = useState<Tier>('cobre');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
