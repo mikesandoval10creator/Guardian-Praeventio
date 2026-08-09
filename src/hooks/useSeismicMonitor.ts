@@ -10,7 +10,7 @@ export interface Earthquake {
   url: string;
 }
 
-export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: number = -70.6693) {
+export function useSeismicMonitor(projectLat?: number, projectLng?: number) {
   const [earthquakes, setEarthquakes] = useState<Earthquake[]>([]);
   const [criticalAlert, setCriticalAlert] = useState<Earthquake | null>(null);
   // Audit 2026-07-02 §3.1 bug 10: consumers (e.g. EmergenciaAvanzada.tsx)
@@ -24,6 +24,30 @@ export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: num
 
   useEffect(() => {
     let cancelled = false;
+    const validCoordinates =
+      typeof projectLat === 'number' &&
+      Number.isFinite(projectLat) &&
+      projectLat >= -90 &&
+      projectLat <= 90 &&
+      typeof projectLng === 'number' &&
+      Number.isFinite(projectLng) &&
+      projectLng >= -180 &&
+      projectLng <= 180;
+
+    setEarthquakes([]);
+    setCriticalAlert(null);
+    if (!validCoordinates) {
+      setError('project_coordinates_unavailable');
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    const monitoredLat = projectLat as number;
+    const monitoredLng = projectLng as number;
+    setLoading(true);
+    setError(null);
+
     const fetchQuakes = async () => {
       try {
         // Fetch all earthquakes from the last 24 hours
@@ -46,7 +70,7 @@ export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: num
         // Check for critical alerts near project
         // Criteria: Magnitude >= 4.5, Distance <= 500km, within the last 2 hours
         const recentCritical = quakes.find((q: Earthquake) => {
-           const dist = calculateDistance(projectLat, projectLng, q.coordinates[1], q.coordinates[0]);
+           const dist = calculateDistance(monitoredLat, monitoredLng, q.coordinates[1], q.coordinates[0]);
            const isRecent = (Date.now() - q.time) < 1000 * 60 * 60 * 2; // Last 2 hours
            return dist < 500 && q.magnitude >= 4.5 && isRecent;
         });

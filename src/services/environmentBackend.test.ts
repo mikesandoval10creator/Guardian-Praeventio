@@ -20,6 +20,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * `process.env.OPENWEATHER_API_KEY`.
  */
 
+const TEST_LOCATION = { lat: -33.4489, lng: -70.6693 };
+
 type OWForecastItem = {
   dt: number; // unix seconds (UTC)
   main: { temp: number };
@@ -108,7 +110,7 @@ describe('getForecast — happy path', () => {
   it('returns 3 entries when called with days=3 and upstream returns a full 5-day sample', async () => {
     vi.stubGlobal('fetch', mockFetchOk(buildFiveDaySample()));
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(3);
+    const result = await getForecast(3, TEST_LOCATION);
     expect(result).toHaveLength(3);
     for (const day of result) {
       expect(day.date).toBeInstanceOf(Date);
@@ -129,7 +131,7 @@ describe('getForecast — happy path', () => {
     });
     vi.stubGlobal('fetch', mockFetchOk(sample));
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(1);
+    const result = await getForecast(1, TEST_LOCATION);
     expect(result).toHaveLength(1);
     expect(result[0].conditionCode).toBe('rainy');
   });
@@ -144,7 +146,7 @@ describe('getForecast — happy path', () => {
     });
     vi.stubGlobal('fetch', mockFetchOk(sample));
     const { getForecast } = await import('./environmentBackend');
-    const [day] = await getForecast(1);
+    const [day] = await getForecast(1, TEST_LOCATION);
     expect(day.temperatureC).toBe(33);
   });
 
@@ -158,7 +160,7 @@ describe('getForecast — happy path', () => {
     });
     vi.stubGlobal('fetch', mockFetchOk(sample));
     const { getForecast } = await import('./environmentBackend');
-    const [day] = await getForecast(1);
+    const [day] = await getForecast(1, TEST_LOCATION);
     expect(day.windKmh).toBe(36);
   });
 
@@ -172,7 +174,7 @@ describe('getForecast — happy path', () => {
     });
     vi.stubGlobal('fetch', mockFetchOk(sample));
     const { getForecast } = await import('./environmentBackend');
-    const [day] = await getForecast(1);
+    const [day] = await getForecast(1, TEST_LOCATION);
     expect(day.precipMm).toBe(5);
   });
 });
@@ -196,7 +198,7 @@ describe('getForecast — weather code mapping', () => {
     };
     vi.stubGlobal('fetch', mockFetchOk(sample));
     const { getForecast } = await import('./environmentBackend');
-    const [day] = await getForecast(1);
+    const [day] = await getForecast(1, TEST_LOCATION);
     return day.conditionCode;
   }
 
@@ -243,7 +245,7 @@ describe('getForecast — degradation', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(3);
+    const result = await getForecast(3, TEST_LOCATION);
     expect(result).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -251,7 +253,7 @@ describe('getForecast — degradation', () => {
   it('returns [] when fetch throws', async () => {
     vi.stubGlobal('fetch', mockFetchThrows());
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(3);
+    const result = await getForecast(3, TEST_LOCATION);
     expect(result).toEqual([]);
   });
 
@@ -261,7 +263,7 @@ describe('getForecast — degradation', () => {
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })) as unknown as typeof fetch,
     );
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(3);
+    const result = await getForecast(3, TEST_LOCATION);
     expect(result).toEqual([]);
   });
 });
@@ -270,7 +272,7 @@ describe('getForecast — input clamping', () => {
   it('clamps days > 5 to at most 5 entries', async () => {
     vi.stubGlobal('fetch', mockFetchOk(buildFiveDaySample()));
     const { getForecast } = await import('./environmentBackend');
-    const result = await getForecast(10);
+    const result = await getForecast(10, TEST_LOCATION);
     expect(result.length).toBeLessThanOrEqual(5);
   });
 
@@ -285,14 +287,13 @@ describe('getForecast — input clamping', () => {
 });
 
 describe('getForecast — location parameter', () => {
-  it('defaults to Santiago de Chile coords when no location given', async () => {
+  it('returns unavailable without calling upstream when no location is given', async () => {
     const fetchSpy = vi.fn(async () => ({ ok: true, status: 200, json: async () => buildFiveDaySample() })) as unknown as typeof fetch;
     vi.stubGlobal('fetch', fetchSpy);
     const { getForecast } = await import('./environmentBackend');
-    await getForecast(1);
-    const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
-    expect(url).toContain('lat=-33.4489');
-    expect(url).toContain('lon=-70.6693');
+    const result = await getForecast(1);
+    expect(result).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('honours a caller-supplied { lat, lng } override', async () => {
@@ -339,7 +340,7 @@ describe('getForecast — per-tenant location lookup', () => {
     }
   });
 
-  it('{ tenantId } with no primarySite → falls back to Santiago default and logs warn', async () => {
+  it('{ tenantId } with no primarySite → returns unavailable without calling upstream', async () => {
     const fetchSpy = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -351,10 +352,9 @@ describe('getForecast — per-tenant location lookup', () => {
     const mod = await import('./environmentBackend');
     mod.setTenantLocationResolver(async () => null);
     try {
-      await mod.getForecast(3, { tenantId: 'no-coords' });
-      const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
-      expect(url).toContain('lat=-33.4489');
-      expect(url).toContain('lon=-70.6693');
+      const result = await mod.getForecast(3, { tenantId: 'no-coords' });
+      expect(result).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('tenant=no-coords'),
       );
@@ -363,10 +363,10 @@ describe('getForecast — per-tenant location lookup', () => {
     }
   });
 
-  it('{ tenantId } when resolver returns null due to Firestore error → falls back to Santiago, logs warn', async () => {
+  it('{ tenantId } when resolver fails → returns unavailable without calling upstream', async () => {
     // resolveTenantLocation already swallows Firestore errors and returns
     // null. From getForecast's perspective the failure is observable via the
-    // same "fall back to Santiago" warn path — pin that here.
+    // same explicit unavailable path — pin that here.
     const fetchSpy = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -385,10 +385,8 @@ describe('getForecast — per-tenant location lookup', () => {
     });
     try {
       const result = await mod.getForecast(3, { tenantId: 'firestore-down' });
-      const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
-      expect(url).toContain('lat=-33.4489');
-      expect(url).toContain('lon=-70.6693');
-      expect(result).toHaveLength(3);
+      expect(result).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('tenant=firestore-down'),
       );

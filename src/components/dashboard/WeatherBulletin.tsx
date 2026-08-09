@@ -28,10 +28,12 @@ export interface WeatherSnapshot {
   unavailable?: boolean;
   /** Altitude above sea level in metres (from geolocation or project data). */
   altitude?: number | null;
-  /** Latitude for the SunTracker ephemeris (defaults to Santiago −33.45 if absent). */
+  /** Legacy latitude field; used only when paired with a finite longitude. */
   lat?: number | null;
-  /** Longitude for the SunTracker ephemeris (defaults to Santiago −70.67 if absent). */
+  /** Legacy longitude field; used only when paired with a finite latitude. */
   lng?: number | null;
+  sourceCoordinates?: { lat: number; lng: number } | null;
+  measuredAt?: number | null;
 }
 
 interface WeatherBulletinProps {
@@ -39,94 +41,45 @@ interface WeatherBulletinProps {
   loading: boolean;
 }
 
-// Santiago, Chile altitude (default location)
-const SANTIAGO_ALT_MSNM = 567;
-const SANTIAGO_LAT = -33.45;
-const SANTIAGO_LNG = -70.67;
-
-// Estimate sunrise/sunset in ms for Santiago by current month if not provided
-function estimateSunriseSunset(): { sunrise: number; sunset: number } {
-  const month = new Date().getMonth(); // 0-11
-  // [sunrise HH, sunrise MM, sunset HH, sunset MM] per month (Jan–Dec)
-  const table: [number, number, number, number][] = [
-    [6, 45, 20, 50], // Jan
-    [6, 56, 20, 30], // Feb
-    [7, 12, 19, 55], // Mar
-    [7, 30, 19, 15], // Apr
-    [7, 48, 18, 45], // May
-    [8,  2, 18, 28], // Jun
-    [7, 57, 18, 40], // Jul
-    [7, 32, 19,  5], // Aug
-    [6, 57, 19, 28], // Sep
-    [6, 20, 19, 50], // Oct
-    [6,  0, 20, 15], // Nov
-    [6,  2, 20, 45], // Dec
-  ];
-  const [srH, srM, ssH, ssM] = table[month];
-  const today = new Date();
-  const sunrise = new Date(today.getFullYear(), today.getMonth(), today.getDate(), srH, srM).getTime();
-  const sunset  = new Date(today.getFullYear(), today.getMonth(), today.getDate(), ssH, ssM).getTime();
-  return { sunrise, sunset };
-}
-
-// Rough UV estimate from condition string + time of day
-function estimateUVI(condition: string | undefined, now: number, sunrise: number, sunset: number): number {
-  const cond = (condition || '').toLowerCase();
-  if (cond.includes('lluvia') || cond.includes('tormenta')) return 0;
-  const dayFraction = (now - sunrise) / (sunset - sunrise);
-  if (dayFraction < 0 || dayFraction > 1) return 0;
-  const peakMonth = new Date().getMonth(); // Southern hemisphere: peak Dec-Feb
-  const summerPeak = [11, 0, 1].includes(peakMonth) ? 12 : [10, 2].includes(peakMonth) ? 9 : [9, 3].includes(peakMonth) ? 6 : 4;
-  const arc = Math.sin(dayFraction * Math.PI);
-  const cloud = cond.includes('nublado') || cond.includes('nubes') ? 0.5 : cond.includes('parcial') ? 0.75 : 1;
-  return Math.round(arc * summerPeak * cloud);
-}
-
-// AQI for Santiago: seasonal + condition based (1=Good, 5=Very Poor)
-function estimateAQI(condition: string | undefined): { value: number; label: string; cssVar: string } {
-  const month = new Date().getMonth();
-  const cond = (condition || '').toLowerCase();
-  const winterBase = [4, 5, 6, 7, 8].includes(month) ? 4 : 2;
-  const rainy = cond.includes('lluvia') ? -1 : 0;
-  const raw = Math.min(5, Math.max(1, winterBase + rainy));
-  const map: Record<number, { label: string; cssVar: string }> = {
-    1: { label: 'Buena',     cssVar: 'var(--accent-success)' },
-    2: { label: 'Aceptable', cssVar: 'var(--accent-success)' },
-    3: { label: 'Moderada',  cssVar: 'var(--accent-warning)' },
-    4: { label: 'Mala',      cssVar: 'var(--accent-hazard)' },
-    5: { label: 'Pésima',    cssVar: 'var(--accent-hazard)' },
-  };
-  return { value: raw, ...map[raw] };
-}
-
 export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
   const { t } = useTranslation();
 
   const now = Date.now();
-  const estimated = estimateSunriseSunset();
-  const sunrise = weather?.sunrise ?? estimated.sunrise;
-  const sunset  = weather?.sunset  ?? estimated.sunset;
-  const isDaytime = now >= sunrise && now <= sunset;
+  const sunrise = weather?.sunrise;
+  const sunset = weather?.sunset;
+  const isDaytime =
+    typeof sunrise === 'number' && typeof sunset === 'number'
+      ? now >= sunrise && now <= sunset
+      : undefined;
 
   // Honesty fix (2026-06-16): the orchestrator emits an honest sentinel
   // `{ unavailable: true }` when OpenWeather isn't configured — but this card
   // only checked `weather ?` (truthy even then) and rendered 0°C + a fabricated
   // AQI/UV as if real telemetry. Gate ALL readings on `available`; show an
   // honest "no disponible" state otherwise. Read the real `uv` field (the
-  // orchestrator populates `uv`, not `uvi`), falling back to a labelled estimate.
+  // orchestrator populates `uv`, not `uvi`). Unknown telemetry stays unknown.
   const available = !!weather && weather.unavailable !== true;
-  const uvi = weather?.uv ?? weather?.uvi ?? estimateUVI(weather?.condition, now, sunrise, sunset);
-  const uvIsReal = weather?.uv != null || weather?.uvi != null;
-  const aqi = estimateAQI(weather?.condition);
+  const uvi = weather?.uv ?? weather?.uvi ?? null;
 
-  // Altitude: real from orchestrator/project or Santiago default
+  // Altitude: real from orchestrator/project or unavailable.
   const altMsnm = weather?.altitude != null
     ? Math.round(weather.altitude)
-    : SANTIAGO_ALT_MSNM;
+    : null;
 
-  // Lat/lng for ephemeris: real or Santiago default
-  const lat = weather?.lat ?? SANTIAGO_LAT;
-  const lng = weather?.lng ?? SANTIAGO_LNG;
+  const legacyLat = weather?.lat;
+  const legacyLng = weather?.lng;
+  const coordinates =
+    weather?.sourceCoordinates ??
+    (typeof legacyLat === 'number' &&
+    Number.isFinite(legacyLat) &&
+    typeof legacyLng === 'number' &&
+    Number.isFinite(legacyLng)
+      ? { lat: legacyLat, lng: legacyLng }
+      : null);
+  const sourceAgeMinutes =
+    typeof weather?.measuredAt === 'number' && Number.isFinite(weather.measuredAt)
+      ? Math.max(0, Math.floor((now - weather.measuredAt) / 60_000))
+      : null;
 
   // Condition-based safety advisories via pure weatherAdvice fn
   const recs = available
@@ -176,9 +129,18 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
                 style={{ color: 'var(--text-muted)' }}
               >
                 <Map className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                {weather?.location
-                  ? `${weather.location}, Chile`
-                  : t('weather.default_city', 'Ubicación simulada, Chile')}
+                {weather?.location ?? (coordinates
+                  ? `${coordinates.lat.toFixed(3)}, ${coordinates.lng.toFixed(3)}`
+                  : t('weather.location_unavailable', 'Ubicación no disponible'))}
+                {sourceAgeMinutes !== null && (
+                  <>
+                    {' · '}
+                    {t('weather.source_age', {
+                      defaultValue: 'hace {{minutes}} min',
+                      minutes: sourceAgeMinutes,
+                    })}
+                  </>
+                )}
               </p>
             </div>
             <RefreshCw
@@ -198,9 +160,11 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
               style={{ color: 'var(--text-secondary)' }}
             >
               {Math.round(weather.temp ?? 0)}°C
-              {' • '}UV {uvi}{uvIsReal ? '' : ' (est.)'}
+              {' • '}UV {uvi ?? '—'}
               {' • '}{t('weather.humidity', 'Humedad')} {weather.humidity}%
-              {' • '}{altMsnm} msnm
+              {' • '}{altMsnm !== null
+                ? `${altMsnm} msnm`
+                : t('weather.altitude_unavailable', 'Altitud no disponible')}
             </p>
           ) : (
             <p
@@ -211,29 +175,16 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
             </p>
           )}
 
-          {/* Air quality — real label from the orchestrator, or a clearly
-              labelled estimate; never a fabricated reading shown as live. */}
+          {/* Air quality — real label only; never infer Santiago pollution. */}
           {!loading && available && (
             <p
               className="text-[8px] sm:text-[11px] font-bold mb-1.5 sm:mb-3"
               style={{ color: 'var(--text-muted)' }}
             >
               {t('weather.air_quality', 'Calidad del aire')}:{' '}
-              {weather.airQuality ? (
-                <span
-                  className="font-black"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {weather.airQuality}
-                </span>
-              ) : (
-                <span
-                  className="font-black"
-                  style={{ color: aqi.cssVar }}
-                >
-                  {aqi.label} (est.)
-                </span>
-              )}
+              <span className="font-black" style={{ color: 'var(--text-secondary)' }}>
+                {weather.airQuality ?? t('weather.air_quality_unavailable', 'Datos no disponibles')}
+              </span>
             </p>
           )}
 
@@ -318,7 +269,17 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
           {/* Rich celestial tracker: parabolic arc, sun glow + rays,
               8 lunar phases with illumination shadow, twinkling stars,
               next-event countdown and the Fase Solar / Ciclo Lunar info panel. */}
-          <SunTrackerContainer lat={lat} lng={lng} className="w-full" />
+          {coordinates ? (
+            <SunTrackerContainer
+              lat={coordinates.lat}
+              lng={coordinates.lng}
+              className="w-full"
+            />
+          ) : (
+            <p className="text-[8px] text-center" style={{ color: 'var(--text-muted)' }}>
+              {t('weather.ephemeris_unavailable', 'Efemérides no disponibles')}
+            </p>
+          )}
 
           {/* Native offline compass */}
           <div className="flex justify-center">

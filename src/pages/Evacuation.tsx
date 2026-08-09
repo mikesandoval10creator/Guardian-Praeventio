@@ -96,7 +96,10 @@ export function Evacuation() {
   const [alarmActivatedAt, setAlarmActivatedAt] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
-  const { criticalAlert } = useSeismicMonitor();
+  const { criticalAlert } = useSeismicMonitor(
+    selectedProject?.coordinates?.lat,
+    selectedProject?.coordinates?.lng,
+  );
 
   // Brecha B — SLM offline fallback para generación de Plan de
   // Emergencia. El hook llama a `online(prompt)` (Gemini) primero y, si

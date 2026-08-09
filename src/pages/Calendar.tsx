@@ -23,7 +23,11 @@ import { useProject } from '../contexts/ProjectContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, differenceInDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { fetchWeatherData } from '../services/orchestratorService';
+import {
+  loadProjectWeather,
+  type ForecastApiDay,
+  type ForecastSource,
+} from '../services/projectWeatherClient';
 
 // TODO(i18n): AddEventModal is an external sub-component — its internal strings
 // are scoped to a separate i18n sweep, not this file.
@@ -52,6 +56,9 @@ interface Event {
 export function Calendar() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const weatherProjectId = selectedProject?.id;
+  const weatherProjectLat = selectedProject?.coordinates?.lat;
+  const weatherProjectLng = selectedProject?.coordinates?.lng;
   const { totalWorkers, plan } = useSubscription();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isAdding, setIsAdding] = useState(false);
@@ -64,65 +71,67 @@ export function Calendar() {
   // /api/environment/forecast endpoint (powered by environmentBackend.getForecast)
   // and render an honest "Pronóstico no disponible" placeholder when the API
   // key is missing or the request fails.
-  type ForecastApiDay = {
-    date: string | Date;
-    conditionCode?: 'sunny' | 'rainy' | 'stormy' | 'windy' | 'extreme-heat' | 'cold-snap' | 'snow';
-    temperatureC?: number;
-    windKmh?: number;
-    precipMm?: number;
-  };
   const [forecastApi, setForecastApi] = useState<ForecastApiDay[] | null>(null);
+  const [forecastSource, setForecastSource] = useState<ForecastSource | undefined>();
   const [forecastLoading, setForecastLoading] = useState(true);
   const [forecastAvailable, setForecastAvailable] = useState(true);
 
   useEffect(() => {
-    const loadWeather = async () => {
-      try {
-        const data = await fetchWeatherData();
-        setWeatherData(data);
-      } catch (error) {
-        logger.error("Failed to load weather:", error);
-      }
-    };
-    loadWeather();
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
-    const loadForecast = async () => {
+    const loadWeather = async () => {
       setForecastLoading(true);
       try {
-        const res = await fetch('/api/environment/forecast?days=3');
-        if (!res.ok) {
+        if (!weatherProjectId) {
           if (!cancelled) {
+            setWeatherData(null);
             setForecastApi(null);
+            setForecastSource(undefined);
             setForecastAvailable(false);
           }
           return;
         }
-        const data = await res.json();
-        const days: ForecastApiDay[] = Array.isArray(data?.forecast) ? data.forecast : [];
+
+        const result = await loadProjectWeather({
+          id: weatherProjectId,
+          coordinates:
+            typeof weatherProjectLat === 'number' && typeof weatherProjectLng === 'number'
+              ? { lat: weatherProjectLat, lng: weatherProjectLng }
+              : undefined,
+        });
         if (!cancelled) {
-          setForecastApi(days);
-          // An empty list means the upstream (or the env key) is unavailable.
-          // environmentBackend.getForecast() returns [] in both cases.
-          setForecastAvailable(days.length > 0);
+          setWeatherData(result.current?.unavailable ? null : result.current);
+          setForecastApi(result.forecast);
+          setForecastSource(result.source);
+          setForecastAvailable(result.available);
         }
       } catch (error) {
-        logger.error('Failed to load forecast', error);
+        logger.error('Failed to load project weather', error);
         if (!cancelled) {
+          setWeatherData(null);
           setForecastApi(null);
+          setForecastSource(undefined);
           setForecastAvailable(false);
         }
       } finally {
         if (!cancelled) setForecastLoading(false);
       }
     };
-    loadForecast();
+    loadWeather();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [
+    weatherProjectId,
+    weatherProjectLat,
+    weatherProjectLng,
+  ]);
+
+  const forecastAgeMinutes = useMemo(() => {
+    if (!forecastSource?.fetchedAt) return null;
+    const fetchedAt = Date.parse(forecastSource.fetchedAt);
+    if (!Number.isFinite(fetchedAt)) return null;
+    return Math.max(0, Math.floor((Date.now() - fetchedAt) / 60_000));
+  }, [forecastSource?.fetchedAt]);
 
   // Map a ClimateForecastDay-style conditionCode to the Calendar widget's
   // icon/color/bg/condition-string tuple. Kept inline since this is the only
@@ -427,7 +436,17 @@ export function Calendar() {
       {/* Weather Forecast Widget */}
       <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.weather.bulletin_title')}</h2>
+          <div>
+            <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.weather.bulletin_title')}</h2>
+            {forecastSource && forecastAgeMinutes !== null && selectedProject && (
+              <p className="mt-1 text-[9px] font-semibold text-zinc-500" data-testid="calendar-weather-source">
+                {t('calendar.weather.source_age', {
+                  project: selectedProject.name,
+                  minutes: forecastAgeMinutes,
+                })}
+              </p>
+            )}
+          </div>
           <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wider bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-lg">
             {t('calendar.weather.zettelkasten_active')}
           </span>

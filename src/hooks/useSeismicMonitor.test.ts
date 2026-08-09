@@ -61,16 +61,26 @@ function usgs(features: unknown[]): Response {
   return { ok: true, json: async () => ({ features }) } as unknown as Response;
 }
 
-// Santiago default project coords used by the hook.
+// Santiago fixture coordinates used by explicit-location tests.
 const PLAT = -33.4489;
 const PLNG = -70.6693;
 
 describe('useSeismicMonitor', () => {
+  it('fails closed without project coordinates and does not query USGS', async () => {
+    const { result } = renderHook(() => useSeismicMonitor());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe('project_coordinates_unavailable');
+    expect(result.current.earthquakes).toEqual([]);
+    expect(result.current.criticalAlert).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('parses USGS GeoJSON features into typed earthquakes', async () => {
     fetchMock.mockResolvedValue(
       usgs([feature({ id: 'a' }), feature({ id: 'b', lat: 0, lng: 0 })]),
     );
-    const { result } = renderHook(() => useSeismicMonitor());
+    const { result } = renderHook(() => useSeismicMonitor(PLAT, PLNG));
     await waitFor(() => expect(result.current.earthquakes).toHaveLength(2));
     expect(result.current.earthquakes[0]).toMatchObject({ id: 'a', magnitude: 5.2 });
     expect(result.current.earthquakes[0].coordinates).toHaveLength(3);
@@ -114,7 +124,7 @@ describe('useSeismicMonitor', () => {
 
   it('surfaces a network error via `error` + logger.warn (not silent) and keeps an empty list', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
-    const { result } = renderHook(() => useSeismicMonitor());
+    const { result } = renderHook(() => useSeismicMonitor(PLAT, PLNG));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.earthquakes).toHaveLength(0);
     expect(result.current.criticalAlert).toBeNull();
@@ -127,7 +137,7 @@ describe('useSeismicMonitor', () => {
 
   it('starts `loading: true` and settles to `false` once the first fetch resolves', async () => {
     fetchMock.mockResolvedValue(usgs([feature({ id: 'a' })]));
-    const { result } = renderHook(() => useSeismicMonitor());
+    const { result } = renderHook(() => useSeismicMonitor(PLAT, PLNG));
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeNull();
@@ -136,7 +146,7 @@ describe('useSeismicMonitor', () => {
 
   it('settles `loading: false` even when the fetch rejects', async () => {
     fetchMock.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useSeismicMonitor());
+    const { result } = renderHook(() => useSeismicMonitor(PLAT, PLNG));
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
   });

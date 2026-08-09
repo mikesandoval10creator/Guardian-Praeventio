@@ -80,8 +80,8 @@ export function SiteMap() {
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
 
-  const projectLat = selectedProject?.coordinates?.lat || defaultCenter.lat;
-  const projectLng = selectedProject?.coordinates?.lng || defaultCenter.lng;
+  const projectLat = selectedProject?.coordinates?.lat;
+  const projectLng = selectedProject?.coordinates?.lng;
   const { earthquakes } = useSeismicMonitor(projectLat, projectLng);
 
   // Fetch workers for the project

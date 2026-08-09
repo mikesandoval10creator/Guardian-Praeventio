@@ -1001,7 +1001,12 @@
   "weather": {
     "unavailable": "Datos meteorológicos no disponibles",
     "title": "Boletín climático",
-    "default_city": "Santiago",
+    "default_city": "Ubicación no disponible",
+    "location_unavailable": "Ubicación no disponible",
+    "altitude_unavailable": "Altitud no disponible",
+    "air_quality_unavailable": "Datos no disponibles",
+    "ephemeris_unavailable": "Efemérides no disponibles",
+    "source_age": "hace {{minutes}} min",
     "temp": "Temp",
     "condition": "Condición",
     "wind": "Viento",
@@ -1170,6 +1175,7 @@
     "weather": {
       "bulletin_title": "Boletín Climático (Próximos 3 Días)",
       "zettelkasten_active": "Zettelkasten Activo",
+      "source_age": "{{project}} · actualizado hace {{minutes}} min",
       "today": "Hoy",
       "tomorrow": "Mañana",
       "loading": "Cargando...",

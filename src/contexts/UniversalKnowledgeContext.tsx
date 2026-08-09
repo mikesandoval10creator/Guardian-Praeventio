@@ -50,14 +50,35 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   const [environment, setEnvironment] = useState<EnvironmentContext | null>(null);
   const { isAuthReady, user, userIndustry } = useFirebase();
   const { selectedProject } = useProject();
+  const environmentProjectLat = selectedProject?.coordinates?.lat;
+  const environmentProjectLng = selectedProject?.coordinates?.lng;
 
   // Fetch Environment Data (Orchestrator)
   useEffect(() => {
     let isMounted = true;
+    const hasCoordinates =
+      typeof environmentProjectLat === 'number' &&
+      Number.isFinite(environmentProjectLat) &&
+      environmentProjectLat >= -90 &&
+      environmentProjectLat <= 90 &&
+      typeof environmentProjectLng === 'number' &&
+      Number.isFinite(environmentProjectLng) &&
+      environmentProjectLng >= -180 &&
+      environmentProjectLng <= 180;
+
+    if (!hasCoordinates) {
+      setEnvironment(null);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const loadEnvironment = async () => {
       try {
-        const envData = await fetchEnvironmentContext();
+        const envData = await fetchEnvironmentContext(
+          environmentProjectLat,
+          environmentProjectLng,
+        );
         if (isMounted) {
           setEnvironment(envData);
         }
@@ -75,7 +96,11 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [
+    selectedProject?.id,
+    environmentProjectLat,
+    environmentProjectLng,
+  ]);
 
   useEffect(() => {
     if (!isAuthReady || !user) {

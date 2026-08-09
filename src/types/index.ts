@@ -98,6 +98,10 @@ export interface WeatherData {
   windSpeed?: number;
   sunrise?: number;
   sunset?: number;
+  /** Coordinates used for this measurement; null means no safe source location. */
+  sourceCoordinates?: { lat: number; lng: number } | null;
+  /** Epoch milliseconds when the weather reading was obtained; null if unavailable. */
+  measuredAt?: number | null;
   /**
    * Round 18 (R6): truthful empty-state flag. When `true`, every
    * numeric/string field is a placeholder (null) and the UI MUST

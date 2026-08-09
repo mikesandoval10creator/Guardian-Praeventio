@@ -5,6 +5,7 @@ import {
   AlertTriangle, Activity, RefreshCw, Mountain,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useProject } from '../contexts/ProjectContext';
 import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
 import { logger } from '../utils/logger';
 
@@ -40,16 +41,6 @@ interface WeatherState {
   windKph: number;
   uvIndex: number;
 }
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const OPEN_METEO_URL =
-  'https://api.open-meteo.com/v1/forecast' +
-  '?latitude=-33.45&longitude=-70.67' +
-  '&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,uv_index' +
-  '&timezone=America%2FSantiago';
 
 const REFRESH_MS = 600_000; // 10 minutes
 
@@ -179,12 +170,28 @@ export interface WeatherBulletinProps {
 // ---------------------------------------------------------------------------
 
 export function WeatherBulletin({
-  altitudeM = 0,
+  altitudeM,
   compact = false,
   className = '',
 }: WeatherBulletinProps) {
   const { isDayTime } = useTheme();
-  const { earthquakes, criticalAlert } = useSeismicMonitor();
+  const { selectedProject } = useProject();
+  const projectName = selectedProject?.name;
+  const projectLat = selectedProject?.coordinates?.lat;
+  const projectLng = selectedProject?.coordinates?.lng;
+  const hasProjectCoordinates =
+    typeof projectLat === 'number' &&
+    Number.isFinite(projectLat) &&
+    projectLat >= -90 &&
+    projectLat <= 90 &&
+    typeof projectLng === 'number' &&
+    Number.isFinite(projectLng) &&
+    projectLng >= -180 &&
+    projectLng <= 180;
+  const { earthquakes, criticalAlert, error: seismicError } = useSeismicMonitor(
+    projectLat,
+    projectLng,
+  );
 
   const [weather, setWeather] = useState<WeatherState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,8 +199,23 @@ export function WeatherBulletin({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchWeather = useCallback(async () => {
+    if (!hasProjectCoordinates) {
+      setWeather(null);
+      setFetchError(false);
+      setLastUpdated(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(OPEN_METEO_URL);
+      const params = new URLSearchParams({
+        latitude: String(projectLat),
+        longitude: String(projectLng),
+        current:
+          'temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,uv_index',
+        timezone: 'auto',
+      });
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: OpenMeteoResponse = await res.json() as OpenMeteoResponse;
       const c = json.current;
@@ -212,9 +234,16 @@ export function WeatherBulletin({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [
+    projectLat,
+    projectLng,
+    hasProjectCoordinates,
+  ]);
 
   useEffect(() => {
+    setWeather(null);
+    setLastUpdated(null);
+    setLoading(true);
     fetchWeather();
     const interval = setInterval(fetchWeather, REFRESH_MS);
     return () => clearInterval(interval);
@@ -225,7 +254,10 @@ export function WeatherBulletin({
   const seismicOk = !criticalAlert;
 
   // Altitude
-  const altTier = getAltitudeTier(altitudeM);
+  const altTier =
+    typeof altitudeM === 'number' && Number.isFinite(altitudeM)
+      ? getAltitudeTier(altitudeM)
+      : null;
 
   // UV
   const uvMeta = weather ? getUvMeta(weather.uvIndex) : null;
@@ -261,10 +293,13 @@ export function WeatherBulletin({
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
             <MapPin className="w-3 h-3" aria-hidden="true" />
-            Santiago, Chile
+            {hasProjectCoordinates
+              ? projectName
+              : 'Ubicación no disponible'}
           </span>
           <button
             onClick={fetchWeather}
+            disabled={!hasProjectCoordinates}
             aria-label="Actualizar datos climáticos"
             className="p-1 rounded-md text-zinc-400 hover:text-[#4db6ac] dark:hover:text-[#d4af37] transition-colors"
           >
@@ -363,7 +398,18 @@ export function WeatherBulletin({
               </p>
 
               <AnimatePresence mode="wait">
-                {seismicOk ? (
+                {seismicError ? (
+                  <motion.div
+                    key="unavailable"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-xs text-zinc-400 dark:text-zinc-500"
+                    role="status"
+                  >
+                    Datos sísmicos no disponibles
+                  </motion.div>
+                ) : seismicOk ? (
                   <motion.div
                     key="ok"
                     initial={{ opacity: 0 }}
@@ -419,11 +465,17 @@ export function WeatherBulletin({
                 <div className="flex items-start gap-2">
                   <Mountain className="w-4 h-4 shrink-0 text-zinc-500 dark:text-zinc-400 mt-0.5" aria-hidden="true" />
                   <div className="space-y-1">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
-                      {altTier.o2Label}
-                    </span>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{altTier.label}</p>
-                    {altTier.mandatory && (
+                    {altTier ? (
+                      <>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
+                          {altTier.o2Label}
+                        </span>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{altTier.label}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">Altitud no disponible</p>
+                    )}
+                    {altTier?.mandatory && (
                       <p className="text-xs text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
                         Aclimatación obligatoria (DS 594)
@@ -439,13 +491,21 @@ export function WeatherBulletin({
         {/* Compact mode: seismic + altitude summary row */}
         {compact && (
           <div className="flex items-center gap-3 mt-2 pt-2 border-t border-zinc-100/80 dark:border-white/5">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${seismicOk ? 'bg-green-500' : criticalAlert && criticalAlert.magnitude >= 6 ? 'bg-red-500' : 'bg-amber-500'}`} aria-hidden="true" />
+            <span className={`w-2 h-2 rounded-full shrink-0 ${seismicError ? 'bg-zinc-400' : seismicOk ? 'bg-green-500' : criticalAlert && criticalAlert.magnitude >= 6 ? 'bg-red-500' : 'bg-amber-500'}`} aria-hidden="true" />
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              {seismicOk ? 'Sin actividad sísmica' : `M ${criticalAlert?.magnitude.toFixed(1)}`}
+              {seismicError
+                ? 'Datos sísmicos no disponibles'
+                : seismicOk
+                  ? 'Sin actividad sísmica'
+                  : `M ${criticalAlert?.magnitude.toFixed(1)}`}
             </span>
-            <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
-              {altTier.o2Label}
-            </span>
+            {altTier ? (
+              <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
+                {altTier.o2Label}
+              </span>
+            ) : (
+              <span className="ml-auto text-xs text-zinc-400">Altitud no disponible</span>
+            )}
           </div>
         )}
 
