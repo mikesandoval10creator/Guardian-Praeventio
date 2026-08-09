@@ -2,7 +2,6 @@
 
 import type {
   BillEstimate,
-  EstimateOptions,
   Tier,
   TierComparison,
   UsageProfile,
@@ -39,7 +38,6 @@ async function json<T>(res: Response): Promise<T> {
 export interface EstimateBillInput {
   tier: Tier;
   usage: UsageProfile;
-  options?: EstimateOptions;
 }
 export interface EstimateBillResponse {
   estimate: BillEstimate;
@@ -61,7 +59,6 @@ export async function estimateBillFor(
 export interface CompareTiersInput {
   currentTier: Tier;
   usage: UsageProfile;
-  options?: EstimateOptions;
 }
 export interface CompareTiersResponse {
   comparisons: TierComparison[];
@@ -84,7 +81,6 @@ export interface WorkerBreakEvenInput {
   currentTier: Tier;
   nextTier: Tier;
   baseUsage: UsageProfile;
-  options?: EstimateOptions;
 }
 export interface WorkerBreakEvenResponse {
   workers: number;

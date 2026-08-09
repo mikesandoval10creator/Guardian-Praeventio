@@ -1,84 +1,25 @@
-// Praeventio Guard — Sprint 45 §171-173: Pricing Simulator + Calculadora.
+// Praeventio Guard — canonical metallic-tier pricing simulator.
 //
-// Cierra §171 (calculadora pricing), §172 (simulador escenarios),
-// §173 (overages) de la 2da tanda usuario.
-//
-// 100% determinístico. Dado un perfil de uso (workers, projects, AI calls,
-// storage GB, etc.) y un tier, calcula:
-//   - Monthly bill base
-//   - Overages por dimensión que excede límites del tier
-//   - Total estimado + comparación con tiers superiores
-//   - Punto donde upgrade conviene (break-even)
+// The product tier catalog lives exclusively in ../pricing/tiers.ts. This
+// module projects that catalog into deterministic estimates and comparisons;
+// callers cannot override prices or capacities.
 
-// ────────────────────────────────────────────────────────────────────────
-// Public types
-// ────────────────────────────────────────────────────────────────────────
+import {
+  TIER_IDS,
+  TIERS,
+  calculateMonthlyCost,
+  getTierById,
+  type TierId,
+} from "../pricing/tiers.js";
 
-export type Tier = 'free' | 'starter' | 'pro' | 'enterprise';
-
-export interface TierLimits {
-  monthlyBaseClp: number;
-  maxWorkers: number;
-  maxProjects: number;
-  /** AI calls incluidas/mes. */
-  includedAiCalls: number;
-  /** GB de storage incluidos. */
-  includedStorageGb: number;
-}
-
-export interface OverageRates {
-  /** CLP por trabajador extra. */
-  perWorkerClp: number;
-  /** CLP por proyecto extra. */
-  perProjectClp: number;
-  /** CLP por AI call extra. */
-  perAiCallClp: number;
-  /** CLP por GB storage extra. */
-  perStorageGbClp: number;
-}
-
-export const TIER_TABLE: Record<Tier, TierLimits> = {
-  free: {
-    monthlyBaseClp: 0,
-    maxWorkers: 5,
-    maxProjects: 1,
-    includedAiCalls: 50,
-    includedStorageGb: 1,
-  },
-  starter: {
-    monthlyBaseClp: 29_990,
-    maxWorkers: 25,
-    maxProjects: 3,
-    includedAiCalls: 500,
-    includedStorageGb: 10,
-  },
-  pro: {
-    monthlyBaseClp: 89_990,
-    maxWorkers: 100,
-    maxProjects: 10,
-    includedAiCalls: 5_000,
-    includedStorageGb: 100,
-  },
-  enterprise: {
-    monthlyBaseClp: 290_000,
-    maxWorkers: Infinity,
-    maxProjects: Infinity,
-    includedAiCalls: 50_000,
-    includedStorageGb: 1_000,
-  },
-};
-
-export const DEFAULT_OVERAGE_RATES: OverageRates = {
-  perWorkerClp: 1_500,
-  perProjectClp: 9_990,
-  perAiCallClp: 50,
-  perStorageGbClp: 990,
-};
+export type Tier = TierId;
 
 export interface UsageProfile {
   workers: number;
   projects: number;
+  /** Retained for wire compatibility; canonical tiers do not price AI calls. */
   aiCallsPerMonth: number;
+  /** Retained for wire compatibility; canonical tiers do not price storage. */
   storageGb: number;
 }
 
@@ -95,158 +36,154 @@ export interface BillEstimate {
   overage: OverageBreakdown;
   totalOverageClp: number;
   totalClp: number;
-  /** Si el uso cabe sin overages (verde). */
+  /** Whether workers and active projects stay within the canonical plan caps. */
   fitsWithoutOverage: boolean;
 }
 
 export class PricingError extends Error {
   constructor(msg: string) {
     super(msg);
-    this.name = 'PricingError';
+    this.name = "PricingError";
   }
 }
-
-// ────────────────────────────────────────────────────────────────────────
-// Core estimation
-// ────────────────────────────────────────────────────────────────────────
 
 function safeExcess(used: number, limit: number): number {
   if (!Number.isFinite(limit)) return 0;
   return Math.max(0, used - limit);
 }
 
-export interface EstimateOptions {
-  rates?: OverageRates;
-  /** Sobreescribe la tabla de tiers (testing / locale). */
-  customTiers?: Partial<Record<Tier, TierLimits>>;
+function validateUsage(usage: UsageProfile): void {
+  const dimensions: Array<[keyof UsageProfile, number]> = [
+    ["workers", usage.workers],
+    ["projects", usage.projects],
+    ["aiCallsPerMonth", usage.aiCallsPerMonth],
+    ["storageGb", usage.storageGb],
+  ];
+
+  for (const [name, value] of dimensions) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new PricingError(`${name} must be >=0 finite, got ${value}`);
+    }
+  }
 }
 
-export function estimateBill(
-  tier: Tier,
-  usage: UsageProfile,
-  options: EstimateOptions = {},
-): BillEstimate {
-  if (!Number.isFinite(usage.workers) || usage.workers < 0) {
-    throw new PricingError(`workers must be >=0 finite, got ${usage.workers}`);
-  }
-  if (!Number.isFinite(usage.projects) || usage.projects < 0) {
-    throw new PricingError(`projects must be >=0 finite, got ${usage.projects}`);
-  }
-  if (!Number.isFinite(usage.aiCallsPerMonth) || usage.aiCallsPerMonth < 0) {
-    throw new PricingError(`aiCallsPerMonth invalid`);
-  }
-  if (!Number.isFinite(usage.storageGb) || usage.storageGb < 0) {
-    throw new PricingError(`storageGb invalid`);
-  }
+export function estimateBill(tier: Tier, usage: UsageProfile): BillEstimate {
+  validateUsage(usage);
 
-  const limits = options.customTiers?.[tier] ?? TIER_TABLE[tier];
-  const rates = options.rates ?? DEFAULT_OVERAGE_RATES;
+  const definition = getTierById(tier);
+  const workerExcess = safeExcess(usage.workers, definition.trabajadoresMax);
+  const projectExcess = safeExcess(usage.projects, definition.proyectosMax);
+  const supportsOverage =
+    definition.trabajadorExtraClp !== undefined ||
+    definition.proyectoExtraClp !== undefined;
+  const canonicalCost =
+    (workerExcess === 0 && projectExcess === 0) || supportsOverage
+      ? calculateMonthlyCost(tier, usage.workers, usage.projects)
+      : {
+          base: definition.clpRegular,
+          workerOverage: 0,
+          projectOverage: 0,
+          total: definition.clpRegular,
+        };
 
   const overage: OverageBreakdown = {
     workers: {
-      excess: safeExcess(usage.workers, limits.maxWorkers),
-      clp: 0,
+      excess: workerExcess,
+      clp: canonicalCost.workerOverage,
     },
     projects: {
-      excess: safeExcess(usage.projects, limits.maxProjects),
-      clp: 0,
+      excess: projectExcess,
+      clp: canonicalCost.projectOverage,
     },
-    aiCalls: {
-      excess: safeExcess(usage.aiCallsPerMonth, limits.includedAiCalls),
-      clp: 0,
-    },
-    storage: {
-      excess: safeExcess(usage.storageGb, limits.includedStorageGb),
-      clp: 0,
-    },
+    // No canonical AI/storage allowance or rate exists. Charging the legacy
+    // simulator values would recreate a second, contradictory price model.
+    aiCalls: { excess: 0, clp: 0 },
+    storage: { excess: 0, clp: 0 },
   };
 
-  overage.workers.clp = overage.workers.excess * rates.perWorkerClp;
-  overage.projects.clp = overage.projects.excess * rates.perProjectClp;
-  overage.aiCalls.clp = overage.aiCalls.excess * rates.perAiCallClp;
-  overage.storage.clp = overage.storage.excess * rates.perStorageGbClp;
-
   const totalOverageClp =
-    overage.workers.clp + overage.projects.clp + overage.aiCalls.clp + overage.storage.clp;
+    canonicalCost.workerOverage + canonicalCost.projectOverage;
 
   return {
     tier,
-    baseClp: limits.monthlyBaseClp,
+    baseClp: canonicalCost.base,
     overage,
     totalOverageClp,
-    totalClp: limits.monthlyBaseClp + totalOverageClp,
-    fitsWithoutOverage: totalOverageClp === 0,
+    totalClp: canonicalCost.total,
+    fitsWithoutOverage: workerExcess === 0 && projectExcess === 0,
   };
 }
-
-// ────────────────────────────────────────────────────────────────────────
-// Cross-tier comparison
-// ────────────────────────────────────────────────────────────────────────
 
 export interface TierComparison {
   tier: Tier;
   estimate: BillEstimate;
-  /** % cambio vs el tier actual. */
-  diffPctVsCurrent: number;
-  /** Diff absoluto CLP. */
+  /** Null when the current plan costs zero and percentage change is undefined. */
+  diffPctVsCurrent: number | null;
   diffClpVsCurrent: number;
-  /** Si conviene upgrade vs current tier (ahorra dinero o mucho mejor fit). */
   recommended: boolean;
 }
 
-/**
- * Compara el tier actual vs todos los demás dados el usage. Útil para
- * §172 simulador: "si crezco a N workers, qué tier conviene?".
- */
 export function compareTiers(
   currentTier: Tier,
   usage: UsageProfile,
-  options: EstimateOptions = {},
 ): TierComparison[] {
-  const current = estimateBill(currentTier, usage, options);
-  const allTiers: Tier[] = ['free', 'starter', 'pro', 'enterprise'];
-  return allTiers.map((tier) => {
-    const est = estimateBill(tier, usage, options);
-    const diffClp = est.totalClp - current.totalClp;
+  const current = estimateBill(currentTier, usage);
+
+  return TIER_IDS.map((tier) => {
+    const estimate = estimateBill(tier, usage);
+    const diffClp = estimate.totalClp - current.totalClp;
     const diffPct =
-      current.totalClp === 0 ? (est.totalClp === 0 ? 0 : Infinity) : (diffClp / current.totalClp) * 100;
-    // Recomendado si: cuesta menos O fit perfecto sin overage cuando hoy hay overage
-    const recommended =
-      tier !== currentTier &&
-      (est.totalClp < current.totalClp ||
-        (est.fitsWithoutOverage && !current.fitsWithoutOverage));
+      current.totalClp === 0
+        ? estimate.totalClp === 0
+          ? 0
+          : null
+        : (diffClp / current.totalClp) * 100;
+
     return {
       tier,
-      estimate: est,
+      estimate,
       diffClpVsCurrent: diffClp,
-      diffPctVsCurrent: Math.round(diffPct * 10) / 10,
-      recommended,
+      diffPctVsCurrent: diffPct === null ? null : Math.round(diffPct * 10) / 10,
+      recommended:
+        tier !== currentTier &&
+        estimate.fitsWithoutOverage &&
+        (!current.fitsWithoutOverage || estimate.totalClp < current.totalClp),
     };
   });
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Break-even
-// ────────────────────────────────────────────────────────────────────────
-
 /**
- * Encuentra el N de workers donde el upgrade a `nextTier` deja de
- * ser más caro que mantenerse en `currentTier`. Útil para mostrar
- * "te conviene upgradear cuando llegues a X trabajadores".
+ * Finds the first worker count where the next plan is financially no worse
+ * while providing the same fit, or where it becomes the first plan that fits.
  */
 export function workerBreakEven(
   currentTier: Tier,
   nextTier: Tier,
   baseUsage: UsageProfile,
-  options: EstimateOptions = {},
 ): { workers: number; found: boolean } {
-  // Búsqueda lineal hasta 10000 (mining grande); suficiente.
-  for (let w = baseUsage.workers; w <= 10_000; w += 5) {
-    const a = estimateBill(currentTier, { ...baseUsage, workers: w }, options);
-    const b = estimateBill(nextTier, { ...baseUsage, workers: w }, options);
-    if (b.totalClp <= a.totalClp) {
-      return { workers: w, found: true };
+  validateUsage(baseUsage);
+  const currentIndex = TIERS.findIndex(({ id }) => id === currentTier);
+  const nextIndex = TIERS.findIndex(({ id }) => id === nextTier);
+  if (nextIndex <= currentIndex) {
+    throw new PricingError(
+      `nextTier must rank above currentTier, got ${currentTier} -> ${nextTier}`,
+    );
+  }
+  const start = Math.ceil(baseUsage.workers);
+
+  for (let workers = start; workers <= 10_000; workers += 1) {
+    const current = estimateBill(currentTier, { ...baseUsage, workers });
+    const next = estimateBill(nextTier, { ...baseUsage, workers });
+    const nextFirstToFit =
+      next.fitsWithoutOverage && !current.fitsWithoutOverage;
+    const sameFitAndNoMoreExpensive =
+      next.fitsWithoutOverage === current.fitsWithoutOverage &&
+      next.totalClp <= current.totalClp;
+
+    if (nextFirstToFit || sameFitAndNoMoreExpensive) {
+      return { workers, found: true };
     }
   }
+
   return { workers: 10_000, found: false };
 }

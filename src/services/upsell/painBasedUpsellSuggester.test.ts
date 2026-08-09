@@ -1,76 +1,109 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from "vitest";
 import {
   suggestUpsell,
   type UsagePainSignals,
-} from './painBasedUpsellSuggester.js';
+} from "./painBasedUpsellSuggester.js";
 
-function signals(over: Partial<UsagePainSignals> = {}): UsagePainSignals {
+function signals(overrides: Partial<UsagePainSignals> = {}): UsagePainSignals {
   return {
-    manualReportsPerWeek: over.manualReportsPerWeek ?? 0,
-    exceptionsRaisedLast30d: over.exceptionsRaisedLast30d ?? 0,
-    dataConfidenceScore: over.dataConfidenceScore ?? 0.95,
-    currentTier: over.currentTier ?? 'starter',
-    activeProjectCount: over.activeProjectCount,
+    manualReportsPerWeek: 0,
+    exceptionsRaisedLast30d: 0,
+    dataConfidenceScore: 0.9,
+    currentTier: "cobre",
+    ...overrides,
   };
 }
 
-describe('painBasedUpsellSuggester / suggestUpsell', () => {
-  it('no pain signals → no suggestions (NEVER upsell without evidence)', () => {
+describe("painBasedUpsellSuggester / suggestUpsell", () => {
+  it("never suggests an upsell without evidence of pain", () => {
     expect(suggestUpsell(signals())).toEqual([]);
   });
 
-  it('high manual reports → suggests automated_reports addon', () => {
-    const out = suggestUpsell(signals({ manualReportsPerWeek: 12 }));
-    expect(out.length).toBeGreaterThan(0);
-    expect(out.some((s) => s.addonOrTier === 'addon.automated_reports')).toBe(true);
-    const addon = out.find((s) => s.addonOrTier === 'addon.automated_reports')!;
-    expect(addon.painSignalsAddressed).toContain('high_manual_reports');
-    expect(addon.painReductionEstimate).toBeGreaterThan(0);
+  it("suggests the immediate next canonical metallic tier", () => {
+    const out = suggestUpsell(
+      signals({ currentTier: "cobre", activeProjectCount: 4 }),
+    );
+
+    expect(out.some(({ addonOrTier }) => addonOrTier === "tier.plata")).toBe(
+      true,
+    );
+    expect(out.every(({ addonOrTier }) => addonOrTier !== "tier.pro")).toBe(
+      true,
+    );
   });
 
-  it('frequent exceptions → suggests exception_workflows addon', () => {
-    const out = suggestUpsell(signals({ exceptionsRaisedLast30d: 20 }));
-    expect(out.some((s) => s.addonOrTier === 'addon.exception_workflows')).toBe(true);
+  it("keeps evidence-matched addon suggestions", () => {
+    const reportSuggestions = suggestUpsell(
+      signals({ manualReportsPerWeek: 10 }),
+    );
+    const exceptionSuggestions = suggestUpsell(
+      signals({ exceptionsRaisedLast30d: 10 }),
+    );
+    const qualitySuggestions = suggestUpsell(
+      signals({ dataConfidenceScore: 0.4 }),
+    );
+
+    expect(
+      reportSuggestions.some(
+        ({ addonOrTier }) => addonOrTier === "addon.automated_reports",
+      ),
+    ).toBe(true);
+    expect(
+      exceptionSuggestions.some(
+        ({ addonOrTier }) => addonOrTier === "addon.exception_workflows",
+      ),
+    ).toBe(true);
+    expect(
+      qualitySuggestions.some(
+        ({ addonOrTier }) => addonOrTier === "addon.data_quality_pack",
+      ),
+    ).toBe(true);
+    expect(reportSuggestions.every(({ kind }) => kind === "addon")).toBe(true);
   });
 
-  it('low data confidence → suggests data_quality_pack addon', () => {
-    const out = suggestUpsell(signals({ dataConfidenceScore: 0.4 }));
-    expect(out.some((s) => s.addonOrTier === 'addon.data_quality_pack')).toBe(true);
+  it("derives scale pain from the current canonical project capacity", () => {
+    expect(
+      suggestUpsell(signals({ currentTier: "cobre", activeProjectCount: 3 })),
+    ).toEqual([]);
+
+    const overCapacity = suggestUpsell(
+      signals({ currentTier: "cobre", activeProjectCount: 4 }),
+    );
+    expect(overCapacity.map(({ addonOrTier }) => addonOrTier)).toContain(
+      "tier.plata",
+    );
+    expect(overCapacity[0].painSignalsAddressed).toContain(
+      "scale_outgrew_tier",
+    );
   });
 
-  it('multiple pains → orders by painReductionEstimate desc', () => {
+  it("does not invent a tier above Diamante", () => {
+    expect(
+      suggestUpsell(
+        signals({ currentTier: "diamante", activeProjectCount: 51 }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("orders multiple suggestions by estimated pain reduction", () => {
     const out = suggestUpsell(
       signals({
-        manualReportsPerWeek: 15,
+        manualReportsPerWeek: 20,
         exceptionsRaisedLast30d: 20,
-        dataConfidenceScore: 0.3,
-        currentTier: 'starter',
-        activeProjectCount: 8,
+        dataConfidenceScore: 0.2,
       }),
     );
-    for (let i = 1; i < out.length; i++) {
-      expect(out[i - 1].painReductionEstimate).toBeGreaterThanOrEqual(out[i].painReductionEstimate);
+
+    for (let index = 1; index < out.length; index += 1) {
+      expect(out[index - 1].painReductionEstimate).toBeGreaterThanOrEqual(
+        out[index].painReductionEstimate,
+      );
     }
-    // Tier pro should be in the list since covers 3 pains.
-    expect(out.some((s) => s.addonOrTier === 'tier.pro')).toBe(true);
   });
 
-  it('does not suggest tier upgrade if already at that tier', () => {
-    const out = suggestUpsell(
-      signals({
-        manualReportsPerWeek: 15,
-        exceptionsRaisedLast30d: 20,
-        dataConfidenceScore: 0.3,
-        currentTier: 'enterprise',
-        activeProjectCount: 50,
-      }),
+  it("rejects dataConfidenceScore outside [0, 1]", () => {
+    expect(() => suggestUpsell(signals({ dataConfidenceScore: 1.1 }))).toThrow(
+      /within \[0, 1\]/,
     );
-    expect(out.every((s) => s.addonOrTier !== 'tier.enterprise')).toBe(true);
-    expect(out.every((s) => s.addonOrTier !== 'tier.pro')).toBe(true);
-  });
-
-  it('rejects dataConfidenceScore outside [0,1]', () => {
-    expect(() => suggestUpsell(signals({ dataConfidenceScore: -0.1 }))).toThrow();
-    expect(() => suggestUpsell(signals({ dataConfidenceScore: 1.5 }))).toThrow();
   });
 });

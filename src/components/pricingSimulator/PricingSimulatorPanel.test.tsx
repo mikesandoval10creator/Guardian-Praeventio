@@ -14,8 +14,8 @@ vi.mock('react-i18next', () => ({
 
 const estimateMock = vi.fn(async (..._args: unknown[]) => ({
   estimate: {
-    tier: 'starter',
-    baseClp: 29_990,
+    tier: 'cobre',
+    baseClp: 9_990,
     overage: {
       workers: { excess: 0, clp: 0 },
       projects: { excess: 0, clp: 0 },
@@ -23,7 +23,7 @@ const estimateMock = vi.fn(async (..._args: unknown[]) => ({
       storage: { excess: 0, clp: 0 },
     },
     totalOverageClp: 0,
-    totalClp: 29_990,
+    totalClp: 9_990,
     fitsWithoutOverage: true,
   },
 }));
@@ -46,6 +46,22 @@ describe('<PricingSimulatorPanel />', () => {
     expect(screen.getByTestId('pricing-simulator-submit')).toBeEnabled();
   });
 
+  it('renders the seven canonical metallic tiers and defaults to Cobre', () => {
+    render(<PricingSimulatorPanel projectId="proj-1" />);
+
+    const select = screen.getByTestId('pricing-simulator-tier') as HTMLSelectElement;
+    expect(Array.from(select.options, (option) => option.value)).toEqual([
+      'gratis',
+      'cobre',
+      'plata',
+      'oro',
+      'titanio',
+      'platino',
+      'diamante',
+    ]);
+    expect(select.value).toBe('cobre');
+  });
+
   it('submits the form via the hook and renders the bill estimate', async () => {
     render(<PricingSimulatorPanel projectId="proj-1" />);
 
@@ -60,7 +76,7 @@ describe('<PricingSimulatorPanel />', () => {
       tier: string;
       usage: { workers: number; projects: number };
     };
-    expect(input.tier).toBe('starter');
+    expect(input.tier).toBe('cobre');
     expect(input.usage.workers).toBe(25);
     expect(input.usage.projects).toBe(3);
 

@@ -1,100 +1,155 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from "vitest";
 import {
-  estimateBill,
-  compareTiers,
-  workerBreakEven,
-  TIER_TABLE,
   PricingError,
+  compareTiers,
+  estimateBill,
+  workerBreakEven,
   type UsageProfile,
-} from './pricingSimulator.js';
+} from "./pricingSimulator.js";
 
-function usage(over: Partial<UsageProfile> = {}): UsageProfile {
+function usage(overrides: Partial<UsageProfile> = {}): UsageProfile {
   return {
     workers: 10,
     projects: 2,
     aiCallsPerMonth: 100,
     storageGb: 5,
-    ...over,
+    ...overrides,
   };
 }
 
-describe('estimateBill', () => {
-  it('starter tier sin overage', () => {
-    const r = estimateBill('starter', usage());
-    expect(r.fitsWithoutOverage).toBe(true);
-    expect(r.totalClp).toBe(TIER_TABLE.starter.monthlyBaseClp);
-    expect(r.totalOverageClp).toBe(0);
+const CANONICAL_TIERS = [
+  "gratis",
+  "cobre",
+  "plata",
+  "oro",
+  "titanio",
+  "platino",
+  "diamante",
+] as const;
+
+describe("estimateBill", () => {
+  it("uses the canonical Cobre price and capacities from pricing/tiers", () => {
+    const result = estimateBill("cobre", usage({ workers: 24, projects: 3 }));
+
+    expect(result.baseClp).toBe(9_990);
+    expect(result.overage.workers).toEqual({ excess: 0, clp: 0 });
+    expect(result.overage.projects).toEqual({ excess: 0, clp: 0 });
+    expect(result.fitsWithoutOverage).toBe(true);
   });
 
-  it('free tier con 10 workers genera overage workers', () => {
-    const r = estimateBill('free', usage({ workers: 10 }));
-    expect(r.overage.workers.excess).toBe(5);
-    expect(r.overage.workers.clp).toBe(5 * 1500);
-    expect(r.fitsWithoutOverage).toBe(false);
+  it("uses Cobre canonical worker and project overage rates", () => {
+    const result = estimateBill("cobre", usage({ workers: 30, projects: 4 }));
+
+    expect(result.overage.workers).toEqual({ excess: 6, clp: 5_940 });
+    expect(result.overage.projects).toEqual({ excess: 1, clp: 5_990 });
+    expect(result.totalOverageClp).toBe(11_930);
+    expect(result.totalClp).toBe(21_920);
+    expect(result.fitsWithoutOverage).toBe(false);
   });
 
-  it('starter con 30 workers + 4 proyectos → overage doble', () => {
-    const r = estimateBill('starter', usage({ workers: 30, projects: 4 }));
-    expect(r.overage.workers.excess).toBe(5);
-    expect(r.overage.projects.excess).toBe(1);
-    expect(r.totalClp).toBeGreaterThan(TIER_TABLE.starter.monthlyBaseClp);
+  it("does not invent AI-call or storage charges absent from canonical tiers", () => {
+    const result = estimateBill(
+      "plata",
+      usage({ aiCallsPerMonth: 1_000_000, storageGb: 50_000 }),
+    );
+
+    expect(result.overage.aiCalls).toEqual({ excess: 0, clp: 0 });
+    expect(result.overage.storage).toEqual({ excess: 0, clp: 0 });
+    expect(result.totalClp).toBe(19_990);
   });
 
-  it('pro tier 100 workers exacto → no overage', () => {
-    const r = estimateBill('pro', usage({ workers: 100, projects: 10, aiCallsPerMonth: 5000, storageGb: 100 }));
-    expect(r.fitsWithoutOverage).toBe(true);
+  it("reports a premium hard-cap breach without fabricating overage charges", () => {
+    const result = estimateBill("titanio", usage({ workers: 2_000 }));
+
+    expect(result.overage.workers).toEqual({ excess: 1, clp: 0 });
+    expect(result.totalOverageClp).toBe(0);
+    expect(result.totalClp).toBe(249_990);
+    expect(result.fitsWithoutOverage).toBe(false);
   });
 
-  it('enterprise tier nunca tiene overage de workers (limit infinito)', () => {
-    const r = estimateBill('enterprise', usage({ workers: 50_000 }));
-    expect(r.overage.workers.excess).toBe(0);
+  it("keeps Diamante worker capacity unlimited while enforcing its project cap", () => {
+    const result = estimateBill(
+      "diamante",
+      usage({ workers: 50_000, projects: 51 }),
+    );
+
+    expect(result.overage.workers).toEqual({ excess: 0, clp: 0 });
+    expect(result.overage.projects).toEqual({ excess: 1, clp: 0 });
+    expect(result.fitsWithoutOverage).toBe(false);
   });
 
-  it('rechaza usage no-finito', () => {
-    expect(() => estimateBill('starter', usage({ workers: NaN }))).toThrowError(PricingError);
-    expect(() => estimateBill('starter', usage({ workers: -1 }))).toThrowError(PricingError);
+  it("rejects negative and non-finite usage dimensions", () => {
+    expect(() =>
+      estimateBill("cobre", usage({ workers: Number.NaN })),
+    ).toThrowError(PricingError);
+    expect(() => estimateBill("cobre", usage({ projects: -1 }))).toThrowError(
+      PricingError,
+    );
+    expect(() =>
+      estimateBill("cobre", usage({ storageGb: Infinity })),
+    ).toThrowError(PricingError);
   });
 });
 
-describe('compareTiers', () => {
-  it('uso pesado en starter sugiere pro', () => {
-    const comps = compareTiers('starter', usage({ workers: 80, projects: 8, aiCallsPerMonth: 3000 }));
-    const pro = comps.find((c) => c.tier === 'pro');
-    expect(pro).toBeDefined();
-    if (pro) {
-      // Pro debería ser recomendado (cuesta menos o fit perfecto)
-      expect(pro.recommended).toBe(true);
-    }
+describe("compareTiers", () => {
+  it("compares exactly the seven canonical metallic tiers in canonical order", () => {
+    const comparisons = compareTiers("cobre", usage());
+
+    expect(comparisons.map((comparison) => comparison.tier)).toEqual(
+      CANONICAL_TIERS,
+    );
   });
 
-  it('uso mínimo en free → no recomienda upgrade', () => {
-    const comps = compareTiers('free', usage({ workers: 3, projects: 1, aiCallsPerMonth: 20, storageGb: 0.5 }));
-    const starter = comps.find((c) => c.tier === 'starter');
-    expect(starter?.recommended).toBe(false);
+  it("recommends Plata when Cobre no longer fits and Plata does", () => {
+    const comparisons = compareTiers(
+      "cobre",
+      usage({ workers: 25, projects: 3 }),
+    );
+
+    expect(comparisons.find(({ tier }) => tier === "plata")?.recommended).toBe(
+      true,
+    );
   });
 
-  it('compareTiers retorna las 4 tiers', () => {
-    const comps = compareTiers('starter', usage());
-    expect(comps.map((c) => c.tier).sort()).toEqual(['enterprise', 'free', 'pro', 'starter']);
+  it("does not recommend a paid tier when Gratis still fits", () => {
+    const comparisons = compareTiers(
+      "gratis",
+      usage({ workers: 3, projects: 1 }),
+    );
+
+    expect(comparisons.filter(({ recommended }) => recommended)).toEqual([]);
   });
 
-  it('diffClpVsCurrent es 0 para el mismo tier', () => {
-    const comps = compareTiers('pro', usage());
-    const pro = comps.find((c) => c.tier === 'pro');
-    expect(pro?.diffClpVsCurrent).toBe(0);
+  it("uses null for an undefined percentage increase from a zero-cost tier", () => {
+    const cobre = compareTiers(
+      "gratis",
+      usage({ workers: 3, projects: 1 }),
+    ).find(({ tier }) => tier === "cobre");
+
+    expect(cobre?.diffPctVsCurrent).toBeNull();
+  });
+
+  it("returns zero difference for the current tier", () => {
+    const current = compareTiers("oro", usage()).find(
+      ({ tier }) => tier === "oro",
+    );
+
+    expect(current?.diffClpVsCurrent).toBe(0);
+    expect(current?.diffPctVsCurrent).toBe(0);
+    expect(current?.recommended).toBe(false);
   });
 });
 
-describe('workerBreakEven', () => {
-  it('encuentra punto donde pro es mejor que starter', () => {
-    const r = workerBreakEven('starter', 'pro', usage({ workers: 20, aiCallsPerMonth: 300, storageGb: 5 }));
-    expect(r.found).toBe(true);
-    expect(r.workers).toBeGreaterThan(20);
-    expect(r.workers).toBeLessThan(200);
+describe("workerBreakEven", () => {
+  it("finds the first worker where Plata fits and Cobre exceeds its cap", () => {
+    expect(
+      workerBreakEven("cobre", "plata", usage({ workers: 20, projects: 2 })),
+    ).toEqual({ workers: 25, found: true });
   });
 
-  it('si nextTier ya es más barato desde el inicio, retorna baseUsage', () => {
-    const r = workerBreakEven('pro', 'enterprise', usage({ workers: 5_000, projects: 50, aiCallsPerMonth: 50_000, storageGb: 800 }));
-    expect(r.found).toBe(true);
+  it("rejects a downgrade passed as the next tier", () => {
+    expect(() =>
+      workerBreakEven("plata", "cobre", usage({ workers: 10, projects: 2 })),
+    ).toThrowError(PricingError);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  TIER_IDS,
   TIERS,
   getTierById,
   formatCurrency,
@@ -25,6 +26,7 @@ describe('TIERS data integrity (7-metal scheme)', () => {
       'diamante',
     ];
     expect(TIERS.map((t) => t.id)).toEqual(ids);
+    expect(TIER_IDS).toEqual(ids);
   });
 });
 
