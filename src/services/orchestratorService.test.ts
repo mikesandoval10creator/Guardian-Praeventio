@@ -86,12 +86,37 @@ afterEach(() => {
 });
 
 describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo', () => {
+  it('fails closed without coordinates and makes no weather request', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { fetchWeatherData } = await import('./orchestratorService');
+    const data = await fetchWeatherData();
+
+    expect(data.unavailable).toBe(true);
+    expect(data.location).toBeNull();
+    expect(data.sourceCoordinates).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fails the full environment context closed without coordinates', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { fetchEnvironmentContext } = await import('./orchestratorService');
+    const context = await fetchEnvironmentContext();
+
+    expect(context.weather?.unavailable).toBe(true);
+    expect(context.seismic).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns REAL telemetry (incl. a measured UV) with NO OpenWeather key', async () => {
     vi.stubEnv('VITE_OPENWEATHER_API_KEY', '');
     vi.stubGlobal('fetch', makeFetch({ meteo: METEO_OK }));
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.unavailable).toBeFalsy();
     expect(data.temp).toBe(18); // Math.round(18.4)
@@ -105,6 +130,8 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     // No key → no city/AQI enhancer, surfaced honestly as null (not fabricated).
     expect(data.location).toBeNull();
     expect(data.airQuality).toBeNull();
+    expect(data.sourceCoordinates).toEqual({ lat: -33.45, lng: -70.67 });
+    expect(typeof data.measuredAt).toBe('number');
   });
 
   it('uses Open-Meteo UV even when OpenWeather is keyed (UV is never from OW)', async () => {
@@ -112,7 +139,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     vi.stubGlobal('fetch', makeFetch({ meteo: METEO_OK, ow: OW_OK, aqi: AQI_OK }));
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.unavailable).toBeFalsy();
     expect(data.uv).toBe(4.7); // measurement from Open-Meteo, not OpenWeather
@@ -128,7 +155,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     vi.stubGlobal('fetch', makeFetch({ meteo: 'fail', ow: OW_OK, aqi: AQI_OK }));
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.unavailable).toBeFalsy();
     expect(data.temp).toBe(17); // from OpenWeather
@@ -142,7 +169,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     vi.stubGlobal('fetch', makeFetch({ meteo: 'fail' }));
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.unavailable).toBe(true);
     expect(data.temp).toBeNull();
@@ -165,7 +192,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     );
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.unavailable).toBe(true);
     expect(data.temp).toBeNull();
@@ -178,7 +205,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     vi.stubGlobal('fetch', makeFetch({ meteo: 'fail' }));
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     const numericFields = [data.temp, data.humidity, data.windSpeed, data.altitude, data.uv];
     for (const value of numericFields) {
@@ -212,7 +239,7 @@ describe('orchestratorService.fetchWeatherData — real weather via Open-Meteo',
     );
 
     const { fetchWeatherData } = await import('./orchestratorService');
-    const data = await fetchWeatherData();
+    const data = await fetchWeatherData(-33.45, -70.67);
 
     expect(data.uv).toBe(9.1);
     expect(data.recommendations.some((r) => r.toLowerCase().includes('calor'))).toBe(true);

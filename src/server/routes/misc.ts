@@ -33,6 +33,10 @@ import { erpSyncLimiter } from '../middleware/limiters.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 // Sprint 39 audit fix (2026-05-15) — ERP integration adapter HONESTO.
 // El handler anterior simulaba éxito con setTimeout(1500) + return success.
 // Esto era "falsa sensación de completitud" — exactamente el patrón que
@@ -90,29 +94,90 @@ const SUPPORTED_ERP_ADAPTERS = new Set(['sap', 'buk', 'talana', 'mock']);
 
 const router = Router();
 
-// 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
-// Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
+// Project-scoped climate forecast endpoint for the Zettelkasten climate-risk
+// coupling. Membership and Firestore project coordinates are authoritative;
+// the response includes source location/freshness beside the forecast.
 // Best-effort: if upstream OpenWeather is unavailable, returns empty forecast.
 // Sprint 27 (audit P0 H15) — gate behind verifyAuth + share the
 // per-uid erpSyncLimiter so a logged-in attacker can't burn the
 // upstream OpenWeather quota in a tight loop.
 router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res) => {
-  const days = Math.min(7, Math.max(1, parseInt(String(req.query.days ?? '3'), 10) || 3));
+  const days = Math.min(5, Math.max(1, parseInt(String(req.query.days ?? '3'), 10) || 3));
+  const projectId = typeof req.query.projectId === 'string' ? req.query.projectId.trim() : '';
+  if (!projectId) {
+    return res.status(400).json({ error: 'project_id_required', forecast: [] });
+  }
+
+  const db = admin.firestore();
   try {
-    // environmentBackend currently exposes updateGlobalEnvironmentalContext
-    // for current weather. A dedicated multi-day getForecast helper is a
-    // follow-up; for now we degrade gracefully so useCalendarPredictions
-    // doesn't crash and just skips climate-risk node generation.
-    const mod = (await import('../../services/environmentBackend.js')) as Record<string, unknown>;
-    const getForecast = mod.getForecast as ((d: number) => Promise<unknown[]>) | undefined;
-    if (typeof getForecast === 'function') {
-      const forecast = await getForecast(days);
-      return res.json({ forecast });
+    await assertProjectMember(req.user!.uid, projectId, db);
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    const raw = projectSnap.data()?.coordinates as
+      | { lat?: unknown; lng?: unknown }
+      | undefined;
+    const coordinates =
+      raw &&
+      typeof raw.lat === 'number' &&
+      Number.isFinite(raw.lat) &&
+      raw.lat >= -90 &&
+      raw.lat <= 90 &&
+      typeof raw.lng === 'number' &&
+      Number.isFinite(raw.lng) &&
+      raw.lng >= -180 &&
+      raw.lng <= 180
+        ? { lat: raw.lat, lng: raw.lng }
+        : null;
+
+    if (!coordinates) {
+      return res.status(422).json({
+        error: 'project_coordinates_unavailable',
+        forecast: [],
+        source: { projectId, coordinates: null, fetchedAt: null },
+      });
     }
-    return res.json({ forecast: [] });
+
+    const mod = (await import('../../services/environmentBackend.js')) as Record<string, unknown>;
+    const getForecast = mod.getForecast as
+      | ((d: number, loc: { lat: number; lng: number }) => Promise<unknown[]>)
+      | undefined;
+    const fetchedAt = new Date().toISOString();
+    if (typeof getForecast === 'function') {
+      try {
+        const forecast = await getForecast(days, coordinates);
+        return res.json({
+          forecast,
+          source: {
+            projectId,
+            coordinates,
+            fetchedAt,
+            available: forecast.length > 0,
+          },
+        });
+      } catch (error: any) {
+        logger.warn('environment_forecast_failed', {
+          projectId,
+          days,
+          message: error?.message,
+        });
+        return res.json({
+          forecast: [],
+          source: { projectId, coordinates, fetchedAt, available: false },
+        });
+      }
+    }
+    return res.json({
+      forecast: [],
+      source: { projectId, coordinates, fetchedAt, available: false },
+    });
   } catch (error: any) {
-    logger.warn('environment_forecast_failed', { days, message: error?.message });
-    return res.json({ forecast: [] });
+    if (error instanceof ProjectMembershipError) {
+      return res.status(error.httpStatus).json({ error: 'forbidden' });
+    }
+    logger.error('environment_project_context_failed', {
+      projectId,
+      message: error?.message,
+    });
+    return res.status(500).json({ error: 'environment_context_unavailable' });
   }
 });
 

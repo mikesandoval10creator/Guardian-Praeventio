@@ -274,6 +274,15 @@ describe('EmergenciaAvanzada — seismic panel is honest about loading/error/emp
     expect(getByText(/no se pudo conectar con la red sismológica/i)).toBeInTheDocument();
   });
 
+  it('distinguishes missing project coordinates from a USGS network outage', () => {
+    mocks.seismicMonitor.mockReturnValue(
+      seismicState({ error: 'project_coordinates_unavailable' }),
+    );
+    const { getByText, queryByText } = render(<EmergenciaAvanzada />);
+    expect(getByText(/coordenadas de la faena no disponibles/i)).toBeInTheDocument();
+    expect(queryByText(/la app sigue monitoreando/i)).not.toBeInTheDocument();
+  });
+
   it('shows an honest empty state (not "Cargando...") when loading finished with zero quakes', () => {
     mocks.seismicMonitor.mockReturnValue(seismicState());
     const { getByText, queryByText } = render(<EmergenciaAvanzada />);

@@ -1,11 +1,22 @@
 import { WeatherData, SeismicData, EnvironmentContext } from '../types';
-import { logger } from '../utils/logger';
 
 const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
-// Default coordinates (Santiago, Chile) if none provided
-const DEFAULT_LAT = -33.4489;
-const DEFAULT_LON = -70.6693;
+function normalizeCoordinates(
+  lat: unknown,
+  lon: unknown,
+): { lat: number; lng: number } | null {
+  const valid =
+    typeof lat === 'number' &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    typeof lon === 'number' &&
+    Number.isFinite(lon) &&
+    lon >= -180 &&
+    lon <= 180;
+  return valid ? { lat, lng: lon } : null;
+}
 
 /** WMO weather-code → es-CL condition text (Open-Meteo `weather_code`). */
 const WMO_CONDITION_ES: Record<number, string> = {
@@ -132,13 +143,18 @@ async function fetchOpenWeatherEnhance(lat: number, lon: number): Promise<OpenWe
  * are unreachable at runtime — never to fabricated numbers.
  */
 export const fetchWeatherData = async (
-  lat: number = DEFAULT_LAT,
-  lon: number = DEFAULT_LON,
+  lat?: number,
+  lon?: number,
 ): Promise<WeatherData> => {
+  const coordinates = normalizeCoordinates(lat, lon);
+  if (!coordinates) {
+    return getMockWeatherData();
+  }
+
   const [meteo, ow, airQuality] = await Promise.all([
-    fetchOpenMeteoWeather(lat, lon),
-    fetchOpenWeatherEnhance(lat, lon),
-    fetchAirQualityLabel(lat, lon),
+    fetchOpenMeteoWeather(coordinates.lat, coordinates.lng),
+    fetchOpenWeatherEnhance(coordinates.lat, coordinates.lng),
+    fetchAirQualityLabel(coordinates.lat, coordinates.lng),
   ]);
 
   if (!meteo && !ow) {
@@ -162,6 +178,8 @@ export const fetchWeatherData = async (
     recommendations: generateWeatherRecommendations(temp, windSpeed ?? 0),
     sunrise: meteo?.sunrise ?? ow?.sunrise,
     sunset: meteo?.sunset ?? ow?.sunset,
+    sourceCoordinates: coordinates,
+    measuredAt: Date.now(),
   };
 };
 
@@ -169,14 +187,15 @@ export const fetchWeatherData = async (
  * Fetches recent seismic data from USGS Earthquake Catalog.
  * Returns the most significant recent earthquake within a radius.
  */
-export const fetchSeismicData = async (lat: number = DEFAULT_LAT, lon: number = DEFAULT_LON, radiusKm: number = 500): Promise<SeismicData | null> => {
+export const fetchSeismicData = async (lat?: number, lon?: number, radiusKm: number = 500): Promise<SeismicData | null> => {
+  const coordinates = normalizeCoordinates(lat, lon);
+  if (!coordinates) return null;
   try {
     // Look for earthquakes in the last 24 hours
-    const endTime = new Date().toISOString();
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     const response = await fetch(
-      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=${radiusKm}&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`
+      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${coordinates.lat}&longitude=${coordinates.lng}&maxradiuskm=${radiusKm}&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`
     );
 
     if (!response.ok) {
@@ -290,6 +309,8 @@ const getMockWeatherData = (): WeatherData => {
     recommendations: [],
     sunrise: undefined,
     sunset: undefined,
+    sourceCoordinates: null,
+    measuredAt: null,
     unavailable: true,
   };
 };

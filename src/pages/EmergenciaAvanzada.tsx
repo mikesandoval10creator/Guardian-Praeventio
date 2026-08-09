@@ -107,8 +107,8 @@ export function EmergenciaAvanzada() {
   });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const projectLat = selectedProject?.coordinates?.lat ?? -33.4489;
-  const projectLng = selectedProject?.coordinates?.lng ?? -70.6693;
+  const projectLat = selectedProject?.coordinates?.lat;
+  const projectLng = selectedProject?.coordinates?.lng;
 
   // Audit 2026-07-02 §3.1 bug 10: consume the hook's loading/error signal
   // so this page can distinguish "still fetching" from "USGS is down" from
@@ -657,6 +657,12 @@ export function EmergenciaAvanzada() {
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Activity className="w-10 h-10 mb-3 opacity-40 animate-pulse" />
                   <p className="text-sm">Cargando datos sísmicos...</p>
+                </div>
+              ) : seismicError === 'project_coordinates_unavailable' ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-amber-500" role="status">
+                  <Map className="w-10 h-10 mb-3 opacity-60" />
+                  <p className="text-sm font-bold">Coordenadas de la faena no disponibles.</p>
+                  <p className="text-xs text-zinc-500 mt-1">Configura la ubicación del proyecto para activar el monitoreo sísmico por distancia.</p>
                 </div>
               ) : seismicError ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-amber-500" role="alert">

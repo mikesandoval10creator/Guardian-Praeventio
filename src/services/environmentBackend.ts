@@ -10,18 +10,19 @@ export type { ClimateForecastDay } from './zettelkasten/climateRiskCoupling';
 
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
-// Default location: Santiago de Chile. Per-tenant overrides are a follow-up
-// (see TODO at bottom of file).
-const DEFAULT_LAT = -33.4489;
-const DEFAULT_LON = -70.6693;
+// Legacy national background snapshot only. Project/tenant safety callers
+// MUST use getForecast with authoritative coordinates and never consume this
+// document as if it represented their faena.
+const GLOBAL_REFERENCE_LAT = -33.4489;
+const GLOBAL_REFERENCE_LON = -70.6693;
 
 export const updateGlobalEnvironmentalContext = async () => {
   const db = admin.firestore();
   const contextRef = db.collection('global_context').doc('environment');
 
   try {
-    const lat = DEFAULT_LAT;
-    const lon = DEFAULT_LON;
+    const lat = GLOBAL_REFERENCE_LAT;
+    const lon = GLOBAL_REFERENCE_LON;
 
     // 1. Fetch Weather
     let weatherData: {
@@ -315,8 +316,8 @@ function isTenantContext(
  *   - the tenant doc does not exist,
  *   - the doc has no `primarySite.coords`,
  *   - the coords are not finite numbers,
- *   - any Firestore error occurs (the error is logged and swallowed so the
- *     forecast endpoint can degrade gracefully to the Santiago default).
+ *   - any Firestore error occurs (the error is logged and swallowed; callers
+ *     must surface an honest unavailable state rather than substitute a city).
  *
  * Exported for direct test override via `setTenantLocationResolver`.
  */
@@ -366,17 +367,17 @@ export function setTenantLocationResolver(resolver?: TenantLocationResolver): vo
 }
 
 /**
- * Fetch a multi-day climate forecast for the given location (default:
- * Santiago de Chile) and aggregate OpenWeather's 3-hour-step `/forecast`
+ * Fetch a multi-day climate forecast for an explicit location and aggregate
+ * OpenWeather's 3-hour-step `/forecast`
  * payload into per-day ClimateForecastDay entries.
  *
  * Location selection precedence:
  *   1. `location` is `{ lat, lng }` → used verbatim.
  *   2. `location` is `{ tenantId }` → resolved via
- *      {@link resolveTenantLocation}; on `null` we fall through to (3) and
- *      log a warning.
- *   3. `location` is `undefined` → Santiago de Chile default
- *      (`-33.4489, -70.6693`).
+ *      {@link resolveTenantLocation}; on `null` we return no forecast.
+ *   3. `location` is absent or invalid → return no forecast without an
+ *      upstream request. Safety callers must never inherit another city's
+ *      conditions.
  *
  * Behavior:
  *   - `days` clamped to [1, 5] (OpenWeather free-tier ceiling). days <= 0
@@ -407,15 +408,30 @@ export async function getForecast(
       resolved = fromTenant;
     } else {
       console.warn(
-        `[EnvironmentBackend] getForecast: tenant=${location.tenantId} has no primarySite coords, falling back to Santiago default.`,
+        `[EnvironmentBackend] getForecast: tenant=${location.tenantId} has no primarySite coords; returning empty forecast.`,
       );
+      return [];
     }
   } else if (location) {
+    const valid =
+      Number.isFinite(location.lat) &&
+      Number.isFinite(location.lng) &&
+      location.lat >= -90 &&
+      location.lat <= 90 &&
+      location.lng >= -180 &&
+      location.lng <= 180;
+    if (!valid) {
+      console.warn('[EnvironmentBackend] getForecast: invalid coordinates; returning empty forecast.');
+      return [];
+    }
     resolved = location;
+  } else {
+    console.warn('[EnvironmentBackend] getForecast: no location supplied; returning empty forecast.');
+    return [];
   }
 
-  const lat = resolved?.lat ?? DEFAULT_LAT;
-  const lon = resolved?.lng ?? DEFAULT_LON;
+  const lat = resolved.lat;
+  const lon = resolved.lng;
 
   const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=es`;
 

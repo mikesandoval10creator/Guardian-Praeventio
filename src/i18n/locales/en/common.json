@@ -1001,7 +1001,12 @@
   "weather": {
     "unavailable": "Weather data unavailable",
     "title": "Weather bulletin",
-    "default_city": "Santiago",
+    "default_city": "Location unavailable",
+    "location_unavailable": "Location unavailable",
+    "altitude_unavailable": "Altitude unavailable",
+    "air_quality_unavailable": "Data unavailable",
+    "ephemeris_unavailable": "Ephemeris unavailable",
+    "source_age": "{{minutes}} min ago",
     "temp": "Temp",
     "condition": "Condition",
     "wind": "Wind",
@@ -1170,6 +1175,7 @@
     "weather": {
       "bulletin_title": "Weather Bulletin (Next 3 Days)",
       "zettelkasten_active": "Zettelkasten Active",
+      "source_age": "{{project}} · updated {{minutes}} min ago",
       "today": "Today",
       "tomorrow": "Tomorrow",
       "loading": "Loading...",

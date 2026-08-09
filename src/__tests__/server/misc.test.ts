@@ -70,8 +70,13 @@ vi.mock('../../services/erp/erpAdapter.js', () => ({
 // network / heavy modules. Paths resolve to the SAME absolute module the route
 // imports, so vitest swaps them in for the route's `await import(...)` too.
 vi.mock('../../services/environmentBackend.js', () => ({
-  getForecast: vi.fn(async (days: number) =>
-    Array.from({ length: days }, (_, i) => ({ day: i, tempC: 20 + i, riskLevel: 'low' })),
+  getForecast: vi.fn(async (days: number, location: { lat: number; lng: number }) =>
+    Array.from({ length: days }, (_, i) => ({
+      day: i,
+      temperatureC: location.lat + i,
+      longitude: location.lng,
+      riskLevel: 'low',
+    })),
   ),
 }));
 vi.mock('../../services/seedBackend.js', () => ({ runSeed: vi.fn(async () => undefined) }));
@@ -106,6 +111,19 @@ function buildApp() {
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  H.db._seed('projects/site-santiago', {
+    members: ['w1'],
+    coordinates: { lat: -33.45, lng: -70.67 },
+  });
+  H.db._seed('projects/site-lima', {
+    members: ['w1'],
+    coordinates: { lat: -12.05, lng: -77.04 },
+  });
+  H.db._seed('projects/site-no-coords', { members: ['w1'] });
+  H.db._seed('projects/site-invalid-coords', {
+    members: ['w1'],
+    coordinates: { lat: 91, lng: -70.67 },
+  });
   H.erpAdapter = null;
   vi.mocked(getForecast).mockClear();
   vi.mocked(runSeed).mockClear();
@@ -118,31 +136,96 @@ describe('GET /environment/forecast', () => {
     expect(res.status).toBe(401);
   });
 
-  it('200 returns the multi-day forecast (default 3 days)', async () => {
+  it('400 without a projectId instead of silently using another city', async () => {
     const res = await request(buildApp())
       .get('/api/environment/forecast')
       .set('x-test-uid', 'w1');
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.forecast)).toBe(true);
-    expect(res.body.forecast).toHaveLength(3);
-    expect(vi.mocked(getForecast)).toHaveBeenCalledWith(3);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('project_id_required');
+    expect(vi.mocked(getForecast)).not.toHaveBeenCalled();
   });
 
-  it('clamps the ?days query into [1,7]', async () => {
+  it('403 when the authenticated caller is not a project member', async () => {
     const res = await request(buildApp())
-      .get('/api/environment/forecast?days=99')
+      .get('/api/environment/forecast?projectId=site-santiago')
+      .set('x-test-uid', 'outsider');
+    expect(res.status).toBe(403);
+    expect(vi.mocked(getForecast)).not.toHaveBeenCalled();
+  });
+
+  it('422 with an honest unavailable state when the project has no coordinates', async () => {
+    const res = await request(buildApp())
+      .get('/api/environment/forecast?projectId=site-no-coords')
+      .set('x-test-uid', 'w1');
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      error: 'project_coordinates_unavailable',
+      forecast: [],
+      source: { projectId: 'site-no-coords', coordinates: null, fetchedAt: null },
+    });
+    expect(vi.mocked(getForecast)).not.toHaveBeenCalled();
+  });
+
+  it('422 without an upstream call when stored project coordinates are invalid', async () => {
+    const res = await request(buildApp())
+      .get('/api/environment/forecast?projectId=site-invalid-coords')
+      .set('x-test-uid', 'w1');
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('project_coordinates_unavailable');
+    expect(vi.mocked(getForecast)).not.toHaveBeenCalled();
+  });
+
+  it('isolates two projects by authoritative coordinates and exposes source freshness', async () => {
+    const app = buildApp();
+    const santiago = await request(app)
+      .get('/api/environment/forecast?projectId=site-santiago&days=2')
+      .set('x-test-uid', 'w1');
+    const lima = await request(app)
+      .get('/api/environment/forecast?projectId=site-lima&days=2')
+      .set('x-test-uid', 'w1');
+
+    expect(santiago.status).toBe(200);
+    expect(lima.status).toBe(200);
+    expect(santiago.body.forecast).not.toEqual(lima.body.forecast);
+    expect(santiago.body.source).toMatchObject({
+      projectId: 'site-santiago',
+      coordinates: { lat: -33.45, lng: -70.67 },
+      available: true,
+    });
+    expect(Date.parse(santiago.body.source.fetchedAt)).not.toBeNaN();
+    expect(vi.mocked(getForecast)).toHaveBeenNthCalledWith(1, 2, {
+      lat: -33.45,
+      lng: -70.67,
+    });
+    expect(vi.mocked(getForecast)).toHaveBeenNthCalledWith(2, 2, {
+      lat: -12.05,
+      lng: -77.04,
+    });
+  });
+
+  it('clamps the ?days query and preserves the project coordinates', async () => {
+    const res = await request(buildApp())
+      .get('/api/environment/forecast?projectId=site-santiago&days=99')
       .set('x-test-uid', 'w1');
     expect(res.status).toBe(200);
-    expect(vi.mocked(getForecast)).toHaveBeenCalledWith(7);
+    expect(vi.mocked(getForecast)).toHaveBeenCalledWith(5, {
+      lat: -33.45,
+      lng: -70.67,
+    });
   });
 
   it('200 with an empty forecast (graceful) when the upstream throws', async () => {
     vi.mocked(getForecast).mockRejectedValueOnce(new Error('OpenWeather down'));
     const res = await request(buildApp())
-      .get('/api/environment/forecast')
+      .get('/api/environment/forecast?projectId=site-santiago')
       .set('x-test-uid', 'w1');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ forecast: [] });
+    expect(res.body.forecast).toEqual([]);
+    expect(res.body.source).toMatchObject({
+      projectId: 'site-santiago',
+      coordinates: { lat: -33.45, lng: -70.67 },
+      available: false,
+    });
   });
 });
 

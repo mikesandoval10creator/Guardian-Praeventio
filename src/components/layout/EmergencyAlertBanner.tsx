@@ -11,9 +11,10 @@ export function EmergencyAlertBanner() {
   const { selectedProject } = useProject();
   const { triggerEmergency } = useEmergency();
 
-  // Use project coordinates if available, otherwise default to Santiago, Chile
-  const projectLat = selectedProject?.coordinates?.lat || -33.4489;
-  const projectLng = selectedProject?.coordinates?.lng || -70.6693;
+  // No project coordinates means no distance-based seismic alert. The hook
+  // fails closed instead of evaluating the USGS feed against another city.
+  const projectLat = selectedProject?.coordinates?.lat;
+  const projectLng = selectedProject?.coordinates?.lng;
 
   const { criticalAlert } = useSeismicMonitor(projectLat, projectLng);
   const [dismissedAlertId, setDismissedAlertId] = React.useState<string | null>(null);
@@ -25,7 +26,7 @@ export function EmergencyAlertBanner() {
     if (triggeredAlertIdRef.current === criticalAlert.id) return;
     // E2E harness (vite --mode test): never escalate a LIVE USGS seismic alert
     // into the full-screen EmergencyOverlay. useSeismicMonitor hits the real USGS
-    // feed against the project's coords (Santiago default), and seismically active
+    // feed against the selected project's coordinates, and seismically active
     // Chile frequently has a M>=4.5 quake within 500km in the last 2h — which
     // fires the z-9999 takeover and intercepts pointer events for EVERY full-stack
     // spec (offline, process-lifecycle, auditoria-5s, fall-detection…). The
