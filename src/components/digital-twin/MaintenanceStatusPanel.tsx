@@ -19,7 +19,7 @@
 // Reuse: pulls history from the Bucket K.1 hook + tracks calendar
 // events via `useFirestoreCollection`. No new Firestore plumbing.
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   ClipboardList,
   CalendarClock,
@@ -27,49 +27,50 @@ import {
   CheckCircle2,
   Loader2,
   History as HistoryIcon,
-} from 'lucide-react';
-import type { PlacedObject } from '../../services/digitalTwin/photogrammetry/types';
-import type { RiskNode } from '../../types';
-import { useGeoAnchoredNodes } from '../../hooks/useGeoAnchoredNodes';
-import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
-import { where, orderBy } from 'firebase/firestore';
+  WifiOff,
+} from "lucide-react";
+import type { PlacedObject } from "../../services/digitalTwin/photogrammetry/types";
+import type { RiskNode } from "../../types";
+import { useGeoAnchoredNodes } from "../../hooks/useGeoAnchoredNodes";
+import { useFirestoreCollection } from "../../hooks/useFirestoreCollection";
+import { where, orderBy } from "firebase/firestore";
 
 const LIFECYCLE_LABEL: Record<string, string> = {
-  planning: 'En planificación',
-  pending_install: 'Pendiente de instalación',
-  installed: 'Instalado',
-  active: 'Activo',
-  maintenance_due: 'Mantenimiento vencido',
-  retired: 'Dado de baja',
+  planning: "En planificación",
+  pending_install: "Pendiente de instalación",
+  installed: "Instalado",
+  active: "Activo",
+  maintenance_due: "Mantenimiento vencido",
+  retired: "Dado de baja",
 };
 
 const LIFECYCLE_BADGE: Record<string, string> = {
-  planning: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/40',
-  pending_install: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40',
-  installed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-  active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-  maintenance_due: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
-  retired: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
+  planning: "bg-zinc-500/15 text-zinc-300 border-zinc-500/40",
+  pending_install: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
+  installed: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+  active: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+  maintenance_due: "bg-amber-500/15 text-amber-300 border-amber-500/40",
+  retired: "bg-rose-500/15 text-rose-300 border-rose-500/40",
 };
 
 const HUMAN_KIND: Record<string, string> = {
-  extinguisher_pqs: 'Extintor PQS',
-  extinguisher_co2: 'Extintor CO₂',
-  extinguisher_water: 'Extintor de agua',
-  hydrant: 'Hidrante',
-  sign_evacuation: 'Señal de evacuación',
-  sign_warning: 'Señal de advertencia',
-  sign_mandatory: 'Señal obligatoria',
-  sign_prohibition: 'Señal de prohibición',
-  aed: 'Desfibrilador (AED)',
-  first_aid_kit: 'Botiquín',
-  emergency_shower: 'Ducha de emergencia',
-  eye_wash_station: 'Lavaojos',
-  gas_detector: 'Detector de gas',
-  spill_kit: 'Kit anti-derrames',
-  safety_shower: 'Ducha de seguridad',
-  assembly_point: 'Punto de encuentro',
-  evacuation_route: 'Vía de evacuación',
+  extinguisher_pqs: "Extintor PQS",
+  extinguisher_co2: "Extintor CO₂",
+  extinguisher_water: "Extintor de agua",
+  hydrant: "Hidrante",
+  sign_evacuation: "Señal de evacuación",
+  sign_warning: "Señal de advertencia",
+  sign_mandatory: "Señal obligatoria",
+  sign_prohibition: "Señal de prohibición",
+  aed: "Desfibrilador (AED)",
+  first_aid_kit: "Botiquín",
+  emergency_shower: "Ducha de emergencia",
+  eye_wash_station: "Lavaojos",
+  gas_detector: "Detector de gas",
+  spill_kit: "Kit anti-derrames",
+  safety_shower: "Ducha de seguridad",
+  assembly_point: "Punto de encuentro",
+  evacuation_route: "Vía de evacuación",
 };
 
 interface CalendarEventRow {
@@ -116,14 +117,15 @@ export function MaintenanceStatusPanel({
           objectKind: placedObject.kind,
           controlOnly: true,
         }
-      : { projectId: '', center, radiusM: 0 }, // hook devuelve vacío
+      : { projectId: "", center, radiusM: 0 }, // hook devuelve vacío
   );
 
   // Calendar — query directa por relatedObjectId.
-  const { data: rawEvents, loading: loadingEvents } = useFirestoreCollection<CalendarEventRow>(
-    'calendar_events',
-    [where('relatedObjectId', '==', placedObject?.id ?? '__no_object__'), orderBy('startIso', 'asc')],
-  );
+  const { data: rawEvents, loading: loadingEvents } =
+    useFirestoreCollection<CalendarEventRow>("calendar_events", [
+      where("relatedObjectId", "==", placedObject?.id ?? "__no_object__"),
+      orderBy("startIso", "asc"),
+    ]);
 
   const events = useMemo(
     () => (rawEvents ?? []).filter((e) => e && e.id),
@@ -145,7 +147,7 @@ export function MaintenanceStatusPanel({
 
   const lifecycleClass =
     LIFECYCLE_BADGE[placedObject.lifecycle] ??
-    'bg-zinc-500/15 text-zinc-300 border-zinc-500/40';
+    "bg-zinc-500/15 text-zinc-300 border-zinc-500/40";
 
   const now = Date.now();
 
@@ -193,9 +195,30 @@ export function MaintenanceStatusPanel({
             ({historyOrdered.length})
           </span>
         </h4>
+        {hasGeo && history.fromCache && (
+          <p
+            className="mb-2 flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-300"
+            data-testid="maintenance-history-cache-warning"
+            role="status"
+          >
+            <WifiOff className="h-3 w-3" aria-hidden="true" />
+            Histórico posiblemente desactualizado: Firestore lo sirvió desde
+            caché local o sin conexión.
+          </p>
+        )}
+        {hasGeo && history.hasPendingWrites && (
+          <p
+            className="mb-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-300"
+            data-testid="maintenance-history-pending-writes-warning"
+            role="status"
+          >
+            Hay cambios del histórico pendientes de sincronizar.
+          </p>
+        )}
         {!hasGeo && (
           <p className="text-xs text-zinc-500">
-            Este objeto no tiene geo-anchor — el histórico geo-localizado no está disponible.
+            Este objeto no tiene geo-anchor — el histórico geo-localizado no
+            está disponible.
           </p>
         )}
         {hasGeo && history.loading && (
@@ -215,11 +238,11 @@ export function MaintenanceStatusPanel({
           {historyOrdered.slice(0, 8).map((node: RiskNode) => {
             const occurredAt = Number((node.metadata as any)?.occurredAt) || 0;
             const dateLabel = occurredAt
-              ? new Date(occurredAt).toLocaleString('es-CL', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
+              ? new Date(occurredAt).toLocaleString("es-CL", {
+                  dateStyle: "short",
+                  timeStyle: "short",
                 })
-              : '—';
+              : "—";
             return (
               <li
                 key={node.id}
@@ -263,8 +286,8 @@ export function MaintenanceStatusPanel({
           {events.slice(0, 12).map((evt) => {
             const ts = evt.startIso ? Date.parse(evt.startIso) : NaN;
             const isOverdue =
-              !!ts && ts <= now && (evt.status ?? 'pending') === 'pending';
-            const isResolved = evt.status === 'completed';
+              !!ts && ts <= now && (evt.status ?? "pending") === "pending";
+            const isResolved = evt.status === "completed";
             return (
               <li
                 key={evt.id}
@@ -272,7 +295,7 @@ export function MaintenanceStatusPanel({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-zinc-200 truncate">
-                    {evt.title ?? evt.activityKind ?? 'Mantenimiento'}
+                    {evt.title ?? evt.activityKind ?? "Mantenimiento"}
                   </span>
                   {isOverdue && (
                     <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300">
@@ -287,16 +310,16 @@ export function MaintenanceStatusPanel({
                 </div>
                 <p className="text-zinc-500 mt-0.5">
                   {evt.startIso
-                    ? new Date(evt.startIso).toLocaleString('es-CL', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
+                    ? new Date(evt.startIso).toLocaleString("es-CL", {
+                        dateStyle: "short",
+                        timeStyle: "short",
                       })
-                    : 'Sin fecha'}
+                    : "Sin fecha"}
                 </p>
                 {evt.citations && evt.citations.length > 0 && (
                   <p className="text-zinc-500 mt-0.5 italic line-clamp-1">
                     <ClipboardList className="inline w-3 h-3 mr-1" />
-                    {evt.citations.join(' · ')}
+                    {evt.citations.join(" · ")}
                   </p>
                 )}
               </li>
