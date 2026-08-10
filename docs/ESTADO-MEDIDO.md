@@ -13,7 +13,7 @@
 
 | Dimensión | Valor | Lo mide |
 | --- | --- | --- |
-| Huérfanos (construido, sin montar) | 4 | `connectivity-ratchet` |
+| Huérfanos (construido, sin montar) | 3 | `connectivity-ratchet` |
 | Componentes fantasma (importados, no renderizados) | 14 | `render-ratchet` |
 | Routers de backend | 205 | `router-test-ratchet` |
 | Routers con test conductual real | 205 | `router-test-ratchet` |
