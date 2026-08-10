@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**205 routers montados · 732 rutas detectadas.**
+**206 routers montados · 735 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -1132,6 +1132,11 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/systemEvents.ts` → `/api/system-events`
 - `POST /api/system-events/emit`
+
+### `src/server/routes/tierDowngrade.ts` → `/api/tier-downgrade`
+- `POST /api/tier-downgrade/preview`
+- `POST /api/tier-downgrade/archive`
+- `POST /api/tier-downgrade/export`
 
 ### `src/server/routes/visitors.ts` → `/api/visitors`
 - `POST /api/visitors/check-in`
