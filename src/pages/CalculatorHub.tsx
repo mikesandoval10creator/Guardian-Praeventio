@@ -16,19 +16,27 @@
 //   - Estructural: scaffoldWindSuction, slopeStabilityAfterRain
 //   - Aero/Ergo: microWindEnergy, slamPhotogrammetryNode
 
-import React, { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Wind, Droplets, Building2, Mountain, Activity, Cpu,
-  AlertTriangle, CheckCircle2, BookOpen, Wrench,
-} from 'lucide-react';
+  Wind,
+  Droplets,
+  Building2,
+  Mountain,
+  Activity,
+  Cpu,
+  AlertTriangle,
+  CheckCircle2,
+  BookOpen,
+  Wrench,
+} from "lucide-react";
 // Sprint 32 — mount engineering panels orphaned since Sprint 25 Bucket NN.
 // These panels son self-contained (consumen useProject() internamente) y
 // agregan métricas ricas (purga ACH, FS Bishop, tiempo respuesta hidrante)
 // que no están en las CalcCards inline. Ver `src/components/engineering/`.
-import { ConfinedSpacePanel } from '../components/engineering/ConfinedSpacePanel';
-import { HidranteFireNetworkPanel } from '../components/engineering/HidranteFireNetworkPanel';
-import { SlopeStabilityPanel } from '../components/engineering/SlopeStabilityPanel';
+import { ConfinedSpacePanel } from "../components/engineering/ConfinedSpacePanel";
+import { HidranteFireNetworkPanel } from "../components/engineering/HidranteFireNetworkPanel";
+import { SlopeStabilityPanel } from "../components/engineering/SlopeStabilityPanel";
 import {
   generateConfinedSpaceVentNode,
   generateGasDispersionNode,
@@ -41,25 +49,29 @@ import {
   generateScaffoldUpliftNode,
   generateSlopeStabilityNode,
   generateMicroWindNode,
-  generateSlamMeshNode,
-} from '../services/zettelkasten/bernoulli';
-import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
-import { useProject } from '../contexts/ProjectContext';
-import { cite } from '../services/regulatory/registry';
-import type { RiskNodePayload } from '../services/zettelkasten/types';
-import type { JurisdictionCode } from '../services/regulatory/types';
+} from "../services/zettelkasten/bernoulli";
+import { writeNodesDebounced } from "../services/zettelkasten/persistence/writeNode";
+import { useProject } from "../contexts/ProjectContext";
+import { cite } from "../services/regulatory/registry";
+import type { RiskNodePayload } from "../services/zettelkasten/types";
+import type { JurisdictionCode } from "../services/regulatory/types";
 
-type TabKey = 'atmospheres' | 'hydraulics' | 'structural' | 'aero' | 'engineering';
+type TabKey =
+  "atmospheres" | "hydraulics" | "structural" | "aero" | "engineering";
 
-const TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: 'atmospheres', label: 'Atmósferas', icon: Wind },
-  { key: 'hydraulics', label: 'Hidráulica', icon: Droplets },
-  { key: 'structural', label: 'Estructural', icon: Building2 },
-  { key: 'aero', label: 'Aero / Ergo / Sensores', icon: Cpu },
-  { key: 'engineering', label: 'Paneles Ingeniería', icon: Wrench },
+const TABS: {
+  key: TabKey;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { key: "atmospheres", label: "Atmósferas", icon: Wind },
+  { key: "hydraulics", label: "Hidráulica", icon: Droplets },
+  { key: "structural", label: "Estructural", icon: Building2 },
+  { key: "aero", label: "Aero / Ergo / Sensores", icon: Cpu },
+  { key: "engineering", label: "Paneles Ingeniería", icon: Wrench },
 ];
 
-const DEFAULT_JURISDICTIONS: JurisdictionCode[] = ['ISO-45001', 'CL'];
+const DEFAULT_JURISDICTIONS: JurisdictionCode[] = ["ISO-45001", "CL"];
 
 // ─── Helper UI ──────────────────────────────────────────────────────────────
 
@@ -73,14 +85,23 @@ interface CalcCardProps {
 }
 
 const sevColor: Record<string, string> = {
-  info: 'text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/20',
-  low: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  medium: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-  high: 'text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20',
-  critical: 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20',
+  info: "text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/20",
+  low: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  medium:
+    "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
+  high: "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20",
+  critical:
+    "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
 };
 
-const CalcCard: React.FC<CalcCardProps> = ({ title, subtitle, icon: Icon, controlId, node, children }) => {
+const CalcCard: React.FC<CalcCardProps> = ({
+  title,
+  subtitle,
+  icon: Icon,
+  controlId,
+  node,
+  children,
+}) => {
   const citations = useMemo(
     () => cite(controlId, { jurisdictions: DEFAULT_JURISDICTIONS }),
     [controlId],
@@ -95,29 +116,39 @@ const CalcCard: React.FC<CalcCardProps> = ({ title, subtitle, icon: Icon, contro
           <Icon className="w-5 h-5 text-[#4db6ac]" />
         </div>
         <div>
-          <h4 className="text-base font-bold text-slate-900 dark:text-white">{title}</h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+          <h4 className="text-base font-bold text-slate-900 dark:text-white">
+            {title}
+          </h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {subtitle}
+          </p>
         </div>
       </div>
       <div className="space-y-2">{children}</div>
       {node ? (
-        <div className={`rounded-lg border p-3 ${sevColor[node.severity] ?? sevColor.medium}`}>
+        <div
+          className={`rounded-lg border p-3 ${sevColor[node.severity] ?? sevColor.medium}`}
+        >
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <p className="text-sm font-semibold">{node.title}</p>
           </div>
-          <pre className="whitespace-pre-wrap text-[11px] leading-snug font-mono">{node.description}</pre>
+          <pre className="whitespace-pre-wrap text-[11px] leading-snug font-mono">
+            {node.description}
+          </pre>
         </div>
       ) : (
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          <p className="text-xs text-emerald-700 dark:text-emerald-300">Sin alertas con los inputs actuales.</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-300">
+            Sin alertas con los inputs actuales.
+          </p>
         </div>
       )}
       {citations.length > 0 && (
         <div className="flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400">
           <BookOpen className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>Refs: {citations.join(' · ')}</span>
+          <span>Refs: {citations.join(" · ")}</span>
         </div>
       )}
     </div>
@@ -134,13 +165,17 @@ const NumInput: React.FC<{
   testId?: string;
 }> = ({ label, value, onChange, step = 0.01, min = 0, testId }) => (
   <label className="block">
-    <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">{label}</span>
+    <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+      {label}
+    </span>
     <input
       type="number"
       step={step}
       min={min}
-      value={Number.isFinite(value) ? value : ''}
-      onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+      value={Number.isFinite(value) ? value : ""}
+      onChange={(e) =>
+        onChange(e.target.value === "" ? 0 : Number(e.target.value))
+      }
       data-testid={testId}
       className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-1 focus:ring-[#4db6ac]"
     />
@@ -171,8 +206,12 @@ const ConfinedSpaceCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateConfinedSpaceVentNode(
-        { id: 'cs-ui', volumeM3, contaminantRelDensity: relDensity },
-        { intakeVelocityMs: intakeMs, extractionVelocityMs: extractMs, flowRateM3S: flowM3S },
+        { id: "cs-ui", volumeM3, contaminantRelDensity: relDensity },
+        {
+          intakeVelocityMs: intakeMs,
+          extractionVelocityMs: extractMs,
+          flowRateM3S: flowM3S,
+        },
         { measuredDeltaPPa: measuredDeltaPa },
       ),
     [volumeM3, relDensity, intakeMs, extractMs, flowM3S, measuredDeltaPa],
@@ -187,12 +226,32 @@ const ConfinedSpaceCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-3 gap-2">
-        <NumInput label="Volumen (m³)" value={volumeM3} onChange={setVolumeM3} />
-        <NumInput label="ρ rel. cont." value={relDensity} onChange={setRelDensity} />
-        <NumInput label="v entrada (m/s)" value={intakeMs} onChange={setIntakeMs} />
-        <NumInput label="v extracción (m/s)" value={extractMs} onChange={setExtractMs} />
+        <NumInput
+          label="Volumen (m³)"
+          value={volumeM3}
+          onChange={setVolumeM3}
+        />
+        <NumInput
+          label="ρ rel. cont."
+          value={relDensity}
+          onChange={setRelDensity}
+        />
+        <NumInput
+          label="v entrada (m/s)"
+          value={intakeMs}
+          onChange={setIntakeMs}
+        />
+        <NumInput
+          label="v extracción (m/s)"
+          value={extractMs}
+          onChange={setExtractMs}
+        />
         <NumInput label="Q (m³/s)" value={flowM3S} onChange={setFlowM3S} />
-        <NumInput label="ΔP medido (Pa)" value={measuredDeltaPa} onChange={setMeasuredDeltaPa} />
+        <NumInput
+          label="ΔP medido (Pa)"
+          value={measuredDeltaPa}
+          onChange={setMeasuredDeltaPa}
+        />
       </div>
     </CalcCard>
   );
@@ -204,15 +263,20 @@ const GasDispersionCalc: React.FC = () => {
   const [idlh, setIdlh] = useState(30);
   const [relDensity, setRelDensity] = useState(2.5);
   const [windKmh, setWindKmh] = useState(10);
-  const [stab, setStab] = useState<'A'|'B'|'C'|'D'|'E'|'F'>('F');
+  const [stab, setStab] = useState<"A" | "B" | "C" | "D" | "E" | "F">("F");
   const [roughness, setRoughness] = useState(0.05);
 
   const node = useMemo(
     () =>
       generateGasDispersionNode(
-        { id: 'leak-ui', releaseRateKgS: releaseRate, idlhMgM3: idlh, relativeDensity: relDensity },
+        {
+          id: "leak-ui",
+          releaseRateKgS: releaseRate,
+          idlhMgM3: idlh,
+          relativeDensity: relDensity,
+        },
         { windKmh, pasquillStability: stab },
-        { id: 'terrain-ui', roughnessM: roughness },
+        { id: "terrain-ui", roughnessM: roughness },
       ),
     [releaseRate, idlh, relDensity, windKmh, stab, roughness],
   );
@@ -226,21 +290,40 @@ const GasDispersionCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-3 gap-2">
-        <NumInput label="Tasa fuga (kg/s)" value={releaseRate} onChange={setReleaseRate} step={0.01} testId="gd-rate" />
+        <NumInput
+          label="Tasa fuga (kg/s)"
+          value={releaseRate}
+          onChange={setReleaseRate}
+          step={0.01}
+          testId="gd-rate"
+        />
         <NumInput label="IDLH (mg/m³)" value={idlh} onChange={setIdlh} />
-        <NumInput label="ρ relativa" value={relDensity} onChange={setRelDensity} />
+        <NumInput
+          label="ρ relativa"
+          value={relDensity}
+          onChange={setRelDensity}
+        />
         <NumInput label="Viento (km/h)" value={windKmh} onChange={setWindKmh} />
         <label className="block">
-          <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Pasquill</span>
+          <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+            Pasquill
+          </span>
           <select
             value={stab}
             onChange={(e) => setStab(e.target.value as typeof stab)}
             className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
           >
-            {(['A','B','C','D','E','F'] as const).map(s => <option key={s}>{s}</option>)}
+            {(["A", "B", "C", "D", "E", "F"] as const).map((s) => (
+              <option key={s}>{s}</option>
+            ))}
           </select>
         </label>
-        <NumInput label="z₀ rugosidad (m)" value={roughness} onChange={setRoughness} step={0.01} />
+        <NumInput
+          label="z₀ rugosidad (m)"
+          value={roughness}
+          onChange={setRoughness}
+          step={0.01}
+        />
       </div>
     </CalcCard>
   );
@@ -261,9 +344,14 @@ const GasLeakCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateGasLeakNode(
-        { id: 'A', pressurePa: pA, velocityMs: vA, heightM: hA },
-        { id: 'B', pressurePa: pB, velocityMs: vB, heightM: hB },
-        { id: 'GLP', densityKgM3: density, expectedFrictionLossJKg: friction, lelVolPercent: lel },
+        { id: "A", pressurePa: pA, velocityMs: vA, heightM: hA },
+        { id: "B", pressurePa: pB, velocityMs: vB, heightM: hB },
+        {
+          id: "GLP",
+          densityKgM3: density,
+          expectedFrictionLossJKg: friction,
+          lelVolPercent: lel,
+        },
       ),
     [pA, vA, hA, pB, vB, hB, density, friction, lel],
   );
@@ -284,7 +372,12 @@ const GasLeakCalc: React.FC = () => {
         <NumInput label="v_B (m/s)" value={vB} onChange={setVB} />
         <NumInput label="h_B (m)" value={hB} onChange={setHB} />
         <NumInput label="ρ gas (kg/m³)" value={density} onChange={setDensity} />
-        <NumInput label="Fricción esp. (J/kg)" value={friction} onChange={setFriction} step={100} />
+        <NumInput
+          label="Fricción esp. (J/kg)"
+          value={friction}
+          onChange={setFriction}
+          step={100}
+        />
         <NumInput label="LEL (% vol)" value={lel} onChange={setLel} />
       </div>
     </CalcCard>
@@ -303,7 +396,12 @@ const MistingCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateMistingNode(
-        { id: 'mister-ui', inletAreaM2: inletA, throatAreaM2: throatA, deltaPPa: deltaP },
+        {
+          id: "mister-ui",
+          inletAreaM2: inletA,
+          throatAreaM2: throatA,
+          deltaPPa: deltaP,
+        },
         { flowRateM3S: waterFlow, pressurePa: waterPressure },
         { availableFlowM3S: airFlow },
       ),
@@ -320,11 +418,30 @@ const MistingCalc: React.FC = () => {
     >
       <div className="grid grid-cols-3 gap-2">
         <NumInput label="A inlet (m²)" value={inletA} onChange={setInletA} />
-        <NumInput label="A garganta (m²)" value={throatA} onChange={setThroatA} />
+        <NumInput
+          label="A garganta (m²)"
+          value={throatA}
+          onChange={setThroatA}
+        />
         <NumInput label="ΔP (Pa)" value={deltaP} onChange={setDeltaP} />
-        <NumInput label="Q agua (m³/s)" value={waterFlow} onChange={setWaterFlow} step={0.0001} />
-        <NumInput label="P agua (Pa)" value={waterPressure} onChange={setWaterPressure} step={1000} />
-        <NumInput label="Q aire (m³/s)" value={airFlow} onChange={setAirFlow} step={0.001} />
+        <NumInput
+          label="Q agua (m³/s)"
+          value={waterFlow}
+          onChange={setWaterFlow}
+          step={0.0001}
+        />
+        <NumInput
+          label="P agua (Pa)"
+          value={waterPressure}
+          onChange={setWaterPressure}
+          step={1000}
+        />
+        <NumInput
+          label="Q aire (m³/s)"
+          value={airFlow}
+          onChange={setAirFlow}
+          step={0.001}
+        />
       </div>
     </CalcCard>
   );
@@ -340,8 +457,12 @@ const RespiratorCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateRespiratorFatigueNode(
-        { id: 'worker-ui', breathingFlowM3S: flow },
-        { id: 'mask-ui', filterResistancePaSPerM3: resistance, maxPressureDropPa: maxDrop },
+        { id: "worker-ui", breathingFlowM3S: flow },
+        {
+          id: "mask-ui",
+          filterResistancePaSPerM3: resistance,
+          maxPressureDropPa: maxDrop,
+        },
         { temperatureC: tempC },
       ),
     [flow, resistance, maxDrop, tempC],
@@ -356,8 +477,18 @@ const RespiratorCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-2 gap-2">
-        <NumInput label="Q (m³/s)" value={flow} onChange={setFlow} step={0.0001} />
-        <NumInput label="R filtro (Pa·s/m³)" value={resistance} onChange={setResistance} step={10} />
+        <NumInput
+          label="Q (m³/s)"
+          value={flow}
+          onChange={setFlow}
+          step={0.0001}
+        />
+        <NumInput
+          label="R filtro (Pa·s/m³)"
+          value={resistance}
+          onChange={setResistance}
+          step={10}
+        />
         <NumInput label="Δp máx (Pa)" value={maxDrop} onChange={setMaxDrop} />
         <NumInput label="T amb (°C)" value={tempC} onChange={setTempC} />
       </div>
@@ -375,9 +506,13 @@ const PulmonaryCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generatePulmonaryNode(
-        { id: 'worker-ui', pefLMin: pef },
+        { id: "worker-ui", pefLMin: pef },
         { masl },
-        { id: 'mask-ui', filterResistancePaSPerM3: resistance, criticalDropPa: criticalDrop },
+        {
+          id: "mask-ui",
+          filterResistancePaSPerM3: resistance,
+          criticalDropPa: criticalDrop,
+        },
       ),
     [pef, masl, resistance, criticalDrop],
   );
@@ -392,9 +527,23 @@ const PulmonaryCalc: React.FC = () => {
     >
       <div className="grid grid-cols-2 gap-2">
         <NumInput label="PEF (L/min)" value={pef} onChange={setPef} />
-        <NumInput label="Altitud (msnm)" value={masl} onChange={setMasl} step={50} />
-        <NumInput label="R filtro" value={resistance} onChange={setResistance} step={10} />
-        <NumInput label="Δp crítica (Pa)" value={criticalDrop} onChange={setCriticalDrop} />
+        <NumInput
+          label="Altitud (msnm)"
+          value={masl}
+          onChange={setMasl}
+          step={50}
+        />
+        <NumInput
+          label="R filtro"
+          value={resistance}
+          onChange={setResistance}
+          step={10}
+        />
+        <NumInput
+          label="Δp crítica (Pa)"
+          value={criticalDrop}
+          onChange={setCriticalDrop}
+        />
       </div>
     </CalcCard>
   );
@@ -412,10 +561,10 @@ const DikeCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateDikeNode(
-        { id: 'tranque-ui', heightM, fluidDensityKgM3: fluidDensity },
+        { id: "tranque-ui", heightM, fluidDensityKgM3: fluidDensity },
         [
-          { id: 'pz-1', depthM: depth1, measuredPressurePa: pressure1 },
-          { id: 'pz-2', depthM: depth2, measuredPressurePa: pressure2 },
+          { id: "pz-1", depthM: depth1, measuredPressurePa: pressure1 },
+          { id: "pz-2", depthM: depth2, measuredPressurePa: pressure2 },
         ],
       ),
     [heightM, fluidDensity, depth1, pressure1, depth2, pressure2],
@@ -431,13 +580,29 @@ const DikeCalc: React.FC = () => {
     >
       <div className="grid grid-cols-3 gap-2">
         <NumInput label="Altura (m)" value={heightM} onChange={setHeightM} />
-        <NumInput label="ρ fluido" value={fluidDensity} onChange={setFluidDensity} step={50} testId="dk-rho" />
+        <NumInput
+          label="ρ fluido"
+          value={fluidDensity}
+          onChange={setFluidDensity}
+          step={50}
+          testId="dk-rho"
+        />
         <div />
         <NumInput label="z pz-1 (m)" value={depth1} onChange={setDepth1} />
-        <NumInput label="P pz-1 (Pa)" value={pressure1} onChange={setPressure1} step={1000} />
+        <NumInput
+          label="P pz-1 (Pa)"
+          value={pressure1}
+          onChange={setPressure1}
+          step={1000}
+        />
         <div />
         <NumInput label="z pz-2 (m)" value={depth2} onChange={setDepth2} />
-        <NumInput label="P pz-2 (Pa)" value={pressure2} onChange={setPressure2} step={1000} />
+        <NumInput
+          label="P pz-2 (Pa)"
+          value={pressure2}
+          onChange={setPressure2}
+          step={1000}
+        />
       </div>
     </CalcCard>
   );
@@ -455,8 +620,13 @@ const HidranteCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateHidrantePressureNode(
-        { id: 'red-ui', networkPressurePa: networkP, nozzleDiameterM: nozzleD, dischargeCoefficient: cd },
-        { id: 'tgt-ui', reachHeightM: reachH, jetAngleRad: angle },
+        {
+          id: "red-ui",
+          networkPressurePa: networkP,
+          nozzleDiameterM: nozzleD,
+          dischargeCoefficient: cd,
+        },
+        { id: "tgt-ui", reachHeightM: reachH, jetAngleRad: angle },
         { ambientPressurePa: ambient },
       ),
     [networkP, nozzleD, cd, reachH, angle, ambient],
@@ -471,12 +641,27 @@ const HidranteCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-3 gap-2">
-        <NumInput label="P red (Pa)" value={networkP} onChange={setNetworkP} step={1000} />
-        <NumInput label="D boquilla (m)" value={nozzleD} onChange={setNozzleD} step={0.005} />
+        <NumInput
+          label="P red (Pa)"
+          value={networkP}
+          onChange={setNetworkP}
+          step={1000}
+        />
+        <NumInput
+          label="D boquilla (m)"
+          value={nozzleD}
+          onChange={setNozzleD}
+          step={0.005}
+        />
         <NumInput label="Cd" value={cd} onChange={setCd} />
         <NumInput label="h objetivo (m)" value={reachH} onChange={setReachH} />
         <NumInput label="θ chorro (rad)" value={angle} onChange={setAngle} />
-        <NumInput label="P_amb (Pa)" value={ambient} onChange={setAmbient} step={500} />
+        <NumInput
+          label="P_amb (Pa)"
+          value={ambient}
+          onChange={setAmbient}
+          step={500}
+        />
       </div>
     </CalcCard>
   );
@@ -493,7 +678,7 @@ const ScaffoldCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateScaffoldUpliftNode(
-        { id: 'scaff-ui', areaM2, pressureCoefficient: cp },
+        { id: "scaff-ui", areaM2, pressureCoefficient: cp },
         { windKmh },
         { ratedCapacityN: rated, anchorCount: count },
       ),
@@ -509,11 +694,39 @@ const ScaffoldCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-3 gap-2">
-        <NumInput label="Área (m²)" value={areaM2} onChange={setAreaM2} testId="sc-area" />
-        <NumInput label="Cp (succión)" value={cp} onChange={setCp} step={0.1} testId="sc-cp" />
-        <NumInput label="Viento (km/h)" value={windKmh} onChange={setWindKmh} testId="sc-wind" />
-        <NumInput label="Capacidad anclaje (N)" value={rated} onChange={setRated} step={100} testId="sc-rated" />
-        <NumInput label="N anclajes" value={count} onChange={setCount} step={1} testId="sc-count" />
+        <NumInput
+          label="Área (m²)"
+          value={areaM2}
+          onChange={setAreaM2}
+          testId="sc-area"
+        />
+        <NumInput
+          label="Cp (succión)"
+          value={cp}
+          onChange={setCp}
+          step={0.1}
+          testId="sc-cp"
+        />
+        <NumInput
+          label="Viento (km/h)"
+          value={windKmh}
+          onChange={setWindKmh}
+          testId="sc-wind"
+        />
+        <NumInput
+          label="Capacidad anclaje (N)"
+          value={rated}
+          onChange={setRated}
+          step={100}
+          testId="sc-rated"
+        />
+        <NumInput
+          label="N anclajes"
+          value={count}
+          onChange={setCount}
+          step={1}
+          testId="sc-count"
+        />
       </div>
     </CalcCard>
   );
@@ -532,8 +745,12 @@ const SlopeCalc: React.FC = () => {
     const satRad = (satDeg * Math.PI) / 180;
     const slopeRad = (slopeDeg * Math.PI) / 180;
     return generateSlopeStabilityNode(
-      { id: 'mat-ui', dryReposeAngleRad: reposeRad, saturationReductionRad: satRad },
-      { id: 'slope-ui', slopeAngleRad: slopeRad, heightM },
+      {
+        id: "mat-ui",
+        dryReposeAngleRad: reposeRad,
+        saturationReductionRad: satRad,
+      },
+      { id: "slope-ui", slopeAngleRad: slopeRad, heightM },
       { waterTableDepthM: waterTable, waterDensityKgM3: 1000 },
     );
   }, [reposeDeg, satDeg, slopeDeg, heightM, waterTable]);
@@ -547,11 +764,23 @@ const SlopeCalc: React.FC = () => {
       node={node}
     >
       <div className="grid grid-cols-3 gap-2">
-        <NumInput label="θ reposo seco (°)" value={reposeDeg} onChange={setReposeDeg} />
-        <NumInput label="Δθ saturación (°)" value={satDeg} onChange={setSatDeg} />
+        <NumInput
+          label="θ reposo seco (°)"
+          value={reposeDeg}
+          onChange={setReposeDeg}
+        />
+        <NumInput
+          label="Δθ saturación (°)"
+          value={satDeg}
+          onChange={setSatDeg}
+        />
         <NumInput label="θ talud (°)" value={slopeDeg} onChange={setSlopeDeg} />
         <NumInput label="Altura (m)" value={heightM} onChange={setHeightM} />
-        <NumInput label="z napa (m)" value={waterTable} onChange={setWaterTable} />
+        <NumInput
+          label="z napa (m)"
+          value={waterTable}
+          onChange={setWaterTable}
+        />
       </div>
     </CalcCard>
   );
@@ -565,7 +794,7 @@ const MicroWindCalc: React.FC = () => {
   const node = useMemo(
     () =>
       generateMicroWindNode(
-        { id: 'site-ui', funnelFactor: funnel, rotorAreaM2: rotor },
+        { id: "site-ui", funnelFactor: funnel, rotorAreaM2: rotor },
         { windKmh },
       ),
     [funnel, rotor, windKmh],
@@ -589,29 +818,32 @@ const MicroWindCalc: React.FC = () => {
 };
 
 // 12. SLAM Photogrammetry Node
+// Ticket 39aaa66d-73fe-8119-9c76-e26f55db154c: un nodo slam-mesh SOLO se emite
+// con malla REAL (URI+formato+tamaño) proveniente de la pipeline de
+// reconstrucción en DigitalTwinFaena. Esta calculadora NO fabrica nodos
+// placeholder: sin artifact real no hay nodo. Queda como referencia educativa
+// de los umbrales mínimos (DS 43/2015 / NFPA 30).
 const SlamCalc: React.FC = () => {
-  const [keyframes, setKeyframes] = useState(120);
-  const [coverage, setCoverage] = useState(78);
-  const node = useMemo(
-    () =>
-      generateSlamMeshNode(
-        { id: 'cam-ui', keyframeCount: keyframes, coveragePercent: coverage },
-        { id: 'project-ui' },
-      ),
-    [keyframes, coverage],
-  );
-  usePersistNode(node);
   return (
     <CalcCard
       title="Malla SLAM (gemelo digital)"
       subtitle="DS 43/2015 / NFPA 30"
       icon={Cpu}
       controlId="OPERATIONAL_CONTROL"
-      node={node}
+      node={null}
     >
-      <div className="grid grid-cols-2 gap-2">
-        <NumInput label="Keyframes" value={keyframes} onChange={setKeyframes} step={1} />
-        <NumInput label="Cobertura (%)" value={coverage} onChange={setCoverage} />
+      <div className="space-y-2">
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          El nodo <code className="font-mono">slam-mesh</code> se emite
+          automáticamente desde el Digital Twin cuando una sesión de
+          reconstrucción termina con una malla real validada (URI, formato y
+          tamaño del artifact). Requisitos mínimos: 30 keyframes y cobertura ≥
+          60% cuando esté disponible.
+        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Esta calculadora no genera nodos: sin malla real no se registra
+          ninguna malla (anti-placeholder).
+        </p>
       </div>
     </CalcCard>
   );
@@ -621,24 +853,50 @@ const SlamCalc: React.FC = () => {
 
 export const CalculatorHub: React.FC = () => {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<TabKey>('atmospheres');
+  const [tab, setTab] = useState<TabKey>("atmospheres");
 
-  const localizedTabs = useMemo(() => [
-    { key: 'atmospheres' as TabKey, label: t('calcHub.tabs.atmospheres', 'Atmósferas'), icon: Wind },
-    { key: 'hydraulics' as TabKey, label: t('calcHub.tabs.hydraulics', 'Hidráulica'), icon: Droplets },
-    { key: 'structural' as TabKey, label: t('calcHub.tabs.structural', 'Estructural'), icon: Building2 },
-    { key: 'aero' as TabKey, label: t('calcHub.tabs.aero', 'Aero / Ergo / Sensores'), icon: Cpu },
-    { key: 'engineering' as TabKey, label: t('calcHub.tabs.engineering', 'Paneles Ingeniería'), icon: Wrench },
-  ], [t]);
+  const localizedTabs = useMemo(
+    () => [
+      {
+        key: "atmospheres" as TabKey,
+        label: t("calcHub.tabs.atmospheres", "Atmósferas"),
+        icon: Wind,
+      },
+      {
+        key: "hydraulics" as TabKey,
+        label: t("calcHub.tabs.hydraulics", "Hidráulica"),
+        icon: Droplets,
+      },
+      {
+        key: "structural" as TabKey,
+        label: t("calcHub.tabs.structural", "Estructural"),
+        icon: Building2,
+      },
+      {
+        key: "aero" as TabKey,
+        label: t("calcHub.tabs.aero", "Aero / Ergo / Sensores"),
+        icon: Cpu,
+      },
+      {
+        key: "engineering" as TabKey,
+        label: t("calcHub.tabs.engineering", "Paneles Ingeniería"),
+        icon: Wrench,
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <header className="space-y-1">
         <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-          {t('calcHub.header.title', 'Calculadoras Especializadas')}
+          {t("calcHub.header.title", "Calculadoras Especializadas")}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {t('calcHub.header.subtitle', '12 generadores Bernoulli/Euler con citas normativas e indexación al Zettelkasten.')}
+          {t(
+            "calcHub.header.subtitle",
+            "12 generadores Bernoulli/Euler con citas normativas e indexación al Zettelkasten.",
+          )}
         </p>
       </header>
 
@@ -655,8 +913,8 @@ export const CalculatorHub: React.FC = () => {
               data-testid={`tab-${key}`}
               className={`flex items-center gap-2 px-4 py-2.5 min-h-11 min-w-11 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 active
-                  ? 'border-[#4db6ac] text-[#4db6ac]'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                  ? "border-[#4db6ac] text-[#4db6ac]"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -667,7 +925,7 @@ export const CalculatorHub: React.FC = () => {
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {tab === 'atmospheres' && (
+        {tab === "atmospheres" && (
           <>
             <ConfinedSpaceCalc />
             <GasDispersionCalc />
@@ -677,25 +935,25 @@ export const CalculatorHub: React.FC = () => {
             <PulmonaryCalc />
           </>
         )}
-        {tab === 'hydraulics' && (
+        {tab === "hydraulics" && (
           <>
             <DikeCalc />
             <HidranteCalc />
           </>
         )}
-        {tab === 'structural' && (
+        {tab === "structural" && (
           <>
             <ScaffoldCalc />
             <SlopeCalc />
           </>
         )}
-        {tab === 'aero' && (
+        {tab === "aero" && (
           <>
             <MicroWindCalc />
             <SlamCalc />
           </>
         )}
-        {tab === 'engineering' && (
+        {tab === "engineering" && (
           <>
             {/*
               Paneles Engineering avanzados (Sprint 25 Bucket NN) — montados aquí
