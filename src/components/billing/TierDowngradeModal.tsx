@@ -42,11 +42,9 @@ export function TierDowngradeModal({
       const next = await loadTierDowngradePreview(toTier);
       setPreview(next);
       setError(null);
-    } catch (err) {
+    } catch {
       setPreview(null);
-      setError(
-        err instanceof Error ? err.message : "tier_downgrade_preview_failed",
-      );
+      setError("tier_downgrade_preview_failed");
     } finally {
       setLoading(false);
     }
@@ -96,10 +94,8 @@ export function TierDowngradeModal({
           : await archiveTierDowngrade(category, toTier);
       setSuccess(`${result.archivedCount} registros archivados correctamente.`);
       await refreshPreview();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "tier_downgrade_archive_failed",
-      );
+    } catch {
+      setError("tier_downgrade_archive_failed");
     } finally {
       setPendingCategory(null);
     }
@@ -145,7 +141,8 @@ export function TierDowngradeModal({
               role="alert"
               className="text-sm text-rose-600 dark:text-rose-400"
             >
-              No se pudo completar la acción: {error}
+              No se pudo completar la acción. Revisa tu conexión e
+              inténtalo nuevamente.
             </p>
           ) : null}
 

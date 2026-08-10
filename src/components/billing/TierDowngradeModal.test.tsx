@@ -151,7 +151,7 @@ describe("TierDowngradeModal", () => {
     );
 
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("downgrade_candidates_changed");
+    expect(alert.textContent).toContain("Revisa tu conexión");
     expect(screen.queryByRole("status")).toBeNull();
     expect(
       (screen.getByTestId("tier-downgrade-confirm") as HTMLButtonElement)
