@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**206 routers montados · 735 rutas detectadas.**
+**206 routers montados · 737 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -1026,6 +1026,8 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/shift-handover/end`
 - `POST /api/sprint-k/:projectId/shift-handover/acknowledge`
 - `POST /api/sprint-k/:projectId/shift-handover/summarize`
+- `GET /api/sprint-k/:projectId/shift-handover/history`
+- `POST /api/sprint-k/:projectId/shift-handover/:shiftId/discrepancy`
 
 ### `src/server/routes/shiftRiskPanel.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/shift-risk-panel/compose`
