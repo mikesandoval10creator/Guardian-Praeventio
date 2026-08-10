@@ -264,6 +264,8 @@ import rootCauseInvestigationRouter from "./src/server/routes/rootCauseInvestiga
 import skillGapRouter from "./src/server/routes/skillGap.js";
 // Pricing Simulator — Sprint K §171-179 (tier estimation + break-even).
 import pricingSimulatorRouter from "./src/server/routes/pricingSimulator.js";
+// Billing downgrade — authoritative preview/export/soft-archive actions.
+import tierDowngradeRouter from "./src/server/routes/tierDowngrade.js";
 // F.23 Document Versioning — semver chains with immutability.
 import documentVersioningRouter from "./src/server/routes/documentVersioning.js";
 // Form Builder Advanced — Sprint 53 §263-268 (computed fields + cross-field validation + topo sort).
@@ -1033,6 +1035,7 @@ app.use('/api', wisdomCapsuleRouter);
 // and /api/invitations.
 app.use('/api/projects', projectsRouter);
 app.use('/api/invitations', invitationsRouter);
+app.use('/api/tier-downgrade', tierDowngradeRouter);
 
 // Bloque E3 — audited, server-side normatives seed (POST /api/normatives/seed).
 // Replaces the client `addDoc` seed that wrote the public legal-library

@@ -1,115 +1,175 @@
 // @vitest-environment jsdom
-// Sprint 28 H25 — TierDowngradeModal tests.
-//
-// We assert three behaviours that must hold for the downgrade flow:
-//   1. Renders an overage row for each category (workers/projects) that
-//      currently exceeds the target capacity, and explains the delta.
-//   2. Click on "Archivar más antiguos" emits the cross-component event
-//      `tier-downgrade-archive-requested` with the right payload.
-//   3. The confirm button is disabled while overages exist; when usage
-//      already fits, confirm is enabled and onConfirm fires.
 
-import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { TierDowngradeModal } from './TierDowngradeModal';
+import React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
-afterEachCleanup();
+const M = vi.hoisted(() => ({
+  preview: vi.fn(),
+  archive: vi.fn(),
+  exportThenArchive: vi.fn(),
+}));
 
-function afterEachCleanup() {
-  // Use vitest's beforeEach to reset DOM between cases.
-  beforeEach(() => {
-    cleanup();
-  });
+vi.mock("../../services/billing/tierDowngradeClient", () => ({
+  loadTierDowngradePreview: M.preview,
+  archiveTierDowngrade: M.archive,
+  exportThenArchiveTierDowngrade: M.exportThenArchive,
+}));
+
+import { TierDowngradeModal } from "./TierDowngradeModal";
+
+const overagePreview = {
+  sourceTier: "oro",
+  targetTier: "gratis",
+  overages: {
+    projects: {
+      count: 2,
+      current: 3,
+      cap: 1,
+      candidateIds: ["p-oldest", "p-middle"],
+    },
+    workers: {
+      count: 2,
+      capPerProject: 3,
+      projects: [
+        {
+          projectId: "p-owned",
+          current: 5,
+          cap: 3,
+          count: 2,
+          candidateIds: ["p-owned/w-oldest", "p-owned/w-middle"],
+        },
+      ],
+    },
+  },
+};
+
+const noOveragePreview = {
+  sourceTier: "oro",
+  targetTier: "gratis",
+  overages: {
+    projects: { count: 0, current: 1, cap: 1, candidateIds: [] },
+    workers: { count: 0, capPerProject: 3, projects: [] },
+  },
+};
+
+function renderModal(
+  overrides: Partial<React.ComponentProps<typeof TierDowngradeModal>> = {},
+) {
+  const props: React.ComponentProps<typeof TierDowngradeModal> = {
+    fromTier: "oro",
+    toTier: "gratis",
+    toTierLabel: "Gratis",
+    onConfirm: vi.fn(),
+    onCancel: vi.fn(),
+    ...overrides,
+  };
+  render(<TierDowngradeModal {...props} />);
+  return props;
 }
 
-describe('TierDowngradeModal', () => {
-  it('renders overage rows for workers and projects when both exceed capacity', () => {
-    render(
-      <TierDowngradeModal
-        fromTier="oro"
-        toTier="plata"
-        toTierLabel="Plata"
-        currentUsage={{ workers: 80, projects: 23 }}
-        targetCapacity={{ workers: 25, projects: 5 }}
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
-      />,
+describe("TierDowngradeModal", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    M.preview.mockResolvedValue(overagePreview);
+    M.archive.mockResolvedValue({ success: true, archivedCount: 2 });
+    M.exportThenArchive.mockResolvedValue({ success: true, archivedCount: 2 });
+  });
+
+  it("renders authoritative per-faena worker and active-project overages from the server", async () => {
+    renderModal();
+
+    expect(screen.getByTestId("tier-downgrade-loading")).toBeTruthy();
+    const workers = await screen.findByTestId(
+      "tier-downgrade-category-workers",
     );
+    expect(workers.textContent).toContain("2 trabajadores");
+    expect(workers.textContent).toContain("1 faena");
+    expect(workers.textContent).toContain("3 por faena");
 
-    const workersRow = screen.getByTestId('tier-downgrade-category-workers');
-    expect(workersRow.textContent).toContain('80');
-    expect(workersRow.textContent).toContain('25');
-
-    const projectsRow = screen.getByTestId('tier-downgrade-category-projects');
-    expect(projectsRow.textContent).toContain('23');
-    expect(projectsRow.textContent).toContain('5');
-    // 23 - 5 = 18 excess projects
-    expect(projectsRow.textContent).toContain('18');
-
-    // Confirm should be disabled while overages exist.
+    const projects = screen.getByTestId("tier-downgrade-category-projects");
+    expect(projects.textContent).toContain("3 proyectos activos");
+    expect(projects.textContent).toContain("1");
+    expect(projects.textContent).toContain("Sobran 2");
+    expect(M.preview).toHaveBeenCalledWith("gratis");
     expect(
-      (screen.getByTestId('tier-downgrade-confirm') as HTMLButtonElement)
+      (screen.getByTestId("tier-downgrade-confirm") as HTMLButtonElement)
         .disabled,
     ).toBe(true);
   });
 
-  it('emits tier-downgrade-archive-requested when archive button clicked', () => {
-    const events: any[] = [];
-    const listener = (e: Event) => events.push((e as CustomEvent).detail);
-    window.addEventListener('tier-downgrade-archive-requested', listener);
+  it("calls the real archive action, refreshes preview, and only then enables confirm", async () => {
+    M.preview
+      .mockResolvedValueOnce(overagePreview)
+      .mockResolvedValueOnce(noOveragePreview);
+    renderModal();
 
-    try {
-      render(
-        <TierDowngradeModal
-          fromTier="oro"
-          toTier="plata"
-          currentUsage={{ workers: 80, projects: 5 }}
-          targetCapacity={{ workers: 25, projects: 5 }}
-          onConfirm={vi.fn()}
-          onCancel={vi.fn()}
-        />,
-      );
-
-      fireEvent.click(screen.getByTestId('tier-downgrade-archive-workers'));
-
-      expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({
-        category: 'workers',
-        action: 'archive-oldest',
-        fromTier: 'oro',
-        toTier: 'plata',
-        excess: 55,
-      });
-    } finally {
-      window.removeEventListener(
-        'tier-downgrade-archive-requested',
-        listener,
-      );
-    }
-  });
-
-  it('enables confirm and calls onConfirm when usage fits the target tier', () => {
-    const onConfirm = vi.fn();
-
-    render(
-      <TierDowngradeModal
-        fromTier="oro"
-        toTier="plata"
-        currentUsage={{ workers: 5, projects: 1 }}
-        targetCapacity={{ workers: 25, projects: 5 }}
-        onConfirm={onConfirm}
-        onCancel={vi.fn()}
-      />,
+    fireEvent.click(
+      await screen.findByTestId("tier-downgrade-archive-workers"),
     );
 
-    expect(screen.getByTestId('tier-downgrade-no-overages')).toBeTruthy();
+    await waitFor(() =>
+      expect(M.archive).toHaveBeenCalledWith("workers", "gratis"),
+    );
+    await screen.findByTestId("tier-downgrade-no-overages");
+    expect(screen.getByRole("status").textContent).toContain("2");
+    expect(
+      (screen.getByTestId("tier-downgrade-confirm") as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+  });
 
-    const confirmBtn = screen.getByTestId(
-      'tier-downgrade-confirm',
+  it("uses export-then-archive for the download action and refreshes from the server", async () => {
+    M.preview
+      .mockResolvedValueOnce(overagePreview)
+      .mockResolvedValueOnce(noOveragePreview);
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByTestId("tier-downgrade-export-projects"),
+    );
+
+    await waitFor(() =>
+      expect(M.exportThenArchive).toHaveBeenCalledWith("projects", "gratis"),
+    );
+    await screen.findByTestId("tier-downgrade-no-overages");
+  });
+
+  it("surfaces a real server failure and never enables confirm or reports success", async () => {
+    M.archive.mockRejectedValue(new Error("downgrade_candidates_changed"));
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByTestId("tier-downgrade-archive-workers"),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Revisa tu conexión");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      (screen.getByTestId("tier-downgrade-confirm") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it("enables confirm and calls onConfirm when the authoritative preview has no overages", async () => {
+    M.preview.mockResolvedValue(noOveragePreview);
+    const onConfirm = vi.fn();
+    renderModal({ onConfirm });
+
+    await screen.findByTestId("tier-downgrade-no-overages");
+    const confirm = screen.getByTestId(
+      "tier-downgrade-confirm",
     ) as HTMLButtonElement;
-    expect(confirmBtn.disabled).toBe(false);
-    fireEvent.click(confirmBtn);
+    expect(confirm.disabled).toBe(false);
+    fireEvent.click(confirm);
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });
