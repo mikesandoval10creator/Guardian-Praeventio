@@ -79,10 +79,11 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
     try {
       let verificationResult;
       if (type === 'subscription') {
-        verificationResult = await playDeveloperApi.purchases.subscriptions.get({
+        // googleapis 174: purchases.subscriptions.get (v1) fue deprecado por
+        // Google Play; el metodo vivo es purchases.subscriptionsv2.get.
+        verificationResult = await playDeveloperApi.purchases.subscriptionsv2.get({
           auth: playAuth,
           packageName,
-          subscriptionId: productId,
           token: purchaseToken,
         });
       } else {
@@ -97,10 +98,15 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
       const data = verificationResult.data;
       const db = admin.firestore();
 
-      // Log transaction
+      // Log transaction — v2 schema: orderId vive en lineItems[0].
+      const v2OrderId =
+        type === 'subscription'
+          ? ((data as { lineItems?: Array<{ latestSuccessfulOrderId?: string | null }> | null })
+              .lineItems?.[0]?.latestSuccessfulOrderId ?? null)
+          : ((data as { orderId?: string | null }).orderId ?? null);
       await db.collection('transactions').add({
         userId: uid,
-        orderId: data.orderId || 'unknown',
+        orderId: v2OrderId || 'unknown',
         packageName,
         productId,
         purchaseToken,
@@ -134,13 +140,21 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         cycle = cycleFromProductId(productId);
 
         // Narrow: `type === 'subscription'` guarantees subscription branch above
-        // returned `Schema$SubscriptionPurchase` (which has `expiryTimeMillis` &
-        // `paymentState`). TS can't narrow `data` through the disjoint `if`,
-        // so we project to a typed shape here.
-        const subData = data as { expiryTimeMillis?: string | null; paymentState?: number | null; orderId?: string | null };
-        const expiryDate = subData.expiryTimeMillis ? new Date(parseInt(subData.expiryTimeMillis)).toISOString() : null;
-        // paymentState 1 = received, 2 = free trial
-        const isActive = subData.paymentState === 1 || subData.paymentState === 2;
+        // returned `Schema$SubscriptionPurchaseV2` (googleapis 174). El schema
+        // v2 expone subscriptionState + lineItems[0].expiryTime en lugar de
+        // paymentState/expiryTimeMillis de la v1 deprecada.
+        const subData = data as {
+          subscriptionState?: string | null;
+          lineItems?: Array<{ expiryTime?: string | null; latestSuccessfulOrderId?: string | null }> | null;
+        };
+        const lineItem = subData.lineItems?.[0];
+        const expiryDate = lineItem?.expiryTime ? new Date(parseInt(lineItem.expiryTime)).toISOString() : null;
+        // subscriptionState ACTIVE = suscripción vigente (incluye prueba gratis
+        // y gracia); GRACE_PERIOD se considera activa para no cortar el acceso
+        // durante la ventana de reintento de pago.
+        const isActive =
+          subData.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
+          subData.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
 
         await db.collection('users').doc(uid).update({
           'subscription.planId': resolvedPlan,
@@ -150,7 +164,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.paymentMethod': 'google-play',
           'subscription.gracePeriodEnd': null,
           'subscription.purchaseToken': purchaseToken,
-          'subscription.orderId': subData.orderId,
+          'subscription.orderId': lineItem?.latestSuccessfulOrderId ?? null,
           'subscription.cycle': cycle,
           'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -182,7 +196,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         type: type ?? 'subscription',
         planId: resolvedPlan,
         cycle,
-        orderId: data.orderId ?? null,
+        orderId: v2OrderId ?? null,
       });
       return res.json({ success: true, data });
     } catch (error: any) {
@@ -278,17 +292,23 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               const userDoc = userQuery.docs[0];
               logger.info('rtdn_updating_user_subscription', { userId: userDoc.id });
 
-              // Fetch fresh state from Google
-              const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
+              // Fetch fresh state from Google (googleapis 174: subscriptionsv2).
+              const verificationResult = await playDeveloperApi.purchases.subscriptionsv2.get({
                 auth: playAuth,
                 packageName,
-                subscriptionId,
                 token: purchaseToken,
               });
 
-              const data = verificationResult.data;
-              const isActive = data.paymentState === 1 || data.paymentState === 2;
-              const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+              const data = verificationResult.data as {
+                subscriptionState?: string | null;
+                lineItems?: Array<{ expiryTime?: string | null }> | null;
+              };
+              const isActive =
+                data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
+                data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
+              const expiryDate = data.lineItems?.[0]?.expiryTime
+                ? new Date(parseInt(data.lineItems[0].expiryTime!)).toISOString()
+                : null;
 
               // subscriptionId IS the SKU/productId for v3 single-product subs.
               // Resolve the plan too (was missing) so a renewal that changed the
