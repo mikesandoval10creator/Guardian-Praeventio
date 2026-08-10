@@ -1,70 +1,94 @@
-import { randomId } from '../utils/randomId';
-import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useReducedMotion } from '../hooks/useReducedMotion';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, useGLTF } from '@react-three/drei';
-import * as THREE from 'three';
+import { randomId } from "../utils/randomId";
+import React, { useState, useRef, useEffect, Suspense } from "react";
+import { useTranslation } from "react-i18next";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Grid, Environment, useGLTF } from "@react-three/drei";
+import * as THREE from "three";
 import {
-  Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
-  Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
-} from 'lucide-react';
-import { apiAuthHeader } from '../lib/apiAuth';
+  Layers,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  Cpu,
+  Zap,
+  Video,
+  Clock,
+  Eye,
+  RefreshCw,
+  Trash2,
+  Info,
+  Map as MapIcon,
+} from "lucide-react";
+import { apiAuthHeader } from "../lib/apiAuth";
 // Sprint 29 Bucket BB H24 — lazy split: Site25DPanel hosts the 2.5D
 // canvas (three.js + r3f). Defer to keep the Digital Twin route
 // shell snappy.
 const Site25DPanel = React.lazy(() =>
-  import('../components/digital-twin/Site25DPanel').then((m) => ({ default: m.Site25DPanel })),
+  import("../components/digital-twin/Site25DPanel").then((m) => ({
+    default: m.Site25DPanel,
+  })),
 );
-import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
-import { isDemoProject } from '../data/demoProject';
+import { TwinAccessGuard } from "../components/digital-twin/TwinAccessGuard";
+import { isDemoProject } from "../data/demoProject";
 // §2.28 (2026-05-22) — Tras descartar la pipeline server-side (server.ts:64-68
 // + 584-587), el handler local ejecuta la reconstrucción ON-DEVICE
 // vía `OnDeviceReconstructionAdapter`. Conservamos `db/doc/getDoc` para
 // el TwinAccessGuard (verificar membership).
-import { db, doc, getDoc } from '../services/firebase';
-import { createOnDeviceReconstructionAdapter } from '../services/digitalTwin/photogrammetry/onDeviceAdapter';
+import { db, doc, getDoc } from "../services/firebase";
+import { createOnDeviceReconstructionAdapter } from "../services/digitalTwin/photogrammetry/onDeviceAdapter";
+import { subscribeReconstructionJobs } from "../services/digitalTwin/photogrammetry/reconstructionJobStore";
+import type {
+  PhotogrammetryJobResult,
+  MeshFormat,
+} from "../services/digitalTwin/photogrammetry/types";
+import type { ReconstructionStage } from "../services/digitalTwin/onDeviceReconstruction";
+import { useProject } from "../contexts/ProjectContext";
+import { useFirebase } from "../contexts/FirebaseContext";
+import { EmptyState } from "../components/shared/EmptyState";
+import { ToastContainer } from "../components/shared/ToastContainer";
+import { useToast } from "../hooks/useToast";
+import { logger } from "../utils/logger";
+import { generateSlamMeshNode } from "../services/zettelkasten/bernoulli/slamPhotogrammetryNode";
+import { writeNodesDebounced } from "../services/zettelkasten/persistence/writeNode";
+import { PlacedObjectsLayer } from "../components/digital-twin/PlacedObjectsLayer";
 import {
-  subscribeReconstructionJobs,
-} from '../services/digitalTwin/photogrammetry/reconstructionJobStore';
-import type { PhotogrammetryJobResult } from '../services/digitalTwin/photogrammetry/types';
-import type { ReconstructionStage } from '../services/digitalTwin/onDeviceReconstruction';
-import { useProject } from '../contexts/ProjectContext';
-import { useFirebase } from '../contexts/FirebaseContext';
-import { EmptyState } from '../components/shared/EmptyState';
-import { ToastContainer } from '../components/shared/ToastContainer';
-import { useToast } from '../hooks/useToast';
-import { logger } from '../utils/logger';
-import { generateSlamMeshNode } from '../services/zettelkasten/bernoulli/slamPhotogrammetryNode';
-import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
-import { PlacedObjectsLayer } from '../components/digital-twin/PlacedObjectsLayer';
-import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObjectMenu';
-import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
-import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
-import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
-import { GaussianSplatViewer } from '../components/digital-twin/GaussianSplatViewer';
-import { RePositionConfirmDialog } from '../components/digital-twin/RePositionConfirmDialog';
-import { TwinPhysicsScene, type PhysicalObject } from '../components/twinPhysics/TwinPhysicsScene';
-import { TwinIntegrationPanel } from '../components/twinScene/TwinIntegrationPanel';
-import { TwinSceneInstancedLazy } from '../components/twinScene/TwinSceneInstancedLazy';
+  PlaceObjectMenu,
+  DRAG_MIME,
+} from "../components/digital-twin/PlaceObjectMenu";
+import { NormativaWarningsBanner } from "../components/digital-twin/NormativaWarningsBanner";
+import { MaintenanceStatusPanel } from "../components/digital-twin/MaintenanceStatusPanel";
+import { ARObjectOverlay } from "../components/digital-twin/ARObjectOverlay";
+import { GaussianSplatViewer } from "../components/digital-twin/GaussianSplatViewer";
+import { RePositionConfirmDialog } from "../components/digital-twin/RePositionConfirmDialog";
+import {
+  TwinPhysicsScene,
+  type PhysicalObject,
+} from "../components/twinPhysics/TwinPhysicsScene";
+import { TwinIntegrationPanel } from "../components/twinScene/TwinIntegrationPanel";
+import { TwinSceneInstancedLazy } from "../components/twinScene/TwinSceneInstancedLazy";
 // Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
-import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
+import { ArViewLink, type ArKind } from "../components/ar/ArViewLink";
 // §2.28 (2026-05-23) — AR launcher para el mesh reconstruido on-device
 // (acepta URLs arbitrarias del job, no del catálogo).
-import { ReconstructionArLink } from '../components/digital-twin/ReconstructionArLink';
-import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
-import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
-import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
+import { ReconstructionArLink } from "../components/digital-twin/ReconstructionArLink";
+import { useObjectLifecycle } from "../hooks/useObjectLifecycle";
+import type {
+  PlacedObject,
+  PlacedObjectKind,
+} from "../services/digitalTwin/photogrammetry/types";
+import { runComplianceCheck } from "../services/digitalTwin/objectPlacement/normativaRules";
 import {
   savePlacedObject,
   subscribePlacedObjects,
   updatePlacedObject,
-} from '../services/digitalTwin/placedObjectsStore';
+} from "../services/digitalTwin/placedObjectsStore";
 
 interface ReconstructionJob {
   jobId: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: "queued" | "processing" | "completed" | "failed";
   progress: number;
   videoUrl?: string;
   notes?: string;
@@ -72,26 +96,55 @@ interface ReconstructionJob {
   /** §2.28 (2026-05-23) — URL del USDZ para iOS Quick Look (si emitida). */
   usdzUrl?: string | null;
   pointCount?: number;
-  boundingBox?: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
+  /** Formato y tamaño del mesh real (si el job completó con artifact). */
+  meshFormat?: string;
+  meshSizeBytes?: number;
+  boundingBox?: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    minZ: number;
+    maxZ: number;
+  };
   createdAt?: { seconds: number };
   error?: string;
   metrics?: { framesExtracted?: number };
 }
 
-type ProcessingMode = 'gpu' | 'cpu';
+type ProcessingMode = "gpu" | "cpu";
 
-const STATUS_LABEL: Record<ReconstructionJob['status'], string> = {
-  queued: 'En cola',
-  processing: 'Procesando',
-  completed: 'Completado',
-  failed: 'Falló',
+const STATUS_LABEL: Record<ReconstructionJob["status"], string> = {
+  queued: "En cola",
+  processing: "Procesando",
+  completed: "Completado",
+  failed: "Falló",
 };
 
-const STATUS_STYLE: Record<ReconstructionJob['status'], { bg: string; text: string; Icon: typeof Loader2 }> = {
-  queued:     { bg: 'bg-elevated/40 border-default-token', text: 'text-secondary', Icon: Clock },
-  processing: { bg: 'bg-cyan-500/15 border-cyan-500/40', text: 'text-cyan-300', Icon: Loader2 },
-  completed:  { bg: 'bg-emerald-500/15 border-emerald-500/40', text: 'text-emerald-300', Icon: CheckCircle2 },
-  failed:     { bg: 'bg-rose-500/15 border-rose-500/40', text: 'text-rose-300', Icon: AlertTriangle },
+const STATUS_STYLE: Record<
+  ReconstructionJob["status"],
+  { bg: string; text: string; Icon: typeof Loader2 }
+> = {
+  queued: {
+    bg: "bg-elevated/40 border-default-token",
+    text: "text-secondary",
+    Icon: Clock,
+  },
+  processing: {
+    bg: "bg-cyan-500/15 border-cyan-500/40",
+    text: "text-cyan-300",
+    Icon: Loader2,
+  },
+  completed: {
+    bg: "bg-emerald-500/15 border-emerald-500/40",
+    text: "text-emerald-300",
+    Icon: CheckCircle2,
+  },
+  failed: {
+    bg: "bg-rose-500/15 border-rose-500/40",
+    text: "text-rose-300",
+    Icon: AlertTriangle,
+  },
 };
 
 // §2.28 (2026-05-22) — Visor del GLB REAL producido por la pipeline
@@ -109,12 +162,25 @@ function OnDeviceGlbViewer({ url }: { url: string }) {
 }
 
 // Procedural point cloud generated from boundingBox + pointCount (visualization fallback for demo mode)
-function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; boundingBox: ReconstructionJob['boundingBox'] }) {
+function PointCloudViewer({
+  pointCount,
+  boundingBox,
+}: {
+  pointCount: number;
+  boundingBox: ReconstructionJob["boundingBox"];
+}) {
   const positions = React.useMemo(() => {
     const arr = new Float32Array(pointCount * 3);
-    const bb = boundingBox || { minX: -10, maxX: 10, minY: 0, maxY: 5, minZ: -10, maxZ: 10 };
+    const bb = boundingBox || {
+      minX: -10,
+      maxX: 10,
+      minY: 0,
+      maxY: 5,
+      minZ: -10,
+      maxZ: 10,
+    };
     for (let i = 0; i < pointCount; i++) {
-      arr[i * 3]     = bb.minX + Math.random() * (bb.maxX - bb.minX);
+      arr[i * 3] = bb.minX + Math.random() * (bb.maxX - bb.minX);
       arr[i * 3 + 1] = bb.minY + Math.random() * (bb.maxY - bb.minY);
       arr[i * 3 + 2] = bb.minZ + Math.random() * (bb.maxZ - bb.minZ);
     }
@@ -124,10 +190,12 @@ function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; bou
   const colors = React.useMemo(() => {
     const arr = new Float32Array(pointCount * 3);
     for (let i = 0; i < pointCount; i++) {
-      const heightRatio = (positions[i * 3 + 1] - (boundingBox?.minY ?? 0)) / Math.max(1, (boundingBox?.maxY ?? 5) - (boundingBox?.minY ?? 0));
-      arr[i * 3]     = 0.2 + heightRatio * 0.4;       // R
-      arr[i * 3 + 1] = 0.6 + heightRatio * 0.3;       // G
-      arr[i * 3 + 2] = 0.5 - heightRatio * 0.2;       // B
+      const heightRatio =
+        (positions[i * 3 + 1] - (boundingBox?.minY ?? 0)) /
+        Math.max(1, (boundingBox?.maxY ?? 5) - (boundingBox?.minY ?? 0));
+      arr[i * 3] = 0.2 + heightRatio * 0.4; // R
+      arr[i * 3 + 1] = 0.6 + heightRatio * 0.3; // G
+      arr[i * 3 + 2] = 0.5 - heightRatio * 0.2; // B
     }
     return arr;
   }, [positions, pointCount, boundingBox]);
@@ -135,10 +203,28 @@ function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; bou
   return (
     <points>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} array={positions} count={pointCount} itemSize={3} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} array={colors} count={pointCount} itemSize={3} />
+        <bufferAttribute
+          attach="attributes-position"
+          args={[positions, 3]}
+          array={positions}
+          count={pointCount}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          args={[colors, 3]}
+          array={colors}
+          count={pointCount}
+          itemSize={3}
+        />
       </bufferGeometry>
-      <pointsMaterial size={0.08} vertexColors sizeAttenuation transparent opacity={0.85} />
+      <pointsMaterial
+        size={0.08}
+        vertexColors
+        sizeAttenuation
+        transparent
+        opacity={0.85}
+      />
     </points>
   );
 }
@@ -172,7 +258,11 @@ function RiskMarkers({ markers = [] }: { markers?: RiskMarker[] }) {
       {markers.map((m, i) => (
         <mesh key={`${m.label}-${i}`} position={m.pos}>
           <sphereGeometry args={[0.3, 16, 16]} />
-          <meshStandardMaterial color={m.color} emissive={m.color} emissiveIntensity={0.6} />
+          <meshStandardMaterial
+            color={m.color}
+            emissive={m.color}
+            emissiveIntensity={0.6}
+          />
         </mesh>
       ))}
     </>
@@ -186,7 +276,9 @@ export function DigitalTwinFaena() {
   const { toasts, show, dismiss } = useToast();
   const reducedMotion = useReducedMotion();
 
-  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d' | 'scene3d' | 'integration'>('reconstruction');
+  const [activeTab, setActiveTab] = useState<
+    "reconstruction" | "site25d" | "scene3d" | "integration"
+  >("reconstruction");
   // Reposition dialog state — wired to ARObjectOverlay's move flow.
   const [repositionState, setRepositionState] = useState<{
     objectId: string;
@@ -194,9 +286,9 @@ export function DigitalTwinFaena() {
     previousPosition: { x: number; y: number; z: number };
     newPosition: { x: number; y: number; z: number };
   } | null>(null);
-  const [mode, setMode] = useState<ProcessingMode>('cpu');
+  const [mode, setMode] = useState<ProcessingMode>("cpu");
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
   // §2.28 (2026-05-22) — UI states del pipeline on-device:
   //   - submitting: la pipeline está corriendo (extract → cloud → export → upload)
   //   - progress: 0-1, progreso macro de la pipeline
@@ -218,7 +310,7 @@ export function DigitalTwinFaena() {
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [arObject, setArObject] = useState<PlacedObject | null>(null);
-  const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? '');
+  const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? "");
 
   // Suscripción Firestore — limpia automáticamente al cambiar projectId.
   useEffect(() => {
@@ -230,7 +322,8 @@ export function DigitalTwinFaena() {
     const unsub = subscribePlacedObjects(
       projectId,
       (objs) => setPlacedObjects(objs),
-      (err) => logger.warn('placed_objects_subscription_error', { err: String(err) }),
+      (err) =>
+        logger.warn("placed_objects_subscription_error", { err: String(err) }),
     );
     return () => unsub();
   }, [selectedProject?.id]);
@@ -239,72 +332,78 @@ export function DigitalTwinFaena() {
     [placedObjects],
   );
 
-  const handleCanvasDrop = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    const kind = (e.dataTransfer.getData(DRAG_MIME) ||
-      e.dataTransfer.getData('text/plain')) as PlacedObjectKind | '';
-    if (!kind) return;
-    e.preventDefault();
-    // 2026-05-16 (Sprint F fix): antes la posición era
-    // `(Math.random()-0.5)*8` → objetos caían en lugares impredecibles.
-    // Ahora usamos una grilla determinística basada en cuántos objetos
-    // ya están placeados: 4 columnas × N filas, espaciado 1.5m.
-    //
-    // Codex fix follow-up: el useCallback NO lista `placedObjects` en
-    // sus deps (intencional — re-crear la callback en cada drop
-    // invalidaría DnD handlers). Eso hacía que `placedObjects.length`
-    // leído en el closure capturara el valor del primer render → todos
-    // los drops siguientes caían en el mismo idx 0.
-    //
-    // Fix: calcular el índice DENTRO del updater `setPlacedObjects(prev
-    // => ...)` que SÍ ve el estado actual. Una pasada, sin races.
-    //
-    // Mejora futura: Three.js raycaster contra la malla 3D para
-    // posición exacta bajo el cursor (requiere ref al canvas R3F).
-    const now = Date.now();
-    const newObjBase = {
-      id: `placed_${now}_${randomId()}`,
-      kind: kind as PlacedObjectKind,
-      lifecycle: 'planning' as const,
-      createdAt: now,
-      updatedAt: now,
-    };
-    let newObj: PlacedObject | null = null;
-    setPlacedObjects((prev) => {
-      const idx = prev.length;
-      const col = idx % 4;
-      const row = Math.floor(idx / 4);
-      newObj = {
-        ...newObjBase,
-        position: {
-          x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
-          y: 1,
-          z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
-        },
+  const handleCanvasDrop = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const kind = (e.dataTransfer.getData(DRAG_MIME) ||
+        e.dataTransfer.getData("text/plain")) as PlacedObjectKind | "";
+      if (!kind) return;
+      e.preventDefault();
+      // 2026-05-16 (Sprint F fix): antes la posición era
+      // `(Math.random()-0.5)*8` → objetos caían en lugares impredecibles.
+      // Ahora usamos una grilla determinística basada en cuántos objetos
+      // ya están placeados: 4 columnas × N filas, espaciado 1.5m.
+      //
+      // Codex fix follow-up: el useCallback NO lista `placedObjects` en
+      // sus deps (intencional — re-crear la callback en cada drop
+      // invalidaría DnD handlers). Eso hacía que `placedObjects.length`
+      // leído en el closure capturara el valor del primer render → todos
+      // los drops siguientes caían en el mismo idx 0.
+      //
+      // Fix: calcular el índice DENTRO del updater `setPlacedObjects(prev
+      // => ...)` que SÍ ve el estado actual. Una pasada, sin races.
+      //
+      // Mejora futura: Three.js raycaster contra la malla 3D para
+      // posición exacta bajo el cursor (requiere ref al canvas R3F).
+      const now = Date.now();
+      const newObjBase = {
+        id: `placed_${now}_${randomId()}`,
+        kind: kind as PlacedObjectKind,
+        lifecycle: "planning" as const,
+        createdAt: now,
+        updatedAt: now,
       };
-      return [...prev, newObj];
-    });
-    if (!newObj) return;
-    setSelectedObjectId((newObj as PlacedObject).id);
-    // Bucket J.2 — persistir en Firestore (best-effort; el subscribe lo
-    // re-hidratará igualmente al confirmar la escritura remota).
-    const projectId = selectedProject?.id;
-    if (projectId) {
-      void savePlacedObject(newObj as PlacedObject, projectId).catch((err) =>
-        logger.warn('placed_object_save_failed', { err: String(err) }),
+      let newObj: PlacedObject | null = null;
+      setPlacedObjects((prev) => {
+        const idx = prev.length;
+        const col = idx % 4;
+        const row = Math.floor(idx / 4);
+        newObj = {
+          ...newObjBase,
+          position: {
+            x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
+            y: 1,
+            z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
+          },
+        };
+        return [...prev, newObj];
+      });
+      if (!newObj) return;
+      setSelectedObjectId((newObj as PlacedObject).id);
+      // Bucket J.2 — persistir en Firestore (best-effort; el subscribe lo
+      // re-hidratará igualmente al confirmar la escritura remota).
+      const projectId = selectedProject?.id;
+      if (projectId) {
+        void savePlacedObject(newObj as PlacedObject, projectId).catch((err) =>
+          logger.warn("placed_object_save_failed", { err: String(err) }),
+        );
+      }
+      void onLifecycleChange(null, newObj as PlacedObject).catch((err) =>
+        logger.error("object lifecycle (planning) failed", {
+          err: String(err),
+        }),
       );
-    }
-    void onLifecycleChange(null, newObj as PlacedObject).catch((err) =>
-      logger.error('object lifecycle (planning) failed', { err: String(err) }),
-    );
-  }, [onLifecycleChange, selectedProject?.id]);
+    },
+    [onLifecycleChange, selectedProject?.id],
+  );
 
   const handleMarkInstalled = React.useCallback(async () => {
     if (!selectedObjectId) return;
-    const previous = placedObjects.find((o) => o.id === selectedObjectId) ?? null;
+    const previous =
+      placedObjects.find((o) => o.id === selectedObjectId) ?? null;
     if (!previous) return;
     const next: PlacedObject = {
       ...previous,
-      lifecycle: 'installed',
+      lifecycle: "installed",
       updatedAt: Date.now(),
     };
     try {
@@ -314,22 +413,34 @@ export function DigitalTwinFaena() {
       // siendo source-of-truth de la auditoría.
       const projectId = selectedProject?.id;
       if (projectId) {
-        await updatePlacedObject(next.id, { lifecycle: 'installed' }, projectId).catch(
-          (err) => logger.warn('placed_object_update_failed', { err: String(err) }),
+        await updatePlacedObject(
+          next.id,
+          { lifecycle: "installed" },
+          projectId,
+        ).catch((err) =>
+          logger.warn("placed_object_update_failed", { err: String(err) }),
         );
       }
       const result = await onLifecycleChange(previous, next);
-      setPlacedObjects((prev) => prev.map((o) => (o.id === next.id ? next : o)));
+      setPlacedObjects((prev) =>
+        prev.map((o) => (o.id === next.id ? next : o)),
+      );
       const created = result.calendarEventSpecs.length;
       show(
-        `Objeto instalado. ${created > 0 ? `${created} mantención(es) agendada(s).` : 'ZK node creado.'}`,
-        'success',
+        `Objeto instalado. ${created > 0 ? `${created} mantención(es) agendada(s).` : "ZK node creado."}`,
+        "success",
       );
     } catch (err) {
-      logger.error('mark installed failed', { err: String(err) });
-      show('No se pudo persistir el cambio de estado', 'error');
+      logger.error("mark installed failed", { err: String(err) });
+      show("No se pudo persistir el cambio de estado", "error");
     }
-  }, [selectedObjectId, placedObjects, onLifecycleChange, show, selectedProject?.id]);
+  }, [
+    selectedObjectId,
+    placedObjects,
+    onLifecycleChange,
+    show,
+    selectedProject?.id,
+  ]);
 
   const handleObjectMove = React.useCallback(
     (obj: PlacedObject, newPosition: { x: number; y: number; z: number }) => {
@@ -343,19 +454,25 @@ export function DigitalTwinFaena() {
       // Bucket J.2 — persistir el move a Firestore además del lifecycle.
       const projectId = selectedProject?.id;
       if (projectId) {
-        void updatePlacedObject(obj.id, { position: newPosition }, projectId).catch(
-          (err) => logger.warn('placed_object_move_persist_failed', { err: String(err) }),
+        void updatePlacedObject(
+          obj.id,
+          { position: newPosition },
+          projectId,
+        ).catch((err) =>
+          logger.warn("placed_object_move_persist_failed", {
+            err: String(err),
+          }),
         );
       }
       void onLifecycleChange(previous, next).catch((err) =>
-        logger.error('object move persistence failed', { err: String(err) }),
+        logger.error("object move persistence failed", { err: String(err) }),
       );
     },
     [onLifecycleChange, selectedProject?.id],
   );
 
   const selectedObject = selectedObjectId
-    ? placedObjects.find((o) => o.id === selectedObjectId) ?? null
+    ? (placedObjects.find((o) => o.id === selectedObjectId) ?? null)
     : null;
 
   // §2.28 (2026-05-22) — Pipeline ON-DEVICE.
@@ -367,32 +484,39 @@ export function DigitalTwinFaena() {
   //
   // Mapper: `PhotogrammetryJobResult` (canónico) → `ReconstructionJob` (UI legacy).
   // Mantenemos el shape de la UI para no romper el resto del rendering.
-  const mapJob = React.useCallback((job: PhotogrammetryJobResult): ReconstructionJob => {
-    return {
-      jobId: job.jobId,
-      status: job.status === 'cancelled' ? 'failed' : job.status,
-      // progress se infiere: queued=0, processing=50, completed=100, failed=0
-      progress:
-        job.status === 'completed'
-          ? 100
-          : job.status === 'processing'
-            ? 50
-            : 0,
-      resultUrl: job.meshUri ?? null,
-      // §2.28 (2026-05-23) — el adapter persiste `usdzUri` como campo
-      // extra fuera del shape canónico de PhotogrammetryJobResult. Lo
-      // accedemos via cast porque Firestore acepta campos adicionales.
-      usdzUrl: (job as unknown as { usdzUri?: string }).usdzUri ?? null,
-      pointCount: job.metrics?.pointsReconstructed,
-      // boundingBox no está en PhotogrammetryJobResult del adapter on-device;
-      // se omite en V1. El visor 3D usa Float32Array del GLB directamente.
-      createdAt: job.createdAt ? { seconds: Math.floor(job.createdAt / 1000) } : undefined,
-      error: job.errorMessage,
-      metrics: job.metrics
-        ? { framesExtracted: job.metrics.framesExtracted ?? 0 }
-        : undefined,
-    };
-  }, []);
+  const mapJob = React.useCallback(
+    (job: PhotogrammetryJobResult): ReconstructionJob => {
+      return {
+        jobId: job.jobId,
+        status: job.status === "cancelled" ? "failed" : job.status,
+        // progress se infiere: queued=0, processing=50, completed=100, failed=0
+        progress:
+          job.status === "completed"
+            ? 100
+            : job.status === "processing"
+              ? 50
+              : 0,
+        resultUrl: job.meshUri ?? null,
+        meshFormat: job.meshFormat,
+        meshSizeBytes: job.meshSizeBytes,
+        // §2.28 (2026-05-23) — el adapter persiste `usdzUri` como campo
+        // extra fuera del shape canónico de PhotogrammetryJobResult. Lo
+        // accedemos via cast porque Firestore acepta campos adicionales.
+        usdzUrl: (job as unknown as { usdzUri?: string }).usdzUri ?? null,
+        pointCount: job.metrics?.pointsReconstructed,
+        // boundingBox no está en PhotogrammetryJobResult del adapter on-device;
+        // se omite en V1. El visor 3D usa Float32Array del GLB directamente.
+        createdAt: job.createdAt
+          ? { seconds: Math.floor(job.createdAt / 1000) }
+          : undefined,
+        error: job.errorMessage,
+        metrics: job.metrics
+          ? { framesExtracted: job.metrics.framesExtracted ?? 0 }
+          : undefined,
+      };
+    },
+    [],
+  );
 
   // Subscription Firestore — sin polling, hidrata desde la fuente de verdad.
   // §2.28 (2026-05-22) reemplazó el apiCall / refreshJobs pattern por una
@@ -413,12 +537,14 @@ export function DigitalTwinFaena() {
         const mapped = remoteJobs.map(mapJob);
         setJobs(mapped);
         // Auto-select first completed job si no hay uno activo seleccionado.
-        const firstCompleted = mapped.find((j) => j.status === 'completed');
+        const firstCompleted = mapped.find((j) => j.status === "completed");
         setActiveJob((prev) => prev ?? firstCompleted ?? null);
         setLoadingJobs(false);
       },
       (err) => {
-        logger.warn('reconstruction_jobs_subscription_error', { err: String(err) });
+        logger.warn("reconstruction_jobs_subscription_error", {
+          err: String(err),
+        });
         setLoadingJobs(false);
       },
     );
@@ -426,33 +552,43 @@ export function DigitalTwinFaena() {
   }, [selectedProject?.id, mapJob]);
 
   // Bucket B.1 — emit Zettelkasten `slam-mesh` node for completed reconstruction jobs.
-  // Uses the keyframe count from `job.metrics.framesExtracted` (falls back to 0). Generator
-  // gates on min keyframes/coverage and returns null below threshold.
+  // Ticket 39aaa66d-73fe-8119-9c76-e26f55db154c: SOLO se emite con malla REAL
+  // (meshUri/meshFormat/meshSizeBytes del job completado). Sin artifact → el
+  // generador devuelve null; nunca se escribe un nodo placeholder.
   useEffect(() => {
     const projectId = selectedProject?.id;
     if (!projectId) return;
     const nodes = jobs
-      .filter((j) => j.status === 'completed')
-      .map((job) => generateSlamMeshNode(
-        {
-          id: job.jobId,
-          keyframeCount: job.metrics?.framesExtracted ?? 0,
-          coveragePercent: 80,
-        },
-        { id: projectId },
-      ))
+      .filter((j) => j.status === "completed" && !!j.resultUrl)
+      .map((job) =>
+        generateSlamMeshNode(
+          {
+            id: job.jobId,
+            keyframeCount: job.metrics?.framesExtracted ?? 0,
+          },
+          { id: projectId },
+          {
+            meshUri: job.resultUrl as string,
+            meshFormat: (job.meshFormat as MeshFormat) ?? "glb",
+            meshSizeBytes: job.meshSizeBytes ?? 0,
+          },
+        ),
+      )
       .filter((n): n is NonNullable<typeof n> => Boolean(n));
     if (nodes.length > 0) writeNodesDebounced(nodes, { projectId });
-  }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), selectedProject?.id]);
+  }, [
+    jobs.map((j) => `${j.jobId}:${j.status}:${j.resultUrl}`).join(","),
+    selectedProject?.id,
+  ]);
 
   const handleFileSelect = (file: File) => {
-    if (!file.type.startsWith('video/')) {
-      show('Solo se aceptan archivos de video (mp4, mov, webm)', 'error');
+    if (!file.type.startsWith("video/")) {
+      show("Solo se aceptan archivos de video (mp4, mov, webm)", "error");
       return;
     }
     const sizeMB = file.size / (1024 * 1024);
     if (sizeMB > 200) {
-      show(`Video muy pesado (${sizeMB.toFixed(0)}MB). Máximo 200MB.`, 'error');
+      show(`Video muy pesado (${sizeMB.toFixed(0)}MB). Máximo 200MB.`, "error");
       return;
     }
     setVideoFile(file);
@@ -482,7 +618,7 @@ export function DigitalTwinFaena() {
     //   - Job aparece en la lista con su nuevo estado.
     setSubmitting(true);
     setProgress(0);
-    setStage('extract');
+    setStage("extract");
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -491,7 +627,7 @@ export function DigitalTwinFaena() {
         videoFile,
         projectId: selectedProject.id,
         userId: user.uid,
-        outputFormat: 'glb',
+        outputFormat: "glb",
         videoMeta: {
           durationS: 0, // se derive en el adapter; placeholder
           fileSizeBytes: videoFile.size,
@@ -502,18 +638,24 @@ export function DigitalTwinFaena() {
         },
         abortSignal: controller.signal,
       });
-      show(`Reconstrucción on-device iniciada (job ${jobId.slice(0, 12)})`, 'success');
+      show(
+        `Reconstrucción on-device iniciada (job ${jobId.slice(0, 12)})`,
+        "success",
+      );
       // Limpiamos el File después de delegar al adapter — el blob queda
       // referenciado por el job en background. Si el usuario sube otro
       // video, no hay confusión.
       setVideoFile(null);
-      setNotes('');
+      setNotes("");
     } catch (err) {
-      logger.error('handleSubmit on-device failed', { err: String(err) });
-      if ((err as Error)?.name === 'AbortError') {
-        show('Reconstrucción cancelada.', 'success');
+      logger.error("handleSubmit on-device failed", { err: String(err) });
+      if ((err as Error)?.name === "AbortError") {
+        show("Reconstrucción cancelada.", "success");
       } else {
-        show(`No se pudo iniciar la reconstrucción: ${(err as Error).message}`, 'error');
+        show(
+          `No se pudo iniciar la reconstrucción: ${(err as Error).message}`,
+          "error",
+        );
       }
     } finally {
       setSubmitting(false);
@@ -540,16 +682,20 @@ export function DigitalTwinFaena() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black uppercase tracking-tighter text-primary">{t('digitalTwin.title', 'Gemelo Digital 3D')}</h1>
+              <h1 className="text-lg font-black uppercase tracking-tighter text-primary">
+                {t("digitalTwin.title", "Gemelo Digital 3D")}
+              </h1>
               <span
                 className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded bg-amber-500/15 text-amber-400 border border-amber-500/40"
                 role="status"
                 aria-label="Función en vista previa, no apta para reportes oficiales"
               >
-                {t('digitalTwin.preview', 'Vista previa')}
+                {t("digitalTwin.preview", "Vista previa")}
               </span>
             </div>
-            <p className="text-[9px] font-bold text-muted-token uppercase tracking-widest">{t('digitalTwin.subtitle', 'Reconstrucción Faena · lingBot-Map')}</p>
+            <p className="text-[9px] font-bold text-muted-token uppercase tracking-widest">
+              {t("digitalTwin.subtitle", "Reconstrucción Faena · lingBot-Map")}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -560,7 +706,7 @@ export function DigitalTwinFaena() {
             className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 text-[10px] font-black uppercase tracking-widest transition-colors min-h-[44px] flex items-center gap-2"
           >
             <span aria-hidden="true">🥽</span>
-            <span>{t('digitalTwin.openAr', 'Modo AR')}</span>
+            <span>{t("digitalTwin.openAr", "Modo AR")}</span>
           </a>
           {/* §2.28 (2026-05-22) — el botón "Refrescar" quedó conservado por
               consistencia visual. La lista de jobs ahora hidrata vía
@@ -571,7 +717,10 @@ export function DigitalTwinFaena() {
             aria-label="Estado de carga de jobs"
             className="p-2 rounded-xl bg-elevated transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
-            <RefreshCw className={`w-4 h-4 text-secondary ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <RefreshCw
+              className={`w-4 h-4 text-secondary ${loadingJobs ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
           </div>
         </div>
       </div>
@@ -584,597 +733,719 @@ export function DigitalTwinFaena() {
       >
         <button
           role="tab"
-          aria-selected={activeTab === 'reconstruction'}
-          onClick={() => setActiveTab('reconstruction')}
+          aria-selected={activeTab === "reconstruction"}
+          onClick={() => setActiveTab("reconstruction")}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
-            activeTab === 'reconstruction'
-              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
-              : 'text-muted-token hover:text-secondary'
+            activeTab === "reconstruction"
+              ? "bg-canvas text-cyan-300 border-x border-t border-default-token"
+              : "text-muted-token hover:text-secondary"
           }`}
         >
           <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('digitalTwin.tab3d', 'Reconstrucción 3D')}
+          {t("digitalTwin.tab3d", "Reconstrucción 3D")}
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === 'site25d'}
-          onClick={() => setActiveTab('site25d')}
+          aria-selected={activeTab === "site25d"}
+          onClick={() => setActiveTab("site25d")}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
-            activeTab === 'site25d'
-              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
-              : 'text-muted-token hover:text-secondary'
+            activeTab === "site25d"
+              ? "bg-canvas text-cyan-300 border-x border-t border-default-token"
+              : "text-muted-token hover:text-secondary"
           }`}
         >
           <MapIcon className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('digitalTwin.tab25d', 'Mapa 2.5D del sitio')}
+          {t("digitalTwin.tab25d", "Mapa 2.5D del sitio")}
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === 'scene3d'}
-          onClick={() => setActiveTab('scene3d')}
+          aria-selected={activeTab === "scene3d"}
+          onClick={() => setActiveTab("scene3d")}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
-            activeTab === 'scene3d'
-              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
-              : 'text-muted-token hover:text-secondary'
+            activeTab === "scene3d"
+              ? "bg-canvas text-cyan-300 border-x border-t border-default-token"
+              : "text-muted-token hover:text-secondary"
           }`}
         >
           <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('digitalTwin.tabScene3d', 'Escena 3D')}
+          {t("digitalTwin.tabScene3d", "Escena 3D")}
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === 'integration'}
-          onClick={() => setActiveTab('integration')}
+          aria-selected={activeTab === "integration"}
+          onClick={() => setActiveTab("integration")}
           className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
-            activeTab === 'integration'
-              ? 'bg-canvas text-cyan-300 border-x border-t border-default-token'
-              : 'text-muted-token hover:text-secondary'
+            activeTab === "integration"
+              ? "bg-canvas text-cyan-300 border-x border-t border-default-token"
+              : "text-muted-token hover:text-secondary"
           }`}
         >
           <Zap className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('digitalTwin.tabIntegration', 'Integración')}
+          {t("digitalTwin.tabIntegration", "Integración")}
         </button>
       </div>
 
-      {activeTab === 'site25d' ? (
+      {activeTab === "site25d" ? (
         <div className="flex-1 p-4 sm:p-6 overflow-hidden">
           <div className="h-full bg-surface/60 border border-default-token rounded-2xl overflow-hidden">
-            <Suspense fallback={
-              <div className="w-full h-[400px] flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-              </div>
-            }>
+            <Suspense
+              fallback={
+                <div className="w-full h-[400px] flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                </div>
+              }
+            >
               <Site25DPanel />
             </Suspense>
           </div>
         </div>
-      ) : activeTab === 'scene3d' ? (
+      ) : activeTab === "scene3d" ? (
         <div className="flex-1 p-4 sm:p-6 overflow-auto">
           <TwinSceneInstancedLazy />
         </div>
-      ) : activeTab === 'integration' ? (
+      ) : activeTab === "integration" ? (
         <div className="flex-1 p-4 sm:p-6 overflow-auto">
           <TwinIntegrationPanel />
         </div>
       ) : (
-      /* Main grid */
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 sm:p-6 overflow-hidden">
-        {/* LEFT: Upload + Job list */}
-        <aside className="space-y-4 overflow-y-auto pr-1">
-          {/* Mode toggle */}
-          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">{t('digitalTwin.processingMode', 'Modo de procesamiento')}</p>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Modo de procesamiento">
-              <button
-                role="radio"
-                aria-checked={mode === 'gpu'}
-                aria-disabled="true"
-                onClick={() => show(
-                  'El gemelo digital ahora se reconstruye on-device (CPU local). GPU cloud no está habilitado.',
-                  'info',
-                )}
-                className={`p-3 rounded-xl border transition-all opacity-60 cursor-not-allowed ${
-                  mode === 'gpu'
-                    ? 'bg-cyan-500/15 border-cyan-500/50 ring-2 ring-cyan-500/30'
-                    : 'bg-elevated border-default-token'
-                }`}
-              >
-                <Zap className={`w-5 h-5 mb-1 ${mode === 'gpu' ? 'text-cyan-400' : 'text-muted-token'}`} aria-hidden="true" />
-                <p className={`text-xs font-black ${mode === 'gpu' ? 'text-primary' : 'text-secondary'}`}>GPU Cloud</p>
-                <p className="text-[9px] text-muted-token mt-0.5">No habilitado</p>
-              </button>
-              <button
-                role="radio"
-                aria-checked={mode === 'cpu'}
-                onClick={() => setMode('cpu')}
-                className={`p-3 rounded-xl border transition-all ${
-                  mode === 'cpu'
-                    ? 'bg-amber-500/15 border-amber-500/50 ring-2 ring-amber-500/30'
-                    : 'bg-elevated border-default-token hover:bg-elevated/80'
-                }`}
-              >
-                <Cpu className={`w-5 h-5 mb-1 ${mode === 'cpu' ? 'text-amber-400' : 'text-muted-token'}`} aria-hidden="true" />
-                <p className={`text-xs font-black ${mode === 'cpu' ? 'text-primary' : 'text-secondary'}`}>CPU local</p>
-                <p className="text-[9px] text-muted-token mt-0.5">~10-15 min · gratis</p>
-              </button>
-            </div>
-            <div className="flex items-start gap-2 mt-3 p-2 bg-elevated/40 rounded-lg">
-              <Info className="w-3.5 h-3.5 text-muted-token shrink-0 mt-0.5" aria-hidden="true" />
-              <p className="text-[10px] text-muted-token leading-relaxed">
-                §2.28 — Pipeline <strong>on-device</strong>: extracción de frames + nube de puntos +
-                exportación a GLB en tu propio dispositivo. El video <strong>nunca</strong> sale
-                del celular; solo el mesh resultante se guarda en Storage. Tiempo típico 10-60 s
-                según largo del video.
+        /* Main grid */
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 sm:p-6 overflow-hidden">
+          {/* LEFT: Upload + Job list */}
+          <aside className="space-y-4 overflow-y-auto pr-1">
+            {/* Mode toggle */}
+            <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+              <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">
+                {t("digitalTwin.processingMode", "Modo de procesamiento")}
               </p>
-            </div>
-            {mode === 'cpu' && (
-              <div className="mt-2 p-3 rounded-lg bg-emerald-900/20 border border-emerald-600/30 text-emerald-200 text-xs">
-                <strong>Reconstrucción on-device activa:</strong> usa tu CPU/GPU del browser. La
-                nube de puntos preserva color y estructura del video. Próxima iteración sumará
-                MiDaS (depth estimation) para mejorar calidad — sigue corriendo on-device.
-              </div>
-            )}
-          </div>
-
-          {/* Upload zone */}
-          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">{t('digitalTwin.newScan', 'Nuevo escaneo')}</p>
-
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const f = e.dataTransfer.files[0];
-                if (f) handleFileSelect(f);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              aria-label="Soltar video o hacer click para seleccionar"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
-              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                dragOver
-                  ? 'border-cyan-500/60 bg-cyan-500/5'
-                  : videoFile
-                    ? 'border-emerald-500/40 bg-emerald-500/5'
-                    : 'border-default-token hover:border-default-token/60 bg-elevated/20'
-              }`}
-            >
-              {videoFile ? (
-                <div>
-                  <Video className="w-8 h-8 text-emerald-400 mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs font-bold text-primary truncate">{videoFile.name}</p>
-                  <p className="text-[10px] text-muted-token mt-1">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setVideoFile(null); }}
-                    className="mt-2 text-[10px] text-rose-400 hover:text-rose-300 font-bold"
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-8 h-8 text-muted-token mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs font-bold text-secondary">{t('digitalTwin.dropVideo', 'Soltar video aquí')}</p>
-                  <p className="text-[10px] text-muted-token mt-1">{t('digitalTwin.videoFormats', 'mp4, mov, webm · máx 200MB')}</p>
-                </>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-                className="hidden"
-              />
-            </div>
-
-            <input
-              type="text"
-              placeholder={t('digitalTwin.notesPlaceholder', 'Notas (sector, fecha, condiciones)')}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full mt-3 bg-elevated border border-default-token rounded-xl px-3 py-2 text-xs text-primary placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"
-            />
-
-            {/* §2.28 (2026-05-22) — pipeline ON-DEVICE real (video → frames →
-                point cloud → GLB → Storage + Firestore). */}
-            <button
-              onClick={handleSubmit}
-              disabled={!videoFile || !selectedProject || submitting}
-              aria-disabled={!videoFile || !selectedProject || submitting}
-              className="w-full mt-3 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  <span>
-                    {stage === 'extract' && 'Extrayendo frames…'}
-                    {stage === 'point-cloud' && 'Generando nube de puntos…'}
-                    {stage === 'export' && 'Exportando GLB…'}
-                    {stage === 'done' && 'Subiendo mesh…'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" aria-hidden="true" />
-                  <span>Reconstruir on-device</span>
-                </>
-              )}
-            </button>
-            {/* Progress bar visible mientras la pipeline corre. */}
-            {submitting && (
-              <div className="mt-2 space-y-1">
-                <div
-                  className="w-full h-1.5 bg-elevated rounded-full overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={Math.round(progress * 100)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="Progreso de la reconstrucción on-device"
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-label="Modo de procesamiento"
+              >
+                <button
+                  role="radio"
+                  aria-checked={mode === "gpu"}
+                  aria-disabled="true"
+                  onClick={() =>
+                    show(
+                      "El gemelo digital ahora se reconstruye on-device (CPU local). GPU cloud no está habilitado.",
+                      "info",
+                    )
+                  }
+                  className={`p-3 rounded-xl border transition-all opacity-60 cursor-not-allowed ${
+                    mode === "gpu"
+                      ? "bg-cyan-500/15 border-cyan-500/50 ring-2 ring-cyan-500/30"
+                      : "bg-elevated border-default-token"
+                  }`}
                 >
-                  <div
-                    className="h-full bg-cyan-500 transition-all duration-200"
-                    style={{ width: `${Math.round(progress * 100)}%` }}
+                  <Zap
+                    className={`w-5 h-5 mb-1 ${mode === "gpu" ? "text-cyan-400" : "text-muted-token"}`}
+                    aria-hidden="true"
                   />
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-token">
-                  <span>{Math.round(progress * 100)}%</span>
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest"
+                  <p
+                    className={`text-xs font-black ${mode === "gpu" ? "text-primary" : "text-secondary"}`}
                   >
-                    Cancelar
-                  </button>
-                </div>
+                    GPU Cloud
+                  </p>
+                  <p className="text-[9px] text-muted-token mt-0.5">
+                    No habilitado
+                  </p>
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={mode === "cpu"}
+                  onClick={() => setMode("cpu")}
+                  className={`p-3 rounded-xl border transition-all ${
+                    mode === "cpu"
+                      ? "bg-amber-500/15 border-amber-500/50 ring-2 ring-amber-500/30"
+                      : "bg-elevated border-default-token hover:bg-elevated/80"
+                  }`}
+                >
+                  <Cpu
+                    className={`w-5 h-5 mb-1 ${mode === "cpu" ? "text-amber-400" : "text-muted-token"}`}
+                    aria-hidden="true"
+                  />
+                  <p
+                    className={`text-xs font-black ${mode === "cpu" ? "text-primary" : "text-secondary"}`}
+                  >
+                    CPU local
+                  </p>
+                  <p className="text-[9px] text-muted-token mt-0.5">
+                    ~10-15 min · gratis
+                  </p>
+                </button>
               </div>
-            )}
-          </div>
+              <div className="flex items-start gap-2 mt-3 p-2 bg-elevated/40 rounded-lg">
+                <Info
+                  className="w-3.5 h-3.5 text-muted-token shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <p className="text-[10px] text-muted-token leading-relaxed">
+                  §2.28 — Pipeline <strong>on-device</strong>: extracción de
+                  frames + nube de puntos + exportación a GLB en tu propio
+                  dispositivo. El video <strong>nunca</strong> sale del celular;
+                  solo el mesh resultante se guarda en Storage. Tiempo típico
+                  10-60 s según largo del video.
+                </p>
+              </div>
+              {mode === "cpu" && (
+                <div className="mt-2 p-3 rounded-lg bg-emerald-900/20 border border-emerald-600/30 text-emerald-200 text-xs">
+                  <strong>Reconstrucción on-device activa:</strong> usa tu
+                  CPU/GPU del browser. La nube de puntos preserva color y
+                  estructura del video. Próxima iteración sumará MiDaS (depth
+                  estimation) para mejorar calidad — sigue corriendo on-device.
+                </div>
+              )}
+            </div>
 
-          {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
-          {activeJob?.status === 'completed' && (
-            <PlaceObjectMenu />
-          )}
+            {/* Upload zone */}
+            <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+              <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">
+                {t("digitalTwin.newScan", "Nuevo escaneo")}
+              </p>
 
-          {/* Gaussian Splat viewer — visor 3D de captura .ply/.splat.
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const f = e.dataTransfer.files[0];
+                  if (f) handleFileSelect(f);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                aria-label="Soltar video o hacer click para seleccionar"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ")
+                    fileInputRef.current?.click();
+                }}
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
+                  dragOver
+                    ? "border-cyan-500/60 bg-cyan-500/5"
+                    : videoFile
+                      ? "border-emerald-500/40 bg-emerald-500/5"
+                      : "border-default-token hover:border-default-token/60 bg-elevated/20"
+                }`}
+              >
+                {videoFile ? (
+                  <div>
+                    <Video
+                      className="w-8 h-8 text-emerald-400 mx-auto mb-2"
+                      aria-hidden="true"
+                    />
+                    <p className="text-xs font-bold text-primary truncate">
+                      {videoFile.name}
+                    </p>
+                    <p className="text-[10px] text-muted-token mt-1">
+                      {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVideoFile(null);
+                      }}
+                      className="mt-2 text-[10px] text-rose-400 hover:text-rose-300 font-bold"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload
+                      className="w-8 h-8 text-muted-token mx-auto mb-2"
+                      aria-hidden="true"
+                    />
+                    <p className="text-xs font-bold text-secondary">
+                      {t("digitalTwin.dropVideo", "Soltar video aquí")}
+                    </p>
+                    <p className="text-[10px] text-muted-token mt-1">
+                      {t(
+                        "digitalTwin.videoFormats",
+                        "mp4, mov, webm · máx 200MB",
+                      )}
+                    </p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) =>
+                    e.target.files?.[0] && handleFileSelect(e.target.files[0])
+                  }
+                  className="hidden"
+                />
+              </div>
+
+              <input
+                type="text"
+                placeholder={t(
+                  "digitalTwin.notesPlaceholder",
+                  "Notas (sector, fecha, condiciones)",
+                )}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full mt-3 bg-elevated border border-default-token rounded-xl px-3 py-2 text-xs text-primary placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"
+              />
+
+              {/* §2.28 (2026-05-22) — pipeline ON-DEVICE real (video → frames →
+                point cloud → GLB → Storage + Firestore). */}
+              <button
+                onClick={handleSubmit}
+                disabled={!videoFile || !selectedProject || submitting}
+                aria-disabled={!videoFile || !selectedProject || submitting}
+                className="w-full mt-3 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2
+                      className="w-4 h-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {stage === "extract" && "Extrayendo frames…"}
+                      {stage === "point-cloud" && "Generando nube de puntos…"}
+                      {stage === "export" && "Exportando GLB…"}
+                      {stage === "done" && "Subiendo mesh…"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" aria-hidden="true" />
+                    <span>Reconstruir on-device</span>
+                  </>
+                )}
+              </button>
+              {/* Progress bar visible mientras la pipeline corre. */}
+              {submitting && (
+                <div className="mt-2 space-y-1">
+                  <div
+                    className="w-full h-1.5 bg-elevated rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={Math.round(progress * 100)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Progreso de la reconstrucción on-device"
+                  >
+                    <div
+                      className="h-full bg-cyan-500 transition-all duration-200"
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-token">
+                    <span>{Math.round(progress * 100)}%</span>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
+            {activeJob?.status === "completed" && <PlaceObjectMenu />}
+
+            {/* Gaussian Splat viewer — visor 3D de captura .ply/.splat.
               capture=null → empty state (funcionalidad gated por pipeline). */}
-          <GaussianSplatViewer capture={null} />
+            <GaussianSplatViewer capture={null} />
 
-          {/* Twin Physics Scene — Rapier physics simulation of placed objects. */}
-          {placedObjects.length > 0 && (
-            <TwinPhysicsScene
-              objects={placedObjects.map((o) => ({
-                id: o.id,
-                position: [o.position.x, o.position.y, o.position.z],
-                color: o.lifecycle === 'installed' ? '#14b8a6' : o.lifecycle === 'active' ? '#22d3ee' : '#94a3b8',
-              }))}
-              appearance="dark"
-              showGround
-            />
-          )}
+            {/* Twin Physics Scene — Rapier physics simulation of placed objects. */}
+            {placedObjects.length > 0 && (
+              <TwinPhysicsScene
+                objects={placedObjects.map((o) => ({
+                  id: o.id,
+                  position: [o.position.x, o.position.y, o.position.z],
+                  color:
+                    o.lifecycle === "installed"
+                      ? "#14b8a6"
+                      : o.lifecycle === "active"
+                        ? "#22d3ee"
+                        : "#94a3b8",
+                }))}
+                appearance="dark"
+                showGround
+              />
+            )}
 
-          {/* §2.28 (2026-05-23) — Botones AR del mesh reconstruido.
+            {/* §2.28 (2026-05-23) — Botones AR del mesh reconstruido.
               GLB → Android Scene Viewer / WebXR / model-viewer.
               USDZ → iOS AR Quick Look (cuando la pipeline lo emitió).
               ReconstructionArLink detecta la plataforma + usa el blob
               correcto. */}
-          {activeJob?.status === 'completed' && activeJob.resultUrl && (
-            <div className="bg-surface/60 border border-cyan-500/20 rounded-2xl p-4 space-y-2">
-              <p className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">
-                Ver mesh en AR
+            {activeJob?.status === "completed" && activeJob.resultUrl && (
+              <div className="bg-surface/60 border border-cyan-500/20 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">
+                  Ver mesh en AR
+                </p>
+                <ReconstructionArLink
+                  glbUrl={activeJob.resultUrl}
+                  usdzUrl={activeJob.usdzUrl ?? undefined}
+                  title={`Mesh ${activeJob.jobId.slice(0, 12)}`}
+                />
+                {activeJob.usdzUrl ? (
+                  <p className="text-[9px] text-muted-token">
+                    GLB + USDZ disponibles. iOS abre Quick Look, Android abre
+                    Scene Viewer.
+                  </p>
+                ) : (
+                  <p className="text-[9px] text-muted-token">
+                    Solo GLB disponible (Android/WebXR). iOS Quick Look se
+                    generará en la próxima reconstrucción.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Jobs list */}
+            <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
+              <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">
+                Jobs recientes ({jobs.length})
               </p>
-              <ReconstructionArLink
-                glbUrl={activeJob.resultUrl}
-                usdzUrl={activeJob.usdzUrl ?? undefined}
-                title={`Mesh ${activeJob.jobId.slice(0, 12)}`}
-              />
-              {activeJob.usdzUrl ? (
-                <p className="text-[9px] text-muted-token">
-                  GLB + USDZ disponibles. iOS abre Quick Look, Android abre Scene Viewer.
+              {jobs.length === 0 ? (
+                <p className="text-[11px] text-muted-token text-center py-4">
+                  Aún no hay reconstrucciones
                 </p>
               ) : (
-                <p className="text-[9px] text-muted-token">
-                  Solo GLB disponible (Android/WebXR). iOS Quick Look se generará en la próxima reconstrucción.
-                </p>
+                <ul className="space-y-2">
+                  {jobs.map((job) => {
+                    const style = STATUS_STYLE[job.status];
+                    const isActive = activeJob?.jobId === job.jobId;
+                    return (
+                      <li key={job.jobId}>
+                        <button
+                          onClick={() =>
+                            job.status === "completed" && setActiveJob(job)
+                          }
+                          disabled={job.status !== "completed"}
+                          aria-label={`Job ${job.jobId.slice(0, 8)} estado ${STATUS_LABEL[job.status]}`}
+                          className={`w-full text-left p-2.5 rounded-xl border transition-all ${style.bg} ${
+                            isActive ? "ring-2 ring-cyan-500/40" : ""
+                          } ${job.status === "completed" ? "cursor-pointer hover:scale-[1.01]" : "cursor-default"}`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span
+                              className={`text-[10px] font-black uppercase tracking-widest ${style.text} flex items-center gap-1.5`}
+                            >
+                              <style.Icon
+                                className={`w-3 h-3 ${job.status === "processing" || job.status === "queued" ? "animate-spin" : ""}`}
+                                aria-hidden="true"
+                              />
+                              {STATUS_LABEL[job.status]}
+                            </span>
+                            <span className="text-[9px] text-muted-token font-mono">
+                              {job.jobId.slice(0, 8)}
+                            </span>
+                          </div>
+                          {(job.status === "processing" ||
+                            job.status === "queued") && (
+                            <div className="w-full h-1 bg-elevated rounded-full overflow-hidden mt-1.5">
+                              <div
+                                className="h-full bg-cyan-500 transition-all"
+                                style={{ width: `${job.progress}%` }}
+                                role="progressbar"
+                                aria-valuenow={job.progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              />
+                            </div>
+                          )}
+                          {job.notes && (
+                            <p className="text-[10px] text-muted-token mt-1 truncate">
+                              {job.notes}
+                            </p>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
-          )}
+          </aside>
 
-          {/* Jobs list */}
-          <div className="bg-surface/60 border border-default-token rounded-2xl p-4">
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mb-3">
-              Jobs recientes ({jobs.length})
-            </p>
-            {jobs.length === 0 ? (
-              <p className="text-[11px] text-muted-token text-center py-4">Aún no hay reconstrucciones</p>
-            ) : (
-              <ul className="space-y-2">
-                {jobs.map((job) => {
-                  const style = STATUS_STYLE[job.status];
-                  const isActive = activeJob?.jobId === job.jobId;
-                  return (
-                    <li key={job.jobId}>
-                      <button
-                        onClick={() => job.status === 'completed' && setActiveJob(job)}
-                        disabled={job.status !== 'completed'}
-                        aria-label={`Job ${job.jobId.slice(0, 8)} estado ${STATUS_LABEL[job.status]}`}
-                        className={`w-full text-left p-2.5 rounded-xl border transition-all ${style.bg} ${
-                          isActive ? 'ring-2 ring-cyan-500/40' : ''
-                        } ${job.status === 'completed' ? 'cursor-pointer hover:scale-[1.01]' : 'cursor-default'}`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${style.text} flex items-center gap-1.5`}>
-                            <style.Icon className={`w-3 h-3 ${job.status === 'processing' || job.status === 'queued' ? 'animate-spin' : ''}`} aria-hidden="true" />
-                            {STATUS_LABEL[job.status]}
-                          </span>
-                          <span className="text-[9px] text-muted-token font-mono">{job.jobId.slice(0, 8)}</span>
-                        </div>
-                        {(job.status === 'processing' || job.status === 'queued') && (
-                          <div className="w-full h-1 bg-elevated rounded-full overflow-hidden mt-1.5">
-                            <div
-                              className="h-full bg-cyan-500 transition-all"
-                              style={{ width: `${job.progress}%` }}
-                              role="progressbar"
-                              aria-valuenow={job.progress}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                            />
-                          </div>
-                        )}
-                        {job.notes && (
-                          <p className="text-[10px] text-muted-token mt-1 truncate">{job.notes}</p>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </aside>
-
-        {/* RIGHT: 3D viewer — Sprint 26 Bucket YY.2: protegido por TwinAccessGuard
+          {/* RIGHT: 3D viewer — Sprint 26 Bucket YY.2: protegido por TwinAccessGuard
             (ADR 0011 triple-gate). El header + upload + jobs list quedan
             fuera del guard porque no muestran geometría. */}
-        {selectedProject ? (
-        <TwinAccessGuard
-          projectId={selectedProject.id}
-          hookOptions={{
-            fakers: {
-              getCurrentUser: () =>
-                user
-                  ? {
-                      uid: user.uid,
-                      email: user.email ?? '',
-                      emailVerified: user.emailVerified,
+          {selectedProject ? (
+            <TwinAccessGuard
+              projectId={selectedProject.id}
+              hookOptions={{
+                fakers: {
+                  getCurrentUser: () =>
+                    user
+                      ? {
+                          uid: user.uid,
+                          email: user.email ?? "",
+                          emailVerified: user.emailVerified,
+                        }
+                      : null,
+                  isProjectMember: async (uid, projectId) => {
+                    try {
+                      const snap = await getDoc(doc(db, "projects", projectId));
+                      if (!snap.exists()) return false;
+                      const data = snap.data() as
+                        { members?: unknown; createdBy?: unknown } | undefined;
+                      const inMembers =
+                        Array.isArray(data?.members) &&
+                        data!.members.includes(uid);
+                      const isCreator =
+                        typeof data?.createdBy === "string" &&
+                        data!.createdBy === uid;
+                      return inMembers || isCreator;
+                    } catch {
+                      return false;
                     }
-                  : null,
-              isProjectMember: async (uid, projectId) => {
-                try {
-                  const snap = await getDoc(doc(db, 'projects', projectId));
-                  if (!snap.exists()) return false;
-                  const data = snap.data() as
-                    | { members?: unknown; createdBy?: unknown }
-                    | undefined;
-                  const inMembers =
-                    Array.isArray(data?.members) &&
-                    data!.members.includes(uid);
-                  const isCreator =
-                    typeof data?.createdBy === 'string' &&
-                    data!.createdBy === uid;
-                  return inMembers || isCreator;
-                } catch {
-                  return false;
-                }
-              },
-              isDemoProject,
-              runBiometric: async () => {
-                try {
-                  const mod: any = await import(
-                    /* @vite-ignore */ '@aparajita/capacitor-biometric-auth'
-                  );
-                  const result = await mod.BiometricAuth.authenticate({
-                    reason:
-                      'Verifica tu identidad para acceder al Digital Twin',
-                    cancelTitle: 'Cancelar',
-                  });
-                  return {
-                    ok: result?.isAuthenticated ?? true,
-                    method: 'fingerprint' as const,
-                  };
-                } catch {
-                  return { ok: false, method: 'unavailable' as const };
-                }
-              },
-            },
-          }}
-        >
-        <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-default-token shrink-0">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-              <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                Visor 3D {activeJob ? `· ${activeJob.jobId.slice(0, 8)}` : ''}
-              </span>
-            </div>
-            {activeJob && totalNodes > 0 && (
-              <span className="text-[10px] text-muted-token font-mono">
-                {totalNodes.toLocaleString()} puntos
-              </span>
-            )}
-          </div>
-
-          <div
-            className="flex-1 relative bg-canvas"
-            onDragOver={(e) => {
-              if (activeJob?.status !== 'completed') return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'copy';
-            }}
-            onDrop={handleCanvasDrop}
-          >
-            {!activeJob || activeJob.status !== 'completed' ? (
-              <EmptyState
-                mascot
-                title="Sin reconstrucción activa"
-                description="Sube un video de la faena para generar el gemelo digital 3D. La nube de puntos aparecerá aquí cuando esté lista. (Vista previa: el resultado actual es ilustrativo y no representa la reconstrucción real hasta que se conecte el motor.)"
-              />
-            ) : (
-              <Suspense fallback={
-                <div className="absolute inset-0 flex items-center justify-center text-muted-token">
-                  <Loader2 className="w-6 h-6 animate-spin" aria-hidden="true" />
+                  },
+                  isDemoProject,
+                  runBiometric: async () => {
+                    try {
+                      const mod: any = await import(
+                        /* @vite-ignore */ "@aparajita/capacitor-biometric-auth"
+                      );
+                      const result = await mod.BiometricAuth.authenticate({
+                        reason:
+                          "Verifica tu identidad para acceder al Digital Twin",
+                        cancelTitle: "Cancelar",
+                      });
+                      return {
+                        ok: result?.isAuthenticated ?? true,
+                        method: "fingerprint" as const,
+                      };
+                    } catch {
+                      return { ok: false, method: "unavailable" as const };
+                    }
+                  },
+                },
+              }}
+            >
+              <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-default-token shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                      Visor 3D{" "}
+                      {activeJob ? `· ${activeJob.jobId.slice(0, 8)}` : ""}
+                    </span>
+                  </div>
+                  {activeJob && totalNodes > 0 && (
+                    <span className="text-[10px] text-muted-token font-mono">
+                      {totalNodes.toLocaleString()} puntos
+                    </span>
+                  )}
                 </div>
-              }>
-                <Canvas camera={{ position: [15, 12, 15], fov: 50 }} dpr={[1, 2]}>
-                  <ambientLight intensity={0.4} />
-                  <directionalLight position={[10, 20, 10]} intensity={0.8} />
-                  <Environment preset="warehouse" />
-                  <Grid
-                    infiniteGrid
-                    cellSize={1}
-                    cellThickness={0.5}
-                    cellColor="#27272a"
-                    sectionSize={5}
-                    sectionThickness={1}
-                    sectionColor="#06b6d4"
-                    fadeDistance={50}
-                  />
-                  {/* §2.28 — si el job tiene resultUrl (GLB real subido por el
+
+                <div
+                  className="flex-1 relative bg-canvas"
+                  onDragOver={(e) => {
+                    if (activeJob?.status !== "completed") return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                  }}
+                  onDrop={handleCanvasDrop}
+                >
+                  {!activeJob || activeJob.status !== "completed" ? (
+                    <EmptyState
+                      mascot
+                      title="Sin reconstrucción activa"
+                      description="Sube un video de la faena para generar el gemelo digital 3D. La nube de puntos aparecerá aquí cuando esté lista. (Vista previa: el resultado actual es ilustrativo y no representa la reconstrucción real hasta que se conecte el motor.)"
+                    />
+                  ) : (
+                    <Suspense
+                      fallback={
+                        <div className="absolute inset-0 flex items-center justify-center text-muted-token">
+                          <Loader2
+                            className="w-6 h-6 animate-spin"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      }
+                    >
+                      <Canvas
+                        camera={{ position: [15, 12, 15], fov: 50 }}
+                        dpr={[1, 2]}
+                      >
+                        <ambientLight intensity={0.4} />
+                        <directionalLight
+                          position={[10, 20, 10]}
+                          intensity={0.8}
+                        />
+                        <Environment preset="warehouse" />
+                        <Grid
+                          infiniteGrid
+                          cellSize={1}
+                          cellThickness={0.5}
+                          cellColor="#27272a"
+                          sectionSize={5}
+                          sectionThickness={1}
+                          sectionColor="#06b6d4"
+                          fadeDistance={50}
+                        />
+                        {/* §2.28 — si el job tiene resultUrl (GLB real subido por el
                       adapter on-device), cargamos el mesh directamente. El
                       fallback procedural sigue activo para jobs sin mesh
                       (debug/legacy) — la nube random vive en bbox del job. */}
-                  {activeJob.resultUrl ? (
-                    <OnDeviceGlbViewer url={activeJob.resultUrl} />
-                  ) : (
-                    <PointCloudViewer pointCount={totalNodes} boundingBox={activeJob.boundingBox} />
-                  )}
-                  <RiskMarkers />
-                  <PlacedObjectsLayer
-                    objects={placedObjects}
-                    selectedId={selectedObjectId}
-                    onSelect={(o) => setSelectedObjectId(o.id)}
-                    onMove={handleObjectMove}
-                    onRequestAr={(o) => setArObject(o)}
-                  />
-                  <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
-                </Canvas>
+                        {activeJob.resultUrl ? (
+                          <OnDeviceGlbViewer url={activeJob.resultUrl} />
+                        ) : (
+                          <PointCloudViewer
+                            pointCount={totalNodes}
+                            boundingBox={activeJob.boundingBox}
+                          />
+                        )}
+                        <RiskMarkers />
+                        <PlacedObjectsLayer
+                          objects={placedObjects}
+                          selectedId={selectedObjectId}
+                          onSelect={(o) => setSelectedObjectId(o.id)}
+                          onMove={handleObjectMove}
+                          onRequestAr={(o) => setArObject(o)}
+                        />
+                        <OrbitControls
+                          makeDefault
+                          enableDamping
+                          dampingFactor={0.08}
+                        />
+                      </Canvas>
 
-                {/* Brecha C: normativa banner top-right */}
-                <div className="absolute top-3 right-3 max-w-sm">
-                  <NormativaWarningsBanner
-                    violations={complianceReport.violations}
-                    compact={complianceReport.violations.length > 4}
-                  />
-                </div>
+                      {/* Brecha C: normativa banner top-right */}
+                      <div className="absolute top-3 right-3 max-w-sm">
+                        <NormativaWarningsBanner
+                          violations={complianceReport.violations}
+                          compact={complianceReport.violations.length > 4}
+                        />
+                      </div>
 
-                {/* Bucket K.2 — Maintenance status panel (histórico ZK + próximos
+                      {/* Bucket K.2 — Maintenance status panel (histórico ZK + próximos
                     mantenimientos) anclado al top-right cuando hay objeto seleccionado. */}
-                {selectedObject && selectedProject?.id && (
-                  <div className="absolute top-3 right-3 max-h-[calc(100%-1.5rem)] overflow-y-auto z-10">
-                    <MaintenanceStatusPanel
-                      placedObject={selectedObject}
-                      projectId={selectedProject.id}
-                      onClose={() => setSelectedObjectId(null)}
-                    />
-                  </div>
-                )}
+                      {selectedObject && selectedProject?.id && (
+                        <div className="absolute top-3 right-3 max-h-[calc(100%-1.5rem)] overflow-y-auto z-10">
+                          <MaintenanceStatusPanel
+                            placedObject={selectedObject}
+                            projectId={selectedProject.id}
+                            onClose={() => setSelectedObjectId(null)}
+                          />
+                        </div>
+                      )}
 
-                {/* Brecha C: selected object detail panel bottom-right */}
-                {selectedObject && (
-                  <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md rounded-xl p-3 border border-white/10 max-w-xs">
-                    <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">
-                      Objeto seleccionado
-                    </p>
-                    <p className="text-xs font-bold text-white mb-1">
-                      {selectedObject.kind}
-                    </p>
-                    <p className="text-[10px] text-secondary mb-2">
-                      Estado: <span className="text-cyan-300">{selectedObject.lifecycle}</span>
-                    </p>
-                    {selectedObject.lifecycle === 'planning' && (
-                      <button
-                        onClick={handleMarkInstalled}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
-                      >
-                        Marcar instalado
-                      </button>
-                    )}
-                    {selectedObject.lifecycle === 'installed' && (
-                      <button
-                        onClick={async () => {
-                          const previous = selectedObject;
-                          const next: PlacedObject = {
-                            ...previous,
-                            lifecycle: 'active',
-                            updatedAt: Date.now(),
-                          };
-                          await onLifecycleChange(previous, next);
-                          setPlacedObjects((prev) =>
-                            prev.map((o) => (o.id === next.id ? next : o)),
-                          );
-                        }}
-                        className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
-                      >
-                        Marcar activo
-                      </button>
-                    )}
-                    {/* Bucket J.5 — WebXR AR overlay (Android Chrome / desktop preview). */}
-                    <button
-                      type="button"
-                      onClick={() => setArObject(selectedObject)}
-                      className="w-full mt-2 py-2 bg-elevated hover:bg-elevated/70 text-secondary rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-default-token"
-                    >
-                      Ver en AR (WebXR)
-                    </button>
-                    {/* Sprint 30 Bucket JJ — Native iOS Quick Look + Android
+                      {/* Brecha C: selected object detail panel bottom-right */}
+                      {selectedObject && (
+                        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md rounded-xl p-3 border border-white/10 max-w-xs">
+                          <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">
+                            Objeto seleccionado
+                          </p>
+                          <p className="text-xs font-bold text-white mb-1">
+                            {selectedObject.kind}
+                          </p>
+                          <p className="text-[10px] text-secondary mb-2">
+                            Estado:{" "}
+                            <span className="text-cyan-300">
+                              {selectedObject.lifecycle}
+                            </span>
+                          </p>
+                          {selectedObject.lifecycle === "planning" && (
+                            <button
+                              onClick={handleMarkInstalled}
+                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                            >
+                              Marcar instalado
+                            </button>
+                          )}
+                          {selectedObject.lifecycle === "installed" && (
+                            <button
+                              onClick={async () => {
+                                const previous = selectedObject;
+                                const next: PlacedObject = {
+                                  ...previous,
+                                  lifecycle: "active",
+                                  updatedAt: Date.now(),
+                                };
+                                await onLifecycleChange(previous, next);
+                                setPlacedObjects((prev) =>
+                                  prev.map((o) =>
+                                    o.id === next.id ? next : o,
+                                  ),
+                                );
+                              }}
+                              className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                            >
+                              Marcar activo
+                            </button>
+                          )}
+                          {/* Bucket J.5 — WebXR AR overlay (Android Chrome / desktop preview). */}
+                          <button
+                            type="button"
+                            onClick={() => setArObject(selectedObject)}
+                            className="w-full mt-2 py-2 bg-elevated hover:bg-elevated/70 text-secondary rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-default-token"
+                          >
+                            Ver en AR (WebXR)
+                          </button>
+                          {/* Sprint 30 Bucket JJ — Native iOS Quick Look + Android
                         Scene Viewer link for installed objects. Renders nothing
                         on desktop UAs; the WebXR button above stays as the
                         cross-platform path. */}
-                    {selectedObject.lifecycle === 'installed' && (
-                      <div className="mt-2">
-                        <ArViewLink
-                          kind={selectedObject.kind as ArKind}
-                          label="Ver en AR (nativo)"
-                          className="inline-flex w-full justify-center items-center gap-2 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                          {selectedObject.lifecycle === "installed" && (
+                            <div className="mt-2">
+                              <ArViewLink
+                                kind={selectedObject.kind as ArKind}
+                                label="Ver en AR (nativo)"
+                                className="inline-flex w-full justify-center items-center gap-2 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                {/* Risk overlay legend */}
-                <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md rounded-xl p-3 border border-white/10">
-                  <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">Riesgos detectados</p>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[10px] text-secondary">
-                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500" aria-hidden="true" />
-                      Caída de altura
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-secondary">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden="true" />
-                      Atropello
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-secondary">
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" aria-hidden="true" />
-                      EPP faltante
-                    </div>
-                  </div>
+                      {/* Risk overlay legend */}
+                      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md rounded-xl p-3 border border-white/10">
+                        <p className="text-[9px] font-black text-secondary uppercase tracking-widest mb-2">
+                          Riesgos detectados
+                        </p>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-[10px] text-secondary">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full bg-rose-500"
+                              aria-hidden="true"
+                            />
+                            Caída de altura
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-secondary">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full bg-amber-500"
+                              aria-hidden="true"
+                            />
+                            Atropello
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-secondary">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full bg-yellow-400"
+                              aria-hidden="true"
+                            />
+                            EPP faltante
+                          </div>
+                        </div>
+                      </div>
+                    </Suspense>
+                  )}
                 </div>
-              </Suspense>
-            )}
-          </div>
-        </section>
-        </TwinAccessGuard>
-        ) : (
-          <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
-            <p className="text-xs text-muted-token">
-              Selecciona un proyecto para ver el Digital Twin.
-            </p>
-          </section>
-        )}
-      </div>
+              </section>
+            </TwinAccessGuard>
+          ) : (
+            <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
+              <p className="text-xs text-muted-token">
+                Selecciona un proyecto para ver el Digital Twin.
+              </p>
+            </section>
+          )}
+        </div>
       )}
 
       {/* Bucket J.5 — AR overlay (placeholder funcional, sesión WebXR real en Ola 4). */}

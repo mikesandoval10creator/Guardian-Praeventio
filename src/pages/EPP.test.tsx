@@ -11,31 +11,45 @@
 //   3. Marking every item OK and submitting calls submitEppInspection with the
 //      derived projectId / tenantId / catalog payload, and shows the result.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { EPP } from './EPP';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { EPP } from "./EPP";
 
-vi.mock('react-i18next', () => ({
+vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (k: string, fb?: string) => (typeof fb === 'string' ? fb : k),
+    t: (k: string, fb?: string) => (typeof fb === "string" ? fb : k),
   }),
 }));
 
 // framer-motion: render children plainly (strip animation-only props so React
 // does not warn about unknown DOM attributes).
 const MOTION_ONLY_PROPS = [
-  'initial', 'animate', 'exit', 'transition', 'whileHover', 'whileTap', 'layout',
+  "initial",
+  "animate",
+  "exit",
+  "transition",
+  "whileHover",
+  "whileTap",
+  "layout",
 ];
-vi.mock('framer-motion', () => {
-  const React = require('react');
+vi.mock("framer-motion", () => {
+  const React = require("react");
   const passthrough = (tag: string) =>
-    React.forwardRef(({ children, ...rest }: Record<string, unknown>, ref: unknown) => {
-      const domProps: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(rest)) {
-        if (!MOTION_ONLY_PROPS.includes(k)) domProps[k] = v;
-      }
-      return React.createElement(tag, { ref, ...domProps }, children);
-    });
+    React.forwardRef(
+      ({ children, ...rest }: Record<string, unknown>, ref: unknown) => {
+        const domProps: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rest)) {
+          if (!MOTION_ONLY_PROPS.includes(k)) domProps[k] = v;
+        }
+        return React.createElement(tag, { ref, ...domProps }, children);
+      },
+    );
   return {
     motion: new Proxy({}, { get: (_t, tag: string) => passthrough(tag) }),
     AnimatePresence: ({ children }: { children: React.ReactNode }) =>
@@ -44,17 +58,29 @@ vi.mock('framer-motion', () => {
 });
 
 let mockEppItems: Array<Record<string, unknown>> = [];
-vi.mock('../hooks/useFirestoreCollection', () => ({
+let mockEppFromCache = false;
+let mockEppHasPendingWrites = false;
+vi.mock("../hooks/useFirestoreCollection", () => ({
   useFirestoreCollection: (path: string | null) => {
-    if (path && path.includes('/epp_items')) {
-      return { data: mockEppItems, loading: false };
+    if (path && path.includes("/epp_items")) {
+      return {
+        data: mockEppItems,
+        loading: false,
+        fromCache: mockEppFromCache,
+        hasPendingWrites: mockEppHasPendingWrites,
+      };
     }
-    return { data: [], loading: false };
+    return {
+      data: [],
+      loading: false,
+      fromCache: false,
+      hasPendingWrites: false,
+    };
   },
 }));
 
 let mockProject: { id: string; name: string } | null = null;
-vi.mock('../contexts/ProjectContext', () => ({
+vi.mock("../contexts/ProjectContext", () => ({
   useProject: () => ({ selectedProject: mockProject }),
 }));
 
@@ -63,19 +89,19 @@ let mockFirebase: {
   userRole: string;
   isAdmin: boolean;
 } = {
-  user: { uid: 'worker-7', displayName: 'Pedro' },
-  userRole: 'worker',
+  user: { uid: "worker-7", displayName: "Pedro" },
+  userRole: "worker",
   isAdmin: false,
 };
-vi.mock('../contexts/FirebaseContext', () => ({
+vi.mock("../contexts/FirebaseContext", () => ({
   useFirebase: () => mockFirebase,
 }));
 
 let mockTenant: { tenantId: string | null; loading: boolean } = {
-  tenantId: 'tenant-1',
+  tenantId: "tenant-1",
   loading: false,
 };
-vi.mock('../hooks/useTenantId', () => ({ useTenantId: () => mockTenant }));
+vi.mock("../hooks/useTenantId", () => ({ useTenantId: () => mockTenant }));
 
 // Real client mutator — assert the page calls it with the derived payload.
 const submitEppInspection = vi.fn(
@@ -94,7 +120,7 @@ const listPendingEppOrders = vi.fn(async (_projectId: string) => ({
 }));
 const signEppOrder = vi.fn();
 const downloadEppOrderPdf = vi.fn();
-vi.mock('../hooks/useEppFlow', () => ({
+vi.mock("../hooks/useEppFlow", () => ({
   submitEppInspection: (projectId: string, input: unknown) =>
     submitEppInspection(projectId, input),
   listPendingEppOrders: (projectId: string) => listPendingEppOrders(projectId),
@@ -105,31 +131,32 @@ vi.mock('../hooks/useEppFlow', () => ({
 const authenticateBiometric = vi.fn();
 const createEppOrderAssertion = vi.fn();
 // Biometric ceremony used by <PurchaseOrderSignModal />.
-vi.mock('../hooks/useBiometricAuth', () => ({
+vi.mock("../hooks/useBiometricAuth", () => ({
   useBiometricAuth: () => ({
     isSupported: true,
     authenticate: (...args: unknown[]) => authenticateBiometric(...args),
-    createEppOrderAssertion: (...args: unknown[]) => createEppOrderAssertion(...args),
+    createEppOrderAssertion: (...args: unknown[]) =>
+      createEppOrderAssertion(...args),
   }),
 }));
 
-vi.mock('../components/epp/AssignEPPModal', () => ({
+vi.mock("../components/epp/AssignEPPModal", () => ({
   AssignEPPModal: () => null,
 }));
-vi.mock('../components/epp/EPPVerificationModal', () => ({
+vi.mock("../components/epp/EPPVerificationModal", () => ({
   EPPVerificationModal: () => null,
 }));
 
-vi.mock('../services/firebase', () => ({
+vi.mock("../services/firebase", () => ({
   db: {},
-  serverTimestamp: () => 'ts',
+  serverTimestamp: () => "ts",
 }));
-vi.mock('firebase/firestore', () => ({
+vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  addDoc: vi.fn(async () => ({ id: 'x' })),
+  addDoc: vi.fn(async () => ({ id: "x" })),
   where: vi.fn(() => ({})),
 }));
-vi.mock('../utils/logger', () => ({
+vi.mock("../utils/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
@@ -137,48 +164,74 @@ beforeEach(() => {
   vi.clearAllMocks();
   authenticateBiometric.mockResolvedValue(true);
   createEppOrderAssertion.mockResolvedValue({
-    challengeId: 'challenge-server-issued',
-    id: 'credential-1',
-    rawId: 'credential-1',
-    type: 'public-key',
+    challengeId: "challenge-server-issued",
+    id: "credential-1",
+    rawId: "credential-1",
+    type: "public-key",
     clientExtensionResults: {},
-    clientDataJSON: 'client-data',
-    authenticatorData: 'authenticator-data',
-    signature: 'signature',
+    clientDataJSON: "client-data",
+    authenticatorData: "authenticator-data",
+    signature: "signature",
   });
   signEppOrder.mockImplementation(async (_projectId, _orderId, _input) => ({
     ok: true,
-    signedNodeId: 'signed-node-1',
-    edgeId: 'edge-1',
-    order: { ...pendingOrderFixture(_orderId), status: 'signed', signerUid: 'admin-1' },
+    signedNodeId: "signed-node-1",
+    edgeId: "edge-1",
+    order: {
+      ...pendingOrderFixture(_orderId),
+      status: "signed",
+      signerUid: "admin-1",
+    },
   }));
-  mockProject = { id: 'proj-1', name: 'Faena Norte' };
-  mockTenant = { tenantId: 'tenant-1', loading: false };
+  mockProject = { id: "proj-1", name: "Faena Norte" };
+  mockTenant = { tenantId: "tenant-1", loading: false };
   mockFirebase = {
-    user: { uid: 'worker-7', displayName: 'Pedro' },
-    userRole: 'worker',
+    user: { uid: "worker-7", displayName: "Pedro" },
+    userRole: "worker",
     isAdmin: false,
   };
   mockPendingOrders = [];
+  mockEppFromCache = false;
+  mockEppHasPendingWrites = false;
   mockEppItems = [
-    { id: 'epp-casco', name: 'Casco clase B', category: 'cabeza', stock: 12, required: true, description: '' },
-    { id: 'epp-guante', name: 'Guante anticorte', category: 'manos', stock: 4, required: true, description: '' },
+    {
+      id: "epp-casco",
+      name: "Casco clase B",
+      category: "cabeza",
+      stock: 12,
+      required: true,
+      description: "",
+    },
+    {
+      id: "epp-guante",
+      name: "Guante anticorte",
+      category: "manos",
+      stock: 4,
+      required: true,
+      description: "",
+    },
   ];
 });
 
 /** A realistic pending OC as returned by the server (full draft, real fields). */
-function pendingOrderFixture(orderId = 'oc-insp-001') {
+function pendingOrderFixture(orderId = "oc-insp-001") {
   return {
     orderId,
-    projectId: 'proj-1',
-    tenantId: 'tenant-1',
-    inspectionId: 'insp-001',
-    suggestedNodeId: 'node-oc-1',
-    suggestedAt: '2026-06-20T10:00:00.000Z',
-    status: 'pending_signature' as const,
+    projectId: "proj-1",
+    tenantId: "tenant-1",
+    inspectionId: "insp-001",
+    suggestedNodeId: "node-oc-1",
+    suggestedAt: "2026-06-20T10:00:00.000Z",
+    status: "pending_signature" as const,
     draft: {
       lines: [
-        { kind: 'manos', quantity: 6, estimatedUnitCostClp: 5000, supplierId: 'sup-1', urgency: 'urgent' },
+        {
+          kind: "manos",
+          quantity: 6,
+          estimatedUnitCostClp: 5000,
+          supplierId: "sup-1",
+          urgency: "urgent",
+        },
       ],
       totalClp: 30000,
       deliveryWeekHint: 2,
@@ -187,41 +240,53 @@ function pendingOrderFixture(orderId = 'oc-insp-001') {
   };
 }
 
-describe('<EPP /> — EppInspectionForm mount', () => {
-  it('habilita el toggle de inspección cuando hay catálogo real', () => {
+describe("<EPP /> — EppInspectionForm mount", () => {
+  it("habilita el toggle de inspección cuando hay catálogo real", () => {
     render(<EPP />);
-    const toggle = screen.getByTestId('epp-inspect-toggle');
+    const toggle = screen.getByTestId("epp-inspect-toggle");
     expect(toggle).toBeEnabled();
   });
 
-  it('deshabilita el toggle cuando no hay items EPP', () => {
+  it("deshabilita el toggle cuando no hay items EPP", () => {
     mockEppItems = [];
     render(<EPP />);
-    expect(screen.getByTestId('epp-inspect-toggle')).toBeDisabled();
+    expect(screen.getByTestId("epp-inspect-toggle")).toBeDisabled();
   });
 
-  it('revela el formulario con los items REALES del catálogo al togglear', () => {
+  it("marca el catálogo EPP como posiblemente desactualizado cuando Firestore sirve desde caché", () => {
+    mockEppFromCache = true;
     render(<EPP />);
-    fireEvent.click(screen.getByTestId('epp-inspect-toggle'));
 
-    expect(screen.getByTestId('epp-inspection-section')).toBeInTheDocument();
-    const form = screen.getByTestId('epp-inspection-form');
+    const banner = screen.getByTestId("epp-cache-stale-warning");
+    expect(banner).toHaveTextContent(/posiblemente desactualizado/i);
+    expect(banner).toHaveTextContent(/sin conexión|caché/i);
+    expect(
+      screen.getByTestId("epp-cache-stale-item:epp-casco"),
+    ).toHaveTextContent(/posiblemente desactualizado/i);
+  });
+
+  it("revela el formulario con los items REALES del catálogo al togglear", () => {
+    render(<EPP />);
+    fireEvent.click(screen.getByTestId("epp-inspect-toggle"));
+
+    expect(screen.getByTestId("epp-inspection-section")).toBeInTheDocument();
+    const form = screen.getByTestId("epp-inspection-form");
     // The two REAL catalog rows render — not a hardcoded placeholder set.
-    expect(within(form).getByTestId('epp-item:epp-casco')).toBeInTheDocument();
-    expect(within(form).getByTestId('epp-item:epp-guante')).toBeInTheDocument();
-    expect(within(form).getByText('Casco clase B')).toBeInTheDocument();
-    expect(within(form).getByText('Guante anticorte')).toBeInTheDocument();
+    expect(within(form).getByTestId("epp-item:epp-casco")).toBeInTheDocument();
+    expect(within(form).getByTestId("epp-item:epp-guante")).toBeInTheDocument();
+    expect(within(form).getByText("Casco clase B")).toBeInTheDocument();
+    expect(within(form).getByText("Guante anticorte")).toBeInTheDocument();
   });
 
-  it('persiste la inspección vía submitEppInspection con el payload derivado', async () => {
+  it("persiste la inspección vía submitEppInspection con el payload derivado", async () => {
     render(<EPP />);
-    fireEvent.click(screen.getByTestId('epp-inspect-toggle'));
+    fireEvent.click(screen.getByTestId("epp-inspect-toggle"));
 
     // Marcar ambos items como OK para habilitar el submit.
-    fireEvent.click(screen.getByTestId('epp-status:epp-casco:ok'));
-    fireEvent.click(screen.getByTestId('epp-status:epp-guante:ok'));
+    fireEvent.click(screen.getByTestId("epp-status:epp-casco:ok"));
+    fireEvent.click(screen.getByTestId("epp-status:epp-guante:ok"));
 
-    const submit = screen.getByTestId('epp-inspection-submit');
+    const submit = screen.getByTestId("epp-inspection-submit");
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
 
@@ -230,99 +295,125 @@ describe('<EPP /> — EppInspectionForm mount', () => {
     const projectId = call[0];
     const input = call[1] as {
       tenantId: string;
-      inspection: { workerUid: string; items: Array<{ itemId: string; kind: string }> };
+      inspection: {
+        workerUid: string;
+        items: Array<{ itemId: string; kind: string }>;
+      };
       inventoryByKind: Record<string, { currentStock: number }>;
     };
-    expect(projectId).toBe('proj-1');
-    expect(input.tenantId).toBe('tenant-1');
-    expect(input.inspection.workerUid).toBe('worker-7');
+    expect(projectId).toBe("proj-1");
+    expect(input.tenantId).toBe("tenant-1");
+    expect(input.inspection.workerUid).toBe("worker-7");
     // Real catalog items flowed through (ids + kinds from Firestore docs).
     expect(input.inspection.items.map((i) => i.itemId).sort()).toEqual([
-      'epp-casco',
-      'epp-guante',
+      "epp-casco",
+      "epp-guante",
     ]);
-    expect(input.inspection.items.find((i) => i.itemId === 'epp-casco')?.kind).toBe('cabeza');
+    expect(
+      input.inspection.items.find((i) => i.itemId === "epp-casco")?.kind,
+    ).toBe("cabeza");
     // Inventory grouped by category from the real `stock` field.
     expect(input.inventoryByKind.cabeza.currentStock).toBe(12);
     expect(input.inventoryByKind.manos.currentStock).toBe(4);
 
     // Success message rendered.
     await waitFor(() =>
-      expect(screen.getByTestId('epp-inspection-result')).toBeInTheDocument(),
+      expect(screen.getByTestId("epp-inspection-result")).toBeInTheDocument(),
     );
   });
 });
 
-describe('<EPP /> — PendingPurchaseOrdersPanel mount (Bloque 4.2)', () => {
-  it('NO muestra el panel de OC para un worker (rol sin firma)', async () => {
+describe("<EPP /> — PendingPurchaseOrdersPanel mount (Bloque 4.2)", () => {
+  it("NO muestra el panel de OC para un worker (rol sin firma)", async () => {
     render(<EPP />);
     // Worker role → panel hidden; the server would 403 anyway. No list fetch.
     await waitFor(() => expect(submitEppInspection).toHaveBeenCalledTimes(0));
-    expect(screen.queryByTestId('pending-orders-panel')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("pending-orders-panel"),
+    ).not.toBeInTheDocument();
     expect(listPendingEppOrders).not.toHaveBeenCalled();
   });
 
-  it('muestra el panel y consulta OC reales para un rol elevado (prevencionista)', async () => {
+  it("muestra el panel y consulta OC reales para un rol elevado (prevencionista)", async () => {
     mockFirebase = {
-      user: { uid: 'prev-1', displayName: 'Ana' },
-      userRole: 'prevencionista',
+      user: { uid: "prev-1", displayName: "Ana" },
+      userRole: "prevencionista",
       isAdmin: false,
     };
     render(<EPP />);
     // Panel mounted → it fetches real pending orders for the active project.
-    expect(screen.getByTestId('pending-orders-panel')).toBeInTheDocument();
-    await waitFor(() => expect(listPendingEppOrders).toHaveBeenCalledWith('proj-1'));
+    expect(screen.getByTestId("pending-orders-panel")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(listPendingEppOrders).toHaveBeenCalledWith("proj-1"),
+    );
   });
 
-  it('renderiza empty-state honesto cuando no hay OC pendientes', async () => {
-    mockFirebase = { user: { uid: 'admin-1' }, userRole: 'admin', isAdmin: true };
+  it("renderiza empty-state honesto cuando no hay OC pendientes", async () => {
+    mockFirebase = {
+      user: { uid: "admin-1" },
+      userRole: "admin",
+      isAdmin: true,
+    };
     mockPendingOrders = [];
     render(<EPP />);
     await waitFor(() =>
-      expect(screen.getByTestId('pending-orders-empty')).toBeInTheDocument(),
+      expect(screen.getByTestId("pending-orders-empty")).toBeInTheDocument(),
     );
-    expect(screen.getByTestId('pending-orders-empty')).toHaveTextContent(
-      'No hay OC pendientes de firma.',
+    expect(screen.getByTestId("pending-orders-empty")).toHaveTextContent(
+      "No hay OC pendientes de firma.",
     );
   });
 
-  it('lista las OC reales devueltas por el server y abre el modal de firma', async () => {
-    mockFirebase = { user: { uid: 'admin-1', displayName: 'Jefe' }, userRole: 'admin', isAdmin: true };
-    mockPendingOrders = [pendingOrderFixture('oc-real-9')];
+  it("lista las OC reales devueltas por el server y abre el modal de firma", async () => {
+    mockFirebase = {
+      user: { uid: "admin-1", displayName: "Jefe" },
+      userRole: "admin",
+      isAdmin: true,
+    };
+    mockPendingOrders = [pendingOrderFixture("oc-real-9")];
     render(<EPP />);
 
     // The real order from the server renders (id + total from the draft).
     await waitFor(() =>
-      expect(screen.getByTestId('pending-order:oc-real-9')).toBeInTheDocument(),
+      expect(screen.getByTestId("pending-order:oc-real-9")).toBeInTheDocument(),
     );
-    expect(screen.getByText('oc-real-9')).toBeInTheDocument();
+    expect(screen.getByText("oc-real-9")).toBeInTheDocument();
 
     // "Revisar y firmar" opens the biometric sign modal for that order.
-    fireEvent.click(screen.getByTestId('pending-order-review:oc-real-9'));
+    fireEvent.click(screen.getByTestId("pending-order-review:oc-real-9"));
     await waitFor(() =>
-      expect(screen.getByTestId('oc-sign-modal')).toBeInTheDocument(),
+      expect(screen.getByTestId("oc-sign-modal")).toBeInTheDocument(),
     );
   });
 
-  it('firma con la assertion EPP server-bound y no con un booleano biométrico reutilizable', async () => {
-    mockFirebase = { user: { uid: 'admin-1', displayName: 'Jefe' }, userRole: 'admin', isAdmin: true };
-    mockPendingOrders = [pendingOrderFixture('oc-real-10')];
+  it("firma con la assertion EPP server-bound y no con un booleano biométrico reutilizable", async () => {
+    mockFirebase = {
+      user: { uid: "admin-1", displayName: "Jefe" },
+      userRole: "admin",
+      isAdmin: true,
+    };
+    mockPendingOrders = [pendingOrderFixture("oc-real-10")];
     render(<EPP />);
 
     await waitFor(() =>
-      expect(screen.getByTestId('pending-order:oc-real-10')).toBeInTheDocument(),
+      expect(
+        screen.getByTestId("pending-order:oc-real-10"),
+      ).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByTestId('pending-order-review:oc-real-10'));
-    fireEvent.click(await screen.findByTestId('oc-sign-modal-submit'));
+    fireEvent.click(screen.getByTestId("pending-order-review:oc-real-10"));
+    fireEvent.click(await screen.findByTestId("oc-sign-modal-submit"));
 
     await waitFor(() =>
-      expect(createEppOrderAssertion).toHaveBeenCalledWith('proj-1', 'oc-real-10'),
+      expect(createEppOrderAssertion).toHaveBeenCalledWith(
+        "proj-1",
+        "oc-real-10",
+      ),
     );
     expect(authenticateBiometric).not.toHaveBeenCalled();
-    expect(signEppOrder).toHaveBeenCalledWith('proj-1', 'oc-real-10', {
+    expect(signEppOrder).toHaveBeenCalledWith("proj-1", "oc-real-10", {
       assertion: expect.objectContaining({
-        challengeId: 'challenge-server-issued',
-        id: 'credential-1',
+        challengeId: "challenge-server-issued",
+        id: "credential-1",
       }),
     });
   });

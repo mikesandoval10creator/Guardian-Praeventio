@@ -1,18 +1,30 @@
-import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Upload, Shield, AlertTriangle, Loader2, X, CheckCircle2, Info, Sparkles, Save, WifiOff } from 'lucide-react';
-import { useRiskEngine } from '../../hooks/useRiskEngine';
-import { useProject } from '../../contexts/ProjectContext';
-import { useFirebase } from '../../contexts/FirebaseContext';
-import { NodeType } from '../../types';
-import { analyzeVisionImage } from '../../services/geminiService';
-import { useOnlineStatus } from '../../hooks/useOnlineStatus';
-import { useNotifications } from '../../contexts/NotificationContext';
-import { logger } from '../../utils/logger';
-import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
-import { generateRespiratorFatigueNode } from '../../services/zettelkasten/bernoulli';
-import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
-import { MedicalIcon } from '../medical/MedicalIcon';
+import React, { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Camera,
+  Upload,
+  Shield,
+  AlertTriangle,
+  Loader2,
+  X,
+  CheckCircle2,
+  Info,
+  Sparkles,
+  Save,
+  WifiOff,
+} from "lucide-react";
+import { useRiskEngine } from "../../hooks/useRiskEngine";
+import { useProject } from "../../contexts/ProjectContext";
+import { useFirebase } from "../../contexts/FirebaseContext";
+import { NodeType } from "../../types";
+import { analyzeVisionImage } from "../../services/geminiService";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import { useNotifications } from "../../contexts/NotificationContext";
+import { logger } from "../../utils/logger";
+import { respiratorPressureDrop } from "../../services/physics/bernoulliEngine";
+import { generateRespiratorFatigueNode } from "../../services/zettelkasten/bernoulli";
+import { writeNodesDebounced } from "../../services/zettelkasten/persistence/writeNode";
+import { MedicalIcon } from "../medical/MedicalIcon";
 // §2.18 (2026-05-22) — Detector EPP on-device (color-based heuristic).
 // Procesa el pixel data del usuario sin enviarlo a Gemini. La imagen
 // NUNCA sale del browser cuando se usa este path. Cloud Gemini sigue
@@ -22,41 +34,62 @@ import {
   inspectImage,
   buildEppInspectionNode,
   type EppInspectionResult,
-} from '../../services/ai/eppDetectorOnDevice';
+} from "../../services/ai/eppDetectorOnDevice";
 
 // NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
 const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
 const RESTING_FLOW_M3_PER_S = 0.001;
 const FATIGUE_REFERENCE_DROP_PA = 0.5; // heuristic: at 0.5 Pa, 8h shift sustainable.
 
-const RESPIRATOR_KEYWORDS = ['respirador', 'mascarilla n95', 'mascarilla', 'filtro', 'n95'];
+const RESPIRATOR_KEYWORDS = [
+  "respirador",
+  "mascarilla n95",
+  "mascarilla",
+  "filtro",
+  "n95",
+];
 
-function detectsRespirator(result: { eppDetected: string[]; risksDetected: string[]; recommendations: string[]; summary: string }): boolean {
+function detectsRespirator(result: {
+  eppDetected: string[];
+  risksDetected: string[];
+  recommendations: string[];
+  summary: string;
+}): boolean {
   const haystack = [
     ...result.eppDetected,
     ...result.risksDetected,
     ...result.recommendations,
     result.summary,
-  ].join(' ').toLowerCase();
+  ]
+    .join(" ")
+    .toLowerCase();
   return RESPIRATOR_KEYWORDS.some((k) => haystack.includes(k));
 }
 
-function estimateRespiratorFatiguePercent(
-  projectId: string | null,
-): { dropPa: number; sustainPercent: number } {
-  const drop = respiratorPressureDrop(N95_FILTER_RESISTANCE_PA_S_PER_M3, RESTING_FLOW_M3_PER_S);
+function estimateRespiratorFatiguePercent(projectId: string | null): {
+  dropPa: number;
+  sustainPercent: number;
+} {
+  const drop = respiratorPressureDrop(
+    N95_FILTER_RESISTANCE_PA_S_PER_M3,
+    RESTING_FLOW_M3_PER_S,
+  );
   // Heuristic: every Pa above the reference halves sustainable shift fraction.
   const raw = (1 - drop / FATIGUE_REFERENCE_DROP_PA) * 100;
   const clamped = Math.max(10, Math.min(100, raw));
   // Sprint 11: el nodo Bernoulli aterriza en zettelkasten_nodes/{idempotencyKey}
   // via writeNodesDebounced (2 s). Mantenemos el logger.info como debug aid.
   const node = generateRespiratorFatigueNode(
-    { id: 'vision-worker', breathingFlowM3S: RESTING_FLOW_M3_PER_S },
-    { id: 'n95-vision', filterResistancePaSPerM3: N95_FILTER_RESISTANCE_PA_S_PER_M3, maxPressureDropPa: FATIGUE_REFERENCE_DROP_PA },
+    { id: "vision-worker", breathingFlowM3S: RESTING_FLOW_M3_PER_S },
+    {
+      id: "n95-vision",
+      filterResistancePaSPerM3: N95_FILTER_RESISTANCE_PA_S_PER_M3,
+      maxPressureDropPa: FATIGUE_REFERENCE_DROP_PA,
+    },
     { temperatureC: 22 },
   );
   if (node) {
-    logger.info('zettelkasten:respirator-fatigue', { node });
+    logger.info("zettelkasten:respirator-fatigue", { node });
     if (projectId) writeNodesDebounced([node], { projectId });
   }
   return { dropPa: drop, sustainPercent: clamped };
@@ -74,7 +107,7 @@ const compressImage = (base64Str: string, maxWidth = 1080): Promise<string> => {
     const img = new Image();
     img.src = base64Str;
     img.onload = () => {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       const MAX_WIDTH = maxWidth;
       const MAX_HEIGHT = maxWidth;
       let width = img.width;
@@ -93,9 +126,9 @@ const compressImage = (base64Str: string, maxWidth = 1080): Promise<string> => {
       }
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
     };
   });
 };
@@ -143,16 +176,19 @@ export function VisionAnalyzer() {
       // Convert base64 → Blob para el detector.
       const res = await fetch(base64Image);
       const blob = await res.blob();
-      const detector = await getEppDetectorImpl('auto');
+      const detector = await getEppDetectorImpl("auto");
       const inspection = await inspectImage(blob, detector);
       return inspection;
     } catch (err) {
-      logger.warn('[VisionAnalyzer] on-device EPP analysis failed', { err: String(err) });
+      logger.warn("[VisionAnalyzer] on-device EPP analysis failed", {
+        err: String(err),
+      });
       return null;
     }
   };
 
-  const [onDeviceEppResult, setOnDeviceEppResult] = useState<EppInspectionResult | null>(null);
+  const [onDeviceEppResult, setOnDeviceEppResult] =
+    useState<EppInspectionResult | null>(null);
 
   const analyzeImage = async () => {
     if (!image) return;
@@ -175,7 +211,7 @@ export function VisionAnalyzer() {
       // Cloud Gemini analiza riesgos contextuales + recomendaciones que
       // la heurística de color no puede inferir. Si offline, skip.
       if (isOnline) {
-        const base64Data = compressedBase64.split(',')[1];
+        const base64Data = compressedBase64.split(",")[1];
         try {
           const cloudAnalysis = await analyzeVisionImage(base64Data);
           // Merge cloud + on-device: cloud reporta riesgos y recomendaciones
@@ -195,22 +231,27 @@ export function VisionAnalyzer() {
           });
         } catch (cloudErr) {
           // Si Gemini falla, usamos sólo el on-device — sin pop-up de error.
-          logger.warn('[VisionAnalyzer] cloud Gemini failed, using on-device only', {
-            err: String(cloudErr),
-          });
+          logger.warn(
+            "[VisionAnalyzer] cloud Gemini failed, using on-device only",
+            {
+              err: String(cloudErr),
+            },
+          );
           if (onDeviceResult) {
             setResult({
               eppDetected: onDeviceResult.detected.map((d) => d.class),
               risksDetected:
                 onDeviceResult.missing.length > 0
-                  ? [`EPP requerido faltante: ${onDeviceResult.missing.join(', ')}`]
+                  ? [
+                      `EPP requerido faltante: ${onDeviceResult.missing.join(", ")}`,
+                    ]
                   : [],
               recommendations:
                 onDeviceResult.missing.length > 0
                   ? [
-                      `Asegurar uso de ${onDeviceResult.missing.join(', ')} antes de iniciar tareas (DS 594 art. 53-55).`,
+                      `Asegurar uso de ${onDeviceResult.missing.join(", ")} antes de iniciar tareas (DS 594 art. 53-55).`,
                     ]
-                  : ['No se detectaron EPP faltantes (heurística on-device).'],
+                  : ["No se detectaron EPP faltantes (heurística on-device)."],
               summary: `Análisis on-device — ${onDeviceResult.detected.length} EPP detectado(s), ${onDeviceResult.missing.length} faltante(s). Confianza promedio: ${Math.round(onDeviceResult.averageConfidence * 100)}%.`,
             });
           }
@@ -221,38 +262,39 @@ export function VisionAnalyzer() {
           eppDetected: onDeviceResult.detected.map((d) => d.class),
           risksDetected:
             onDeviceResult.missing.length > 0
-              ? [`EPP requerido faltante: ${onDeviceResult.missing.join(', ')}`]
+              ? [`EPP requerido faltante: ${onDeviceResult.missing.join(", ")}`]
               : [],
           recommendations:
             onDeviceResult.missing.length > 0
               ? [
-                  `Asegurar uso de ${onDeviceResult.missing.join(', ')} antes de iniciar tareas (DS 594 art. 53-55).`,
+                  `Asegurar uso de ${onDeviceResult.missing.join(", ")} antes de iniciar tareas (DS 594 art. 53-55).`,
                 ]
-              : ['No se detectaron EPP faltantes (heurística on-device).'],
+              : ["No se detectaron EPP faltantes (heurística on-device)."],
           summary: `Análisis on-device (offline) — ${onDeviceResult.detected.length} EPP detectado(s), ${onDeviceResult.missing.length} faltante(s). Confianza promedio: ${Math.round(onDeviceResult.averageConfidence * 100)}%.`,
         });
       } else {
         addNotification({
-          title: 'Sin análisis disponible',
-          message: 'No hay conexión y el detector on-device no pudo procesar la imagen.',
-          type: 'error',
+          title: "Sin análisis disponible",
+          message:
+            "No hay conexión y el detector on-device no pudo procesar la imagen.",
+          type: "error",
         });
         return;
       }
 
       addNotification({
-        title: 'Análisis Completado',
+        title: "Análisis Completado",
         message: isOnline
-          ? 'On-device + cloud Gemini procesados.'
-          : 'Análisis on-device (offline) completo.',
-        type: 'success',
+          ? "On-device + cloud Gemini procesados."
+          : "Análisis on-device (offline) completo.",
+        type: "success",
       });
     } catch (err) {
-      logger.error('Error analyzing image:', err);
+      logger.error("Error analyzing image:", err);
       addNotification({
-        title: 'Error de análisis',
-        message: 'No se pudo procesar la imagen. Probá otra foto.',
-        type: 'error',
+        title: "Error de análisis",
+        message: "No se pudo procesar la imagen. Probá otra foto.",
+        type: "error",
       });
     } finally {
       setIsAnalyzing(false);
@@ -266,16 +308,16 @@ export function VisionAnalyzer() {
       // PASO 1 — guardar el hallazgo Vision AI como NodeType.FINDING (legacy).
       await addNode({
         type: NodeType.FINDING,
-        title: `Hallazgo IA: ${result.risksDetected[0]?.slice(0, 30) || 'Análisis de Visión'}...`,
-        description: `Análisis de visión artificial realizado sobre imagen.\n\nResumen: ${result.summary}\n\nRiesgos: ${result.risksDetected.join(', ')}\n\nEPP: ${result.eppDetected.join(', ')}`,
-        tags: ['Visión AI', 'Hallazgo', 'EPP', ...result.eppDetected],
+        title: `Hallazgo IA: ${result.risksDetected[0]?.slice(0, 30) || "Análisis de Visión"}...`,
+        description: `Análisis de visión artificial realizado sobre imagen.\n\nResumen: ${result.summary}\n\nRiesgos: ${result.risksDetected.join(", ")}\n\nEPP: ${result.eppDetected.join(", ")}`,
+        tags: ["Visión AI", "Hallazgo", "EPP", ...result.eppDetected],
         projectId: selectedProject.id,
         connections: [],
         metadata: {
-          type: 'Vision Analysis',
+          type: "Vision Analysis",
           result: result,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
       // §2.18 (2026-05-22) — PASO 2: si el on-device detector arrojó un
       // resultado, además persistimos un ZK node tipo `epp_inspection`
@@ -295,12 +337,14 @@ export function VisionAnalyzer() {
           writeNodesDebounced([eppNode], { projectId: selectedProject.id });
         } catch (zkErr) {
           // ZK persistence no debe bloquear el save principal.
-          logger.warn('[VisionAnalyzer] EPP ZK node write failed', { err: String(zkErr) });
+          logger.warn("[VisionAnalyzer] EPP ZK node write failed", {
+            err: String(zkErr),
+          });
         }
       }
       setSaved(true);
     } catch (error) {
-      logger.error('Error saving vision finding:', error);
+      logger.error("Error saving vision finding:", error);
     } finally {
       setIsSaving(false);
     }
@@ -313,23 +357,34 @@ export function VisionAnalyzer() {
           <Camera className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Análisis de Visión AI</h2>
-          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Detección de EPP y Riesgos en tiempo real</p>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">
+            Análisis de Visión AI
+          </h2>
+          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
+            Análisis de imagen — experimental (foto puntual)
+          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Upload Section */}
         <div className="space-y-4">
-          <div 
+          <div
             onClick={() => fileInputRef.current?.click()}
             className={`aspect-video rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden relative ${
-              image ? 'border-emerald-500/50' : 'border-zinc-300 dark:border-white/10 hover:border-blue-500/50 bg-zinc-100 dark:bg-zinc-800/30'
+              image
+                ? "border-emerald-500/50"
+                : "border-zinc-300 dark:border-white/10 hover:border-blue-500/50 bg-zinc-100 dark:bg-zinc-800/30"
             }`}
           >
             {image ? (
               <>
-                <img src={image || undefined} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img
+                  src={image || undefined}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                   <p className="text-white text-sm font-bold">Cambiar Imagen</p>
                 </div>
@@ -337,16 +392,20 @@ export function VisionAnalyzer() {
             ) : (
               <div className="text-center p-6">
                 <Upload className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
-                <p className="text-sm text-zinc-400 font-medium">Sube una foto o captura desde la cámara</p>
-                <p className="text-[10px] text-zinc-600 mt-1 uppercase tracking-widest font-bold">JPG, PNG hasta 10MB</p>
+                <p className="text-sm text-zinc-400 font-medium">
+                  Sube una foto o captura desde la cámara
+                </p>
+                <p className="text-[10px] text-zinc-600 mt-1 uppercase tracking-widest font-bold">
+                  JPG, PNG hasta 10MB
+                </p>
               </div>
             )}
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleImageUpload} 
-              accept="image/*" 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
             />
           </div>
 
@@ -357,13 +416,17 @@ export function VisionAnalyzer() {
             onClick={analyzeImage}
             disabled={!image || isAnalyzing}
             className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${
-              isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
+              isAnalyzing
+                ? "bg-blue-600/50 text-white cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20"
             }`}
           >
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{isOnline ? 'On-device + Gemini…' : 'Procesando on-device…'}</span>
+                <span>
+                  {isOnline ? "On-device + Gemini…" : "Procesando on-device…"}
+                </span>
               </>
             ) : (
               <>
@@ -411,15 +474,24 @@ export function VisionAnalyzer() {
                     humano / QR pre-uso.
                   */}
                   <p className="text-[10px] text-amber-700/80 dark:text-amber-300/70 mb-3 leading-snug">
-                    Estimación por color, no es verificación de EPP. Confírmalo manualmente o vía el escaneo QR pre-uso.
+                    Estimación por color, no es verificación de EPP. Confírmalo
+                    manualmente o vía el escaneo QR pre-uso.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {result.eppDetected.map((item, i) => (
-                      <span key={i} className="bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-500/20">
-                        {item} <span className="opacity-60 font-normal">(est.)</span>
+                      <span
+                        key={i}
+                        className="bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-500/20"
+                      >
+                        {item}{" "}
+                        <span className="opacity-60 font-normal">(est.)</span>
                       </span>
                     ))}
-                    {result.eppDetected.length === 0 && <span className="text-zinc-500 text-xs italic">Sin EPP estimado en la imagen</span>}
+                    {result.eppDetected.length === 0 && (
+                      <span className="text-zinc-500 text-xs italic">
+                        Sin EPP estimado en la imagen
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -430,12 +502,19 @@ export function VisionAnalyzer() {
                   </h3>
                   <ul className="space-y-2">
                     {result.risksDetected.map((risk, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-zinc-300">
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-xs text-zinc-300"
+                      >
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
                         {risk}
                       </li>
                     ))}
-                    {result.risksDetected.length === 0 && <li className="text-zinc-500 text-xs italic">No se detectaron riesgos críticos</li>}
+                    {result.risksDetected.length === 0 && (
+                      <li className="text-zinc-500 text-xs italic">
+                        No se detectaron riesgos críticos
+                      </li>
+                    )}
                   </ul>
                 </div>
 
@@ -446,7 +525,10 @@ export function VisionAnalyzer() {
                   </h3>
                   <ul className="space-y-2">
                     {result.recommendations.map((rec, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-zinc-300">
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-xs text-zinc-300"
+                      >
                         <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
                         {rec}
                       </li>
@@ -454,34 +536,51 @@ export function VisionAnalyzer() {
                   </ul>
                 </div>
 
-                {detectsRespirator(result) && (() => {
-                  const fatigue = estimateRespiratorFatiguePercent(selectedProject?.id ?? null);
-                  return (
-                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
-                      <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" />
-                        Fatiga respiratoria (Bernoulli)
-                        {/* Sprint 17c — Bioicons N95 + lungs decorate the respirator card. */}
-                        <MedicalIcon name="mask-n95" size={16} alt="Mascarilla N95" />
-                        <MedicalIcon name="lung-pair" size={16} alt="Pulmones" />
-                      </h3>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300">
-                        Fatiga respiratoria estimada: <span className="font-black text-amber-500">{fatigue.sustainPercent.toFixed(0)}%</span> del turno antes de requerir relevo.
-                      </p>
-                      <p className="text-[10px] text-zinc-500 mt-1">
-                        Δp filtro ≈ {fatigue.dropPa.toFixed(2)} Pa (R=800 Pa·s/m³, Q=0,001 m³/s reposo). Ref.: NIOSH 42 CFR Part 84.
-                      </p>
-                    </div>
-                  );
-                })()}
+                {detectsRespirator(result) &&
+                  (() => {
+                    const fatigue = estimateRespiratorFatiguePercent(
+                      selectedProject?.id ?? null,
+                    );
+                    return (
+                      <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
+                        <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          Fatiga respiratoria (Bernoulli)
+                          {/* Sprint 17c — Bioicons N95 + lungs decorate the respirator card. */}
+                          <MedicalIcon
+                            name="mask-n95"
+                            size={16}
+                            alt="Mascarilla N95"
+                          />
+                          <MedicalIcon
+                            name="lung-pair"
+                            size={16}
+                            alt="Pulmones"
+                          />
+                        </h3>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                          Fatiga respiratoria estimada:{" "}
+                          <span className="font-black text-amber-500">
+                            {fatigue.sustainPercent.toFixed(0)}%
+                          </span>{" "}
+                          del turno antes de requerir relevo.
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                          Δp filtro ≈ {fatigue.dropPa.toFixed(2)} Pa (R=800
+                          Pa·s/m³, Q=0,001 m³/s reposo). Ref.: NIOSH 42 CFR Part
+                          84.
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                 <button
                   onClick={handleSave}
                   disabled={isSaving || saved || !selectedProject}
                   className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                    saved 
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20' 
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10'
+                    saved
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10"
                   }`}
                 >
                   {isSaving ? (
@@ -491,7 +590,9 @@ export function VisionAnalyzer() {
                   ) : (
                     <Save className="w-4 h-4" />
                   )}
-                  <span>{saved ? 'Guardado en Red Neuronal' : 'Guardar Hallazgo'}</span>
+                  <span>
+                    {saved ? "Guardado en Red Neuronal" : "Guardar Hallazgo"}
+                  </span>
                 </button>
               </motion.div>
             ) : (
@@ -499,8 +600,13 @@ export function VisionAnalyzer() {
                 <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
                   <Sparkles className="w-8 h-8 text-zinc-400 dark:text-zinc-600" />
                 </div>
-                <h3 className="text-zinc-900 dark:text-white font-bold mb-2">Esperando Análisis</h3>
-                <p className="text-xs text-zinc-500 max-w-[200px]">Sube una imagen para que el Guardián AI analice el entorno y detecte elementos de seguridad.</p>
+                <h3 className="text-zinc-900 dark:text-white font-bold mb-2">
+                  Esperando Análisis
+                </h3>
+                <p className="text-xs text-zinc-500 max-w-[200px]">
+                  Sube una imagen para que el Guardián AI analice el entorno y
+                  detecte elementos de seguridad.
+                </p>
               </div>
             )}
           </AnimatePresence>

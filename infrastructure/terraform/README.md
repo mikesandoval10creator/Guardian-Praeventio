@@ -98,10 +98,12 @@ echo -n "<gemini-key>"                   | gcloud secrets versions add gemini-ap
 
 ## State management
 
-- **Default**: local backend. State lives in
-  `infrastructure/terraform/terraform.tfstate`. Fine for solo development.
-- **Production**: uncomment the GCS backend block in `main.tf` and create the
-  state bucket FIRST:
+- **Default**: GCS remote backend (`gs://praeventio-tfstate`, prefix `envs/prod`)
+  in `main.tf`. Remote state enables locking so `terraform apply` from CI and a
+  laptop never race on the same state file.
+- **First-time setup** — create the state bucket BEFORE the first
+  `terraform init` (the bucket cannot be created by Terraform itself because it
+  holds the state Terraform needs to run):
   ```sh
   gcloud storage buckets create gs://praeventio-tfstate \
     --uniform-bucket-level-access \
@@ -109,7 +111,7 @@ echo -n "<gemini-key>"                   | gcloud secrets versions add gemini-ap
     --public-access-prevention
   gcloud storage buckets update gs://praeventio-tfstate --versioning
   ```
-  Then `terraform init -migrate-state` to move local state to GCS.
+  Then `terraform init -migrate-state` to move any existing local state to GCS.
 - **Never commit `*.tfstate`** — handled by `.gitignore`. State may contain
   plaintext values that were pulled into state during apply.
 
