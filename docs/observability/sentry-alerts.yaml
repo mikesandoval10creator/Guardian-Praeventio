@@ -87,6 +87,31 @@ alerts:
     enabled: true
 
   # ──────────────────────────────────────────────
+  # SLO burn-rate alerts (SRE Workbook §5 approach 6 — multi-window)
+  # Fuente: docs/observability/SLO.md §4 (Ticket 3a4aa66d-81a7).
+  # Page si se consume 2% del error budget de SLO 1 (SOS delivery 99.95%)
+  # en 1h OR 5% en 6h — evita ruido (precision) y detección tardía (recall).
+  # ──────────────────────────────────────────────
+  - id: P0-sos-delivery-burn
+    name: SOS delivery burn-rate (multi-window 1h+6h)
+    severity: P0
+    query: 'transaction:sos.deliver environment:production'
+    threshold:
+      burnRate:
+        - window: 1h
+          budgetFraction: 0.02   # 2% del error budget SLO 1 consumido en 1h
+        - window: 6h
+          budgetFraction: 0.05   # 5% en 6h
+    channels:
+      - pagerduty
+      - slack-praeventio-ops-here
+    runbook: docs/observability/SLO.md#slo-1--sos-delivery-safety-critical
+    relatedFinding: SLO-1
+    sourceFile: src/services/emergency/emergencySosDelivery.ts
+    owner: dev
+    enabled: true
+
+  # ──────────────────────────────────────────────
   # P1 — notify within 1h
   # ──────────────────────────────────────────────
   - id: P1-gemini-error-rate

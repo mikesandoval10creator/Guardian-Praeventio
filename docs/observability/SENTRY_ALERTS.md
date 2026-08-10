@@ -144,6 +144,21 @@ Origen del evento: `src/services/billing/webpayAdapter.ts:276-326`
 | **Owner** | dev |
 | **Justificación** | `ErrorBoundary` en `src/components/shared/ErrorBoundary.tsx:64` y `captureEmergencyError` (`src/lib/sentry.ts:129` con `domain:safety_critical`) marcan eventos fatales. Cualquier hit en prod debe paginar. |
 
+#### P0-sos-delivery-burn
+
+| Campo | Valor |
+|---|---|
+| **Nombre** | SOS delivery burn-rate (multi-window 1h+6h) |
+| **Query** | `transaction:sos.deliver environment:production` |
+| **Threshold** | **Burn-rate multi-ventana** (SRE Workbook §5 approach 6): 2% del error budget del SLO 1 en 1h **OR** 5% en 6h |
+| **Severidad** | P0 |
+| **Channels** | PagerDuty + Slack `#praeventio-ops` `@here` |
+| **Runbook** | [`SLO.md` §4 Multi-window burn-rate](../observability/SLO.md) |
+| **Owner** | dev |
+| **Justificación** | Primera alerta SLO del sistema (Ticket 3a4aa66d-81a7). SOS delivery es el SLI safety-critical #1: un trabajador que presiona SOS y no llega puede costar una vida. El burn-rate multi-window (2% budget en 1h OR 5% en 6h) detecta degradación significativa sin ruido (precision) ni detección tardía (recall). |
+
+Fuente: [`SLO.md` §4](../observability/SLO.md) — error budget de SLO 1 (SOS delivery 99.95% mensual = 21,6 min/mes).
+
 ### 3.2 Alertas P1 (notificación dentro de 1h)
 
 #### P1-gemini-error-rate
