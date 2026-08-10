@@ -5554,5 +5554,10 @@
     "police": "Police",
     "universal": "Universal number",
     "location": "Worker location"
+  },
+  "b2dAdmin": {
+    "churn": {
+      "title": "Churn risk by tenant"
+    }
   }
 }
