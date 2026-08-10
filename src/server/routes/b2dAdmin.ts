@@ -29,6 +29,7 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
 import { readRecentB2dMrrSnapshots } from '../jobs/runB2dMrrSnapshot.js';
+import { buildTenantSnapshots } from '../../services/adoption/buildTenantSnapshots.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
 // Bucket BB shipped — we depend on the canonical key service directly.
 import {
@@ -367,6 +368,26 @@ router.get('/events', verifyAuth, async (req, res) => {
     logger.error('b2d_admin_events_failed', error);
     captureRouteError(error, 'b2dAdmin.events');
     return res.json({ ok: true, from, to, events: [] });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/b2d/churn-snapshots
+//
+// Ticket 399aa66d-73fe-81d3-9eeb-ea2aa4cb064a [P2] — RE-WIRE ChurnRiskPanel:
+// construye TenantUsageSnapshot[] desde datos REALES de Firestore
+// (subscription + proyectos + workers + quota usage). NUNCA métricas
+// inventadas. El <ChurnRiskPanel /> admin consume este endpoint.
+// ---------------------------------------------------------------------------
+router.get('/churn-snapshots', verifyAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return undefined;
+  try {
+    const snapshots = await buildTenantSnapshots(admin.firestore(), { limit: 500 });
+    return res.json({ ok: true, snapshots });
+  } catch (error) {
+    logger.error('b2d_admin_churn_snapshots_failed', error);
+    captureRouteError(error, 'b2dAdmin.churn_snapshots');
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

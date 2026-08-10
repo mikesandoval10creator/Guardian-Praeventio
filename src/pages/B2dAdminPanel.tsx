@@ -21,6 +21,8 @@ import { CreateApiKeyModal } from '../components/admin/CreateApiKeyModal';
 import { MrrChart, type MrrPoint } from '../components/admin/MrrChart';
 import { RevenueByTierChart } from '../components/admin/RevenueByTierChart';
 import { ChurnCohortHeatmap } from '../components/admin/ChurnCohortHeatmap';
+import { ChurnRiskPanel } from '../components/adoption/ChurnRiskPanel';
+import type { TenantUsageSnapshot } from '../services/adoption/adoptionAnalytics';
 import type { B2dMetrics, B2dTier } from '../services/analytics/b2dMetrics';
 import type { ApiTierId } from '../services/pricing/aiTier';
 import { logger } from '../utils/logger';
@@ -96,6 +98,7 @@ export function B2dAdminPanel() {
   const [metrics, setMetrics] = useState<B2dMetrics | null>(null);
   const [events, setEvents] = useState<B2dEvent[]>([]);
   const [mrrHistory, setMrrHistory] = useState<B2dMrrSnapshot[]>([]);
+  const [churnSnapshots, setChurnSnapshots] = useState<TenantUsageSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -105,12 +108,13 @@ export function B2dAdminPanel() {
       // H15 (audit 2026-05-17): Promise.allSettled instead of Promise.all so
       // a single failing endpoint (e.g. /metrics 500) does not blank the
       // entire admin panel — the other three panels still render.
-      const [keysSettled, metricsSettled, eventsSettled, mrrHistorySettled] =
+      const [keysSettled, metricsSettled, eventsSettled, mrrHistorySettled, churnSettled] =
         await Promise.allSettled([
           authedFetch('/api/admin/b2d/keys'),
           authedFetch('/api/admin/b2d/metrics'),
           authedFetch('/api/admin/b2d/events'),
           authedFetch('/api/admin/b2d/mrr-history?limit=12'),
+          authedFetch('/api/admin/b2d/churn-snapshots'),
         ]);
       if (keysSettled.status === 'fulfilled' && keysSettled.value.ok) {
         const data = await keysSettled.value.json();
@@ -141,6 +145,14 @@ export function B2dAdminPanel() {
           'b2d_admin_panel_mrr_history_failed',
           mrrHistorySettled.reason,
         );
+      }
+      if (churnSettled.status === 'fulfilled' && churnSettled.value.ok) {
+        const data = await churnSettled.value.json();
+        setChurnSnapshots(
+          Array.isArray(data.snapshots) ? data.snapshots : [],
+        );
+      } else if (churnSettled.status === 'rejected') {
+        logger.warn('b2d_admin_panel_churn_failed', churnSettled.reason);
       }
     } catch (err) {
       logger.error('b2d_admin_panel_load_failed', err);
@@ -320,6 +332,16 @@ export function B2dAdminPanel() {
                 'Las cohortes mensuales requieren un cron de snapshots que aún no está habilitado. Esta sección se poblará automáticamente cuando se active la captura periódica de churn por cohorte de signup.',
               )}
             </p>
+          </div>
+
+          {/* Riesgo de churn por tenant — datos REALES de Firestore
+              (Ticket 399aa66d-73fe-81d3-9eeb-ea2aa4cb064a RE-WIRE).
+              Snapshots desde subscription + actividad, nunca inventados. */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-token mb-2">
+              {t('b2dAdmin.churn.title', 'Riesgo de churn por tenant')}
+            </h3>
+            <ChurnRiskPanel snapshots={churnSnapshots} />
           </div>
         </section>
 
