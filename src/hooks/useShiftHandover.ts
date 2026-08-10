@@ -231,16 +231,22 @@ export async function acknowledgeShiftHandover(
 }
 
 /**
- * Stub — needs new `POST /api/sprint-k/{projectId}/shift-handover/{shiftId}/
- * discrepancy` endpoint. `ShiftHandoverPanel.tsx` calls this as
- * `addShiftHandoverDiscrepancy(projectId, shiftId, { text }, idempotencyKey)`.
- * Tracked TODO §13.
+ * Real fetch contra `POST /api/sprint-k/{projectId}/shift-handover/{shiftId}/
+ * discrepancy` (Ticket 39aaa66d-73fe-81ba-a153 — anti-stub). Persiste la
+ * discrepancia bajo doc determinista por idempotencyKey (no duplica).
  */
 export async function addShiftHandoverDiscrepancy(
-  _projectId: string,
+  projectId: string,
   shiftId: string,
-  _input: { text: string },
-  _idempotencyKey: string,
+  input: { text: string },
+  idempotencyKey: string,
 ): Promise<ShiftPayload> {
-  return { shift: { id: shiftId } as ShiftRecord };
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/shift-handover/${shiftId}/discrepancy`,
+    {
+      method: "POST",
+      body: JSON.stringify({ text: input.text, idempotencyKey }),
+    },
+  );
+  return json<ShiftPayload>(res);
 }

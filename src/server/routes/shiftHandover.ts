@@ -380,4 +380,49 @@ router.get(
   },
 );
 
+const discrepancySchema = z.object({
+  text: z.string().min(10).max(5000),
+  idempotencyKey: z.string().min(1).max(200),
+});
+
+router.post(
+  "/:projectId/shift-handover/:shiftId/discrepancy",
+  verifyAuth,
+  validate(discrepancySchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, shiftId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    const body = req.body as z.infer<typeof discrepancySchema>;
+    try {
+      const db = admin.firestore();
+      const shiftRef = db.doc(`projects/${projectId}/shifts/${shiftId}`);
+      const shiftSnap = await shiftRef.get();
+      if (!shiftSnap.exists) {
+        return res.status(404).json({ error: "shift_not_found" });
+      }
+
+      // Doc determinista por idempotencyKey → repetir la misma clave no duplica.
+      await db
+        .doc(
+          `projects/${projectId}/shifts/${shiftId}/discrepancies/${body.idempotencyKey}`,
+        )
+        .set({
+          text: body.text,
+          idempotencyKey: body.idempotencyKey,
+          authorUid: callerUid,
+          createdAt: Date.now(),
+        });
+
+      const shift = shiftSnap.data() as ShiftRecord;
+      return res.json({ shift });
+    } catch (err) {
+      logger.error?.("shiftHandover.discrepancy.error", err);
+      captureRouteError(err, "shiftHandover.discrepancy");
+      return res.status(500).json({ error: "internal_error" });
+    }
+  },
+);
+
 export default router;

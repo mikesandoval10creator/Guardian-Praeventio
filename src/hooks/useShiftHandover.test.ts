@@ -252,14 +252,21 @@ describe("useShiftHandover orphan-UI stubs (aun pendientes de endpoints nuevos)"
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("addShiftHandoverDiscrepancy returns a typed shell carrying the shiftId (no fetch)", async () => {
+  it("addShiftHandoverDiscrepancy → POST discrepancy with text+idempotencyKey", async () => {
+    fetchMock.mockResolvedValue(okJson({ shift: { id: "s7" } }));
     const out = await addShiftHandoverDiscrepancy(
       "p1",
       "s7",
-      { text: "mismatch" },
+      { text: "mismatch detectado en inventario" },
       "idem-key-3",
     );
     expect(out.shift).toMatchObject({ id: "s7" });
-    expect(fetchMock).not.toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/sprint-k/p1/shift-handover/s7/discrepancy");
+    expect((init as RequestInit).method).toBe("POST");
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      text: "mismatch detectado en inventario",
+      idempotencyKey: "idem-key-3",
+    });
   });
 });
