@@ -45,6 +45,7 @@ import { useInvoicePolling } from '../hooks/useInvoicePolling';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analytics';
 import { IapAdapter, iapAdapter, type BillingProvider } from '../services/billing/iapAdapter';
+import { resolveTierDowngradeGate } from '../services/billing/tierDowngradeGate';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { humanErrorMessage } from '../lib/humanError';
 
@@ -942,46 +943,10 @@ function PricingInner() {
     }
   };
 
-  // Sprint 28 H25 — invert TIER_TO_LEGACY_PLAN so we can recover a TierId
-  // from the user's current `plan` (which is a SubscriptionPlan legacy id).
-  const legacyToTierId = (legacyPlan: SubscriptionPlan): TierId | null => {
-    for (const [tierId, legacy] of Object.entries(TIER_TO_LEGACY_PLAN)) {
-      if (legacy === legacyPlan) return tierId as TierId;
-    }
-    return null;
-  };
-
-  /**
-   * Detect a tier downgrade where current usage exceeds the target capacity.
-   * Returns the modal config when a downgrade gate is needed; null otherwise.
-   */
-  const buildDowngradeGate = (toTier: Tier): {
-    fromTier: TierId;
-    toTier: TierId;
-    toTierLabel: string;
-  } | null => {
-    const fromTierId = legacyToTierId(plan);
-    if (!fromTierId) return null;
-    if (fromTierId === toTier.id) return null;
-    const fromIdx = TIERS.findIndex((t) => t.id === fromTierId);
-    const toIdx = TIERS.findIndex((t) => t.id === toTier.id);
-    if (fromIdx === -1 || toIdx === -1) return null;
-    if (toIdx >= fromIdx) return null; // upgrade or same — no gate.
-    const totalProjects = projects.length;
-    if (
-      totalWorkers > toTier.trabajadoresMax ||
-      totalProjects > toTier.proyectosMax
-    ) {
-      return {
-        fromTier: fromTierId,
-        toTier: toTier.id,
-        toTierLabel: toTier.nombre,
-      };
-    }
-    return null;
-  };
-
-  const handlePurchase = async (tier: Tier) => {
+  const handlePurchase = async (
+    tier: Tier,
+    options: { skipDowngradeGate?: boolean } = {},
+  ) => {
     const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
     if (!legacyId) {
       // Defensive: premium tiers should never reach here, they use Contact Sales
@@ -993,10 +958,12 @@ function PricingInner() {
       return;
     }
 
-    // Sprint 28 H25 — gate downgrades when current usage exceeds the
-    // target tier's capacity. The modal lets the user archive/export
-    // before completing the downgrade.
-    const gate = buildDowngradeGate(tier);
+    // Every real downgrade goes through the server-authoritative preview.
+    // Client totals are display hints only: worker caps are per faena and
+    // archived projects must not keep reopening the modal after resolution.
+    const gate = options.skipDowngradeGate
+      ? null
+      : resolveTierDowngradeGate(plan, tier);
     if (gate) {
       setDowngradeModal({ ...gate, pendingTier: tier });
       return;
@@ -1394,27 +1361,13 @@ function PricingInner() {
           fromTier={downgradeModal.fromTier}
           toTier={downgradeModal.toTier}
           toTierLabel={downgradeModal.toTierLabel}
-          currentUsage={{
-            workers: totalWorkers,
-            projects: projects.length,
-          }}
-          targetCapacity={{
-            workers:
-              TIERS.find((t) => t.id === downgradeModal.toTier)
-                ?.trabajadoresMax ?? 0,
-            projects:
-              TIERS.find((t) => t.id === downgradeModal.toTier)
-                ?.proyectosMax ?? 0,
-          }}
           onCancel={() => setDowngradeModal(null)}
           onConfirm={() => {
-            // Usage now fits the target capacity (or no overage); proceed
-            // with the actual purchase. We re-call handlePurchase, but the
-            // gate will not fire again because usage has been brought down
-            // (or was never over capacity for this tier).
+            // The modal revalidated the authoritative server preview. Continue
+            // the purchase without reopening the same gate recursively.
             const pending = downgradeModal.pendingTier;
             setDowngradeModal(null);
-            void handlePurchase(pending);
+            void handlePurchase(pending, { skipDowngradeGate: true });
           }}
         />
       )}
