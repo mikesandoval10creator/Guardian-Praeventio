@@ -6,36 +6,41 @@
 // query se construye con los where() esperados, y (b) el filtro de
 // Haversine descarta nodos fuera del radio.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, waitFor, act } from "@testing-library/react";
 
-type SnapCb = (snap: { docs: { id: string; data: () => any }[] }) => void;
+type SnapCb = (snap: {
+  metadata?: { fromCache?: boolean; hasPendingWrites?: boolean };
+  docs: { id: string; data: () => any }[];
+}) => void;
 
-const onSnapshotMock = vi.fn<(q: any, ok: SnapCb, err?: (e: Error) => void) => () => void>();
+const onSnapshotMock =
+  vi.fn<(q: any, ok: SnapCb, err?: (e: Error) => void) => () => void>();
 const whereMock = vi.fn((field: string, op: string, value: unknown) => ({
   field,
   op,
   value,
-  __kind: 'where',
+  __kind: "where",
 }));
-const queryMock = vi.fn((...args: any[]) => ({ __kind: 'query', args }));
+const queryMock = vi.fn((...args: any[]) => ({ __kind: "query", args }));
 const collectionMock = vi.fn((...args: any[]) => ({
-  __kind: 'collection',
+  __kind: "collection",
   args,
 }));
 
-vi.mock('../services/firebase', () => ({
-  db: { __kind: 'db' },
+vi.mock("../services/firebase", () => ({
+  db: { __kind: "db" },
   collection: (db: unknown, name: string) => collectionMock(db, name),
   query: (q: unknown, ...rest: unknown[]) => queryMock(q, ...rest),
-  where: (field: string, op: string, value: unknown) => whereMock(field, op, value),
+  where: (field: string, op: string, value: unknown) =>
+    whereMock(field, op, value),
   onSnapshot: (q: any, ok: SnapCb, err?: (e: Error) => void) =>
     onSnapshotMock(q, ok, err),
   handleFirestoreError: vi.fn(),
-  OperationType: { LIST: 'LIST' },
+  OperationType: { LIST: "LIST" },
 }));
 
-import { useGeoAnchoredNodes } from './useGeoAnchoredNodes';
+import { useGeoAnchoredNodes } from "./useGeoAnchoredNodes";
 
 beforeEach(() => {
   onSnapshotMock.mockReset();
@@ -57,20 +62,20 @@ function makeNodeDoc(
       tags,
       metadata: geo ? { geo } : {},
       title: `n-${id}`,
-      type: 'Control',
-      description: '',
+      type: "Control",
+      description: "",
       connections: [],
-      createdAt: '2026-01-01',
-      updatedAt: '2026-01-01',
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
     }),
   };
 }
 
-describe('useGeoAnchoredNodes', () => {
-  it('issues a Firestore query with projectId + bounding-box lat range', async () => {
+describe("useGeoAnchoredNodes", () => {
+  it("issues a Firestore query with projectId + bounding-box lat range", async () => {
     renderHook(() =>
       useGeoAnchoredNodes({
-        projectId: 'p1',
+        projectId: "p1",
         center: { lat: -33.45, lng: -70.66 },
         radiusM: 100,
       }),
@@ -81,12 +86,12 @@ describe('useGeoAnchoredNodes', () => {
 
     // Three where() clauses: projectId equality + lat range.
     const calls = whereMock.mock.calls.map(([f, op]) => `${f} ${op}`);
-    expect(calls).toContain('projectId ==');
-    expect(calls).toContain('metadata.geo.lat >=');
-    expect(calls).toContain('metadata.geo.lat <=');
+    expect(calls).toContain("projectId ==");
+    expect(calls).toContain("metadata.geo.lat >=");
+    expect(calls).toContain("metadata.geo.lat <=");
   });
 
-  it('filters out nodes outside the haversine radius even when inside the box', async () => {
+  it("filters out nodes outside the haversine radius even when inside the box", async () => {
     let emit: SnapCb | null = null;
     onSnapshotMock.mockImplementation((_q, ok) => {
       emit = ok;
@@ -95,7 +100,7 @@ describe('useGeoAnchoredNodes', () => {
 
     const { result } = renderHook(() =>
       useGeoAnchoredNodes({
-        projectId: 'p1',
+        projectId: "p1",
         center: { lat: 0, lng: 0 },
         radiusM: 100, // 100 m
       }),
@@ -109,19 +114,19 @@ describe('useGeoAnchoredNodes', () => {
     act(() => {
       emit!({
         docs: [
-          makeNodeDoc('inside', { lat: 0.00005, lng: 0 }), // ~5.5 m
-          makeNodeDoc('corner', { lat: 0.0008, lng: 0.0008 }), // ~125 m diag
+          makeNodeDoc("inside", { lat: 0.00005, lng: 0 }), // ~5.5 m
+          makeNodeDoc("corner", { lat: 0.0008, lng: 0.0008 }), // ~125 m diag
         ],
       });
     });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     const ids = result.current.nodes.map((n) => n.id);
-    expect(ids).toContain('inside');
-    expect(ids).not.toContain('corner');
+    expect(ids).toContain("inside");
+    expect(ids).not.toContain("corner");
   });
 
-  it('respects the controlOnly + objectKind tag filters', async () => {
+  it("respects the controlOnly + objectKind tag filters", async () => {
     let emit: SnapCb | null = null;
     onSnapshotMock.mockImplementation((_q, ok) => {
       emit = ok;
@@ -130,10 +135,10 @@ describe('useGeoAnchoredNodes', () => {
 
     const { result } = renderHook(() =>
       useGeoAnchoredNodes({
-        projectId: 'p1',
+        projectId: "p1",
         center: { lat: 0, lng: 0 },
         radiusM: 1000,
-        objectKind: 'extinguisher_pqs',
+        objectKind: "extinguisher_pqs",
         controlOnly: true,
       }),
     );
@@ -143,19 +148,48 @@ describe('useGeoAnchoredNodes', () => {
     act(() => {
       emit!({
         docs: [
-          makeNodeDoc('a', { lat: 0, lng: 0 }, [
-            'extinguisher_pqs',
-            'installed',
-            'control-material',
+          makeNodeDoc("a", { lat: 0, lng: 0 }, [
+            "extinguisher_pqs",
+            "installed",
+            "control-material",
           ]),
-          makeNodeDoc('b', { lat: 0, lng: 0 }, ['hydrant', 'control-material']),
-          makeNodeDoc('c', { lat: 0, lng: 0 }, ['extinguisher_pqs']), // sin control-material
+          makeNodeDoc("b", { lat: 0, lng: 0 }, ["hydrant", "control-material"]),
+          makeNodeDoc("c", { lat: 0, lng: 0 }, ["extinguisher_pqs"]), // sin control-material
         ],
       });
     });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     const ids = result.current.nodes.map((n) => n.id);
-    expect(ids).toEqual(['a']);
+    expect(ids).toEqual(["a"]);
+  });
+
+  it("surfaces fromCache metadata so geo/geofence UIs can mark possibly stale data", async () => {
+    let emit: SnapCb | null = null;
+    onSnapshotMock.mockImplementation((_q, ok) => {
+      emit = ok;
+      return () => {};
+    });
+
+    const { result } = renderHook(() =>
+      useGeoAnchoredNodes({
+        projectId: "p1",
+        center: { lat: 0, lng: 0 },
+        radiusM: 1000,
+      }),
+    );
+
+    await waitFor(() => expect(emit).toBeTruthy());
+
+    act(() => {
+      emit!({
+        metadata: { fromCache: true, hasPendingWrites: false },
+        docs: [makeNodeDoc("inside", { lat: 0, lng: 0 })],
+      });
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.fromCache).toBe(true);
+    expect(result.current.hasPendingWrites).toBe(false);
   });
 });

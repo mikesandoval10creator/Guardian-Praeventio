@@ -32,8 +32,8 @@
 //
 // See `docs/firestore-indexes.md` for the complete catalog.
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import type { RiskNode } from '../types';
+import { useEffect, useState, useMemo, useRef } from "react";
+import type { RiskNode } from "../types";
 import {
   db,
   collection,
@@ -42,8 +42,8 @@ import {
   onSnapshot,
   handleFirestoreError,
   OperationType,
-} from '../services/firebase';
-import { boundingBox, haversineMeters } from '../utils/haversine';
+} from "../services/firebase";
+import { boundingBox, haversineMeters } from "../utils/haversine";
 
 export interface GeoQueryOptions {
   /** Project the user is currently working in (multi-tenant scope). */
@@ -69,6 +69,8 @@ export interface UseGeoAnchoredNodesResult {
   nodes: RiskNode[];
   loading: boolean;
   error: Error | null;
+  fromCache: boolean;
+  hasPendingWrites: boolean;
 }
 
 /**
@@ -84,11 +86,16 @@ export function useGeoAnchoredNodes(
   // Stable references so changing object identity in re-renders doesn't
   // tear the snapshot down on every paint.
   const centerKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
-  const stableCenter = useMemo(() => ({ lat: center.lat, lng: center.lng }), [centerKey]);
+  const stableCenter = useMemo(
+    () => ({ lat: center.lat, lng: center.lng }),
+    [centerKey],
+  );
 
   const [rawDocs, setRawDocs] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState<boolean>(!!projectId);
   const [error, setError] = useState<Error | null>(null);
+  const [fromCache, setFromCache] = useState(false);
+  const [hasPendingWrites, setHasPendingWrites] = useState(false);
   const subRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -103,6 +110,8 @@ export function useGeoAnchoredNodes(
       setRawDocs([]);
       setLoading(false);
       setError(null);
+      setFromCache(false);
+      setHasPendingWrites(false);
       return undefined;
     }
 
@@ -112,21 +121,25 @@ export function useGeoAnchoredNodes(
 
     try {
       const q = query(
-        collection(db, 'nodes'),
-        where('projectId', '==', projectId),
-        where('metadata.geo.lat', '>=', box.latMin),
-        where('metadata.geo.lat', '<=', box.latMax),
+        collection(db, "nodes"),
+        where("projectId", "==", projectId),
+        where("metadata.geo.lat", ">=", box.latMin),
+        where("metadata.geo.lat", "<=", box.latMax),
       );
 
       const unsub = onSnapshot(
         q,
         (snap) => {
-          const next = snap.docs.map((d) => ({ id: d.id, ...d.data() } as RiskNode));
+          setFromCache(snap.metadata?.fromCache ?? false);
+          setHasPendingWrites(snap.metadata?.hasPendingWrites ?? false);
+          const next = snap.docs.map(
+            (d) => ({ id: d.id, ...d.data() }) as RiskNode,
+          );
           setRawDocs(next);
           setLoading(false);
         },
         (err) => {
-          handleFirestoreError(err, OperationType.LIST, 'nodes');
+          handleFirestoreError(err, OperationType.LIST, "nodes");
           setError(err as Error);
           setLoading(false);
         },
@@ -153,14 +166,16 @@ export function useGeoAnchoredNodes(
     if (rawDocs.length === 0) return rawDocs;
     return rawDocs.filter((node) => {
       const geo = (node.metadata as any)?.geo as
-        | { lat: number; lng: number }
-        | undefined;
-      if (!geo || typeof geo.lat !== 'number' || typeof geo.lng !== 'number') {
+        { lat: number; lng: number } | undefined;
+      if (!geo || typeof geo.lat !== "number" || typeof geo.lng !== "number") {
         return false;
       }
-      const dist = haversineMeters(stableCenter, { lat: geo.lat, lng: geo.lng });
+      const dist = haversineMeters(stableCenter, {
+        lat: geo.lat,
+        lng: geo.lng,
+      });
       if (dist > radiusM) return false;
-      if (controlOnly && !(node.tags ?? []).includes('control-material')) {
+      if (controlOnly && !(node.tags ?? []).includes("control-material")) {
         return false;
       }
       if (objectKind && !(node.tags ?? []).includes(objectKind)) {
@@ -170,5 +185,5 @@ export function useGeoAnchoredNodes(
     });
   }, [rawDocs, stableCenter, radiusM, objectKind, controlOnly]);
 
-  return { nodes, loading, error };
+  return { nodes, loading, error, fromCache, hasPendingWrites };
 }

@@ -1,29 +1,33 @@
-import { useState, useEffect, useMemo } from 'react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
+import { useState, useEffect, useMemo } from "react";
+import {
+  collection,
+  query,
+  onSnapshot,
   DocumentData,
-  QueryConstraint
-} from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { usePendingActions } from './usePendingActions';
-import { logger } from '../utils/logger';
+  QueryConstraint,
+} from "firebase/firestore";
+import { db } from "../services/firebase";
+import { usePendingActions } from "./usePendingActions";
+import { logger } from "../utils/logger";
 
 export function useFirestoreCollection<T = DocumentData>(
   collectionPath: string | null | undefined,
-  constraints: QueryConstraint[] = []
+  constraints: QueryConstraint[] = [],
 ) {
   const [fetchedData, setFetchedData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
+  const [fromCache, setFromCache] = useState(false);
+  const [hasPendingWrites, setHasPendingWrites] = useState(false);
+
   // Only fetch pending actions if we have a valid collection path
-  const pendingActions = usePendingActions(collectionPath || '');
+  const pendingActions = usePendingActions(collectionPath || "");
 
   useEffect(() => {
     if (!collectionPath) {
       setFetchedData([]);
+      setFromCache(false);
+      setHasPendingWrites(false);
       setLoading(false);
       return undefined;
     }
@@ -35,9 +39,11 @@ export function useFirestoreCollection<T = DocumentData>(
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        setFromCache(snapshot.metadata?.fromCache ?? false);
+        setHasPendingWrites(snapshot.metadata?.hasPendingWrites ?? false);
         const items = snapshot.docs.map((doc) => {
           const data = doc.data();
-          if (collectionPath === 'nodes' || collectionPath.includes('/nodes')) {
+          if (collectionPath === "nodes" || collectionPath.includes("/nodes")) {
             if (data.content && !data.description) {
               data.description = data.content;
             }
@@ -54,7 +60,7 @@ export function useFirestoreCollection<T = DocumentData>(
         logger.error(`Error fetching collection ${collectionPath}:`, err);
         setError(err as Error);
         setLoading(false);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -62,28 +68,30 @@ export function useFirestoreCollection<T = DocumentData>(
 
   const data = useMemo(() => {
     let combined = [...fetchedData];
-    
-    pendingActions.forEach(action => {
-      if (action.type === 'update' && action.data.id) {
-        const index = combined.findIndex((item: any) => item.id === action.data.id);
+
+    pendingActions.forEach((action) => {
+      if (action.type === "update" && action.data.id) {
+        const index = combined.findIndex(
+          (item: any) => item.id === action.data.id,
+        );
         if (index !== -1) {
           combined[index] = { ...combined[index], ...action.data };
         }
-      } else if (action.type === 'delete' && action.data.id) {
+      } else if (action.type === "delete" && action.data.id) {
         combined = combined.filter((item: any) => item.id !== action.data.id);
       }
     });
-    
+
     const pendingCreates = pendingActions
-      .filter(a => a.type === 'create' || a.type === 'upload')
-      .map(a => ({
-        ...(a.type === 'upload' ? a.data.documentData : a.data),
+      .filter((a) => a.type === "create" || a.type === "upload")
+      .map((a) => ({
+        ...(a.type === "upload" ? a.data.documentData : a.data),
         id: `pending-${a.id}`,
-        isPendingSync: true
+        isPendingSync: true,
       })) as T[];
-      
+
     return [...pendingCreates, ...combined];
   }, [fetchedData, pendingActions]);
 
-  return { data, loading, error };
+  return { data, loading, error, fromCache, hasPendingWrites };
 }
