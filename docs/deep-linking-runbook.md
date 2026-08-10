@@ -1,7 +1,7 @@
 # Deep linking runbook — Universal Links (iOS) + App Links (Android)
 
 **Sprint:** 21 (Bucket G)
-**Goal:** When a user receives a link such as `https://praeventio.app/projects/abc123/sos` via WhatsApp, email, SMS, etc., tapping it should open directly inside the installed Capacitor app. If the app is not installed, the link must fall through to the PWA in the user's default browser.
+**Goal:** When a user receives a link such as `https://app.praeventio.net/projects/abc123/sos` via WhatsApp, email, SMS, etc., tapping it should open directly inside the installed Capacitor app. If the app is not installed, the link must fall through to the PWA in the user's default browser.
 
 **Companion docs:**
 - [`mobile-build-runbook.md`](./mobile-build-runbook.md) — Android + iOS native build flow.
@@ -13,7 +13,7 @@
 
 ```
 WhatsApp / email / SMS
-  └─ user taps https://praeventio.app/sos?lat=...
+  └─ user taps https://app.praeventio.net/sos?lat=...
         │
         ├─ App installed + association verified
         │     └─ OS opens Capacitor app
@@ -41,11 +41,11 @@ The web fallback is automatic: the same URL renders the same React route in the 
    - Open `ios/App/App.xcworkspace`.
    - Select the `App` target → "Signing & Capabilities" tab.
    - Click `+ Capability` → "Associated Domains".
-   - Add the entry: `applinks:praeventio.app`
+   - Add the entry: `applinks:app.praeventio.net`
    - Xcode writes this into `ios/App/App/App.entitlements`. Commit the change.
 3. **Verify AASA delivery** in production:
    ```bash
-   curl -I https://praeventio.app/.well-known/apple-app-site-association
+   curl -I https://app.praeventio.net/.well-known/apple-app-site-association
    # MUST return:
    #   HTTP/2 200
    #   content-type: application/json
@@ -64,7 +64,7 @@ Apple's `swcutil` only fetches AASA over HTTPS. Local dev (`http://10.0.2.2:5173
 ## 3. Google — Android App Links
 
 ### 3.1 Files in this repo
-- [`public/.well-known/assetlinks.json`](../public/.well-known/assetlinks.json) — Digital Asset Links statement. Lists the SHA-256 fingerprints of the keystores allowed to claim `https://praeventio.app`.
+- [`public/.well-known/assetlinks.json`](../public/.well-known/assetlinks.json) — Digital Asset Links statement. Lists the SHA-256 fingerprints of the keystores allowed to claim `https://app.praeventio.net`.
 - [`server.ts`](../server.ts) — explicit handler ensuring `Content-Type: application/json`.
 - [`capacitor.config.ts`](../capacitor.config.ts) — documents the `<intent-filter android:autoVerify="true">` block that must be added to `android/app/src/main/AndroidManifest.xml` after `npx cap add android`. Capacitor 8 has no config-object API for custom intent filters, so this is a one-time manual edit.
 
@@ -84,19 +84,19 @@ Apple's `swcutil` only fetches AASA over HTTPS. Local dev (`http://10.0.2.2:5173
      <action android:name="android.intent.action.VIEW" />
      <category android:name="android.intent.category.DEFAULT" />
      <category android:name="android.intent.category.BROWSABLE" />
-     <data android:scheme="https" android:host="praeventio.app" />
+     <data android:scheme="https" android:host="app.praeventio.net" />
    </intent-filter>
    ```
-   `android:autoVerify="true"` triggers the OS-level verification that fetches `https://praeventio.app/.well-known/assetlinks.json` on first install.
+   `android:autoVerify="true"` triggers the OS-level verification that fetches `https://app.praeventio.net/.well-known/assetlinks.json` on first install.
 5. **Verify with Google's validator**:
    ```
-   https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://praeventio.app&relation=delegate_permission/common.handle_all_urls
+   https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://app.praeventio.net&relation=delegate_permission/common.handle_all_urls
    ```
    Successful output is a JSON document with one or more statements echoing your `package_name` and fingerprint.
 6. **Verify the device-side state** after install:
    ```bash
    adb shell pm get-app-links com.praeventio.guard
-   # Look for: praeventio.app: verified
+   # Look for: app.praeventio.net: verified
    ```
    If you see `verified`: App Links are active. If you see `legacy_failure` or `none`: re-check fingerprint match and assetlinks.json delivery.
 
@@ -122,7 +122,7 @@ The Vite dev server also serves `public/` automatically, so dev round-trips work
 ## 5. End-to-end test (manual, post-store-build)
 
 1. Install the signed app on a real device.
-2. From a different device (or another app on the same device), send a message containing `https://praeventio.app/sos?lat=-33.4&lng=-70.6` via WhatsApp / Telegram / email.
+2. From a different device (or another app on the same device), send a message containing `https://app.praeventio.net/sos?lat=-33.4&lng=-70.6` via WhatsApp / Telegram / email.
 3. Tap the link.
 4. **Expected**: the OS opens the Praeventio app directly on the SOS screen with the latitude/longitude query params preserved.
 5. **Fallback**: uninstall the app and tap the same link again. The default browser opens the PWA at the same URL.

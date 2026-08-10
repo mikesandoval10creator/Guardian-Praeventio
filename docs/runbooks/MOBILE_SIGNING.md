@@ -267,8 +267,8 @@ After enrolling in the Apple Developer Program:
 5. Still in **Signing & Capabilities**, click **+ Capability** and add
    **Associated Domains**. Append:
    ```
-   applinks:praeventio.app
-   webcredentials:praeventio.app
+   applinks:app.praeventio.net
+   webcredentials:app.praeventio.net
    ```
    (Use the actual production host. `apple-app-site-association` MUST be
    served from the apex you list here, over HTTPS, with
@@ -292,7 +292,7 @@ machine with `adb` (Android) or a Mac with the device tethered (iOS):
 ```sh
 # Phone connected via USB with USB debugging on.
 adb shell am start -W -a android.intent.action.VIEW \
-  -d "https://praeventio.app/sos" \
+  -d "https://app.praeventio.net/sos" \
   com.praeventio.guard
 
 # Expected: status=ok, the app opens directly on /sos (no chooser dialog).
@@ -312,15 +312,15 @@ adb shell pm get-app-links com.praeventio.guard
 
 ### iOS
 
-On the test device, long-press a `https://praeventio.app/sos` link in Notes
+On the test device, long-press a `https://app.praeventio.net/sos` link in Notes
 or Messages → **Open in "Praeventio"** must be the default action. If iOS
 falls back to Safari, the AASA file is wrong or not reachable. Re-check:
 
 ```sh
 # Apple's CDN may cache the AASA for up to ~24h. If you just rotated team id,
 # reinstall the app to force a fresh fetch.
-curl -sI https://praeventio.app/.well-known/apple-app-site-association
-curl -s  https://praeventio.app/.well-known/apple-app-site-association | jq .
+curl -sI https://app.praeventio.net/.well-known/apple-app-site-association
+curl -s  https://app.praeventio.net/.well-known/apple-app-site-association | jq .
 ```
 
 ---

@@ -1151,8 +1151,7 @@ repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea
 **Infra/Build — gobernanza y config:**
 - 🟡 **CI lint/ratchets — PARCIAL** (#659): guards #13/#17 ahora wired en husky + job CI lint+ratchets.
   PENDIENTE: confirmar que TODOS los ratchets (#3/#19/any/i18n) tienen backstop CI no-bypaseable.
-- 🔴 **Mismatch de dominio** `praeventio.app` (manifest/AASA) vs `app.praeventio.net`
-  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**. *(PENDIENTE)* → PARCIAL ✅ #868: WEBAUTHN_RP_ID seteado en deploy.yml:115 + helper fail-loud src/server/auth/rpId.ts (throw en prod) cableado en las 4 rutas (curriculum/suseso/dte/ds67ds76). PENDIENTE solo la unificación de dominio canónico (manifest/AASA) y el typo de nombre de env.
+- ✅ **Mismatch de dominio RESUELTO** (Ticket 39aaa66d-81d9, PR #1453): `praeventio.app` (manifest/AASA) vs `app.praeventio.net` (server/WebAuthn) unificado a `app.praeventio.net` en AndroidManifest.xml, capacitor.config.ts, deep-linking-runbook.md, MOBILE_SIGNING.md, main.tsx y .env.example. AASA TEAMID sigue placeholder (requiere Team ID real de Apple — script fill-ios-aasa.mjs). Contrato: src/__tests__/contracts/deepLinkDomainAlignment.test.ts. PASS #868 previo: WEBAUTHN_RP_ID seteado en deploy.yml:115 + helper fail-loud src/server/auth/rpId.ts.
 - ✅ **iOS `CBUUID` RESUELTO** (#777) — UUID hex válido `00001234-12AE-3E45-…`, idéntico en iOS/Android (interop BLE).
 - 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open). *(PENDIENTE)*
 - ✅ **voseo es-AR → "tú" chileno RESUELTO** (#736) — grep de `Reintentá`/`Seleccioná`/`vos sos` en `es/common.json` = 0.

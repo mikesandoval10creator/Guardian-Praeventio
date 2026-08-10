@@ -33,7 +33,7 @@ initSentry();
 // Sprint 21 — Bucket G: Universal Links (iOS) / App Links (Android).
 //
 // On native platforms, register a Capacitor `appUrlOpen` listener that
-// fires when the OS hands an `https://praeventio.app/...` URL to the app
+// fires when the OS hands an `https://app.praeventio.net/...` URL to the app
 // (because the AASA / assetlinks.json association is verified). We
 // translate the absolute URL into an in-app slug and dispatch a
 // `praeventio:deep-link` CustomEvent — the `<DeepLinkHandler>` component
@@ -63,7 +63,7 @@ if (Capacitor.isNativePlatform()) {
 if (Capacitor.isNativePlatform()) {
   CapacitorApp.addListener('appUrlOpen', (event) => {
     try {
-      // event.url example: 'https://praeventio.app/sos?lat=-33.4&lng=-70.6'.
+      // event.url example: 'https://app.praeventio.net/sos?lat=-33.4&lng=-70.6'.
       // Use URL parsing so we get pathname+search+hash even if the host
       // changes (staging domain, custom dev tunnel, etc.).
       const parsed = new URL(event.url);
