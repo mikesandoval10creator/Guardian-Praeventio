@@ -4,14 +4,14 @@
 // forced server-side from the authenticated caller, so they are not part
 // of the client input.
 
-import { apiAuthHeaders } from '../lib/apiAuth';
+import { apiAuthHeaders } from "../lib/apiAuth";
 import type {
   ShiftRecord,
   ShiftHandoverNote,
   ShiftLogEntry,
   ShiftSummary,
   ShiftKind,
-} from '../services/shiftHandover/shiftHandoverService';
+} from "../services/shiftHandover/shiftHandoverService";
 
 async function authedFetch(
   path: string,
@@ -20,7 +20,7 @@ async function authedFetch(
   return fetch(path, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(init.headers ?? {}),
       ...(await apiAuthHeaders()),
     },
@@ -47,7 +47,7 @@ export async function startShiftApi(
 ): Promise<ShiftPayload> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/start`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<ShiftPayload>(res);
 }
@@ -58,12 +58,12 @@ export async function logShiftEntryApi(
   projectId: string,
   input: {
     shift: ShiftRecord;
-    entry: Omit<ShiftLogEntry, 'authorUid' | 'at'> & { at?: string };
+    entry: Omit<ShiftLogEntry, "authorUid" | "at"> & { at?: string };
   },
 ): Promise<ShiftPayload> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/log-entry`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<ShiftPayload>(res);
 }
@@ -76,7 +76,7 @@ export async function addShiftNoteApi(
 ): Promise<ShiftPayload> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/add-note`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<ShiftPayload>(res);
 }
@@ -89,7 +89,7 @@ export async function endShiftApi(
 ): Promise<ShiftPayload> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/end`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<ShiftPayload>(res);
 }
@@ -102,7 +102,7 @@ export async function acknowledgeShiftApi(
 ): Promise<ShiftPayload> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/acknowledge`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<ShiftPayload>(res);
 }
@@ -115,7 +115,7 @@ export async function summarizeShiftApi(
 ): Promise<{ summary: ShiftSummary }> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/shift-handover/summarize`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<{ summary: ShiftSummary }>(res);
 }
@@ -141,7 +141,7 @@ export interface ShiftHandoverQuality {
   totalNotes: number;
   urgentNotes: number;
   qualityScore: number;
-  level: 'excellent' | 'good' | 'fair' | 'poor';
+  level: "excellent" | "good" | "fair" | "poor";
 }
 
 /**
@@ -163,16 +163,20 @@ export interface ShiftHandoverHistoryResponse {
 }
 
 /**
- * Stub — needs new `GET /api/sprint-k/{projectId}/shift-handover/history`
- * endpoint. Returns `{ shifts: [] }` so the orphan
- * `ShiftHandoverHistoryList.tsx` renders its empty-state branch. Tracked
- * TODO §13.
+ * Real fetch contra `GET /api/sprint-k/{projectId}/shift-handover/history`
+ * (Ticket 39aaa66d-73fe-81ba-a153 — anti-stub). El endpoint lee shifts de
+ * Firestore, computa quality server-side y pagina por `days`.
  */
 export async function fetchShiftHandoverHistory(
-  _projectId: string,
-  _opts?: { days?: number },
+  projectId: string,
+  opts?: { days?: number },
 ): Promise<ShiftHandoverHistoryResponse> {
-  return { shifts: [] };
+  const days = opts?.days && opts.days > 0 ? opts.days : 30;
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/shift-handover/history?days=${days}`,
+    { method: "GET" },
+  );
+  return json<ShiftHandoverHistoryResponse>(res);
 }
 
 /**
@@ -192,7 +196,7 @@ export async function createShiftHandover(
     supervisorUid: string;
     // `at` is server-stamped in the real endpoint, so the panel passes
     // entries without it — we accept the relaxed shape here for parity.
-    logEntries: Array<Omit<ShiftLogEntry, 'at'> & { at?: string }>;
+    logEntries: Array<Omit<ShiftLogEntry, "at"> & { at?: string }>;
     handoverNotes: ShiftHandoverNote[];
   },
   _idempotencyKey: string,
@@ -227,16 +231,22 @@ export async function acknowledgeShiftHandover(
 }
 
 /**
- * Stub — needs new `POST /api/sprint-k/{projectId}/shift-handover/{shiftId}/
- * discrepancy` endpoint. `ShiftHandoverPanel.tsx` calls this as
- * `addShiftHandoverDiscrepancy(projectId, shiftId, { text }, idempotencyKey)`.
- * Tracked TODO §13.
+ * Real fetch contra `POST /api/sprint-k/{projectId}/shift-handover/{shiftId}/
+ * discrepancy` (Ticket 39aaa66d-73fe-81ba-a153 — anti-stub). Persiste la
+ * discrepancia bajo doc determinista por idempotencyKey (no duplica).
  */
 export async function addShiftHandoverDiscrepancy(
-  _projectId: string,
+  projectId: string,
   shiftId: string,
-  _input: { text: string },
-  _idempotencyKey: string,
+  input: { text: string },
+  idempotencyKey: string,
 ): Promise<ShiftPayload> {
-  return { shift: { id: shiftId } as ShiftRecord };
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/shift-handover/${shiftId}/discrepancy`,
+    {
+      method: "POST",
+      body: JSON.stringify({ text: input.text, idempotencyKey }),
+    },
+  );
+  return json<ShiftPayload>(res);
 }
