@@ -486,7 +486,10 @@ describe('GET /:projectId/leadership/ranking', () => {
       outcome: { positive: true, description: 'Accidente evitado', recordedAt: '2026-05-13T08:00:00.000Z' },
     });
     const res = await request(buildApp())
-      .get(url)
+      // period=all to bypass the default 90-day cutoff. The fixture date
+      // (2026-05-12) drifts out of the rolling window over time — without
+      // this the ranking comes back empty once the fixture ages past 90d.
+      .get(`${url}?period=all`)
       .set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
     const { ranking } = res.body as { ranking: Record<string, unknown>[] };
