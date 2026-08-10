@@ -53,6 +53,7 @@ import {
   type ShiftLogEntry,
 } from "../../services/shiftHandover/shiftHandoverService.js";
 import { computeHandoverQuality } from "../../services/shiftHandover/shiftHandoverInsights.js";
+import { auditServerEvent } from "../middleware/auditLog.js";
 
 const router = Router();
 
@@ -414,6 +415,19 @@ router.post(
           authorUid: callerUid,
           createdAt: Date.now(),
         });
+
+      // CLAUDE.md #3: audit awaited DESPUÉS de la mutación.
+      await auditServerEvent(
+        req,
+        "shiftHandover.discrepancy",
+        "shift-handover",
+        {
+          projectId,
+          shiftId,
+          idempotencyKey: body.idempotencyKey,
+          authorUid: callerUid,
+        },
+      );
 
       const shift = shiftSnap.data() as ShiftRecord;
       return res.json({ shift });
