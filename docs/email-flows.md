@@ -31,7 +31,7 @@ inbox copy to the originating Firestore write.
 - `RESEND_FROM_ADDRESS` — Optional override of the From header.
   Defaults to `Praeventio <noreply@praeventio.app>`.
 - `APP_URL` — Public app URL used in template CTAs and deep-links.
-  Defaults to `https://app.praeventio.app`.
+  Defaults to `https://app.praeventio.net`.
 
 ### DNS records (verified domain)
 

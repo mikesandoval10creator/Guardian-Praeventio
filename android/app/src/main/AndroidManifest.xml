@@ -25,13 +25,14 @@
 
             <!-- App Links (Sprint 21 — ADR-0013 deep linking).
                  Requires /.well-known/assetlinks.json served by server.ts.
-                 See docs/deep-linking-runbook.md for keystore fingerprint setup. -->
+                 Domain must match deploy.yml APP_URL (app.praeventio.net) —
+                 see docs/deep-linking-runbook.md for keystore fingerprint setup. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
-                      android:host="praeventio.app" />
+                      android:host="app.praeventio.net" />
             </intent-filter>
 
         </activity>

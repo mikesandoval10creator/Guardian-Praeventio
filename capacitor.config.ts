@@ -29,7 +29,7 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     webContentsDebuggingEnabled: !isProd,
     // Sprint 21 — Bucket G: Android App Links (auto-verify via
-    // /.well-known/assetlinks.json on https://praeventio.app).
+    // /.well-known/assetlinks.json on https://app.praeventio.net).
     //
     // NOTE: `intentFilters` is NOT part of the Capacitor 8
     // `CapacitorConfig.android` type — Capacitor does not currently
@@ -44,7 +44,7 @@ const config: CapacitorConfig = {
     //     <category android:name="android.intent.category.DEFAULT" />
     //     <category android:name="android.intent.category.BROWSABLE" />
     //     <data android:scheme="https"
-    //           android:host="praeventio.app" />
+    //           android:host="app.praeventio.net" />
     //   </intent-filter>
     //
     // See `docs/deep-linking-runbook.md` for the full activation flow
@@ -59,8 +59,8 @@ const config: CapacitorConfig = {
     //
     // iOS has no equivalent config field; Universal Links require:
     //   1. The `Associated Domains` capability on the Xcode App target,
-    //      with the entitlement value `applinks:praeventio.app`.
-    //   2. The AASA file at https://praeventio.app/.well-known/
+    //      with the entitlement value `applinks:app.praeventio.net`.
+    //   2. The AASA file at https://app.praeventio.net/.well-known/
     //      apple-app-site-association (served by `server.ts`,
     //      content-type `application/json`, no redirects).
     // Both steps are documented in `docs/deep-linking-runbook.md`.
