@@ -5,10 +5,11 @@ name: DR runbook automated dry-run
 #    base de datos de Firebase se replica en menos de 5 minutos ante un
 #    fallo regional."
 #
-# This workflow is the CI-side counterpart to that brecha. It boots the
-# Firestore emulator, seeds a representative dataset, simulates regional
-# failure, restores from "snapshot" (deterministic re-seed), and asserts
-# RTO < 5 min plus zero data loss on critical collections.
+# This workflow is the CI-side counterpart to that brecha.
+#   1. boot the Firestore emulator and seed a representative dataset;
+#   2. simulate regional failure with an emulator-only deterministic re-seed;
+#   3. assert drift-check RTO plus critical collection counts.
+# This emulator mode is NOT evidence that a managed Firestore export can be imported.
 #
 # Scope guardrails:
 #   - workflow_dispatch only on PRs (NEVER auto-run on PR — it's slow
@@ -17,20 +18,38 @@ name: DR runbook automated dry-run
 #     between manual quarterly drills (DR_RUNBOOK §6).
 #   - Touches the LOCAL EMULATOR ONLY. No cloud creds. No prod risk.
 #
-# For real validation against praeventio-staging GCP, run the manual
-# quarterly drill documented in DR_RUNBOOK §6.
+# This workflow has two distinct modes:
+#   1) scheduled/manual emulator drift check (cheap, no cloud credentials);
+#   2) opt-in manual REAL restore below, which imports a managed export into
+#      an isolated staging project and uploads dated integrity evidence.
+# The emulator mode must never be described as proof that gcloud import works.
 
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Why are you running this manually? (audit trail)'
+        description: "Why are you running this manually? (audit trail)"
         required: false
         type: string
-        default: 'Ad-hoc DR drift check'
+        default: "Ad-hoc DR drift check"
+      real_restore:
+        description: "Run a real Firestore import into isolated staging (requires GCP OIDC secrets)"
+        required: false
+        type: boolean
+        default: false
+      staging_project:
+        description: "Isolated staging GCP project (must contain staging or start demo-)"
+        required: false
+        type: string
+        default: ""
+      restore_path:
+        description: "Real Firestore export URI, e.g. gs://bucket/firestore/YYYY-MM-DD"
+        required: false
+        type: string
+        default: ""
   schedule:
     # First of every month, 04:00 UTC == 00:00 America/Santiago (CLT).
-    - cron: '0 4 1 * *'
+    - cron: "0 4 1 * *"
 
 permissions:
   contents: read
@@ -44,21 +63,21 @@ jobs:
       FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
       GOOGLE_CLOUD_PROJECT: demo-dr
       # CI must have JDK for the firebase-tools emulator JAR.
-      JAVA_TOOL_OPTIONS: '-Xmx2g'
+      JAVA_TOOL_OPTIONS: "-Xmx2g"
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Set up Java (Firestore emulator)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -107,3 +126,45 @@ jobs:
           name: dr-dryrun-report-${{ github.run_id }}
           path: reports/dr/
           retention-days: 90
+
+  # This is deliberately separate from the emulator drift check above. It is
+  # opt-in/manual because it consumes a real GCS export and writes to staging.
+  dr-real-restore:
+    name: Real Firestore export import to isolated staging
+    if: github.event_name == 'workflow_dispatch' && inputs.real_restore == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ inputs.staging_project }}
+      GCS_RESTORE_PATH: ${{ inputs.restore_path }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DR_SERVICE_ACCOUNT }}
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Import real export and validate staging integrity
+        run: node scripts/verify-firestore-restore.cjs | tee dr-real-restore-report.json
+
+      - name: Upload dated restore evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dr-real-restore-report-${{ github.run_id }}
+          path: dr-real-restore-report.json
+          retention-days: 365
