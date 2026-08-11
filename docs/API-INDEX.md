@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**206 routers montados · 737 rutas detectadas.**
+**206 routers montados · 738 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -109,6 +109,7 @@ clave ver `docs/api-routes.md`.
 - `GET /api/admin/b2d/metrics`
 - `GET /api/admin/b2d/mrr-history`
 - `GET /api/admin/b2d/events`
+- `GET /api/admin/b2d/churn-snapshots`
 
 ### `src/server/routes/adminJobs.ts` → `/api/admin/jobs`
 - `POST /api/admin/jobs/aggregate-ai-feedback`
