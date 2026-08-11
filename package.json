@@ -91,7 +91,9 @@
     "test:e2e:emulator": "firebase emulators:start --only firestore --project demo-test",
     "loadtest:sos": "bash loadtest/run.sh",
     "canary:monitor": "node scripts/canary-monitor.cjs",
-    "retro:weekly": "node scripts/retro-weekly.cjs"
+    "retro:weekly": "node scripts/retro-weekly.cjs",
+    "test:readiness-matrix": "node --test scripts/generate-readiness-matrix.test.cjs",
+    "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
