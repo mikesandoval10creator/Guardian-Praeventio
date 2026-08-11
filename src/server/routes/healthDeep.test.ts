@@ -20,6 +20,7 @@ import {
   runDeepHealth,
   type ProbeMap,
 } from './health.js';
+import { buildCapabilityRegistry } from '../capabilities/registry.js';
 
 function buildAppWithProbes(probes: ProbeMap): express.Express {
   const app = express();
@@ -28,6 +29,7 @@ function buildAppWithProbes(probes: ProbeMap): express.Express {
     res.status(allHealthy ? 200 : 503).json({
       status: allHealthy ? 'healthy' : 'degraded',
       checks,
+      capabilities: buildCapabilityRegistry(checks),
       timestamp: new Date().toISOString(),
     });
   });
@@ -56,6 +58,11 @@ describe('GET /api/health/deep', () => {
     expect(res.body.checks.resend.ok).toBe(true);
     expect(res.body.checks.openMeteo.ok).toBe(true);
     expect(res.body.checks.photogrammetry.ok).toBe(true);
+    expect(res.body.capabilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'platform.firestore', status: 'healthy' }),
+      ]),
+    );
   });
 
   it('returns 503 + status: degraded when one probe times out (2s cap)', async () => {

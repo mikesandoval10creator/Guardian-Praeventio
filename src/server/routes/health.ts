@@ -23,6 +23,7 @@ import crypto from 'node:crypto';
 import net from 'node:net';
 import admin from 'firebase-admin';
 import { healthDeepLimiter } from '../middleware/limiters.js';
+import { buildCapabilityRegistry } from '../capabilities/registry.js';
 
 const router = Router();
 
@@ -71,7 +72,7 @@ router.get('/health', async (_req, res) => {
 // when their config env vars are absent so we don't 503 in dev.
 // ─────────────────────────────────────────────────────────────────────
 
-interface CheckResult {
+export interface CheckResult {
   ok: boolean;
   latencyMs: number;
   skipped?: boolean;
@@ -544,6 +545,7 @@ router.get('/health/deep', healthDeepLimiter, requireOpsToken, async (_req, res)
     timestamp: new Date().toISOString(),
     version: process.env.APP_VERSION ?? 'dev',
     checks,
+    capabilities: buildCapabilityRegistry(checks),
   });
 });
 
