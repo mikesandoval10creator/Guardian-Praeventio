@@ -119,6 +119,14 @@ beforeEach(() => {
     subscription: { planId: 'titanio', status: 'active', paymentMethod: 'webpay' },
   });
   HADMIN.db._seed('users/uid-free', { subscription: { planId: 'free' } });
+  // Ticket 39aaa66d-73fe-816c: /api/auth/google/url is now tier-gated (titanio).
+  // Seed titanio for the OAuth flow test users so they reach the handler.
+  HADMIN.db._seed('users/uid-D', {
+    subscription: { planId: 'titanio', status: 'active', paymentMethod: 'webpay' },
+  });
+  HADMIN.db._seed('users/uid-E', {
+    subscription: { planId: 'titanio', status: 'active', paymentMethod: 'webpay' },
+  });
   vi.resetModules();
 });
 
