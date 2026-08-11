@@ -127,7 +127,9 @@ oauthGoogleApiRouter.post('/oauth/unlink', verifyAuth, async (req, res) => {
 });
 
 // API Routes
-oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
+// Ticket 39aaa66d-73fe-816c: SSO is a Titanio feature (TIER_ROUTE_TABLE).
+// The gate must live server-side, not just in the client UX.
+oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, requireTier('titanio'), (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
 
