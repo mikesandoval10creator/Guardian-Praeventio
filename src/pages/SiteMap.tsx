@@ -1,17 +1,15 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { GoogleMap, useJsApiLoader, OverlayView, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, OverlayView } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import {
   Map as MapIcon,
-  AlertTriangle, 
-  Info, 
-  Layers, 
-  Maximize2, 
-  Minimize2, 
+  AlertTriangle,
+  Layers,
+  Maximize2,
+  Minimize2,
   Activity,
-  Zap,
   ShieldAlert,
   Thermometer,
   Wind,
@@ -21,9 +19,6 @@ import {
   X,
   Users,
   Cpu,
-  Navigation,
-  Eye,
-  EyeOff,
   Brain,
   Loader2
 } from 'lucide-react';
@@ -52,6 +47,17 @@ const defaultCenter = {
   lng: -70.6693
 };
 
+type SiteMapLayer = 'risks' | 'incidents' | 'assets' | 'personnel' | 'seismic';
+type SiteMapInsight = {
+  insightGlobal: string;
+  puntosCalientes: Array<{
+    sector: string;
+    nivelRiesgo: string;
+    recomendacion: string;
+  }>;
+};
+type SiteMapInterference = { nodeA: RiskNode; nodeB: RiskNode; reason: string };
+
 export function SiteMap() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
@@ -60,7 +66,7 @@ export function SiteMap() {
   
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+
   const [selectedHotspot, setSelectedHotspot] = useState<RiskNode | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPlacing, setIsPlacing] = useState(false);
@@ -73,9 +79,9 @@ export function SiteMap() {
     personnel: true,
     seismic: true
   });
-  const [aiInsight, setAiInsight] = useState<any>(null);
+  const [aiInsight, setAiInsight] = useState<SiteMapInsight | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [crossInterferences, setCrossInterferences] = useState<any[]>([]);
+  const [crossInterferences, setCrossInterferences] = useState<SiteMapInterference[]>([]);
   
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -105,8 +111,7 @@ export function SiteMap() {
 
   // Cross-Interference Radar (System 2)
   useEffect(() => {
-    type Interference = { nodeA: RiskNode; nodeB: RiskNode; reason: string };
-    const interferences: Interference[] = [];
+    const interferences: SiteMapInterference[] = [];
     for (let i = 0; i < hotspots.length; i++) {
       for (let j = i + 1; j < hotspots.length; j++) {
         const nodeA = hotspots[i];
@@ -175,13 +180,6 @@ export function SiteMap() {
     return () => clearTimeout(timer);
   }, [hotspots, workers, assets, selectedProject]);
 
-  const onLoad = useCallback(function callback(map: google.maps.Map) {
-    setMap(map);
-  }, []);
-
-  const onUnmount = useCallback(function callback(_map: google.maps.Map) {
-    setMap(null);
-  }, []);
 
   const handleMapClick = async (e: google.maps.MapMouseEvent) => {
     if (!isPlacing || !nodeToPlace || !e.latLng) return;
@@ -201,7 +199,7 @@ export function SiteMap() {
     setNodeToPlace(null);
   };
 
-  const toggleLayer = (layer: keyof typeof activeLayers) => {
+  const toggleLayer = (layer: SiteMapLayer) => {
     setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
   };
 
@@ -245,7 +243,7 @@ export function SiteMap() {
             ].map((layer) => (
               <button
                 key={layer.id}
-                onClick={() => toggleLayer(layer.id as any)}
+                onClick={() => toggleLayer(layer.id as SiteMapLayer)}
                 className={`flex-shrink-0 flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all ${
                   activeLayers[layer.id as keyof typeof activeLayers] 
                     ? 'bg-elevated text-indigo-600 dark:text-indigo-400 shadow-sm' 
@@ -305,8 +303,7 @@ export function SiteMap() {
                 mapContainerStyle={containerStyle}
                 center={defaultCenter}
                 zoom={15}
-                onLoad={onLoad}
-                onUnmount={onUnmount}
+
                 onClick={handleMapClick}
                 options={{
                   disableDefaultUI: true,
@@ -429,7 +426,7 @@ export function SiteMap() {
                 {activeLayers.personnel && workers.filter(w => w.coordinates?.lat).map((worker) => (
                   <OverlayView
                     key={worker.id}
-                    position={{ lat: worker.coordinates!.lat, lng: worker.coordinates!.lng }}
+                    position={{ lat: worker.coordinates?.lat ?? 0, lng: worker.coordinates?.lng ?? 0 }}
                     mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
                   >
                     <motion.div
@@ -491,7 +488,7 @@ export function SiteMap() {
                 {activeLayers.assets && assets.filter(a => a.coordinates?.lat).map((asset) => (
                   <OverlayView
                     key={asset.id}
-                    position={{ lat: asset.coordinates!.lat, lng: asset.coordinates!.lng }}
+                    position={{ lat: asset.coordinates?.lat ?? 0, lng: asset.coordinates?.lng ?? 0 }}
                     mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
                   >
                     <motion.div
@@ -687,7 +684,7 @@ export function SiteMap() {
                 {aiInsight.puntosCalientes?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[9px] sm:text-[10px] font-black text-indigo-900/50 dark:text-indigo-300/50 uppercase tracking-widest">Puntos Críticos</p>
-                    {aiInsight.puntosCalientes.slice(0, 2).map((pt: any, i: number) => (
+                    {aiInsight.puntosCalientes.slice(0, 2).map((pt, i) => (
                       <div key={i} className="p-2.5 sm:p-3 bg-white/50 dark:bg-zinc-900/50 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[9px] sm:text-[10px] font-black text-indigo-900 dark:text-indigo-300 uppercase truncate pr-2">{pt.sector}</span>
