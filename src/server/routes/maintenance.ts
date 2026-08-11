@@ -57,6 +57,7 @@ import { pruneFcmTokens } from '../../services/notifications/pruneFcmTokens.js';
 // solo aparece el punto del mes actual. Endpoint dedicado para Cloud
 // Scheduler corriendo día 1 de cada mes a 00:30 UTC.
 import { runB2dMrrSnapshot } from '../jobs/runB2dMrrSnapshot.js';
+import { runRetentionSweep } from '../jobs/runRetentionSweep.js';
 // Plan v2 Bloque A20 — wire critical safety cron: lone-worker escalation.
 // Vidas dependen: si un trabajador solo no hace check-in o pulsa "ayuda",
 // este job escala (supervisor → brigade → emergency_services).
@@ -402,6 +403,46 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
     return res
       .status(500)
       .json({ ok: false, error: 'internal_error', message: 'b2d-mrr-snapshot failed' });
+  }
+});
+
+// Ticket 39baa66d-73fe-81f8 — Privacy retention sweep.
+//
+//   POST /api/maintenance/run-retention-sweep
+//
+// Cloud Scheduler should run this daily after business hours. The job applies
+// the deterministic retention policy to real Firestore docs, respecting legal
+// holds, never deleting audit_log source docs, and persisting an audited run
+// report in `retention_sweep_runs/{runId}`.
+router.post('/run-retention-sweep', verifySchedulerToken, async (_req, res) => {
+  const start = Date.now();
+  try {
+    const db = admin.firestore();
+    const result = await runRetentionSweep({ db });
+    logger.info('[maintenance] retention-sweep done', {
+      runId: result.runId,
+      totalDocs: result.totalDocs,
+      archived: result.archived,
+      purged: result.purged,
+      auditLogLeftAlone: result.auditLogLeftAlone,
+      tookMs: Date.now() - start,
+    });
+    return res.status(200).json({
+      ok: true,
+      runId: result.runId,
+      totalDocs: result.totalDocs,
+      counts: result.counts,
+      archived: result.archived,
+      purged: result.purged,
+      auditLogLeftAlone: result.auditLogLeftAlone,
+      tookMs: Date.now() - start,
+    });
+  } catch (err) {
+    logger.error('[maintenance] retention-sweep failed', err);
+    captureRouteError(err, 'maintenance.retention-sweep');
+    return res
+      .status(500)
+      .json({ ok: false, error: 'internal_error', message: 'retention-sweep failed' });
   }
 });
 

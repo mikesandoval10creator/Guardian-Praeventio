@@ -30,6 +30,7 @@ const H = vi.hoisted(() => ({
   runCalendarPreWarnCron: vi.fn(),
   runResilienceHealthAlertCron: vi.fn(),
   runB2dMrrSnapshot: vi.fn(),
+  runRetentionSweep: vi.fn(),
   runLoneWorkerEscalationCron: vi.fn(),
   runManDownEscalationCron: vi.fn(),
   runExceptionAutoExpire: vi.fn(),
@@ -115,6 +116,10 @@ vi.mock('../../server/jobs/runResilienceHealthAlert.js', () => ({
 
 vi.mock('../../server/jobs/runB2dMrrSnapshot.js', () => ({
   runB2dMrrSnapshot: H.runB2dMrrSnapshot,
+}));
+
+vi.mock('../../server/jobs/runRetentionSweep.js', () => ({
+  runRetentionSweep: H.runRetentionSweep,
 }));
 
 vi.mock('../../server/jobs/runLoneWorkerEscalation.js', () => ({
@@ -218,6 +223,14 @@ beforeEach(() => {
     monthKey: '2026-04',
     created: false,
     snapshot: { mrr: 0, arr: 0, customersActive: 0 },
+  });
+  H.runRetentionSweep.mockResolvedValue({
+    runId: 'retention-2026-08-01',
+    totalDocs: 3,
+    archived: 1,
+    purged: 1,
+    auditLogLeftAlone: true,
+    counts: { keep_active: 1, archive_immutable: 1, purge: 1 },
   });
   H.runLoneWorkerEscalationCron.mockResolvedValue({
     sessionsScanned: 0,
@@ -613,6 +626,62 @@ describe('POST /api/maintenance/run-b2d-mrr-snapshot', () => {
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toBe('internal_error');
     expect(res.body.message).toBe('b2d-mrr-snapshot failed');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2b. POST /api/maintenance/run-retention-sweep
+//     Gate: verifySchedulerToken — applies real retention policy + audit report.
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/maintenance/run-retention-sweep', () => {
+  const URL = '/api/maintenance/run-retention-sweep';
+
+  it('401 — missing Authorization header', async () => {
+    const res = await request(buildApp()).post(URL).send();
+    expect(res.status).toBe(401);
+  });
+
+  it('200 — runs retention sweep and returns audited counts', async () => {
+    H.runRetentionSweep.mockResolvedValueOnce({
+      runId: 'retention-2026-08-01',
+      totalDocs: 5,
+      archived: 2,
+      purged: 1,
+      auditLogLeftAlone: true,
+      counts: { keep_active: 2, archive_immutable: 2, purge: 1 },
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      runId: 'retention-2026-08-01',
+      totalDocs: 5,
+      archived: 2,
+      purged: 1,
+      auditLogLeftAlone: true,
+    });
+    expect(typeof res.body.tookMs).toBe('number');
+    expect(H.runRetentionSweep).toHaveBeenCalledWith({ db: H.db });
+  });
+
+  it('500 — runRetentionSweep throws → 500 internal_error', async () => {
+    H.runRetentionSweep.mockRejectedValueOnce(new Error('retention failed'));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toBe('internal_error');
+    expect(res.body.message).toBe('retention-sweep failed');
   });
 });
 
