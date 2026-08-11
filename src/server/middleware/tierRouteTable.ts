@@ -105,12 +105,23 @@ export function assertNoLifeSafetyInTable(): void {
  * so a mis-indexed paid customer is never denied during validation. Flip
  * `TIER_GATE_ENFORCE=true` to hard-block (402) once logs confirm the table.
  *
+ * Ticket 39aaa66d-73fe-814c: in production the flag defaults to ENFORCE
+ * (fail-safe — a misconfigured deploy that forgets TIER_GATE_ENFORCE must
+ * not silently let free-tier customers through gated routes). In
+ * dev/test/CI the default stays report-only so local fixtures keep working.
+ * Explicit `TIER_GATE_ENFORCE=false` in production is an opt-out documented
+ * in the runbook.
+ *
  * Read at route-registration time (module load), so flipping the flag requires
  * a REDEPLOY/restart — not a live env mutation. On Cloud Run (immutable
  * revisions) this is automatic; document it for any other runtime.
  */
 export function tierGateEnforced(): boolean {
-  return process.env.TIER_GATE_ENFORCE === 'true';
+  const explicit = process.env.TIER_GATE_ENFORCE;
+  if (explicit === 'true') return true;
+  if (explicit === 'false') return false;
+  // No explicit value → fail-safe: enforce in production, report-only elsewhere.
+  return process.env.NODE_ENV === 'production';
 }
 
 // Fail-loud at module load: a table that gates a life route must never boot.

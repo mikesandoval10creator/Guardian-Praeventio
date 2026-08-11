@@ -51,21 +51,39 @@ describe('tierRouteTable — isLifeSafetyMount semantics', () => {
 });
 
 describe('tierRouteTable — rollout flag', () => {
-  const original = process.env.TIER_GATE_ENFORCE;
+  const originalEnforce = process.env.TIER_GATE_ENFORCE;
+  const originalNodeEnv = process.env.NODE_ENV;
   afterEach(() => {
-    if (original === undefined) delete process.env.TIER_GATE_ENFORCE;
-    else process.env.TIER_GATE_ENFORCE = original;
+    if (originalEnforce === undefined) delete process.env.TIER_GATE_ENFORCE;
+    else process.env.TIER_GATE_ENFORCE = originalEnforce;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
   });
 
-  it('defaults to report-only', () => {
+  it('defaults to report-only in dev/test (NODE_ENV != production)', () => {
     delete process.env.TIER_GATE_ENFORCE;
+    process.env.NODE_ENV = 'test';
     expect(tierGateEnforced()).toBe(false);
+  });
+
+  it('enforces by default in production (NODE_ENV=production) — fail-safe', () => {
+    // Ticket 39aaa66d-73fe-814c: default seguro en prod. Un cliente que olvidó
+    // setear TIER_GATE_ENFORCE no queda con report-only en producción.
+    delete process.env.TIER_GATE_ENFORCE;
+    process.env.NODE_ENV = 'production';
+    expect(tierGateEnforced()).toBe(true);
   });
 
   it('enforces only on the exact string "true"', () => {
     process.env.TIER_GATE_ENFORCE = 'true';
     expect(tierGateEnforced()).toBe(true);
     process.env.TIER_GATE_ENFORCE = '1';
+    expect(tierGateEnforced()).toBe(false);
+  });
+
+  it('explicit "false" in production stays report-only (opt-out documented)', () => {
+    process.env.TIER_GATE_ENFORCE = 'false';
+    process.env.NODE_ENV = 'production';
     expect(tierGateEnforced()).toBe(false);
   });
 });
