@@ -2340,9 +2340,14 @@ service cloud.firestore {
         }
 
         // Gaussian-splat 3D captures — digital-twin geometry (server adapter
-        // gaussianSplatFirestoreAdapter.ts).
+        // gaussianSplatFirestoreAdapter.ts). A client viewer exists, so tenant
+        // membership alone is insufficient: the caller must also be authorized
+        // for this project and its root tenant stamp must match the path.
         match /splat_captures/{captureId} {
-          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow read: if isSignedIn()
+            && isMemberOfTenant(tenantId)
+            && projectTenantId(projectId) == tenantId
+            && isProjectMemberTenantScoped(projectId);
           allow create, update, delete: if false;
         }
       }

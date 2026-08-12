@@ -30,7 +30,11 @@ import { createRulesTestEnv } from './_harness';
 const TENANT = 'tenant-sw-1';
 const OTHER_TENANT = 'tenant-sw-2';
 const PID = 'proj-sw-1';
+const OTHER_PID = 'proj-sw-2';
 const DOC_ID = 'doc-1';
+const PROJECT_MEMBER_UID = `${TENANT}-worker-uid`;
+const PROJECT_CREATOR_UID = `${TENANT}-creator-uid`;
+const OTHER_PROJECT_MEMBER_UID = 'same-tenant-other-project-worker-uid';
 
 // The genuine OLA 2 gaps confirmed by the rules-gap investigation: all
 // server-only-write, all under tenants/{tid}/projects/{pid}/.
@@ -62,24 +66,42 @@ function requireEnv(): RulesTestEnvironment {
 function tenantToken(tenantId: string, role = 'worker') {
   return { email: `${tenantId}-${role}@example.com`, email_verified: true, role, tenantId };
 }
-function authed(tenantId: string, role = 'worker') {
+function authed(tenantId: string, role = 'worker', uid = `${tenantId}-${role}-uid`) {
   return requireEnv()
-    .authenticatedContext(`${tenantId}-${role}-uid`, tenantToken(tenantId, role))
+    .authenticatedContext(uid, tenantToken(tenantId, role))
     .firestore();
 }
 
 type CtxDb = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore']>;
-function refFor(ctxDb: CtxDb, tenantId: string, coll: string) {
+function refFor(ctxDb: CtxDb, tenantId: string, coll: string, projectId = PID) {
   return doc(
     ctxDb as unknown as Parameters<typeof doc>[0],
-    'tenants', tenantId, 'projects', PID, coll, DOC_ID,
+    'tenants', tenantId, 'projects', projectId, coll, DOC_ID,
   );
 }
 
-async function seed(coll: string, tenantId = TENANT) {
+async function seed(coll: string, tenantId = TENANT, projectId = PID) {
   await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'projects', PID), {
+      tenantId: TENANT, members: [PROJECT_MEMBER_UID], createdBy: PROJECT_CREATOR_UID,
+    });
+    await setDoc(doc(ctx.firestore(), 'projects', OTHER_PID), {
+      tenantId: TENANT, members: [OTHER_PROJECT_MEMBER_UID], createdBy: OTHER_PROJECT_MEMBER_UID,
+    });
     await setDoc(
-      doc(ctx.firestore(), 'tenants', tenantId, 'projects', PID, coll, DOC_ID),
+      doc(ctx.firestore(), 'tenants', tenantId, 'projects', projectId, coll, DOC_ID),
+      { server: true, createdAt: '2026-06-14T00:00:00.000Z' },
+    );
+  });
+}
+
+async function seedMismatchedSplatPath() {
+  await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'projects', OTHER_PID), {
+      tenantId: OTHER_TENANT, members: [OTHER_PROJECT_MEMBER_UID], createdBy: OTHER_PROJECT_MEMBER_UID,
+    });
+    await setDoc(
+      doc(ctx.firestore(), 'tenants', TENANT, 'projects', OTHER_PID, 'splat_captures', DOC_ID),
       { server: true, createdAt: '2026-06-14T00:00:00.000Z' },
     );
   });
@@ -117,6 +139,35 @@ describe('server-only-write tenant stores — firestore.rules (OLA 2 blindaje)',
       });
     });
   }
+
+  describe('splat_captures — project scope (client-readable Digital Twin geometry)', () => {
+    it('direct project member CAN read its splat capture', async () => {
+      await seed('splat_captures');
+      await assertSucceeds(getDoc(refFor(authed(TENANT, 'worker', PROJECT_MEMBER_UID), TENANT, 'splat_captures')));
+    });
+
+    it('project creator CAN read without being in members[]', async () => {
+      await seed('splat_captures');
+      await assertSucceeds(getDoc(refFor(authed(TENANT, 'worker', PROJECT_CREATOR_UID), TENANT, 'splat_captures')));
+    });
+
+    it('same-tenant supervisor CAN read the project splat capture', async () => {
+      await seed('splat_captures');
+      await assertSucceeds(getDoc(refFor(authed(TENANT, 'supervisor'), TENANT, 'splat_captures')));
+    });
+
+    it('same-tenant member of ANOTHER project CANNOT read a splat capture', async () => {
+      await seed('splat_captures');
+      await assertFails(getDoc(refFor(authed(TENANT, 'worker', OTHER_PROJECT_MEMBER_UID), TENANT, 'splat_captures')));
+    });
+
+    it('path/root tenant mismatch DENIES even with path-tenant claim and direct project membership', async () => {
+      await seedMismatchedSplatPath();
+      // The caller passes isMemberOfTenant(TENANT) and direct project membership;
+      // only projectTenantId(OTHER_PID) != TENANT rejects this forged path.
+      await assertFails(getDoc(refFor(authed(TENANT, 'worker', OTHER_PROJECT_MEMBER_UID), TENANT, 'splat_captures', OTHER_PID)));
+    });
+  });
 
   // photo_evidence — PII → supervisor-tier read (NOT member-wide). A plain
   // worker must NOT read another project's incident photos.
