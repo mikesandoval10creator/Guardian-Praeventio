@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Service Worker `/models/*.onnx` runtime cache (Sprint 56 + PR #244).
@@ -28,6 +28,31 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('SW: /models/* runtime cache', () => {
+  async function waitForControlledPage(page: Page) {
+    await page.waitForFunction(
+      async () => {
+        if (!('serviceWorker' in navigator)) return false;
+        const reg = await navigator.serviceWorker.getRegistration();
+        return Boolean(reg?.active);
+      },
+      undefined,
+      { timeout: 15_000 },
+    );
+
+    // A newly registered worker is active but does not control the document
+    // that triggered registration until the next navigation. Reload once so
+    // fetch assertions exercise Workbox instead of Vite's SPA fallback.
+    if (!(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)))) {
+      await page.reload();
+    }
+
+    await page.waitForFunction(
+      () => Boolean(navigator.serviceWorker?.controller),
+      undefined,
+      { timeout: 15_000 },
+    );
+  }
+
   test.beforeEach(async () => {
     test.skip(
       process.env.E2E_SW_TESTS !== '1',
@@ -40,15 +65,7 @@ test.describe('SW: /models/* runtime cache', () => {
     await page.goto('/');
 
     // Esperar registración del SW (timeout generoso para cold-start).
-    await page.waitForFunction(
-      async () => {
-        if (!('serviceWorker' in navigator)) return false;
-        const reg = await navigator.serviceWorker.getRegistration();
-        return Boolean(reg?.active);
-      },
-      undefined,
-      { timeout: 15_000 },
-    );
+    await waitForControlledPage(page);
 
     // Insertamos un probe blob directamente en el cache slm-models —
     // simula un model que ya fue fetched + cacheado.
@@ -96,15 +113,7 @@ test.describe('SW: /models/* runtime cache', () => {
     context,
   }) => {
     await page.goto('/');
-    await page.waitForFunction(
-      async () => {
-        if (!('serviceWorker' in navigator)) return false;
-        const reg = await navigator.serviceWorker.getRegistration();
-        return Boolean(reg?.active);
-      },
-      undefined,
-      { timeout: 15_000 },
-    );
+    await waitForControlledPage(page);
 
     const probeUrl = '/models/_intercept_probe.onnx';
     const probeBody = 'cached-by-sw-not-fetched';
@@ -161,14 +170,7 @@ test.describe('SW: /models/* runtime cache', () => {
 
   test('non-/models URL NO entra al cache slm-models', async ({ page }) => {
     await page.goto('/');
-    await page.waitForFunction(
-      async () => {
-        const reg = await navigator.serviceWorker.getRegistration();
-        return Boolean(reg?.active);
-      },
-      undefined,
-      { timeout: 15_000 },
-    );
+    await waitForControlledPage(page);
 
     // Probar que un fetch a /api/health o cualquier path no-models NO
     // ensucia el cache slm-models.

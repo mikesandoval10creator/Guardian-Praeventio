@@ -34,7 +34,7 @@ jobs:
 
       - name: Install Playwright browsers
         # --with-deps installs system libs needed on Ubuntu runner
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Build production bundle
         run: npm run build
@@ -46,7 +46,12 @@ jobs:
           SLM_PREPACKAGE_SKIP: '1'
 
       - name: Run Playwright tests
-        run: npx playwright test --project=chromium --project=mobile-android
+        run: npx playwright test --project=chromium --project=mobile-android --project=webkit
+        env:
+          CI: 'true'
+
+      - name: Run Service Worker E2E tests
+        run: npx cross-env E2E_SW_TESTS=1 playwright test tests/e2e/sw-models-cache.spec.ts --project=chromium
         env:
           CI: 'true'
 
