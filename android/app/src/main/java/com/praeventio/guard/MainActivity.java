@@ -33,6 +33,7 @@ package com.praeventio.guard;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.WindowManager;
 
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -82,6 +83,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Protect worker PII in screenshots and the recent-apps preview before
+        // Capacitor creates the WebView and renders the first document.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         super.onCreate(savedInstanceState);
         CURRENT_INSTANCE = new WeakReference<>(this);
 
