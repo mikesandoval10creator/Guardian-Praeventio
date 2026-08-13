@@ -23,6 +23,7 @@ import { GeolocationTracker } from "./components/GeolocationTracker";
 import { LocationPermissionGate } from "./components/location/LocationPermissionGate";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { SosDeadLetterBanner } from "./components/emergency/SosDeadLetterBanner";
+import { NativeManDownBridge } from "./components/emergency/NativeManDownBridge";
 const GuardianVoiceAssistant = lazy(() => import('./components/ai/GuardianVoiceAssistant').then(m => ({ default: m.GuardianVoiceAssistant })));
 const OfflineSyncManager = lazy(() => import('./components/OfflineSyncManager').then(m => ({ default: m.OfflineSyncManager })));
 const SyncQueueIndicator = lazy(() => import('./components/syncStatus/SyncQueueIndicator').then(m => ({ default: m.SyncQueueIndicator })));
@@ -332,6 +333,7 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
       <LocationPermissionGate />
       <GeolocationTracker />
       <EmergencyOverlay />
+      <NativeManDownBridge />
       {/* Sprint 36 audit P1 §1.4 — lazy companions; null fallback because
           they render off-screen overlays/listeners. Reduces main entry. */}
       <Suspense fallback={null}>

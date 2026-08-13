@@ -3,12 +3,12 @@
 // Sprint 39 Fase G.11 — Wraps the HTTP surface at
 // `src/server/routes/loneWorker.ts`. Firebase ID-token auth, JSON-only.
 
-import { apiAuthHeaders } from '../lib/apiAuth';
+import { apiAuthHeaders } from "../lib/apiAuth";
 import type {
   LoneWorkerSession,
   LoneWorkerStatus,
   EscalationDecision,
-} from '../services/loneWorker/loneWorkerService';
+} from "../services/loneWorker/loneWorkerService";
 
 async function authedFetch(
   path: string,
@@ -17,7 +17,7 @@ async function authedFetch(
   return fetch(path, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(init.headers ?? {}),
       ...(await apiAuthHeaders()),
     },
@@ -56,15 +56,36 @@ export async function startLoneWorkerSessionApi(
   idempotencyKey?: string,
 ): Promise<StartSessionResponse> {
   const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/start-session`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    { method: "POST", body: JSON.stringify(input), headers },
   );
   return json<StartSessionResponse>(res);
 }
 
 // ── 1. check-in ────────────────────────────────────────────────────────
+
+// ── Native foreground ManDown capability ──────────────────────────────────
+// The WebView is authenticated only while minting the session-bound capability.
+// Android receives no Firebase token. Each native trigger carries a stable
+// clientEventId so the ingest endpoint deduplicates offline retries safely.
+export interface NativeManDownCapabilityResponse {
+  sessionId: string;
+  capability: string;
+  expiresAt: string;
+}
+
+export async function mintNativeManDownCapability(
+  projectId: string,
+  sessionId: string,
+): Promise<NativeManDownCapabilityResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/lone-worker/${sessionId}/native-mandown-capability`,
+    { method: "POST", body: "{}" },
+  );
+  return json<NativeManDownCapabilityResponse>(res);
+}
 
 export interface CheckInInput {
   session: LoneWorkerSession;
@@ -72,7 +93,7 @@ export interface CheckInInput {
     at?: string;
     lat?: number;
     lng?: number;
-    status?: 'ok' | 'help';
+    status?: "ok" | "help";
   };
 }
 export interface CheckInResponse {
@@ -85,10 +106,10 @@ export async function recordLoneWorkerCheckIn(
   idempotencyKey?: string,
 ): Promise<CheckInResponse> {
   const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/check-in`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    { method: "POST", body: JSON.stringify(input), headers },
   );
   return json<CheckInResponse>(res);
 }
@@ -109,10 +130,10 @@ export async function endLoneWorkerSession(
   idempotencyKey?: string,
 ): Promise<EndSessionResponse> {
   const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/end-session`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    { method: "POST", body: JSON.stringify(input), headers },
   );
   return json<EndSessionResponse>(res);
 }
@@ -133,7 +154,7 @@ export async function deriveLoneWorkerStatusRemote(
 ): Promise<DeriveStatusResponse> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/derive-status`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<DeriveStatusResponse>(res);
 }
@@ -154,7 +175,7 @@ export async function decideLoneWorkerEscalation(
 ): Promise<DecideEscalationResponse> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/decide-escalation`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<DecideEscalationResponse>(res);
 }
@@ -180,7 +201,7 @@ export async function fetchLoneWorkerAdminOverview(
 ): Promise<AdminOverviewResponse> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/lone-worker/admin-overview`,
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: "POST", body: JSON.stringify(input) },
   );
   return json<AdminOverviewResponse>(res);
 }

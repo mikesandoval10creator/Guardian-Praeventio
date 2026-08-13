@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 743 rutas detectadas.**
+**207 routers montados · 745 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -718,6 +718,8 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/loneWorker.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/lone-worker/start-session`
+- `POST /api/sprint-k/:projectId/lone-worker/:sessionId/native-mandown-capability`
+- `POST /api/sprint-k/:projectId/lone-worker/:sessionId/native-man-down`
 - `POST /api/sprint-k/:projectId/lone-worker/check-in`
 - `POST /api/sprint-k/:projectId/lone-worker/end-session`
 - `POST /api/sprint-k/:projectId/lone-worker/derive-status`

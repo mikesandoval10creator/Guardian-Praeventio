@@ -32,6 +32,9 @@ project(':capawesome-team-capacitor-android-foreground-service').projectDir = ne
 include ':kiwi-health-capacitor-health-connect'
 project(':kiwi-health-capacitor-health-connect').projectDir = new File('../node_modules/@kiwi-health/capacitor-health-connect/android')
 
+include ':praeventio-capacitor-mandown'
+project(':praeventio-capacitor-mandown').projectDir = new File('../packages/capacitor-mandown/android')
+
 include ':praeventio-capacitor-mesh'
 project(':praeventio-capacitor-mesh').projectDir = new File('../packages/capacitor-mesh/android')
 

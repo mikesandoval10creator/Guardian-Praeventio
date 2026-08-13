@@ -19,6 +19,7 @@ dependencies {
     implementation project(':capacitor-push-notifications')
     implementation project(':capawesome-team-capacitor-android-foreground-service')
     implementation project(':kiwi-health-capacitor-health-connect')
+    implementation project(':praeventio-capacitor-mandown')
     implementation project(':praeventio-capacitor-mesh')
     implementation project(':praeventio-capacitor-proximity')
 

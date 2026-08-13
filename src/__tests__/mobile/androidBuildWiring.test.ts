@@ -18,187 +18,207 @@
 // without the mesh package (e.g. someone removes the file: dependency),
 // this fails loudly instead of shipping an APK with a silent web fallback.
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-const root = resolve(__dirname, '../../..');
+const root = resolve(__dirname, "../../..");
 
 function read(rel: string): string {
-  return readFileSync(resolve(root, rel), 'utf8');
+  return readFileSync(resolve(root, rel), "utf8");
 }
 
-describe('android build wiring — life-safety plugins (B21)', () => {
-  const settings = read('android/capacitor.settings.gradle');
-  const buildGradle = read('android/app/capacitor.build.gradle');
+describe("android build wiring — life-safety plugins (B21)", () => {
+  const settings = read("android/capacitor.settings.gradle");
+  const buildGradle = read("android/app/capacitor.build.gradle");
 
   it.each([
     // [gradle project, why it is life-critical]
-    [':praeventio-capacitor-mesh', 'offline SOS over BLE mesh'],
-    [':capawesome-team-capacitor-android-foreground-service', 'lone-worker check-in FGS'],
-    [':praeventio-capacitor-proximity', 'man-down proximity sensing'],
-    [':capacitor-geolocation', 'SOS GPS'],
-    [':capacitor-push-notifications', 'critical incident push'],
-  ])('capacitor.settings.gradle includes %s (%s)', (project) => {
+    [":praeventio-capacitor-mesh", "offline SOS over BLE mesh"],
+    [
+      ":praeventio-capacitor-mandown",
+      "native Android ManDown foreground sensor",
+    ],
+    [
+      ":capawesome-team-capacitor-android-foreground-service",
+      "lone-worker check-in FGS",
+    ],
+    [":praeventio-capacitor-proximity", "man-down proximity sensing"],
+    [":capacitor-geolocation", "SOS GPS"],
+    [":capacitor-push-notifications", "critical incident push"],
+  ])("capacitor.settings.gradle includes %s (%s)", (project) => {
     expect(settings).toContain(`include '${project}'`);
     expect(buildGradle).toContain(`implementation project('${project}')`);
   });
 
-  it('mesh project points at the local workspace package', () => {
-    expect(settings).toContain("new File('../packages/capacitor-mesh/android')");
-  });
-
-  it('proximity project points at the auditable local workspace package', () => {
+  it("mesh project points at the local workspace package", () => {
     expect(settings).toContain(
-      "new File('../packages/capacitor-proximity/android')"
+      "new File('../packages/capacitor-mesh/android')",
     );
   });
 
-  it('package.json declares the mesh plugin as a file: dependency', () => {
-    const pkg = JSON.parse(read('package.json')) as {
-      dependencies: Record<string, string>;
-    };
-    expect(pkg.dependencies['@praeventio/capacitor-mesh']).toBe(
-      'file:packages/capacitor-mesh'
+  it("proximity project points at the auditable local workspace package", () => {
+    expect(settings).toContain(
+      "new File('../packages/capacitor-proximity/android')",
     );
   });
 
-  it('package.json declares the proximity plugin as a file: dependency', () => {
-    const pkg = JSON.parse(read('package.json')) as {
+  it("package.json declares the mesh plugin as a file: dependency", () => {
+    const pkg = JSON.parse(read("package.json")) as {
       dependencies: Record<string, string>;
     };
-    expect(pkg.dependencies['@praeventio/capacitor-proximity']).toBe(
-      'file:packages/capacitor-proximity'
+    expect(pkg.dependencies["@praeventio/capacitor-mesh"]).toBe(
+      "file:packages/capacitor-mesh",
     );
-    expect(pkg.dependencies['@capgo/capacitor-proximity']).toBeUndefined();
+  });
+
+  it("package.json declares the proximity plugin as a file: dependency", () => {
+    const pkg = JSON.parse(read("package.json")) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies["@praeventio/capacitor-proximity"]).toBe(
+      "file:packages/capacitor-proximity",
+    );
+    expect(pkg.dependencies["@capgo/capacitor-proximity"]).toBeUndefined();
   });
 });
 
-describe('AndroidManifest — permissions the plugins do not provide (B21)', () => {
-  const manifest = read('android/app/src/main/AndroidManifest.xml');
+describe("AndroidManifest — permissions the plugins do not provide (B21)", () => {
+  const manifest = read("android/app/src/main/AndroidManifest.xml");
 
   it.each([
-    ['android.permission.ACCESS_FINE_LOCATION', 'SOS / lone-worker GPS'],
-    ['android.permission.ACCESS_COARSE_LOCATION', 'geolocation fallback'],
-    ['android.permission.CAMERA', 'QR scanner + on-device biometrics'],
-    ['android.permission.ACCESS_BACKGROUND_LOCATION', 'tracking while backgrounded'],
-    ['android.permission.POST_NOTIFICATIONS', 'FGS + critical push (SDK 33+)'],
-    ['android.permission.FOREGROUND_SERVICE_LOCATION', 'lone-worker FGS type'],
+    ["android.permission.ACCESS_FINE_LOCATION", "SOS / lone-worker GPS"],
+    ["android.permission.ACCESS_COARSE_LOCATION", "geolocation fallback"],
+    ["android.permission.CAMERA", "QR scanner + on-device biometrics"],
+    [
+      "android.permission.ACCESS_BACKGROUND_LOCATION",
+      "tracking while backgrounded",
+    ],
+    ["android.permission.POST_NOTIFICATIONS", "FGS + critical push (SDK 33+)"],
+    ["android.permission.FOREGROUND_SERVICE_LOCATION", "lone-worker FGS type"],
     // Mic via WebView getUserMedia({audio:true}) — same class of bug as CAMERA
     // above. Capacitor's BridgeWebChromeClient.onPermissionRequest maps
     // AUDIO_CAPTURE to BOTH of these and calls request.deny() unless every
     // permission in the array is granted; Android denies any permission the
     // manifest does not declare. Missing either one ⇒ mic dead on device
     // (NoiseMonitor decibels, CrisisChat emergency voice, voice assistant).
-    ['android.permission.RECORD_AUDIO', 'NoiseMonitor / CrisisChat voice / voice assistant'],
-    ['android.permission.MODIFY_AUDIO_SETTINGS', 'requested alongside RECORD_AUDIO by the Capacitor bridge'],
-  ])('declares %s (%s)', (permission) => {
-    expect(manifest).toContain(`<uses-permission android:name="${permission}" />`);
+    [
+      "android.permission.RECORD_AUDIO",
+      "NoiseMonitor / CrisisChat voice / voice assistant",
+    ],
+    [
+      "android.permission.MODIFY_AUDIO_SETTINGS",
+      "requested alongside RECORD_AUDIO by the Capacitor bridge",
+    ],
+  ])("declares %s (%s)", (permission) => {
+    expect(manifest).toContain(
+      `<uses-permission android:name="${permission}" />`,
+    );
   });
 
-  it('keeps allowBackup=false (rule #17 — adb backup exfiltration)', () => {
+  it("keeps allowBackup=false (rule #17 — adb backup exfiltration)", () => {
     expect(manifest).toContain('android:allowBackup="false"');
   });
 
-  it('the declared FGS service class ships in the APK (plugin included in gradle)', () => {
+  it("the declared FGS service class ships in the APK (plugin included in gradle)", () => {
     // AndroidManifest declares the capawesome service class; if the plugin
     // is not compiled in, Android crashes on service start. The settings
     // check above plus this assertion tie the two files together.
     expect(manifest).toContain(
-      'io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService'
+      "io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService",
     );
-    expect(read('android/capacitor.settings.gradle')).toContain(
-      "new File('../node_modules/@capawesome-team/capacitor-android-foreground-service/android')"
+    expect(read("android/capacitor.settings.gradle")).toContain(
+      "new File('../node_modules/@capawesome-team/capacitor-android-foreground-service/android')",
     );
   });
 
-  it('BLE permissions come from the mesh plugin manifest (merger), which must declare them', () => {
+  it("BLE permissions come from the mesh plugin manifest (merger), which must declare them", () => {
     const meshManifest = read(
-      'packages/capacitor-mesh/android/src/main/AndroidManifest.xml'
+      "packages/capacitor-mesh/android/src/main/AndroidManifest.xml",
     );
     for (const p of [
-      'android.permission.BLUETOOTH_SCAN',
-      'android.permission.BLUETOOTH_ADVERTISE',
-      'android.permission.BLUETOOTH_CONNECT',
+      "android.permission.BLUETOOTH_SCAN",
+      "android.permission.BLUETOOTH_ADVERTISE",
+      "android.permission.BLUETOOTH_CONNECT",
     ]) {
       expect(meshManifest).toContain(p);
     }
   });
 });
 
-describe('Android Gradle release signing — Play Store AAB', () => {
-  const appBuildGradle = read('android/app/build.gradle');
-  const androidGitignore = read('android/.gitignore');
+describe("Android Gradle release signing — Play Store AAB", () => {
+  const appBuildGradle = read("android/app/build.gradle");
+  const androidGitignore = read("android/.gitignore");
 
-  it('wires buildTypes.release to signingConfigs.release', () => {
+  it("wires buildTypes.release to signingConfigs.release", () => {
     expect(appBuildGradle).toMatch(/signingConfigs\s*\{[\s\S]*release\s*\{/);
     expect(appBuildGradle).toMatch(
       /buildTypes\s*\{[\s\S]*release\s*\{[\s\S]*signingConfig\s+signingConfigs\.release/,
     );
   });
 
-  it('loads release signing credentials from keystore.properties or environment variables', () => {
+  it("loads release signing credentials from keystore.properties or environment variables", () => {
     expect(appBuildGradle).toContain('rootProject.file("keystore.properties")');
     for (const token of [
-      'KEYSTORE_PATH',
-      'ANDROID_KEYSTORE_PASSWORD',
-      'KEY_ALIAS',
-      'KEY_PASSWORD',
+      "KEYSTORE_PATH",
+      "ANDROID_KEYSTORE_PASSWORD",
+      "KEY_ALIAS",
+      "KEY_PASSWORD",
     ]) {
       expect(appBuildGradle).toContain(token);
     }
   });
 
-  it('does not allow local signing material to be committed accidentally', () => {
+  it("does not allow local signing material to be committed accidentally", () => {
     const activeIgnoreLines = androidGitignore
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'));
+      .filter((line) => line && !line.startsWith("#"));
 
-    expect(activeIgnoreLines).toContain('*.jks');
-    expect(activeIgnoreLines).toContain('*.keystore');
-    expect(activeIgnoreLines).toContain('keystore.properties');
+    expect(activeIgnoreLines).toContain("*.jks");
+    expect(activeIgnoreLines).toContain("*.keystore");
+    expect(activeIgnoreLines).toContain("keystore.properties");
   });
 });
 
-describe('Android native SDK floor — Health Connect Play Store compatibility', () => {
-  const variablesGradle = read('android/variables.gradle');
+describe("Android native SDK floor — Health Connect Play Store compatibility", () => {
+  const variablesGradle = read("android/variables.gradle");
 
-  it('keeps minSdkVersion at 26 because Health Connect connect-client requires API 26', () => {
-    expect(variablesGradle).toContain('minSdkVersion = 26');
+  it("keeps minSdkVersion at 26 because Health Connect connect-client requires API 26", () => {
+    expect(variablesGradle).toContain("minSdkVersion = 26");
   });
 });
 
 // MASVS-NETWORK-1 — no cleartext, dev-only trust overrides. The app carries
 // clinical + location PII, so a release build must never fall back to http and
 // must never trust a user-injected CA.
-describe('AndroidManifest — network security config (MASVS-NETWORK-1)', () => {
-  const manifest = read('android/app/src/main/AndroidManifest.xml');
-  const nsc = read('android/app/src/main/res/xml/network_security_config.xml');
+describe("AndroidManifest — network security config (MASVS-NETWORK-1)", () => {
+  const manifest = read("android/app/src/main/AndroidManifest.xml");
+  const nsc = read("android/app/src/main/res/xml/network_security_config.xml");
 
-  it('the manifest points <application> at the network security config', () => {
+  it("the manifest points <application> at the network security config", () => {
     expect(manifest).toContain(
       'android:networkSecurityConfig="@xml/network_security_config"',
     );
   });
 
-  it('the manifest never force-enables cleartext globally', () => {
+  it("the manifest never force-enables cleartext globally", () => {
     expect(manifest).not.toContain('android:usesCleartextTraffic="true"');
   });
 
-  it('cleartext is disabled by default (base-config)', () => {
+  it("cleartext is disabled by default (base-config)", () => {
     expect(nsc).toContain('cleartextTrafficPermitted="false"');
   });
 
-  it('keeps the dev live-reload loopback working (10.0.2.2 cleartext exception)', () => {
+  it("keeps the dev live-reload loopback working (10.0.2.2 cleartext exception)", () => {
     // capacitor.config dev server is http://10.0.2.2:5173 (removed for store
     // builds); 10.0.2.2 is non-routable in prod so this cannot weaken release.
-    expect(nsc).toContain('10.0.2.2');
+    expect(nsc).toContain("10.0.2.2");
   });
 
-  it('confines user-CA trust to <debug-overrides> — release never trusts a user CA', () => {
-    const beforeDebug = nsc.split('<debug-overrides>')[0];
+  it("confines user-CA trust to <debug-overrides> — release never trusts a user CA", () => {
+    const beforeDebug = nsc.split("<debug-overrides>")[0];
     expect(beforeDebug).not.toContain('src="user"');
-    expect(nsc).toContain('<debug-overrides>');
+    expect(nsc).toContain("<debug-overrides>");
   });
 });
