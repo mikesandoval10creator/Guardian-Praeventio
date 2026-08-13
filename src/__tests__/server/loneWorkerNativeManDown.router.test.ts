@@ -211,27 +211,20 @@ describe("native ManDown foreground capability", () => {
     expect(acceptedWhileOverdue.status).toBe(202);
   });
 
-  it("invalidates native authority atomically when end-session succeeds", async () => {
+  it("fails closed after the session doc is marked ended, even if the capability still hashes", async () => {
     const cap = await request(app())
       .post(`${base}/native-mandown-capability`)
       .set("x-test-uid", UID)
       .send({});
-    const persisted = H.db!._dump()[
-      `projects/${PROJECT}/lone_worker_sessions/${SESSION}`
-    ];
-
-    const ended = await request(app())
-      .post(`/api/${PROJECT}/lone-worker/end-session`)
-      .set("x-test-uid", UID)
-      .send({ session: persisted, endedAt: "2026-08-13T15:01:00.000Z" });
-    expect(ended.status).toBe(200);
-
-    const stored = H.db!._dump()[
-      `projects/${PROJECT}/lone_worker_sessions/${SESSION}`
-    ];
-    expect(stored).toMatchObject({ status: "ended" });
-    expect(stored.nativeManDownCapabilityHash).toBeUndefined();
-
+    H.db!._seed(`projects/${PROJECT}/lone_worker_sessions/${SESSION}`, {
+      id: SESSION,
+      workerUid: UID,
+      status: "ended",
+      startedAt: "2026-08-13T15:00:00.000Z",
+      endedAt: "2026-08-13T15:01:00.000Z",
+      checkInIntervalMin: 15,
+      checkIns: [],
+    });
     const res = await request(app())
       .post(`${base}/native-man-down`)
       .set("x-mandown-capability", cap.body.capability)
@@ -242,5 +235,31 @@ describe("native ManDown foreground capability", () => {
         accelerationMps2: 28,
       });
     expect(res.status).toBe(409);
+  });
+
+  it("end-session is pure-compute: returns 200 even when no Firestore session exists", async () => {
+    H.db = createFakeFirestore();
+    H.db!._seed(`projects/${PROJECT}`, { members: [UID], createdBy: UID });
+    const res = await request(app())
+      .post(`/api/${PROJECT}/lone-worker/end-session`)
+      .set("x-test-uid", UID)
+      .send({
+        session: {
+          id: SESSION,
+          workerUid: UID,
+          status: "active",
+          startedAt: "2026-08-13T15:00:00.000Z",
+          checkInIntervalMin: 15,
+          checkIns: [],
+        },
+        endedAt: "2026-08-13T15:01:00.000Z",
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.session).toMatchObject({
+      id: SESSION,
+      status: "ended",
+      endedAt: "2026-08-13T15:01:00.000Z",
+    });
+    expect(res.body.session.nativeManDownCapabilityHash).toBeUndefined();
   });
 });

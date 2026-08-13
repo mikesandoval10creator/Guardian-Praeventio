@@ -1,6 +1,7 @@
 {
   "_doc": "Handler-level ratchet baseline for scripts/check-convention-guard.cjs. Keys are exact '<route module> <HTTP method> <path>' endpoint ids. rule3_pending may only SHRINK: add an awaited handler-owned audit after the write, then remove the key. rule3_exempt is only for physically verified non-persistent calls or derived/infra writes; exemptions must also remain live and exact.",
   "_migration": "2026-08-08: replaced the file-level baseline (which could be masked by one sibling audit) with an AST-derived endpoint baseline. This one-time expansion exposes previously invisible handler debt; future changes may only shrink or explicitly classify a newly introduced endpoint.",
+  "rule19_pending": {},
   "rule3_exempt": {
     "apprenticeship GET /:projectId/mentors/availability": "false positive: byMentor.set mutates an in-memory Map used to aggregate availability; no persistent write",
     "b2dAdmin POST /keys": "the key creation is already followed by an awaited audit_logs write; the later b2d_events.add is an operational event-stream append, not a second unaudited business mutation",
@@ -20,6 +21,7 @@
     "incidentTrends GET /:projectId/incidents/list": "false positive: byId.set deduplicates an in-memory incident list",
     "incidentTrends GET /:projectId/incidents/trends": "false positive: byId/bucketMap mutations build in-memory trend buckets",
     "legalReconcile POST /:projectId/reconcile-obligations": "correlated predicate: batch writes and the awaited audit are both guarded by the same toCreate.length > 0 condition in consecutive blocks",
+    "loneWorker POST /:projectId/lone-worker/end-session": "best-effort native authority revoke: the awaited auditServerEvent for endSession already ran above; the sessionRef.update inside try/catch deletes capability fields only when the persisted worker matches the caller-supplied session, and any failure is logged+swallowed so the human-facing response never 500s on a closeout",
     "misc POST /erp/sync": "infra telemetry: erp_sync_logs records the integration attempt/result itself and is not a new domain record",
     "offlineInspections POST /:projectId/inspections/:inspectionId/observations": "correlated transaction outcome: tx.set only occurs for outcome.kind created, and that exact outcome receives an awaited auditServerEvent",
     "preShiftRisk GET /:projectId/pre-shift-risk": "false positive: merged.set writes an in-memory deduplication Map",
@@ -47,6 +49,5 @@
     "organic POST /processes/:id/close": "process closure and crew XP transaction writes lack a handler-owned awaited audit",
     "organic POST /processes/:id/tasks": "task creation lacks a handler-owned awaited audit",
     "organic POST /tasks/:id/done": "task completion update lacks a handler-owned awaited audit"
-  },
-  "rule19_pending": {}
+  }
 }

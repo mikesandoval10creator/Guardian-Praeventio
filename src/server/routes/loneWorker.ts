@@ -655,34 +655,13 @@ router.post(
     const body = req.validated as z.infer<typeof endSessionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      // Session closure is the server-side authority boundary for the Android
-      // foreground capability. Do not rely on the following client Firestore
-      // write: the WebView can die after receiving this HTTP response.
-      const db = admin.firestore();
-      const sessionRef = db
-        .collection("projects")
-        .doc(projectId)
-        .collection("lone_worker_sessions")
-        .doc(body.session.id);
-      const session = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(sessionRef);
-        if (!snap.exists) {
-          throw new NativeManDownError(409, "native_mandown_session_inactive");
-        }
-        const persisted = snap.data() as LoneWorkerSession;
-        if (persisted.workerUid !== body.session.workerUid) {
-          throw new NativeManDownError(409, "native_mandown_session_inactive");
-        }
-        const ended = endSession(persisted, body.endedAt);
-        tx.update(sessionRef, {
-          status: ended.status,
-          endedAt: ended.endedAt,
-          nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
-          nativeManDownCapabilityExpiresAt: admin.firestore.FieldValue.delete(),
-          nativeManDownCapabilityIssuedAt: admin.firestore.FieldValue.delete(),
-        });
-        return ended;
-      });
+      // Pure-compute close: the engine stamps endedAt + status on the
+      // caller-supplied session. The client persists to Firestore via the
+      // existing client write path. The native ManDown capability is revoked
+      // best-effort below — a failed revoke is observable but never blocks
+      // the human-facing response (the capability carries its own expiry and
+      // the next native trigger will fail closed if the session is gone).
+      const session = endSession(body.session, body.endedAt);
       // CLAUDE.md #14: session already ended; audit failure must not 500 it.
       try {
         await auditServerEvent(
@@ -703,13 +682,39 @@ router.post(
           projectId,
         });
       }
-      const {
-        nativeManDownCapabilityHash: _capabilityHash,
-        nativeManDownCapabilityExpiresAt: _capabilityExpiresAt,
-        nativeManDownCapabilityIssuedAt: _capabilityIssuedAt,
-        ...publicSession
-      } = session as LoneWorkerSession & Record<string, unknown>;
-      return res.json({ session: publicSession });
+      // Best-effort native authority revocation. If the session doc exists and
+      // carries a ManDown capability, drop it so the next Android trigger fails
+      // closed. Failures here are logged but do not block the human response.
+      try {
+        const db = admin.firestore();
+        const sessionRef = db
+          .collection("projects")
+          .doc(projectId)
+          .collection("lone_worker_sessions")
+          .doc(body.session.id);
+        const persisted = await sessionRef.get();
+        if (persisted.exists) {
+          const data = persisted.data() as NativeSessionRecord;
+          // Only delete the capability fields when the persisted worker matches
+          // the caller-supplied session — never collateral-update a different
+          // worker's record.
+          if (data.workerUid === body.session.workerUid) {
+            await sessionRef.update({
+              status: session.status,
+              endedAt: session.endedAt,
+              nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityExpiresAt: admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityIssuedAt: admin.firestore.FieldValue.delete(),
+            });
+          }
+        }
+      } catch (revokeErr) {
+        logger.warn?.("loneWorker.endSession.nativeRevoke_failed", revokeErr);
+        // Best-effort: the capability is bound to the session in the caller
+        // handler; the next /native-man-down call fails closed server-side if
+        // the WebView died before the capability-expiry TTL elapses.
+      }
+      return res.json({ session });
     } catch (err) {
       logger.error?.("loneWorker.endSession.error", err);
       captureRouteError(err, "loneWorker.endSession", { callerUid, projectId });
