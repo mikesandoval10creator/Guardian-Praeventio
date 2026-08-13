@@ -688,6 +688,16 @@
       ]
     },
     {
+      "_comment": "Personal offboarding passport: completed task experience is read atomically by projectId + assignee + done status before membership revocation.",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "items",
       "queryScope": "COLLECTION",
       "fields": [
