@@ -57,6 +57,11 @@ export const ANONYMIZATION_PII_SUBCOLLECTIONS = [
   'focus_blocks',
   'health_vault',
   'health_vault_shares',
+  // Immutable offboarding snapshots and their bearer-secret grant metadata
+  // belong to the worker. Account erasure must purge both; keeping either
+  // would leave identity or a reusable access hash after anonymization.
+  'personal_passports',
+  'personal_passport_shares',
 ] as const;
 
 export interface AnonymizeUserDeps {

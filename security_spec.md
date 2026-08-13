@@ -8,6 +8,7 @@
 5. **PII Protection**: User profile data (like email) is restricted to the owner and admins.
 6. **Temporal Integrity**: All `createdAt` and `updatedAt` fields must match `request.time`.
 7. **Identity Spoofing**: Users cannot create posts or messages as other users.
+8. **Offboarding Passport Sovereignty**: On explicit offboarding, the server atomically creates a minimized, checksummed passport under the worker's UID and revokes source-project membership. The former employer retains only a closure audit; it has no direct read or write access to the passport. Any future-employer disclosure requires the worker's explicit, field-allowlisted, expiring and revocable grant bound to an authenticated recipient UID and target-project membership.
 
 ## The "Dirty Dozen" Payloads (Expected to be REJECTED)
 

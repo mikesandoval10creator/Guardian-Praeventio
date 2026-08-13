@@ -143,6 +143,8 @@ interface FakeDocRef {
   set(data: DocData, opts?: { merge?: boolean }): Promise<void>;
   update(data: DocData): Promise<void>;
   delete(): Promise<void>;
+  /** Mirrors Admin SDK DocumentReference.create(): fails if the doc exists. */
+  create(data: DocData): Promise<void>;
   collection(name: string): FakeCollectionRef;
   /** List direct child docs under this ref (anonymizeUser purge needs it). */
   listDocuments(): Promise<FakeDocRef[]>;
@@ -212,6 +214,14 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       },
       async delete() {
         store.delete(path);
+      },
+      async create(data) {
+        if (store.has(path)) {
+          const error = new Error(`Document already exists: ${path}`) as Error & { code: number };
+          error.code = 6;
+          throw error;
+        }
+        store.set(path, { ...data });
       },
       collection(name) {
         return collectionRef(`${path}/${name}`);
@@ -333,6 +343,11 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       return txn;
     },
     create(ref, data) {
+      if (store.has(ref.path)) {
+        const error = new Error(`Document already exists: ${ref.path}`) as Error & { code: number };
+        error.code = 6;
+        throw error;
+      }
       store.set(ref.path, { ...data });
       return txn;
     },
