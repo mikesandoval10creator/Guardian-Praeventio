@@ -2,6 +2,7 @@ import { randomId } from "../utils/randomId";
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useTenantId } from "../hooks/useTenantId";
 import { motion, AnimatePresence } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Environment, useGLTF } from "@react-three/drei";
@@ -62,6 +63,8 @@ import { NormativaWarningsBanner } from "../components/digital-twin/NormativaWar
 import { MaintenanceStatusPanel } from "../components/digital-twin/MaintenanceStatusPanel";
 import { ARObjectOverlay } from "../components/digital-twin/ARObjectOverlay";
 import { GaussianSplatViewer } from "../components/digital-twin/GaussianSplatViewer";
+import { subscribePreferredSplatCapture } from "../services/digitalTwin/splatCaptureStore";
+import type { SplatCapture } from "../services/digitalTwin/gaussianSplatRegistry";
 import { RePositionConfirmDialog } from "../components/digital-twin/RePositionConfirmDialog";
 import {
   TwinPhysicsScene,
@@ -273,6 +276,7 @@ export function DigitalTwinFaena() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+  const { tenantId } = useTenantId();
   const { toasts, show, dismiss } = useToast();
   const reducedMotion = useReducedMotion();
 
@@ -301,6 +305,8 @@ export function DigitalTwinFaena() {
   const [jobs, setJobs] = useState<ReconstructionJob[]>([]);
   const [activeJob, setActiveJob] = useState<ReconstructionJob | null>(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [preferredSplatCapture, setPreferredSplatCapture] =
+    useState<SplatCapture | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -311,6 +317,24 @@ export function DigitalTwinFaena() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [arObject, setArObject] = useState<PlacedObject | null>(null);
   const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? "");
+
+  // Gaussian Splat metadata es tenant-scoped. El tenant se deriva del claim
+  // firmado con `useTenantId`, no del proyecto ni del uid, y el store es solo
+  // lectura: firestore.rules mantiene las escrituras server-only.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    // Al cambiar project/tenant, nunca renderizar brevemente la geometría
+    // anterior mientras Firestore entrega el snapshot nuevo.
+    setPreferredSplatCapture(null);
+    const unsub = subscribePreferredSplatCapture(
+      tenantId ?? "",
+      projectId ?? "",
+      setPreferredSplatCapture,
+      (err) =>
+        logger.warn("splat_capture_subscription_error", { err: String(err) }),
+    );
+    return () => unsub();
+  }, [selectedProject?.id, tenantId]);
 
   // Suscripción Firestore — limpia automáticamente al cambiar projectId.
   useEffect(() => {
@@ -1054,10 +1078,6 @@ export function DigitalTwinFaena() {
             {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
             {activeJob?.status === "completed" && <PlaceObjectMenu />}
 
-            {/* Gaussian Splat viewer — visor 3D de captura .ply/.splat.
-              capture=null → empty state (funcionalidad gated por pipeline). */}
-            <GaussianSplatViewer capture={null} />
-
             {/* Twin Physics Scene — Rapier physics simulation of placed objects. */}
             {placedObjects.length > 0 && (
               <TwinPhysicsScene
@@ -1228,6 +1248,12 @@ export function DigitalTwinFaena() {
               }}
             >
               <section className="lg:col-span-2 bg-surface/60 border border-default-token rounded-2xl overflow-hidden flex flex-col">
+                {/* Gaussian Splat viewer — metadata tenant/proyecto autorizada;
+                  sin captura permanece en estado vacío honesto. El panel está
+                  dentro de TwinAccessGuard antes de entregar geometría 3D. */}
+                <div className="p-4 border-b border-default-token">
+                  <GaussianSplatViewer capture={preferredSplatCapture} />
+                </div>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-default-token shrink-0">
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-cyan-400" aria-hidden="true" />
