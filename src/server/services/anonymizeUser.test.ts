@@ -119,13 +119,20 @@ describe('anonymizeUser', () => {
   });
 
   it('purges every PII subcollection and reports the counts', async () => {
-    const subCounts = { medical_exams: 2, health_vault: 3 };
+    const subCounts = {
+      medical_exams: 2,
+      health_vault: 3,
+      personal_passports: 2,
+      personal_passport_shares: 1,
+    };
     const { deps, batchDeletes, commit } = buildDeps(subCounts);
     const result = await anonymizeUser(deps, { uid: 'uid-3', now: NOW });
 
-    // 2 + 3 = 5 docs deleted across the configured subcollections.
-    expect(batchDeletes.length).toBe(5);
+    // 2 + 3 + 2 + 1 = 8 docs deleted across configured PII subcollections.
+    expect(batchDeletes.length).toBe(8);
     expect(commit).toHaveBeenCalled();
+    expect(result.subcollectionsScrubbed.personal_passports).toBe(2);
+    expect(result.subcollectionsScrubbed.personal_passport_shares).toBe(1);
     for (const sub of ANONYMIZATION_PII_SUBCOLLECTIONS) {
       expect(result.subcollectionsScrubbed[sub]).toBe(subCounts[sub as keyof typeof subCounts] ?? 0);
     }

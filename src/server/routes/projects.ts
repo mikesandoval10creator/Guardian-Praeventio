@@ -263,6 +263,20 @@ function callerCanManageProject(callerUid: string, projectData: ProjectAuthShape
   return typeof role === 'string' && PROJECT_MANAGEMENT_ROLES.has(role);
 }
 
+function memberRolesWithout(
+  value: unknown,
+  targetUid: string,
+): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>(
+    (roles, [uid, role]) => {
+      if (uid !== targetUid && typeof role === 'string') roles[uid] = role;
+      return roles;
+    },
+    {},
+  );
+}
+
 function buildInviteEmailHtml({
   projectName,
   inviterName,
@@ -844,15 +858,76 @@ projectsRouter.post('/:id/members/:uid/offboard', verifyAuth, async (req, res) =
         workerSnap.data() as Record<string, unknown>, completedTasks, projectId, sourceTenantId, targetUid, new Date().toISOString(),
       );
       tx.create(passportRef, passport);
+      tx.update(workerSnap.ref, {
+        archived: true,
+        archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        archivedBy: callerUid,
+        offboardedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
       tx.update(projectSnap.ref, {
         members: admin.firestore.FieldValue.arrayRemove(targetUid),
-        [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
+        memberRoles: memberRolesWithout(projectData.memberRoles, targetUid),
+      });
+      tx.set(db.collection('audit_logs').doc(), {
+        action: 'projects.memberOffboard',
+        module: 'projects',
+        details: {
+          projectId,
+          targetUid,
+          passportId: passportRef.id,
+          alreadyOffboarded: false,
+        },
+        userId: callerUid,
+        userEmail: req.user?.email ?? null,
+        projectId,
+        source: 'server',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
       });
       return { alreadyOffboarded: false, passportId: passportRef.id };
     });
-    await auditServerEvent(req, 'projects.memberOffboard', 'projects', {
-      projectId, targetUid, passportId: outcome.passportId, alreadyOffboarded: outcome.alreadyOffboarded,
-    }, { projectId });
+    let tokenRevocation: 'revoked' | 'failed' | 'not_needed' = 'not_needed';
+    if (!outcome.alreadyOffboarded) {
+      // The membership listener revokes stale site claims asynchronously; revoke
+      // tokens here too so the former worker cannot retain an old ID token until
+      // the listener catches up. A roster-only record may not map to Auth.
+      try {
+        await admin.auth().revokeRefreshTokens(targetUid);
+        tokenRevocation = 'revoked';
+      } catch (authError) {
+        tokenRevocation = 'failed';
+        logger.warn('project_member_offboard_token_revoke_failed', {
+          projectId,
+          targetUid,
+          error: authError instanceof Error ? authError.message : String(authError),
+        });
+      }
+      // Best-effort analytics only: the durable audit is committed with the
+      // passport and membership removal above.
+      try {
+        await serverAnalytics.track('project.member.removed', {
+          target_user_id_hash: targetUid,
+          removed_by_user_id_hash: callerUid,
+        });
+      } catch { /* analytics must never break user flow */ }
+    }
+    // This awaited post-commit audit covers the Auth token-revocation attempt.
+    // The transaction already holds the irreversible closure proof; the status
+    // reports the outcome truthfully rather than claiming a failed call worked.
+    try {
+      await auditServerEvent(req, 'projects.memberOffboardAccessRevocation', 'projects', {
+        projectId,
+        targetUid,
+        passportId: outcome.passportId,
+        alreadyOffboarded: outcome.alreadyOffboarded,
+        tokenRevocation,
+      }, { projectId });
+    } catch (auditError) {
+      // The closure audit in the transaction is durable. A secondary audit
+      // transport failure must not turn a completed offboarding into a 500.
+      logger.error('project_member_offboard_access_audit_failed', auditError);
+    }
     return res.json({ success: true, ...outcome });
   } catch (error) {
     if (error instanceof OffboardingError) return res.status(error.httpStatus).json({ error: error.code });

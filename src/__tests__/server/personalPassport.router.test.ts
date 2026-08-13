@@ -15,6 +15,7 @@ const H = vi.hoisted(() => ({
     typeof import("../helpers/fakeFirestore").createFakeFirestore
   > | null,
   callerUid: "manager-a",
+  revokedUids: [] as string[],
 }));
 
 process.env.COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID = "passport-test";
@@ -24,7 +25,11 @@ process.env.COMPLIANCE_EVIDENCE_ATTESTATION_KEYS = JSON.stringify({
 
 vi.mock("firebase-admin", async () => {
   const { adminMock } = await import("../helpers/fakeFirestore");
-  return adminMock(() => H.db!);
+  return adminMock(() => H.db!, {
+    revokeRefreshTokens: async (uid: string) => {
+      H.revokedUids.push(uid);
+    },
+  });
 });
 vi.mock("../../server/middleware/verifyAuth.js", () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
@@ -69,6 +74,7 @@ function app() {
 
 beforeEach(() => {
   H.callerUid = "manager-a";
+  H.revokedUids = [];
   H.db = createFakeFirestore();
   H.db._seed("projects/source-a", {
     name: "Empresa A",
@@ -155,6 +161,19 @@ describe("personal passport sovereign export and selective sharing", () => {
     });
     expect(JSON.stringify(audit)).not.toContain("11.111.111-1");
     expect(JSON.stringify(audit)).not.toContain("privado");
+    const sourceWorker = H.db!._dump()[
+      "projects/source-a/workers/worker-1"
+    ] as Record<string, unknown>;
+    expect(sourceWorker).toMatchObject({
+      archived: true,
+      archivedBy: "manager-a",
+      offboardedAt: expect.any(String),
+    });
+    expect(H.revokedUids).toEqual(["worker-1"]);
+    const accessAudit = Object.values(H.db!._dump()).find(
+      (row) => (row as { action?: string }).action === "projects.memberOffboardAccessRevocation",
+    );
+    expect(JSON.stringify(accessAudit)).toContain('"tokenRevocation":"revoked"');
 
     H.callerUid = "worker-1";
     expect(
