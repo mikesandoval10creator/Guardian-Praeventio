@@ -75,9 +75,17 @@ interface EdgeOut {
  * `{tenantId}_{projectId}_{zkNodeId}`, while the inner `id` field carries the
  * raw zkNodeId that edges reference.
  */
-function seedNode(zkNodeId: string) {
+function seedNode(zkNodeId: string, overrides: Record<string, unknown> = {}) {
   const docId = `t1_p1_${zkNodeId}`;
-  H.db!._seed(`nodes/${docId}`, { id: zkNodeId, projectId: 'p1', type: 'RISK' });
+  H.db!._seed(`nodes/${docId}`, {
+    id: zkNodeId,
+    projectId: 'p1',
+    type: 'RISK',
+    title: `Node ${zkNodeId}`,
+    description: `Description ${zkNodeId}`,
+    connections: [],
+    ...overrides,
+  });
   return docId;
 }
 
@@ -139,6 +147,12 @@ describe('POST /api/zettelkasten/edges (real router)', () => {
     expect(res.status).toBe(200);
     const edges = res.body.edges as EdgeOut[];
     expect(edges).toHaveLength(2);
+    expect(res.body.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: riskDoc, title: 'Node risk1' }),
+      expect.objectContaining({ id: controlDoc, title: 'Node ctrl1' }),
+      expect.objectContaining({ id: eppDoc, title: 'Node epp1' }),
+    ]));
+    expect(JSON.stringify(res.body.nodes)).not.toContain('metadata');
 
     // Direction is preserved (from → to) and endpoints are the DOC ids.
     expect(edges).toContainEqual({ source: controlDoc, target: riskDoc, type: 'mitigates' });
@@ -160,6 +174,30 @@ describe('POST /api/zettelkasten/edges (real router)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.edges).toEqual([]);
+  });
+
+  it('excludes RUT-bearing nodes and edges attached to them from the client DTO', async () => {
+    const safeDoc = seedNode('safe', { connections: ['private'] });
+    const privateDoc = seedNode('private', {
+      metadata: { workerRut: '12.345.678-9' },
+      connections: ['safe'],
+    });
+    H.db!._seed('tenants/t1/zettelkasten_edges/e-private', {
+      id: 'e-private', fromNodeId: 'safe', toNodeId: 'private', type: 'references', tenantId: 't1',
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.nodes).toEqual([expect.objectContaining({ id: safeDoc, connections: [] })]);
+    expect(res.body.nodes).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: privateDoc }),
+    ]));
+    expect(res.body.edges).toEqual([]);
+    expect(JSON.stringify(res.body)).not.toContain('12.345.678-9');
   });
 
   it('project with no edges -> empty list', async () => {

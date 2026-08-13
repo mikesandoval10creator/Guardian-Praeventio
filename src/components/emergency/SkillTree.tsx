@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Star, Lock, ChevronDown, ChevronRight, Award, Users, User as UserIcon } from 'lucide-react';
 import { awardXp, MEDALLAS, evaluateMedallas, type MedallaStats } from '../../services/gamification/positiveXp';
+import { KnowledgeSkillTree } from './KnowledgeSkillTree';
 
 export interface Skill {
   id: string;
@@ -164,6 +165,8 @@ export function SkillTree({ skills = DEFAULT_SKILLS, workerName, crewName, crewS
       {track === 'crew' && crewName && (
         <p className="text-[10px] text-emerald-400 text-center -mt-2">Cuadrilla: {crewName}</p>
       )}
+
+      <KnowledgeSkillTree />
 
       {/* Progress bar */}
       <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
