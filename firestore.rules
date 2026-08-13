@@ -374,6 +374,20 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Personal offboarding passports are server-issued immutable evidence.
+      // Only the worker may read their own snapshot; former employers, admins
+      // and supervisors receive no direct client-SDK access after offboarding.
+      match /personal_passports/{passportId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      // Grant metadata includes a hashed bearer secret. It is never exposed
+      // via the client SDK, including to the worker; lifecycle is server-only.
+      match /personal_passport_shares/{shareId} {
+        allow read, write: if false;
+      }
+
       // ── HealthVault medical records (Sprint 25/26 Bucket VV, ADR 0012) ──
       // `users/{uid}/health_vault/{recordId}` holds the worker's medical
       // records (HealthRecord — lab results, imaging, audiometry, etc.;

@@ -195,6 +195,55 @@ describe('users/{uid}/focus_blocks — owner only', () => {
   });
 });
 
+
+describe('users/{uid}/personal_passports — owner read, server-only immutable write', () => {
+  const passport = () => ({
+    schemaVersion: '1.0.0', subjectUid: OWNER, sourceProjectId: PID,
+    checksumSha256: 'a'.repeat(64), capabilities: ['trabajo-altura'],
+  });
+
+  it('the offboarded worker can READ their own passport', async () => {
+    await seed(['users', OWNER, 'personal_passports', 'p1'], passport());
+    await assertSucceeds(getDoc(d(authed(OWNER), 'users', OWNER, 'personal_passports', 'p1')));
+  });
+  it('a former employer/project member CANNOT read the passport', async () => {
+    await seed(['users', OWNER, 'personal_passports', 'p1'], passport());
+    await assertFails(getDoc(d(authed(MEMBER), 'users', OWNER, 'personal_passports', 'p1')));
+  });
+  it('a global admin CANNOT read the worker-owned passport', async () => {
+    await seed(['users', OWNER, 'personal_passports', 'p1'], passport());
+    await assertFails(getDoc(d(authed(ADMIN, 'admin'), 'users', OWNER, 'personal_passports', 'p1')));
+  });
+  it('the worker CANNOT forge or overwrite a passport', async () => {
+    await assertFails(setDoc(d(authed(OWNER), 'users', OWNER, 'personal_passports', 'p1'), passport()));
+    await seed(['users', OWNER, 'personal_passports', 'p1'], passport());
+    await assertFails(setDoc(d(authed(OWNER), 'users', OWNER, 'personal_passports', 'p1'), { checksumSha256: 'forged' }, { merge: true }));
+  });
+  it('the worker CANNOT delete immutable passport evidence', async () => {
+    await seed(['users', OWNER, 'personal_passports', 'p1'], passport());
+    await assertFails(deleteDoc(d(authed(OWNER), 'users', OWNER, 'personal_passports', 'p1')));
+  });
+});
+
+
+describe('users/{uid}/personal_passport_shares — server-only grant metadata', () => {
+  const share = () => ({ tokenHash: 'a'.repeat(64), recipientUid: MEMBER, targetProjectId: PID });
+  it('owner cannot read the share hash', async () => {
+    await seed(['users', OWNER, 'personal_passport_shares', 's1'], share());
+    await assertFails(getDoc(d(authed(OWNER), 'users', OWNER, 'personal_passport_shares', 's1')));
+  });
+  it('owner cannot forge, modify or delete grants', async () => {
+    await assertFails(setDoc(d(authed(OWNER), 'users', OWNER, 'personal_passport_shares', 's1'), share()));
+    await seed(['users', OWNER, 'personal_passport_shares', 's1'], share());
+    await assertFails(setDoc(d(authed(OWNER), 'users', OWNER, 'personal_passport_shares', 's1'), { revokedAt: null }, { merge: true }));
+    await assertFails(deleteDoc(d(authed(OWNER), 'users', OWNER, 'personal_passport_shares', 's1')));
+  });
+  it('recipient and former employer cannot read a grant', async () => {
+    await seed(['users', OWNER, 'personal_passport_shares', 's1'], share());
+    await assertFails(getDoc(d(authed(MEMBER), 'users', OWNER, 'personal_passport_shares', 's1')));
+  });
+});
+
 describe('users/{uid}/awards — owner read, server-only write', () => {
   const award = () => ({ name: 'Salvaste una vida', awardedAt: '2026-06-08T00:00:00.000Z' });
 

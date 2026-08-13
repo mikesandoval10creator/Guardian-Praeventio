@@ -63,6 +63,8 @@ import { readSubscriptionPlanId } from '../middleware/requireTier.js';
 // Deploy-time rollout: REPORT-ONLY logs `tier_gate_would_block` but serves
 // the request; TIER_GATE_ENFORCE=true hard-blocks (402) the scale caps below.
 import { tierGateEnforced } from '../middleware/tierRouteTable.js';
+import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
+import type { ComplianceArchiveAttestation } from '../../services/compliance/complianceSignature.js';
 import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
 
 function sentryCapture(
@@ -119,6 +121,127 @@ interface ProjectAuthShape {
   createdBy?: string;
   members?: string[];
   memberRoles?: Record<string, string>;
+  tenantId?: string;
+}
+
+interface PersonalPassportSnapshot {
+  schemaVersion: '1.0.0';
+  subjectUid: string;
+  sourceProjectId: string;
+  sourceTenantId: string | null;
+  createdAt: string;
+  roles: string[];
+  capabilities: string[];
+  certifications: Array<{ code: string; issuer?: string }>;
+  trainings: Array<{ code: string; completedAt?: string }>;
+  shareableAptitudes: Array<{ status: string; validUntil?: string }>;
+  taskExperience: {
+    completedTaskCount: number;
+    completedByCategory: Record<string, number>;
+  };
+  provenance: { issuer: 'praeventio-server'; source: 'offboarding' };
+  checksumSha256: string;
+  archiveAttestation: ComplianceArchiveAttestation;
+}
+
+function boundedStrings(value: unknown, maxItems = 100): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.length > 0 && item.length <= 200)
+    .slice(0, maxItems);
+}
+
+function allowlistedRecords(
+  value: unknown,
+  required: string,
+  optional: string,
+  maxItems = 200,
+): Array<Record<string, string>> {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, maxItems).flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const record = item as Record<string, unknown>;
+    const primary = record[required];
+    if (typeof primary !== 'string' || primary.length === 0 || primary.length > 200) return [];
+    const safe: Record<string, string> = { [required]: primary };
+    const secondary = record[optional];
+    if (typeof secondary === 'string' && secondary.length > 0 && secondary.length <= 200) {
+      safe[optional] = secondary;
+    }
+    return [safe];
+  });
+}
+
+function canonicalPassportJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalPassportJson).join(',')}]`;
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalPassportJson(object[key])}`).join(',')}}`;
+}
+
+function buildTaskExperience(
+  tasks: Array<Record<string, unknown>>,
+): PersonalPassportSnapshot["taskExperience"] {
+  const completedByCategory: Record<string, number> = {};
+  let completedTaskCount = 0;
+  for (const task of tasks) {
+    if (task.status !== "done") continue;
+    completedTaskCount += 1;
+    const category =
+      typeof task.riskCategory === "string"
+        ? task.riskCategory
+        : typeof task.category === "string"
+          ? task.category
+          : "general";
+    if (category.length > 0 && category.length <= 100) {
+      completedByCategory[category] =
+        (completedByCategory[category] ?? 0) + 1;
+    }
+  }
+  return { completedTaskCount, completedByCategory };
+}
+
+function buildPersonalPassport(
+  worker: Record<string, unknown>,
+  tasks: Array<Record<string, unknown>>,
+  projectId: string,
+  sourceTenantId: string | null,
+  workerUid: string,
+  createdAt: string,
+): PersonalPassportSnapshot {
+  const roles = boundedStrings(worker.roles);
+  if (typeof worker.role === 'string' && worker.role.length > 0 && worker.role.length <= 100 && !roles.includes(worker.role)) {
+    roles.unshift(worker.role);
+  }
+  const unsigned = {
+    schemaVersion: '1.0.0' as const,
+    subjectUid: workerUid,
+    sourceProjectId: projectId,
+    sourceTenantId,
+    createdAt,
+    roles,
+    capabilities: boundedStrings(worker.capabilities),
+    certifications: allowlistedRecords(worker.certifications, 'code', 'issuer') as Array<{ code: string; issuer?: string }>,
+    trainings: allowlistedRecords(worker.trainingRecords, 'code', 'completedAt') as Array<{ code: string; completedAt?: string }>,
+    shareableAptitudes: allowlistedRecords(worker.shareableAptitudes, 'status', 'validUntil') as Array<{ status: string; validUntil?: string }>,
+    taskExperience: buildTaskExperience(tasks),
+    provenance: { issuer: 'praeventio-server' as const, source: 'offboarding' as const },
+  };
+  const withChecksum = {
+    ...unsigned,
+    checksumSha256: crypto.createHash('sha256').update(canonicalPassportJson(unsigned), 'utf8').digest('hex'),
+  };
+  return {
+    ...withChecksum,
+    archiveAttestation: attestComplianceEvidence(withChecksum),
+  };
+}
+
+class OffboardingError extends Error {
+  constructor(readonly httpStatus: 400 | 403 | 404 | 409, readonly code: string) {
+    super(code);
+    this.name = 'OffboardingError';
+  }
 }
 
 /** True if the caller is the creator or appears in this project's members. */
@@ -670,6 +793,72 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
     return res.status(500).json({
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error?.message,
     });
+  }
+});
+
+// POST /api/projects/:id/members/:uid/offboard — creates the worker-owned
+// passport and removes source-project membership in one Firestore transaction.
+projectsRouter.post('/:id/members/:uid/offboard', verifyAuth, async (req, res) => {
+  const { id: projectId, uid: targetUid } = req.params;
+  const callerUid = req.user!.uid;
+  const db = admin.firestore();
+  const passportRef = db.collection('users').doc(targetUid).collection('personal_passports').doc(projectId);
+
+  try {
+    const outcome = await db.runTransaction(async (tx) => {
+      const [projectSnap, existingPassportSnap, workerSnap, completedTasksSnap] = await Promise.all([
+        tx.get(db.collection('projects').doc(projectId)),
+        tx.get(passportRef),
+        tx.get(db.collection('projects').doc(projectId).collection('workers').doc(targetUid)),
+        tx.get(
+          db
+            .collection("tasks")
+            .where("projectId", "==", projectId)
+            .where("assignedUids", "array-contains", targetUid)
+            .where("status", "==", "done")
+            .limit(500),
+        ),
+      ]);
+      if (!projectSnap.exists) throw new OffboardingError(404, 'project_not_found');
+      const projectData = projectSnap.data() as ProjectAuthShape;
+      if (projectData.createdBy === targetUid) {
+        throw new OffboardingError(409, 'project_creator_cannot_offboard');
+      }
+      if (callerUid !== targetUid && !callerCanManageProject(callerUid, projectData)) {
+        throw new OffboardingError(403, 'forbidden');
+      }
+      if (existingPassportSnap.exists) {
+        return { alreadyOffboarded: true, passportId: existingPassportSnap.id };
+      }
+      if (!workerSnap.exists) throw new OffboardingError(409, 'offboarding_passport_source_missing');
+      if (!Array.isArray(projectData.members) || !projectData.members.includes(targetUid)) {
+        throw new OffboardingError(409, 'offboarding_membership_missing');
+      }
+      const sourceTenantId = typeof projectData.tenantId === 'string' && projectData.tenantId.length > 0 && projectData.tenantId.length <= 200
+        ? projectData.tenantId
+        : null;
+      const completedTasks = 'docs' in completedTasksSnap
+        ? completedTasksSnap.docs.map((doc) => doc.data() as Record<string, unknown>)
+        : [];
+      const passport = buildPersonalPassport(
+        workerSnap.data() as Record<string, unknown>, completedTasks, projectId, sourceTenantId, targetUid, new Date().toISOString(),
+      );
+      tx.create(passportRef, passport);
+      tx.update(projectSnap.ref, {
+        members: admin.firestore.FieldValue.arrayRemove(targetUid),
+        [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
+      });
+      return { alreadyOffboarded: false, passportId: passportRef.id };
+    });
+    await auditServerEvent(req, 'projects.memberOffboard', 'projects', {
+      projectId, targetUid, passportId: outcome.passportId, alreadyOffboarded: outcome.alreadyOffboarded,
+    }, { projectId });
+    return res.json({ success: true, ...outcome });
+  } catch (error) {
+    if (error instanceof OffboardingError) return res.status(error.httpStatus).json({ error: error.code });
+    logger.error('project_member_offboard_failed', error);
+    sentryCapture(error, { endpoint: '/api/projects/:id/members/:uid/offboard', tags: { projectId, targetUid, callerUid } });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

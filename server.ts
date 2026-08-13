@@ -162,6 +162,7 @@ import insightsRouter from "./src/server/routes/insights.js";
 import incidentTrendsRouter from "./src/server/routes/incidentTrends.js";
 import dataConfidenceRouter from "./src/server/routes/dataConfidence.js";
 import portableHistoryRouter from "./src/server/routes/portableHistory.js";
+import personalPassportRouter from "./src/server/routes/personalPassport.js";
 // Offline block (B16) — sync-status tracker was orphaned; consumer useSyncStatus
 // hit 404. Paths /:projectId/sync-status/*.
 import syncStatusRouter from "./src/server/routes/syncStatus.js";
@@ -1035,6 +1036,7 @@ app.use('/api', wisdomCapsuleRouter);
 // and /api/invitations.
 app.use('/api/projects', projectsRouter);
 app.use('/api/invitations', invitationsRouter);
+app.use('/api/personal-passports', personalPassportRouter);
 app.use('/api/tier-downgrade', tierDowngradeRouter);
 
 // Bloque E3 — audited, server-side normatives seed (POST /api/normatives/seed).

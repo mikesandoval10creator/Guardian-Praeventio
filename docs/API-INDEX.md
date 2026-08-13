@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**206 routers montados · 739 rutas detectadas.**
+**207 routers montados · 743 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -247,6 +247,12 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/normatives.ts` → `/api/normatives`
 - `POST /api/normatives/seed`
+
+### `src/server/routes/personalPassport.ts` → `/api/personal-passports`
+- `GET /api/personal-passports/:passportId/export`
+- `POST /api/personal-passports/:passportId/shares`
+- `POST /api/personal-passports/:ownerUid/shares/:shareId/consume`
+- `POST /api/personal-passports/:passportId/shares/:shareId/revoke`
 
 ### `src/server/routes/documents.ts` → `/api/projects`
 - `POST /api/projects/:projectId/documents`
