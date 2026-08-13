@@ -810,20 +810,43 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
   }
 });
 
-// POST /api/projects/:id/members/:uid/offboard — creates the worker-owned
+// POST /api/projects/:id/members/:workerId/offboard — creates the worker-owned
 // passport and removes source-project membership in one Firestore transaction.
-projectsRouter.post('/:id/members/:uid/offboard', verifyAuth, async (req, res) => {
-  const { id: projectId, uid: targetUid } = req.params;
+//
+// Project roster records predate authenticated memberships and have generated
+// Firestore IDs. Never conflate that record ID with an Auth UID: resolve the
+// worker's authenticated account from the roster's verified email, then require
+// that UID to be an actual member before any closure write.
+projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, res) => {
+  const { id: projectId, workerId } = req.params;
   const callerUid = req.user!.uid;
   const db = admin.firestore();
-  const passportRef = db.collection('users').doc(targetUid).collection('personal_passports').doc(projectId);
+  const workerRef = db.collection('projects').doc(projectId).collection('workers').doc(workerId);
 
   try {
+    const workerSource = await workerRef.get();
+    if (!workerSource.exists) {
+      return res.status(404).json({ error: 'offboarding_worker_not_found' });
+    }
+    const rosterEmail = workerSource.data()?.email;
+    if (typeof rosterEmail !== 'string' || rosterEmail.trim().length === 0) {
+      return res.status(409).json({ error: 'offboarding_worker_account_unlinked' });
+    }
+    const workerEmail = rosterEmail.trim();
+
+    let targetUid: string;
+    try {
+      targetUid = (await admin.auth().getUserByEmail(workerEmail)).uid;
+    } catch {
+      return res.status(409).json({ error: 'offboarding_worker_account_unlinked' });
+    }
+
+    const passportRef = db.collection('users').doc(targetUid).collection('personal_passports').doc(projectId);
     const outcome = await db.runTransaction(async (tx) => {
       const [projectSnap, existingPassportSnap, workerSnap, completedTasksSnap] = await Promise.all([
         tx.get(db.collection('projects').doc(projectId)),
         tx.get(passportRef),
-        tx.get(db.collection('projects').doc(projectId).collection('workers').doc(targetUid)),
+        tx.get(workerRef),
         tx.get(
           db
             .collection("tasks")
@@ -932,7 +955,7 @@ projectsRouter.post('/:id/members/:uid/offboard', verifyAuth, async (req, res) =
   } catch (error) {
     if (error instanceof OffboardingError) return res.status(error.httpStatus).json({ error: error.code });
     logger.error('project_member_offboard_failed', error);
-    sentryCapture(error, { endpoint: '/api/projects/:id/members/:uid/offboard', tags: { projectId, targetUid, callerUid } });
+    sentryCapture(error, { endpoint: '/api/projects/:id/members/:workerId/offboard', tags: { projectId, workerId, callerUid } });
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

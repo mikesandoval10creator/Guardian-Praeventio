@@ -16,6 +16,7 @@ const H = vi.hoisted(() => ({
   > | null,
   callerUid: "manager-a",
   revokedUids: [] as string[],
+  emailToUid: {} as Record<string, string>,
 }));
 
 process.env.COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID = "passport-test";
@@ -26,6 +27,11 @@ process.env.COMPLIANCE_EVIDENCE_ATTESTATION_KEYS = JSON.stringify({
 vi.mock("firebase-admin", async () => {
   const { adminMock } = await import("../helpers/fakeFirestore");
   return adminMock(() => H.db!, {
+    getUserByEmail: async (email: string) => {
+      const uid = H.emailToUid[email];
+      if (!uid) throw new Error("auth/user-not-found");
+      return { uid, email };
+    },
     revokeRefreshTokens: async (uid: string) => {
       H.revokedUids.push(uid);
     },
@@ -75,15 +81,17 @@ function app() {
 beforeEach(() => {
   H.callerUid = "manager-a";
   H.revokedUids = [];
+  H.emailToUid = { "worker-1@empresa-a.cl": "worker-auth-1" };
   H.db = createFakeFirestore();
   H.db._seed("projects/source-a", {
     name: "Empresa A",
     tenantId: "tenant-a",
     createdBy: "manager-a",
-    members: ["manager-a", "worker-1"],
-    memberRoles: { "manager-a": "gerente", "worker-1": "operario" },
+    members: ["manager-a", "worker-auth-1"],
+    memberRoles: { "manager-a": "gerente", "worker-auth-1": "operario" },
   });
   H.db._seed("projects/source-a/workers/worker-1", {
+    email: "worker-1@empresa-a.cl",
     role: "operario",
     capabilities: ["altura"],
     certifications: [{ code: "ALT-01", issuer: "OTEC" }],
@@ -95,21 +103,21 @@ beforeEach(() => {
   });
   H.db._seed("tasks/done-altura", {
     projectId: "source-a",
-    assignedUids: ["worker-1"],
+    assignedUids: ["worker-auth-1"],
     status: "done",
     riskCategory: "altura",
     description: "procedimiento interno que no es portable",
   });
   H.db._seed("tasks/done-general", {
     projectId: "source-a",
-    assignedUids: ["worker-1"],
+    assignedUids: ["worker-auth-1"],
     status: "done",
     category: "general",
     description: "detalle de faena que no es portable",
   });
   H.db._seed("tasks/not-done", {
     projectId: "source-a",
-    assignedUids: ["worker-1"],
+    assignedUids: ["worker-auth-1"],
     status: "pending",
     riskCategory: "electricidad",
   });
@@ -121,7 +129,7 @@ beforeEach(() => {
   });
   H.db._seed("tasks/other-project", {
     projectId: "other-project",
-    assignedUids: ["worker-1"],
+    assignedUids: ["worker-auth-1"],
     status: "done",
     riskCategory: "quimico",
   });
@@ -155,7 +163,7 @@ describe("personal passport sovereign export and selective sharing", () => {
       projectId: "source-a",
       details: {
         projectId: "source-a",
-        targetUid: "worker-1",
+        targetUid: "worker-auth-1",
         passportId: "source-a",
       },
     });
@@ -169,13 +177,13 @@ describe("personal passport sovereign export and selective sharing", () => {
       archivedBy: "manager-a",
       offboardedAt: expect.any(String),
     });
-    expect(H.revokedUids).toEqual(["worker-1"]);
+    expect(H.revokedUids).toEqual(["worker-auth-1"]);
     const accessAudit = Object.values(H.db!._dump()).find(
       (row) => (row as { action?: string }).action === "projects.memberOffboardAccessRevocation",
     );
     expect(JSON.stringify(accessAudit)).toContain('"tokenRevocation":"revoked"');
 
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     expect(
       (await request(app()).get("/api/projects/source-a/members")).status,
     ).toBe(403);
@@ -195,15 +203,31 @@ describe("personal passport sovereign export and selective sharing", () => {
     expect(res.text).not.toContain("privado");
   });
 
+  it("fails closed when a roster record is not linked to an authenticated project member", async () => {
+    H.db!._seed("projects/source-a/workers/roster-only", {
+      email: "unlinked@empresa-a.cl",
+      role: "operario",
+      capabilities: ["altura"],
+    });
+    const before = structuredClone(H.db!._dump()["projects/source-a"]);
+    const res = await request(app()).post(
+      "/api/projects/source-a/members/roster-only/offboard",
+    );
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("offboarding_worker_account_unlinked");
+    expect(H.db!._dump()["projects/source-a"]).toEqual(before);
+    expect(H.db!._dump()["projects/source-a/workers/roster-only"]).not.toHaveProperty("archived");
+  });
+
   it("rejects an export after any passport field or its server attestation is tampered with", async () => {
     await offboard();
-    const key = "users/worker-1/personal_passports/source-a";
+    const key = "users/worker-auth-1/personal_passports/source-a";
     const tampered = structuredClone(
       H.db!._dump()[key] as Record<string, unknown>,
     );
     tampered.capabilities = ["forged"];
     H.db!._seed(key, tampered);
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     expect(
       (await request(app()).get("/api/personal-passports/source-a/export"))
         .status,
@@ -227,7 +251,7 @@ describe("personal passport sovereign export and selective sharing", () => {
 
   it("binds a worker-selected subset to an authenticated recipient in a future project, then revokes it", async () => {
     await offboard();
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     const created = await request(app())
       .post("/api/personal-passports/source-a/shares")
       .send({
@@ -243,7 +267,7 @@ describe("personal passport sovereign export and selective sharing", () => {
     H.callerUid = "recipient-b";
     const consumed = await request(app())
       .post(
-        `/api/personal-passports/worker-1/shares/${created.body.shareId}/consume`,
+        `/api/personal-passports/worker-auth-1/shares/${created.body.shareId}/consume`,
       )
       .send({ secret: created.body.secret });
     expect(consumed.status).toBe(200);
@@ -258,7 +282,7 @@ describe("personal passport sovereign export and selective sharing", () => {
     expect(consumed.body.passport).not.toHaveProperty("roles");
     expect(JSON.stringify(consumed.body)).not.toContain("11.111.111-1");
 
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     expect(
       (
         await request(app()).post(
@@ -271,7 +295,7 @@ describe("personal passport sovereign export and selective sharing", () => {
       (
         await request(app())
           .post(
-            `/api/personal-passports/worker-1/shares/${created.body.shareId}/consume`,
+            `/api/personal-passports/worker-auth-1/shares/${created.body.shareId}/consume`,
           )
           .send({ secret: created.body.secret })
       ).status,
@@ -280,7 +304,7 @@ describe("personal passport sovereign export and selective sharing", () => {
 
   it("fails closed for a same-tenant target and if the target tenant changes after consent", async () => {
     await offboard();
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     H.db!._seed("projects/same-tenant", {
       name: "Otra obra de Empresa A",
       tenantId: "tenant-a",
@@ -316,7 +340,7 @@ describe("personal passport sovereign export and selective sharing", () => {
     H.callerUid = "recipient-b";
     const consumed = await request(app())
       .post(
-        `/api/personal-passports/worker-1/shares/${created.body.shareId}/consume`,
+        `/api/personal-passports/worker-auth-1/shares/${created.body.shareId}/consume`,
       )
       .send({ secret: created.body.secret });
     expect(consumed.status).toBe(403);
@@ -324,7 +348,7 @@ describe("personal passport sovereign export and selective sharing", () => {
 
   it("refuses the source employer and any target-project membership that is no longer active", async () => {
     await offboard();
-    H.callerUid = "worker-1";
+    H.callerUid = "worker-auth-1";
     const sourceShare = await request(app())
       .post("/api/personal-passports/source-a/shares")
       .send({
@@ -354,7 +378,7 @@ describe("personal passport sovereign export and selective sharing", () => {
       (
         await request(app())
           .post(
-            `/api/personal-passports/worker-1/shares/${created.body.shareId}/consume`,
+            `/api/personal-passports/worker-auth-1/shares/${created.body.shareId}/consume`,
           )
           .send({ secret: created.body.secret })
       ).status,
