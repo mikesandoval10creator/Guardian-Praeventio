@@ -717,27 +717,53 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
       .limit(EDGES_NODE_SCAN_LIMIT)
       .get();
 
-    const docIdByZkId = new Map<string, string>();
+    // Privacy-minimized graph DTO for read-only guidance. A raw RUT in metadata
+    // is medical/injury PII: it must neither make client LIST fail nor cross this
+    // API boundary. The client needs display fields/topology, never metadata.
+    const safeNodesByZkId = new Map<string, {
+      id: string;
+      title: string;
+      description: string;
+      connections: string[];
+    }>();
+    const rawConnectionsByZkId = new Map<string, string[]>();
     for (const doc of nodesSnap.docs) {
       const data = doc.data() as Record<string, unknown> | undefined;
+      const metadata = data?.metadata;
+      if (metadata && typeof metadata === 'object' && !Array.isArray(metadata) && 'workerRut' in metadata) {
+        continue;
+      }
       const zkId =
         typeof data?.id === 'string' && data.id.length > 0 ? data.id : doc.id;
-      docIdByZkId.set(zkId, doc.id);
+      const title = typeof data?.title === 'string' ? data.title : '';
+      const description = typeof data?.description === 'string' ? data.description : '';
+      if (!title || !description) continue;
+      safeNodesByZkId.set(zkId, { id: doc.id, title, description, connections: [] });
+      rawConnectionsByZkId.set(
+        zkId,
+        Array.isArray(data?.connections)
+          ? data.connections.filter((connection): connection is string => typeof connection === 'string')
+          : [],
+      );
+    }
+    for (const [zkId, node] of safeNodesByZkId) {
+      node.connections = (rawConnectionsByZkId.get(zkId) ?? [])
+        .map((connection) => safeNodesByZkId.get(connection)?.id)
+        .filter((connection): connection is string => typeof connection === 'string');
     }
 
     const store = buildEdgeStore(db);
     const all = await store.listByTenant(tenantId, EDGES_SCAN_LIMIT);
 
     const edges = all.flatMap((e) => {
-      const source = docIdByZkId.get(e.fromNodeId);
-      const target = docIdByZkId.get(e.toNodeId);
-      // Drop edges with an endpoint outside this project (cross-project, or a
-      // node not materialized yet): the explorer has no node to attach them to.
+      const source = safeNodesByZkId.get(e.fromNodeId)?.id;
+      const target = safeNodesByZkId.get(e.toNodeId)?.id;
+      // Do not expose edges outside this project or attached to PII-protected nodes.
       if (!source || !target) return [];
       return [{ source, target, type: e.type }];
     });
 
-    return res.json({ edges });
+    return res.json({ nodes: Array.from(safeNodesByZkId.values()), edges });
   } catch (err) {
     logger.error?.('zettelkasten_edges_failed', { err: String(err) });
     return res.status(500).json({ error: 'internal_error' });
