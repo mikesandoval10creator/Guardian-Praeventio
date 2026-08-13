@@ -155,10 +155,10 @@ router.post(
           "loneWorker.startSession",
           "loneWorker",
           {
-          sessionId: session.id,
-          workerUid: session.workerUid,
-          checkInIntervalMin: session.checkInIntervalMin,
-          projectId,
+            sessionId: session.id,
+            workerUid: session.workerUid,
+            checkInIntervalMin: session.checkInIntervalMin,
+            projectId,
           },
           { projectId },
         );
@@ -612,10 +612,10 @@ router.post(
           "loneWorker.checkIn",
           "loneWorker",
           {
-          sessionId: session.id,
-          workerUid: session.workerUid,
+            sessionId: session.id,
+            workerUid: session.workerUid,
             help: body.checkIn.status === "help",
-          projectId,
+            projectId,
           },
           { projectId },
         );
@@ -669,9 +669,9 @@ router.post(
           "loneWorker.endSession",
           "loneWorker",
           {
-          sessionId: session.id,
-          workerUid: session.workerUid,
-          projectId,
+            sessionId: session.id,
+            workerUid: session.workerUid,
+            projectId,
           },
           { projectId },
         );
@@ -703,8 +703,10 @@ router.post(
               status: session.status,
               endedAt: session.endedAt,
               nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
-              nativeManDownCapabilityExpiresAt: admin.firestore.FieldValue.delete(),
-              nativeManDownCapabilityIssuedAt: admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityExpiresAt:
+                admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityIssuedAt:
+                admin.firestore.FieldValue.delete(),
             });
           }
         }
