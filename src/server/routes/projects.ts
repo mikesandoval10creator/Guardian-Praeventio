@@ -868,6 +868,9 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
         return { alreadyOffboarded: true, passportId: existingPassportSnap.id };
       }
       if (!workerSnap.exists) throw new OffboardingError(409, 'offboarding_passport_source_missing');
+      if ((workerSnap.data() as Record<string, unknown>).email !== workerEmail) {
+        throw new OffboardingError(409, 'offboarding_worker_identity_changed');
+      }
       if (!Array.isArray(projectData.members) || !projectData.members.includes(targetUid)) {
         throw new OffboardingError(409, 'offboarding_membership_missing');
       }
