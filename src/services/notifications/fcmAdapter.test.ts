@@ -69,7 +69,8 @@ describe('fcmAdapter.sendToTokens', () => {
     });
     expect(call.data).toEqual({ projectId: 'proj-1', nodeId: 'n-9' });
     // `android.priority: 'high'` is required for Doze-mode delivery on real devices.
-    expect(call.android).toEqual({ priority: 'high' });
+    expect(call.android).toMatchObject({ priority: 'high' });
+    expect(call.android.notification).toMatchObject({ channel_id: 'praeventio_emergency' });
 
     expect(result).toEqual({
       successCount: 2,
