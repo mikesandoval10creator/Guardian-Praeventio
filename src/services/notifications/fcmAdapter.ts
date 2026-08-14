@@ -27,6 +27,14 @@
 // surface is small and tests don't have to stub the whole admin SDK.
 
 import { getMessaging } from 'firebase-admin/messaging';
+import {
+  type NotificationSeverity,
+  severityToAndroidPriority,
+  severityToApnsPriority,
+  severityToCriticalSound,
+  severityToChannelId,
+  severityShouldPush,
+} from './notificationSeverity.js';
 
 /** Notification payload accepted by both `sendToTokens` and `sendToTopic`. */
 export interface FcmNotification {
@@ -35,6 +43,20 @@ export interface FcmNotification {
   /** Optional string-string data map. Keys + values must already be strings
    *  (FCM rejects non-string `data` entries). Pass `undefined` to omit. */
   data?: Record<string, string>;
+}
+
+/** Calm-Technology severity tier. Defaults to `vital` so existing call
+ *  sites that pre-date the tier system keep their behaviour. Set
+ *  `severity: 'ambient'` to make the push adapter reject the call: the
+ *  In-app NotificationContext surface handles ambient notifications. */
+export interface FcmSendOptions {
+  severity?: NotificationSeverity;
+}
+
+/** Default severity for the adapter. `vital` preserves the historical
+ *  safe behaviour for call sites that pre-date the tier system. */
+function resolveSeverity(severity: NotificationSeverity | undefined): NotificationSeverity {
+  return severity ?? 'vital';
 }
 
 /** Result of a multicast send. `failedTokens` lists the *exact* tokens that
@@ -69,14 +91,31 @@ export class FcmAdapterError extends Error {
   }
 }
 
-function buildBaseMessage(notification: FcmNotification) {
+function buildBaseMessage(notification: FcmNotification, severity: NotificationSeverity) {
   const base: any = {
     notification: {
       title: notification.title,
       body: notification.body,
     },
-    android: { priority: 'high' as const },
+    android: {
+      priority: severityToAndroidPriority(severity),
+      notification: {
+        channel_id: severityToChannelId(severity),
+      },
+    },
+    apns: {
+      headers: {
+        'apns-priority': severityToApnsPriority(severity),
+      },
+    },
   };
+  if (severityToCriticalSound(severity)) {
+    base.apns.payload = {
+      aps: {
+        sound: { critical: true, name: 'default', volume: 1 },
+      },
+    };
+  }
   if (notification.data !== undefined) {
     base.data = notification.data;
   }
@@ -95,12 +134,21 @@ export const fcmAdapter = {
   async sendToTokens(
     tokens: string[],
     notification: FcmNotification,
+    options: FcmSendOptions = {},
   ): Promise<FcmSendResult> {
     if (!Array.isArray(tokens) || tokens.length === 0) {
       return { successCount: 0, failureCount: 0, failedTokens: [], invalidTokens: [] };
     }
+    const severity = resolveSeverity(options.severity);
+    if (!severityShouldPush(severity)) {
+      // Calm Tech guard: ambient notifications must never reach the FCM
+      // adapter. They render in-app via NotificationContext instead.
+      throw new FcmAdapterError(
+        `Refusing to push ambient notification '${notification.title}': use the in-app surface.`,
+      );
+    }
 
-    const base = buildBaseMessage(notification);
+    const base = buildBaseMessage(notification, severity);
     let successCount = 0;
     let failureCount = 0;
     const failedTokens: string[] = [];
@@ -145,15 +193,25 @@ export const fcmAdapter = {
    * on success. Empty topic is rejected client-side (FCM would reject too
    * but with a less actionable error).
    */
-  async sendToTopic(topic: string, notification: FcmNotification): Promise<string> {
+  async sendToTopic(
+    topic: string,
+    notification: FcmNotification,
+    options: FcmSendOptions = {},
+  ): Promise<string> {
     if (typeof topic !== 'string' || topic.trim().length === 0) {
       throw new FcmAdapterError('Topic must be a non-empty string');
+    }
+    const severity = resolveSeverity(options.severity);
+    if (!severityShouldPush(severity)) {
+      throw new FcmAdapterError(
+        `Refusing to push ambient topic notification '${notification.title}'.`,
+      );
     }
 
     try {
       const messageId = await getMessaging().send({
         topic,
-        ...buildBaseMessage(notification),
+        ...buildBaseMessage(notification, severity),
       });
       return messageId;
     } catch (err) {
