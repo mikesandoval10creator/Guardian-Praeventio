@@ -5559,5 +5559,13 @@
     "churn": {
       "title": "Churn risk by tenant"
     }
+  },
+  "dispatch": {
+    "title": "Dispatch summary",
+    "copyToClipboard": "Copy to clipboard",
+    "copied": "Copied",
+    "openInMaps": "Open in Google Maps",
+    "humanInTheLoop": "A human initiates the dispatch. NEVER auto-dispatches.",
+    "medicalContext": "Consented medical data"
   }
 }

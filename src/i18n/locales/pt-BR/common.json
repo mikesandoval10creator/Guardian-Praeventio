@@ -5559,5 +5559,13 @@
     "churn": {
       "title": "Risco de churn por tenant"
     }
+  },
+  "dispatch": {
+    "title": "Resumo para despacho",
+    "copyToClipboard": "Copiar para área de transferência",
+    "copied": "Copiado",
+    "openInMaps": "Abrir no Google Maps",
+    "humanInTheLoop": "O despacho é iniciado por uma pessoa. NUNCA é automático.",
+    "medicalContext": "Dados médicos consentidos"
   }
 }
