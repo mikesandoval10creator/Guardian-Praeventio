@@ -1,0 +1,162 @@
+{
+  "object": "page",
+  "id": "3a4aa66d-73fe-8146-bbbf-e38632cdd4d6",
+  "created_time": "2026-07-21T04:25:00.000Z",
+  "last_edited_time": "2026-07-21T04:25:00.000Z",
+  "created_by": {
+    "object": "user",
+    "id": "395d872b-594c-8192-afc7-000282188f85"
+  },
+  "last_edited_by": {
+    "object": "user",
+    "id": "395d872b-594c-8192-afc7-000282188f85"
+  },
+  "cover": null,
+  "icon": null,
+  "parent": {
+    "type": "database_id",
+    "database_id": "395aa66d-73fe-817c-90cc-d4802bf1c022"
+  },
+  "in_trash": false,
+  "is_archived": false,
+  "is_locked": false,
+  "properties": {
+    "Model": {
+      "id": "%3AM%7Cu",
+      "type": "select",
+      "select": {
+        "id": "82749e60-10c7-4e25-9404-c081243eb44b",
+        "name": "claude",
+        "color": "purple"
+      }
+    },
+    "Spec": {
+      "id": "%40SVb",
+      "type": "rich_text",
+      "rich_text": [
+        {
+          "type": "text",
+          "text": {
+            "content": "Investigación de Calm Technology (Amber Case / Xerox PARC), 2026-07-20. RIESGO DE VIDA no nombrado antes: la FATIGA DE ALERTAS. Si Guardian bombardea al trabajador con notificaciones no críticas (recordatorios, avisos de gestión, capacitación), aprende a ignorarlas TODAS — incluida la única que salva su vida. En una app de seguridad esto no es molestia, es peligro: una alerta vital que llega en medio del ruido se pierde. Principio Calm Tech: la tecnología debe pedir la MÍNIMA atención posible y moverse de la periferia al centro solo cuando importa; lo demás informa desde la periferia sin abrumar. APLICACIÓN: diseñar una JERARQUÍA DE ATENCIÓN estricta de 3 niveles — (1) VITAL (SOS/manDown/emergencia/gas): centro de atención total, rompe No Molestar, sonido crítico, full-screen (liga con iOS critical alerts + full-screen intent + prioridad FCM); (2) IMPORTANTE (vencimiento de EPP, permiso por firmar): notificación normal, sin urgencia falsa; (3) AMBIENTAL (progreso, XP, tips): periferia, in-app, nunca push. La regla: reservar el canal de máxima urgencia SOLO para lo vital, para que cuando suene, el trabajador SEPA que es real y reaccione. Consolida con la capa de notificaciones (Novu) y prioridad FCM. Encaja con Flow Infinito: el sistema protege la atención del trabajador como protege su vida. Fuente: Amber Case, Calm Technology Principles; Calm Tech Institute.",
+            "link": null
+          },
+          "annotations": {
+            "bold": false,
+            "italic": false,
+            "strikethrough": false,
+            "underline": false,
+            "code": false,
+            "color": "default"
+          },
+          "plain_text": "Investigación de Calm Technology (Amber Case / Xerox PARC), 2026-07-20. RIESGO DE VIDA no nombrado antes: la FATIGA DE ALERTAS. Si Guardian bombardea al trabajador con notificaciones no críticas (recordatorios, avisos de gestión, capacitación), aprende a ignorarlas TODAS — incluida la única que salva su vida. En una app de seguridad esto no es molestia, es peligro: una alerta vital que llega en medio del ruido se pierde. Principio Calm Tech: la tecnología debe pedir la MÍNIMA atención posible y moverse de la periferia al centro solo cuando importa; lo demás informa desde la periferia sin abrumar. APLICACIÓN: diseñar una JERARQUÍA DE ATENCIÓN estricta de 3 niveles — (1) VITAL (SOS/manDown/emergencia/gas): centro de atención total, rompe No Molestar, sonido crítico, full-screen (liga con iOS critical alerts + full-screen intent + prioridad FCM); (2) IMPORTANTE (vencimiento de EPP, permiso por firmar): notificación normal, sin urgencia falsa; (3) AMBIENTAL (progreso, XP, tips): periferia, in-app, nunca push. La regla: reservar el canal de máxima urgencia SOLO para lo vital, para que cuando suene, el trabajador SEPA que es real y reaccione. Consolida con la capa de notificaciones (Novu) y prioridad FCM. Encaja con Flow Infinito: el sistema protege la atención del trabajador como protege su vida. Fuente: Amber Case, Calm Technology Principles; Calm Tech Institute.",
+          "href": null
+        }
+      ]
+    },
+    "Estado E2E": {
+      "id": "A%7CQU",
+      "type": "select",
+      "select": null
+    },
+    "Project": {
+      "id": "UJOo",
+      "type": "select",
+      "select": {
+        "id": "a979d1ab-2956-40de-b398-79fd09f60115",
+        "name": "guardian",
+        "color": "blue"
+      }
+    },
+    "Verify cmd": {
+      "id": "UbHp",
+      "type": "rich_text",
+      "rich_text": [
+        {
+          "type": "text",
+          "text": {
+            "content": "grep -rln 'notification|priority|channel' src/services/notifications/ src/server/routes/push.ts | head",
+            "link": null
+          },
+          "annotations": {
+            "bold": false,
+            "italic": false,
+            "strikethrough": false,
+            "underline": false,
+            "code": false,
+            "color": "default"
+          },
+          "plain_text": "grep -rln 'notification|priority|channel' src/services/notifications/ src/server/routes/push.ts | head",
+          "href": null
+        }
+      ]
+    },
+    "Risk tier": {
+      "id": "XodE",
+      "type": "select",
+      "select": {
+        "id": "98cadfd4-3bb1-4ccc-9ea2-169f66394cb5",
+        "name": "risky",
+        "color": "red"
+      }
+    },
+    "Priority": {
+      "id": "%5D%7BH%5E",
+      "type": "select",
+      "select": {
+        "id": "e24d1fb0-be54-405a-8cda-62e27cfb1999",
+        "name": "high",
+        "color": "orange"
+      }
+    },
+    "Área": {
+      "id": "qIsC",
+      "type": "select",
+      "select": {
+        "id": "74ee6cae-ee13-4c6d-9ba4-0f054ff6cc52",
+        "name": "Vidas",
+        "color": "red"
+      }
+    },
+    "PR": {
+      "id": "wRb%7C",
+      "type": "url",
+      "url": null
+    },
+    "Status": {
+      "id": "xua%3A",
+      "type": "select",
+      "select": {
+        "id": "7947909d-36fe-4184-a5b8-e061b37ba0f9",
+        "name": "Spec'd",
+        "color": "blue"
+      }
+    },
+    "Name": {
+      "id": "title",
+      "type": "title",
+      "title": [
+        {
+          "type": "text",
+          "text": {
+            "content": "[P1][VIDA] Jerarquía de atención calmada: evitar fatiga de alertas que mata la señal vital",
+            "link": null
+          },
+          "annotations": {
+            "bold": false,
+            "italic": false,
+            "strikethrough": false,
+            "underline": false,
+            "code": false,
+            "color": "default"
+          },
+          "plain_text": "[P1][VIDA] Jerarquía de atención calmada: evitar fatiga de alertas que mata la señal vital",
+          "href": null
+        }
+      ]
+    }
+  },
+  "url": "https://app.notion.com/p/P1-VIDA-Jerarqu-a-de-atenci-n-calmada-evitar-fatiga-de-alertas-que-mata-la-se-al-vital-3a4aa66d73fe8146bbbfe38632cdd4d6",
+  "public_url": null,
+  "archived": false,
+  "request_id": "387aeb05-ae5e-4def-b659-b83a8a0845f6"
+}

@@ -26,7 +26,15 @@
 // (the modular subpath) rather than `firebase-admin` so vitest's mock
 // surface is small and tests don't have to stub the whole admin SDK.
 
-import { getMessaging } from 'firebase-admin/messaging';
+import { getMessaging } from "firebase-admin/messaging";
+import {
+  type NotificationSeverity,
+  severityToAndroidPriority,
+  severityToApnsPriority,
+  severityToCriticalSound,
+  severityToChannelId,
+  severityShouldPush,
+} from "./notificationSeverity.js";
 
 /** Notification payload accepted by both `sendToTokens` and `sendToTopic`. */
 export interface FcmNotification {
@@ -35,6 +43,22 @@ export interface FcmNotification {
   /** Optional string-string data map. Keys + values must already be strings
    *  (FCM rejects non-string `data` entries). Pass `undefined` to omit. */
   data?: Record<string, string>;
+}
+
+/** Calm-Technology severity tier. Defaults to `vital` so existing call
+ *  sites that pre-date the tier system keep their behaviour. Set
+ *  `severity: 'ambient'` to make the push adapter reject the call: the
+ *  In-app NotificationContext surface handles ambient notifications. */
+export interface FcmSendOptions {
+  severity?: NotificationSeverity;
+}
+
+/** Default severity for the adapter. `vital` preserves the historical
+ *  safe behaviour for call sites that pre-date the tier system. */
+function resolveSeverity(
+  severity: NotificationSeverity | undefined,
+): NotificationSeverity {
+  return severity ?? "vital";
 }
 
 /** Result of a multicast send. `failedTokens` lists the *exact* tokens that
@@ -53,9 +77,9 @@ export interface FcmSendResult {
 
 /** FCM error codes that mean the token is permanently dead — prune these. */
 const DEFINITIVE_INVALID_CODES: ReadonlySet<string> = new Set([
-  'messaging/registration-token-not-registered',
-  'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
+  "messaging/invalid-argument",
 ]);
 
 /** FCM caps sendEachForMulticast at 500 tokens per call. */
@@ -63,20 +87,43 @@ const FCM_MULTICAST_MAX = 500;
 
 /** Distinguishes infra/SDK errors from caller-side validation errors. */
 export class FcmAdapterError extends Error {
-  constructor(message: string, public override readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public override readonly cause?: unknown,
+  ) {
     super(message);
-    this.name = 'FcmAdapterError';
+    this.name = "FcmAdapterError";
   }
 }
 
-function buildBaseMessage(notification: FcmNotification) {
+function buildBaseMessage(
+  notification: FcmNotification,
+  severity: NotificationSeverity,
+) {
   const base: any = {
     notification: {
       title: notification.title,
       body: notification.body,
     },
-    android: { priority: 'high' as const },
+    android: {
+      priority: severityToAndroidPriority(severity),
+      notification: {
+        channel_id: severityToChannelId(severity),
+      },
+    },
+    apns: {
+      headers: {
+        "apns-priority": severityToApnsPriority(severity),
+      },
+    },
   };
+  if (severityToCriticalSound(severity)) {
+    base.apns.payload = {
+      aps: {
+        sound: { critical: true, name: "default", volume: 1 },
+      },
+    };
+  }
   if (notification.data !== undefined) {
     base.data = notification.data;
   }
@@ -95,12 +142,26 @@ export const fcmAdapter = {
   async sendToTokens(
     tokens: string[],
     notification: FcmNotification,
+    options: FcmSendOptions = {},
   ): Promise<FcmSendResult> {
     if (!Array.isArray(tokens) || tokens.length === 0) {
-      return { successCount: 0, failureCount: 0, failedTokens: [], invalidTokens: [] };
+      return {
+        successCount: 0,
+        failureCount: 0,
+        failedTokens: [],
+        invalidTokens: [],
+      };
+    }
+    const severity = resolveSeverity(options.severity);
+    if (!severityShouldPush(severity)) {
+      // Calm Tech guard: ambient notifications must never reach the FCM
+      // adapter. They render in-app via NotificationContext instead.
+      throw new FcmAdapterError(
+        `Refusing to push ambient notification '${notification.title}': use the in-app surface.`,
+      );
     }
 
-    const base = buildBaseMessage(notification);
+    const base = buildBaseMessage(notification, severity);
     let successCount = 0;
     let failureCount = 0;
     const failedTokens: string[] = [];
@@ -117,7 +178,7 @@ export const fcmAdapter = {
         });
       } catch (err) {
         throw new FcmAdapterError(
-          `FCM multicast failed: ${(err as Error)?.message ?? 'unknown'}`,
+          `FCM multicast failed: ${(err as Error)?.message ?? "unknown"}`,
           err,
         );
       }
@@ -131,7 +192,7 @@ export const fcmAdapter = {
         // Only prune tokens FCM says are permanently dead — a temporary error
         // (server-unavailable, quota) must never delete a live device's token.
         const code: unknown = resp.error?.code;
-        if (typeof code === 'string' && DEFINITIVE_INVALID_CODES.has(code)) {
+        if (typeof code === "string" && DEFINITIVE_INVALID_CODES.has(code)) {
           invalidTokens.push(token);
         }
       });
@@ -145,20 +206,30 @@ export const fcmAdapter = {
    * on success. Empty topic is rejected client-side (FCM would reject too
    * but with a less actionable error).
    */
-  async sendToTopic(topic: string, notification: FcmNotification): Promise<string> {
-    if (typeof topic !== 'string' || topic.trim().length === 0) {
-      throw new FcmAdapterError('Topic must be a non-empty string');
+  async sendToTopic(
+    topic: string,
+    notification: FcmNotification,
+    options: FcmSendOptions = {},
+  ): Promise<string> {
+    if (typeof topic !== "string" || topic.trim().length === 0) {
+      throw new FcmAdapterError("Topic must be a non-empty string");
+    }
+    const severity = resolveSeverity(options.severity);
+    if (!severityShouldPush(severity)) {
+      throw new FcmAdapterError(
+        `Refusing to push ambient topic notification '${notification.title}'.`,
+      );
     }
 
     try {
       const messageId = await getMessaging().send({
         topic,
-        ...buildBaseMessage(notification),
+        ...buildBaseMessage(notification, severity),
       });
       return messageId;
     } catch (err) {
       throw new FcmAdapterError(
-        `FCM topic send failed: ${(err as Error)?.message ?? 'unknown'}`,
+        `FCM topic send failed: ${(err as Error)?.message ?? "unknown"}`,
         err,
       );
     }
