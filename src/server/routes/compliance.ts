@@ -8,6 +8,7 @@
 //   POST   /api/compliance/data-request
 //   GET    /api/compliance/data-request/:id
 //   GET    /api/compliance/processing-activities
+//   GET    /api/compliance/subprocessors              (public, GDPR art.28)
 //   GET    /api/compliance/data-export/:requestId
 //   POST   /api/compliance/admin/data-request/:id/process   (admin)
 //   POST   /api/compliance/admin/data-request/:id/erase     (admin, destructive)
@@ -50,6 +51,8 @@ import {
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
+// Sprint P1 privacidad — GDPR art.28 sub-procesador list (público).
+import { SUBPROCESSORS } from '../../services/compliance/subprocessors.js';
 // Admin gate for the ARCO processing endpoints — role re-read from Firebase
 // Auth custom claims (mirrors firestore.rules' isAdmin() and admin.ts).
 import { isAdminRole } from '../../types/roles.js';
@@ -107,6 +110,16 @@ const router = Router();
 
 router.get('/processing-activities', (_req, res) => {
   res.json({ activities: getProcessingActivities() });
+});
+
+// ---------------------------------------------------------------------------
+// Public sub-procesador list (GDPR art.28 + LGPD + Ley 21.719)
+// Sin auth: cualquier titular o SERNAC inspector puede consultar la lista.
+// El rate-limit global de /api/ ya cubre DDoS; no agregamos auth para no
+// levantar la barrera del titular (derecho fundamental).
+// ---------------------------------------------------------------------------
+router.get('/subprocessors', (_req, res) => {
+  res.json({ subprocessors: SUBPROCESSORS });
 });
 
 // ---------------------------------------------------------------------------
