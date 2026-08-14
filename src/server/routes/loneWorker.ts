@@ -28,20 +28,21 @@
 // started lone-worker session is traced (the man-down escalation cron reads
 // these docs — a session that began must leave an audit trail).
 
-import { Router } from 'express';
-import { z } from 'zod';
-import admin from 'firebase-admin';
-import { verifyAuth } from '../middleware/verifyAuth.js';
-import { validate } from '../middleware/validate.js';
-import { idempotencyKey } from '../middleware/idempotencyKey.js';
-import { logger } from '../../utils/logger.js';
-import { captureRouteError } from '../middleware/captureRouteError.js';
-import { auditServerEvent } from '../middleware/auditLog.js';
+import { Router } from "express";
+import { z } from "zod";
+import crypto from "node:crypto";
+import admin from "firebase-admin";
+import { verifyAuth } from "../middleware/verifyAuth.js";
+import { validate } from "../middleware/validate.js";
+import { idempotencyKey } from "../middleware/idempotencyKey.js";
+import { logger } from "../../utils/logger.js";
+import { captureRouteError } from "../middleware/captureRouteError.js";
+import { auditServerEvent } from "../middleware/auditLog.js";
 import {
   assertProjectMember,
   ProjectMembershipError,
-} from '../../services/auth/projectMembership.js';
-import { randomId } from '../../utils/randomId.js';
+} from "../../services/auth/projectMembership.js";
+import { randomId } from "../../utils/randomId.js";
 import {
   startLoneWorkerSession,
   recordCheckIn,
@@ -51,20 +52,20 @@ import {
   type LoneWorkerSession,
   type LoneWorkerStatus,
   type EscalationDecision,
-} from '../../services/loneWorker/loneWorkerService.js';
+} from "../../services/loneWorker/loneWorkerService.js";
 
 const router = Router();
 
 async function guard(
   callerUid: string,
   projectId: string,
-  res: import('express').Response,
+  res: import("express").Response,
 ): Promise<boolean> {
   try {
     await assertProjectMember(callerUid, projectId, admin.firestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
-      res.status(err.httpStatus).json({ error: 'forbidden' });
+      res.status(err.httpStatus).json({ error: "forbidden" });
       return false;
     }
     throw err;
@@ -75,18 +76,18 @@ async function guard(
 // ── shared schemas ─────────────────────────────────────────────────────
 
 const statusSchema = z.enum([
-  'active',
-  'overdue_warning',
-  'overdue_critical',
-  'help_requested',
-  'ended',
+  "active",
+  "overdue_warning",
+  "overdue_critical",
+  "help_requested",
+  "ended",
 ]) as unknown as z.ZodType<LoneWorkerStatus>;
 
 const checkInEntrySchema = z.object({
   at: z.string().min(10),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
-  status: z.enum(['ok', 'help']),
+  status: z.enum(["ok", "help"]),
 });
 
 const lastKnownLocationSchema = z.object({
@@ -122,7 +123,7 @@ const startSessionSchema = z.object({
 });
 
 router.post(
-  '/:projectId/lone-worker/start-session',
+  "/:projectId/lone-worker/start-session",
   verifyAuth,
   idempotencyKey(),
   validate(startSessionSchema),
@@ -140,35 +141,433 @@ router.post(
         workerUid: callerUid,
         startedAt: body.startedAt,
         checkInIntervalMin: body.checkInIntervalMin,
-        ...(body.lastKnownLocation ? { lastKnownLocation: body.lastKnownLocation } : {}),
+        ...(body.lastKnownLocation
+          ? { lastKnownLocation: body.lastKnownLocation }
+          : {}),
       });
       // CLAUDE.md #3: the START of a lone-worker session is a safety-critical
       // state change — audit it with the server-stamped actor.
       // CLAUDE.md #14: the session already started; an audit-log failure must
       // NOT 500 the worker's request. Capture for observability and continue.
       try {
-        await auditServerEvent(req, 'loneWorker.startSession', 'loneWorker', {
-          sessionId: session.id,
-          workerUid: session.workerUid,
-          checkInIntervalMin: session.checkInIntervalMin,
-          projectId,
-        }, { projectId });
+        await auditServerEvent(
+          req,
+          "loneWorker.startSession",
+          "loneWorker",
+          {
+            sessionId: session.id,
+            workerUid: session.workerUid,
+            checkInIntervalMin: session.checkInIntervalMin,
+            projectId,
+          },
+          { projectId },
+        );
       } catch (auditErr) {
-        logger.error?.('audit_event_failed', auditErr);
-        captureRouteError(auditErr, 'loneWorker.startSession.audit', { callerUid, projectId });
+        logger.error?.("audit_event_failed", auditErr);
+        captureRouteError(auditErr, "loneWorker.startSession.audit", {
+          callerUid,
+          projectId,
+        });
       }
       return res.json({ session });
     } catch (err) {
-      logger.error?.('loneWorker.startSession.error', err);
-      captureRouteError(err, 'loneWorker.startSession', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.startSession.error", err);
+      captureRouteError(err, "loneWorker.startSession", {
+        callerUid,
+        projectId,
+      });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
 
-// ────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// Native foreground ManDown bridge — capability mint + idempotent ingest
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Android foreground services cannot safely retain a Firebase refresh token or
+// a project secret. The authenticated WebView therefore mints an opaque
+// capability bound to one open lone-worker session. Only its SHA-256 hash
+// reaches Firestore. A capability is valid for the bounded session window and
+// may authenticate multiple distinct native triggers; every trigger carries a
+// stable clientEventId and is idempotent server-side. A stopped/ended session,
+// expired capability, or mismatched hash fails closed. Explicit session end
+// invalidates the capability in the same server transaction.
+// A lone-worker session is capped at 12h. Leave a small delivery margin so an
+// alert captured near shift end can survive a transient offline retry; explicit
+// end-session remains the immediate authority revocation point.
+const NATIVE_MANDOWN_CAPABILITY_TTL_MS = 13 * 60 * 60_000;
+const NATIVE_MANDOWN_HEADER = "x-mandown-capability";
+
+const nativeManDownSchema = z
+  .object({
+    /** Stable per-trigger UUID: retries reuse it, distinct triggers mint another. */
+    clientEventId: z.string().uuid(),
+    kind: z.enum(["impact", "inactivity"]),
+    occurredAt: z.string().min(10).max(80),
+    accelerationMps2: z.number().finite().min(0).max(200).optional(),
+    inactivityMs: z
+      .number()
+      .int()
+      .min(1_000)
+      .max(24 * 60 * 60_000)
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === "impact" && value.accelerationMps2 === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "impact requires accelerationMps2",
+      });
+    }
+    if (value.kind === "inactivity" && value.inactivityMs === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "inactivity requires inactivityMs",
+      });
+    }
+  });
+
+type NativeManDownPayload = z.infer<typeof nativeManDownSchema>;
+
+type NativeSessionRecord = {
+  workerUid?: unknown;
+  status?: unknown;
+  endedAt?: unknown;
+  nativeManDownCapabilityHash?: unknown;
+  nativeManDownCapabilityExpiresAt?: unknown;
+};
+
+class NativeManDownError extends Error {
+  constructor(
+    readonly httpStatus: 409,
+    message:
+      "native_mandown_session_inactive" | "native_mandown_capability_invalid",
+  ) {
+    super(message);
+    this.name = "NativeManDownError";
+  }
+}
+
+function isOpenNativeSession(
+  data: NativeSessionRecord,
+  workerUid: string,
+): boolean {
+  // Only canonical non-terminal statuses are native-safe. A malformed/missing
+  // status must fail closed rather than turning an arbitrary Firestore record
+  // into an Android background authority.
+  const openStatuses = new Set([
+    "active",
+    "overdue_warning",
+    "overdue_critical",
+    "help_requested",
+  ]);
+  return (
+    data.workerUid === workerUid &&
+    typeof data.status === "string" &&
+    openStatuses.has(data.status) &&
+    !data.endedAt
+  );
+}
+
+function capabilityHash(capability: string): string {
+  return crypto.createHash("sha256").update(capability, "utf8").digest("hex");
+}
+
+function capabilityMatches(raw: string, expectedHash: unknown): boolean {
+  if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+    return false;
+  const actual = Buffer.from(capabilityHash(raw), "utf8");
+  const expected = Buffer.from(expectedHash, "utf8");
+  return (
+    actual.length === expected.length &&
+    crypto.timingSafeEqual(actual, expected)
+  );
+}
+
+function validNativeCapability(raw: unknown): raw is string {
+  return (
+    typeof raw === "string" &&
+    /^[A-Za-z0-9_-]{32,}$/.test(raw) &&
+    raw.length <= 256
+  );
+}
+
+router.post(
+  "/:projectId/lone-worker/:sessionId/native-mandown-capability",
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, sessionId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    const db = admin.firestore();
+    const sessionRef = db
+      .collection("projects")
+      .doc(projectId)
+      .collection("lone_worker_sessions")
+      .doc(sessionId);
+    const capability = crypto.randomBytes(32).toString("base64url");
+    const expiresAt = new Date(
+      Date.now() + NATIVE_MANDOWN_CAPABILITY_TTL_MS,
+    ).toISOString();
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(sessionRef);
+        if (
+          !snap.exists ||
+          !isOpenNativeSession(snap.data() as NativeSessionRecord, callerUid)
+        ) {
+          throw new NativeManDownError(409, "native_mandown_session_inactive");
+        }
+        tx.update(sessionRef, {
+          nativeManDownCapabilityHash: capabilityHash(capability),
+          nativeManDownCapabilityExpiresAt: expiresAt,
+          nativeManDownCapabilityIssuedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      if (err instanceof NativeManDownError) {
+        return res.status(err.httpStatus).json({ error: err.message });
+      }
+      logger.error?.("loneWorker.nativeCapability.error", err);
+      captureRouteError(err, "loneWorker.nativeCapability", {
+        callerUid,
+        projectId,
+        sessionId,
+      });
+      return res.status(500).json({ error: "internal_error" });
+    }
+
+    try {
+      await auditServerEvent(
+        req,
+        "loneWorker.nativeManDownCapabilityIssued",
+        "loneWorker",
+        {
+          projectId,
+          sessionId,
+          workerUid: callerUid,
+          expiresAt,
+        },
+        { projectId },
+      );
+    } catch (auditErr) {
+      logger.warn?.("loneWorker.nativeCapability.audit_failed", auditErr);
+      captureRouteError(auditErr, "loneWorker.nativeCapability.audit", {
+        callerUid,
+        projectId,
+        sessionId,
+      });
+    }
+    return res.json({ sessionId, capability, expiresAt });
+  },
+);
+
+router.post(
+  "/:projectId/lone-worker/:sessionId/native-man-down",
+  validate(nativeManDownSchema),
+  async (req, res) => {
+    const { projectId, sessionId } = req.params;
+    const rawCapability = req.header(NATIVE_MANDOWN_HEADER);
+    if (!validNativeCapability(rawCapability)) {
+      return res.status(401).json({ error: "native_mandown_unauthorized" });
+    }
+    const body = req.validated as NativeManDownPayload;
+    const occurredAtMs = Date.parse(body.occurredAt);
+    // A persisted native outbox can retry after a transient network outage.
+    // `clientEventId` provides replay protection; reject only malformed or
+    // materially-future device clocks, not a genuine alert captured earlier in
+    // the same still-open session.
+    if (
+      !Number.isFinite(occurredAtMs) ||
+      occurredAtMs > Date.now() + 5 * 60_000
+    ) {
+      return res
+        .status(400)
+        .json({ error: "native_mandown_invalid_timestamp" });
+    }
+
+    const db = admin.firestore();
+    const sessionRef = db
+      .collection("projects")
+      .doc(projectId)
+      .collection("lone_worker_sessions")
+      .doc(sessionId);
+    // clientEventId is a stable UUID persisted by Android before network I/O.
+    // Deterministic document identity makes offline retries idempotent without
+    // consuming the session capability after the first alert of a shift.
+    const eventRef = db
+      .collection("projects")
+      .doc(projectId)
+      .collection("mandown_events")
+      .doc(body.clientEventId);
+    const auditRef = db.collection("audit_logs").doc();
+
+    let workerUid = "";
+    let duplicate = false;
+    try {
+      await db.runTransaction(async (tx) => {
+        const [sessionSnap, existingEvent] = await Promise.all([
+          tx.get(sessionRef),
+          tx.get(eventRef),
+        ]);
+        if (!sessionSnap.exists)
+          throw new NativeManDownError(409, "native_mandown_session_inactive");
+        const session = sessionSnap.data() as NativeSessionRecord;
+        const storedWorkerUid =
+          typeof session.workerUid === "string" ? session.workerUid : "";
+        const expiry =
+          typeof session.nativeManDownCapabilityExpiresAt === "string"
+            ? Date.parse(session.nativeManDownCapabilityExpiresAt)
+            : Number.NaN;
+        if (
+          !isOpenNativeSession(session, storedWorkerUid) ||
+          !Number.isFinite(expiry) ||
+          expiry <= Date.now() ||
+          !capabilityMatches(rawCapability, session.nativeManDownCapabilityHash)
+        ) {
+          throw new NativeManDownError(
+            409,
+            "native_mandown_capability_invalid",
+          );
+        }
+        workerUid = storedWorkerUid;
+        if (existingEvent.exists) {
+          const existing = existingEvent.data() as Record<string, unknown>;
+          if (
+            existing.projectId !== projectId ||
+            existing.sessionId !== sessionId ||
+            existing.workerId !== workerUid ||
+            existing.source !== "android_foreground_service"
+          ) {
+            throw new NativeManDownError(
+              409,
+              "native_mandown_capability_invalid",
+            );
+          }
+          duplicate = true;
+          return;
+        }
+        tx.create(eventRef, {
+          projectId,
+          sessionId,
+          workerId: workerUid,
+          status: "active",
+          source: "android_foreground_service",
+          clientEventId: body.clientEventId,
+          trigger: body.kind,
+          triggeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          occurredAt: body.occurredAt,
+          ...(body.accelerationMps2 !== undefined
+            ? { accelerationMps2: body.accelerationMps2 }
+            : {}),
+          ...(body.inactivityMs !== undefined
+            ? { inactivityMs: body.inactivityMs }
+            : {}),
+          acknowledgedBy: null,
+          acknowledgedAt: null,
+        });
+        tx.set(auditRef, {
+          action: "loneWorker.nativeManDownAccepted",
+          module: "loneWorker",
+          details: {
+            projectId,
+            sessionId,
+            eventId: eventRef.id,
+            workerUid,
+            kind: body.kind,
+            source: "android_foreground_service",
+          },
+          userId: workerUid,
+          projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      if (err instanceof NativeManDownError) {
+        return res.status(err.httpStatus).json({ error: err.message });
+      }
+      logger.error?.("loneWorker.nativeManDown.error", err);
+      captureRouteError(err, "loneWorker.nativeManDown", {
+        projectId,
+        sessionId,
+      });
+      return res.status(500).json({ error: "internal_error" });
+    }
+
+    // A transport retry for the same persisted clientEventId is a successful
+    // idempotent delivery, not a second emergency/fan-out.
+    if (duplicate) {
+      return res
+        .status(202)
+        .json({ accepted: true, duplicate: true, eventId: eventRef.id });
+    }
+
+    // The durable event is committed before this best-effort immediate fan-out.
+    // The existing ManDown escalation job continues to retry/expand notification
+    // levels if a transient push failure occurs here.
+    try {
+      const { sendToProjectSupervisors } = await import("./emergency.js");
+      await sendToProjectSupervisors(
+        projectId,
+        {
+          title: "Alerta Man Down detectada",
+          body: "El monitoreo nativo detectó una posible caída o inmovilidad.",
+          data: {
+            projectId,
+            eventId: eventRef.id,
+            type: "man_down",
+            workerUid,
+          },
+        },
+        db,
+        admin.messaging(),
+      );
+    } catch (notifyErr) {
+      logger.warn?.("loneWorker.nativeManDown.fanout_failed", notifyErr);
+      captureRouteError(notifyErr, "loneWorker.nativeManDown.fanout", {
+        projectId,
+        sessionId,
+        eventId: eventRef.id,
+      });
+    }
+
+    // Explicit post-write audit for the route convention gate. The transaction
+    // already wrote the immutable forensic audit with the event; this secondary
+    // server audit records HTTP completion and never blocks life-safety fan-out.
+    try {
+      await auditServerEvent(
+        req,
+        "loneWorker.nativeManDownDelivered",
+        "loneWorker",
+        {
+          projectId,
+          sessionId,
+          eventId: eventRef.id,
+          workerUid,
+          kind: body.kind,
+        },
+        { projectId },
+      );
+    } catch (auditErr) {
+      logger.warn?.("loneWorker.nativeManDown.audit_failed", auditErr);
+      captureRouteError(auditErr, "loneWorker.nativeManDown.audit", {
+        projectId,
+        sessionId,
+        eventId: eventRef.id,
+      });
+    }
+
+    return res.status(202).json({ accepted: true, eventId: eventRef.id });
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────────
 // 1. check-in  — worker pulses heartbeat (or "help")
-// ────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 
 const checkInSchema = z.object({
   session: sessionSchema,
@@ -176,12 +575,12 @@ const checkInSchema = z.object({
     at: z.string().min(10).optional(),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
-    status: z.enum(['ok', 'help']).optional(),
+    status: z.enum(["ok", "help"]).optional(),
   }),
 });
 
 router.post(
-  '/:projectId/lone-worker/check-in',
+  "/:projectId/lone-worker/check-in",
   verifyAuth,
   idempotencyKey(),
   validate(checkInSchema),
@@ -195,8 +594,8 @@ router.post(
     // separate audited flow (out-of-scope here).
     if (body.session.workerUid !== callerUid) {
       return res.status(403).json({
-        error: 'forbidden',
-        message: 'Only the worker themselves can record their own check-in.',
+        error: "forbidden",
+        message: "Only the worker themselves can record their own check-in.",
       });
     }
     try {
@@ -208,21 +607,30 @@ router.post(
       // outage must NOT 500 a distress signal (the worker would think help was
       // not received). Capture the audit failure out-of-band and still respond OK.
       try {
-        await auditServerEvent(req, 'loneWorker.checkIn', 'loneWorker', {
-          sessionId: session.id,
-          workerUid: session.workerUid,
-          help: body.checkIn.status === 'help',
-          projectId,
-        }, { projectId });
+        await auditServerEvent(
+          req,
+          "loneWorker.checkIn",
+          "loneWorker",
+          {
+            sessionId: session.id,
+            workerUid: session.workerUid,
+            help: body.checkIn.status === "help",
+            projectId,
+          },
+          { projectId },
+        );
       } catch (auditErr) {
-        logger.error?.('audit_event_failed', auditErr);
-        captureRouteError(auditErr, 'loneWorker.checkIn.audit', { callerUid, projectId });
+        logger.error?.("audit_event_failed", auditErr);
+        captureRouteError(auditErr, "loneWorker.checkIn.audit", {
+          callerUid,
+          projectId,
+        });
       }
       return res.json({ session });
     } catch (err) {
-      logger.error?.('loneWorker.checkIn.error', err);
-      captureRouteError(err, 'loneWorker.checkIn', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.checkIn.error", err);
+      captureRouteError(err, "loneWorker.checkIn", { callerUid, projectId });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
@@ -237,7 +645,7 @@ const endSessionSchema = z.object({
 });
 
 router.post(
-  '/:projectId/lone-worker/end-session',
+  "/:projectId/lone-worker/end-session",
   verifyAuth,
   idempotencyKey(),
   validate(endSessionSchema),
@@ -247,23 +655,72 @@ router.post(
     const body = req.validated as z.infer<typeof endSessionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // Pure-compute close: the engine stamps endedAt + status on the
+      // caller-supplied session. The client persists to Firestore via the
+      // existing client write path. The native ManDown capability is revoked
+      // best-effort below — a failed revoke is observable but never blocks
+      // the human-facing response (the capability carries its own expiry and
+      // the next native trigger will fail closed if the session is gone).
       const session = endSession(body.session, body.endedAt);
       // CLAUDE.md #14: session already ended; audit failure must not 500 it.
       try {
-        await auditServerEvent(req, 'loneWorker.endSession', 'loneWorker', {
-          sessionId: session.id,
-          workerUid: session.workerUid,
-          projectId,
-        }, { projectId });
+        await auditServerEvent(
+          req,
+          "loneWorker.endSession",
+          "loneWorker",
+          {
+            sessionId: session.id,
+            workerUid: session.workerUid,
+            projectId,
+          },
+          { projectId },
+        );
       } catch (auditErr) {
-        logger.error?.('audit_event_failed', auditErr);
-        captureRouteError(auditErr, 'loneWorker.endSession.audit', { callerUid, projectId });
+        logger.error?.("audit_event_failed", auditErr);
+        captureRouteError(auditErr, "loneWorker.endSession.audit", {
+          callerUid,
+          projectId,
+        });
+      }
+      // Best-effort native authority revocation. If the session doc exists and
+      // carries a ManDown capability, drop it so the next Android trigger fails
+      // closed. Failures here are logged but do not block the human response.
+      try {
+        const db = admin.firestore();
+        const sessionRef = db
+          .collection("projects")
+          .doc(projectId)
+          .collection("lone_worker_sessions")
+          .doc(body.session.id);
+        const persisted = await sessionRef.get();
+        if (persisted.exists) {
+          const data = persisted.data() as NativeSessionRecord;
+          // Only delete the capability fields when the persisted worker matches
+          // the caller-supplied session — never collateral-update a different
+          // worker's record.
+          if (data.workerUid === body.session.workerUid) {
+            await sessionRef.update({
+              status: session.status,
+              endedAt: session.endedAt,
+              nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityExpiresAt:
+                admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityIssuedAt:
+                admin.firestore.FieldValue.delete(),
+            });
+          }
+        }
+      } catch (revokeErr) {
+        logger.warn?.("loneWorker.endSession.nativeRevoke_failed", revokeErr);
+        // Best-effort: the capability is bound to the session in the caller
+        // handler; the next /native-man-down call fails closed server-side if
+        // the WebView died before the capability-expiry TTL elapses.
       }
       return res.json({ session });
     } catch (err) {
-      logger.error?.('loneWorker.endSession.error', err);
-      captureRouteError(err, 'loneWorker.endSession', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.endSession.error", err);
+      captureRouteError(err, "loneWorker.endSession", { callerUid, projectId });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
@@ -278,7 +735,7 @@ const deriveSchema = z.object({
 });
 
 router.post(
-  '/:projectId/lone-worker/derive-status',
+  "/:projectId/lone-worker/derive-status",
   verifyAuth,
   validate(deriveSchema),
   async (req, res) => {
@@ -291,9 +748,12 @@ router.post(
       const status = deriveLoneWorkerStatus(body.session, now);
       return res.json({ status });
     } catch (err) {
-      logger.error?.('loneWorker.deriveStatus.error', err);
-      captureRouteError(err, 'loneWorker.deriveStatus', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.deriveStatus.error", err);
+      captureRouteError(err, "loneWorker.deriveStatus", {
+        callerUid,
+        projectId,
+      });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
@@ -303,7 +763,7 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 router.post(
-  '/:projectId/lone-worker/decide-escalation',
+  "/:projectId/lone-worker/decide-escalation",
   verifyAuth,
   validate(deriveSchema),
   async (req, res) => {
@@ -313,12 +773,18 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const now = body.now ? new Date(body.now) : new Date();
-      const escalation: EscalationDecision | null = decideEscalation(body.session, now);
+      const escalation: EscalationDecision | null = decideEscalation(
+        body.session,
+        now,
+      );
       return res.json({ escalation });
     } catch (err) {
-      logger.error?.('loneWorker.decideEscalation.error', err);
-      captureRouteError(err, 'loneWorker.decideEscalation', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.decideEscalation.error", err);
+      captureRouteError(err, "loneWorker.decideEscalation", {
+        callerUid,
+        projectId,
+      });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
@@ -340,7 +806,7 @@ interface OverviewEntry {
 }
 
 router.post(
-  '/:projectId/lone-worker/admin-overview',
+  "/:projectId/lone-worker/admin-overview",
   verifyAuth,
   validate(overviewSchema),
   async (req, res) => {
@@ -357,9 +823,12 @@ router.post(
       }));
       return res.json({ overview });
     } catch (err) {
-      logger.error?.('loneWorker.adminOverview.error', err);
-      captureRouteError(err, 'loneWorker.adminOverview', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      logger.error?.("loneWorker.adminOverview.error", err);
+      captureRouteError(err, "loneWorker.adminOverview", {
+        callerUid,
+        projectId,
+      });
+      return res.status(500).json({ error: "internal_error" });
     }
   },
 );
