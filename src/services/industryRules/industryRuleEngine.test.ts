@@ -59,6 +59,37 @@ describe('getIndustryPreset', () => {
       expect(p.mandatoryTrainings.length).toBeGreaterThan(0);
     }
   });
+
+  it('oleada 1 — los nuevos presets (GP-COM-MAY, GP-COM-MEN, GP-INF-TI, GP-EDU-PRE, GP-EDU-SUP, GP-ALOJA-HOT, GP-PRO-LEG, GP-PRO-ARQING) tienen riesgo + documento + training reales', () => {
+    // Discovery 2026-08-14: solo 7 de 21 sectores tenían presets curados. Esta
+    // oleada cubre los sectores administrativos / comerciales / servicios
+    // para que clientes de comercio, TI, educación, hotelería y
+    // profesionales tengan onboarding con riesgos + documentos +
+    // capacitaciones específicos del rubro (no el fallback genérico).
+    const wave1Prefixes = [
+      'GP-COM-MAY',
+      'GP-COM-MEN',
+      'GP-INF-TI',
+      'GP-EDU-PRE',
+      'GP-EDU-SUP',
+      'GP-ALOJA-HOT',
+      'GP-PRO-LEG',
+      'GP-PRO-ARQING',
+    ];
+    for (const prefix of wave1Prefixes) {
+      const p = getIndustryPreset(prefix);
+      // No es el fallback genérico (etiqueta incluye el prefijo).
+      expect(p.label).toContain(prefix);
+      // Cada uno tiene riesgos + documentos + capacitaciones reales.
+      expect(p.typicalRisks.length).toBeGreaterThan(0);
+      expect(p.mandatoryDocuments.length).toBeGreaterThan(0);
+      expect(p.mandatoryTrainings.length).toBeGreaterThan(0);
+      expect(p.applicableRegulations.length).toBeGreaterThan(0);
+      expect(p.minsalProtocols.length).toBeGreaterThan(0);
+      // El sector tiene nombre legible (no "Genérico").
+      expect(p.label).not.toContain('Genérico');
+    }
+  });
 });
 
 describe('buildPresetApplication', () => {

@@ -95,6 +95,160 @@ const PRESETS: Record<string, Omit<IndustryPreset, 'industryPrefix' | 'baseEpp'>
     applicableRegulations: ['DS 594', 'Ley 16.744'],
     minsalProtocols: ['PREXOR_ruido', 'TMERT_repetitivo'],
   },
+
+  // ── COMERCIO ── Trabajo en góndolas, carga manual, vehículos de reparto ──
+  'GP-COM-MAY': {
+    label: 'Comercio al por mayor y reparto (GP-COM-MAY)',
+    typicalRisks: [
+      'manejo_manual_carga_pesada',
+      'caida_mismo_nivel_pisos_mojados',
+      'atropello_vehiculo_reparto_patio',
+      'fatiga_jornada_extendida',
+    ],
+    mandatoryDocuments: [
+      'RIOHS',
+      'Procedimiento Check Pre-Operacional Vehículos de Reparto',
+      'Plan Trabajo Bodega / Carga Manual',
+    ],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'manejo_manual_carga_25kg_por_persona',
+      'manejo_defensivo_patio',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744'],
+    minsalProtocols: ['TMERT_postura', 'PREXOR_ruido'],
+  },
+  'GP-COM-MEN': {
+    label: 'Comercio al por menor (GP-COM-MEN)',
+    typicalRisks: [
+      'caida_mismo_nivel_pisos_mojados',
+      'manejo_carga_gondola_altura',
+      'estres_psicosocial_atencion_cliente',
+    ],
+    mandatoryDocuments: ['RIOHS', 'Plan Trabajo Local Comercial'],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'manejo_carga_gondola_8kg_mujeres_12kg_hombres',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744'],
+    minsalProtocols: ['TMERT_postura'],
+  },
+  // ── TECNOLOGÍAS DE LA INFORMACIÓN (TI) ── Oficinas, datacenter, call center ──
+  'GP-INF-TI': {
+    label: 'Tecnologías de la información (GP-INF-TI)',
+    typicalRisks: [
+      'ergonomico_pantalla_postura',
+      'electrico_baja_tension_datacenter',
+      'estres_psicosocial_carga_mental',
+      'sedentarismo_prolongado',
+    ],
+    mandatoryDocuments: [
+      'RIOHS',
+      'Plan Trabajo en Pantalla (DS 594 art. 95)',
+      'Procedimiento Trabajo en Datacenter',
+    ],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'ergonomia_trabajo_pantalla_4h',
+      'electricidad_baja_tension_personal_no_electrico',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 19.628'],
+    minsalProtocols: ['TMERT_pantalla', 'PREXOR_carga_mental'],
+  },
+  // ── EDUCACIÓN ── Establecimientos educacionales (colegios, universidades) ──
+  'GP-EDU-PRE': {
+    label: 'Educación preescolar (GP-EDU-PRE)',
+    typicalRisks: [
+      'caida_mismo_nivel_pisos_mojados',
+      'biologico_cambio_panales',
+      'ergonomico_levantar_ninos',
+    ],
+    mandatoryDocuments: ['RIOHS', 'Plan Trabajo Establecimiento Educacional', 'Protocolo Bioseguridad'],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'manejo_ergonomico_cuidado_infantes',
+      'bioseguridad_aula_inicial',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744'],
+    minsalProtocols: ['TMERT_postura', 'PREXOR_riesgos_psicosociales'],
+  },
+  'GP-EDU-SUP': {
+    label: 'Educación superior y universitaria (GP-EDU-SUP)',
+    typicalRisks: [
+      'ergonomico_pantalla_laboratorio',
+      'quimico_reactivos_laboratorio',
+      'estres_psicosocial_eval_docente',
+    ],
+    mandatoryDocuments: ['RIOHS', 'Plan Trabajo Campus Universitario', 'Plan Manejo Químicos'],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'bioseguridad_laboratorio_nivel_1',
+      'manejo_quimicos_reactivos_compatibles',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744', 'DS 78'],
+    minsalProtocols: ['PREXOR_riesgos_psicosociales', 'TMERT_postura_pantalla'],
+  },
+  // ── ALOJAMIENTO Y TURISMO ── Hoteles, restaurantes, actividades turísticas ──
+  'GP-ALOJA-HOT': {
+    label: 'Alojamiento / hoteles (GP-ALOJA-HOT)',
+    typicalRisks: [
+      'biologico_manipulacion_alimentos',
+      'electrico_baja_tension_pisos_mojados',
+      'caida_mismo_nivel_pisos_encerados',
+      'quimico_productos_limpieza',
+    ],
+    mandatoryDocuments: [
+      'RIOHS',
+      'Plan Trabajo Alojamiento',
+      'Plan HACCP / Manipulación Alimentos',
+      'Procedimiento Trabajo Pisos Mojados',
+    ],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'bioseguridad_manipulacion_alimentos_nivel_1',
+      'manejo_quimicos_limpieza_seguros',
+      'reba_basico_extintores',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744', 'DS 977'],
+    minsalProtocols: ['PREXOR_riesgos_psicosociales', 'PREXOR_quimicos'],
+  },
+  // ── PROFESIONALES ── Oficinas profesionales (abogados, contadores, consultores) ──
+  'GP-PRO-LEG': {
+    label: 'Servicios jurídicos y notariales (GP-PRO-LEG)',
+    typicalRisks: [
+      'estres_psicosocial_alta_carga_mental',
+      'ergonomico_pantalla_larga_duracion',
+    ],
+    mandatoryDocuments: ['RIOHS', 'Plan Trabajo Oficina'],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'ergonomia_trabajo_pantalla_4h',
+      'prevencion_estres_laboral_oficina',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744'],
+    minsalProtocols: ['TMERT_pantalla', 'PREXOR_riesgos_psicosociales'],
+  },
+  'GP-PRO-ARQING': {
+    label: 'Arquitectura, ingeniería y actividades técnicas (GP-PRO-ARQING)',
+    typicalRisks: [
+      'altura_andamios_visitas_obra',
+      'electrico_visita_instalaciones',
+      'atropello_visita_faena',
+      'ergonomico_pantalla_dibujo',
+    ],
+    mandatoryDocuments: [
+      'RIOHS',
+      'Procedimiento Visita a Faena',
+      'Plan Trabajo Oficina Técnica',
+    ],
+    mandatoryTrainings: [
+      'induccion_general_riesgos',
+      'induccion_obra_visita_tecnica',
+      'electricidad_baja_tension_basico',
+    ],
+    applicableRegulations: ['DS 594', 'Ley 16.744', 'DS 76'],
+    minsalProtocols: ['TMERT_pantalla'],
+  },
 };
 
 // ────────────────────────────────────────────────────────────────────────
