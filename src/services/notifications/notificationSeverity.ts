@@ -64,7 +64,9 @@ export type NotificationKind =
 /** Map a kind to its severity. `unknown` is a closed third state that
  *  adapter callers must handle explicitly (default `vital` until the
  *  caller audits). */
-const KIND_TO_SEVERITY: Readonly<Record<NotificationKind, NotificationSeverity>> = {
+const KIND_TO_SEVERITY: Readonly<
+  Record<NotificationKind, NotificationSeverity>
+> = {
   sos: "vital",
   manDown: "vital",
   evacuation: "vital",
@@ -132,7 +134,9 @@ export function severityToAndroidPriority(
  * build environment + provisioning decides. The priority header is
  * independent of the critical-sound entitlement.
  */
-export function severityToApnsPriority(severity: NotificationSeverity): "10" | "5" {
+export function severityToApnsPriority(
+  severity: NotificationSeverity,
+): "10" | "5" {
   return severity === "vital" ? "10" : "5";
 }
 
@@ -160,7 +164,9 @@ export function severityToChannelId(severity: NotificationSeverity): string {
  *  notification falls through to default sound. We keep the helper
  *  here so the boolean is co-located with the rest of the severity
  *  decision and easily audited. */
-export function severityToCriticalSound(severity: NotificationSeverity): boolean {
+export function severityToCriticalSound(
+  severity: NotificationSeverity,
+): boolean {
   return severity === "vital";
 }
 
@@ -174,6 +180,8 @@ export function severityShouldPush(severity: NotificationSeverity): boolean {
 
 /** Defensive default: closed set guard. Returns true IFF the input
  *  is one of the three closed severity values. */
-export function isNotificationSeverity(value: unknown): value is NotificationSeverity {
+export function isNotificationSeverity(
+  value: unknown,
+): value is NotificationSeverity {
   return value === "vital" || value === "important" || value === "ambient";
 }

@@ -26,7 +26,7 @@
 // (the modular subpath) rather than `firebase-admin` so vitest's mock
 // surface is small and tests don't have to stub the whole admin SDK.
 
-import { getMessaging } from 'firebase-admin/messaging';
+import { getMessaging } from "firebase-admin/messaging";
 import {
   type NotificationSeverity,
   severityToAndroidPriority,
@@ -34,7 +34,7 @@ import {
   severityToCriticalSound,
   severityToChannelId,
   severityShouldPush,
-} from './notificationSeverity.js';
+} from "./notificationSeverity.js";
 
 /** Notification payload accepted by both `sendToTokens` and `sendToTopic`. */
 export interface FcmNotification {
@@ -55,8 +55,10 @@ export interface FcmSendOptions {
 
 /** Default severity for the adapter. `vital` preserves the historical
  *  safe behaviour for call sites that pre-date the tier system. */
-function resolveSeverity(severity: NotificationSeverity | undefined): NotificationSeverity {
-  return severity ?? 'vital';
+function resolveSeverity(
+  severity: NotificationSeverity | undefined,
+): NotificationSeverity {
+  return severity ?? "vital";
 }
 
 /** Result of a multicast send. `failedTokens` lists the *exact* tokens that
@@ -75,9 +77,9 @@ export interface FcmSendResult {
 
 /** FCM error codes that mean the token is permanently dead — prune these. */
 const DEFINITIVE_INVALID_CODES: ReadonlySet<string> = new Set([
-  'messaging/registration-token-not-registered',
-  'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
+  "messaging/invalid-argument",
 ]);
 
 /** FCM caps sendEachForMulticast at 500 tokens per call. */
@@ -85,13 +87,19 @@ const FCM_MULTICAST_MAX = 500;
 
 /** Distinguishes infra/SDK errors from caller-side validation errors. */
 export class FcmAdapterError extends Error {
-  constructor(message: string, public override readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public override readonly cause?: unknown,
+  ) {
     super(message);
-    this.name = 'FcmAdapterError';
+    this.name = "FcmAdapterError";
   }
 }
 
-function buildBaseMessage(notification: FcmNotification, severity: NotificationSeverity) {
+function buildBaseMessage(
+  notification: FcmNotification,
+  severity: NotificationSeverity,
+) {
   const base: any = {
     notification: {
       title: notification.title,
@@ -105,14 +113,14 @@ function buildBaseMessage(notification: FcmNotification, severity: NotificationS
     },
     apns: {
       headers: {
-        'apns-priority': severityToApnsPriority(severity),
+        "apns-priority": severityToApnsPriority(severity),
       },
     },
   };
   if (severityToCriticalSound(severity)) {
     base.apns.payload = {
       aps: {
-        sound: { critical: true, name: 'default', volume: 1 },
+        sound: { critical: true, name: "default", volume: 1 },
       },
     };
   }
@@ -137,7 +145,12 @@ export const fcmAdapter = {
     options: FcmSendOptions = {},
   ): Promise<FcmSendResult> {
     if (!Array.isArray(tokens) || tokens.length === 0) {
-      return { successCount: 0, failureCount: 0, failedTokens: [], invalidTokens: [] };
+      return {
+        successCount: 0,
+        failureCount: 0,
+        failedTokens: [],
+        invalidTokens: [],
+      };
     }
     const severity = resolveSeverity(options.severity);
     if (!severityShouldPush(severity)) {
@@ -165,7 +178,7 @@ export const fcmAdapter = {
         });
       } catch (err) {
         throw new FcmAdapterError(
-          `FCM multicast failed: ${(err as Error)?.message ?? 'unknown'}`,
+          `FCM multicast failed: ${(err as Error)?.message ?? "unknown"}`,
           err,
         );
       }
@@ -179,7 +192,7 @@ export const fcmAdapter = {
         // Only prune tokens FCM says are permanently dead — a temporary error
         // (server-unavailable, quota) must never delete a live device's token.
         const code: unknown = resp.error?.code;
-        if (typeof code === 'string' && DEFINITIVE_INVALID_CODES.has(code)) {
+        if (typeof code === "string" && DEFINITIVE_INVALID_CODES.has(code)) {
           invalidTokens.push(token);
         }
       });
@@ -198,8 +211,8 @@ export const fcmAdapter = {
     notification: FcmNotification,
     options: FcmSendOptions = {},
   ): Promise<string> {
-    if (typeof topic !== 'string' || topic.trim().length === 0) {
-      throw new FcmAdapterError('Topic must be a non-empty string');
+    if (typeof topic !== "string" || topic.trim().length === 0) {
+      throw new FcmAdapterError("Topic must be a non-empty string");
     }
     const severity = resolveSeverity(options.severity);
     if (!severityShouldPush(severity)) {
@@ -216,7 +229,7 @@ export const fcmAdapter = {
       return messageId;
     } catch (err) {
       throw new FcmAdapterError(
-        `FCM topic send failed: ${(err as Error)?.message ?? 'unknown'}`,
+        `FCM topic send failed: ${(err as Error)?.message ?? "unknown"}`,
         err,
       );
     }
