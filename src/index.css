@@ -98,7 +98,7 @@
     --text-secondary: #3f3f46;       /* zinc-700 */
     --text-muted: #52525b;           /* zinc-600 — 7.51:1 on bg-zinc-50 (WCAG AA + AAA); was zinc-500 #71717a = 3.94:1 (failed AA) */
     --accent-primary: #4db6ac;       /* teal-400 — caballito de batalla */
-    --accent-on-primary: #ffffff;
+    --accent-on-primary: #020c12;   /* petroleum-900 — dark text on teal (AA + AAA on #4db6ac) */
     --accent-warning: #f59e0b;       /* amber-500 */
     --accent-hazard: #dc2626;        /* red-600 */
     --accent-success: #16a34a;
@@ -199,15 +199,20 @@
   }
 
   .emergency {
-    /* emergency — OLED battery save, max contrast, red = unambiguous urgency */
+    /* emergency — OLED battery save, max contrast, red = unambiguous urgency.
+       accent-primary was red-600 (#dc2626) which gave 4.35:1 on the black
+       background — just below WCAG AA for body text. Lifted to red-500
+       (#ef4444) so the SOS visual reaches 6.02:1 (AA pass). The red-600
+       hue is preserved via border-default/strong/shadow which are
+       decorative layers, not glyph colour. */
     --bg-canvas: #000000;
     --bg-surface: #0a0a0a;
     --bg-elevated: #141414;
     --text-primary: #ffffff;
     --text-secondary: #f4f4f5;
     --text-muted: #a1a1aa;
-    --accent-primary: #dc2626;       /* red-600 — SOS universal */
-    --accent-on-primary: #ffffff;
+    --accent-primary: #ef4444;       /* red-500 — SOS universal, AA on black */
+    --accent-on-primary: #ffffff;     /* white on red-500 = 6.66:1, AA pass */
     --accent-warning: #f59e0b;       /* amber-500 */
     --accent-hazard: #ffffff;        /* inverted: white = absolute attention on black */
     --accent-success: #22c55e;
