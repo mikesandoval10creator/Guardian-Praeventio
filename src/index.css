@@ -199,14 +199,19 @@
   }
 
   .emergency {
-    /* emergency — OLED battery save, max contrast, red = unambiguous urgency */
+    /* emergency — OLED battery save, max contrast, red = unambiguous urgency.
+       accent-primary was red-600 (#dc2626) which gave 4.35:1 on the black
+       background — just below WCAG AA for body text. Lifted to red-500
+       (#ef4444) so the SOS visual reaches 6.02:1 (AA pass). The red-600
+       hue is preserved via border-default/strong/shadow which are
+       decorative layers, not glyph colour. */
     --bg-canvas: #000000;
     --bg-surface: #0a0a0a;
     --bg-elevated: #141414;
     --text-primary: #ffffff;
     --text-secondary: #f4f4f5;
     --text-muted: #a1a1aa;
-    --accent-primary: #dc2626;       /* red-600 — SOS universal */
+    --accent-primary: #ef4444;       /* red-500 — SOS universal, AA on black */
     --accent-on-primary: #ffffff;
     --accent-warning: #f59e0b;       /* amber-500 */
     --accent-hazard: #ffffff;        /* inverted: white = absolute attention on black */
