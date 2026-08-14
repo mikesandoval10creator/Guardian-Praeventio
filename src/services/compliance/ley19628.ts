@@ -29,6 +29,7 @@
 
 export type ConsentPurpose =
   | 'core_service'
+  | 'geolocation'
   | 'analytics'
   | 'marketing'
   | 'research_anonymized';

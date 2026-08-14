@@ -203,6 +203,47 @@ describe('POST /api/compliance/consent', () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.record.granted).toBe(false);
   });
+
+  it('200 records geolocation consent (Ley 21.719 / GDPR art.9 explicit purpose)', async () => {
+    // Ley 21.719: la geolocalización es dato sensible (art. 2) — el RAT ya
+    // declara geolocation_telemetry; este purpose permite al titular
+    // consentir/revocar de forma explícita, independiente del OS location
+    // permission.
+    const res = await request(buildApp())
+      .post('/api/compliance/consent')
+      .set('x-test-uid', CALLER_UID)
+      .send({
+        purpose: 'geolocation',
+        granted: true,
+        legalBasis: 'consent',
+        textVersion: 'geolocation_v1.0',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.record.purpose).toBe('geolocation');
+    expect(res.body.record.granted).toBe(true);
+
+    const snap = await H.db!
+      .collection('compliance_consents')
+      .doc(CALLER_UID + '__geolocation')
+      .get();
+    expect(snap.exists).toBe(true);
+    expect(snap.data()!.granted).toBe(true);
+  });
+
+  it('400 invalid_purpose for geofence (no consent purpose without explicit geolocation grant)', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/consent')
+      .set('x-test-uid', CALLER_UID)
+      .send({
+        purpose: 'geofence',
+        granted: true,
+        legalBasis: 'consent',
+        textVersion: 'consent_v1.0',
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_purpose');
+  });
 });
 
 // ---------------------------------------------------------------------------

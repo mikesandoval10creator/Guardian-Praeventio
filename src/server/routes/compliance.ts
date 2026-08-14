@@ -77,6 +77,7 @@ import {
 
 const VALID_PURPOSES: ConsentPurpose[] = [
   'core_service',
+  'geolocation',
   'analytics',
   'marketing',
   'research_anonymized',
