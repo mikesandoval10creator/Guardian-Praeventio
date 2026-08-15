@@ -10,6 +10,7 @@
 //   GET    /api/compliance/processing-activities
 //   GET    /api/compliance/subprocessors              (public, GDPR art.28)
 //   GET    /api/compliance/data-export/:requestId
+//   GET    /api/compliance/data-export/:requestId/bundle  (DSAR machine-readable)
 //   POST   /api/compliance/admin/data-request/:id/process   (admin)
 //   POST   /api/compliance/admin/data-request/:id/erase     (admin, destructive)
 //
@@ -53,6 +54,8 @@ import {
 } from '../../services/compliance/ley19628.js';
 // Sprint P1 privacidad — GDPR art.28 sub-procesador list (público).
 import { SUBPROCESSORS } from '../../services/compliance/subprocessors.js';
+// Sprint P1 privacidad — DSAR machine-readable bundle (GDPR art.20 + Ley 21.719 art.16).
+import { buildCombinedBundle } from '../../services/compliance/bundleExport.js';
 // Admin gate for the ARCO processing endpoints — role re-read from Firebase
 // Auth custom claims (mirrors firestore.rules' isAdmin() and admin.ts).
 import { isAdminRole } from '../../types/roles.js';
@@ -389,6 +392,63 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       { uid, requestId },
     );
     captureRouteError(err, 'compliance.data_export', { uid, requestId });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DSAR machine-readable bundle (GDPR art.20 + Ley 21.719 art.16)
+// Devuelve manifest.yaml + data.jsonl + data.csv concatenados con
+// separadores RFC-style. La alternativa "format=zip" (archivo ZIP real)
+// queda como PR separado; esta primera entrega ya cumple con
+// "machine-readable structured commonly used" para auditores.
+// ---------------------------------------------------------------------------
+router.get('/data-export/:requestId/bundle', verifyAuth, async (req, res) => {
+  const uid = req.user!.uid;
+  const requestId = req.params.requestId;
+  try {
+    const request = await getDataAccessRequest(getDb(), requestId);
+    if (!request) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    if (request.uid !== uid) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    if (request.type !== 'access' && request.type !== 'portability') {
+      return res.status(400).json({ error: 'request_not_exportable' });
+    }
+    const exported = await exportUserData(getDb(), uid);
+    // Misma lógica de régimen que POST /data-request — el bundle
+    // declara los regímenes aplicables al titular para que el auditor
+    // vea qué marco jurídico se aplicó.
+    const subjectCountry: string | undefined = (request as { subjectCountry?: string })
+      .subjectCountry;
+    const dataResidency: string | undefined = (request as { dataResidency?: string })
+      .dataResidency;
+    const activeRegimes = getActiveRegimes({
+      country: subjectCountry,
+      dataResidency,
+    }).map((r) => r.code);
+    const { body, contentType } = buildCombinedBundle({
+      uid,
+      requestId,
+      exportedData: exported as Record<string, unknown>,
+      generatedAt: new Date(),
+      applicableRegimes: activeRegimes,
+    });
+    res.setHeader('Content-Type', contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="praeventio-dsar-${uid}.txt"`,
+    );
+    return res.send(body);
+  } catch (err) {
+    logger.error(
+      'compliance_data_export_bundle_failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { uid, requestId },
+    );
+    captureRouteError(err, 'compliance.data_export_bundle', { uid, requestId });
     return res.status(500).json({ error: 'internal_error' });
   }
 });
