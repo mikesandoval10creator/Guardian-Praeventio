@@ -122,7 +122,106 @@ bundle exec fastlane ios build_only
 
 ---
 
-## 4. Pipeline lint (no real builds)
+## 4. Certificate pinning for app.praeventio.net (MASVS-NETWORK-2)
+
+The Android release build pins the SPKI SHA-256 of the production TLS leaf plus a backup key in
+[`android/app/src/main/res/xml/network_security_config.xml`](../android/app/src/main/res/xml/network_security_config.xml). The file ships
+in the repo with **literal placeholder pins** (`PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY` and
+`PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY`); these MUST be replaced with the real digests before
+the first store build. A release APK with the placeholders still present will fail every TLS
+handshake to `app.praeventio.net` and the app will be unusable — the
+[`scripts/check-cert-pinning-ratchet.cjs`](../scripts/check-cert-pinning-ratchet.cjs) gate refuses the build until they are replaced
+(`npm run lint:cert-pinning`).
+
+### 4.1 Why two pins (leaf + backup)
+
+Per **RFC 7469 §4.2.2** (HTTP Public Key Pinning), a single pin bricks the app on the next cert
+rotation because the OS has no fallback to honor. The backup pin is a *different* SPKI that the
+app will also accept — commonly the intermediate CA's SPKI, the root SPKI, or the SPKI of a
+pre-issued next-rotation key kept offline. Android enforces two-key minimum only as a soft warning,
+so the ratchet hard-pins it.
+
+### 4.2 Extract the leaf pin
+
+Run this on the production host that terminates TLS for `app.praeventio.net`, AFTER the production
+certificate is deployed and BEFORE the first Android release build:
+
+```bash
+echo | openssl s_client -connect app.praeventio.net:443 -servername app.praeventio.net 2>/dev/null \
+  | openssl x509 -noout -pubkey \
+  | openssl pkey -pubin -outform der \
+  | openssl dgst -sha256 -binary \
+  | openssl enc -base64
+```
+
+Output is a single line of 43 base64 characters (no `=` padding). That is your leaf pin.
+
+> **Tip:** if `app.praeventio.net` is fronted by Cloudflare or another CDN, the leaf you see on
+> the wire is the CDN's edge cert — pin THAT, not your origin cert, because all real handshakes
+> terminate at the edge.
+
+### 4.3 Choose a backup pin (offline / pre-rotation)
+
+The backup pin MUST be a different SPKI from the leaf. Pick one of:
+
+1. **Intermediate CA SPKI** (recommended for short-lived leaves). Extract it with:
+   ```bash
+   echo | openssl s_client -connect app.praeventio.net:443 -servername app.praeventio.net 2>/dev/null \
+     | openssl x509 -noout -issuer -serial \
+     # then fetch the issuing intermediate from the AIA caIssuers URL and run the
+     # same pkey / dgst / enc pipeline as §4.2
+   ```
+2. **Root CA SPKI** (broadest rotation safety, but you trust every cert that root has ever issued
+   under the OS trust store).
+3. **Pre-issued next-rotation SPKI** (the strongest): generate the *next* production keypair
+   offline, get a cert signed for it ahead of time, store the SPKI of the pre-issued cert as the
+   backup, and rotate by deploying that pre-issued cert when the current leaf expires.
+
+### 4.4 Patch the network security config
+
+Open `android/app/src/main/res/xml/network_security_config.xml` and replace the two placeholder
+strings inside `<pin-set>` with the base64 digests from §4.2 and §4.3. Keep the `digest="SHA-256"`
+attribute on every `<pin>` element. Commit the change.
+
+### 4.5 Verify before shipping
+
+```bash
+npm run lint:cert-pinning
+# expected: "Cert-pinning ratchet: PASS"
+
+npm run test -- src/__tests__/mobile/androidBuildWiring.test.ts
+# expected: "AndroidManifest — certificate pinning for app.praeventio.net (MASVS-NETWORK-2)" all green
+```
+
+If the ratchet or the unit test fails with `placeholder pin`, you skipped §4.4 — go back and
+replace both placeholders. There is no `--force` escape; the gate is the gate.
+
+### 4.6 Rotation playbook
+
+When the leaf cert rotates (renewal, CA change, key compromise):
+
+1. Update the **backup** pin in `network_security_config.xml` to the SPKI of the new leaf. Ship
+   this build to the store. At this point the OS has *both* the current leaf and the new leaf in
+   the pin set — handshake succeeds against either.
+2. Deploy the new cert to the production edge.
+3. Update the **leaf** pin in `network_security_config.xml` to the SPKI of the new leaf. Ship this
+   build to the store. The OS now expects the new leaf and will reject the old one.
+4. After ≥ one full store rollout cycle, you can stop trusting the old leaf by removing it from
+   the pin set entirely (keeping only the new leaf + backup). But until then, both must remain in
+   the set — Android requires *at least one* pin to match, not *exactly one*.
+
+### 4.7 What this does NOT cover
+
+- **iOS** — iOS uses NSPinnedDomains in `Info.plist` + `NSAppTransportSecurity`. That is a
+  separate ticket; this Android-only change does not pin iOS connections.
+- **CDN POP changes** that rotate intermediate CAs without notice — review the backup-pin choice
+  every quarter; the root-only option is robust against this, the intermediate-CA option is not.
+- **Local development** — the dev live-reload loopback (`10.0.2.2`, `localhost`) is in a separate
+  `domain-config cleartextTrafficPermitted="true"` block, exempt from pinning.
+
+---
+
+## 5. Pipeline lint (no real builds)
 
 ```bash
 bash scripts/test-mobile-pipeline.sh
@@ -132,16 +231,17 @@ Verifies that the scaffold files exist and have valid syntax. CI runs this in th
 
 ---
 
-## 5. Troubleshooting the gates
+## 6. Troubleshooting the gates
 
 - **`Android job: This job was skipped` on a fresh repo** — expected. Paste `ANDROID_KEYSTORE_BASE64` and re-run.
 - **`iOS job: This job was skipped`** — expected until `MATCH_GIT_URL` is set.
 - **`fastfile-lint` fails on iOS Fastfile** — probably means `ios/App/` was not committed yet (see §2.1).
 - **`pipeline-lint` fails locally** — run `bash scripts/test-mobile-pipeline.sh` and read the per-step output; missing files are reported with a clear marker.
+- **`lint:cert-pinning` fails with `placeholder pin`** — you shipped the literal `PIN_*_REPLACE_AT_PROD_DEPLOY` strings. See [§4.4](#44-patch-the-network-security-config) and replace both pins with real SPKI SHA-256 digests. The gate has no bypass.
 
 ---
 
-## 6. Cross-references
+## 7. Cross-references
 
 - Android keystore generation: [`mobile-build-runbook.md`](./mobile-build-runbook.md) §6.1.
 - ADR for the iOS uplift: [`architecture-decisions/0009-mobile-ci-signing-supersedes-0006.md`](./architecture-decisions/0009-mobile-ci-signing-supersedes-0006.md).

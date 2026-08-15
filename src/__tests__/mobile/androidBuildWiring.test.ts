@@ -222,3 +222,100 @@ describe("AndroidManifest — network security config (MASVS-NETWORK-1)", () => 
     expect(nsc).toContain("<debug-overrides>");
   });
 });
+
+// MASVS-NETWORK-2 — certificate pinning for the production API host. The app
+// carries clinical + location PII, so a release build MUST reject any TLS
+// handshake to app.praeventio.net whose leaf or intermediate is not one of the
+// pre-vetted SPKI SHA-256 pins committed to this file.
+describe("AndroidManifest — certificate pinning for app.praeventio.net (MASVS-NETWORK-2)", () => {
+  const nsc = read("android/app/src/main/res/xml/network_security_config.xml");
+
+  // Extract the pinned <domain-config> once for every check below.
+  const domainConfigs = nsc.match(/<domain-config[\s\S]*?<\/domain-config>/g) ?? [];
+  const pinnedDomain = domainConfigs.find((block) =>
+    // Match the exact <domain> child element of <domain-config>, not a
+    // substring (CodeQL js/incomplete-url-substring-sanitization):
+    //   <domain includeSubdomains="false">app.praeventio.net</domain>
+    // The regex anchor on </domain> ensures no trailing host suffix can match.
+    /<domain[^>]*>app\.praeventio\.net<\/domain>/.test(block),
+  );
+
+  it("declares a <pin-set> for app.praeventio.net (the production API host)", () => {
+    // The pinned domain must be configured in a domain-config block — not
+    // base-config (which would over-pin every host including Firebase /
+    // Play Services) and not <debug-overrides> (debug-only).
+    expect(pinnedDomain, "no <domain-config> includes app.praeventio.net").toBeDefined();
+    expect(pinnedDomain).toMatch(/<pin-set[\s\S]*<\/pin-set>/);
+  });
+
+  it("the pinned domain-config has cleartext disabled (HTTPS-only)", () => {
+    expect(pinnedDomain).toBeDefined();
+    // We tolerate either explicit cleartextTrafficPermitted="false" or an
+    // absence (default is false). Reject ONLY the dangerous "true".
+    expect(pinnedDomain).not.toMatch(/cleartextTrafficPermitted="true"/);
+  });
+
+  it("declares at least two pins (RFC 7469 §4.2.2: leaf + backup)", () => {
+    // A single pin bricks the app on the next cert rotation because the OS
+    // has no fallback. Android enforces this only as a soft warning, so we
+    // hard-pin it here. Backup pin can be the intermediate CA, the root, or
+    // an offline pre-issued next-rotation key.
+    const pinMatches =
+      nsc.match(/<pin digest="SHA-256">[^<]+<\/pin>/g) ?? [];
+    expect(pinMatches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("every pin uses SHA-256 (no weaker digest)", () => {
+    const pinDigests = nsc.match(/<pin digest="([^"]+)">/g) ?? [];
+    expect(pinDigests.length).toBeGreaterThan(0);
+    for (const d of pinDigests) {
+      expect(d).toBe('<pin digest="SHA-256">');
+    }
+  });
+
+  it("pin-set values are real SPKI SHA-256 base64 digests OR explicit placeholders documented in mobile-signing-runbook §4", () => {
+    // The earlier "declares a <pin-set> for app.praeventio.net" test already
+    // fails if pinnedDomain is undefined; this is its data-level companion.
+    // Force the type-narrow assertion here so the rest of the test can use
+    // pinnedDomain without optional chaining noise.
+    expect(pinnedDomain).toBeDefined();
+    const pinned = pinnedDomain as string;
+    // Pin-set ships with two literal placeholder strings (PIN_*_REPLACE_AT_PROD_DEPLOY)
+    // so the schema compiles in dev. The release job
+    // (scripts/check-cert-pinning-ratchet.cjs) refuses to ship a build with
+    // those placeholders. Locally we accept EITHER:
+    //   (a) A real SPKI SHA-256 digest = 43 chars of base64 (no padding '='), OR
+    //   (b) The documented placeholder, which must match a known token so the
+    //       ratchet can detect and reject it deterministically.
+    // Any other malformed value is a regression.
+    const pinValues = pinned.match(/<pin digest="SHA-256">([^<]+)<\/pin>/g) ?? [];
+    expect(pinValues.length).toBeGreaterThanOrEqual(2);
+
+    const SPKI_RE = /^[A-Za-z0-9+/]{43}$/; // 43 chars base64, no padding
+    const ALLOWED_PLACEHOLDERS = new Set([
+      "PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY",
+      "PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY",
+    ]);
+
+    for (const tag of pinValues) {
+      const value = tag.match(/>([^<]+)</)?.[1] ?? "";
+      const isReal = SPKI_RE.test(value);
+      const isDocumentedPlaceholder = ALLOWED_PLACEHOLDERS.has(value);
+      expect(
+        isReal || isDocumentedPlaceholder,
+        `pin value "${value}" is neither a 43-char base64 SPKI digest nor a documented placeholder`,
+      ).toBe(true);
+    }
+
+    // Belt + suspenders: the ratchet script and this test must agree on what
+    // counts as a placeholder. If you change one, change the other.
+    if (nsc.includes("PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY")) {
+      // OK — release gate will catch it. Log so a developer running tests sees
+      // why the suite is green despite placeholders.
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[cert-pinning] placeholder pin present — release build will be refused. See mobile-signing-runbook §4.",
+      );
+    }
+  });
+});

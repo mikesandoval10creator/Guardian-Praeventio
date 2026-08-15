@@ -44,6 +44,7 @@
     "lint:connectivity": "node scripts/check-connectivity-ratchet.cjs",
     "lint:user-facing-errors": "node scripts/check-user-facing-errors.cjs",
     "lint:router-tests": "node scripts/check-router-test-ratchet.cjs",
+    "lint:cert-pinning": "node scripts/check-cert-pinning-ratchet.cjs",
     "gen:api-index": "node scripts/gen-api-index.cjs",
     "lint:api-index": "node scripts/gen-api-index.cjs --check",
     "gen:measured-state": "node scripts/gen-measured-state.cjs --write",
