@@ -267,6 +267,67 @@ describe('decidePermissionUX', () => {
   });
 
   // ── purity / determinism ───────────────────────────────────────────────
+  // ── Privacy-data consent (Ley 21.719 / GDPR) ────────────────────────
+  it('hasPrivacyConsent: false overrides OS location granted (Ley 21.719 / GDPR)', () => {
+    const d = decidePermissionUX({
+      platform: 'android',
+      foregroundState: 'granted',
+      backgroundState: 'granted_always',
+      hasPrivacyConsent: false,
+    });
+    expect(d.canUseGeofence).toBe(false);
+    expect(d.canUseEmergencySOSWithLocation).toBe(false);
+    expect(d.mustUseFallback).toBe(true);
+    expect(d.userMessage.key).toBe('geofence.permission.privacy_consent_required');
+    expect(d.recommendedAction).toBe('show_explanation_modal');
+  });
+
+  it('hasPrivacyConsent: false overrides OS location denied (consent is the binding gate)', () => {
+    const d = decidePermissionUX({
+      platform: 'ios',
+      foregroundState: 'denied',
+      backgroundState: 'denied',
+      hasPrivacyConsent: false,
+    });
+    // The privacy-consent path returns the privacy message, NOT the
+    // standard denied message — the consent revocation is the
+    // work-to-clear, not the OS permission.
+    expect(d.userMessage.key).toBe('geofence.permission.privacy_consent_required');
+  });
+
+  it('hasPrivacyConsent: false in critical zone still fires privacy path (not critical-zone path)', () => {
+    const d = decidePermissionUX({
+      platform: 'android',
+      foregroundState: 'denied',
+      backgroundState: 'denied',
+      inCriticalZone: true,
+      hasPrivacyConsent: false,
+    });
+    expect(d.userMessage.key).toBe('geofence.permission.privacy_consent_required');
+  });
+
+  it('hasPrivacyConsent: undefined defaults to true (backwards compatibility)', () => {
+    const a = decidePermissionUX({
+      platform: 'android',
+      foregroundState: 'granted',
+      backgroundState: 'granted_always',
+    });
+    const b = decidePermissionUX({
+      platform: 'android',
+      foregroundState: 'granted',
+      backgroundState: 'granted_always',
+      hasPrivacyConsent: true,
+    });
+    expect(a).toEqual(b);
+  });
+
+  it('i18n catalog stability — privacyConsentRequired key is exposed', () => {
+    expect(PermissionMessages.privacyConsentRequired.key).toBe(
+      'geofence.permission.privacy_consent_required',
+    );
+    expect(PermissionMessages.privacyConsentRequired.fallback.length).toBeGreaterThan(20);
+  });
+
   it('is pure — same input yields same output across calls', () => {
     const input: PermissionUXInput = {
       platform: 'android',
