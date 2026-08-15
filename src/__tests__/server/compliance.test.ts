@@ -651,3 +651,138 @@ describe('GET /api/compliance/data-export/:requestId', () => {
     expect(typeof res.body.exportedAt).toBe('number');
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/compliance/data-export/:requestId/bundle  (DSAR machine-readable)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/compliance/data-export/:requestId/bundle', () => {
+  it('200 devuelve bundle con manifest + jsonl + csv concatenados (GDPR art.20)', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-1', {
+      uid: CALLER_UID,
+      type: 'portability',
+      status: 'pending',
+      requestedAt: Date.now(),
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-1/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+
+    // Content-Type text/plain con marcadores RFC-style.
+    const ct = res.headers['content-type'];
+    expect(ct).toContain('text/plain');
+
+    // Body contiene los tres archivos con sus separadores.
+    expect(res.text).toContain('===== file: manifest.yaml =====');
+    expect(res.text).toContain('===== file: data.jsonl =====');
+    expect(res.text).toContain('===== file: data.csv =====');
+  });
+
+  it('manifest declara el uid + requestId + timestamp + regimes aplicables', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-2', {
+      uid: CALLER_UID,
+      type: 'access',
+      status: 'pending',
+      requestedAt: Date.now(),
+      subjectCountry: 'CL',
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-2/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+
+    expect(res.text).toContain(`subject_uid: ${CALLER_UID}`);
+    expect(res.text).toContain('request_id: req-bundle-2');
+    expect(res.text).toMatch(/generated_at: \d{4}-\d{2}-\d{2}T/);
+    // Régimen aplicable: al menos CL (Ley 21.719) cuando subjectCountry=CL.
+    expect(res.text).toMatch(/applicable_regimes:[\s\S]*- [A-Z]/);
+  });
+
+  it('JSONL contiene líneas parseables, una por recordType', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-3', {
+      uid: CALLER_UID,
+      type: 'portability',
+      status: 'pending',
+      requestedAt: Date.now(),
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-3/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+
+    // Aislamos la seccion data.jsonl entre sus dos separadores.
+    const start = res.text.indexOf('===== file: data.jsonl =====') + '===== file: data.jsonl ====='.length;
+    const end = res.text.indexOf('===== file: data.csv =====');
+    const jsonl = res.text.slice(start, end).trim();
+    const lines = jsonl.split('\n').filter((l) => l.length > 0);
+    expect(lines.length).toBeGreaterThan(0);
+    // Cada línea debe parsear como objeto JSON.
+    for (const line of lines) {
+      expect(() => JSON.parse(line)).not.toThrow();
+      const parsed = JSON.parse(line);
+      expect(parsed.uid).toBe(CALLER_UID);
+      expect(parsed.requestId).toBe('req-bundle-3');
+      expect(parsed.recordType).toBeDefined();
+      expect(parsed.value).toBeDefined();
+    }
+  });
+
+  it('CSV tiene header RFC 4180 + filas con campos escapados', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-4', {
+      uid: CALLER_UID,
+      type: 'portability',
+      status: 'pending',
+      requestedAt: Date.now(),
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-4/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+
+    const start = res.text.indexOf('===== file: data.csv =====') + '===== file: data.csv ====='.length;
+    const csv = res.text.slice(start).trim();
+    const lines = csv.split('\n');
+    // Header RFC 4180: recordType,uid,requestId,generatedAt,serializedValue.
+    expect(lines[0]).toContain('recordType');
+    expect(lines[0]).toContain('uid');
+    expect(lines[0]).toContain('requestId');
+    // Segunda línea: al menos un recordType real del exportUserData.
+    expect(lines[1]).toContain(CALLER_UID);
+    expect(lines[1]).toContain('req-bundle-4');
+  });
+
+  it('403 forbidden cuando el caller no es el dueño de la solicitud', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-5', {
+      uid: OTHER_UID,
+      type: 'portability',
+      status: 'pending',
+      requestedAt: Date.now(),
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-5/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('400 request_not_exportable para type=erasure', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-erasure', {
+      uid: CALLER_UID,
+      type: 'erasure',
+      status: 'pending',
+      requestedAt: Date.now(),
+    });
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-erasure/bundle')
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('request_not_exportable');
+  });
+});

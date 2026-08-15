@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 745 rutas detectadas.**
+**207 routers montados · 746 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -138,6 +138,7 @@ clave ver `docs/api-routes.md`.
 - `GET /api/compliance/data-requests`
 - `GET /api/compliance/data-request/:id`
 - `GET /api/compliance/data-export/:requestId`
+- `GET /api/compliance/data-export/:requestId/bundle`
 - `POST /api/compliance/admin/data-request/:id/process`
 - `POST /api/compliance/admin/data-request/:id/erase`
 - `GET /api/compliance/:projectId/traffic-light`
