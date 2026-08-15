@@ -7,12 +7,43 @@
   and location PII, so a silent http fallback (or a lib flipping cleartext on)
   must be impossible in production.
 
-  Certificate pinning (MASVS-NETWORK-2) is intentionally NOT added here: it needs
-  the real SPKI SHA-256 pins of the production leaf + a backup key, and
-  fabricated pins would break production connectivity. Tracked as a follow-up
-  (extract with `openssl s_client -connect app.praeventio.net:443 | openssl x509
-  -pubkey | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary |
-  openssl enc -base64`).
+  MASVS-NETWORK-2 — Certificate pinning for the production API host.
+
+  app.praeventio.net is pinned to the SPKI SHA-256 of the production leaf
+  certificate plus a backup pin (different SPKI from a different key, used
+  during rotation). The backup pin is MANDATORY: if the leaf is rotated without
+  shipping a backup pin first, every installed app loses connectivity until the
+  user installs the new build.
+
+  The two PIN values below are PLACEHOLDERS that MUST be replaced before the
+  first store build. A release APK with these placeholders shipped to Play will
+  fail every TLS handshake to app.praeventio.net and the app will be unusable.
+
+  Extraction procedure (run on the production machine that terminates TLS for
+  app.praeventio.net, AFTER the cert is deployed to prod and BEFORE the app
+  build):
+
+      # Leaf pin (current production certificate):
+      openssl s_client -connect app.praeventio.net:443 -servername app.praeventio.net \
+        </dev/null 2>/dev/null \
+        | openssl x509 -noout -pubkey \
+        | openssl pkey -pubin -outform der \
+        | openssl dgst -sha256 -binary \
+        | openssl enc -base64
+
+      # Backup pin (a different SPKI — either the intermediate's SPKI, the root
+      # SPKI, or the SPKI of a pre-issued next-rotation cert you keep offline).
+      # See "Pinning rotation" in docs/mobile-signing-runbook.md §4 for the
+      # recommended offline backup-key workflow.
+
+  Replace PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY and
+  PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY below with the base64 SPKI digests
+  (43 characters of base64, no padding '=').
+
+  Validation gate: scripts/check-cert-pinning-ratchet.cjs runs in CI and fails
+  the build if a placeholder pin is still present in the release manifest, so
+  the only way these placeholders reach production is by also disabling the
+  ratchet — a deliberate decision that leaves an audit trail in git blame.
 -->
 <network-security-config>
     <!-- Everything defaults to HTTPS-only. -->
@@ -21,6 +52,21 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- MASVS-NETWORK-2 — pin app.praeventio.net to its production SPKI.
+         Pin set is two-key (leaf + backup) per RFC 7469 §4.2.2. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">app.praeventio.net</domain>
+        <pin-set expiration="2027-12-31">
+            <!-- Leaf pin: replace at first prod build (see header comment). -->
+            <pin digest="SHA-256">PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY</pin>
+            <!-- Backup pin: different SPKI, used during cert rotation. -->
+            <pin digest="SHA-256">PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY</pin>
+        </pin-set>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 
     <!-- Dev live-reload ONLY. capacitor.config points the emulator at
          http://10.0.2.2:5173 (the Android emulator's alias for the host
