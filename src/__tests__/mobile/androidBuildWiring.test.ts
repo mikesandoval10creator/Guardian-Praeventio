@@ -233,7 +233,11 @@ describe("AndroidManifest — certificate pinning for app.praeventio.net (MASVS-
   // Extract the pinned <domain-config> once for every check below.
   const domainConfigs = nsc.match(/<domain-config[\s\S]*?<\/domain-config>/g) ?? [];
   const pinnedDomain = domainConfigs.find((block) =>
-    block.includes("app.praeventio.net"),
+    // Match the exact <domain> child element of <domain-config>, not a
+    // substring (CodeQL js/incomplete-url-substring-sanitization):
+    //   <domain includeSubdomains="false">app.praeventio.net</domain>
+    // The regex anchor on </domain> ensures no trailing host suffix can match.
+    /<domain[^>]*>app\.praeventio\.net<\/domain>/.test(block),
   );
 
   it("declares a <pin-set> for app.praeventio.net (the production API host)", () => {

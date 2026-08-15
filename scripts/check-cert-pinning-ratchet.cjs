@@ -84,7 +84,11 @@ if (openTags !== 1 || closeTags !== 1) {
 // Check 1: a <domain-config> for app.praeventio.net exists.
 const domainConfigs = nsc.match(/<domain-config[\s\S]*?<\/domain-config>/g) || [];
 const pinnedDomain = domainConfigs.find((block) =>
-  block.includes('app.praeventio.net'),
+  // Match the exact <domain> child element of <domain-config>, not a
+  // substring (CodeQL js/incomplete-url-substring-sanitization):
+  //   <domain includeSubdomains="false">app.praeventio.net</domain>
+  // The regex anchor on </domain> ensures no trailing host suffix can match.
+  /<domain[^>]*>app\.praeventio\.net<\/domain>/.test(block),
 );
 if (!pinnedDomain) {
   fail(
