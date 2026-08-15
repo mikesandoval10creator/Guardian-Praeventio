@@ -60,6 +60,18 @@ export interface PermissionUXInput {
   inCriticalZone?: boolean;
   /** True if the user explicitly chose "Don't ask again" on Android. Ignored on iOS. */
   userOptedOutForever?: boolean;
+  /**
+   * True if the user has granted the privacy-data consent purpose
+   *  (Ley 21.719 + GDPR). The OS location permission is
+   * necessary but NOT sufficient — data-protection law requires an
+   * explicit consent purpose recorded in
+   * compliance_consents/{uid}__geolocation. When false, all geofence
+   * + SOS-with-location features are blocked regardless of OS-level
+   * permission state. Defaults to  for backwards compatibility
+   * with callers that pre-date the consent purpose; new callers should
+   * pass the recorded consent state.
+   */
+  hasPrivacyConsent?: boolean;
 }
 
 export interface PermissionMessage {
@@ -127,6 +139,11 @@ export const PermissionMessages = {
     fallback:
       'La ubicación está restringida por controles parentales o configuración del dispositivo. Pide al administrador del dispositivo que habilite la ubicación para Guardian.',
   },
+  privacyConsentRequired: {
+    key: 'geofence.permission.privacy_consent_required',
+    fallback:
+      'Has revocado el consentimiento de geolocalización. Para reactivar la protección de geocerca y el SOS con coordenadas, abre Mi cuenta → Privacidad → Consentimientos y vuelve a activar Geolocalización.',
+  },
 } as const satisfies Record<string, PermissionMessage>;
 
 /** Platform-tuned rationale strings used inside the explanation modal. */
@@ -192,7 +209,25 @@ export function decidePermissionUX(
     backgroundState,
     inCriticalZone = false,
     userOptedOutForever = false,
+    hasPrivacyConsent = true,
   } = input;
+
+  // ── Privacy-data consent (Ley 21.719 / GDPR) ─────────────────────────
+  // Even when the OS location permission is granted, processing personal
+  // data without an explicit consent purpose is illegal. The geofence +
+  // SOS-with-location features must remain blocked until the user has a
+  // recorded  consent purpose. This rule is independent of
+  // the OS permission state and fires before any platform-specific logic.
+  if (!hasPrivacyConsent) {
+    return {
+      canUseGeofence: false,
+      canUseEmergencySOSWithLocation: false,
+      mustUseFallback: true,
+      userMessage: PermissionMessages.privacyConsentRequired,
+      recommendedAction: 'show_explanation_modal',
+      rationaleText: rationale(platform, 'request'),
+    };
+  }
 
   // ── Rule 5: desktop web is fundamentally unsupported ────────────────────
   if (platform === 'web-desktop') {
