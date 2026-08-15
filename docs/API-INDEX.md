@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 745 rutas detectadas.**
+**207 routers montados · 746 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -131,6 +131,7 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/compliance.ts` → `/api/compliance`
 - `GET /api/compliance/processing-activities`
+- `GET /api/compliance/subprocessors`
 - `POST /api/compliance/consent`
 - `DELETE /api/compliance/consent/:purpose`
 - `GET /api/compliance/consent`

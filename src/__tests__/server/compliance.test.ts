@@ -247,6 +247,50 @@ describe('POST /api/compliance/consent', () => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/compliance/subprocessors  (GDPR art.28 — público, sin auth)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/compliance/subprocessors', () => {
+  it('200 retorna la lista de sub-procesadores sin requerir auth (GDPR art.28)', async () => {
+    // GDPR art.28 + LGPD + Ley 21.719: el titular o un inspector SERNAC
+    // puede consultar la lista de sub-procesadores sin registrarse.
+    const res = await request(buildApp()).get('/api/compliance/subprocessors');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.subprocessors)).toBe(true);
+    expect(res.body.subprocessors.length).toBeGreaterThan(0);
+  });
+
+  it('cada sub-procesador tiene id + nombre + país + base legal + DPA URL', async () => {
+    const res = await request(buildApp()).get('/api/compliance/subprocessors');
+    expect(res.status).toBe(200);
+    for (const sub of res.body.subprocessors) {
+      expect(typeof sub.id).toBe('string');
+      expect(sub.id.length).toBeGreaterThan(0);
+      expect(typeof sub.name).toBe('string');
+      expect(sub.name.length).toBeGreaterThan(0);
+      expect(typeof sub.category).toBe('string');
+      expect(typeof sub.region).toBe('string');
+      expect(sub.region.length).toBeGreaterThan(0);
+      expect(typeof sub.legalBasis).toBe('string');
+      expect(sub.legalBasis.length).toBeGreaterThan(0);
+      expect(typeof sub.dpaUrl).toBe('string');
+      expect(sub.dpaUrl).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('la lista incluye los sub-procesadores reales del proyecto (Firebase, Gemini, KMS, Resend)', async () => {
+    const res = await request(buildApp()).get('/api/compliance/subprocessors');
+    const ids = (res.body.subprocessors as Array<{ id: string }>).map((s) => s.id);
+    expect(ids).toContain('firebase-firestore');
+    expect(ids).toContain('firebase-cloud-messaging');
+    expect(ids).toContain('firebase-auth');
+    expect(ids).toContain('google-gemini-api');
+    expect(ids).toContain('google-cloud-kms');
+    expect(ids).toContain('resend');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/compliance/consent/:purpose
 // ---------------------------------------------------------------------------
 
