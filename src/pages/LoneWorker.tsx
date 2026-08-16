@@ -26,12 +26,11 @@ import { Shield, Power, PauseCircle, UserCheck, Loader2 } from 'lucide-react';
 import { LoneWorkerCheckInWidget } from '../components/loneWorker/LoneWorkerCheckInWidget';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
+import { startLoneWorkerFgs, stopLoneWorkerFgs, isRunning, isAndroidNative } from '../services/mobile/foregroundServiceClient';
 import {
-  startLoneWorkerFgs,
-  stopLoneWorkerFgs,
-  isRunning,
-  isAndroidNative,
-} from '../services/mobile/foregroundServiceClient';
+  shouldPromptForBatteryExclusion,
+  requestBatteryOptimizationExclusion,
+} from '../services/mobile/batteryOptimization';
 import {
   subscribeActiveLoneWorkerSessions,
   saveLoneWorkerSession,
@@ -52,6 +51,12 @@ export function LoneWorker() {
 
   const [fgsActive, setFgsActive] = useState<boolean>(false);
   const [fgsMessage, setFgsMessage] = useState<string>('');
+  // Battery-optimization exclusion status. null = unknown / not yet queried.
+  // On Android (the only platform that has the gate), we query on mount so
+  // the CTA shows up before the user starts the session. On web/iOS this
+  // stays null and the CTA is never rendered.
+  const [needsBatteryExclusion, setNeedsBatteryExclusion] = useState<boolean>(false);
+  const [batteryPromptShown, setBatteryPromptShown] = useState<boolean>(false);
 
   const [session, setSession] = useState<LoneWorkerSession | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -153,6 +158,51 @@ export function LoneWorker() {
     setFgsActive(isRunning());
     setFgsMessage(r.applied ? `FGS ${r.reason}.` : `FGS no aplica (${r.reason}).`);
   }, [workerUid]);
+
+  // Query the OS battery-optimization exemption status on Android mount.
+  // The query is fire-and-forget; on web/iOS it resolves to "unavailable"
+  // and the CTA is never rendered. Re-queries when the page regains focus
+  // (worker returns from the Settings intent) so the CTA disappears once
+  // they grant the exemption.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      void shouldPromptForBatteryExclusion().then((needs) => {
+        if (!cancelled) setNeedsBatteryExclusion(needs);
+      });
+    };
+    refresh();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', refresh);
+      return () => {
+        cancelled = true;
+        window.removeEventListener('focus', refresh);
+      };
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // User-tap handler that opens the system Settings intent. The Settings
+  // page is the only place Android lets the user flip the toggle; we cannot
+  // grant the exemption programmatically. After the user returns to the
+  // app, the focus listener above re-queries and the CTA disappears if they
+  // granted it.
+  const handleRequestBatteryExclusion = useCallback(async () => {
+    setBatteryPromptShown(true);
+    const opened = await requestBatteryOptimizationExclusion();
+    if (!opened) {
+      // OEM without the intent — log so we can see this in field telemetry.
+      logger.warn('lone_worker_battery_exclusion_intent_unavailable');
+      setFeedback(
+        t(
+          'lone_worker.battery_intent_unavailable',
+          'No pudimos abrir la configuración de batería. Andá a Ajustes → Apps → Guardian → Batería y elegí "Sin restricciones".',
+        ),
+      );
+    }
+  }, [t]);
 
   // ── Optional geolocation for the starting session ─────────────────────────
   const requestLocation = useCallback(async (): Promise<{ lat: number; lng: number } | null> => {
@@ -328,6 +378,40 @@ export function LoneWorker() {
           >
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
             {t('lone_worker.start_session', 'Iniciar sesión ({{min}} min)', { min: DEFAULT_INTERVAL_MIN })}
+          </button>
+        </div>
+      )}
+
+      {/* Android battery-optimization exemption CTA (Xiaomi/Huawei/Samsung).
+          On Android, when the OS still considers the app a "battery hog",
+          the foreground service can be killed within minutes of the screen
+          turning off. The CTA above the FGS controls is non-blocking: the
+          user can still start the session, but if they ignore it the
+          check-in loop will silently die after a few minutes in their
+          pocket. We explain that in plain Spanish. */}
+      {needsBatteryExclusion && isAndroidNative() && (
+        <div
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-4 space-y-2 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-100"
+          data-testid="loneWorker.batteryExclusion"
+          role="alert"
+        >
+          <p className="text-xs font-bold uppercase tracking-wider">
+            {t('lone_worker.battery_exclusion_title', 'Guardian necesita ejecutarse sin restricciones')}
+          </p>
+          <p className="text-xs">
+            {t(
+              'lone_worker.battery_exclusion_body',
+              'Algunos teléfonos (Xiaomi, Huawei, Samsung) cierran apps en segundo plano para ahorrar batería. Si tu teléfono hace eso con Guardian, los check-ins dejarán de funcionar cuando guardes el móvil en el bolsillo. Activá "Sin restricciones" para que tu sesión de trabajo solitario esté siempre activa.',
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={handleRequestBatteryExclusion}
+            disabled={batteryPromptShown}
+            className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-500 disabled:opacity-50"
+            data-testid="loneWorker.batteryExclusion.open"
+          >
+            {t('lone_worker.battery_exclusion_cta', 'Abrir ajustes de batería')}
           </button>
         </div>
       )}

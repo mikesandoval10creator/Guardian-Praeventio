@@ -319,3 +319,77 @@ describe("AndroidManifest — certificate pinning for app.praeventio.net (MASVS-
     }
   });
 });
+
+// MASVS-LIFE-SAFETY — Android foreground-service health permissions.
+//
+// The lone-worker check-in FGS runs with `foregroundServiceType="location|health"`
+// and the native mandown plugin reads accelerometer at SENSOR_DELAY_GAME inside
+// the FGS. Together those require:
+//   - HIGH_SAMPLING_RATE_SENSORS  (Android 12+, mandatory for 'health' FGS)
+//   - BODY_SENSORS_BACKGROUND     (API 33–35, runtime body-sensor in background)
+//   - READ_HEALTH_DATA_IN_BACKGROUND (API 36+, supersedes BODY_SENSORS_BACKGROUND)
+//   - REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (Xiaomi/Huawei/Samsung OEM battery
+//     savers terminate foreground services unless the app is on the OS
+//     exemption list)
+//
+// All four MUST be present in the host-app manifest, with the correct
+// maxSdkVersion gates so old permissions don't bleed onto new OS versions
+// and vice versa.
+describe("AndroidManifest — FGS health background permissions (MASVS-LIFE-SAFETY)", () => {
+  const manifest = read("android/app/src/main/AndroidManifest.xml");
+
+  it("declares HIGH_SAMPLING_RATE_SENSORS (Android 12+ FGS 'health' prerequisite)", () => {
+    // The native mandown plugin already declares this in its own manifest;
+    // the host app must also declare it so the merge keeps the contract
+    // regardless of plugin manifest order.
+    expect(manifest).toContain(
+      'android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS"',
+    );
+  });
+
+  it("declares BODY_SENSORS_BACKGROUND with maxSdkVersion=35 (API 33–35 only)", () => {
+    // Required because the FGS reads body sensors in background. Capped at
+    // API 35 because API 36 deprecates it in favour of
+    // READ_HEALTH_DATA_IN_BACKGROUND (declared separately below).
+    expect(manifest).toMatch(
+      /android\.permission\.BODY_SENSORS_BACKGROUND[\s\S]{0,200}android:maxSdkVersion="35"/,
+    );
+    // Negative check: must NOT be applied to API 36+ (where it's deprecated).
+    expect(manifest).not.toMatch(
+      /BODY_SENSORS_BACKGROUND[\s\S]{0,200}android:maxSdkVersion="3[6-9]"/,
+    );
+  });
+
+  it("declares READ_HEALTH_DATA_IN_BACKGROUND with tools:targetApi=36 (API 36+ replacement)", () => {
+    expect(manifest).toContain(
+      'android:name="android.permission.READ_HEALTH_DATA_IN_BACKGROUND"',
+    );
+    // The tools:targetApi=36 attribute keeps AGP / lint quiet on older
+    // API levels where the permission doesn't exist yet.
+    expect(manifest).toMatch(
+      /READ_HEALTH_DATA_IN_BACKGROUND[\s\S]{0,200}tools:targetApi="36"/,
+    );
+  });
+
+  it("declares REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (OEM battery-saver gate)", () => {
+    // Without this, the FGS is killed within minutes of screen-off on
+    // Xiaomi / Huawei / Samsung. The LoneWorker page has a runtime CTA
+    // (src/pages/LoneWorker.tsx) that opens the Settings intent — the
+    // manifest declaration is what lets that CTA work.
+    expect(manifest).toContain(
+      'android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"',
+    );
+  });
+
+  it("native mandown plugin manifest keeps HIGH_SAMPLING_RATE_SENSORS (defense-in-depth)", () => {
+    // The plugin declares it; if someone removes the file: dependency or
+    // strips the plugin manifest, the FGS 'health' contract breaks. This
+    // test fires locally before the APK is even built.
+    const meshManifest = read(
+      "packages/capacitor-mandown/android/src/main/AndroidManifest.xml",
+    );
+    expect(meshManifest).toContain(
+      'android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS"',
+    );
+  });
+});

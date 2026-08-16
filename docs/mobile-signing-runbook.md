@@ -248,3 +248,54 @@ Verifies that the scaffold files exist and have valid syntax. CI runs this in th
 - Fastlane workflow file: [`.github/workflows/mobile-release.yml`](../.github/workflows/mobile-release.yml).
 - iOS Fastfile: [`ios/App/fastlane/Fastfile`](../ios/App/fastlane/Fastfile).
 - Android Fastfile: [`fastlane/Fastfile`](../fastlane/Fastfile).
+
+---
+
+## 8. Battery-optimization exemption for life-safety foreground services
+
+Xiaomi / Huawei / Samsung / OnePlus ship aggressive battery savers that terminate a foreground service within minutes of the screen turning off unless the app is on the OS-level exemption list (`Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`). Without the exemption, the lone-worker check-in loop dies silently after the worker pockets their phone — the supervisor never sees the escalation, the worker never gets help.
+
+### 8.1 What the manifest declares
+
+The host-app manifest (`android/app/src/main/AndroidManifest.xml`) carries the permission:
+
+```xml
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+```
+
+Plus the body-sensor background gates that the `foregroundServiceType="health"` contract requires when the FGS reads accelerometer at `SENSOR_DELAY_GAME`:
+
+```xml
+<uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+<uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND"
+    android:maxSdkVersion="35" />
+<uses-permission android:name="android.permission.READ_HEALTH_DATA_IN_BACKGROUND"
+    tools:targetApi="36"
+    xmlns:tools="http://schemas.android.com/tools" />
+```
+
+`BODY_SENSORS_BACKGROUND` is API 33–35 only; `READ_HEALTH_DATA_IN_BACKGROUND` is the API 36+ replacement. The split is per the [Android Developers docs](https://developer.android.com/about/versions/14/changes/fgs-types-required#health).
+
+### 8.2 What the user does
+
+On first launch of the lone-worker page, the app queries `PowerManager.isIgnoringBatteryOptimizations`. If the OS reports the app is still on the battery-optimization list, the app shows an amber CTA (Spanish / English / Portuguese localized in `src/i18n/locales/*/common.json`). Tapping the CTA opens the system Settings page; the user flips "Sin restricciones" / "Unrestricted" and returns to the app. The page re-queries on `window.focus` and the CTA disappears.
+
+The exemption CANNOT be granted programmatically — Android rejects it and Play Console flags apps that try. The runtime CTA is the only legitimate path.
+
+### 8.3 OEM quirks
+
+- **Xiaomi MIUI** strips the `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` activity in some builds. The plugin's `BatteryOptimizationPlugin` falls back to `ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`, then to a manual error message.
+- **Huawei EMUI** requires the user to also enable "App launch" → "Manage manually" in addition to the battery exemption. The CTA copy points at this; the OS handles it.
+- **Samsung One UI** honours the exemption; no extra step.
+
+### 8.4 Testing the exemption
+
+The integration test path is:
+
+1. Install the production APK on a Xiaomi / Huawei device (emulators don't simulate the OEM battery saver).
+2. Start a lone-worker session; verify the amber CTA appears.
+3. Lock the screen, leave the phone in a pocket for 10 minutes.
+4. Unlock; verify the supervisor dashboard shows continuous check-ins (no gap > 5 minutes).
+5. Repeat the test WITHOUT the exemption granted; verify check-ins stop after ~3 minutes on Xiaomi.
+
+The CI test (`src/__tests__/mobile/androidBuildWiring.test.ts`, describe block "FGS health background permissions") validates the manifest contract; the field test above validates the OS behaviour.

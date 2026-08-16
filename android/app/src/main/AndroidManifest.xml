@@ -80,10 +80,64 @@
          POST_NOTIFICATIONS                — needed on SDK 33+ to show the
                                              persistent FGS notification.
          WAKE_LOCK                         — keeps the service alive while
-                                             check-in interval ticks. -->
+                                             check-in interval ticks.
+
+         HIGH_SAMPLING_RATE_SENSORS        — required by Android 12+ for any
+                                             foreground service of type 'health'
+                                             that registers a sensor listener at
+                                             SENSOR_DELAY_GAME / SENSOR_DELAY_FASTEST
+                                             (S1, Android Developers, "Salud"). The
+                                             native mandown plugin already declares
+                                             it in its own manifest; declaring it
+                                             here too is defense-in-depth so the
+                                             app-level <service> with
+                                             foregroundServiceType="location|health"
+                                             keeps the contract regardless of how
+                                             the plugin manifests are merged.
+         BODY_SENSORS_BACKGROUND           — API 33–35 only. Required when the
+                                             'health' FGS reads body sensors
+                                             (accelerometer, heart rate) while
+                                             the app is in the background. The
+                                             native ManDown FGS runs
+                                             SENSOR_DELAY_GAME on TYPE_ACCELEROMETER
+                                             after startForeground, so this gate
+                                             applies in practice. Capped at
+                                             maxSdkVersion=35 because API 36
+                                             deprecates it in favour of
+                                             READ_HEALTH_DATA_IN_BACKGROUND.
+         READ_HEALTH_DATA_IN_BACKGROUND    — API 36+ replacement for
+                                             BODY_SENSORS_BACKGROUND. The
+                                             exclusive lower bound (minSdkVersion=36)
+                                             is enforced by the SDK; the gate's
+                                             tools:targetApi=36 keeps AGP / lint
+                                             quiet on older API levels.
+         REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — Xiaomi/Huawei/Samsung aggressive
+                                             battery savers can terminate a
+                                             foreground service within minutes
+                                             of the screen turning off unless the
+                                             app is on the OS exemption list.
+                                             Without this permission + the
+                                             runtime prompt handled by
+                                             src/services/mobile/batteryOptimization.ts,
+                                             the lone-worker check-in loop dies
+                                             silently after the worker pockets
+                                             their phone. Play Console accepts
+                                             this permission for genuine life-
+                                             safety apps; the only restriction
+                                             is that we must NOT silently grant
+                                             it ourselves — the user must
+                                             consent through the Settings intent.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND"
+        android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.READ_HEALTH_DATA_IN_BACKGROUND"
+        tools:targetApi="36"
+        xmlns:tools="http://schemas.android.com/tools" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- USE_FULL_SCREEN_INTENT — Android 14+ (API 34+) requires this permission
          for apps that fire a full-screen intent from a notification so the
          device wakes when an emergency push arrives even if the lock-screen
