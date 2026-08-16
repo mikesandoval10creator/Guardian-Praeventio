@@ -89,13 +89,21 @@ export function __setBatteryOptimizationBridge(
  * helper to the real Capacitor plugin. On web/iOS this is a no-op (the web
  * plugin always reports "already exempt" + "opened: true"). Safe to call
  * multiple times — the last call wins.
+ *
+ * Implementation note: we wrap the dynamic import in an async IIFE so the
+ * TS compiler treats this as an `await import(...)` inside a function body
+ * — the same shape that passes typecheck for the other `@praeventio/*`
+ * file: deps in the repo (`@praeventio/capacitor-proximity`, etc.). A
+ * bare top-level `import("...")` with a `.then()` resolves the module at
+ * typecheck time and complains that the file: dep has no built dist in
+ * node_modules at install time.
  */
 export function installBatteryOptimizationBridge(): void {
-  // Dynamic import keeps the Capacitor runtime out of the test bundle (and
-  // out of the web bundle path that doesn't ship the plugin).
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  import("@praeventio/capacitor-battery-optimization")
-    .then(({ BatteryOptimization }) => {
+  void (async () => {
+    try {
+      const { BatteryOptimization } = await import(
+        "@praeventio/capacitor-battery-optimization"
+      );
       bridge = {
         async isIgnoringBatteryOptimizations() {
           return (
@@ -108,11 +116,11 @@ export function installBatteryOptimizationBridge(): void {
           ).opened;
         },
       };
-    })
-    .catch(() => {
+    } catch {
       // Plugin not present (web build that tree-shook it out, or test env).
       // Leave bridge as null → calls return "unavailable" → caller no-ops.
-    });
+    }
+  })();
 }
 
 export type BatteryOptimizationStatus =
