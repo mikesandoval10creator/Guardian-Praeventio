@@ -5,8 +5,9 @@
  * DATA PROVENANCE (hard rule: never fabricate legal data)
  * -------------------------------------------------------
  * Classifier: CIIU4.CL 2012 (Chilean adaptation of ISIC Rev.4), as published
- * by the Servicio de Impuestos Internos (SII). Every code and description in
- * this file was verified on 2026-06-10 against TWO official SII sources:
+ * by the Servicio de Impuestos Internos (SII). The original curated set was
+ * verified on 2026-06-10 and Section J was verified on 2026-08-16 against
+ * official SII source 1 (and source 2 remains the classifier cross-reference):
  *   1. "Códigos de actividad económica" —
  *      https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html
  *   2. "Homologación completa de actividades económicas con el CIIU4.CL 2012" —
@@ -160,6 +161,40 @@ export const SII_ACTIVIDADES_ECONOMICAS: readonly SiiActividadEconomica[] = [
   { codigo: 551001, descripcion: 'ACTIVIDADES DE HOTELES', sectorId: 'GP-ALOJA-HOT' },
   { codigo: 561000, descripcion: 'ACTIVIDADES DE RESTAURANTES Y DE SERVICIO MÓVIL DE COMIDAS', sectorId: 'GP-ALOJA-COM' },
   { codigo: 562900, descripcion: 'SUMINISTRO INDUSTRIAL DE COMIDAS POR ENCARGO; CONCESIÓN DE SERVICIOS DE ALIMENTACIÓN', sectorId: 'GP-ALOJA-COM' },
+
+  // ── J. INFORMACIÓN Y COMUNICACIONES ────────────────────────────────────────
+  { codigo: 581100, descripcion: 'EDICIÓN DE LIBROS', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 581200, descripcion: 'EDICIÓN DE DIRECTORIOS Y LISTAS DE CORREO', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 581300, descripcion: 'EDICIÓN DE DIARIOS, REVISTAS Y OTRAS PUBLICACIONES PERIÓDICAS', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 581900, descripcion: 'OTRAS ACTIVIDADES DE EDICIÓN', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 582000, descripcion: 'EDICIÓN DE PROGRAMAS INFORMÁTICOS', sectorId: 'GP-INF-TI' },
+  { codigo: 591100, descripcion: 'ACTIVIDADES DE PRODUCCIÓN DE PELÍCULAS CINEMATOGRÁFICAS, VIDEOS Y PROGRAMAS DE TELEVISIÓN', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 591200, descripcion: 'ACTIVIDADES DE POSTPRODUCCIÓN DE PELÍCULAS CINEMATOGRÁFICAS, VIDEOS Y PROGRAMAS DE TELEVISIÓN', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 591300, descripcion: 'ACTIVIDADES DE DISTRIBUCIÓN DE PELÍCULAS CINEMATOGRÁFICAS, VIDEOS Y PROGRAMAS DE TELEVISIÓN', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 591400, descripcion: 'ACTIVIDADES DE EXHIBICIÓN DE PELÍCULAS CINEMATOGRÁFICAS Y CINTAS DE VIDEO', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 592000, descripcion: 'ACTIVIDADES DE GRABACIÓN DE SONIDO Y EDICIÓN DE MÚSICA', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 601000, descripcion: 'TRANSMISIONES DE RADIO', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 602000, descripcion: 'PROGRAMACIÓN Y TRANSMISIONES DE TELEVISIÓN', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 611010, descripcion: 'TELEFONÍA FIJA', sectorId: 'GP-INF-TELE' },
+  { codigo: 611020, descripcion: 'TELEFONÍA LARGA DISTANCIA', sectorId: 'GP-INF-TELE' },
+  { codigo: 611030, descripcion: 'TELEVISIÓN DE PAGO POR CABLE', sectorId: 'GP-INF-TELE' },
+  { codigo: 611090, descripcion: 'OTROS SERVICIOS DE TELECOMUNICACIONES ALÁMBRICAS N.C.P.', sectorId: 'GP-INF-TELE' },
+  { codigo: 612010, descripcion: 'TELEFONÍA MÓVIL CELULAR', sectorId: 'GP-INF-TELE' },
+  { codigo: 612020, descripcion: 'RADIOCOMUNICACIONES MÓVILES', sectorId: 'GP-INF-TELE' },
+  { codigo: 612030, descripcion: 'TELEVISIÓN DE PAGO INALÁMBRICA', sectorId: 'GP-INF-TELE' },
+  { codigo: 612090, descripcion: 'OTROS SERVICIOS DE TELECOMUNICACIONES INALÁMBRICAS N.C.P.', sectorId: 'GP-INF-TELE' },
+  { codigo: 613010, descripcion: 'TELEFONÍA MÓVIL SATELITAL', sectorId: 'GP-INF-TELE' },
+  { codigo: 613020, descripcion: 'TELEVISIÓN DE PAGO SATELITAL', sectorId: 'GP-INF-TELE' },
+  { codigo: 613090, descripcion: 'OTROS SERVICIOS DE TELECOMUNICACIONES POR SATÉLITE N.C.P.', sectorId: 'GP-INF-TELE' },
+  { codigo: 619010, descripcion: 'CENTROS DE LLAMADOS Y CENTROS DE ACCESO A INTERNET', sectorId: 'GP-INF-TELE' },
+  { codigo: 619090, descripcion: 'OTRAS ACTIVIDADES DE TELECOMUNICACIONES N.C.P.', sectorId: 'GP-INF-TELE' },
+  { codigo: 620100, descripcion: 'ACTIVIDADES DE PROGRAMACIÓN INFORMÁTICA', sectorId: 'GP-INF-TI' },
+  { codigo: 620200, descripcion: 'ACTIVIDADES DE CONSULTORÍA DE INFORMÁTICA Y DE GESTIÓN DE INSTALACIONES INFORMÁTICAS', sectorId: 'GP-INF-TI' },
+  { codigo: 620900, descripcion: 'OTRAS ACTIVIDADES DE TECNOLOGÍA DE LA INFORMACIÓN Y DE SERVICIOS INFORMÁTICOS', sectorId: 'GP-INF-TI' },
+  { codigo: 631100, descripcion: 'PROCESAMIENTO DE DATOS, HOSPEDAJE Y ACTIVIDADES CONEXAS', sectorId: 'GP-INF-TI' },
+  { codigo: 631200, descripcion: 'PORTALES WEB', sectorId: 'GP-INF-TI' },
+  { codigo: 639100, descripcion: 'ACTIVIDADES DE AGENCIAS DE NOTICIAS', sectorId: 'GP-INF-MEDIA' },
+  { codigo: 639900, descripcion: 'OTRAS ACTIVIDADES DE SERVICIOS DE INFORMACIÓN N.C.P.', sectorId: 'GP-INF-MEDIA' },
 
   // ── N. SERVICIOS ADMINISTRATIVOS Y DE APOYO ────────────────────────────────
   { codigo: 781000, descripcion: 'ACTIVIDADES DE AGENCIAS DE EMPLEO', sectorId: 'GP-ADM-RRHH' },

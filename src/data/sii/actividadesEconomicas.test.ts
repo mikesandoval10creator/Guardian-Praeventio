@@ -64,7 +64,7 @@ describe('SII_ACTIVIDADES_ECONOMICAS catalogue', () => {
     }
   });
 
-  describe('spot-checks against official SII data (verified 2026-06-10)', () => {
+  describe('spot-checks against official SII data', () => {
     const byCode = new Map<number, SiiActividadEconomica>(
       SII_ACTIVIDADES_ECONOMICAS.map((e) => [e.codigo, e]),
     );
@@ -109,6 +109,32 @@ describe('SII_ACTIVIDADES_ECONOMICAS catalogue', () => {
       const entry = byCode.get(102020);
       expect(entry?.descripcion).toMatch(/SALMÓNIDOS/i);
       expect(entry?.sectorId).toBe('GP-MANU-ALI');
+    });
+
+    it('covers all 32 official Section J codes verified on 2026-08-16', () => {
+      const expectedSectionJCodes = [
+        581100, 581200, 581300, 581900, 582000,
+        591100, 591200, 591300, 591400, 592000,
+        601000, 602000,
+        611010, 611020, 611030, 611090,
+        612010, 612020, 612030, 612090,
+        613010, 613020, 613090,
+        619010, 619090,
+        620100, 620200, 620900,
+        631100, 631200, 639100, 639900,
+      ];
+
+      for (const code of expectedSectionJCodes) {
+        expect(byCode.has(code), `falta código oficial SII ${code}`).toBe(true);
+      }
+    });
+
+    it.each([
+      [581100, 'EDICIÓN DE LIBROS', 'GP-INF-MEDIA'],
+      [611010, 'TELEFONÍA FIJA', 'GP-INF-TELE'],
+      [620100, 'ACTIVIDADES DE PROGRAMACIÓN INFORMÁTICA', 'GP-INF-TI'],
+    ] as const)('%i preserves the official description and GP mapping', (code, description, sectorId) => {
+      expect(byCode.get(code)).toEqual({ codigo: code, descripcion: description, sectorId });
     });
   });
 });
