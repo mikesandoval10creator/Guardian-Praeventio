@@ -2993,7 +2993,11 @@
     "help_not_sent": "⚠️ Your HELP request was not saved. Call by radio or phone NOW — the automatic escalation will NOT fire.",
     "checkin_not_saved": "The check-in was not saved. Retry; if it persists, notify your supervisor.",
     "session_load_failed": "Could not load your lone-worker session. Check your connection — do NOT start another (avoid duplicates).",
-    "retry": "Retry"
+    "retry": "Retry",
+    "battery_exclusion_title": "Guardian needs to run unrestricted",
+    "battery_exclusion_body": "Some phones (Xiaomi, Huawei, Samsung) kill background apps to save battery. If your phone does that to Guardian, check-ins will stop working once you put the phone in your pocket. Enable \"Unrestricted\" so your lone-worker session stays active.",
+    "battery_exclusion_cta": "Open battery settings",
+    "battery_intent_unavailable": "We couldn't open the battery settings. Go to Settings → Apps → Guardian → Battery and choose \"Unrestricted\"."
   },
   "zone_editor": {
     "title": "Restricted-zone editor",

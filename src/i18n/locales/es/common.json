@@ -2993,7 +2993,11 @@
     "help_not_sent": "⚠️ Tu pedido de AYUDA no se guardó. Avisa por radio o teléfono AHORA — la escalación automática NO saldrá.",
     "checkin_not_saved": "El check-in no se guardó. Reintenta; si persiste, avisa a tu supervisor.",
     "session_load_failed": "No se pudo cargar tu sesión de trabajo solitario. Revisá tu conexión — NO inicies otra para no duplicar.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "battery_exclusion_title": "Guardian necesita ejecutarse sin restricciones",
+    "battery_exclusion_body": "Algunos teléfonos (Xiaomi, Huawei, Samsung) cierran apps en segundo plano para ahorrar batería. Si tu teléfono hace eso con Guardian, los check-ins dejarán de funcionar cuando guardes el móvil en el bolsillo. Activá \"Sin restricciones\" para que tu sesión de trabajo solitario esté siempre activa.",
+    "battery_exclusion_cta": "Abrir ajustes de batería",
+    "battery_intent_unavailable": "No pudimos abrir la configuración de batería. Andá a Ajustes → Apps → Guardian → Batería y elegí \"Sin restricciones\"."
   },
   "zone_editor": {
     "title": "Editor de zonas restringidas",

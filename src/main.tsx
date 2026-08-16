@@ -13,6 +13,7 @@ import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
 import { initSentry } from './lib/sentry';
+import { installBatteryOptimizationBridge } from './services/mobile/batteryOptimization';
 import { installOfflineRejectionGuard } from './lib/offlineErrorGuard';
 import { registerSW } from 'virtual:pwa-register';
 import { logger } from './utils/logger';
@@ -29,6 +30,13 @@ installOfflineRejectionGuard((code) =>
 
 // Init error monitoring before anything else so startup errors are captured
 initSentry();
+
+// Wire the battery-optimization exclusion bridge to the real Capacitor
+// plugin on native platforms. The helper itself is a no-op on web/iOS
+// (the web plugin always reports "already-exempt") so calling it
+// unconditionally is safe. Done here so the helper is ready by the time
+// the LoneWorker page first mounts.
+installBatteryOptimizationBridge();
 
 // Sprint 21 — Bucket G: Universal Links (iOS) / App Links (Android).
 //

@@ -25,6 +25,9 @@
       ],
       "@praeventio/capacitor-proximity": [
         "./packages/capacitor-proximity/src/index.ts"
+      ],
+      "@praeventio/capacitor-battery-optimization": [
+        "./packages/capacitor-battery-optimization/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

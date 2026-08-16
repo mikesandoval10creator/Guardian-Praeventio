@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: MIT
+  @praeventio/capacitor-battery-optimization — Android manifest.
+
+  This package is permission-free: the single permission it queries
+  (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) is declared by the HOST APP's
+  manifest (android/app/src/main/AndroidManifest.xml) because Play Console
+  attributes that permission to the app, not to a plugin. The plugin only
+  needs the system Settings intent, which is always available without
+  permission.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
