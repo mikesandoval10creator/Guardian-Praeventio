@@ -90,37 +90,46 @@ export function __setBatteryOptimizationBridge(
  * plugin always reports "already exempt" + "opened: true"). Safe to call
  * multiple times — the last call wins.
  *
- * Implementation note: we wrap the dynamic import in an async IIFE so the
- * TS compiler treats this as an `await import(...)` inside a function body
- * — the same shape that passes typecheck for the other `@praeventio/*`
- * file: deps in the repo (`@praeventio/capacitor-proximity`, etc.). A
- * bare top-level `import("...")` with a `.then()` resolves the module at
- * typecheck time and complains that the file: dep has no built dist in
- * node_modules at install time.
+ * Implementation note: the actual `await import(...)` lives in an exported
+ * async function so the TypeScript compiler treats this site the same way
+ * it treats `proximityPluginAdapter.ts`'s `loadProximityPlugin` — both are
+ * async functions that the caller invokes; the dynamic import is resolved
+ * lazily. A bare top-level `import("...")` (whether `.then` or in an async
+ * IIFE) makes the module specifier resolve at typecheck time against
+ * node_modules, where the @praeventio/* file: deps lack a built dist/ until
+ * prebuild runs (and prebuild compiles proximity + mesh only — battery-
+ * optimization is new).
+ */
+export async function loadBatteryOptimizationBridge(): Promise<void> {
+  try {
+    const { BatteryOptimization } = await import(
+      "@praeventio/capacitor-battery-optimization"
+    );
+    bridge = {
+      async isIgnoringBatteryOptimizations() {
+        return (
+          await BatteryOptimization.isIgnoringBatteryOptimizations()
+        ).ignoring;
+      },
+      async openRequestIgnoreBatteryOptimizations() {
+        return (
+          await BatteryOptimization.openRequestIgnoreBatteryOptimizations()
+        ).opened;
+      },
+    };
+  } catch {
+    // Plugin not present (web build that tree-shook it out, or test env).
+    // Leave bridge as null → calls return "unavailable" → caller no-ops.
+  }
+}
+
+/**
+ * Synchronous wrapper for boot wiring. Fires the async loader but does not
+ * await it — the helper is safe to call before the bridge resolves (it
+ * returns "unavailable" until the import settles).
  */
 export function installBatteryOptimizationBridge(): void {
-  void (async () => {
-    try {
-      const { BatteryOptimization } = await import(
-        "@praeventio/capacitor-battery-optimization"
-      );
-      bridge = {
-        async isIgnoringBatteryOptimizations() {
-          return (
-            await BatteryOptimization.isIgnoringBatteryOptimizations()
-          ).ignoring;
-        },
-        async openRequestIgnoreBatteryOptimizations() {
-          return (
-            await BatteryOptimization.openRequestIgnoreBatteryOptimizations()
-          ).opened;
-        },
-      };
-    } catch {
-      // Plugin not present (web build that tree-shook it out, or test env).
-      // Leave bridge as null → calls return "unavailable" → caller no-ops.
-    }
-  })();
+  void loadBatteryOptimizationBridge();
 }
 
 export type BatteryOptimizationStatus =
