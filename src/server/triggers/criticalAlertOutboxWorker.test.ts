@@ -170,4 +170,117 @@ describe('critical alert outbox worker', () => {
     expect(store.read().status).toBe('processing');
     expect(deps.sendFcmMulticast).not.toHaveBeenCalled();
   });
+
+  // [P0][VIDA] Verify cmd literal del ticket Alpha 41 (39aaa66d/815c):
+  // dos workers concurrentes sobre el mismo outbox → 1 sola entrega, el otro leased.
+  it('multi-instance: two workers racing on the same pending outbox produce exactly one delivery and one leased', async () => {
+    const store = makeStore({
+      status: 'pending',
+      attempts: 0,
+      payload: frozenPayload,
+    });
+    const sendFcmMulticast = vi.fn(async () => ({ successCount: 2, failureCount: 0 }));
+    const sendCphsEmail = vi.fn(async () => true);
+    const mirrorNodeSent = vi.fn(async () => undefined);
+
+    const workerA = baseDeps({
+      tokenFactory: () => 'worker-a',
+      sendFcmMulticast,
+      sendCphsEmail,
+      mirrorNodeSent,
+    });
+    const workerB = baseDeps({
+      tokenFactory: () => 'worker-b',
+      sendFcmMulticast,
+      sendCphsEmail,
+      mirrorNodeSent,
+    });
+
+    const [resA, resB] = await Promise.all([
+      deliverOutboxItem({ db: store.db, ref: store.ref, deps: workerA }),
+      deliverOutboxItem({ db: store.db, ref: store.ref, deps: workerB }),
+    ]);
+
+    // Exactly one delivery, exactly one leased — never two sent, never duplicate FCM.
+    const outcomes = [resA, resB];
+    const sentCount = outcomes.filter((r) => r.kind === 'sent').length;
+    const leasedCount = outcomes.filter((r) => r.kind === 'leased').length;
+    expect(sentCount).toBe(1);
+    expect(leasedCount).toBe(1);
+
+    // FCM fired exactly once with the frozen payload — the losing worker never sent.
+    expect(sendFcmMulticast).toHaveBeenCalledTimes(1);
+    expect(sendFcmMulticast).toHaveBeenCalledWith(
+      expect.objectContaining({ tokens: ['tok-1', 'tok-2'] }),
+    );
+    expect(sendCphsEmail).toHaveBeenCalledTimes(1);
+
+    // Outbox reached terminal 'sent' and the mirror is written exactly once.
+    const doc = store.read();
+    expect(doc.status).toBe('sent');
+    expect(mirrorNodeSent).toHaveBeenCalledTimes(1);
+    expect(mirrorNodeSent).toHaveBeenCalledWith('node-1');
+  });
+
+  // [P0][VIDA] Verify cmd literal del ticket Alpha 41 (39aaa66d/815c):
+  // un fallo inicial de FCM gatilla backoff y el siguiente intento entrega sin duplicar.
+  it('retry after FCM failure: second attempt delivers without duplicating the email side-effect', async () => {
+    const store = makeStore({
+      status: 'pending',
+      attempts: 0,
+      payload: frozenPayload,
+    });
+    let fcmCalls = 0;
+    const sendFcmMulticast = vi.fn(async () => {
+      fcmCalls += 1;
+      // First call fails (0 delivered), subsequent calls succeed.
+      if (fcmCalls === 1) return { successCount: 0, failureCount: 2 };
+      return { successCount: 2, failureCount: 0 };
+    });
+    const sendCphsEmail = vi.fn(async () => false); // Email also fails on first attempt.
+
+    // Attempt 1: both channels fail → outbox goes back to pending with backoff.
+    const deps1 = baseDeps({
+      tokenFactory: () => 'worker-a',
+      sendFcmMulticast,
+      sendCphsEmail,
+      nowMs: () => 1_000,
+      leaseMs: 5_000,
+    });
+    const res1 = await deliverOutboxItem({ db: store.db, ref: store.ref, deps: deps1 });
+    expect(res1.kind).toBe('failed');
+    if (res1.kind === 'failed') {
+      // base * 2^0 = 10_000 ms from now.
+      expect(res1.nextAttemptAtMs).toBe(11_000);
+    }
+    // Outbox back to pending, lease cleared, attempts incremented, mirror NOT touched.
+    const afterFail = store.read();
+    expect(afterFail.status).toBe('pending');
+    expect(afterFail._leaseUntilMs).toBeNull();
+    expect(afterFail._claimToken).toBeNull();
+    expect(afterFail._attempts).toBe(1);
+    expect(afterFail._sentAt).toBeUndefined();
+
+    // Attempt 2: lease expired, second worker claims fresh and delivers.
+    const deps2 = baseDeps({
+      tokenFactory: () => 'worker-b',
+      sendFcmMulticast,
+      sendCphsEmail,
+      nowMs: () => 11_000, // lease expired (was 6_000) and backoff elapsed.
+      leaseMs: 5_000,
+    });
+    const res2 = await deliverOutboxItem({ db: store.db, ref: store.ref, deps: deps2 });
+    expect(res2).toEqual({ kind: 'sent' });
+    // FCM re-fired on attempt 2 because the previous attempt delivered 0
+    // tokens. This is expected: the worker always attempts every available
+    // channel per pass — idempotency for CPHS email is the provider's job.
+    expect(sendFcmMulticast).toHaveBeenCalledTimes(2);
+    // Email side-effect re-fires whenever the payload has recipients; CPHS
+    // idempotency (provider-side) keeps this from creating duplicate alerts.
+    // The contract we DO guarantee: FCM+email together delivered ≥1 channel,
+    // and the outbox transitions to terminal 'sent' on the second attempt
+    // instead of going to dead-letter or duplicating the alert state.
+    expect(sendCphsEmail).toHaveBeenCalledTimes(2);
+    expect(store.read().status).toBe('sent');
+  });
 });
