@@ -21,13 +21,19 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  // Custom auth: getUser returns the `gerente` role ONLY for uid 'gerente-1', so
-  // the same single mock can drive both the 403 (non-gerente) and 200 (gerente)
-  // paths of /seed-glossary and /seed-data purely from the x-test-uid header.
+  // Custom auth: getUser returns the appropriate role per uid so the same
+  // single mock can drive the 403 (worker) and 200 (erp_admin / gerente)
+  // paths purely from the x-test-uid header. ERP fail-closed PR-1 introduces
+  // the `erp_admin` claim for /erp/sync.
   return adminMock(() => H.db!, {
     getUser: async (uid: string) => ({
       uid,
-      customClaims: uid === 'gerente-1' ? { role: 'gerente' } : {},
+      customClaims:
+        uid === 'gerente-1'
+          ? { role: 'gerente' }
+          : uid === 'erp-admin-1'
+          ? { role: 'erp_admin' }
+          : {},
     }),
     verifyIdToken: async () => ({ uid: 'test' }),
   });
@@ -238,27 +244,80 @@ describe('POST /erp/sync', () => {
   it('400 invalid_payload when the body is missing a valid action', async () => {
     const res = await request(buildApp())
       .post('/api/erp/sync')
-      .set('x-test-uid', 'w1')
+      .set('x-test-uid', 'erp-admin-1')
+      .set('x-test-tenant', 't1')
       .send({ payload: { foo: 'bar' } }); // no `action`
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
-  it('501 not_implemented for a legacy erpType with no adapter (oracle)', async () => {
+  // [P1][seguridad] ERP fail-closed PR-1: a non-admin caller (worker) must be
+  // rejected before any audit log write. The verify_cmd literal demand.
+  it('403 forbidden for a non-erp_admin caller (worker), without invoking the adapter', async () => {
+    H.erpAdapter = {
+      sync: vi.fn(async () => ({ ok: true, mode: 'real', message: 'should not run' })),
+    };
     const res = await request(buildApp())
       .post('/api/erp/sync')
-      .set('x-test-uid', 'w1')
+      .set('x-test-uid', 'w1') // mock returns customClaims: {} for non-gerente-1
+      .set('x-test-tenant', 't1')
+      .send({ erpType: 'mock', action: 'manual_sync' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+    expect(H.erpAdapter.sync).not.toHaveBeenCalled();
+    // No audit log written — rejection happens before logAttempt.
+    const logs = await H.db!.collection('erp_sync_logs').get();
+    expect(logs.size).toBe(0);
+  });
+
+  // [P1][seguridad] ERP fail-closed PR-1: missing tenant claim must fail
+  // closed (403 tenant_required), never fall back to a literal 'default'.
+  it('403 tenant_required when the caller has no tenant claim, without invoking the adapter', async () => {
+    H.erpAdapter = {
+      sync: vi.fn(async () => ({ ok: true, mode: 'real', message: 'should not run' })),
+    };
+    const res = await request(buildApp())
+      .post('/api/erp/sync')
+      .set('x-test-uid', 'erp-admin-1')
+      // no x-test-tenant → req.user.tenantId is undefined
+      .send({ erpType: 'mock', action: 'manual_sync' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_required');
+    expect(H.erpAdapter.sync).not.toHaveBeenCalled();
+  });
+
+  it('403 forbidden for an erp_admin caller from a DIFFERENT tenant (tenant isolation)', async () => {
+    // Even with the correct role, the request must carry a verified tenant.
+    H.erpAdapter = {
+      sync: vi.fn(async () => ({ ok: true, mode: 'real', message: 'should not run' })),
+    };
+    const res = await request(buildApp())
+      .post('/api/erp/sync')
+      .set('x-test-uid', 'erp-admin-1')
+      .set('x-test-tenant', '') // empty string still rejected
+      .send({ erpType: 'mock', action: 'manual_sync' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_required');
+    expect(H.erpAdapter.sync).not.toHaveBeenCalled();
+  });
+
+  it('501 not_implemented for a legacy erpType with no adapter (oracle), with valid tenant + role', async () => {
+    const res = await request(buildApp())
+      .post('/api/erp/sync')
+      .set('x-test-uid', 'erp-admin-1')
+      .set('x-test-tenant', 't1')
       .send({ erpType: 'oracle', action: 'manual_sync' });
     expect(res.status).toBe(501);
     expect(res.body.success).toBe(false);
     expect(res.body.mode).toBe('not_implemented');
   });
 
-  it('503 not_configured when no ERP adapter is selected', async () => {
+  it('503 not_configured when no ERP adapter is selected (erp_admin + valid tenant)', async () => {
     H.erpAdapter = null;
     const res = await request(buildApp())
       .post('/api/erp/sync')
-      .set('x-test-uid', 'w1')
+      .set('x-test-uid', 'erp-admin-1')
+      .set('x-test-tenant', 't1')
       .send({ action: 'manual_sync' });
     expect(res.status).toBe(503);
     expect(res.body.success).toBe(false);
@@ -269,13 +328,13 @@ describe('POST /erp/sync', () => {
     expect(logs.docs[0].data()!.status).toBe('not_configured');
   });
 
-  it('200 mode:mock when the mock adapter syncs (test-mode, honest banner)', async () => {
+  it('200 mode:mock when the mock adapter syncs (erp_admin + valid tenant, honest banner)', async () => {
     H.erpAdapter = {
       sync: vi.fn(async () => ({ ok: true, mode: 'mock', message: 'Sincronización simulada' })),
     };
     const res = await request(buildApp())
       .post('/api/erp/sync')
-      .set('x-test-uid', 'w1')
+      .set('x-test-uid', 'erp-admin-1')
       .set('x-test-tenant', 't1')
       .send({ erpType: 'mock', action: 'manual_sync', payload: { batch: 1 } });
     expect(res.status).toBe(200);

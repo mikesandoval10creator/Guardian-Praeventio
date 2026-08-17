@@ -198,9 +198,47 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   }
   const { erpType, action, payload } = parsed.data;
   const uid = req.user!.uid;
-  // Tenant context — viene del verifyAuth claim, no del body
-  const tenantId =
-    (req.user as { tenantId?: string }).tenantId ?? 'default';
+
+  // [P1][seguridad] ERP fail-closed PR-1 (ticket 39aaa66d-81d6):
+  // tenant context MUST come from the verified token's claim, never fall back
+  // to a literal 'default' tenant. Synchronizing payroll/attendance against
+  // a hardcoded tenant would leak PII cross-tenant and silently create
+  // records against a non-existent tenant.
+  const rawTenantId = (req.user as { tenantId?: string }).tenantId;
+  const tenantId = typeof rawTenantId === 'string' && rawTenantId.trim().length > 0
+    ? rawTenantId.trim()
+    : null;
+  if (tenantId === null) {
+    logger.warn('erp_sync_rejected_missing_tenant', { uid, action });
+    return res.status(403).json({
+      success: false,
+      error: 'tenant_required',
+      message: 'ERP sync requires a verified tenant claim; missing or empty.',
+    });
+  }
+
+  // [P1][seguridad] ERP fail-closed PR-1: only callers with the `erp_admin`
+  // custom claim may invoke the adapter. Workers (`role: 'trabajador'`)
+  // and other non-admin roles are rejected before any audit log write to
+  // avoid persisting unauthenticated PII-shaped payloads.
+  let callerRecord: { uid: string; customClaims?: { role?: unknown } } | null;
+  try {
+    callerRecord = await admin.auth().getUser(uid);
+  } catch (lookupErr) {
+    // Fail-CLOSED: if we can't verify the caller, refuse. Otherwise a
+    // transient Firebase Auth blip would let an unverified caller through.
+    logger.error('erp_sync_auth_lookup_failed', lookupErr, { uid, action });
+    return res.status(403).json({ success: false, error: 'auth_lookup_failed' });
+  }
+  const callerRole = callerRecord.customClaims?.role;
+  if (callerRole !== 'erp_admin') {
+    logger.warn('erp_sync_rejected_role', { uid, role: callerRole ?? null, action });
+    return res.status(403).json({
+      success: false,
+      error: 'forbidden',
+      message: 'ERP sync requires the erp_admin role.',
+    });
+  }
 
   // Codex P1 fix (PR #266): Si el body provee erpType válido, lo usamos;
   // si no, el server lee ERP_ADAPTER del env. Frontend ya NO manda erpType
