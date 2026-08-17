@@ -165,6 +165,18 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # 2026-08-16 fix/ci-monorepo-capacitor-plugins: `npm ci --ignore-scripts`
+      # links the `file:packages/capacitor-*` dependencies but deliberately does
+      # not run their package build scripts. Their `main` entries point at
+      # `dist/...`, so Vite cannot resolve the imports until we build them.
+      # Keep this after npm ci: the package builds need the root TypeScript
+      # compiler that npm ci installs. There is no untrusted event interpolation.
+      - name: Build local capacitor packages
+        run: |
+          npm run battery-optimization:build
+          npm run mesh:build
+          npm run proximity:build
+
       # Each shard runs 1/4 of the test files. vitest's --shard flag splits
       # the file list deterministically by index, so coverage is complete
       # across the 4 shards. The 10-min watchdog is generous for a ~3-4 min
