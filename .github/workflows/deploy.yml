@@ -101,6 +101,31 @@ jobs:
           docker push ${{ env.IMAGE }}:${SHA}
           docker push ${{ env.IMAGE }}:latest
 
+      - name: Validate production env (Secret Manager mode)
+        # Discovery 2026-08-17 (ticket 3bfaa66d-...): validate-env.cjs supports
+        # --mode prod-secret-manager (asserts GOOGLE_CLOUD_PROJECT is set +
+        # lists expected secrets from Secret Manager) but NO workflow runs it.
+        # Without this gate, a deploy that forgets to inject a required Secret
+        # Manager binding only fails when the server's boot preflight fires —
+        # and that preflight aborts AFTER the Cloud Run revision is created,
+        # leaving a half-broken rollout. Adding this step BEFORE Deploy to
+        # Cloud Run catches missing/broken secret wiring at the workflow
+        # level, where recovery is a re-run instead of a revert.
+        # [P0][seguridad] KMS_ADAPTER=in-memory-dev pasaria el gate aunque
+        # REQUIRED_PROD dice cloud-kms — el script falla-cerrado si alguien
+        # flippó KMS_ADAPTER en production.
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if ! command -v node >/dev/null 2>&1; then
+            echo "::error::node not found on runner PATH."
+            exit 1
+          fi
+          GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" \
+            node scripts/validate-env.cjs --mode prod-secret-manager
+          echo "✓ validate-env --mode prod-secret-manager passed"
+
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v3
