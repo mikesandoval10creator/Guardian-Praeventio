@@ -452,3 +452,67 @@ describe('ds67ds76 router — B5 tenant-from-token (cross-tenant defense)', () =
     expect((res.body as Record<string, unknown>).error).toBe('no_tenant_binding');
   });
 });
+
+// Discovery 2026-08-17 (ticket 3bfaa66d-73fe-8190-a513-cc791b1b88e5):
+// DS 67/DS 76 son documentos oficiales firmados digitalmente. Un RUT con
+// DV incorrecto invalida jurídicamente el documento. El schema zod ahora
+// aplica isValidRut() (módulo-11 SII) en lugar de aceptar cualquier string
+// no-vacío.
+describe('ds67ds76 router — RUT modulo-11 validation (DS67/DS76 legal contract)', () => {
+  // Reference fixtures used by other describes pass because módulo-11 is
+  // symmetric on repeated-digit bodies (11.111.111-1, 99.999.999-9,
+  // 88.888.888-8 son todos válidos). Aquí probamos que el rechazo funciona.
+
+  it('POST /ds67 rejects an obviously-invalid RUT (body 12345, DV 6)', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds67')
+      .set('x-test-tenant', 't-1')
+      .send({
+        ...validDs67Body,
+        companyRut: '12345-6', // DV 6 no es válido para body 12345 (correcto: 9)
+      });
+    // Validation failure → 400 (zod refinement rejects before route handler).
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    const issues = (body.issues ?? body.errors ?? []) as Array<{
+      path?: string[];
+      message?: string;
+    }>;
+    expect(
+      issues.some((i) => i.path?.includes('companyRut') && i.message?.includes('RUT')),
+    ).toBe(true);
+  });
+
+  it('POST /ds67 rejects empty / whitespace RUT', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds67')
+      .set('x-test-tenant', 't-1')
+      .send({
+        ...validDs67Body,
+        companyRut: '',
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /ds76 rejects an invalid principalCompanyRut', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds76')
+      .set('x-test-tenant', 't-1')
+      .send({
+        ...validDs76Body,
+        principalCompanyRut: '11111111-2', // DV 2 incorrecto (correcto: 1)
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /ds76 rejects an invalid contractorCompanyRut', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds76')
+      .set('x-test-tenant', 't-1')
+      .send({
+        ...validDs76Body,
+        contractorCompanyRut: '11111111-2', // DV 2 incorrecto
+      });
+    expect(res.status).toBe(400);
+  });
+});

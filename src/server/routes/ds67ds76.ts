@@ -23,6 +23,7 @@ import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { callerTenantOr403 } from '../auth/callerTenant.js';
 import { callerHasRegulatoryRole } from '../auth/regulatoryRole.js';
+import { isValidRut } from '../../utils/rut.js';
 import { getWebauthnRpId } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -209,7 +210,15 @@ function sendSigningError(
 const ds67Schema = z.object({
   tenantId: z.string().min(1),
   companyName: z.string().min(1),
-  companyRut: z.string().min(1),
+  // Discovery 2026-08-17 (ticket 3bfaa66d-73fe-8190-a513-cc791b1b88e5):
+  // RUT must validate SII modulo-11 (DV + body). DS 67/DS 76 son documentos
+  // oficiales firmados digitalmente; un RUT mal escrito (DV incorrecto)
+  // invalida jurídicamente el documento (SUSESO/ACHS/Mutual pueden
+  // rechazarlo en fiscalización). isValidRut acepta formato 12345678-9,
+  // 12.345.678-9 o 123456789 (cleanRut los normaliza antes del DV check).
+  companyRut: z.string().min(1).refine(isValidRut, {
+    message: 'RUT inválido: verifica el dígito verificador (módulo-11 SII).',
+  }),
   companyAddress: z.string().min(1),
   scopeOfApplication: z.string().min(1),
   workerObligations: z.array(z.string()).default([]),
@@ -223,9 +232,14 @@ const ds67Schema = z.object({
 const ds76Schema = z.object({
   tenantId: z.string().min(1),
   principalCompanyName: z.string().min(1),
-  principalCompanyRut: z.string().min(1),
+  // Same RUT validation contract as DS 67 — both RUT fields.
+  principalCompanyRut: z.string().min(1).refine(isValidRut, {
+    message: 'RUT mandante inválido: verifica el dígito verificador (módulo-11 SII).',
+  }),
   contractorCompanyName: z.string().min(1),
-  contractorCompanyRut: z.string().min(1),
+  contractorCompanyRut: z.string().min(1).refine(isValidRut, {
+    message: 'RUT contratista inválido: verifica el dígito verificador (módulo-11 SII).',
+  }),
   worksiteName: z.string().min(1),
   worksiteAddress: z.string().min(1),
   sstManagementPlan: z.string().min(1),
