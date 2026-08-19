@@ -23,7 +23,20 @@ import { withSentryScope } from '../observability/sentryInstrumentation';
 import { redactPii } from '../observability/piiRedactor';
 import { queryCommunityKnowledge } from '../ragService';
 import { parseGeminiJson } from './parsing';
-import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
+import {
+  AI_MODEL_FAST,
+  AI_MODEL_REASONING,
+} from '../../config/aiModels';
+import {
+  PROBABILIDAD_MAP,
+  CRITICIDAD_ORDEN,
+  PrediccionIncidente,
+  PredictiveIncidentResult,
+  DISCLAIMER_AI_HUB,
+  MODEL_VERSION_AI_HUB,
+  CriticidadLabel,
+  ProbabilidadLabel,
+} from './types';
 
 // TODO(§12.5.1 step 6 → step 2 merge): cuando PR #555 (gemini/pii.ts)
 // mergee a main, reemplazar este helper inline por `import {
@@ -97,10 +110,87 @@ export const analyzeFastCheck = async (observation: string): Promise<unknown> =>
   );
 };
 
+/** Confianza fija baja — hace evidente que NO está calibrada. Ver `disclaimer`. */
+const CONFIANZA_NO_CALIBRADA = 30;
+
+/**
+ * Calcula `probabilidadGlobal` como el promedio de las predicciones
+ * individuales, mapeando Alta/Media/Baja → 70/40/15. El promedio (no el
+ * máximo) refleja mejor el riesgo global agregado de la red.
+ */
+function calcularProbabilidadGlobal(
+  predicciones: Array<{ probabilidad: ProbabilidadLabel }>,
+): number {
+  if (predicciones.length === 0) return 0;
+  const suma = predicciones.reduce(
+    (acc, p) => acc + PROBABILIDAD_MAP[p.probabilidad],
+    0,
+  );
+  return Math.round(suma / predicciones.length);
+}
+
+/**
+ * Calcula `nivelRiesgo` como la criticidad máxima entre las predicciones.
+ * 'Crítico' solo se eleva cuando hay alguna predicción con criticidad 'Alta'
+ * AND probabilidad 'Alta' — es decir, el peor caso combinado.
+ */
+function calcularNivelRiesgo(
+  predicciones: Array<{
+    criticidad: CriticidadLabel;
+    probabilidad: ProbabilidadLabel;
+  }>,
+): PredictiveIncidentResult['nivelRiesgo'] {
+  if (predicciones.length === 0) return 'Bajo';
+
+  // 'Crítico' si existe alguna predicción Alta+Alta.
+  const hayCritico = predicciones.some(
+    (p) => p.criticidad === 'Alta' && p.probabilidad === 'Alta',
+  );
+  if (hayCritico) return 'Crítico';
+
+  // Máximo de criticidad declarada (Alta > Media > Baja).
+  const maxCriticidad = predicciones.reduce((max, p) => {
+    const orden = CRITICIDAD_ORDEN[p.criticidad];
+    return orden > max ? orden : max;
+  }, 0);
+
+  if (maxCriticidad >= CRITICIDAD_ORDEN.Alta) return 'Alto';
+  if (maxCriticidad >= CRITICIDAD_ORDEN.Media) return 'Medio';
+  return 'Bajo';
+}
+
+/**
+ * Reshape de la respuesta cruda del LLM al contrato compartido
+ * `PredictiveIncidentResult`. El LLM devuelve `descripcion` +
+ * `accionPreventiva`; la UI necesita `razon` + `mitigacionSugerida`.
+ * `fundamentoLegal` no lo devuelve el LLM → string vacío.
+ */
+function reshapePredicciones(
+  raw: Array<{
+    titulo?: string;
+    descripcion?: string;
+    criticidad?: string;
+    probabilidad?: string;
+    accionPreventiva?: string;
+    nodoId?: string;
+    fundamentoLegal?: string;
+  }>,
+): PrediccionIncidente[] {
+  return raw.map((p) => ({
+    nodoId: p.nodoId,
+    titulo: p.titulo ?? '',
+    razon: p.descripcion ?? '',
+    mitigacionSugerida: p.accionPreventiva ?? '',
+    fundamentoLegal: p.fundamentoLegal ?? '',
+    criticidad: (p.criticidad as CriticidadLabel) ?? 'Baja',
+    probabilidad: (p.probabilidad as ProbabilidadLabel) ?? 'Baja',
+  }));
+}
+
 async function predictGlobalIncidentsImpl(
   context: string,
   envContext: string,
-): Promise<unknown> {
+): Promise<PredictiveIncidentResult> {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -153,13 +243,35 @@ async function predictGlobalIncidentsImpl(
     },
   });
 
-  return parseGeminiJson(response);
+  const raw = parseGeminiJson<{
+    predicciones: Array<{
+      titulo?: string;
+      descripcion?: string;
+      criticidad?: string;
+      probabilidad?: string;
+      accionPreventiva?: string;
+      nodoId?: string;
+      fundamentoLegal?: string;
+    }>;
+  }>(response);
+
+  const predicciones = reshapePredicciones(raw.predicciones ?? []);
+
+  return {
+    probabilidadGlobal: calcularProbabilidadGlobal(predicciones),
+    nivelRiesgo: calcularNivelRiesgo(predicciones),
+    confianza: CONFIANZA_NO_CALIBRADA,
+    predicciones,
+    generatedAt: new Date().toISOString(),
+    modelVersion: MODEL_VERSION_AI_HUB,
+    disclaimer: DISCLAIMER_AI_HUB,
+  };
 }
 
 export const predictGlobalIncidents = async (
   context: string,
   envContext: string,
-): Promise<unknown> => {
+): Promise<PredictiveIncidentResult> => {
   return withSentryScope(
     'gemini',
     {

@@ -8,12 +8,13 @@ import { predictGlobalIncidents } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../../utils/pwa-offline';
 import { logger } from '../../utils/logger';
+import type { PredictiveIncidentResult } from '../../services/gemini/types';
 
 export function PredictiveAlertWidget() {
   const { t } = useTranslation();
   const { nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
-  const [insights, setInsights] = useState<any>(null);
+  const [insights, setInsights] = useState<PredictiveIncidentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
   const isOnline = useOnlineStatus();
@@ -128,24 +129,28 @@ export function PredictiveAlertWidget() {
               </div>
               
               <p className="text-[10px] sm:text-sm text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed mb-1.5 sm:mb-3">
-                <strong className="text-zinc-900 dark:text-white">{topPrediction.titulo}:</strong> {topPrediction.razon}
+                <strong className="text-zinc-900 dark:text-white">{topPrediction.titulo ?? '—'}:</strong> {topPrediction.razon ?? '—'}
               </p>
-              
+
               <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
                 <div className={`flex-1 ${styles.box1} border rounded-lg p-2 sm:p-3`}>
                   <p className={`text-[8px] sm:text-[10px] font-bold ${styles.box1Title} uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1`}>
                     <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t('predictive_alert.imminent_risk', 'Riesgo Inminente')}
                   </p>
-                  <p className={`text-[9px] sm:text-xs ${styles.box1Text}`}>{t('predictive_alert.probability_label', 'Probabilidad:')} <strong className="text-zinc-900 dark:text-white">{topPrediction.probabilidad}%</strong></p>
+                  <p className={`text-[9px] sm:text-xs ${styles.box1Text}`}>{t('predictive_alert.probability_label', 'Probabilidad:')} <strong className="text-zinc-900 dark:text-white">{topPrediction.probabilidad ?? '—'}</strong></p>
                 </div>
 
                 <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 sm:p-3">
                   <p className="text-[8px] sm:text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1">
                     <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t('predictive_alert.automated_action', 'Acción Automatizada')}
                   </p>
-                  <p className="text-[9px] sm:text-xs text-emerald-800 dark:text-emerald-100/80 leading-snug">{topPrediction.mitigacionSugerida}</p>
+                  <p className="text-[9px] sm:text-xs text-emerald-800 dark:text-emerald-100/80 leading-snug">{topPrediction.mitigacionSugerida ?? '—'}</p>
                 </div>
               </div>
+              {/* Disclaimer compacto — la probabilidad NO está calibrada. */}
+              <p className="text-[8px] sm:text-[9px] text-zinc-500 dark:text-zinc-500 uppercase tracking-widest mt-1.5 sm:mt-2">
+                {insights.disclaimer ?? 'Asistencia IA, no decisión. Probabilidades no calibradas.'}
+              </p>
             </div>
           </div>
         </div>
