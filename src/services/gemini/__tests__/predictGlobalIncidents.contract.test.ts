@@ -206,6 +206,22 @@ describe('predictGlobalIncidents — contract', () => {
     expect(result.predicciones[0].fundamentoLegal).toBe('');
   });
 
+  it('criticidad/probabilidad inválidas del LLM se descartan a "Baja" (defensa contra drift)', async () => {
+    mockResponse(
+      JSON.stringify({
+        predicciones: [
+          { titulo: 't', descripcion: 'd', criticidad: 'CRITICA_EXTREMA', probabilidad: 'MEDIANITA', accionPreventiva: 'a' },
+        ],
+      }),
+    );
+
+    const result = await mod.predictGlobalIncidents('ctx', 'env');
+    expect(result.predicciones[0].criticidad).toBe('Baja');
+    expect(result.predicciones[0].probabilidad).toBe('Baja');
+    // Y el nivelRiesgo derivado debe ser 'Bajo' (no se dispara el camino Crítico).
+    expect(result.nivelRiesgo).toBe('Bajo');
+  });
+
   it('nodoId opcional — undefined cuando el LLM no lo envía', async () => {
     mockResponse(MOCK_RESPONSE);
 

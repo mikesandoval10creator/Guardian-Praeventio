@@ -176,14 +176,21 @@ function reshapePredicciones(
     fundamentoLegal?: string;
   }>,
 ): PrediccionIncidente[] {
+  // Defensa contra drift del LLM: si devuelve una criticidad/probabilidad
+  // fuera de la whitelist, NO propagamos el valor corrupto a la UI.
+  // El cast `as CriticidadLabel`/`as ProbabilidadLabel` es unchecked
+  // en runtime — sin esta validación, `predicciones[0].criticidad`
+  // podría ser cualquier string. Lo vimos en adversarial testing.
+  const criticidadValidas = new Set(['Alta', 'Media', 'Baja']);
+  const probabilidadValidas = new Set(['Alta', 'Media', 'Baja']);
   return raw.map((p) => ({
     nodoId: p.nodoId,
     titulo: p.titulo ?? '',
     razon: p.descripcion ?? '',
     mitigacionSugerida: p.accionPreventiva ?? '',
     fundamentoLegal: p.fundamentoLegal ?? '',
-    criticidad: (p.criticidad as CriticidadLabel) ?? 'Baja',
-    probabilidad: (p.probabilidad as ProbabilidadLabel) ?? 'Baja',
+    criticidad: criticidadValidas.has(p.criticidad ?? '') ? (p.criticidad as CriticidadLabel) : 'Baja',
+    probabilidad: probabilidadValidas.has(p.probabilidad ?? '') ? (p.probabilidad as ProbabilidadLabel) : 'Baja',
   }));
 }
 
