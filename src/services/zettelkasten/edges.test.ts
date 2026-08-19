@@ -254,3 +254,89 @@ describe('createEdge + getRelatedNodes', () => {
     expect(fromWorker.find((r) => r.direction === 'outgoing')?.nodeId).toBe('project-mina-norte');
   });
 });
+
+describe('createEdge — weight + validez temporal propagation', () => {
+  let store: ReturnType<typeof buildInMemoryStore>;
+
+  beforeEach(() => {
+    store = buildInMemoryStore();
+  });
+
+  it('createEdge con weight + decayFn se persiste end-to-end', async () => {
+    const edge = await createEdge(store, {
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 'tenant-A',
+      createdBy: 'system',
+      weight: 0.85,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: '2027-01-01T00:00:00.000Z',
+      decayFn: 'linear',
+    });
+    expect(edge.weight).toBe(0.85);
+    expect(edge.decayFn).toBe('linear');
+    expect(edge.validFrom).toBe('2026-01-01T00:00:00.000Z');
+    expect(edge.validUntil).toBe('2027-01-01T00:00:00.000Z');
+
+    // round-trip en el store
+    const persisted = store._all()[0];
+    expect(persisted).toEqual(edge);
+    expect(persisted.weight).toBe(0.85);
+    expect(persisted.decayFn).toBe('linear');
+  });
+
+  it('createEdge rechaza validUntil en fecha pasada (INVALID_VALIDITY)', async () => {
+    await expect(
+      createEdge(store, {
+        fromNodeId: 'control-1',
+        toNodeId: 'risk-1',
+        type: 'mitigates',
+        tenantId: 'tenant-A',
+        createdBy: 'system',
+        weight: 0.5,
+        validFrom: '2027-01-01T00:00:00.000Z',
+        validUntil: '2026-01-01T00:00:00.000Z',
+        decayFn: 'linear',
+      }),
+    ).rejects.toThrow(EdgeValidationError);
+    expect(store._all()).toHaveLength(0);
+  });
+
+  it('idempotencia: mismo peso = mismo id; peso distinto = id distinto', async () => {
+    const e1 = await createEdge(store, {
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 'tenant-A',
+      createdBy: 'system',
+      weight: 0.85,
+      decayFn: 'linear',
+    });
+    // recrear con mismo peso → idem (el map-based store hace upsert por id)
+    await createEdge(store, {
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 'tenant-A',
+      createdBy: 'system',
+      weight: 0.85,
+      decayFn: 'linear',
+    });
+    expect(store._all()).toHaveLength(1);
+    expect(store._all()[0].id).toBe(e1.id);
+
+    // distinto peso → id distinto → edge nueva en el store
+    const e2 = await createEdge(store, {
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 'tenant-A',
+      createdBy: 'system',
+      weight: 0.42,
+      decayFn: 'linear',
+    });
+    expect(e2.id).not.toBe(e1.id);
+    expect(store._all()).toHaveLength(2);
+  });
+});
