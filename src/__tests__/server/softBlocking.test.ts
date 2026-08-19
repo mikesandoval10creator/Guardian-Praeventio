@@ -463,7 +463,7 @@ describe('POST /:projectId/soft-blocking/build-audit-entry', () => {
     expect(res.body.error).toBe('forbidden');
   });
 
-  it('200 happy path → entry has contentHash, authorizingUid forced to caller', async () => {
+  it('200 happy path → persists authoritative audit row and returns the entry', async () => {
     const res = await request(buildApp())
       .post(url)
       .set('x-test-uid', CALLER_UID)
@@ -486,6 +486,19 @@ describe('POST /:projectId/soft-blocking/build-audit-entry', () => {
     // — it is a record for compliance, not a machinery stop command
     expect(entry).not.toHaveProperty('blocked');
     expect(entry.reason).toBe(validOverride.reason.trim());
+
+    const auditRows = Object.entries(H.db!._dump()).filter(([path]) =>
+      path.startsWith('audit_logs/'),
+    );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0][1]).toMatchObject({
+      action: 'soft_blocking.override_authorized',
+      module: 'soft_blocking',
+      userId: CALLER_UID,
+      projectId: PROJECT_ID,
+      source: 'server',
+      details: { entry },
+    });
   });
 
   it('200 entry id is deterministic (activityId + approvedAt)', async () => {
@@ -499,7 +512,7 @@ describe('POST /:projectId/soft-blocking/build-audit-entry', () => {
     expect(entry.id).toContain('2026-05-30T10:00:00.000Z');
   });
 
-  it('400 when decision.canOverride=false → GateOverrideError → 400 with code', async () => {
+  it('400 when decision.canOverride=false → GateOverrideError → 400 with code and no audit row', async () => {
     // cannot_override decision sent to build-audit-entry → validation fails inside engine
     const res = await request(buildApp())
       .post(url)
@@ -514,6 +527,9 @@ describe('POST /:projectId/soft-blocking/build-audit-entry', () => {
     expect(res.body.error).toBe('validation_error');
     expect(typeof res.body.code).toBe('string');
     expect(typeof res.body.message).toBe('string');
+    expect(
+      Object.keys(H.db!._dump()).filter((path) => path.startsWith('audit_logs/')),
+    ).toHaveLength(0);
   });
 
   it('200 contentHash is a valid hex string (SHA-256 = 64 hex chars)', async () => {

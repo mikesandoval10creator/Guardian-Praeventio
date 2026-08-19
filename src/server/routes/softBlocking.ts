@@ -1,6 +1,6 @@
 // Praeventio Guard — Soft-blocking requirement gate HTTP surface.
 //
-// Five stateless endpoints over the engine under
+// Four authenticated endpoints over the engine under
 // `src/services/softBlocking/requirementGate.ts`:
 //
 //   POST /:projectId/soft-blocking/evaluate-gate          { checks }
@@ -8,9 +8,9 @@
 //   POST /:projectId/soft-blocking/build-audit-entry      { decision, override, gateContext }
 //   POST /:projectId/soft-blocking/is-override-valid      { entry, now? }
 //
-// Pure compute — no Firestore writes. The route injects SHA-256 as the
-// hash function for `buildOverrideAuditEntry`. authorizingUid in
-// override is forced to the authenticated caller.
+// The gate calculations remain pure. A successful build-audit-entry request
+// persists the authoritative override event through auditServerEvent before
+// returning the deterministic entry. authorizingUid is forced to the caller.
 //
 // Per directive #2 (NUNCA bloquear maquinaria): the engine returns
 // 'soft_block' as a flag, never a hard block. 'cannot_override' applies
@@ -25,6 +25,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -228,6 +229,13 @@ router.post(
         },
         hashFn: sha256Hex,
       });
+      await auditServerEvent(
+        req,
+        'soft_blocking.override_authorized',
+        'soft_blocking',
+        { entry },
+        { projectId },
+      );
       return res.json({ entry });
     } catch (err) {
       if (err instanceof GateOverrideError) {
