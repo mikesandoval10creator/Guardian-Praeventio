@@ -209,11 +209,21 @@ export function buildSosOrchestration(
   });
 
   // 2) Outbox entry (idempotency clave)
+  // [P0][VIDA] Brecha latente 2026-08-17 (ticket 3c0aa66d-73fe-81d5-85f5-ed494aca08f3):
+  // `SosEvent.projectId` es REQUERIDO por `sosOutboxClient.sendSos()` —
+  // sin él el engine retorna { ok: false, error: 'missing_projectId' }
+  // (no-retryable) y dead-letterea inmediatamente. La UI surfacearia
+  // "avisa al supervisor presencialmente" para TODAS las emergencias
+  // conectadas al orchestrator. La malla mesh SÍ incluye projectId (arriba),
+  // el outbox también debe. HRO Principle 1: el código debe prometer lo
+  // que hace. Validado contra commit actual HEAD; verificado contra el
+  // contrato de SosEvent en src/services/emergency/sosOutbox.ts:30-47.
   const outboxEvent: SosEvent = {
     clientEventId: ctx.clientEventId,
     workerUid: ctx.workerUid,
     reason: mapReasonToOutbox(ctx.reasonCode),
     occurredAt: ctx.reportedAt,
+    projectId: ctx.projectId,
     coords: ctx.coords
       ? {
           lat: ctx.coords.lat,

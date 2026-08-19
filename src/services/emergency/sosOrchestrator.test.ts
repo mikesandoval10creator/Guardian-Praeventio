@@ -34,6 +34,13 @@ describe('buildSosOrchestration', () => {
     expect(plan.outboxEntry.event.clientEventId).toBe('evt-uuid-1');
     expect(plan.outboxEntry.event.workerUid).toBe('worker-1');
 
+    // [P0][VIDA] 2026-08-17 — Brecha latente: el orchestrator debe copiar
+    // ctx.projectId al outboxEvent, sino sosOutboxClient.sendSos() falla-cerrado
+    // con { ok: false, error: 'missing_projectId' } y dead-letterea el evento
+    // antes del primer envío. El mesh packet ya incluía projectId; el outbox
+    // debe ser consistente. Verificado contra ticket 3c0aa66d-73fe-81d5-85f5-ed494aca08f3.
+    expect(plan.outboxEntry.event.projectId).toBe('proj-cl');
+
     expect(plan.emergencyNumbers.regionCode).toBe('CL');
     expect(plan.emergencyNumbers.medical).toBe('131');
 
