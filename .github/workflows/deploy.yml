@@ -550,3 +550,116 @@ jobs:
           verify_vital_last_run "man-down-escalation"
 
           echo "✓ Vital life-safety scheduler jobs setup complete"
+
+      # Discovery 2026-08-17 (ticket 3bfaa66d-73fe-8173-ad1e-c652e00ad3a2) —
+      # housekeeping + dedicated crons for the 10 jobs that were implemented
+      # and tested but never provisioned in Cloud Scheduler:
+      #   - `run-daily-housekeeping` runs 9 jobs daily (00:00 UTC) — including
+      #     SII DTE queue drain (Res. Ex. 80/2014 24h deadline), brigade resource
+      #     expiry reaper (vida-safety indirecto), legal-obligation reconcile
+      #     (CPHS/Depto Prevención thresholds), UF rate refresh, retention sweep
+      #     guest helpers, etc.
+      #   - 4 dedicated crons for jobs with their own endpoint:
+      #     `runDteIssueQueueDrain` (10 min, SII), `checkExpiredBrigadeResources`
+      #     (1h, vida-safety indirecto), `runComplianceSnapshot` (diario 02:30),
+      #     `runSloMetricsRefresh` (diario 03:30, Sentry-gated).
+      # Same contract as the maintenance step: `ensure_job` + post-create
+      # existence check. Non-vital jobs use `continue-on-error: true` (the
+      # absence of a daily housekeeping run is recoverable; a missing vital
+      # cron is not).
+      - name: Setup Cloud Scheduler — housekeeping + dedicated jobs
+        continue-on-error: true
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          SCHEDULER_SA="climate-scan-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+          SCHEDULER_LOCATION="us-central1"
+
+          ensure_job() {
+            local name="$1"
+            local schedule="$2"
+            local path="$3"
+            local description="$4"
+
+            if gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              gcloud scheduler jobs update http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --quiet
+              echo "✓ Updated $name"
+            else
+              gcloud scheduler jobs create http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --description="$description" \
+                --quiet
+              echo "✓ Created $name"
+            fi
+
+            # Post-create existence check.
+            if ! gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              echo "::warning::Cron $name was NOT provisioned (describe failed post-create). Non-vital, continuing."
+            fi
+          }
+
+          # Daily housekeeping consolidado — runs 9 jobs at 00:00 UTC.
+          # Before this fix NONE of them ran: code existed, tests green, but
+          # no cron. SII Res. Ex. 80/2014 24h deadline was at risk whenever
+          # the DTE queue had transient failures outside the manual daily run.
+          ensure_job "daily-housekeeping" \
+            "0 0 * * *" \
+            "/api/maintenance/run-daily-housekeeping" \
+            "Daily housekeeping (00:00 UTC). Aggregates runExceptionAutoExpire + runWorkPermitAutoExpire + runLegalCalendarReminders + runLegalObligationReconcile + runUfRateRefresh + checkExpiredBrigadeResources + runDteIssueQueueDrain (Discovery 2026-08-17)."
+
+          # DTE queue drain — separate cron at 10min cadence for SII 24h SLA.
+          # Why dedicated: the daily housekeeping may be too late if the queue
+          # accumulates failures during business hours.
+          ensure_job "dte-issue-queue-drain" \
+            "*/10 * * * *" \
+            "/api/maintenance/run-dte-issue-queue-drain" \
+            "DTE issue queue drain every 10 min (SII Res. Ex. 80/2014 24h SLA). Discovery 2026-08-17."
+
+          # Brigade resource expiry reaper — dedicated hourly cron.
+          # Why dedicated: vida-safety indirecto (brigada sin recursos no
+          # puede responder a emergencia). Hourly es cadencia suficiente y
+          # compatible con check-overdue (que también es hourly).
+          ensure_job "check-expired-brigade-resources" \
+            "0 * * * *" \
+            "/api/maintenance/run-check-expired-brigade-resources" \
+            "Hourly brigade resource expiry reaper (Discovery 2026-08-17). Vida-safety indirecto."
+
+          # Compliance snapshot — daily 02:30 UTC.
+          ensure_job "run-compliance-snapshot" \
+            "30 2 * * *" \
+            "/api/maintenance/run-compliance-snapshot" \
+            "Daily compliance traffic-light snapshot per project (Discovery 2026-08-17). Writes compliance_snapshots/{projectId}_{YYYY-MM-DD}."
+
+          # SLO metrics refresh — daily 03:30 UTC. Sentry honest-gate: si
+          # SENTRY_API_TOKEN/SENTRY_ORG/SENTRY_PROJECT_ID no están seteados,
+          # el job hace fail-soft y slo_metrics/{sloId}/daily queda sin
+          # actualizar (no aborta el deploy).
+          ensure_job "run-slo-metrics-refresh" \
+            "30 3 * * *" \
+            "/api/maintenance/run-slo-metrics-refresh" \
+            "Daily SLO metrics refresh from Sentry (Discovery 2026-08-17). Sentry-gated; fail-soft if credentials missing."
+
+          echo "✓ Housekeeping + dedicated scheduler jobs setup complete"
