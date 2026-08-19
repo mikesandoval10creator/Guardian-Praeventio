@@ -102,16 +102,18 @@ export function Telemetry() {
       { id: `wind-site-h${h}`, funnelFactor, rotorAreaM2: a },
       { windKmh: w },
     );
-    const projectId = selectedProject?.id;
-    if (node) {
-      logger.info('zettelkasten:micro-wind', { node });
-      if (projectId) writeNodesDebounced([node], { projectId });
-    }
     // P_W → kWh/día = P_W * 24h / 1000
     const powerW = node?.metadata?.powerW as number | undefined;
     const kwhPerDay = powerW ? (powerW * 24) / 1000 : 0;
     return { node, kwhPerDay, powerW: powerW ?? 0 };
   }, [microWindKmh, turbineHeightM, rotorAreaM2, selectedProject?.id]);
+
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId || !microWindResult?.node) return;
+    logger.info('zettelkasten:micro-wind', { node: microWindResult.node });
+    writeNodesDebounced([microWindResult.node], { projectId });
+  }, [microWindResult, microWindKmh, turbineHeightM, rotorAreaM2, selectedProject?.id]);
 
   const handleDikeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
