@@ -2,11 +2,13 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { X, BrainCircuit, AlertTriangle, ShieldCheck, ArrowRight } from 'lucide-react';
+import type { PredictiveIncidentResult, PrediccionIncidente } from '../../services/gemini/types';
+import { DISCLAIMER_AI_HUB } from '../../services/gemini/types';
 
 interface AIInsightsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  insights: any;
+  insights: PredictiveIncidentResult | null;
 }
 
 export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalProps) {
@@ -49,11 +51,25 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar flex-1">
+              {/* Disclaimer permanente: la IA NO decide, probabilidades no calibradas. */}
+              <div className="bg-zinc-100 dark:bg-zinc-800/40 border border-zinc-200 dark:border-white/5 rounded-2xl p-3">
+                <p className="text-[9px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest leading-tight">
+                  {insights.disclaimer ?? DISCLAIMER_AI_HUB}
+                </p>
+                <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-widest mt-1">
+                  Generado: {insights.generatedAt ? new Date(insights.generatedAt).toLocaleString() : '—'}
+                  {' · '}
+                  Modelo: {insights.modelVersion ?? '—'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{t('ai_insights.incident_probability', 'Probabilidad de Incidente')}</p>
                   <div className="flex items-end gap-2">
-                    <span className="text-3xl font-black text-zinc-900 dark:text-white leading-none">{insights.probabilidadGlobal}%</span>
+                    <span className="text-3xl font-black text-zinc-900 dark:text-white leading-none">
+                      {insights.probabilidadGlobal != null ? `${insights.probabilidadGlobal}%` : '—'}
+                    </span>
                   </div>
                 </div>
                 <div className="bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
@@ -62,7 +78,7 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
                     <span className={`text-xl font-black uppercase tracking-tight ${
                       insights.nivelRiesgo === 'Crítico' || insights.nivelRiesgo === 'Alto' ? 'text-rose-500' : 'text-emerald-500'
                     }`}>
-                      {insights.nivelRiesgo}
+                      {insights.nivelRiesgo ?? '—'}
                     </span>
                   </div>
                 </div>
@@ -74,20 +90,20 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
                   {t('ai_insights.main_predictions', 'Predicciones Principales')}
                 </h3>
                 <div className="space-y-3">
-                  {insights.predicciones.map((pred: any, idx: number) => (
+                  {(insights.predicciones ?? []).map((pred: PrediccionIncidente, idx: number) => (
                     <div key={idx} className="bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-2xl p-4 hover:border-zinc-300 dark:hover:border-white/10 transition-colors">
                       <div className="flex items-start justify-between gap-4 mb-2">
-                        <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{pred.titulo}</h4>
+                        <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{pred.titulo ?? '—'}</h4>
                         <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-black uppercase tracking-widest shrink-0">
-                          {t('ai_insights.probability_label', '{{value}}% Prob.', { value: pred.probabilidad })}
+                          {pred.probabilidad ?? '—'}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-400 mb-4 leading-relaxed">{pred.razon}</p>
+                      <p className="text-xs text-zinc-400 mb-4 leading-relaxed">{pred.razon ?? '—'}</p>
                       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-start gap-3">
                         <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">{t('ai_insights.suggested_mitigation', 'Mitigación Sugerida')}</p>
-                          <p className="text-xs text-emerald-800 dark:text-emerald-100/80 leading-relaxed">{pred.mitigacionSugerida}</p>
+                          <p className="text-xs text-emerald-800 dark:text-emerald-100/80 leading-relaxed">{pred.mitigacionSugerida ?? '—'}</p>
                         </div>
                       </div>
                     </div>

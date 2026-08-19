@@ -29,6 +29,7 @@ import { AIInsightsModal } from '../components/dashboard/AIInsightsModal';
 import { ComplianceModal } from '../components/dashboard/ComplianceModal';
 import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidget';
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
+import type { PredictiveIncidentResult } from '../services/gemini/types';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { useGamification } from '../hooks/useGamification';
 import { useWorkPermits } from '../hooks/useWorkPermits';
@@ -98,7 +99,7 @@ export function Dashboard() {
   const [isAIInsightsOpen, setIsAIInsightsOpen] = useState(false);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
   const [activePeriod, setActivePeriod] = useState<ChallengePeriod>('daily');
-  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiInsights, setAiInsights] = useState<PredictiveIncidentResult | null>(null);
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, Zap, AlertTriangle, Shield, CheckCircle2, Loader2, FileText, Download, X, WifiOff, Scale } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { predictGlobalIncidents, generateSafetyReport } from '../../services/geminiService';
+import type { PredictiveIncidentResult, PrediccionIncidente } from '../../services/gemini/types';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -13,11 +14,12 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 // `handleDownloadPDF` instead of at module evaluation. Users that read
 // the predictive analysis but never export the PDF do not pay the cost.
 import { logger } from '../../utils/logger';
+import { AIDisclaimer } from '../shared/AIDisclaimer';
 
 export function PredictiveAnalysis() {
   const { nodes, loading: nodesLoading, environment } = useUniversalKnowledge();
   const [analyzing, setAnalyzing] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<PredictiveIncidentResult | null>(null);
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -171,29 +173,39 @@ Contexto Ambiental: ${envContext}
             </div>
           ) : (
             <div className="space-y-8">
+              {/* SIEMPRE visible: disclaimer + metadata. Honestidad de la IA. */}
+              <AIDisclaimer
+                variant="banner"
+                disclaimer={results?.disclaimer}
+                generatedAt={results?.generatedAt}
+                modelVersion={results?.modelVersion}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Probabilidad Hoy</p>
-                  <p className={`text-3xl font-black ${results.probabilidadGlobal > 50 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                    {results.probabilidadGlobal}%
+                  <p className={`text-3xl font-black ${results && results.probabilidadGlobal != null && results.probabilidadGlobal > 50 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    {results && results.probabilidadGlobal != null ? `${results.probabilidadGlobal}%` : '—'}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Nivel de Riesgo</p>
-                  <p className={`text-3xl font-black ${results.nivelRiesgo === 'Crítico' || results.nivelRiesgo === 'Alto' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                    {results.nivelRiesgo}
+                  <p className={`text-3xl font-black ${results && (results.nivelRiesgo === 'Crítico' || results.nivelRiesgo === 'Alto') ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    {results?.nivelRiesgo ?? '—'}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Confianza IA</p>
-                  <p className="text-3xl font-black text-blue-500">{results.confianza}%</p>
+                  <p className="text-3xl font-black text-blue-500">
+                    {results && results.confianza != null ? `${results.confianza}% (no calibrado)` : '—'}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-2">Predicciones Críticas</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {results.predicciones.map((pred: any, i: number) => (
+                  {results.predicciones.map((pred: PrediccionIncidente, i: number) => (
                     <motion.div
                       key={i}
                       initial={{ opacity: 0, x: -20 }}
@@ -207,22 +219,22 @@ Contexto Ambiental: ${envContext}
                             <AlertTriangle className="w-5 h-5" />
                           </div>
                           <div>
-                            <h4 className="text-zinc-900 dark:text-white font-bold text-sm uppercase tracking-tight">{pred.titulo}</h4>
-                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{pred.probabilidad}% Probabilidad</p>
+                            <h4 className="text-zinc-900 dark:text-white font-bold text-sm uppercase tracking-tight">{pred.titulo ?? '—'}</h4>
+                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{pred.probabilidad ?? '—'} Probabilidad</p>
                           </div>
                         </div>
                       </div>
                       
                       <p className="text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed">
-                        {pred.razon}
+                        {pred.razon ?? '—'}
                       </p>
 
                       <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
                         <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Mitigación Sugerida</p>
-                        <p className="text-emerald-400/80 text-[11px] leading-snug">{pred.mitigacionSugerida}</p>
+                        <p className="text-emerald-400/80 text-[11px] leading-snug">{pred.mitigacionSugerida ?? '—'}</p>
                       </div>
 
-                      {pred.fundamentoLegal && (
+                      {pred.fundamentoLegal ? (
                         <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-2">
                           <Scale className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                           <div>
@@ -230,10 +242,10 @@ Contexto Ambiental: ${envContext}
                             <p className="text-blue-400/80 text-[11px] leading-snug">{pred.fundamentoLegal}</p>
                           </div>
                         </div>
-                      )}
+                      ) : null}
 
                       <button
-                        onClick={() => handleGenerateReport(pred.nodoId, pred.titulo, pred.razon, pred.mitigacionSugerida, pred.fundamentoLegal)}
+                        onClick={() => handleGenerateReport(pred.nodoId ?? '', pred.titulo ?? '', pred.razon ?? '', pred.mitigacionSugerida ?? '', pred.fundamentoLegal)}
                         disabled={generatingReport === pred.nodoId || !isOnline}
                         className={`w-full py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                           !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-white/10'
