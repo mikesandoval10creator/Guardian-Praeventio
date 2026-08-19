@@ -34,6 +34,7 @@ import { updateGlobalEnvironmentalContext } from "./src/services/environmentBack
 import { logger, runWithRequestContext } from "./src/utils/logger.js";
 import { initTracing, getActiveTraceId } from "./src/services/observability/tracing.js";
 import { validateKmsBootConfig } from "./src/server/kmsPreflight.js";
+import { validateWebpayBootConfig } from "./src/server/webpayPreflight.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
 // src/server/routes/billing.ts in Round 17 R2 Phase 2 split. `isAdminRole`
@@ -502,6 +503,26 @@ for (const warning of _kmsPreflight.warnings) {
 }
 if (!_kmsPreflight.ok) {
   for (const error of _kmsPreflight.errors) {
+    console.error(`[boot] FATAL: ${error}`);
+  }
+  process.exit(1);
+}
+
+// Discovery 2026-08-17 (ticket 3bfaa66d-...): WebpayAdapter.resolveOptions()
+// falls back silently to Transbank's "Tienda de Integración" sandbox when
+// WEBPAY_COMMERCE_CODE or WEBPAY_API_KEY are missing. In production this
+// routes real customer transactions to the sandbox — cards are NOT charged,
+// but the UI shows "pago exitoso". Failure mode is silent. This preflight
+// mirrors the kmsPreflight contract: at boot, if NODE_ENV=production and the
+// Webpay env vars are missing, the process exits 1 with a FATAL log. The
+// WebpayAdapter code is unchanged — its sandbox default is still correct
+// for dev/CI.
+const _webpayPreflight = validateWebpayBootConfig(process.env);
+for (const warning of _webpayPreflight.warnings) {
+  console.warn(`[boot] WARNING: ${warning}`);
+}
+if (!_webpayPreflight.ok) {
+  for (const error of _webpayPreflight.errors) {
     console.error(`[boot] FATAL: ${error}`);
   }
   process.exit(1);
