@@ -316,15 +316,16 @@ export function GuardianVoiceAssistant() {
           await addConnection(newFindingNode.id, newActionPlanNode.id);
         }
       } catch (planErr) {
-        logger.error('Error generating action plan:', planErr);
-      }
+          logger.error('Error generating action plan:', planErr);
+        }
 
-      if (audioBase64) {
-        const audioBlob = b64toBlob(audioBase64, 'audio/mpeg');
-        const url = URL.createObjectURL(audioBlob);
-        setAudioUrl(url);
-        setIsSpeaking(true);
-      }
+        if (audioBase64) {
+          const audioBlob = b64toBlob(audioBase64, 'audio/mpeg');
+          const url = URL.createObjectURL(audioBlob);
+          setAudioUrl(url);
+          setIsSpeaking(true);
+        }
+      } // close if (functionCall)
     } catch (err) {
       logger.error('Error processing audio:', err);
       setResponse("Hubo un error al procesar tu solicitud.");
