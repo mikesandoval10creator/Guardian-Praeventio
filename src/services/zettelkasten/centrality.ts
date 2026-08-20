@@ -21,6 +21,7 @@
 // review, consistent with the smartActions rule ("nunca auto-aplicar").
 
 import type { ZkEdge } from './edges';
+import { effectiveWeight } from './edges';
 
 export interface NodeCentrality {
   nodeId: string;
@@ -51,7 +52,10 @@ export interface ArchiveCandidate {
  * out-degree but contributes no distinct neighbour (a node is not its own
  * neighbour).
  */
-export function computeDegreeCentrality(edges: readonly ZkEdge[]): NodeCentrality[] {
+export function computeDegreeCentrality(
+  edges: readonly ZkEdge[],
+  now: number = Date.now(),
+): NodeCentrality[] {
   const acc = new Map<string, { in: number; out: number; neighbors: Set<string> }>();
   const ensure = (id: string) => {
     let entry = acc.get(id);
@@ -63,10 +67,12 @@ export function computeDegreeCentrality(edges: readonly ZkEdge[]): NodeCentralit
   };
 
   for (const edge of edges) {
+    const w = effectiveWeight(edge, now);
+    if (w === 0) continue; // expired / inactive edge: skip entirely
     const from = ensure(edge.fromNodeId);
     const to = ensure(edge.toNodeId);
-    from.out += 1;
-    to.in += 1;
+    from.out += w;
+    to.in += w;
     if (edge.fromNodeId !== edge.toNodeId) {
       from.neighbors.add(edge.toNodeId);
       to.neighbors.add(edge.fromNodeId);

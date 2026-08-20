@@ -9,7 +9,7 @@ import {
   rankHubs,
   findArchiveCandidates,
 } from './centrality';
-import { EDGE_TYPES, EDGE_INVERSES, type ZkEdge } from './edges';
+import { EDGE_TYPES, EDGE_INVERSES, type ZkEdge, buildEdge } from './edges';
 
 /** Minimal valid ZkEdge — centrality only reads from/to, but we build the
  *  full shape so the fixtures stay honest against the real interface. */
@@ -61,6 +61,38 @@ describe('§ZK-6 computeDegreeCentrality', () => {
       degree: 2,
       distinctNeighbors: 0,
     });
+  });
+
+  it('suma el weight fraccionario como grado parcial (weight 0.5 → medio grado)', () => {
+    // A→B con weight 0.5: A.out=0.5, B.in=0.5, degree=0.5 para ambos.
+    const now = Date.now();
+    const e = buildEdge({
+      fromNodeId: 'A', toNodeId: 'B', type: EDGE_TYPES[0], tenantId: 't1', createdBy: 'test',
+      weight: 0.5, createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    const c = computeDegreeCentrality([e], now);
+    const byId = Object.fromEntries(c.map((x) => [x.nodeId, x]));
+    expect(byId.A).toMatchObject({ inDegree: 0, outDegree: 0.5, degree: 0.5, distinctNeighbors: 1 });
+    expect(byId.B).toMatchObject({ inDegree: 0.5, outDegree: 0, degree: 0.5, distinctNeighbors: 1 });
+  });
+
+  it('ignora edges expiradas (effectiveWeight=0) — no aumentan grado ni vecindad', () => {
+    // A→B expirada (validUntil en el pasado) y A→C activa.
+    const past = Date.now() - 1000;
+    const expired = buildEdge({
+      fromNodeId: 'A', toNodeId: 'B', type: EDGE_TYPES[0], tenantId: 't1', createdBy: 'test',
+      createdAt: '2026-01-01T00:00:00.000Z', validUntil: '2000-01-01T00:00:00.000Z',
+    });
+    const active = buildEdge({
+      fromNodeId: 'A', toNodeId: 'C', type: EDGE_TYPES[0], tenantId: 't1', createdBy: 'test',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    const c = computeDegreeCentrality([expired, active], past);
+    const byId = Object.fromEntries(c.map((x) => [x.nodeId, x]));
+    // B no aparece (edge expirada skipped), C sí.
+    expect(byId.B).toBeUndefined();
+    expect(byId.A).toMatchObject({ inDegree: 0, outDegree: 1, degree: 1, distinctNeighbors: 1 });
+    expect(byId.C).toMatchObject({ inDegree: 1, outDegree: 0, degree: 1, distinctNeighbors: 1 });
   });
 });
 
