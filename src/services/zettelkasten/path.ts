@@ -19,6 +19,7 @@
 // puros con fixtures pequeños sin tocar el store.
 
 import type { ZkEdge } from "./edges.js";
+import { effectiveWeight } from "./edges.js";
 
 /** Minimal node shape for path operations. ZkNodeRef is the real
  *  interface; this is the smallest subset we need for traversal. */
@@ -26,17 +27,24 @@ export interface PathNode {
   id: string;
 }
 
-/** Outgoing edges from a single node, used to walk the graph. */
+/** Outgoing edges from a single node, used to walk the graph.
+ *
+ * Edges whose `effectiveWeight(edge, now) === 0` (expired / inactive) are
+ * excluded, so BFS only traverses "live" edges. `now` defaults to `Date.now()`
+ * so callers that omit it get current-time semantics.
+ */
 export function neighbors<T extends PathNode>(
   nodes: ReadonlyArray<T>,
   edges: ReadonlyArray<ZkEdge>,
   nodeId: string,
+  now: number = Date.now(),
 ): Set<string> {
   const out = new Set<string>();
   // Only edges originating from nodeId and pointing to nodes that exist
-  // in `nodes` (skip stale edges pointing at deleted nodes).
+  // in `nodes` (skip stale edges pointing at deleted nodes), and only
+  // edges that are effective (weight > 0) at `now`.
   for (const e of edges) {
-    if (e.fromNodeId === nodeId && nodes.some((n) => n.id === e.toNodeId)) {
+    if (e.fromNodeId === nodeId && effectiveWeight(e, now) > 0 && nodes.some((n) => n.id === e.toNodeId)) {
       out.add(e.toNodeId);
     }
   }

@@ -30,6 +30,13 @@ const e = (from: string, to: string, type: ZkEdge["type"] = "regulates"): ZkEdge
   tenantId: "t1",
 });
 
+/** Variante de `e` con validUntil en el pasado → effectiveWeight=0 en `now`. */
+const expiredEdge = (from: string, to: string, now: number): ZkEdge => ({
+  ...e(from, to),
+  id: `${from}->${to}->expired`,
+  validUntil: new Date(now - 60_000).toISOString(),
+});
+
 describe("neighbors", () => {
   it("retorna solo aristas salientes cuyo target existe en el set de nodos", () => {
     const edges = [e("A", "B"), e("A", "C"), e("B", "D"), e("A", "ghost")];
@@ -40,6 +47,14 @@ describe("neighbors", () => {
   it("ignora aristas que NO son outgoing de nodeId", () => {
     const edges = [e("B", "A"), e("A", "B")];
     const n = neighbors([A, B], edges, "A");
+    expect(n).toEqual(new Set([("B")]));
+  });
+
+  it("excluye aristas con validUntil en el pasado (effectiveWeight=0)", () => {
+    const now = Date.now();
+    const edges = [e("A", "B"), expiredEdge("A", "C", now)];
+    const n = neighbors([A, B, C], edges, "A", now);
+    // A→B activa queda; A→C expirada se excluye.
     expect(n).toEqual(new Set(["B"]));
   });
 });
