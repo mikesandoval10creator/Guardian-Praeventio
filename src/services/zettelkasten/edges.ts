@@ -289,6 +289,11 @@ export async function createEdge(
     tenantId: string;
     createdBy: string;
     projectId?: string;
+    weight?: number;
+    validFrom?: string;
+    validUntil?: string;
+    decayFn?: EdgeDecayFn;
+    decayHalfLifeMs?: number;
   },
 ): Promise<ZkEdge> {
   const edge = buildEdge(input);
