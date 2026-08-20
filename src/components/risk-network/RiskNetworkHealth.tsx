@@ -3,7 +3,14 @@ import { motion } from 'framer-motion';
 import { Brain, Zap, Network, AlertCircle, CheckCircle2, Loader2, Sparkles, ArrowRight, WifiOff, ShieldAlert, ShieldCheck, Scale } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
-import { computeOfflineNetworkHealth, type OfflineHealthInsights } from '../../services/graphAnalytics';
+import { useZkEdges } from '../../hooks/useZkEdges';
+import { useProject } from '../../contexts/ProjectContext';
+import {
+  computeOfflineNetworkHealth,
+  computeOfflineNetworkHealthFromGraph,
+  nodesToRiskGraphWithEdges,
+  type OfflineHealthInsights,
+} from '../../services/graphAnalytics';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
 import { NodeType } from '../../types';
@@ -11,7 +18,9 @@ import { detectUncontrolledRisks } from '../../services/zettelkasten/riskOrchest
 
 export function RiskNetworkHealth() {
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
+  const { selectedProject } = useProject();
   const { addConnection } = useRiskEngine();
+  const { edges: zkEdges, loading: edgesLoading } = useZkEdges(selectedProject?.id);
   const [analyzing, setAnalyzing] = useState(false);
   const [insights, setInsights] = useState<OfflineHealthInsights | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -55,8 +64,17 @@ export function RiskNetworkHealth() {
     setAnalyzing(true);
     try {
       // Deterministic offline analysis — no Gemini, no network.
-      const data = computeOfflineNetworkHealth(nodes);
-      setInsights(data);
+      // PR-3c: si tenemos aristas ZkEdge[], construimos el grafo con
+      // effectiveWeight aplicado (expira/decae aristas). Si el hook aún
+      // carga o falló, usamos el path legacy (node.connections, sin peso).
+      if (zkEdges.length > 0 && !edgesLoading) {
+        const graph = nodesToRiskGraphWithEdges(nodes, zkEdges);
+        const data = computeOfflineNetworkHealthFromGraph(graph);
+        setInsights(data);
+      } else {
+        const data = computeOfflineNetworkHealth(nodes);
+        setInsights(data);
+      }
     } catch (error) {
       logger.error('Error analyzing Risk Network health:', error);
     } finally {

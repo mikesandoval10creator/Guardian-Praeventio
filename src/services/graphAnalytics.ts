@@ -10,6 +10,8 @@ import type { RiskNode } from '../types';
 import type { RiskGraph, RiskGraphNode, RiskGraphEdge } from './euler/graphConnectivity';
 import { analyzeConnectivity } from './euler/graphConnectivity';
 import { detectRiskAmplifications, type RiskAmplification } from './euler/zettelkastenTopology';
+import type { ZkEdge } from './zettelkasten/edges';
+import { effectiveWeight } from './zettelkasten/edges';
 
 // ─── Types matching the Gemini response shape ──────────────────────────
 
@@ -59,7 +61,49 @@ export function nodesToRiskGraph(nodes: readonly RiskNode[]): RiskGraph {
   return { nodes: riskNodes, edges: riskEdges };
 }
 
-// ─── Health score computation ───────────────────────────────────────────
+/**
+ * Convert RiskNode[] + ZkEdge[] to RiskGraph, applying effectiveWeight()
+ * so that expired/decayed edges are excluded and fractional weights surface.
+ *
+ * This is the PR-3c consumer path: it mirrors nodesToRiskGraph but reads
+ * aristas from the ZkEdge[] traído via useZkEdges (POST /api/zettelkasten/edges)
+ * instead of reconstructing flat aristas desde node.connections.
+ *
+ * Aristas con effectiveWeight(edge, now) === 0 (expiradas, antes de validFrom)
+ * se skip completamente. Las aristas que referencian nodos que no están en
+ * `nodes` (fuera del proyecto scope) también se skip.
+ */
+export function nodesToRiskGraphWithEdges(
+  nodes: readonly RiskNode[],
+  edges: readonly ZkEdge[],
+  now: number = Date.now(),
+): RiskGraph {
+  const riskNodes: RiskGraphNode[] = nodes.map((n) => ({
+    id: n.id,
+    label: n.title,
+    severity: n.metadata?.severity as number | undefined,
+  }));
+
+  const nodeIdSet = new Set(nodes.map((n) => n.id));
+  const riskEdges: RiskGraphEdge[] = [];
+  const seen = new Set<string>();
+
+  for (const edge of edges) {
+    const w = effectiveWeight(edge, now);
+    if (w === 0) continue; // arista expirada / inactiva → skip
+    if (!nodeIdSet.has(edge.fromNodeId)) continue;
+    if (!nodeIdSet.has(edge.toNodeId)) continue;
+    const key = [edge.fromNodeId, edge.toNodeId].sort().join('--');
+    if (!seen.has(key)) {
+      seen.add(key);
+      riskEdges.push({ from: edge.fromNodeId, to: edge.toNodeId, weight: w });
+    }
+  }
+
+  return { nodes: riskNodes, edges: riskEdges };
+}
+
+// ─── Health score computation ────────────────────────────────────────────
 
 /**
  * Deterministic health score [0, 100] based on graph structure.
@@ -183,17 +227,16 @@ function gapsFromDisconnected(
   return gaps;
 }
 
-// ─── Main entry point ───────────────────────────────────────────────────
+// ─── Main entry point ────────────────────────────────────────────────────
 
 /**
- * Compute deterministic offline health insights from RiskNode[].
+ * Compute deterministic offline health insights from a pre-built RiskGraph.
  *
- * Replaces the Gemini-based analyzeRiskNetworkHealth for offline use.
- * Same output shape so RiskNetworkHealth.tsx can render either.
+ * This is the weighted consumer path (PR-3c): receives a graph already
+ * filtered by effectiveWeight() via nodesToRiskGraphWithEdges, applies the
+ * same scoring algorithm as computeOfflineNetworkHealth.
  */
-export function computeOfflineNetworkHealth(nodes: readonly RiskNode[]): OfflineHealthInsights {
-  const graph = nodesToRiskGraph(nodes);
-
+export function computeOfflineNetworkHealthFromGraph(graph: RiskGraph): OfflineHealthInsights {
   if (graph.nodes.length === 0) {
     return { healthScore: 100, missingSynapses: [], knowledgeGaps: [] };
   }
@@ -209,4 +252,17 @@ export function computeOfflineNetworkHealth(nodes: readonly RiskNode[]): Offline
   ];
 
   return { healthScore, missingSynapses, knowledgeGaps };
+}
+
+/**
+ * Compute deterministic offline health insights from RiskNode[].
+ *
+ * Replaces the Gemini-based analyzeRiskNetworkHealth for offline use.
+ * Same output shape so RiskNetworkHealth.tsx can render either.
+ * Delegates to computeOfflineNetworkHealthFromGraph after building the
+ * flat (unweighted) graph from node.connections.
+ */
+export function computeOfflineNetworkHealth(nodes: readonly RiskNode[]): OfflineHealthInsights {
+  const graph = nodesToRiskGraph(nodes);
+  return computeOfflineNetworkHealthFromGraph(graph);
 }
