@@ -770,4 +770,94 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
   }
 });
 
+// ── POST /get-edges ─────────────────────────────────────────────────────
+//
+// Alpha41 ZK-5 — surface a tenant's typed edges (con pesos/decaimiento) para
+// que RiskNetworkHealth.tsx computee el score por riesgo via effectiveWeight.
+//
+// El POST existente /edges retorna un DTO privacy-minimized (topology de
+// nodos seguros + edges sin peso) para el RiskNetworkExplorer. Este endpoint
+// es APARTE: expone el ZkEdge[] COMPLETO (con weight, validFrom, validUntil,
+// decayFn, decayHalfLifeMs) porque RiskNetworkHealth LO NECESITA para el
+// cálculo de salud. No reutilizamos el DTO del POST — son callers distintos
+// con distintos requerimientos de privacidad (ver brief PR-3a 3a4aa66d).
+//
+// Ruta: POST /get-edges (no GET) por consistencia con el resto del router
+// zettelkasten (todos usan POST para mantener bodies arbitrariamente grandes
+// y uniformizar el stack verifyAuth → validate → guard). El nombre `get-edges`
+// evita chocar con el POST existente `/edges`.
+const getEdgesSchema = z.object({
+  projectId: z.string().min(1).max(256),
+  limit: z.number().int().min(1).max(2000).optional(),
+});
+
+router.post(
+  '/get-edges',
+  verifyAuth,
+  validate(getEdgesSchema),
+  async (req, res) => {
+    const callerUid = req.user?.uid;
+    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+    const { projectId, limit } = req.validated as z.infer<
+      typeof getEdgesSchema
+    >;
+
+    const db = admin.firestore();
+    logger.info?.('zettelkasten_get_edges_requested', {
+      callerUid,
+      projectId,
+    });
+
+    try {
+      await assertProjectMember(callerUid, projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    // Edges are tenant-scoped; resolve the logical tenant from the project doc.
+    let tenantId: string | null = null;
+    try {
+      const snap = await db.collection('projects').doc(projectId).get();
+      const data = snap.exists
+        ? (snap.data() as { tenantId?: string } | undefined)
+        : undefined;
+      if (typeof data?.tenantId === 'string' && data.tenantId.length > 0) {
+        tenantId = data.tenantId;
+      }
+    } catch (err) {
+      logger.warn('zettelkasten_get_edges_tenant_resolve_failed', {
+        err: String(err),
+      });
+    }
+    if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
+
+    try {
+      const store = buildEdgeStore(db);
+      const edges = await store.listByTenant(tenantId, limit);
+      logger.info?.('zettelkasten_get_edges_succeeded', {
+        callerUid,
+        projectId,
+        tenantId,
+        count: edges.length,
+      });
+      // Retornar el shape COMPLETO de ZkEdge (NO el DTO privacy-minimized
+      // del POST /edges). RiskNetworkHealth.tsx lee peso/decay para el
+      // cálculo de effectiveWeight.
+      return res.json({ edges });
+    } catch (err) {
+      logger.error?.('zettelkasten_get_edges_failed', {
+        callerUid,
+        projectId,
+        tenantId,
+        err: String(err),
+      });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;
