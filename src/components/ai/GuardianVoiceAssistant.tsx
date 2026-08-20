@@ -250,77 +250,81 @@ export function GuardianVoiceAssistant() {
   const processAudio = async (blob: Blob) => {
     setIsProcessing(true);
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = async () => {
-        const base64Audio = (reader.result as string).split(',')[1];
+      const readAsDataURL = (b: Blob): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(b);
+        });
 
-        const { text, audioBase64, functionCall } = await processAudioWithAI(base64Audio);
+      const dataUrl = await readAsDataURL(blob);
+      const base64Audio = dataUrl.split(',')[1];
 
-        setResponse(text);
+      const { text, audioBase64, functionCall } = await processAudioWithAI(base64Audio);
 
-        if (functionCall && functionCall.title) {
-          // Handle the function call to report an incident
-          const findingNode = {
-            type: 'finding' as NodeType,
-            title: functionCall.title,
-            description: functionCall.description,
-            content: functionCall.description,
-            tags: ['Incidente', functionCall.category, 'Voz'],
-            authorId: user?.uid || 'unknown',
-            metadata: {
-              severity: functionCall.severity,
-              status: 'Abierto',
-              category: functionCall.category,
-              projectId: selectedProject?.id
-            },
-            connections: [],
+      setResponse(text);
+
+      if (functionCall && functionCall.title) {
+        // Handle the function call to report an incident
+        const findingNode = {
+          type: 'finding' as NodeType,
+          title: functionCall.title,
+          description: functionCall.description,
+          content: functionCall.description,
+          tags: ['Incidente', functionCall.category, 'Voz'],
+          authorId: user?.uid || 'unknown',
+          metadata: {
+            severity: functionCall.severity,
+            status: 'Abierto',
+            category: functionCall.category,
             projectId: selectedProject?.id
-          };
+          },
+          connections: [],
+          projectId: selectedProject?.id
+        };
 
-          const newFindingNode = await addNode(findingNode);
+        const newFindingNode = await addNode(findingNode);
 
-          // Generate Action Plan automatically
-          try {
-            const actionPlan = await generateActionPlan(findingNode.title, findingNode.content);
-            
-            const actionPlanNode = {
-              type: 'action-plan' as NodeType,
-              title: `Plan de Acción: ${findingNode.title}`,
-              description: actionPlan.summary,
-              content: actionPlan.summary,
-              tags: ['Plan de Acción', 'IA', functionCall.category],
-              authorId: 'ai-guardian',
-              metadata: {
+        // Generate Action Plan automatically
+        try {
+          const actionPlan = await generateActionPlan(findingNode.title, findingNode.content);
+
+          const actionPlanNode = {
+            type: 'action-plan' as NodeType,
+            title: `Plan de Acción: ${findingNode.title}`,
+            description: actionPlan.summary,
+            content: actionPlan.summary,
+            tags: ['Plan de Acción', 'IA', functionCall.category],
+            authorId: 'ai-guardian',
+            metadata: {
+              status: 'Pendiente',
+              priority: functionCall.severity === 'Crítica' || functionCall.severity === 'Alta' ? 'Alta' : 'Media',
+              tasks: actionPlan.correctiveActions.map((action: any) => ({
+                id: `task-${Date.now()}-${randomId()}`,
+                description: action.action,
                 status: 'Pendiente',
-                priority: functionCall.severity === 'Crítica' || functionCall.severity === 'Alta' ? 'Alta' : 'Media',
-                tasks: actionPlan.correctiveActions.map((action: any) => ({
-                  id: `task-${Date.now()}-${randomId()}`,
-                  description: action.action,
-                  status: 'Pendiente',
-                  priority: action.priority
-                }))
-              },
-              connections: [],
-              projectId: selectedProject?.id
-            };
+                priority: action.priority
+              }))
+            },
+          connections: [],
+          projectId: selectedProject?.id
+        };
 
-            const newActionPlanNode = await addNode(actionPlanNode);
-            if (newFindingNode && newActionPlanNode) {
-              await addConnection(newFindingNode.id, newActionPlanNode.id);
-            }
-          } catch (planErr) {
-            logger.error('Error generating action plan:', planErr);
-          }
+        const newActionPlanNode = await addNode(actionPlanNode);
+        if (newFindingNode && newActionPlanNode) {
+          await addConnection(newFindingNode.id, newActionPlanNode.id);
         }
+      } catch (planErr) {
+        logger.error('Error generating action plan:', planErr);
+      }
 
-        if (audioBase64) {
-          const audioBlob = b64toBlob(audioBase64, 'audio/mpeg');
-          const url = URL.createObjectURL(audioBlob);
-          setAudioUrl(url);
-          setIsSpeaking(true);
-        }
-      };
+      if (audioBase64) {
+        const audioBlob = b64toBlob(audioBase64, 'audio/mpeg');
+        const url = URL.createObjectURL(audioBlob);
+        setAudioUrl(url);
+        setIsSpeaking(true);
+      }
     } catch (err) {
       logger.error('Error processing audio:', err);
       setResponse("Hubo un error al procesar tu solicitud.");
