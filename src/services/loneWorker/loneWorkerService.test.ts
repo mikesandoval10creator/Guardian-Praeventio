@@ -65,6 +65,15 @@ describe('deriveLoneWorkerStatus', () => {
     });
     expect(deriveLoneWorkerStatus(s, NOW)).toBe('active');
   });
+
+  it('AGREGAR: inmutabilidad — el input NO cambia tras la llamada', () => {
+    const s = session({
+      checkIns: [{ at: NOW.toISOString(), status: 'ok' }],
+    });
+    const snapshot = JSON.parse(JSON.stringify(s)); // deep snapshot
+    deriveLoneWorkerStatus(s, NOW);
+    expect(s).toEqual(snapshot);
+  });
 });
 
 describe('decideEscalation', () => {
@@ -114,6 +123,16 @@ describe('decideEscalation', () => {
     });
     expect(decideEscalation(s, NOW)).toBeNull();
   });
+
+  it('AGREGAR: no muta la session de entrada (inmutabilidad)', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() - 90 * 60_000).toISOString(),
+      checkIns: [{ at: NOW.toISOString(), status: 'help' }],
+    });
+    const snapshot = JSON.parse(JSON.stringify(s)); // deep snapshot
+    decideEscalation(s, NOW);
+    expect(s).toEqual(snapshot);
+  });
 });
 
 describe('recordCheckIn', () => {
@@ -133,6 +152,28 @@ describe('recordCheckIn', () => {
     const s = session();
     const after = recordCheckIn(s, { status: 'help' });
     expect(after.status).toBe('help_requested');
+  });
+
+  it('AGREGAR: status="ok" mantiene la sesión en "active"', () => {
+    const s = session({ status: 'overdue_warning' });
+    const after = recordCheckIn(s, { at: NOW.toISOString(), status: 'ok' });
+    expect(after.status).toBe('active');
+  });
+
+  it('AGREGAR: sin lat pero con lng NO actualiza lastKnownLocation (ambos requeridos)', () => {
+    const s = session({ lastKnownLocation: { lat: 1, lng: 2, at: NOW.toISOString() } });
+    const after = recordCheckIn(s, { at: NOW.toISOString(), lat: 5 /* lng undefined */ });
+    expect(after.lastKnownLocation).toEqual({ lat: 1, lng: 2, at: NOW.toISOString() });
+    // lastKnownLocation NO se actualizó
+  });
+
+  it('AGREGAR: sin lat/lng NO añade esos campos al check-in (Firestore rechaza undefined)', () => {
+    const s = session();
+    const after = recordCheckIn(s, { at: NOW.toISOString(), status: 'ok' });
+    expect(after.checkIns).toHaveLength(1);
+    const ci = after.checkIns[0];
+    expect(ci).not.toHaveProperty('lat');
+    expect(ci).not.toHaveProperty('lng');
   });
 });
 
@@ -169,5 +210,10 @@ describe('startLoneWorkerSession', () => {
     });
     expect(s.startedAt).toBe('2026-05-11T10:00:00Z');
     expect(s.lastKnownLocation).toEqual({ lat: -33.45, lng: -70.66, at: '2026-05-11T10:00:00Z' });
+  });
+
+  it('AGREGAR: omite lastKnownLocation si input no lo provee', () => {
+    const s = startLoneWorkerSession({ id: 'srv-3', workerUid: 'w9', checkInIntervalMin: 30 }, NOW);
+    expect(s.lastKnownLocation).toBeUndefined();
   });
 });
