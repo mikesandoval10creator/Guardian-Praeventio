@@ -93,9 +93,13 @@ describe('GuardianVoiceAssistant — finally-fix verification', () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(
       // The test originally read from a separate worktree at M:/tmp/... which
-      // no longer exists. Read from the canonical repo path instead so this
-      // regression-fixing guard runs in CI for every PR.
-      'M:/Guardian Praeventio/repo/src/components/ai/GuardianVoiceAssistant.tsx',
+      // no longer exists. Read from the canonical repo path resolved relative
+      // to the file's own location so this guard works in CI (where the
+      // repo lives at /home/runner/work/... on Linux) and on local Windows
+      // (where it lives at M:/Guardian Praeventio/repo).
+      // vitest sets cwd to the repo root during tests, so './' resolves
+      // to the repo regardless of host OS.
+      './src/components/ai/GuardianVoiceAssistant.tsx',
       'utf-8',
     );
     expect(src.length).toBeGreaterThan(0);
