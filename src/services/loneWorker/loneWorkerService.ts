@@ -47,6 +47,13 @@ export interface EscalationDecision {
 /**
  * Deriva el estado actual de la sesión basado en el tiempo desde el
  * último check-in vs el intervalo configurado.
+ *
+ * **CONTRATO RELOJ (vida-safety)**:
+ * El parámetro `now` DEBE provenir del timestamp autoritativo del servidor
+ * (e.g. `admin.firestore.Timestamp.now()` desde Cloud Function). El default
+ * `new Date()` solo es válido en tests con clocks determinísticos; un caller
+ * de producción que omita `now` recalculará con el reloj del dispositivo
+ * y habilitará ataques de reloj (cf. Pitfall #35 bot-delegation-router).
  */
 export function deriveLoneWorkerStatus(
   session: LoneWorkerSession,
@@ -67,6 +74,10 @@ export function deriveLoneWorkerStatus(
 
 /**
  * Decide qué nivel de escalamiento corresponde dado el estado actual.
+ *
+ * `now`: ver contrato reloj de `deriveLoneWorkerStatus`. La decisión de
+ * escalación se cachea en el doc — un reloj desincronizado entre derivación
+ * y persistencia invalida el threshold "2× intervalo".
  */
 export function decideEscalation(
   session: LoneWorkerSession,
@@ -113,6 +124,10 @@ export function decideEscalation(
  * los estampa el servidor (identidad desde el token, id sin RNG de cliente).
  * Normalizar aquí garantiza que un "inicio" jamás arrastre check-ins previos ni
  * un endedAt, sin importar la entrada.
+ *
+ * `now`: contrato reloj `deriveLoneWorkerStatus`. Solo se usa como fallback
+ * si `input.startedAt` no se provee. Para sesiones en producción, preferir
+ * pasar `startedAt` con server timestamp explícito.
  */
 export interface StartLoneWorkerSessionInput {
   id: string;
@@ -137,6 +152,12 @@ export function startLoneWorkerSession(
   };
 }
 
+/**
+ * `checkIn.at`: timestamp del check-in. DEBE venir del server (no del
+ * dispositivo del worker) — sin ese invariante, una llamada con `at`
+ * arbitrario extiende la sesión o burla `overdue_critical`. Validar en
+ * ruta server antes de invocar.
+ */
 export function recordCheckIn(
   session: LoneWorkerSession,
   checkIn: { at?: string; lat?: number; lng?: number; status?: 'ok' | 'help' },
@@ -166,6 +187,11 @@ export function recordCheckIn(
   };
 }
 
+/**
+ * `endedAt`: contrato reloj `deriveLoneWorkerStatus`. Persistir server
+ * timestamp en `endedAt` para auditoría congruente con `paidAt` y el resto
+ * del flujo.
+ */
 export function endSession(
   session: LoneWorkerSession,
   endedAt: string = new Date().toISOString(),
