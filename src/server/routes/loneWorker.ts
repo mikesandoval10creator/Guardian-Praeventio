@@ -43,6 +43,21 @@ import {
   ProjectMembershipError,
 } from "../../services/auth/projectMembership.js";
 import { randomId } from "../../utils/randomId.js";
+
+// Helper para evitar duplicación del DocumentReference de sesión.
+// Si el esquema de colección cambia, este es el único punto a editar.
+function sessionDocRef(
+  db: admin.firestore.Firestore,
+  projectId: string,
+  sessionId: string,
+): admin.firestore.DocumentReference {
+  return db
+    .collection("projects")
+    .doc(projectId)
+    .collection("lone_worker_sessions")
+    .doc(sessionId);
+}
+
 import {
   startLoneWorkerSession,
   recordCheckIn,
@@ -302,11 +317,7 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const db = admin.firestore();
-    const sessionRef = db
-      .collection("projects")
-      .doc(projectId)
-      .collection("lone_worker_sessions")
-      .doc(sessionId);
+    const sessionRef = sessionDocRef(db, projectId, sessionId);
     const capability = crypto.randomBytes(32).toString("base64url");
     const expiresAt = new Date(
       Date.now() + NATIVE_MANDOWN_CAPABILITY_TTL_MS,
@@ -391,11 +402,7 @@ router.post(
     }
 
     const db = admin.firestore();
-    const sessionRef = db
-      .collection("projects")
-      .doc(projectId)
-      .collection("lone_worker_sessions")
-      .doc(sessionId);
+    const sessionRef = sessionDocRef(db, projectId, sessionId);
     // clientEventId is a stable UUID persisted by Android before network I/O.
     // Deterministic document identity makes offline retries idempotent without
     // consuming the session capability after the first alert of a shift.
@@ -687,11 +694,7 @@ router.post(
       // closed. Failures here are logged but do not block the human response.
       try {
         const db = admin.firestore();
-        const sessionRef = db
-          .collection("projects")
-          .doc(projectId)
-          .collection("lone_worker_sessions")
-          .doc(body.session.id);
+        const sessionRef = sessionDocRef(db, projectId, body.session.id);
         const persisted = await sessionRef.get();
         if (persisted.exists) {
           const data = persisted.data() as NativeSessionRecord;
