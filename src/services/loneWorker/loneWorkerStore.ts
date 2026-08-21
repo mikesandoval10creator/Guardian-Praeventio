@@ -5,7 +5,7 @@
 // CRUD client-side para `LoneWorkerSession`s. Storage path:
 //   projects/{projectId}/lone_worker_sessions/{session.id}
 //
-// activeFilter habilita subscribeActiveLoneWorkerSessions (where status==active).
+// activeFilter habilita subscribeActiveLoneWorkerSessions (where status IN [active, overdue_warning, overdue_critical, help_requested]).
 
 import { createProjectScopedStore } from '../firestore/createProjectScopedStore';
 import type { LoneWorkerSession } from './loneWorkerService';
