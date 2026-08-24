@@ -103,10 +103,24 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
     }
   }, [handleMotion]);
 
-  const stop = useCallback(() => {
+  const stop = useCallback(async () => {
     if (Capacitor.isNativePlatform()) {
       if (listenerId) {
-        Motion.removeAllListeners();
+        // [P0][VIDA] Hy3-audit 3c2aa66d-73fe-81d2-bc89-e2c81b6b9f1c
+        // (verificado 2026-08-24): antes llamaba `Motion.removeAllListeners()` que
+        // borra TODOS los listeners de la app, no solo el de este hook.
+        // Si otro componente (ej. FallDetectionMonitor) tenía su propio
+        // listener, este stop lo mataba y dejaba a la app sin detección de
+        // caída. El API del plugin no expone `removeListener(id)`, pero el
+        // `PluginListenerHandle` retornado por `addListener` SÍ tiene un
+        // método `remove()` propio — lo usamos para cleanup granular.
+        try {
+          await listenerId.remove();
+        } catch (err) {
+          logger.warn('useAccelerometer: handle.remove() failed, falling back to removeAllListeners', { err: String(err) });
+          // Fallback solo si el handle ya fue disposed/expired (raro).
+          await Motion.removeAllListeners();
+        }
         setListenerId(null);
       }
     } else {

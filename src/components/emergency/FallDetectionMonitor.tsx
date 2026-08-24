@@ -163,9 +163,16 @@ export function FallDetectionMonitor() {
     if (user && fdEnabled && !fdLoading) {
       start();
     } else {
-      stop();
+      // stop() became async in the [P0][VIDA] handle.remove() fix
+      // (3c2aa66d-73fe-81d2-bc89-e2c81b6b9f1c). The cleanup returned by
+      // useEffect must be sync (returns void | Destructor, NOT Promise),
+      // so we fire-and-forget here. The handle's own .remove() resolves
+      // the underlying race; if it rejects, the catch inside stop() logs.
+      void stop();
     }
-    return () => stop();
+    return () => {
+      void stop();
+    };
   }, [user, fdEnabled, fdLoading, start, stop]);
 
   useEffect(() => {
