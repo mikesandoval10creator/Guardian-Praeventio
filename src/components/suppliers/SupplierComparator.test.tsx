@@ -170,4 +170,25 @@ describe('<SupplierComparator /> modo ranking real', () => {
     expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
     expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
   });
+
+  // [P1][vida-safety] Hy3-audit 3c6aa66d-73fe-8170-bdab-e1d1ebd032e5
+  // (reabierto 2026-08-24): cubre el caso de 2+ proveedores todos
+  // riskLevel: 'high' en modo ranking. El branch allHigh del componente
+  // debe derivar hasHighSystemicRisk=true, y la UI debe mostrar la alerta
+  // de riesgo sistémico. Sin este test, una regresión que rompa el
+  // derivador silenciaría la señal de vida-safety.
+  it('alerta riesgo sistémico cuando 2+ proveedores del ranking son high', () => {
+    render(
+      <SupplierComparator
+        ranking={[
+          entry('s1', 1, 30, 'high', 5),
+          entry('s2', 2, 25, 'high', 7),
+          entry('s3', 3, 28, 'high', 6),
+        ]}
+        service="transporte"
+      />,
+    );
+    expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
+  });
 });
