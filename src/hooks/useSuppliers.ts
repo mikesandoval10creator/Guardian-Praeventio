@@ -61,6 +61,12 @@ export interface SupplierRankingEntry extends SupplierView {
 export interface SupplierRankingResponse {
   ranking: SupplierRankingEntry[];
   total: number;
+  /** Población completa de proveedores evaluados (no solo el top-N del ranking). */
+  totalEvaluated: number;
+  /** True si TODOS los proveedores evaluados tienen riskLevel: 'high'. */
+  hasHighSystemicRisk: boolean;
+  /** True si hay exactamente 1 proveedor evaluado en total. */
+  isSoleQualifiedSupplier: boolean;
 }
 
 export function useSuppliers(

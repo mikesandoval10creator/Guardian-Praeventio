@@ -555,7 +555,25 @@ router.get(
           breakdown: sc.breakdown,
         };
       });
-      return res.json({ ranking, total: ranking.length });
+      // [P0][VIDA-SAFETY] Hy3-audit 3c6aa66d-73fe-81d2-b565-f221e442632d
+      // (reabierto 2026-08-24) + 3c6aa66d-73fe-81df-9408-f48865063933:
+      // el ranking es un SLICE; calcular hasHighSystemicRisk/isSoleSupplier
+      // sobre el slice da falsos negativos cuando el server top-N filtra
+      // proveedores críticos. Calculamos sobre `scored` (que es 1-a-1 con
+      // stored, sin filtrado) y exponemos en el response. El componente
+      // lee estos flags sin recalcular, evitando la ventana ciega cuando
+      // el ranking oculta proveedores high-risk fuera del top N.
+      const totalEvaluated = scored.length;
+      const allEvaluatedHigh =
+        totalEvaluated > 0 &&
+        scored.every((sc) => riskLevelForScore(sc.score) === 'high');
+      return res.json({
+        ranking,
+        total: ranking.length,
+        totalEvaluated,
+        hasHighSystemicRisk: allEvaluatedHigh,
+        isSoleQualifiedSupplier: totalEvaluated === 1,
+      });
     } catch (err) {
       logger.error?.('suppliers.ranking.error', err);
       captureRouteError(err, 'suppliers.ranking');

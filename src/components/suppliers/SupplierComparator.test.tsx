@@ -191,4 +191,57 @@ describe('<SupplierComparator /> modo ranking real', () => {
     expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
     expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
   });
+
+  // [P0][VIDA-SAFETY] Hy3-audit 3c6aa66d-73fe-81d2-b565-f221e442632d
+  // (reabierto 2026-08-24): el bug crítico es cuando el server top-N
+  // filtra proveedores high pero la población completa tiene todos
+  // high-risk. Sin rankingMeta, el componente no vería esa señal.
+  it('alerta sistémica cuando rankingMeta.hasHighSystemicRisk=true pero el ranking muestra low', () => {
+    // El ranking solo tiene el mejor (low) y un medium, pero el server
+    // reporta que TODOS los proveedores de la población son high-risk
+    // (uno fuera del top-N).
+    render(
+      <SupplierComparator
+        ranking={[entry('s1', 1, 90, 'low', 0), entry('s2', 2, 60, 'medium', 1)]}
+        rankingMeta={{
+          totalEvaluated: 5,
+          hasHighSystemicRisk: true,
+          isSoleQualifiedSupplier: false,
+        }}
+        service="transporte"
+      />,
+    );
+    expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
+  });
+
+  it('alerta sole-supplier cuando rankingMeta.isSoleQualifiedSupplier=true aunque el ranking tenga 1 entry low', () => {
+    // Caso: el ranking muestra 1 entry (s1, low), pero la población real
+    // tiene 1 solo proveedor (s1 mismo). El componente debe mostrar la
+    // alerta de proveedor único, no de falla sistémica.
+    render(
+      <SupplierComparator
+        ranking={[entry('s1', 1, 90, 'low', 0)]}
+        rankingMeta={{
+          totalEvaluated: 1,
+          hasHighSystemicRisk: false,
+          isSoleQualifiedSupplier: true,
+        }}
+        service="transporte"
+      />,
+    );
+    expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
+  });
+
+  it('NO alerta cuando rankingMeta.hasHighSystemicRisk=false (backward compat)', () => {
+    // Sin rankingMeta y con ranking mixto (no todos high), NO debe alertar.
+    render(
+      <SupplierComparator
+        ranking={[entry('s1', 1, 90, 'low', 0), entry('s2', 2, 30, 'high', 5)]}
+        service="transporte"
+      />,
+    );
+    expect(screen.queryByTestId('supplier-critical-risks')).not.toBeInTheDocument();
+  });
 });
