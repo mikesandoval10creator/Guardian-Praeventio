@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { syncWithFirebase, SyncAction, getPendingActions, removeSyncedAction } from '../utils/pwa-offline';
 import { db, storage, handleFirestoreError, OperationType } from '../services/firebase';
-import { updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { updateDoc, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
 import {
@@ -24,6 +24,19 @@ import {
   executeGraphSyncOperation,
   ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
 } from '../services/zettelkasten/graphMutations';
+
+/**
+ * Lee el campo `updatedAt` (o variantes) de un documento. El contrato
+ * varía por colección; algunos usan `updatedAt`, otros `lastModified`,
+ * otros `modifiedAt`. Aceptamos cualquiera de los tres.
+ */
+function pickUpdatedAt(data: Record<string, unknown> | undefined | null): string | null {
+  if (!data) return null;
+  const candidate = (data.updatedAt ?? data.lastModified ?? data.modifiedAt) as unknown;
+  if (typeof candidate === 'string') return candidate;
+  if (candidate instanceof Date) return candidate.toISOString();
+  return null;
+}
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
@@ -414,18 +427,60 @@ export function OfflineSyncManager() {
           doc(db, collectionName, offlineOpDocId(collectionName, 'create', op.data)),
           payload,
         );
-      } else if (op.type === 'update') {
-        const { id, ...payload } = op.data ?? {};
-        if (!id) throw new Error('update op missing id');
-        await updateDoc(doc(db, collectionName, id), payload);
-      } else if (op.type === 'delete') {
-        const id = op.data?.id;
-        if (!id) throw new Error('delete op missing id');
-        await deleteDoc(doc(db, collectionName, id));
-      } else if (op.type === 'set') {
-        const { id, ...payload } = op.data ?? {};
-        if (!id) throw new Error('set op missing id');
-        await setDoc(doc(db, collectionName, id), payload, { merge: true });
+      } else if (op.type === 'update' || op.type === 'set' || op.type === 'delete') {
+        // [P0][VIDA-SAFETY] Hy3-audit 3c4aa66d-73fe-81ae-80ee-f7d29c502f34
+        // (reabierto 2026-08-24): el state machine escribía/boraba sin chequear
+        // divergencia remota. La cola legacy sí lo hace (línea 95+). Si
+        // otro dispositivo modificó el mismo doc mientras estábamos offline,
+        // el write actual sobrescribe su cambio en silencio. Ahora: leemos
+        // el doc remoto, comparamos `updatedAt` (o el más reciente que
+        // tengamos offline), y dispatch sync-critical-conflict si difieren.
+        // El supervisor decide. La evidencia laboral no se pisa.
+        const opId = op.type === 'delete' ? op.data?.id : (op.data ?? {}).id;
+        if (!opId) throw new Error(`${op.type} op missing id`);
+        const remoteSnap = await getDoc(doc(db, collectionName, opId));
+        if (remoteSnap.exists()) {
+          const remoteData = remoteSnap.data() as Record<string, unknown> | undefined;
+          const remoteUpdatedAt = pickUpdatedAt(remoteData);
+          const localUpdatedAt = pickUpdatedAt((op.data ?? {}) as Record<string, unknown>);
+          if (
+            remoteUpdatedAt &&
+            localUpdatedAt &&
+            new Date(remoteUpdatedAt).getTime() > new Date(localUpdatedAt).getTime()
+          ) {
+            // Disparar el mismo evento que el path legacy para que el
+            // ConflictResolutionDrawer y audit queue lo capturen.
+            window.dispatchEvent(
+              new CustomEvent('sync-critical-conflict', {
+                detail: {
+                  collection: collectionName,
+                  docId: opId,
+                  localUpdatedAt,
+                  serverUpdatedAt: remoteUpdatedAt,
+                  localData: (op.data ?? {}) as Record<string, unknown>,
+                  serverData: remoteData,
+                  source: 'state_machine',
+                },
+              }),
+            );
+            logger.warn(
+              'OfflineSyncManager.state_machine: conflict detected, deferring to manual resolution',
+              { collection: collectionName, docId: opId, localUpdatedAt, serverUpdatedAt: remoteUpdatedAt },
+            );
+            // No escribimos: el supervisor resuelve. La op queda en
+            // cola offline para un reintento post-resolución.
+            throw new Error(`conflict_pending_resolution:${collectionName}:${opId}`);
+          }
+        }
+        if (op.type === 'update') {
+          const { id, ...payload } = op.data ?? {};
+          await updateDoc(doc(db, collectionName, id), payload);
+        } else if (op.type === 'delete') {
+          await deleteDoc(doc(db, collectionName, opId));
+        } else {
+          const { id, ...payload } = op.data ?? {};
+          await setDoc(doc(db, collectionName, id), payload, { merge: true });
+        }
       }
     });
 
