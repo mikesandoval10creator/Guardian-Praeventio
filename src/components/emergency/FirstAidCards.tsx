@@ -229,6 +229,12 @@ export function FirstAidCards() {
                                   u.volume = 1;
                                   speechSynthesis.speak(u);
                                 } catch {}
+                              } else if (depthCheckActive) {
+                                // Apagar también la guía de profundidad para no
+                                // dejar el acelerómetro corriendo sin UI visible
+                                // (Hy3-audit 3c3aa66d-73fe-8190-bd55-e66a8dd5d43f).
+                                setDepthCheckActive(false);
+                                stopAccel();
                               }
                             }}
                             className={`w-full py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
