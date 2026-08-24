@@ -48,6 +48,36 @@ describe('attachComplianceSignatureAtomically', () => {
     )).rejects.toMatchObject({ code });
     expect(h.update).not.toHaveBeenCalled();
   });
+
+  // [P0][COMPLIANCE] Hy3-audit 3c4aa66d-73fe-81a4-9e21-cc1114a14b24
+  // (verificado 2026-08-24): el guard exige que signature.payloadHashHex
+  // coincida con el del documento, fail-closed si difieren.
+  it('rechaza firma con payloadHashHex distinto al del documento (fail-closed)', async () => {
+    const h = transactionHarness({
+      id: 'form-1',
+      payloadHashHex: 'aa'.repeat(32),
+    });
+    await expect(attachComplianceSignatureAtomically(
+      h.firestore as never,
+      h.ref as never,
+      { signatureB64: 'verified', payloadHashHex: 'bb'.repeat(32) },
+    )).rejects.toMatchObject({ code: 'payload_hash_mismatch' });
+    expect(h.update).not.toHaveBeenCalled();
+  });
+
+  it('acepta firma con payloadHashHex que coincide con el del documento', async () => {
+    const h = transactionHarness({
+      id: 'form-1',
+      payloadHashHex: 'aa'.repeat(32),
+    });
+    const signature = { signatureB64: 'verified', payloadHashHex: 'aa'.repeat(32) };
+    await attachComplianceSignatureAtomically(
+      h.firestore as never,
+      h.ref as never,
+      signature,
+    );
+    expect(h.update).toHaveBeenCalledWith(h.ref, { signature });
+  });
 });
 
 describe('persistComplianceDigestAtomically', () => {
