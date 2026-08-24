@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere, Cylinder, Text } from '@react-three/drei';
 import { Card } from '../shared/Card';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 import { Map, AlertTriangle, ShieldAlert, Users } from 'lucide-react';
 
 function EvacuationRoute() {
@@ -102,13 +103,15 @@ export function TacticalSimulation3D() {
       </div>
 
       <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-zinc-800 relative">
-        <Canvas camera={{ position: [0, 8, 10], fov: 50 }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} intensity={1} />
-          <EvacuationRoute />
-          {isPlaying && <AnimatedWorker />}
-          <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
-        </Canvas>
+        <ErrorBoundary silent>
+          <Canvas camera={{ position: [0, 8, 10], fov: 50 }}>
+            <ambientLight intensity={0.5} />
+            <pointLight position={[10, 10, 10]} intensity={1} />
+            <EvacuationRoute />
+            {isPlaying && <AnimatedWorker />}
+            <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
+          </Canvas>
+        </ErrorBoundary>
         
         {/* Overlay UI */}
         <div className="absolute top-4 left-4 flex flex-col gap-2">
