@@ -45,10 +45,21 @@ describe('getIndustryPreset', () => {
     expect(p.applicableRegulations.some((r) => /SEC/.test(r))).toBe(true);
   });
 
-  it('industria desconocida → preset genérico con DS 594', () => {
+  it('industria desconocida → preset genérico con DS 594 + isFallback:true', () => {
     const p = getIndustryPreset('GP-INVENTADO');
     expect(p.label).toContain('Genérico');
     expect(p.applicableRegulations).toContain('DS 594');
+    expect(p.isFallback).toBe(true);
+  });
+
+  it('industria mapeada → isFallback:false (no false positive)', () => {
+    const p = getIndustryPreset('GP-MIN');
+    expect(p.isFallback).toBe(false);
+  });
+
+  it('industria mapeada → isFallback:false (segundo sector)', () => {
+    const p = getIndustryPreset('GP-CONS');
+    expect(p.isFallback).toBe(false);
   });
 
   it('cada preset tiene al menos 1 riesgo, 1 documento, 1 training', () => {

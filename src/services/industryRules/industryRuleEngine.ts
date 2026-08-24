@@ -14,6 +14,7 @@
 // Es un "preset" determinístico que evita configuración manual repetitiva.
 
 import { EPP_BY_SECTOR, EPP_DEFAULT } from '../../constants.js';
+import { logger } from '../../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -36,6 +37,12 @@ export interface IndustryPreset {
   applicableRegulations: string[];
   /** Protocolos MINSAL específicos. */
   minsalProtocols: string[];
+  /**
+   * True cuando el preset se generó como fallback (prefix válido pero
+   * sin mapeo específico). Telemetry consumers pueden alertar/filtrar
+   * para detectar proyectos con subcobertura de riesgos/EPP del sector.
+   */
+  isFallback?: boolean;
 }
 
 const PRESETS: Record<string, Omit<IndustryPreset, 'industryPrefix' | 'baseEpp'>> = {
@@ -267,9 +274,14 @@ export function getIndustryPreset(industryPrefix: string): IndustryPreset {
       industryPrefix,
       baseEpp: epp.map((e) => e.label),
       ...preset,
+      isFallback: false,
     };
   }
   // Fallback genérico
+  logger.warn('industryRuleEngine: fallback preset used', {
+    industryPrefix,
+    reason: 'no specific preset mapped',
+  });
   return {
     industryPrefix,
     label: `Genérico (${industryPrefix})`,
@@ -279,6 +291,7 @@ export function getIndustryPreset(industryPrefix: string): IndustryPreset {
     baseEpp: epp.map((e) => e.label),
     applicableRegulations: ['DS 594', 'Ley 16.744'],
     minsalProtocols: [],
+    isFallback: true,
   };
 }
 
