@@ -263,6 +263,17 @@ export function MaintenanceStatusPanel({
             );
           })}
         </ul>
+        {/* [P1][vida-safety] Hy3-audit 3c3aa66d-73fe-8100-aff5-c62438053827
+            (verificado 2026-08-24): si hay >8 nodos, el usuario no sabe
+            que existen más. Indicador de overflow sin paginación completa
+            (scope mínimo: 0 useState nuevo, 0 handler nuevo). Para ver
+            histórico completo, el operador abre la vista de detalle. */}
+        {historyOrdered.length > 8 && (
+          <p className="text-[10px] text-zinc-500 mt-1 italic">
+            Mostrando los 8 más recientes de {historyOrdered.length} totales.
+            Abrí el detalle del objeto para ver el histórico completo.
+          </p>
+        )}
       </section>
 
       {/* Próximos mantenimientos */}
@@ -326,6 +337,12 @@ export function MaintenanceStatusPanel({
             );
           })}
         </ul>
+        {/* Mismo fix que Histórico (Hy3-audit 3c3aa66d-73fe-8100-aff5-c62438053827). */}
+        {events.length > 12 && (
+          <p className="text-[10px] text-zinc-500 mt-1 italic">
+            Mostrando los 12 más próximos de {events.length} totales.
+          </p>
+        )}
       </section>
     </aside>
   );
