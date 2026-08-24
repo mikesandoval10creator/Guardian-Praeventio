@@ -188,11 +188,10 @@ export function buildSosOrchestration(
   //  - projectId='' ya está bloqueado downstream por `missing_projectId`,
   //    pero aquí cortamos antes para no generar plan inválido.
   if (!ctx.workerUid || !ctx.projectId || !ctx.clientEventId) {
-    const missing = [
-      !ctx.workerUid && 'workerUid',
-      !ctx.projectId && 'projectId',
-      !ctx.clientEventId && 'clientEventId',
-    ].filter(Boolean);
+    const missing: string[] = [];
+    if (!ctx.workerUid) missing.push('workerUid');
+    if (!ctx.projectId) missing.push('projectId');
+    if (!ctx.clientEventId) missing.push('clientEventId');
     throw new SosContextValidationError(
       `SosContext requires non-empty: ${missing.join(', ')}`,
       missing,
