@@ -179,6 +179,25 @@ export function buildSosOrchestration(
   ctx: SosContext,
   options: SosOrchestratorOptions = {},
 ): SosOrchestrationPlan {
+  // [P0][VIDA] Guard clauses para campos requeridos (ticket Hy3-audit
+  // 3c3aa66d-73fe-8182-a4d3-e5050bab182e reabierto 2026-08-24). Sin
+  // workerUid/projectId/clientEventId non-empty:
+  //  - mesh packet.fromUid='' colisiona con la deduplicación de peers
+  //  - outboxEntry.event.clientEventId='' rompe idempotencia end-to-end
+  //    (todos los SOS colisionan al mismo id en el servidor)
+  //  - projectId='' ya está bloqueado downstream por `missing_projectId`,
+  //    pero aquí cortamos antes para no generar plan inválido.
+  if (!ctx.workerUid || !ctx.projectId || !ctx.clientEventId) {
+    const missing: string[] = [];
+    if (!ctx.workerUid) missing.push('workerUid');
+    if (!ctx.projectId) missing.push('projectId');
+    if (!ctx.clientEventId) missing.push('clientEventId');
+    throw new SosContextValidationError(
+      `SosContext requires non-empty: ${missing.join(', ')}`,
+      missing,
+    );
+  }
+
   const now = options.now ?? (() => Date.now());
   const nowMs = now();
 
@@ -269,4 +288,19 @@ export function buildSosOrchestration(
     emergencyNumbers,
     disclaimer: DISCLAIMER_ES,
   };
+}
+
+/**
+ * Error lanzado por `buildSosOrchestration` cuando el `SosContext` no
+ * tiene los campos requeridos non-empty (workerUid, projectId, clientEventId).
+ * Tipado público para que callers lo distingan de errores runtime del mesh.
+ */
+export class SosContextValidationError extends Error {
+  readonly code = 'sos_context_validation';
+  readonly missing: string[];
+  constructor(message: string, missing: string[]) {
+    super(message);
+    this.name = 'SosContextValidationError';
+    this.missing = missing;
+  }
 }

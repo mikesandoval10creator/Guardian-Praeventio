@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildSosOrchestration,
+  SosContextValidationError,
   type SosContext,
 } from './sosOrchestrator.js';
 import {
@@ -198,5 +199,44 @@ describe('buildSosOrchestration', () => {
   it('disclaimer siempre presente (directiva 2)', () => {
     const plan = buildSosOrchestration(makeCtx(), { now: () => FIXED_NOW_MS });
     expect(plan.disclaimer.length).toBeGreaterThan(20);
+  });
+
+  // [P0][VIDA] Ticket Hy3-audit 3c3aa66d-73fe-8182-a4d3-e5050bab182e
+  // (reabierto 2026-08-24): el orchestrator debe lanzar si los campos
+  // requeridos del SosContext están vacíos. Sin guard, el mesh packet
+  // sale con fromUid='' y el outbox con clientEventId='' → idempotencia
+  // end-to-end rota (todos los SOS colisionan al mismo id en el servidor).
+  it('lanza SosContextValidationError si workerUid está vacío', () => {
+    expect(() =>
+      buildSosOrchestration(makeCtx({ workerUid: '' }), { now: () => FIXED_NOW_MS }),
+    ).toThrow(SosContextValidationError);
+  });
+
+  it('lanza SosContextValidationError si projectId está vacío', () => {
+    expect(() =>
+      buildSosOrchestration(makeCtx({ projectId: '' }), { now: () => FIXED_NOW_MS }),
+    ).toThrow(SosContextValidationError);
+  });
+
+  it('lanza SosContextValidationError si clientEventId está vacío', () => {
+    expect(() =>
+      buildSosOrchestration(makeCtx({ clientEventId: '' }), { now: () => FIXED_NOW_MS }),
+    ).toThrow(SosContextValidationError);
+  });
+
+  it('el error reporta todos los campos faltantes en `missing`', () => {
+    try {
+      buildSosOrchestration(
+        makeCtx({ workerUid: '', projectId: '', clientEventId: '' }),
+        { now: () => FIXED_NOW_MS },
+      );
+      expect.fail('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(SosContextValidationError);
+      const e = err as SosContextValidationError;
+      expect(e.missing).toEqual(
+        expect.arrayContaining(['workerUid', 'projectId', 'clientEventId']),
+      );
+    }
   });
 });
