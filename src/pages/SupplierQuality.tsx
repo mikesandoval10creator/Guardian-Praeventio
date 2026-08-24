@@ -432,6 +432,15 @@ export function SupplierQuality() {
         {!rankingLoading && !rankingError && (
           <SupplierComparator
             ranking={rankingData?.ranking ?? []}
+            rankingMeta={
+              rankingData
+                ? {
+                    totalEvaluated: rankingData.totalEvaluated,
+                    hasHighSystemicRisk: rankingData.hasHighSystemicRisk,
+                    isSoleQualifiedSupplier: rankingData.isSoleQualifiedSupplier,
+                  }
+                : undefined
+            }
             service={tr('suppliers.ranking.allServices', 'Todos los servicios')}
           />
         )}

@@ -53,6 +53,19 @@ interface RiskRow {
 interface RankingModeProps {
   /** Modo datos reales: ranking ya scoreado por el server. */
   ranking: SupplierRankingEntry[];
+  /**
+   * [P0][VIDA-SAFETY] Hy3-audit 3c6aa66d-73fe-81d2-b565-f221e442632d
+   * (reabierto 2026-08-24): flags calculados por el server sobre la
+   * POBLACIÓN COMPLETA de proveedores evaluados (no sobre el slice del
+   * ranking). Si el server top-N filtra proveedores críticos, el
+   * componente lee estos flags sin recalcular, evitando la ventana
+   * ciega donde se silencia una alerta sistémica.
+   */
+  rankingMeta?: {
+    totalEvaluated: number;
+    hasHighSystemicRisk: boolean;
+    isSoleQualifiedSupplier: boolean;
+  };
   /** Etiqueta de servicio/área para el header (libre). */
   service?: string;
   suppliers?: never;
@@ -96,11 +109,21 @@ export function SupplierComparator(props: SupplierComparatorProps) {
         // Recomendado = riesgo bajo (score alto, el server ya lo derivó).
         isRecommended: r.riskLevel === 'low',
       }));
-      // Riesgo sistémico real: TODOS los proveedores en riesgo alto.
+      // [P0][VIDA-SAFETY] Hy3-audit 3c6aa66d-73fe-81d2-b565-f221e442632d
+      // + 3c6aa66d-73fe-81df-9408-f48865063933 (reabierto 2026-08-24):
+      // Leemos los flags del server (calculados sobre la POBLACIÓN
+      // COMPLETA de proveedores evaluados) en lugar de recalcular sobre
+      // el slice. Si el server no envía rankingMeta (backward compat),
+      // caemos al comportamiento legacy (que es el bug, pero al menos
+      // no rompemos el contrato).
+      const rankingMeta = props.rankingMeta;
       const allHigh =
-        sorted.length > 0 && sorted.every((r) => r.riskLevel === 'high');
+        rankingMeta?.hasHighSystemicRisk ??
+        (sorted.length > 0 && sorted.every((r) => r.riskLevel === 'high'));
+      const isSole =
+        rankingMeta?.isSoleQualifiedSupplier ?? (sorted.length === 1);
       const riskRows: RiskRow[] =
-        sorted.length === 1
+        isSole
           ? [
               {
                 service: props.service ?? '—',
