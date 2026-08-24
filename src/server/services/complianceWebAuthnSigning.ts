@@ -210,8 +210,15 @@ export async function completeComplianceWebAuthnSigning(
       ...evidence,
       archiveAttestation: deps.attestEvidence(evidence),
     };
-  } catch {
-    throw new ComplianceSigningFlowError('evidence_attestation_unavailable');
+  } catch (err) {
+    // Preservar la causa original en `reason` para diagnóstico en producción
+    // (Hy3-audit 3c3aa66d-73fe-816e-bb7e-cb503a93cbf0). Sin esto, cualquier
+    // excepción (incluido bug de código) se convierte en un mensaje genérico
+    // imposible de triage.
+    throw new ComplianceSigningFlowError(
+      'evidence_attestation_unavailable',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 
@@ -247,7 +254,14 @@ export async function completeComplianceKmsSigning(
       ...evidence,
       archiveAttestation: deps.attestEvidence(evidence),
     };
-  } catch {
-    throw new ComplianceSigningFlowError('evidence_attestation_unavailable');
+  } catch (err) {
+    // Preservar la causa original en `reason` para diagnóstico en producción
+    // (Hy3-audit 3c3aa66d-73fe-816e-bb7e-cb503a93cbf0). Sin esto, cualquier
+    // excepción (incluido bug de código) se convierte en un mensaje genérico
+    // imposible de triage.
+    throw new ComplianceSigningFlowError(
+      'evidence_attestation_unavailable',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }

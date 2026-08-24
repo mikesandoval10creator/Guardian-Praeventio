@@ -226,4 +226,24 @@ describe('completeComplianceKmsSigning', () => {
     })).rejects.toThrow(/KMS/);
     expect(signPayload).not.toHaveBeenCalled();
   });
+
+  it('preserves the underlying error message when attestEvidence throws (KMS flow)', async () => {
+    const failingAttest = vi.fn(() => {
+      throw new Error('archive backend timeout after 30s');
+    });
+    await expect(completeComplianceKmsSigning({
+      uid: 'kms-signer', tenantId: 'tenant-1', formId: 'form-1', documentKind: 'suseso',
+    }, {
+      documents: adapter(),
+      resolveSigner: async () => ({ uid: 'kms-signer', rut: '12.345.678-5', kind: 'kms' }),
+      signPayload: vi.fn(async () => ({
+        signatureB64: 'kms-signature', keyVersion: 'key/7', publicKeyPem: 'public-key-pem',
+      })),
+      attestEvidence: failingAttest,
+      now: () => new Date('2026-07-14T23:00:00.000Z'),
+    })).rejects.toMatchObject({
+      code: 'evidence_attestation_unavailable',
+      reason: 'archive backend timeout after 30s',
+    });
+  });
 });
