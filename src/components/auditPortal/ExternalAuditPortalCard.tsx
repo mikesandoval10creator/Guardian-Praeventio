@@ -1,8 +1,15 @@
 // Praeventio Guard — Wire UI S44: <ExternalAuditPortalCard />
 //
 // Tarjeta presentacional para un portal de auditor externo. Muestra
-// token, estado, scope y vencimiento. El padre computa el estado vía
-// derivePortalStatus y pasa el resultado como prop.
+// token, estado, scope y vencimiento.
+//
+// [Hy3-audit 3c4aa66d-73fe-8174-b6c7-eab07dd7ce87 reabierto 2026-08-24]:
+// older header claimed the parent computes status via
+// `derivePortalStatus` and passes the result as prop. That was
+// incorrect — `derivePortalStatus` is a SERVER helper used in
+// src/server/routes/auditPortal.ts:175. The status arrives in
+// each `PortalConfig` from the server already, and PortalManager
+// (L414) passes it through. Reworded to match reality.
 
 import { ShieldCheck, AlertTriangle, Ban, Clock } from 'lucide-react';
 import type {
