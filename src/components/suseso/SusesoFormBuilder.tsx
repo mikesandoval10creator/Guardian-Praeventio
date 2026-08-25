@@ -189,7 +189,24 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
         }),
       });
       if (!res.ok) throw new Error(await humanErrorFromResponse(res));
-      setSigned(true);
+      // [P0][compliance][vida-safety] Hy3-audit 3c6aa66d-73fe-81c6-87f4-c5c8e3aefbf5
+      // (reabierto 2026-08-24): el código anterior seteaba signed=true
+      // solo porque res.ok===200, sin verificar que la firma en el
+      // form sea del current user. En una declaración jurada, esto
+      // puede atribuir una firma de OTRO usuario a este — falsedad
+      // material. Ahora derivamos signed solo si el signature.signerUid
+      // del server coincide con reportedBy.uid.
+      const data = await res.json() as { form?: { signature?: { signerUid?: string } } };
+      const signedByMe = data.form?.signature?.signerUid === reportedBy.uid;
+      setSigned(signedByMe);
+      if (!signedByMe) {
+        setError(humanErrorMessage(
+          new Error(
+            'La firma del servidor no corresponde al usuario actual. ' +
+            'No se registrará como firma propia.',
+          ),
+        ));
+      }
     } catch (e) {
       setError(humanErrorMessage(e));
     } finally {
