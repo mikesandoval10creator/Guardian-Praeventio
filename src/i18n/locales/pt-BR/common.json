@@ -5572,5 +5572,10 @@
     "openInMaps": "Abrir no Google Maps",
     "humanInTheLoop": "O despacho é iniciado por uma pessoa. NUNCA é automático.",
     "medicalContext": "Dados médicos consentidos"
+  },
+  "suppliers": {
+    "ranking": {
+      "allServices": "Todos os serviços"
+    }
   }
 }

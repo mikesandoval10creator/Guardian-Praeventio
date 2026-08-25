@@ -206,8 +206,18 @@ export function SupplierComparator(props: SupplierComparatorProps) {
           {t('suppliers.title', 'Proveedores')}
         </h2>
         {serviceLabel && (
+          // [Hy3-audit 3c6aa66d-73fe-8125-b298-dd63763997da reabierto 2026-08-24]:
+          // Antes el código hacía t(`suppliers.service.${serviceLabel}`, serviceLabel).
+          // Como el padre pasa el string YA traducido como serviceLabel
+          // (vía t('suppliers.ranking.allServices', 'Todos los servicios')),
+          // armar la key dinámicamente desde el valor produce una key
+          // inexistente (e.g. 'suppliers.service.Todos los servicios') y
+          // siempre cae al fallback.
+          //
+          // Fix: usar `serviceLabel` directamente — es texto final, no key.
+          // El padre se encarga de traducir.
           <span className="ml-auto text-[10px] uppercase text-secondary-token">
-            {t(`suppliers.service.${serviceLabel}`, serviceLabel)}
+            {serviceLabel}
           </span>
         )}
       </header>
