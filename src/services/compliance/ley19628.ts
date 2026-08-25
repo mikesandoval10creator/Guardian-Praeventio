@@ -617,17 +617,22 @@ export async function eraseUserData(
   const preserved: string[] = [];
 
   for (const { name, uidField } of EXPORTABLE_COLLECTIONS) {
-    try {
-      const snap = await db.collection(name).where(uidField, '==', uid).get();
-      let count = 0;
-      for (const doc of snap.docs) {
-        await db.collection(name).doc(doc.id).delete();
-        count += 1;
-      }
-      if (count > 0) erased.push(`${name}:${count}`);
-    } catch {
-      // ignore missing collection
+    // [P0][privacidad/ARCO] Hy3-audit 3c3aa66d-73fe-81b2-827f-d9f98cd398c5
+    // (reabierto 2026-08-24): el catch {} original silenciaba CUALQUIER
+    // error (red, permisos, transient failure), no solo "missing
+    // collection". Firestore `.collection().where().get()` NO falla si
+    // la colección no existe (retorna snapshot vacío), así que el try
+    // original no era necesario. Lo quitamos: cualquier error de
+    // borrado en una colección se PROPAGA hacia el caller, que
+    // escribirá arco_erasure_failed en vez de marcar completed con
+    // datos vivos.
+    const snap = await db.collection(name).where(uidField, '==', uid).get();
+    let count = 0;
+    for (const doc of snap.docs) {
+      await db.collection(name).doc(doc.id).delete();
+      count += 1;
     }
+    if (count > 0) erased.push(`${name}:${count}`);
   }
 
   if (keepLegal) {
