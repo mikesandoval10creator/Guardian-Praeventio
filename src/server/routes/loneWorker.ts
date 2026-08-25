@@ -206,8 +206,21 @@ router.post(
 // reaches Firestore. A capability is valid for the bounded session window and
 // may authenticate multiple distinct native triggers; every trigger carries a
 // stable clientEventId and is idempotent server-side. A stopped/ended session,
-// expired capability, or mismatched hash fails closed. Explicit session end
-// invalidates the capability in the same server transaction.
+// expired capability, or mismatched hash fails closed.
+//
+// [P0][VIDA-SAFETY] Hy3-audit 3c2aa66d-73fe-8157-9b82-efbb115ff163
+// (reabierto 2026-08-24): el comentario original decía
+// "invalidates the capability in the same server transaction" — eso
+// promete atomicidad con end-session que NO existe. end-session
+// (línea ~688-718) hace revoke best-effort fuera de transacción.
+// Un mantenedor futuro puede creer que el capability siempre se
+// revoca atómicamente y eliminar la defensa en capas (isOpenNativeSession
+// + expiry) del /native-man-down, rompiendo el fail-closed.
+// CORRECCIÓN: el capability se revoca best-effort en el mismo
+// update Firestore de status/endedAt (ver end-session 688-718). El
+// fail-closed de /native-man-down DEBE seguir validando
+// isOpenNativeSession + expiry en cada request; no se debe
+// confiar en la atomicidad transaccional.
 // A lone-worker session is capped at 12h. Leave a small delivery margin so an
 // alert captured near shift end can survive a transient offline retry; explicit
 // end-session remains the immediate authority revocation point.
