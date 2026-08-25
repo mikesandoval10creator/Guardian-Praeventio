@@ -84,4 +84,36 @@ describe('SusesoDeadlineBadge', () => {
     // No data-level attribute in the submitted variant.
     expect(badge.getAttribute('data-level')).toBeNull();
   });
+
+  // [Hy3-audit 3c6aa66d-73fe-8176-a34d-e5ffdf6f74fe] regresión
+  // silenciosa en label más cercano al vencimiento.
+  it('renders orange with "vence en 1 día" at 1 día remaining', () => {
+    render(
+      <SusesoDeadlineBadge
+        deadline="2026-05-06T12:00:00Z" // 1 day
+        status="pending"
+        formKind="DIEP"
+        now={NOW}
+      />,
+    );
+    const badge = screen.getByTestId('suseso-deadline-badge');
+    expect(badge.getAttribute('data-level')).toBe('orange');
+    expect(badge.textContent).toContain('DIEP');
+    expect(badge.textContent).toMatch(/vence en 1 día/);
+  });
+
+  it('renders orange with "vence en N días" at 2 días remaining', () => {
+    render(
+      <SusesoDeadlineBadge
+        deadline="2026-05-07T12:00:00Z" // 2 days
+        status="pending"
+        formKind="DIAT"
+        now={NOW}
+      />,
+    );
+    const badge = screen.getByTestId('suseso-deadline-badge');
+    expect(badge.getAttribute('data-level')).toBe('orange');
+    expect(badge.textContent).toContain('DIAT');
+    expect(badge.textContent).toMatch(/vence en 2 días/);
+  });
 });
