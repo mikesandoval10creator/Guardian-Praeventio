@@ -29,7 +29,7 @@
 //   • Invitation accept: the caller's email must match the invited email.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 
@@ -66,6 +66,7 @@ import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 import type { ComplianceArchiveAttestation } from '../../services/compliance/complianceSignature.js';
 import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function sentryCapture(
   err: unknown,
@@ -778,7 +779,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
     // client-supplied archived/archivedBy in the body is ignored.
     await workerRef.update({
       archived: true,
-      archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      archivedAt: FieldValue.serverTimestamp(),
       archivedBy: callerUid,
     });
 
@@ -886,12 +887,12 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
       tx.create(passportRef, passport);
       tx.update(workerSnap.ref, {
         archived: true,
-        archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        archivedAt: FieldValue.serverTimestamp(),
         archivedBy: callerUid,
-        offboardedAt: admin.firestore.FieldValue.serverTimestamp(),
+        offboardedAt: FieldValue.serverTimestamp(),
       });
       tx.update(projectSnap.ref, {
-        members: admin.firestore.FieldValue.arrayRemove(targetUid),
+        members: FieldValue.arrayRemove(targetUid),
         memberRoles: memberRolesWithout(projectData.memberRoles, targetUid),
       });
       tx.set(db.collection('audit_logs').doc(), {
@@ -907,7 +908,7 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
         userEmail: req.user?.email ?? null,
         projectId,
         source: 'server',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
@@ -986,8 +987,8 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
     }
 
     await admin.firestore().collection('projects').doc(projectId).update({
-      members: admin.firestore.FieldValue.arrayRemove(targetUid),
-      [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
+      members: FieldValue.arrayRemove(targetUid),
+      [`memberRoles.${targetUid}`]: FieldValue.delete(),
     });
 
     await auditServerEvent(req, 'projects.memberRemove', 'projects', {
@@ -1185,7 +1186,7 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
         throw err;
       }
       tx.update(projectRef, {
-        members: admin.firestore.FieldValue.arrayUnion(callerUid),
+        members: FieldValue.arrayUnion(callerUid),
         [`memberRoles.${callerUid}`]: invite.invitedRole,
       });
       tx.update(inviteDoc.ref, {

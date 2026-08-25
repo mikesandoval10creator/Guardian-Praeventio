@@ -96,7 +96,7 @@ vi.stubGlobal(
 
 // ─── Import module under test ─────────────────────────────────────────────────
 import * as ragService from './ragService.js';
-import admin from 'firebase-admin';
+import { admin } from '../server/firebase-admin-shim.ts';
 import { fetchLawFromBCN } from './bcnService.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

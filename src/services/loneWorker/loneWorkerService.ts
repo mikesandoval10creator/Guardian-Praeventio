@@ -1,3 +1,4 @@
+import type { Timestamp } from 'firebase-admin/firestore';
 // Praeventio Guard — Sprint 39 Fase G.11: Control de trabajo solitario.
 //
 // Cierra: Documento usuario "Recomendaciones nuevas §72, §73"
@@ -50,7 +51,7 @@ export interface EscalationDecision {
  *
  * **CONTRATO RELOJ (vida-safety)**:
  * El parámetro `now` DEBE provenir del timestamp autoritativo del servidor
- * (e.g. `admin.firestore.Timestamp.now()` desde Cloud Function). El default
+ * (e.g. `Timestamp.now()` desde Cloud Function). El default
  * `new Date()` solo es válido en tests con clocks determinísticos; un caller
  * de producción que omita `now` recalculará con el reloj del dispositivo
  * y habilitará ataques de reloj (cf. Pitfall #35 bot-delegation-router).

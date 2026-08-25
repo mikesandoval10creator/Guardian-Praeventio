@@ -26,7 +26,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -66,6 +66,8 @@ import {
   type IncidentLessonTrainingNodeType,
   type FlowDeps,
 } from '../../services/zettelkasten/flows/incidentLessonTrainingFlow.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -116,7 +118,7 @@ function flowDepsFor(req: import('express').Request): FlowDeps {
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -172,7 +174,7 @@ async function writeAudit(
         userEmail: null,
         projectId,
         details: { ...details, tenantId },
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: null,
         userAgent: null,
       });

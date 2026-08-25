@@ -48,7 +48,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -71,6 +71,8 @@ import {
   hashAccessToken,
   type StoredAuditPortal,
 } from '../../services/auditPortal/auditPortalFirestoreAdapter.js';
+import type { DocumentReference } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -111,7 +113,7 @@ const AFFILIATIONS: readonly AuditorAffiliation[] = [
 async function resolveTenantIdForAdmin(
   callerUid: string,
   callerTenantId: string | undefined,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   if (typeof callerTenantId === 'string' && callerTenantId.length > 0) {
     return callerTenantId;
@@ -158,8 +160,8 @@ async function assertAdminCaller(
  */
 async function findPortalByPublicToken(
   token: string,
-  db: admin.firestore.Firestore,
-): Promise<{ stored: StoredAuditPortal; tenantId: string; portalRef: admin.firestore.DocumentReference } | null> {
+  db: Firestore,
+): Promise<{ stored: StoredAuditPortal; tenantId: string; portalRef: DocumentReference } | null> {
   const tokenHash = hashAccessToken(token);
   const snap = await db
     .collectionGroup('audit_portals')

@@ -19,7 +19,7 @@
 // wire paths stay byte-identical with what server.ts shipped through R18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';

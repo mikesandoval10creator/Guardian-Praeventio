@@ -30,8 +30,9 @@
 // `idempotencyKey`. When omitted, the tracker only ensures atomic
 // increments — caller is responsible for at-most-once semantics.
 
-import * as admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────
 // Types
@@ -184,7 +185,7 @@ export async function trackGeminiUsage(
       }
       // Mark idempotency key consumed BEFORE incrementing.
       tx.set(idemRef, {
-        consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        consumedAt: FieldValue.serverTimestamp(),
         tokens,
         costUsd,
         requests,
@@ -207,13 +208,13 @@ export async function trackGeminiUsage(
         geminiTokens: next.geminiTokens,
         geminiRequests: next.geminiRequests,
         geminiCostUsd: next.geminiCostUsd,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     } else {
       tx.set(docRef, {
         ...next,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 

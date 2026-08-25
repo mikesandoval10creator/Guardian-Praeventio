@@ -32,6 +32,7 @@ import {
   awardDaysMilestones,
   type MinimalDb,
 } from '../../services/gamification/daysWithoutIncident.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 const SUPERVISOR_ROLES = new Set([
   'supervisor',

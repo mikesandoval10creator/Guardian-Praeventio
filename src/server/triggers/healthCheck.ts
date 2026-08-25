@@ -13,9 +13,10 @@
 // handle. Errors inside an iteration are caught and logged — they MUST
 // NOT kill the timer.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 function sentryCapture(
   err: unknown,
@@ -34,7 +35,7 @@ function sentryCapture(
 export const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export interface HealthCheckDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Interval in ms. Defaults to 6h. */
   intervalMs?: number;
   /**

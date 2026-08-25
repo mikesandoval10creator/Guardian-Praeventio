@@ -18,7 +18,7 @@
 // Sentry capture per stage so a generator/signer regression surfaces fast.
 
 import { Router, type Request, type Response } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';

@@ -20,7 +20,7 @@
 // and tier pricing constants live in `./pricing.ts`.
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
 import { invoiceStatusLimiter } from '../../middleware/limiters.js';
@@ -39,6 +39,7 @@ import {
 } from '../../../services/dte/dteIssueQueueStore.js';
 import type { Invoice } from '../../../services/billing/types.js';
 import { sentryCapture } from './shared.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export function registerInvoiceRoutes(billingApiRouter: Router): void {
   // POST /api/billing/invoice/:id/mark-paid — admin manual fallback for
@@ -85,7 +86,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
           const paidAtIso = new Date().toISOString();
           await ref.update({
             status: 'paid',
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidAt: FieldValue.serverTimestamp(),
             paidBy: callerUid,
             paidByEmail: callerEmail,
             paymentSource: 'manual',
@@ -113,7 +114,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                     planId,
                     tierId,
                     status: 'active',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: FieldValue.serverTimestamp(),
                     lastInvoiceId: invoiceId,
                     paymentMethod: 'manual',
                     provider: 'manual',
@@ -248,7 +249,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
               userId: callerUid,
               userEmail: callerEmail,
               projectId: null,
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              timestamp: FieldValue.serverTimestamp(),
               ip: req.ip ?? null,
               userAgent: req.header('user-agent') ?? null,
             });

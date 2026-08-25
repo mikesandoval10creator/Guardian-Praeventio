@@ -20,7 +20,7 @@
 // `jobs/checkOverdueMaintenance.ts` and surfaces its counts in JSON.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';

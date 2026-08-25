@@ -33,7 +33,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -60,6 +60,7 @@ import {
   type ApproverRole,
 } from '../../services/changeMgmt/operationalChangeService.js';
 import { OperationalChangeAdapter } from '../../services/changeMgmt/operationalChangeFirestoreAdapter.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ const IMPACTS: readonly ChangeImpact[] = ['low', 'medium', 'high'];
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;

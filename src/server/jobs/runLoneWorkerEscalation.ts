@@ -13,16 +13,18 @@
 // Idempotency por (sessionId, level): el cron NO re-emite el mismo
 // nivel si ya fue emitido. Solo escala cuando cambia el nivel.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import {
   decideEscalation,
   type LoneWorkerSession,
   type EscalationDecision,
 } from '../../services/loneWorker/loneWorkerService.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 export interface LoneWorkerCronDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Override clock para tests. */
   now?: () => Date;
   /**
@@ -75,7 +77,7 @@ export async function runLoneWorkerEscalationCron(
     errors: 0,
   };
 
-  let snap: admin.firestore.QuerySnapshot;
+  let snap: QuerySnapshot;
   try {
     snap = await deps.db.collection(collectionPath).where('status', '!=', 'ended').get();
   } catch (e) {

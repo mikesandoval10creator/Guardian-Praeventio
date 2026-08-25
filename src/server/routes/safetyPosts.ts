@@ -25,7 +25,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -36,6 +36,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { moderatePostContent } from '../../utils/contentModeration.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -114,7 +115,7 @@ router.post(
         imageUrl: body.imageUrl || null,
         likes: [],
         comments: [],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         projectId,
       });
 

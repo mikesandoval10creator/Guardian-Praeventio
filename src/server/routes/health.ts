@@ -21,7 +21,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
 import net from 'node:net';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { healthDeepLimiter } from '../middleware/limiters.js';
 import { buildCapabilityRegistry } from '../capabilities/registry.js';
 

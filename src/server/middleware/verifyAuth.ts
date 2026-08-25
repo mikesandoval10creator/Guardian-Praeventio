@@ -25,7 +25,7 @@
 //   are set — that combination is a configuration error and we refuse to boot.
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { safeSecretEqual } from './safeSecretEqual.js';

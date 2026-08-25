@@ -29,7 +29,7 @@
 // empresa no usa.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -37,6 +37,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -44,7 +45,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;

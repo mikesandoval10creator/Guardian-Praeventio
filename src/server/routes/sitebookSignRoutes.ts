@@ -16,7 +16,7 @@
 // real se delega a `verifyWebAuthnAssertion` de webauthnAssertion.ts.
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   buildWebAuthnDb,

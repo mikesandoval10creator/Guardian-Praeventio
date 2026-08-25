@@ -10,7 +10,8 @@
 // información que el médico tratante ordena para tomar su decisión
 // clínica. Cumple Ley 20.584 + 21.719 + 16.744.
 
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export type HealthRecordType =
   | 'lab_result'
@@ -136,7 +137,7 @@ export function recordDocPath(workerUid: string, recordId: string): string {
  */
 export async function saveHealthRecord(
   record: HealthRecord,
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = admin.firestore(),
 ): Promise<HealthRecord> {
   const validated = validateHealthRecord(record);
   await db
@@ -151,7 +152,7 @@ export async function saveHealthRecord(
 /** Lista todos los records del trabajador, orden ascendente por uploadedAt. */
 export async function getHealthRecords(
   workerUid: string,
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = admin.firestore(),
 ): Promise<HealthRecord[]> {
   if (!workerUid) {
     throw new HealthRecordError('workerUid required', 'malformed');
@@ -172,7 +173,7 @@ export async function getHealthRecords(
 export async function getHealthRecordsByIds(
   workerUid: string,
   ids: string[],
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = admin.firestore(),
 ): Promise<HealthRecord[]> {
   if (!workerUid) {
     throw new HealthRecordError('workerUid required', 'malformed');
@@ -193,7 +194,7 @@ export async function getHealthRecordsByIds(
 export async function getHealthRecordById(
   workerUid: string,
   recordId: string,
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = admin.firestore(),
 ): Promise<HealthRecord | null> {
   if (!workerUid || !recordId) {
     throw new HealthRecordError('workerUid + recordId required', 'malformed');
@@ -215,7 +216,7 @@ export async function getHealthRecordById(
 export async function getRecentHealthRecords(
   workerUid: string,
   daysBack: number,
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = admin.firestore(),
   now: () => number = Date.now,
 ): Promise<HealthRecord[]> {
   const cutoff = now() - daysBack * 24 * 60 * 60 * 1000;

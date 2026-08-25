@@ -21,7 +21,7 @@
 // second, duplicate row itself.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -33,6 +33,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.post(
       await db.collection(path).doc(event.id).set({
         ...event,
         actorUid: callerUid,
-        serverTs: admin.firestore.FieldValue.serverTimestamp(),
+        serverTs: FieldValue.serverTimestamp(),
       });
 
       return res.json({ ok: true, eventId: event.id });

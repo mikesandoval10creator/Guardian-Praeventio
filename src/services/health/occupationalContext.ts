@@ -357,7 +357,7 @@ async function defaultUploader(args: {
   signedUrlTtlMs: number;
   bucket: string;
 }): Promise<{ url: string }> {
-  const admin = (await import('firebase-admin')).default;
+  const { admin } = await import('../../server/firebase-admin-shim.ts');
   if (!admin.apps.length) admin.initializeApp();
   const file = admin.storage().bucket(args.bucket).file(args.path);
   await file.save(Buffer.from(args.bytes), {
@@ -375,7 +375,7 @@ async function defaultSink(args: {
   path: string;
   record: OccupationalVaultRecord;
 }): Promise<void> {
-  const admin = (await import('firebase-admin')).default;
+  const { admin } = await import('../../server/firebase-admin-shim.ts');
   if (!admin.apps.length) admin.initializeApp();
   await admin.firestore().doc(args.path).set(args.record);
 }

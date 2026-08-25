@@ -29,7 +29,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -41,6 +41,8 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -56,7 +58,7 @@ function clampScore(n: number): number {
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -763,7 +765,7 @@ router.post(
       const appended = await db.runTransaction(async (tx) => {
         const snap = await tx.get(actaRef);
         if (!snap.exists) return false;
-        tx.update(actaRef, { acuerdos: admin.firestore.FieldValue.arrayUnion(acuerdo) });
+        tx.update(actaRef, { acuerdos: FieldValue.arrayUnion(acuerdo) });
         return true;
       });
       if (!appended) return res.status(404).json({ error: 'acta_not_found' });

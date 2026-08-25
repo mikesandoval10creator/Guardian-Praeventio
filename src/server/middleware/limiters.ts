@@ -25,7 +25,7 @@
 // longer logs the `ERR_ERL_KEY_GEN_IPV6` warning.
 import rateLimit, { ipKeyGenerator, type Store } from 'express-rate-limit';
 import type { Request } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { makeLazyFirestoreRateLimitStore } from '../rateLimit/firestoreRateLimitStore.js';
 
 // ─────────────────────────────────────────────────────────────────────────

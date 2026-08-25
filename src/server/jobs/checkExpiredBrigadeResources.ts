@@ -30,7 +30,7 @@
 // hourly reapers — see `routes/maintenance.ts`.
 
 import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import * as adminMessaging from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import type { SupervisorNotifier } from './checkExpiredPpe.js';
@@ -39,6 +39,7 @@ import {
   formatDateCl,
   type FindingPriority,
 } from './expiryFindings.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
@@ -112,10 +113,10 @@ async function checkExpiredBrigadeResourcesInner(
 ): Promise<CheckExpiredBrigadeResourcesResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : admin.firestore();
   const messaging = opts.getMessaging
     ? opts.getMessaging()
-    : (await import('firebase-admin')).default.messaging();
+    : admin.messaging();
   const notifySupervisors: SupervisorNotifier =
     opts.notifySupervisors ??
     (async () => ({ notified: 0, failed: 0, supervisorEmails: [] }));

@@ -1,6 +1,6 @@
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { validate } from '../middleware/validate.js';
 import { verifyPinnedComplianceKmsServiceAccount } from '../middleware/verifyPinnedServiceAccount.js';
 import { auditServerEvent } from '../middleware/auditLog.js';

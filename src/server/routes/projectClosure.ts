@@ -24,7 +24,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -36,13 +36,14 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAdapter.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -121,7 +122,7 @@ interface StoredCriticalDecision {
 }
 
 async function readClosureState(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
 ): Promise<ClosureState> {
@@ -149,7 +150,7 @@ async function readClosureState(
 }
 
 async function writeClosureState(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
   state: ClosureState,
@@ -161,7 +162,7 @@ async function writeClosureState(
 }
 
 async function readPendingCounts(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
 ): Promise<{

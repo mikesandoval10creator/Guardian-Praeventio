@@ -58,7 +58,7 @@
 // on its own. The HTTP ingest rail is untouched either way.
 
 import crypto from 'node:crypto';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import {
   connectMqttBroker,
   InMemoryAdapter,
@@ -77,6 +77,7 @@ import {
 import { canonicalize } from '../middleware/canonicalBody.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
 import { logger } from '../../utils/logger.js';
+import type { Messaging } from 'firebase-admin/messaging';
 
 // ────────────────────────────────────────────────────────────────────────
 // Config resolution (pure)
@@ -400,7 +401,7 @@ export function makeDeviceGate(opts: DeviceGateOptions): DeviceGate {
 
 export interface MessageHandlerDeps {
   db: FirebaseFirestore.Firestore;
-  messaging?: admin.messaging.Messaging;
+  messaging?: Messaging;
   gate: DeviceGate;
   nowMs?: () => number;
   /**
@@ -524,7 +525,7 @@ export interface StartMqttBridgeDeps {
   env: Record<string, string | undefined>;
   /** Defaults to admin.firestore() — tests inject the fake. */
   db?: FirebaseFirestore.Firestore;
-  messaging?: admin.messaging.Messaging;
+  messaging?: Messaging;
   /** Test seam forwarded to createBrokerAdapter. */
   mqttModule?: MqttConnectModule;
   gate?: DeviceGate;

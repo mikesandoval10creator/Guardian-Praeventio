@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 
 import type { MinimalChallengesDb } from '../../services/auth/webauthnChallenge.js';
 import type { MinimalCredentialsDb } from '../../services/auth/webauthnCredentialStore.js';

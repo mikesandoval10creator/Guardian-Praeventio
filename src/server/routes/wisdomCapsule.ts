@@ -23,13 +23,14 @@
 // porque ya estamos server-side y autenticados).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { AI_MODEL_LITE } from '../../config/aiModels.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -174,7 +175,7 @@ async function emitSafetyLearningNode(args: {
       references: args.sourceFindings,
       projectId: args.projectId,
       createdBy: args.callerUid,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       idempotencyKey: id,
     },
     { merge: true }
@@ -412,7 +413,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
         date,
         capsule,
         ackedBy: [],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
@@ -475,7 +476,7 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
           projectId,
           date,
           ackedBy: [...acks, uid],
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );

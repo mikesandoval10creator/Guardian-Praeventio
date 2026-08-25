@@ -1,5 +1,6 @@
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { logger } from '../utils/logger';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const seedInitialData = async (projectId: string = "default-project") => {
   const db = admin.firestore();
@@ -16,7 +17,7 @@ export const seedInitialData = async (projectId: string = "default-project") => 
       location: "Santiago, Chile",
       status: "active",
       members: [],
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
   }
 
@@ -35,7 +36,7 @@ export const seedInitialData = async (projectId: string = "default-project") => 
         status: statuses[i % 3],
         content: `Contenido detallado para el reporte #${20 - i}`,
         projectId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp()
       });
     }
   }
@@ -55,7 +56,7 @@ export const seedInitialData = async (projectId: string = "default-project") => 
       await controlsCollection.add({
         ...control,
         projectId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp()
       });
     }
   }
@@ -104,7 +105,7 @@ export const seedInitialData = async (projectId: string = "default-project") => 
       await postsCollection.add({
         ...post,
         projectId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp()
       });
     }
   }

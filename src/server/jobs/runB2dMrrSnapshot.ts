@@ -28,15 +28,16 @@
 // inyectadas para testabilidad, idempotency key explícito, audit log
 // opcional.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import {
   computeB2dMetrics,
   type B2dMetrics,
 } from '../../services/analytics/b2dMetrics.js';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export interface B2dMrrSnapshotDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Override del clock para tests (default Date.now). */
   now?: () => Date;
   /** Override de computeB2dMetrics para tests. */
@@ -178,7 +179,7 @@ export async function runB2dMrrSnapshot(
  * UI lo usan para alimentar el chart de tendencia MRR.
  */
 export async function readRecentB2dMrrSnapshots(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   limitN = 12,
 ): Promise<B2dMrrSnapshotDoc[]> {
   const snap = await db

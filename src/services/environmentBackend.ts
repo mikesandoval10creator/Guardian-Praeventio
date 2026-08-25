@@ -1,6 +1,7 @@
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { logger } from '../utils/logger';
 import type { ClimateForecastDay } from './zettelkasten/climateRiskCoupling';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Re-export ClimateForecastDay for callers that already import it via this
 // module (server.ts dynamic import + future API consumers). Authoritative
@@ -84,7 +85,7 @@ export const updateGlobalEnvironmentalContext = async () => {
     await contextRef.set({
       weather: weatherData,
       seismic: seismicData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     logger.debug("[EnvironmentBackend] Global environmental context updated.");

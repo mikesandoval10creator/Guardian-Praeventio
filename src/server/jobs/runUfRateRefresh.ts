@@ -8,14 +8,15 @@
 // retries. The fetcher is injected (DI) so this is unit-testable without a
 // network call.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import { parseMindicadorUf, type UfRate } from '../../services/pricing/uf.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const UF_RATES_DOC = 'ufRates/current';
 
 export interface UfRateRefreshDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Returns the raw mindicador.cl JSON (or throws on network/HTTP error). */
   fetchUf: () => Promise<unknown>;
   now?: () => Date;

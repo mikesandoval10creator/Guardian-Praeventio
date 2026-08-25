@@ -8,7 +8,7 @@
 // `./iapReceipts.ts` (Sprint 21 Bucket T pair with the Google Play one).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { z } from 'zod';
 
 // Sprint 28 Bucket B3 — transversal Zod validation factory. See

@@ -31,7 +31,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -41,6 +41,9 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -49,7 +52,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -294,7 +297,7 @@ router.get(
       const fetchSurveyOrdered = async (
         statusFilter: 'open' | 'closed',
         orderField: 'openAt' | 'closeAt',
-      ): Promise<admin.firestore.QueryDocumentSnapshot[] | null> => {
+      ): Promise<QueryDocumentSnapshot[] | null> => {
         try {
           const snap = await baseRef
             .where('status', '==', statusFilter)
@@ -333,7 +336,7 @@ router.get(
       };
 
       const nowIso = new Date().toISOString();
-      let surveyDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+      let surveyDoc: QueryDocumentSnapshot | null = null;
 
       const openDocs = await fetchSurveyOrdered('open', 'openAt');
       if (openDocs && openDocs.length > 0) {
@@ -403,7 +406,7 @@ router.get(
           : 'closed';
 
       const responsesSnap = await safeRead<
-        admin.firestore.QuerySnapshot | null
+        QuerySnapshot | null
       >(
         () => baseRef.doc(surveyId).collection('responses').get(),
         null,
@@ -749,7 +752,7 @@ router.get(
       };
 
       const fetchHistoryOrdered = async (): Promise<
-        admin.firestore.QueryDocumentSnapshot[]
+        QueryDocumentSnapshot[]
       > => {
         try {
           const snap = await baseRef
@@ -790,7 +793,7 @@ router.get(
       for (const surveyDoc of surveyDocs) {
         const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
         const responsesSnap = await safeRead<
-          admin.firestore.QuerySnapshot | null
+          QuerySnapshot | null
         >(() => surveyDoc.ref.collection('responses').get(), null);
         const responses =
           responsesSnap?.docs.map(

@@ -18,7 +18,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { requireTier } from '../middleware/requireTier.js';
 import { tierGateEnforced } from '../middleware/tierRouteTable.js';

@@ -11,15 +11,17 @@
 // path, so callers can `void` this or await it inside a try/catch. Idempotent —
 // arrayRemove of an absent token is a no-op.
 
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 /**
  * Removes each token in `invalidTokens` from every `users/{uid}.fcmTokens`
  * array that contains it. Returns the number of (user, token) removals applied.
  */
 export async function pruneFcmTokens(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   invalidTokens: string[],
 ): Promise<number> {
   if (!Array.isArray(invalidTokens) || invalidTokens.length === 0) return 0;
@@ -35,7 +37,7 @@ export async function pruneFcmTokens(
         .get();
       for (const doc of snap.docs) {
         await doc.ref.update({
-          fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
+          fcmTokens: FieldValue.arrayRemove(token),
         });
         removed += 1;
       }

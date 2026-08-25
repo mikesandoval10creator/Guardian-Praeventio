@@ -13,10 +13,11 @@
 
 import type { Router } from 'express';
 import crypto from 'node:crypto';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
 import { logger } from '../../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * Hash SHA-256 del receipt id (tarea P1 secretos): el campo receiptIdHash
@@ -95,7 +96,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             ip: req.ip ?? null,
             userAgent: req.header('user-agent') ?? null,
           });
@@ -219,7 +220,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             'subscription.purchaseToken': receiptId,
             'subscription.orderId': null,
             'subscription.cycle': resolvedCycle,
-            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.updatedAt': FieldValue.serverTimestamp(),
           });
 
         await recordAttempt('granted');
@@ -289,7 +290,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             ip: req.ip ?? null,
             userAgent: req.header('user-agent') ?? null,
           });
@@ -406,7 +407,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
               success.payload?.appAccountToken ?? null,
             'subscription.appleOriginalTransactionId': success.originalTransactionId,
             'subscription.cycle': resolvedCycle,
-            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.updatedAt': FieldValue.serverTimestamp(),
           });
 
         await recordAttempt('granted');

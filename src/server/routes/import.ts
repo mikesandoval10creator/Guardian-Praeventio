@@ -25,7 +25,7 @@
 
 import { Router } from 'express';
 import express from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -45,6 +45,9 @@ import {
   type ImportEntityKind,
   type ValidationIssue,
 } from '../../services/excelImporter/index.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -121,7 +124,7 @@ function summarizeIssues(
 }
 
 async function loadExistingKeys(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string | undefined,
   kind: ImportEntityKind,
@@ -133,7 +136,7 @@ async function loadExistingKeys(
     // Lectura best-effort, paginada. Si la colección es enorme, sólo
     // miramos las primeras 1000 — la UI deja claro que la dedupe contra
     // base no es exhaustiva más allá de eso (issue conocido del Sprint).
-    let snap: admin.firestore.QuerySnapshot;
+    let snap: QuerySnapshot;
     if (projectId) {
       snap = await db
         .collection('tenants')
@@ -375,7 +378,7 @@ router.post(
           const docRef = colRef.doc();
           batch.set(docRef, {
             ...rec,
-            _importedAt: admin.firestore.FieldValue.serverTimestamp(),
+            _importedAt: FieldValue.serverTimestamp(),
             _importedBy: uid,
             _importSource: 'excel-importer',
           });

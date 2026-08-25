@@ -39,7 +39,7 @@
  * and any caching they want.
  */
 
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { API_TIERS, type ApiTierId, getApiTier } from '../pricing/aiTier.js';
 
 /**

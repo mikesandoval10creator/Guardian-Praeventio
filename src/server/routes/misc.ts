@@ -26,7 +26,7 @@
 // path suffix so the final on-the-wire URLs are byte-identical.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { erpSyncLimiter } from '../middleware/limiters.js';
@@ -48,6 +48,7 @@ import {
   ErpNotImplementedError,
   type ErpAction,
 } from '../../services/erp/erpAdapter.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function sentryCapture(
   err: unknown,
@@ -266,7 +267,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
         status: extraStatus,
         mode,
         message: extraMsg ?? null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
     } catch (logErr) {
       // No bloquear la respuesta si el log falla.

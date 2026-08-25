@@ -23,7 +23,7 @@
 // Identity ALWAYS from the token; nothing here trusts a client-supplied uid.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import crypto from 'node:crypto';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';

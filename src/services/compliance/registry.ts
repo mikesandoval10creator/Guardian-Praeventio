@@ -23,6 +23,8 @@
 // agnósticos al país).
 
 import { z } from 'zod';
+import { admin } from '../../server/firebase-admin-shim.ts';
+import type { Transaction } from 'firebase-admin/firestore';
 
 // ─── Tipos públicos ─────────────────────────────────────────────────────────
 //
@@ -322,13 +324,12 @@ function clOccupationalInjuryAdapter(): EmissionAdapter {
       // Build the minimal Firestore adapters. In unit tests these deps
       // are provided by the test via payload injection or the route mocks
       // firebase-admin before calling this module.
-      const adminModule = await import('firebase-admin');
-      const adminFirestore = adminModule.default.firestore();
+            const adminFirestore = admin.firestore();
 
       // MinimalFolioStore adapter wrapping admin.firestore()
       const folioStore: import('./../../services/suseso/folioGenerator.js').MinimalFolioStore = {
         async runTransaction(fn) {
-          return adminFirestore.runTransaction(async (tx) => {
+          return adminFirestore.runTransaction(async (tx: Transaction) => {
             return fn({
               async get(path: string) {
                 const ref = adminFirestore.doc(path);

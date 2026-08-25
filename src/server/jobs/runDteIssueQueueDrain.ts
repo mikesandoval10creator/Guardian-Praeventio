@@ -42,6 +42,7 @@ import {
 } from '../../services/dte/dteIssueQueueStore.js';
 import type { AutoIssueDteResult } from '../../services/billing/invoice.js';
 import type { Invoice } from '../../services/billing/types.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 export interface RunDteIssueQueueDrainOptions {
   /** Firestore handle. Defaults to firebase-admin (lazy import). */
@@ -105,7 +106,7 @@ export async function runDteIssueQueueDrain(
     return result;
   }
 
-  const db = opts.db ?? (await import('firebase-admin')).default.firestore();
+  const db = opts.db ?? admin.firestore();
   const now = opts.now ?? (() => new Date());
   const limit = opts.limit ?? 50;
   const issueDte =

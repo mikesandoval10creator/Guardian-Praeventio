@@ -1,9 +1,10 @@
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { GoogleGenAI } from "@google/genai";
 import { logger } from '../utils/logger';
 import { autoConnectNodes } from "./geminiBackend";
 import { assertProjectMember } from "./auth/projectMembership";
 import { AI_MODEL_EMBEDDINGS } from '../config/aiModels';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -80,9 +81,9 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   const finalData = {
     ...nodeData,
     id: nodeId,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     "metadata.authorId": authorUid,
-    "metadata.syncedAt": admin.firestore.FieldValue.serverTimestamp()
+    "metadata.syncedAt": FieldValue.serverTimestamp()
   };
 
   // Remove embedding from the main node document if we want to keep it light,
@@ -98,10 +99,10 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
       nodeId: nodeId,
       title: nodeData.title,
       content: `${nodeData.title}: ${nodeData.description}`,
-      embedding: admin.firestore.FieldValue.vector(nodeData.embedding),
+      embedding: FieldValue.vector(nodeData.embedding),
       type: nodeData.type,
       projectId: nodeData.projectId || 'global',
-      indexedAt: admin.firestore.FieldValue.serverTimestamp()
+      indexedAt: FieldValue.serverTimestamp()
     });
     logger.debug(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
   } catch (e) {
@@ -135,8 +136,8 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
         if (!currentConnections.includes(nodeId)) {
           // Add back-link using Admin SDK (bypasses rules)
           await targetRef.update({
-            connections: admin.firestore.FieldValue.arrayUnion(nodeId),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            connections: FieldValue.arrayUnion(nodeId),
+            updatedAt: FieldValue.serverTimestamp()
           });
         }
       }

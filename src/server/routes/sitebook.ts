@@ -10,7 +10,7 @@
 // router orchestrates auth + tenantId resolution + serialization.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -26,6 +26,7 @@ import {
 import { SiteBookAdapter } from '../../services/siteBook/siteBookFirestoreAdapter.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -60,7 +61,7 @@ const createEntrySchema = z.object({
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const claims = (await admin.auth().getUser(callerUid)).customClaims ?? {};
   if (typeof claims.tenantId === 'string' && claims.tenantId.length > 0) {

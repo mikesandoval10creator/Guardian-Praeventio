@@ -8,14 +8,16 @@
 //
 // Idempotency: solo emite 1 reminder por (obligationId, dueDay).
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import type { LegalObligation } from '../../services/legalCalendar/legalObligationsCalendar.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 const DEFAULT_COLLECTION = 'legal_obligations';
 
 export interface LegalCalendarRemindersDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   now?: () => Date;
   /**
    * Collection path. Default `'legal_obligations'` (legacy root). Production
@@ -61,7 +63,7 @@ export async function runLegalCalendarReminders(
     finishedAtIso: '',
   };
 
-  let snap: admin.firestore.QuerySnapshot;
+  let snap: QuerySnapshot;
   try {
     snap = await deps.db.collection(collectionPath).get();
   } catch (e) {

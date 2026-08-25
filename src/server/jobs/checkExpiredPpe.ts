@@ -23,7 +23,7 @@
 // HTTP handler can call both back-to-back and consolidate counts.
 
 import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import * as adminMessaging from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -31,6 +31,7 @@ import {
   formatDateCl,
   priorityFromCriticality,
 } from './expiryFindings.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
@@ -100,10 +101,10 @@ async function checkExpiredPpeInner(
 ): Promise<CheckExpiredPpeResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : admin.firestore();
   const messaging = opts.getMessaging
     ? opts.getMessaging()
-    : (await import('firebase-admin')).default.messaging();
+    : admin.messaging();
   const notifySupervisors: SupervisorNotifier =
     opts.notifySupervisors ??
     (async () => ({ notified: 0, failed: 0, supervisorEmails: [] }));

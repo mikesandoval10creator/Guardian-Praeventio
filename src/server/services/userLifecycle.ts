@@ -26,7 +26,7 @@
 //   - Testable in isolation: the helper takes the admin module as a DI
 //     param so unit tests can inject a fake.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 
 export interface DeactivateUserResult {
   uid: string;

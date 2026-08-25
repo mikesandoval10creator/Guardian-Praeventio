@@ -31,7 +31,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
-import admin from "firebase-admin";
+import { admin } from "../firebase-admin-shim.ts";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { validate } from "../middleware/validate.js";
 import { idempotencyKey } from "../middleware/idempotencyKey.js";
@@ -43,14 +43,17 @@ import {
   ProjectMembershipError,
 } from "../../services/auth/projectMembership.js";
 import { randomId } from "../../utils/randomId.js";
+import type { DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 // Helper para evitar duplicación del DocumentReference de sesión.
 // Si el esquema de colección cambia, este es el único punto a editar.
 function sessionDocRef(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   sessionId: string,
-): admin.firestore.DocumentReference {
+): DocumentReference {
   return db
     .collection("projects")
     .doc(projectId)
@@ -349,7 +352,7 @@ router.post(
           nativeManDownCapabilityHash: capabilityHash(capability),
           nativeManDownCapabilityExpiresAt: expiresAt,
           nativeManDownCapabilityIssuedAt:
-            admin.firestore.FieldValue.serverTimestamp(),
+            FieldValue.serverTimestamp(),
         });
       });
     } catch (err) {
@@ -479,7 +482,7 @@ router.post(
           source: "android_foreground_service",
           clientEventId: body.clientEventId,
           trigger: body.kind,
-          triggeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          triggeredAt: FieldValue.serverTimestamp(),
           occurredAt: body.occurredAt,
           ...(body.accelerationMps2 !== undefined
             ? { accelerationMps2: body.accelerationMps2 }
@@ -503,7 +506,7 @@ router.post(
           },
           userId: workerUid,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         });
       });
     } catch (err) {
@@ -718,11 +721,11 @@ router.post(
             await sessionRef.update({
               status: session.status,
               endedAt: session.endedAt,
-              nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
+              nativeManDownCapabilityHash: FieldValue.delete(),
               nativeManDownCapabilityExpiresAt:
-                admin.firestore.FieldValue.delete(),
+                FieldValue.delete(),
               nativeManDownCapabilityIssuedAt:
-                admin.firestore.FieldValue.delete(),
+                FieldValue.delete(),
             });
           }
         }

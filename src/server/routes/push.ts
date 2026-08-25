@@ -27,10 +27,11 @@
 //      principle is "log decisions and who/when, not credentials".
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const VALID_PLATFORMS = new Set<string>(['ios', 'android', 'web']);
 
@@ -55,8 +56,8 @@ router.post('/register-token', verifyAuth, async (req, res) => {
       .doc(callerUid)
       .set(
         {
-          fcmTokens: admin.firestore.FieldValue.arrayUnion(token),
-          lastTokenRegisteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          fcmTokens: FieldValue.arrayUnion(token),
+          lastTokenRegisteredAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -69,7 +70,7 @@ router.post('/register-token', verifyAuth, async (req, res) => {
       details: { platform },
       userId: callerUid,
       userEmail: callerEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });

@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateEmbedding } from "./ragService.js";
 import { logger } from '../utils/logger';

@@ -21,7 +21,7 @@
 // `/api/billing/invoice/:id/mark-paid`.
 
 import { Router } from "express";
-import admin from "firebase-admin";
+import { admin } from "../firebase-admin-shim.ts";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
 import { captureRouteError } from "../middleware/captureRouteError.js";
@@ -34,6 +34,7 @@ import {
   resolveInvoiceCycle,
 } from "../../services/pricing/subscriptionPlan.js";
 import { normalizeSubscriptionProvider } from "../../services/pricing/subscriptionEntitlement.js";
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const subscriptionRouter = Router();
 
@@ -225,7 +226,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
         throw new InvoiceExpiredInTxError();
       }
       await tx.update(paidInvoiceRef!, {
-        consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        consumedAt: FieldValue.serverTimestamp(),
       });
       await tx.set(
         db.collection("users").doc(uid),
@@ -239,7 +240,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
             provider: paymentMethod,
             expiryDate: null,
             gracePeriodEnd: null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             cycle,
           },
         },

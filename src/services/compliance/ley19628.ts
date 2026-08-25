@@ -1,3 +1,4 @@
+import type { Firestore } from 'firebase-admin/firestore';
 // Praeventio Guard — Sprint 23 Bucket FF.
 //
 // Compliance service for **Ley 19.628 sobre Protección de la Vida Privada**
@@ -240,7 +241,7 @@ export const PROCESSING_ACTIVITIES: ProcessingActivity[] = [
 // ---------------------------------------------------------------------------
 
 /**
- * Subset of `admin.firestore.Firestore` we actually consume. Mirrors the
+ * Subset of `Firestore` we actually consume. Mirrors the
  * shape used by `assertProjectMember` so tests can build a tiny in-memory
  * fake without pulling in `firebase-admin`.
  */

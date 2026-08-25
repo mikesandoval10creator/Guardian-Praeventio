@@ -5,11 +5,13 @@
 // los docs persisten su status original hasta que un cron los
 // materializa.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 export interface WorkPermitAutoExpireDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   now?: () => Date;
   /** Default 'work_permits' (legacy); tenant-scoped:
    *  `tenants/{tid}/projects/{pid}/work_permits`. */
@@ -44,7 +46,7 @@ export async function runWorkPermitAutoExpire(
   const collection = deps.collectionPath ?? 'work_permits';
   const nowIso = now().toISOString();
 
-  let snap: admin.firestore.QuerySnapshot;
+  let snap: QuerySnapshot;
   try {
     snap = await deps.db
       .collection(collection)

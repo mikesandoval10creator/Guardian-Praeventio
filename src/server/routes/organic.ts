@@ -18,7 +18,7 @@
 //   • POST /api/tasks/:id/done
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';
@@ -35,6 +35,7 @@ import type { ProcessType, ProcessStatus } from '../../types/organic.js';
 import { sentryAdapter } from '../../services/observability/sentryAdapter.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -273,7 +274,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
         details: { processId, from: proc.status, to: status },
         userId: uid,
         projectId: proc.projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
     } catch {
       /* non-fatal */
@@ -382,7 +383,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
       if (!procs.empty) {
         const ref = procs.docs[0].ref;
         await ref.update({
-          alertsResponded: admin.firestore.FieldValue.increment(1),
+          alertsResponded: FieldValue.increment(1),
         });
       }
     } catch {
@@ -397,7 +398,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
         crewId,
         generatorId,
         ackedBy: uid,
-        ackedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ackedAt: FieldValue.serverTimestamp(),
         xpAwarded,
       });
     } catch {

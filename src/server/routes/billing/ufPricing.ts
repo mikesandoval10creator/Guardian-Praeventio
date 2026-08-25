@@ -12,11 +12,12 @@
 // NaN. The cached rate is public Banco Central data; it is read SERVER-SIDE
 // (Admin SDK) and never trusted from the client.
 
-import type admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { logger } from '../../../utils/logger.js';
 import { diamanteTierFromUf, UF_MIN_PLAUSIBLE_CLP } from '../../../services/pricing/uf.js';
 import { resolveBillingTier, type BillingTier } from './pricing.js';
 import { sentryCapture } from './shared.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const UF_RATES_DOC = 'ufRates/current';
 /** Warn (not block) when the cached rate is older than this at checkout time. */
@@ -31,7 +32,7 @@ const UF_STALE_AFTER_MS = 72 * 60 * 60 * 1000;
  * blocked) so a stopped cron is observable.
  */
 export async function readCachedUfValueClp(
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<number | null> {
   try {
     const snap = await db.doc(UF_RATES_DOC).get();
@@ -68,7 +69,7 @@ export async function readCachedUfValueClp(
  */
 export async function resolveBillingTierUf(
   tierId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<BillingTier | null> {
   const tier = resolveBillingTier(tierId);
   if (!tier || tierId !== 'diamante') return tier;

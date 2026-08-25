@@ -25,7 +25,7 @@
 // alert fatigue — opinión documentada: gerencia y prevencionistas
 // quieren saber sólo cuando algo ESTÁ ROTO, no cuando se midió).
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import {
   buildResilienceHealthReport,
   type MonitorOptions,
@@ -34,9 +34,10 @@ import {
 } from '../../services/observability/resilienceHealthMonitor.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export interface ResilienceHealthAlertDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Checkers ya configurados con sus closures (Firestore ping, Gemini ping, …). */
   checkers: ResilienceCheckers;
   /** Override clock para tests. */

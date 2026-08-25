@@ -18,6 +18,7 @@
 // — so module load is fine, but every method must be mocked).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ function makeFakeAdmin() {
     collection: collectionWithChain,
   }));
 
-  // Static helpers admin.firestore.FieldValue.* + admin.firestore.FieldValue.vector(...).
+  // Static helpers FieldValue.* + FieldValue.vector(...).
   (firestore as any).FieldValue = {
     serverTimestamp: () => '__SERVER_TS__',
     arrayUnion: (...vals: unknown[]) => ({ __arrayUnion: vals }),

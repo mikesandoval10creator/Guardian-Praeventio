@@ -15,7 +15,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -42,6 +42,7 @@ import type {
   BrigadeMember,
   BrigadeRole,
 } from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -53,7 +54,7 @@ const POSITION_MAX_STALE_SECONDS = 1800; // 30 min
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -232,7 +233,7 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 async function readLastKnownPosition(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   uid: string,
   nowMs: number,

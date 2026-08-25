@@ -27,7 +27,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -89,6 +89,7 @@ import {
   resolveServerWindWithTimeout,
   type WindMergeResult,
 } from '../../services/workPermits/weatherGate.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -97,7 +98,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -395,7 +396,7 @@ const WIND_LOOKUP_TIMEOUT_MS = 3000;
 /** Read `projects/{projectId}.geo` when it carries finite lat/lng. */
 async function readProjectGeo(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<{ lat: number; lng: number } | null> {
   try {
     const snap = await db.collection('projects').doc(projectId).get();
@@ -500,7 +501,7 @@ function toGasTelemetryReading(
  * (firestore.indexes.json).
  */
 async function readZoneGasReadings(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string,
 ): Promise<GasTelemetryReading[] | null> {
@@ -523,7 +524,7 @@ async function readZoneGasReadings(
 
 /** `readZoneGasReadings` bounded by a hard deadline (weatherGate pattern). */
 async function readZoneGasReadingsWithTimeout(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string,
   timeoutMs = GAS_TELEMETRY_LOOKUP_TIMEOUT_MS,
@@ -548,7 +549,7 @@ async function readZoneGasReadingsWithTimeout(
  * absence of data must never stop work (weatherGate unavailability policy).
  */
 async function resolveGasVerification(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string | null | undefined,
 ): Promise<GasVerification> {

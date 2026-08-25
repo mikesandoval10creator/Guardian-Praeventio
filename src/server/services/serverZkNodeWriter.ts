@@ -20,7 +20,7 @@
 // uses, so server- and client-written nodes collapse onto identical doc ids
 // (a flow that runs once on-device and once server-side won't duplicate).
 
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { createHash } from 'node:crypto';
 import {
   materializeNode,
@@ -32,6 +32,7 @@ import type {
   WriteResult,
 } from '../../services/zettelkasten/persistence/writeNode.js';
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * The acting user, stamped server-side from the verified token by the calling
@@ -82,7 +83,7 @@ export async function serverCreateNodeOnce(
       projectId,
       createdBy: actor.createdBy,
       createdByEmail: actor.createdByEmail ?? null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       idempotencyKey: id,
       stableBusinessKey: stableKey,
     });
@@ -99,7 +100,7 @@ export async function serverCreateNodeOnce(
       userId: actor.createdBy,
       userEmail: actor.createdByEmail ?? null,
       projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
     return true;
   });
@@ -224,7 +225,7 @@ export async function serverWriteNodes(
           projectId,
           createdBy: actor.createdBy,
           createdByEmail: actor.createdByEmail ?? null,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
           idempotencyKey: id,
         },
         { merge: true },
@@ -267,7 +268,7 @@ export async function serverWriteNodes(
       userId: actor.createdBy,
       userEmail: actor.createdByEmail ?? null,
       projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   }
 

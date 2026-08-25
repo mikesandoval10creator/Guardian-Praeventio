@@ -54,10 +54,12 @@
 // `withIdempotency`). Keep the surface explicit.
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { createHash } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * Default TTL for cached responses. Stripe uses 24 h — long enough for
@@ -91,7 +93,7 @@ export interface IdempotencyKeyOptions {
   /** Injected clock for tests. */
   now?: () => Date;
   /** Injected Firestore instance for tests. */
-  firestore?: () => admin.firestore.Firestore;
+  firestore?: () => Firestore;
 }
 
 interface CachedResponse {
@@ -110,7 +112,7 @@ interface CachedResponse {
    */
   fingerprint: string;
   capturedAtMs: number;
-  expiresAt: admin.firestore.Timestamp;
+  expiresAt: Timestamp;
 }
 
 /** Sentry capture mirror used elsewhere in the middleware folder. */
@@ -323,7 +325,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
         headers: safeReplayHeaders(res),
         fingerprint,
         capturedAtMs: now().getTime(),
-        expiresAt: admin.firestore.Timestamp.fromMillis(expiresMs),
+        expiresAt: Timestamp.fromMillis(expiresMs),
       };
       try {
         // Transaction: first writer wins. A second concurrent caller

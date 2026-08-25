@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { AI_MODEL_FAST } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;

@@ -2,13 +2,15 @@
 // Child-process fixture: one isolated Cloud Run-style background-trigger instance.
 
 import { randomUUID } from 'node:crypto';
-import type admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   setupBackgroundTriggers,
   type BackgroundTriggersDeps,
 } from '../backgroundTriggers.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { MulticastMessage } from 'firebase-admin/messaging';
 
 type ParentMessage = { type: 'release' } | { type: 'shutdown' };
 
@@ -73,10 +75,10 @@ const triggerDb = {
     }
     return result;
   },
-} as unknown as admin.firestore.Firestore;
+} as unknown as Firestore;
 
 const messaging = {
-  sendEachForMulticast: async (message: admin.messaging.MulticastMessage) => {
+  sendEachForMulticast: async (message: MulticastMessage) => {
     send({ type: 'sent', instanceId, tokens: [...message.tokens] });
     return { successCount: 1, failureCount: 0, responses: [] };
   },

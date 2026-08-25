@@ -28,7 +28,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -49,6 +49,7 @@ import {
   type GapHistory,
   type PressureSignals,
 } from '../../services/orgMetrics/organizationalMetrics.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -332,7 +333,7 @@ router.post(
           overtimeHours: body.overtimeHours,
           headcount: body.headcount,
           recordedBy: callerUid,
-          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recordedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -351,7 +352,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

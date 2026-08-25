@@ -13,13 +13,14 @@
 //   4. Non-gas sample with no rule match is dropped (cost protection).
 //   5. zoneId pass-through so the gas gate can join work_permits.zoneId.
 //
-// We mock `firebase-admin` so `admin.firestore.FieldValue.serverTimestamp()`
+// We mock `firebase-admin` so `FieldValue.serverTimestamp()`
 // resolves without a real Firestore project, and inject an in-memory `db`
 // + `messaging` so we can assert on the recorded writes. The
 // `sendToProjectSupervisors` symbol is mocked on the emergency module so
 // the bridge can call it without booting an Express app.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 vi.mock('firebase-admin', () => ({
   default: {

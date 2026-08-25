@@ -25,7 +25,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -48,6 +48,7 @@ import {
   type Verifier,
   type ScanResult,
 } from '../../services/qrAck/qrAckSessionEngine.js';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -159,7 +160,7 @@ interface UsedScanRecord {
   projectId: string;
   signedAt: string;
   /** Firestore TTL field (7 days after sign). */
-  ttlAt: admin.firestore.Timestamp;
+  ttlAt: Timestamp;
 }
 
 const USED_SCANS_COLLECTION = 'qr_ack_used_scans';
@@ -219,7 +220,7 @@ router.post(
         if (!txResult.ok) {
           return txResult;
         }
-        const ttlAt = admin.firestore.Timestamp.fromMillis(
+        const ttlAt = Timestamp.fromMillis(
           Date.now() + 7 * 24 * 3_600_000,
         );
         const record: UsedScanRecord = {

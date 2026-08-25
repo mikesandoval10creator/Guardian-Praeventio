@@ -30,7 +30,7 @@
 // because they leave the account in an unusable state.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -46,6 +46,7 @@ import { SII_ACTIVIDADES_ECONOMICAS } from '../../data/sii/actividadesEconomicas
 // thresholds drive the dotación obligations.
 import { buildProjectSeeds } from '../../services/sii/projectSeeds.js';
 import { CL_PACK } from '../../data/normativa/cl.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const onboardingRouter = Router();
 
@@ -207,7 +208,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
           ...(payload.estimatedWorkers != null
             ? { estimatedWorkers: payload.estimatedWorkers }
             : {}),
-          configuredAt: admin.firestore.FieldValue.serverTimestamp(),
+          configuredAt: FieldValue.serverTimestamp(),
         },
         // For free tier we activate immediately. For paid tiers we
         // record the user's intent and let the payment flow flip
@@ -217,15 +218,15 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
               planId: 'gratis',
               pendingTier: payload.tier,
               status: 'pending_payment',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
             }
           : {
               planId: 'gratis',
               status: 'active',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
             },
         onboarded: true,
-        onboardedAt: admin.firestore.FieldValue.serverTimestamp(),
+        onboardedAt: FieldValue.serverTimestamp(),
         // 1a — tenant-owner promotion (see block above).
         ...(promoteToGerente ? { role: 'gerente' } : {}),
       },
@@ -262,7 +263,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     await projectRef.set({
       name: payload.projectName,
       ownerUid: uid,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       members: { [uid]: { role: 'gerente', joinedAt: new Date().toISOString() } },
       industry: payload.industry,
       countries: payload.countries,
@@ -421,7 +422,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
             status: 'pending',
             role: 'operario',
             invitedBy: uid,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             source: 'onboarding-wizard',
           });
 
@@ -475,7 +476,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
           uploadedBy: uid,
           status: 'pending',
           csv: payload.workersCsv,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
     } catch (csvErr) {
       // CSV stash is best-effort — user can re-upload from the project

@@ -36,7 +36,7 @@
 //   tenants/{tenantId}/projects/{projectId}/zone_entry_events/{eventId}
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -56,6 +56,7 @@ import {
   type ZoneEntryCheckInput,
   type ZoneEntryResult,
 } from '../../services/zones/restrictedZonesEngine.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -273,7 +274,7 @@ router.post(
         {
           ...body.zone,
           createdBy: callerUid,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -418,7 +419,7 @@ router.post(
     }
 
     const eventId = newEventId();
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     const finalEvaluation = serverEvaluation ?? body.evaluation;
 

@@ -28,7 +28,7 @@
 // through R18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import crypto from 'crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
@@ -37,6 +37,7 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { autoValidateTelemetry } from '../../services/safetyEngineBackend.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Aligned with the frontend type union in src/pages/Telemetry.tsx +
 // Evacuation.tsx ('wearable' | 'machinery'). 'iot', 'environmental',
@@ -264,7 +265,7 @@ router.post('/telemetry/ingest', async (req, res) => {
       tenantId: tenantId ?? null,
       zoneId,
       deviceTimestamp,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     return res.json({
@@ -304,7 +305,7 @@ router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
     await admin.firestore().collection('tenants').doc(tenantId).set(
       {
         iotSecret: newSecret,
-        iotSecretRotatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        iotSecretRotatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );

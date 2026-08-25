@@ -16,15 +16,16 @@
 // endpoint dedicado) invoca esta función con dependencias inyectadas;
 // los tests usan FakeFirestore + spies.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────
 // Inputs / Outputs
 // ────────────────────────────────────────────────────────────────────────
 
 export interface ConsistencyAuditDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Override para tests (Date.now). */
   now?: () => Date;
   /** Hook opcional de notificación supervisor. Default no-op. */
@@ -60,7 +61,7 @@ export interface ConsistencyAuditResult {
  * diaria. Listo para extender en PRs siguientes.
  */
 async function detectProjectIssues(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
 ): Promise<number> {
   let count = 0;

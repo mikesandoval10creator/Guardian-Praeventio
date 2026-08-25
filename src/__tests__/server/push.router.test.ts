@@ -22,6 +22,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
@@ -179,7 +180,7 @@ describe('POST /api/push/register-token (real router)', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
 
-    // The REAL handler used admin.firestore.FieldValue.arrayUnion + merge:true,
+    // The REAL handler used FieldValue.arrayUnion + merge:true,
     // resolved by the fake's FieldValue engine.
     const doc = userDoc(WORKER);
     expect(doc).toBeDefined();

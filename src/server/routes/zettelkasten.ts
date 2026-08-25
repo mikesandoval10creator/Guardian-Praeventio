@@ -26,7 +26,7 @@
 // duplican filas.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { VALID_ZK_NODE_TYPES } from './zettelkastenNodeTypes.js';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -89,6 +89,7 @@ import {
   type QueryableNode,
 } from '../../services/zettelkasten/structuredQuery.js';
 import { registerZettelkastenGraphMutationRoutes } from './zettelkastenGraphMutations.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 registerZettelkastenGraphMutationRoutes(router);
@@ -247,7 +248,7 @@ router.post(
             projectId,
             createdBy: callerUid,
             createdByEmail: callerEmail,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             idempotencyKey: node.idempotencyKey,
           },
           { merge: true },
@@ -304,7 +305,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -384,7 +385,7 @@ router.post(
       const deps: IncidentRagDeps = {
         db: db as unknown as IncidentRagDeps['db'],
         embed: generateIncidentEmbedding,
-        toVector: (vec) => admin.firestore.FieldValue.vector(vec),
+        toVector: (vec) => FieldValue.vector(vec),
       };
       const result = await searchIncidents(
         tenantId,

@@ -26,7 +26,7 @@
 // (oauth/gemini) deferred to Round 17/18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import {
@@ -35,6 +35,8 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -111,7 +113,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
       // Trust level: this endpoint only ever records client-declared telemetry.
       // Authoritative consumers filter on source:'server'.
       source: 'client',
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
@@ -181,7 +183,7 @@ router.get('/audit-log', verifyAuth, async (req, res) => {
         query = query.where(
           'timestamp',
           '>=',
-          admin.firestore.Timestamp.fromDate(sinceDate),
+          Timestamp.fromDate(sinceDate),
         ) as typeof query;
       }
     }

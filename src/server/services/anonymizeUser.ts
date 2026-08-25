@@ -34,7 +34,9 @@
 // + deletes converge). The endpoint MUST audit `account.anonymization_initiated`
 // BEFORE calling this so intent survives a mid-scrub failure.
 
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 /**
  * `users/{uid}` PII fields removed on anonymization (the doc keeps its
@@ -66,7 +68,7 @@ export const ANONYMIZATION_PII_SUBCOLLECTIONS = [
 
 export interface AnonymizeUserDeps {
   authAdmin: typeof admin.auth;
-  db: admin.firestore.Firestore;
+  db: Firestore;
 }
 
 export interface AnonymizeUserInput {
@@ -104,7 +106,7 @@ const BATCH_LIMIT = 500;
 
 /** Delete every doc in `users/{uid}/{sub}`, chunked at 500; returns the count. */
 async function purgeSubcollection(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   uid: string,
   sub: string,
 ): Promise<number> {
@@ -130,7 +132,7 @@ const ANON_AUTHOR_LABEL = 'Usuario anonimizado';
  * Chunked at the 500-op batch limit. Returns the number of posts touched.
  */
 async function scrubAuthoredSafetyPosts(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   uid: string,
 ): Promise<number> {
   const snap = await db.collectionGroup('safety_posts').where('userId', '==', uid).get();
@@ -144,7 +146,7 @@ async function scrubAuthoredSafetyPosts(
       };
       const patch: Record<string, unknown> = {
         userName: ANON_AUTHOR_LABEL,
-        userPhoto: admin.firestore.FieldValue.delete(),
+        userPhoto: FieldValue.delete(),
       };
       // Comments are an embedded array — rewrite it, scrubbing only the
       // anonymized user's OWN comments (others' names are not ours to touch).
@@ -191,7 +193,7 @@ export async function anonymizeUser(
   // 4. Scrub users/{uid} PII (merge: keep functional fields intact).
   const redact: Record<string, unknown> = { email, anonymizedAt };
   for (const field of ANONYMIZATION_USERS_DOC_REDACT) {
-    redact[field] = admin.firestore.FieldValue.delete();
+    redact[field] = FieldValue.delete();
   }
   await db.collection('users').doc(uid).set(redact, { merge: true });
 
@@ -199,8 +201,8 @@ export async function anonymizeUser(
   // (leaderboard/CV surfaces copy userName/userPhoto at write time).
   await db.collection('user_stats').doc(uid).set(
     {
-      userName: admin.firestore.FieldValue.delete(),
-      userPhoto: admin.firestore.FieldValue.delete(),
+      userName: FieldValue.delete(),
+      userPhoto: FieldValue.delete(),
     },
     { merge: true },
   );

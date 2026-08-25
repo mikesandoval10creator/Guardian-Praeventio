@@ -23,7 +23,7 @@
 // Mounted in server.ts at `/api/dte`. Final paths preserved verbatim.
 
 import { Router, type Request, type Response } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { getWebauthnRpId } from '../auth/rpId.js';

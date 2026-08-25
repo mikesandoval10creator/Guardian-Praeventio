@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 
 import {
@@ -27,6 +27,7 @@ import {
   StubProfessionalRegistryProvider,
   type ProfessionalRegistryVerification,
 } from '../../services/health/professionalRegistryProvider.js';
+import { FieldPath } from 'firebase-admin/firestore';
 
 type ProfessionalStore = {
   enroll(input: {
@@ -242,7 +243,7 @@ export function createFirestoreProfessionalIdentityRepository(
     },
     async listForLookupReindex(afterUid, limit) {
       let query: FirebaseFirestore.Query = identities.orderBy(
-        admin.firestore.FieldPath.documentId(),
+        FieldPath.documentId(),
       );
       if (afterUid) query = query.startAfter(afterUid);
       const snapshot = await query.limit(limit).get();

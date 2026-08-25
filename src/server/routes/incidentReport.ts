@@ -16,7 +16,7 @@
 
 import { Router } from 'express';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -25,6 +25,7 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ interface CanonicalIncident {
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -69,7 +70,7 @@ async function resolveTenantId(
 async function loadCanonicalIncident(
   incidentId: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<CanonicalIncident | null> {
   const snap = await db.collection('incidents').doc(incidentId).get();
   if (!snap.exists) return null;

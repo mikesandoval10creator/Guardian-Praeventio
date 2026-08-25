@@ -40,11 +40,13 @@
 //     promotion (users doc create rule only self-assigns worker roles);
 //     after that, every role change flows through here automatically.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { ADMIN_ROLES, SUPERVISOR_ROLES, WORKER_ROLES, ALL_ROLES } from '../../types/roles.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { serializeByKey } from './backgroundTriggers.js';
+import type { Auth } from 'firebase-admin/auth';
+import type { Firestore } from 'firebase-admin/firestore';
 
 // Lifecycle claim roles minted by userLifecycle.deactivateUser() and
 // anonymizeUser(). Never overwritten by the sync (see header).
@@ -60,10 +62,10 @@ function rank(role: unknown): number {
 }
 
 export interface RoleClaimsSyncDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Firebase Admin Auth — only the three members the sync needs. */
   auth: Pick<
-    admin.auth.Auth,
+    Auth,
     'getUser' | 'setCustomUserClaims' | 'revokeRefreshTokens'
   >;
   /** Firestore admin namespace — for FieldValue.serverTimestamp(). */

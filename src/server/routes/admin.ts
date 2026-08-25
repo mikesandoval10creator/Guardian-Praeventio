@@ -21,7 +21,7 @@
 // (oauth/gemini) deferred to Round 17/18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { verifySchedulerOrFallback } from '../middleware/verifySchedulerToken.js';
 import {
@@ -74,6 +74,7 @@ import {
 } from '../../services/observability/quotaTracker.js';
 import { geminiCircuit } from '../middleware/geminiCircuit.js';
 import { getAiProviderStats } from '../../services/ai/providerRouter.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
@@ -204,7 +205,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
     // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
     await admin.firestore().collection('user_sessions').doc(targetUid).set(
       {
-        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+        revokedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -214,7 +215,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'revoke_access',
       target: targetUid,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -316,7 +317,7 @@ router.post('/webauthn/revoke', verifyAuth, async (req, res) => {
       target: targetUid,
       // credentialIds are public identifiers (not secrets) — safe to audit.
       details: { count: revokedIds.length, credentialIds: revokedIds },
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -380,7 +381,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       target: uid,
       oldRole,
       newRole: role,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -439,7 +440,7 @@ router.post('/replicate-critical', verifySchedulerOrFallback(verifyAuth), async 
     await safeAudit({
       actor: callerUid,
       action: 'replicate_critical',
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       result,
@@ -470,7 +471,7 @@ router.post('/jobs/weekly-digest', verifySchedulerOrFallback(verifyAuth), async 
     await safeAudit({
       actor: callerUid,
       action: 'weekly_digest_run',
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       result: {
@@ -578,7 +579,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
               ...proxy,
               projectId,
               source: 'daily-climate-scan',
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
             },
             { merge: true },
           );
@@ -620,7 +621,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
         await safeAudit({
           actor: callerUid,
           action,
-          ts: admin.firestore.FieldValue.serverTimestamp(),
+          ts: FieldValue.serverTimestamp(),
           ip: req.ip,
           ua: req.header('user-agent') || null,
           details,
@@ -805,7 +806,7 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
       action: 'quota_reset',
       target: tenantId,
       date,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -878,7 +879,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
         {
           clearRequested: true,
           clearRequestedBy: callerUid,
-          clearRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+          clearRequestedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -886,7 +887,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'sync_clear_user_queue',
       target: targetUid,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });

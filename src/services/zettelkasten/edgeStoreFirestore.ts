@@ -5,15 +5,17 @@
 // materialización del `EdgeStore` (la interfaz DI de `edges.ts`) en vez de
 // duplicarla. El store vive en `tenants/{tenantId}/zettelkasten_edges`.
 
-import type admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import type { EdgeStore, EdgeType, ZkEdge } from './edges.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Query } from 'firebase-admin/firestore';
 
 /** Canonical Firestore collection path for a tenant's edges. */
 export const EDGE_PATH = (tid: string): string =>
   `tenants/${tid}/zettelkasten_edges`;
 
 /** Build a Firestore-backed `EdgeStore` (the DI shape `edges.ts` expects). */
-export function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
+export function buildEdgeStore(db: Firestore): EdgeStore {
   return {
     async saveEdge(edge: ZkEdge) {
       await db
@@ -25,7 +27,7 @@ export function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
       await db.collection(EDGE_PATH(tenantId)).doc(id).delete();
     },
     async findOutgoing(nodeId: string, tenantId: string, type?: EdgeType) {
-      let q: admin.firestore.Query = db
+      let q: Query = db
         .collection(EDGE_PATH(tenantId))
         .where('fromNodeId', '==', nodeId);
       if (type) q = q.where('type', '==', type);
@@ -33,7 +35,7 @@ export function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
       return snap.docs.map((d) => d.data() as ZkEdge);
     },
     async findIncoming(nodeId: string, tenantId: string, type?: EdgeType) {
-      let q: admin.firestore.Query = db
+      let q: Query = db
         .collection(EDGE_PATH(tenantId))
         .where('toNodeId', '==', nodeId);
       if (type) q = q.where('type', '==', type);
@@ -41,7 +43,7 @@ export function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
       return snap.docs.map((d) => d.data() as ZkEdge);
     },
     async listByTenant(tenantId: string, limit?: number) {
-      let q: admin.firestore.Query = db.collection(EDGE_PATH(tenantId));
+      let q: Query = db.collection(EDGE_PATH(tenantId));
       if (typeof limit === 'number' && limit > 0) q = q.limit(limit);
       const snap = await q.get();
       return snap.docs.map((d) => d.data() as ZkEdge);

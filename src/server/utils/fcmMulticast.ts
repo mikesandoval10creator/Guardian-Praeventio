@@ -11,7 +11,7 @@
 // aggregates `successCount`/`failureCount`. Errors raised by a single
 // chunk are recorded in `errorCount` and do not abort subsequent chunks.
 
-import type { messaging as adminMessaging } from 'firebase-admin';
+import * as adminMessaging from 'firebase-admin/messaging';
 import { logger } from '../../utils/logger.js';
 
 /** Firebase Admin SDK limit per multicast call. */

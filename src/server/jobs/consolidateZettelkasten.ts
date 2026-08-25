@@ -38,9 +38,10 @@
 // CLI flag to flip; the operator passes the option in code.
 
 import type { Firestore } from 'firebase-admin/firestore';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 
 import { logger } from '../../utils/logger.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export type ConsolidationMode = 'dry-run' | 'commit';
 
@@ -174,7 +175,7 @@ export async function consolidateZettelkasten(
             tenantId,
             idempotencyKey,
             consolidatedFrom: source.collection,
-            consolidatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            consolidatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true },
         );

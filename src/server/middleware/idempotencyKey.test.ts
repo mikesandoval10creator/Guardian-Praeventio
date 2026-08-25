@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { idempotencyKey, IDEMPOTENCY_CACHE_COLLECTION } from './idempotencyKey.js';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 // â”€â”€ In-memory Firestore double â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
@@ -76,7 +77,7 @@ function makeFakeFirestore() {
 }
 
 // firebase-admin's Timestamp is referenced inside the middleware
-// (`admin.firestore.Timestamp.fromMillis`). We mock the admin module so
+// (`Timestamp.fromMillis`). We mock the admin module so
 // that resolves without spinning up real Firestore.
 vi.mock('firebase-admin', () => ({
   default: {

@@ -36,6 +36,7 @@ import {
   isFeedbackReader,
   type FeedbackUser,
 } from './aiFeedbackAccess.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PII redaction (pure, exported for tests).
@@ -218,7 +219,7 @@ router.post(
     const force = String(req.query.force ?? '') === 'true';
     try {
       const { getFirestore } = await import('firebase-admin/firestore');
-      const admin = (await import('firebase-admin')).default;
+      const { admin } = await import('../../server/firebase-admin-shim.ts');
       const db = getFirestore();
       const redaction = redactPII(body.response);
       const rationaleRedaction = body.rationale ? redactPII(body.rationale) : null;
@@ -298,7 +299,7 @@ router.post(
           },
           userId: tenantId,
           userEmail: callerEmail,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

@@ -77,7 +77,7 @@ function defaultNonce(): string {
 }
 
 async function getDefaultDb(): Promise<Firestore> {
-  const admin = (await import('firebase-admin')).default;
+  const { admin } = await import('../../server/firebase-admin-shim.ts');
   return admin.firestore();
 }
 

@@ -21,9 +21,10 @@
 // que por debajo de eso el embedding no es semánticamente preciso para
 // material legal. Conservador: mejor decir "no sé" que arriesgar mal.
 
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from '../../utils/logger.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export type SafeNormativeQueryReason =
   | 'no_verified_match'
@@ -63,7 +64,7 @@ const PREVIEW_CHARS = 240;
  * y al adapter Gemini existente.
  */
 export interface SafeNormativeDeps {
-  firestore?: () => admin.firestore.Firestore;
+  firestore?: () => Firestore;
   generateEmbedding?: (query: string) => Promise<number[]>;
   isRagInitialized?: () => boolean;
 }

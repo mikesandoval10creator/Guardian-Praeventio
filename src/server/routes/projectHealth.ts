@@ -22,7 +22,7 @@
 // authoritative rather than overwriting it with a fabricated one.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -33,6 +33,7 @@ import {
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { auditProjectComplianceWithAI } from '../../services/gemini/operations.js';
 import { getPackByCode, type CountryCode } from '../../services/normativa/countryPacks.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -132,7 +133,7 @@ router.post('/:projectId/health-check', verifyAuth, async (req, res) => {
       {
         compliance,
         summary: typeof compliance.summary === 'string' ? compliance.summary : null,
-        checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+        checkedAt: FieldValue.serverTimestamp(),
         checkedBy: callerUid,
         normativePack: pack.code,
       },

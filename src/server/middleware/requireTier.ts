@@ -30,7 +30,7 @@
 //     plan. A missing/unknown plan resolves to the free tier (rank 0).
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import {
   planMeetsMinimum,
   type SubscriptionPlan,

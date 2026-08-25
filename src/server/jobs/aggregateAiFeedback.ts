@@ -22,6 +22,7 @@ import {
   type FeedbackSummary,
 } from '../routes/aiFeedback.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 type FirestoreFactory = () => Firestore;
 
@@ -61,7 +62,7 @@ async function aggregateAiFeedbackInner(
 ): Promise<AggregateResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : admin.firestore();
   const now = (opts.now ?? (() => new Date()))();
   const lookbackDays = opts.lookbackDays ?? 7;
   const cutoffMs = now.getTime() - lookbackDays * 24 * 60 * 60 * 1000;

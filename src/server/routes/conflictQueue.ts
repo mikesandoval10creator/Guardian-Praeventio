@@ -27,7 +27,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -48,6 +48,10 @@ import {
   type ConflictQueueStatus,
 } from '../../services/sync/conflictQueue.js';
 import type { Conflict } from '../../services/sync/conflictResolver.js';
+import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Query } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -75,7 +79,7 @@ function stableEnqueuedAt(conflict: Conflict): Date {
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -127,7 +131,7 @@ function queueRef(tenantId: string, queueId: string) {
     .doc(queueId);
 }
 
-function toEntry(snap: admin.firestore.DocumentSnapshot): ConflictQueueEntry {
+function toEntry(snap: DocumentSnapshot): ConflictQueueEntry {
   return snap.data() as ConflictQueueEntry;
 }
 
@@ -305,7 +309,7 @@ router.get('/:projectId/conflict-queue', verifyAuth, async (req, res) => {
     ).includes(rawStatus)
       ? (rawStatus as ConflictQueueStatus | 'all')
       : 'all';
-    let q: admin.firestore.Query = db
+    let q: Query = db
       .collection(`tenants/${g.tenantId}/conflict_queue`)
       .where('projectId', '==', projectId);
     if (statusFilter !== 'all') q = q.where('status', '==', statusFilter);
@@ -457,7 +461,7 @@ router.post(
         } else if (Object.keys(canonical.patch).length > 0) {
           tx.update(targetRef, {
             ...canonical.patch,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
         }
         tx.set(ref, { ...next, tenantId: g.tenantId });

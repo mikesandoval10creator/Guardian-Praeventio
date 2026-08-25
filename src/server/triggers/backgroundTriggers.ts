@@ -22,7 +22,7 @@
 // IMPORTANT: this module MUST NOT do work at import time. The only
 // top-level exports are types and the `setupBackgroundTriggers` function.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import type { Resend } from 'resend';
 import { randomUUID } from 'node:crypto';
 import { getErrorTracker } from '../../services/observability/index.js';
@@ -40,6 +40,8 @@ import {
 } from './backgroundTriggerClaim.js';
 import { createCriticalAlertOutbox } from './criticalAlertOutbox.js';
 import { deliverOutboxItem, type OutboxDeliveryDeps } from './criticalAlertOutboxWorker.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Messaging } from 'firebase-admin/messaging';
 
 const TRIGGER_LEASE_MS = 2 * 60 * 1000;
 
@@ -130,8 +132,8 @@ function sentryCapture(
 }
 
 export interface BackgroundTriggersDeps {
-  db: admin.firestore.Firestore;
-  messaging: admin.messaging.Messaging;
+  db: Firestore;
+  messaging: Messaging;
   resend: Resend;
   /** Firestore admin namespace — needed for FieldValue.serverTimestamp(). */
   firestoreNamespace: typeof admin.firestore;

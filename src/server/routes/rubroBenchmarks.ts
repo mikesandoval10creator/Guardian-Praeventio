@@ -31,7 +31,7 @@
 // pattern) and serve the cached doc here instead.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -45,6 +45,7 @@ import {
   type AnonymousProjectMetrics,
   type RubroMetricId,
 } from '../../services/sii/rubroBenchmarks.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -118,7 +119,7 @@ async function safeRead(
  * `tenants/{tid}/projects/{pid}/incidents`, deduped by doc id.
  */
 async function metricsForProject(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   tenantKey: string,
   nowMs: number,

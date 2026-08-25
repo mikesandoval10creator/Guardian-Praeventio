@@ -1,4 +1,5 @@
-import * as admin from 'firebase-admin';
+import { admin } from '../server/firebase-admin-shim.ts';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // B6 (Fase 5): `reason` is interpolated into a Firestore FIELD PATH below
 // (`completedChallenges.${reason}`). A `reason` containing a dot (or other
@@ -33,11 +34,11 @@ export const awardPoints = async (uid: string, amount: number, reason: string) =
         lastLogin: new Date().toISOString(),
         loginStreak: 1,
         completedChallenges: { [reason]: new Date().toISOString() },
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp()
       });
     } else {
       transaction.update(userRef, {
-        points: admin.firestore.FieldValue.increment(amount),
+        points: FieldValue.increment(amount),
         [`completedChallenges.${reason}`]: new Date().toISOString()
       });
     }
@@ -47,7 +48,7 @@ export const awardPoints = async (uid: string, amount: number, reason: string) =
       uid,
       amount,
       reason,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      timestamp: FieldValue.serverTimestamp()
     });
   });
 };
@@ -85,7 +86,7 @@ export const checkMedalEligibility = async (uid: string) => {
 
   if (newMedals.length > 0) {
     await db.collection('user_stats').doc(uid).update({
-      medals: admin.firestore.FieldValue.arrayUnion(...newMedals)
+      medals: FieldValue.arrayUnion(...newMedals)
     });
   }
 

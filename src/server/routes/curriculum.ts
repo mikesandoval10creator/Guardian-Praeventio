@@ -24,7 +24,7 @@
 // this file is intentional — see PortableCurriculum cosign flow.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -72,6 +72,7 @@ import {
   createWebAuthnChallengesFirestoreDb,
   createWebAuthnCredentialsFirestoreDb,
 } from '../auth/webauthnFirestoreDb.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
@@ -166,7 +167,7 @@ export function buildCurriculumAuditor(
         userId: callerUid ?? 'system',
         userEmail: callerEmail ?? null,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: ipMaybe ?? null,
         userAgent: uaMaybe ?? null,
       });

@@ -14,7 +14,7 @@
 //
 // Storage: Firestore collection `b2d_api_keys/{id}`.
 
-import * as admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { ApiTierId } from '../pricing/aiTier.js';

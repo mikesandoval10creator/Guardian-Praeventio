@@ -17,7 +17,7 @@
 // respective domain routes (sitebook.ts, etc.).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { requireTier } from '../middleware/requireTier.js';
 import { tierGateEnforced } from '../middleware/tierRouteTable.js';
@@ -55,6 +55,7 @@ import {
 } from '../../services/roleViews/roleViewBuilder.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -79,7 +80,7 @@ async function guardProjectAccess(
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;

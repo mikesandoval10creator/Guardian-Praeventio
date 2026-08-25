@@ -16,7 +16,7 @@
 // usuario active el feature flag MATERIALIZER_ENABLED=true. Ship
 // behind flag para no perturbar el comportamiento actual.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import {
   materializeNode,
@@ -25,6 +25,7 @@ import {
   type CanonicalNode,
 } from '../../services/zettelkasten/canonical/materializer.js';
 import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -159,7 +160,7 @@ export async function processSnapshotDoc(
 // ────────────────────────────────────────────────────────────────────────
 
 export interface MaterializerListenerDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Tenant filter — listener escucha solo este tenant a la vez. */
   tenantId: string;
 }

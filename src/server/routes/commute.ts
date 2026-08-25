@@ -20,7 +20,7 @@
 // client cannot redirect writes into a different tenant.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -31,6 +31,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -99,7 +100,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
         projectId,
         type,
         startedBy: callerUid,
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
         endedAt: null,
         samples: [],
       });
@@ -110,7 +111,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
       userId: callerUid,
       userEmail: callerEmail,
       projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
@@ -189,7 +190,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
 
   try {
     await sessionDoc.ref.update({
-      samples: admin.firestore.FieldValue.arrayUnion({
+      samples: FieldValue.arrayUnion({
         lat,
         lng,
         speedKmh,
@@ -238,7 +239,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
 
   try {
     await sessionDoc.ref.update({
-      endedAt: admin.firestore.FieldValue.serverTimestamp(),
+      endedAt: FieldValue.serverTimestamp(),
     });
     await db.collection('audit_logs').add({
       action: 'commute.end',
@@ -247,7 +248,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
       userId: callerUid,
       userEmail: callerEmail,
       projectId: session.projectId ?? null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });

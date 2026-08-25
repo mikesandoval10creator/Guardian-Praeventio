@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ─── Module mocks (must be hoisted via vi.mock before route import) ────
 
@@ -86,7 +87,7 @@ vi.mock('../../services/excelImporter/index.js', () => ({
 }));
 
 // firebase-admin is referenced by the route for admin.firestore() and
-// admin.firestore.FieldValue.serverTimestamp(). The default export is the
+// FieldValue.serverTimestamp(). The default export is the
 // `admin` namespace object. We stub the surface the route actually uses.
 const batchSetMock = vi.fn((_ref: unknown, _data: unknown): void => {});
 const batchCommitMock = vi.fn(async (): Promise<void> => undefined);

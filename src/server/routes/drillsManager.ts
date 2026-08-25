@@ -21,7 +21,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -31,6 +31,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Query } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -39,7 +41,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -171,7 +173,7 @@ router.get('/:projectId/drills', verifyAuth, async (req, res) => {
     );
 
     const drills = await safeRead<StoredDrill>(async () => {
-      let q: admin.firestore.Query = baseRef;
+      let q: Query = baseRef;
       if (status) q = q.where('status', '==', status);
       if (kind) q = q.where('kind', '==', kind);
       const snap = await q.orderBy('createdAt', 'desc').limit(200).get();

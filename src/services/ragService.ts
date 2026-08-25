@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
-import admin from "firebase-admin";
+import { admin } from "../server/firebase-admin-shim.ts";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
 import {
@@ -10,6 +10,8 @@ import {
 } from '../config/aiModels.js';
 import { MIN_SIMILARITY } from './rag/safeNormativeQuery.js';
 import * as Sentry from '@sentry/core';
+import type { CollectionReference } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 interface VectorDocument {
   id: string;
@@ -27,12 +29,12 @@ const METADATA_PATH = '_metadata/rag_status';
 /**
  * Checks if the RAG system is already initialized for a specific collection or global context.
  */
-const getRagStatus = async (db: admin.firestore.Firestore, normativeId: string = 'global') => {
+const getRagStatus = async (db: Firestore, normativeId: string = 'global') => {
   const doc = await db.doc(`_metadata/rag_status_${normativeId}`).get();
   return doc.exists ? doc.data() : null;
 };
 
-const setRagStatus = async (db: admin.firestore.Firestore, normativeId: string = 'global', data: any) => {
+const setRagStatus = async (db: Firestore, normativeId: string = 'global', data: any) => {
   await db.doc(`_metadata/rag_status_${normativeId}`).set({
     ...data,
     updatedAt: FieldValue.serverTimestamp()
@@ -102,7 +104,7 @@ export const generateIncidentEmbedding = async (text: string): Promise<number[]>
 /**
  * Indexes a law into the vector store.
  */
-export const indexLaw = async (law: any, vectorCollection: admin.firestore.CollectionReference) => {
+export const indexLaw = async (law: any, vectorCollection: CollectionReference) => {
   logger.debug(`Indexing law: ${law.titulo || law.idNorma}...`);
   if (!law.texto) return;
 

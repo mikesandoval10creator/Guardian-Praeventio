@@ -20,7 +20,7 @@
 //   • Per-form failures NEVER abort the scan (mirrors checkExpiredPpe).
 
 import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import * as adminMessaging from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -31,6 +31,7 @@ import {
   type SusesoFormKindLocal,
   type SusesoReminderEntry,
 } from '../../services/suseso/reminders.js';
+import { admin } from '../../server/firebase-admin-shim.ts';
 
 type FirestoreFactory = () => Firestore;
 type MessagingFactory = () => adminMessaging.Messaging;
@@ -154,7 +155,7 @@ async function sendSusesoRemindersInner(
 ): Promise<SendSusesoRemindersResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : admin.firestore();
   const dispatcher: ReminderDispatcher =
     opts.dispatcher ??
     (async () => ({ pushSent: false, emailSent: false }));

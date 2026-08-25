@@ -10,7 +10,7 @@
 //     missing half: adapter + webhook existed but nothing CREATED payments.
 
 import express, { type Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { randomUUID } from 'node:crypto';
 
 import { logger } from '../../../utils/logger.js';
@@ -45,6 +45,7 @@ import {
 } from '../../../services/dte/dteIssueQueueStore.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
 import { sentryCapture } from './shared.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export function registerKhipuRoutes(billingApiRouter: Router): void {
   // ──────────────────────────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
               await invoiceRef.set(
                 {
                   status: 'paid',
-                  paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                  paidAt: FieldValue.serverTimestamp(),
                   paymentSource: 'khipu',
                   khipuPaymentId: paymentId,
                 },
@@ -180,7 +181,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 userId: null,
                 userEmail: null,
                 projectId: null,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                timestamp: FieldValue.serverTimestamp(),
                 ip: req.ip ?? null,
                 userAgent: req.header('user-agent') ?? null,
               });
@@ -207,7 +208,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         planId,
                         tierId,
                         status: 'active',
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                         lastInvoiceId: invoiceId,
                         paymentMethod: 'khipu',
                         provider: 'khipu',
@@ -348,7 +349,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 userId: null,
                 userEmail: null,
                 projectId: null,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                timestamp: FieldValue.serverTimestamp(),
                 ip: req.ip ?? null,
                 userAgent: req.header('user-agent') ?? null,
               });
@@ -516,7 +517,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         issuedAt: new Date().toISOString(),
         createdBy: callerUid,
         createdByEmail: callerEmail,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Audit row — identity stamped from the verified token, mirroring
@@ -536,7 +537,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         userId: callerUid,
         userEmail: callerEmail,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type adminNs from 'firebase-admin';
+import { admin as adminNs } from '../firebase-admin-shim.ts';
 import { runLegalObligationReconcile } from './runLegalObligationReconcile.js';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const NOW = () => new Date('2026-06-15T12:00:00Z');
 
@@ -9,7 +10,7 @@ const NOW = () => new Date('2026-06-15T12:00:00Z');
 // implements only the surface the job exercises. Cast at the seam (type-safe,
 // no `as any` so the ratchet is untouched).
 const asFirestore = (db: ReturnType<typeof createFakeFirestore>) =>
-  db as unknown as adminNs.firestore.Firestore;
+  db as unknown as Firestore;
 
 function seedProj(
   db: ReturnType<typeof createFakeFirestore>,

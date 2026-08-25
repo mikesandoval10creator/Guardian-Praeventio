@@ -19,7 +19,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -65,6 +65,7 @@ import {
 import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
 import { createEdge } from '../../services/zettelkasten/edges.js';
 import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -73,7 +74,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -130,7 +131,7 @@ const TASK_PATH = (tid: string, pid: string) =>
   `tenants/${tid}/projects/${pid}/maintenance_tasks`;
 
 function buildHorometroStore(
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): HorometroStore {
   return {
     async saveReading({ tenantId, projectId, equipmentId, reading }) {
@@ -166,7 +167,7 @@ function buildHorometroStore(
 }
 
 function buildTaskStore(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
 ): MaintenanceTaskStore {
   return {
@@ -214,7 +215,7 @@ function serverWriteNodesFor(req: import('express').Request): WriteNodesFn {
   };
 }
 
-function buildCreateEdgeAdapter(db: admin.firestore.Firestore): CreateEdgeFn {
+function buildCreateEdgeAdapter(db: Firestore): CreateEdgeFn {
   const store = buildEdgeStore(db);
   return async (input) => {
     await createEdge(store, {
@@ -263,7 +264,7 @@ router.post(
     const body = req.validated as z.infer<typeof readingSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
-    const db = admin.firestore() as admin.firestore.Firestore;
+    const db = admin.firestore() as Firestore;
     try {
       // Resolver equipo + tipo via EquipmentAdapter (single source of truth).
       const eqAdapter = new EquipmentAdapter(db as any, g.tenantId, projectId);
@@ -345,7 +346,7 @@ router.get(
     }
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
-    const db = admin.firestore() as admin.firestore.Firestore;
+    const db = admin.firestore() as Firestore;
     try {
       const taskStore = buildTaskStore(db, g.tenantId);
       const tasks = await getActiveTasksByProject(
@@ -386,7 +387,7 @@ router.post(
     }
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
-    const db = admin.firestore() as admin.firestore.Firestore;
+    const db = admin.firestore() as Firestore;
     try {
       const taskStore = buildTaskStore(db, g.tenantId);
       let updated: MaintenanceTask;
@@ -464,7 +465,7 @@ router.get(
     }
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
-    const db = admin.firestore() as admin.firestore.Firestore;
+    const db = admin.firestore() as Firestore;
     try {
       const eqAdapter = new EquipmentAdapter(
         db as unknown as EquipmentFirestoreDb,

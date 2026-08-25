@@ -15,12 +15,14 @@
 // them server-side would double-fire (FCM, notifications, etc.). The
 // server trigger is for server-only side effects.
 
-import type admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { logger } from '../../utils/logger.js';
 import { isSystemEvent, type SystemEvent } from '../../services/systemEngine/eventTypes.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export interface SystemEngineTriggerDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /**
    * Optional server-side hook. Invoked once per new event. Throwing here
    * does NOT stop the listener — errors are logged and swallowed so a
@@ -41,11 +43,11 @@ export interface SystemEngineTriggerHandle {
  * across replicas / reconnects collapse onto the same row (idempotent).
  *
  * `serverTimestamp` is injected (server.ts passes
- * `() => admin.firestore.FieldValue.serverTimestamp()`) so this module
+ * `() => FieldValue.serverTimestamp()`) so this module
  * stays import-light and unit-testable.
  */
 export function makeSystemEventAuditor(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   serverTimestamp: () => unknown,
 ): (event: SystemEvent) => Promise<void> {
   return async (event: SystemEvent): Promise<void> => {

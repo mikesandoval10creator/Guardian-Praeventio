@@ -26,7 +26,7 @@
 // `incident_vectors/{tenantId}/items/{id}` para RAG (best-effort).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -46,6 +46,7 @@ import {
 } from '../../services/incidents/incidentRagService.js';
 import { awardXp } from '../../services/gamification/positiveXp.js';
 import { generateIncidentEmbedding } from '../../services/ragService.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -125,8 +126,8 @@ router.post(
       const deps: ReportIncidentDeps = {
         db: db as unknown as ReportIncidentDeps['db'],
         embed: generateIncidentEmbedding,
-        toVector: (vec) => admin.firestore.FieldValue.vector(vec),
-        now: () => admin.firestore.FieldValue.serverTimestamp(),
+        toVector: (vec) => FieldValue.vector(vec),
+        now: () => FieldValue.serverTimestamp(),
         awardXp,
       };
       const result = await reportIncident(callerUid, input, deps);
@@ -154,7 +155,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId: payload.projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

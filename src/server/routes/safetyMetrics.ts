@@ -36,7 +36,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -60,6 +60,7 @@ import {
   classifyIncidents,
   type RawIncidentDoc,
 } from '../../services/safetyMetrics/classifyIncidents.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -291,7 +292,7 @@ router.post(
           period: body.period,
           totalHoursWorked: body.totalHoursWorked,
           recordedBy: callerUid,
-          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recordedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -308,7 +309,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

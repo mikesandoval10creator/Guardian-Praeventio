@@ -3,7 +3,7 @@ import type { Readable } from 'node:stream';
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Router } from "express";
-import admin from "firebase-admin";
+import { admin } from "../firebase-admin-shim.ts";
 import { z } from "zod";
 
 import { verifyAuth } from "../middleware/verifyAuth.js";
@@ -17,6 +17,7 @@ import {
   type TierId,
 } from "../../services/pricing/tiers.js";
 import { logger } from "../../utils/logger.js";
+import { FieldValue } from 'firebase-admin/firestore';
 
 const targetSchema = z
   .object({
@@ -322,7 +323,7 @@ tierDowngradeRouter.post("/archive", verifyAuth, async (req, res) => {
           path: `projects/${worker.projectId}/workers/${worker.workerId}`,
           data: {
             archived: true,
-            archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            archivedAt: FieldValue.serverTimestamp(),
             archivedBy: uid,
           },
         });
@@ -341,7 +342,7 @@ tierDowngradeRouter.post("/archive", verifyAuth, async (req, res) => {
           path: `projects/${project.projectId}`,
           data: {
             status: "archived",
-            archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            archivedAt: FieldValue.serverTimestamp(),
             archivedBy: uid,
           },
         });

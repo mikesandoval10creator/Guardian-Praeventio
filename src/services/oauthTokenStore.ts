@@ -31,7 +31,7 @@
  *   restores the pre-envelope plaintext-write behavior.
  */
 
-import admin from 'firebase-admin';
+import { admin } from '../server/firebase-admin-shim.ts';
 import {
   envelopeEncrypt,
   envelopeDecrypt,
@@ -40,6 +40,7 @@ import {
 } from './security/kmsEnvelope.ts';
 import { getKmsAdapter } from './security/kmsAdapter.ts';
 import { logger } from '../utils/logger.ts';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const COLLECTION = 'oauth_tokens';
 
@@ -71,7 +72,7 @@ interface StoredTokens {
   expiry_date: number;
   scope?: string;
   token_type?: string;
-  updatedAt: admin.firestore.FieldValue;
+  updatedAt: FieldValue;
 }
 
 function docId({ uid, provider }: TokenIdentity): string {
@@ -164,7 +165,7 @@ export async function saveTokens(id: TokenIdentity, tokens: RawTokenResponse): P
     expiry_date,
     scope: tokens.scope,
     token_type: tokens.token_type,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
   if (tokens.refresh_token) {
     data.refresh_token = await maybeWrapRefreshToken(tokens.refresh_token);
@@ -240,7 +241,7 @@ export async function getValidAccessToken(
   await docRef.update({
     access_token: refreshed.access_token,
     expiry_date: Date.now() + ((refreshed.expires_in ?? 3600) * 1000),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   return refreshed.access_token;

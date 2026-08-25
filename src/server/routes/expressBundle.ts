@@ -31,7 +31,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -55,6 +55,7 @@ import type {
   ComplianceTrafficLightResult,
 } from '../../services/compliance/trafficLightEngine.js';
 import type { LegalRequirement } from '../../services/legal/legalRuleEngine.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -108,7 +109,7 @@ interface FirestoreBundleData {
 }
 
 async function reconstructFromFirestore(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   options: { workerRut?: string },
 ): Promise<FirestoreBundleData> {

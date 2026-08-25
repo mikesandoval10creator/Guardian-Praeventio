@@ -26,7 +26,7 @@
 // further server.ts churn.
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import {
   assertProjectMember,
   ProjectMembershipError,

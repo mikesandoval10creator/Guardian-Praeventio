@@ -13,7 +13,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -24,13 +24,15 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Query } from 'firebase-admin/firestore';
 
 const router = Router();
 
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -157,7 +159,7 @@ router.get(
 
       const decisions = await safeRead<StoredLeadershipDecision>(
         async () => {
-          let q: admin.firestore.Query = baseRef;
+          let q: Query = baseRef;
           if (supervisorUid)
             q = q.where('supervisorUid', '==', supervisorUid);
           const snap = await q.limit(500).get();

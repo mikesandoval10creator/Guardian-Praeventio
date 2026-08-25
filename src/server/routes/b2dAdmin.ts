@@ -22,7 +22,7 @@
 // create/revoke and reads the persisted docs for the list endpoint.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole, isPlatformOperatorRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
@@ -37,6 +37,7 @@ import {
   revokeApiKey,
   type B2dScope,
 } from '../../services/b2d/apiKeyService.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -220,7 +221,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'b2d_key_created',
       target: id,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       tier,
@@ -261,7 +262,7 @@ router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'b2d_key_revoked',
       target: id,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });

@@ -27,7 +27,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -44,6 +44,7 @@ import {
   type BrigadeRole,
   type EmergencyResource,
 } from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -52,7 +53,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;

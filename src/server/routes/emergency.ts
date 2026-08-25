@@ -23,7 +23,7 @@
 // this caps a compromised token / runaway script from filling Firestore.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -49,6 +49,9 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 // silently skip the email step.
 import { EmailService } from '../../services/email/resendService.js';
 import { sosBackupTemplate } from '../../services/email/templates.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Messaging } from 'firebase-admin/messaging';
+import type { MulticastMessage } from 'firebase-admin/messaging';
 
 export const sosLimiter = rateLimit({
   windowMs: 60_000,
@@ -173,7 +176,7 @@ type EmergencyPushPayload = {
 export function buildEmergencyMulticastMessage(
   tokens: string[],
   payload: EmergencyPushPayload,
-): admin.messaging.MulticastMessage {
+): MulticastMessage {
   return {
     tokens,
     notification: { title: payload.title, body: payload.body },
@@ -199,7 +202,7 @@ export async function sendToProjectSupervisors(
   projectId: string,
   payload: EmergencyPushPayload,
   db: FirebaseFirestore.Firestore,
-  messaging: admin.messaging.Messaging,
+  messaging: Messaging,
 ): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
   const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
   const tokenSet = new Set<string>();
@@ -325,7 +328,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
         projectId,
         geo: validatedGeo,
         clientTimestamp: timestamp ?? null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     // Directive #14: audit failure is SEVERE but non-blocking. A Firestore
     // outage on this write must NOT abort the fan-out — the worker's SOS still
@@ -338,7 +341,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
         userId: callerUid,
         userEmail: callerEmail,
         projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
@@ -571,7 +574,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

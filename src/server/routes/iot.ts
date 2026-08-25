@@ -27,7 +27,7 @@
 // and fall back to `projectId` itself for legacy installs.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -41,6 +41,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const IOT_DEVICE_TYPES = [
   'gas_sensor',
@@ -143,7 +144,7 @@ router.post(
               projectId,
               type,
               registeredBy: callerUid,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
               status: 'active',
               // claude/mqtt-wire (2026-06): the schema always accepted an
               // optional per-device secret but the handler silently dropped

@@ -37,7 +37,7 @@
 // y verifica el correcto — no requiere cambio de config del caller.
 
 import crypto from 'crypto';
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
 import {
   normalizeSubscriptionPlanId,
@@ -54,6 +54,7 @@ import {
   getJwks,
   type JsonWebKey as MpJsonWebKey,
 } from './mpJwksCache.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /** Outcome of processing a MercadoPago IPN — maps to invoice statuses. */
 export type MpIpnOutcome = 'paid' | 'rejected' | 'pending';
@@ -669,7 +670,7 @@ export async function processMercadoPagoIpn(
         await invoiceRef.set(
           {
             status: 'paid',
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidAt: FieldValue.serverTimestamp(),
             paymentSource: 'mercadopago',
             mercadoPagoPaymentId: paymentId,
             mercadoPagoStatusDetail: payment.status_detail ?? null,
@@ -701,7 +702,7 @@ export async function processMercadoPagoIpn(
                   planId,
                   tierId,
                   status: 'active',
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'mercadopago',
                   provider: 'mercadopago',
@@ -753,7 +754,7 @@ export async function processMercadoPagoIpn(
         userId: null,
         userEmail: null,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
 
       return { outcome, invoiceId };

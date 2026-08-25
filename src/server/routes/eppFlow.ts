@@ -23,7 +23,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -58,6 +58,7 @@ import {
   type SupplierCatalogEntry,
   type PurchaseOrderDraft,
 } from '../../services/financialAnalytics/purchaseOrderSuggester.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -602,7 +603,7 @@ async function releaseEppSigningClaim(
     const activeClaim = readEppSigningClaim(data?.metadata ?? {});
     if (activeClaim?.challengeId !== challengeId) return;
     tx.update(ref, {
-      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+      'metadata.eppSigningClaim': FieldValue.delete(),
     });
   });
 }
@@ -628,7 +629,7 @@ async function markEppOrderSigned(
       'metadata.eppSignedNodeId': signedNodeId,
       'metadata.eppSignedAt': signedAt,
       'metadata.eppSignerUid': signerUid,
-      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+      'metadata.eppSigningClaim': FieldValue.delete(),
     });
   });
 }

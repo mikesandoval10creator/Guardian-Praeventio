@@ -7,7 +7,7 @@
 // the user's payload, is stored only in Firestore.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -18,6 +18,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -66,8 +67,8 @@ router.post(
           projectId,
           createdBy: callerUid,
           updatedBy: callerUid,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
 
       // CLAUDE.md #3/#14: project-document creation is state-changing and must

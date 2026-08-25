@@ -23,7 +23,7 @@ import { Router } from 'express';
 import { createHash } from 'node:crypto';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   createShareToken,

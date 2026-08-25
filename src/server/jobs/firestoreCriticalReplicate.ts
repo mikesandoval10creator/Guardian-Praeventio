@@ -34,8 +34,10 @@
 //   sub-dependency of firebase-admin); we do NOT add a new top-level
 //   dependency. See the test file for the mocked surface contract.
 
+import { admin } from '../firebase-admin-shim.ts';
 import type { Firestore } from 'firebase-admin/firestore';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const ONE_HOUR_MS = 3_600_000;
 const DEFAULT_BUCKET = 'praeventio-critical-replica';
@@ -48,7 +50,7 @@ export type CriticalCollection = (typeof CRITICAL_COLLECTIONS)[number];
  * The Firestore Timestamp field each critical collection is windowed on.
  * `audit_logs` rows stamp `timestamp` (server.ts / serverZkNodeWriter), while
  * `invoices` stamp `createdAt` (billing.ts) — BOTH via
- * `admin.firestore.FieldValue.serverTimestamp()`, i.e. real Firestore
+ * `FieldValue.serverTimestamp()`, i.e. real Firestore
  * Timestamps. The previous query hard-coded `createdAt` for every collection
  * AND compared against a raw epoch-ms number, so the audit_logs field was wrong
  * AND the value type never matched a Timestamp → the hourly replica silently
@@ -121,7 +123,7 @@ async function defaultUploader(
   path: string,
   contents: string,
 ): Promise<void> {
-  const admin = (await import('firebase-admin')).default;
+  const { admin } = await import('../../server/firebase-admin-shim.ts');
   if (!admin.apps.length) admin.initializeApp();
   await admin
     .storage()
@@ -161,7 +163,7 @@ async function replicateCriticalDataInner(
 
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : admin.firestore();
 
   const results: PerCollectionResult[] = [];
 
@@ -187,8 +189,10 @@ async function replicateCriticalDataInner(
       }
 
       const lines = snap.docs
-        .map((d) => JSON.stringify({ id: d.id, ...d.data() }))
-        .join('\n');
+              .map((d: import('firebase-admin/firestore').QueryDocumentSnapshot) =>
+                JSON.stringify({ id: d.id, ...d.data() })
+              )
+              .join('\n');
       const path = `${coll}/${hourSlug(now)}.jsonl`;
 
       await upload(bucket, path, lines);

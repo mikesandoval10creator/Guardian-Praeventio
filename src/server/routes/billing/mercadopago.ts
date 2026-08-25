@@ -7,7 +7,7 @@
 //   • POST /api/billing/webhook/mercadopago   (IPN, Round 18/19, OIDC+HMAC).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { randomUUID } from 'node:crypto';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
@@ -38,6 +38,7 @@ import {
   type LatamCurrency,
 } from '../../../services/billing/currency.js';
 import { sentryCapture } from './shared.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Round 15 — MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
@@ -203,7 +204,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         issuedAt: new Date().toISOString(),
         createdBy: callerUid,
         createdByEmail: callerEmail,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Audit log — mirror the /api/billing/checkout pattern but with the
@@ -224,7 +225,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         userId: callerUid,
         userEmail: callerEmail,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });

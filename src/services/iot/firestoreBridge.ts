@@ -41,7 +41,7 @@
 // We never derive tenant from sample fields (those are device-controlled
 // and could be spoofed).
 
-import admin from 'firebase-admin';
+import { admin } from '../../server/firebase-admin-shim.ts';
 import type { TelemetrySample, IngestRule, IngestDecision, IotDeviceKind } from './types.js';
 import { evaluateSample } from './ingestRuleEngine.js';
 import { deriveStableEventId } from './deduplicator.js';
@@ -49,6 +49,8 @@ import { classifyGasMetric } from '../workPermits/gasGate.js';
 import { sendToProjectSupervisors } from '../../server/routes/emergency.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../observability/index.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Messaging } from 'firebase-admin/messaging';
 
 export interface BridgeContext {
   tenantId: string;
@@ -66,7 +68,7 @@ export interface BridgeContext {
    */
   db?: FirebaseFirestore.Firestore;
   /** Optional FCM messaging handle (defaults to `admin.messaging()`). */
-  messaging?: admin.messaging.Messaging;
+  messaging?: Messaging;
   /**
    * Identidad estable de la muestra (tarea P1 mqtt-dedup): eventId del
    * dispositivo o hash determinístico. Se usa como doc id idempotente.
@@ -175,7 +177,7 @@ export async function bridgeMqttToFirestore(
           tenantId: ctx.tenantId,
           zoneId: ctx.zoneId ?? null,
           deviceTimestamp: sample.timestamp,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -217,7 +219,7 @@ export async function bridgeMqttToFirestore(
           unit: sample.unit,
           severity: 'critical',
           alerts: decision.alerts,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
           deviceTimestamp: sample.timestamp,
         },
         { merge: true },
@@ -291,7 +293,7 @@ export async function bridgeMqttToFirestore(
       },
       userId: 'system:iot.bridge',
       projectId: ctx.projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   } catch (err: any) {
     logger.error('iot_bridge_audit_write_failed', err, {

@@ -12,7 +12,7 @@
 // the monolith and shares its pattern with the App Store one).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { google } from 'googleapis';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
@@ -28,6 +28,7 @@ import {
   type BillingCycle,
 } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Google Play Developer API client.
@@ -113,7 +114,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         type: type || 'subscription',
         status: 'verified',
         rawResponse: data,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'), NOT a
@@ -166,7 +167,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.purchaseToken': purchaseToken,
           'subscription.orderId': lineItem?.latestSuccessfulOrderId ?? null,
           'subscription.cycle': cycle,
-          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          'subscription.updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
         // One-time purchase: `productId` is used as a Firestore field-path key
@@ -186,7 +187,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         }
         await db.collection('users').doc(uid).update({
           [`purchased_products.${productId}`]: true,
-          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          'subscription.updatedAt': FieldValue.serverTimestamp(),
         });
       }
 
@@ -323,7 +324,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
                 'subscription.gracePeriodEnd': null,
                 ...(rtdnPlan ? { 'subscription.planId': rtdnPlan } : {}),
                 'subscription.cycle': cycleFromProductId(subscriptionId),
-                'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+                'subscription.updatedAt': FieldValue.serverTimestamp(),
               });
             }
           }

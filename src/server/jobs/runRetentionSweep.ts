@@ -18,7 +18,7 @@
 // retención diga `purge`, el job lo degrada a `archive_immutable`/keep-source
 // para preservar trazabilidad y evidencia de cumplimiento.
 
-import type admin from "firebase-admin";
+import { admin } from "../firebase-admin-shim.ts";
 import {
   decideRetention,
   type DataCategory,
@@ -27,6 +27,7 @@ import {
   type RetentionDecision,
   type RetentionRule,
 } from "../../services/privacyRetention/dataRetentionPolicy.js";
+import type { Firestore } from 'firebase-admin/firestore';
 
 interface DocSnapLike {
   id: string;
@@ -165,7 +166,7 @@ async function archiveImmutable(
 }
 
 export async function runRetentionSweep(
-  dbOrDeps: RetentionSweepDb | { db: admin.firestore.Firestore },
+  dbOrDeps: RetentionSweepDb | { db: Firestore },
   options: RetentionSweepOptions = {},
 ): Promise<RetentionSweepReport> {
   const db =

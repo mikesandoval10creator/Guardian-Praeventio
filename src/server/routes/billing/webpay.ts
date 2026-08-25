@@ -10,7 +10,7 @@
 // Transbank's commerce config CANNOT change.
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
+import { admin } from '../../firebase-admin-shim.ts';
 import { performance } from 'node:perf_hooks';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
@@ -58,6 +58,7 @@ import {
   type BillingCycle,
 } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * [P0][pagos] Server-authoritative account quantities. The client-sent
@@ -233,7 +234,7 @@ export function registerWebpayRoutes(
         status: 'pending-payment',
         createdBy: callerUid,
         createdByEmail: callerEmail,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Adapter call — typed stubs throw, so we fall back to 'pending-config'.
@@ -431,7 +432,7 @@ export function registerWebpayRoutes(
         outcome = 'paid';
         await invoiceRef.set({
           status: 'paid',
-          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          paidAt: FieldValue.serverTimestamp(),
           paymentSource: 'webpay',
           webpayToken: tokenWs,
           webpayAuthCode: commit.authorizationCode ?? null,
@@ -466,7 +467,7 @@ export function registerWebpayRoutes(
                   planId,
                   tierId,
                   status: 'active',
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'webpay',
                   provider: 'webpay',
@@ -495,7 +496,7 @@ export function registerWebpayRoutes(
           module: 'billing',
           details: { invoiceId, amount: commit.amount, authCode: commit.authorizationCode, cycle },
           userId: null, userEmail: null, projectId: null,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
         });
 
@@ -647,7 +648,7 @@ export function registerWebpayRoutes(
           module: 'billing',
           details: { invoiceId, amount: commit.amount },
           userId: null, userEmail: null, projectId: null,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
         });
       } else {
@@ -666,7 +667,7 @@ export function registerWebpayRoutes(
           module: 'billing',
           details: { invoiceId, amount: commit.amount },
           userId: null, userEmail: null, projectId: null,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
         });
       }
@@ -676,7 +677,7 @@ export function registerWebpayRoutes(
       await finalizeWebpayIdempotencyLock(lockRef, {
         outcome,
         invoiceId,
-        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        serverTimestamp: () => FieldValue.serverTimestamp(),
       });
 
       recordWebpayReturnLatency({

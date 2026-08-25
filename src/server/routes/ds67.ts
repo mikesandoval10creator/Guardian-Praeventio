@@ -34,7 +34,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { admin } from '../firebase-admin-shim.ts';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -50,6 +50,7 @@ import {
   type Ds67AnnualPeriodWindow,
   type Ds67SimulationInput,
 } from '../../services/compliance/ds67Simulator.js';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -73,7 +74,7 @@ async function guard(
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   try {
     const proj = await db.collection('projects').doc(projectId).get();
@@ -117,7 +118,7 @@ export interface Ds67PeriodAggregate {
 }
 
 async function aggregateIncidentsByWindow(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   tenantId: string | null,
   windows: Ds67AnnualPeriodWindow[],
