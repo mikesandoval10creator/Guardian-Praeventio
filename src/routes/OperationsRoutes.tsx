@@ -23,7 +23,15 @@ const SafeDriving = lazy(() => import('../pages/SafeDriving').then(module => ({ 
 const Telemetry = lazy(() => import('../pages/Telemetry').then(module => ({ default: module.Telemetry })));
 const DocumentOCRManager = lazy(() => import('../pages/DocumentOCRManager').then(module => ({ default: module.DocumentOCRManager })));
 const AutoCADViewer = lazy(() => import('../pages/AutoCADViewer').then(module => ({ default: module.AutoCADViewer })));
-const BlueprintViewer = lazy(() => import('../pages/BlueprintViewer').then(module => ({ default: module.BlueprintViewer })));
+// [Hy3-audit 3c4aa66d-73fe-8199-9e08-ec1b437840dc 2026-08-25]: switched to
+// the REAL BlueprintViewer from src/components/blueprints/ — the one in
+// src/pages/ is a static mock ("Simulated Blueprint Content", hardcoded
+// risks, no persistence). Operations users were viewing fabricated
+// blueprints with no Firestore storage. The real component uses
+// useProject/useFirebase, persists to `blueprints` collection, and is
+// what AIHub.tsx already trusts. Loading the real one here closes the
+// vida-safety gap and unifies the source of truth.
+const BlueprintViewer = lazy(() => import('../components/blueprints/BlueprintViewer').then(module => ({ default: module.BlueprintViewer })));
 const ERPIntegration = lazy(() => import('../pages/ERPIntegration').then(module => ({ default: module.ERPIntegration })));
 const Workers = lazy(() => import('../pages/Workers').then(module => ({ default: module.Workers })));
 const CriticalRolesPage = lazy(() => import('../pages/CriticalRolesPage').then(module => ({ default: module.CriticalRolesPage })));
