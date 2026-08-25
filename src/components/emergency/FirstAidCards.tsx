@@ -68,12 +68,19 @@ export function FirstAidCards() {
     if (now - lastBeatRef.current >= 600) {
       const peak = peakAccelRef.current;
       peakAccelRef.current = 0;
+      // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81ed-bd12-eb4225dc54e7
+      // (reabierto 2026-08-24): el código original reasignaba
+      // lastBeatRef.current = now ANTES de comparar para la rama
+      // FASTER, así que `now - lastBeatRef.current` siempre era 0
+      // y la rama FASTER nunca se ejecutaba. Calculamos beatDuration
+      // ANTES de reasignar para comparar la cadencia real.
+      const beatDuration = now - lastBeatRef.current;
       lastBeatRef.current = now;
 
       if (peak < 12) {
         setDepthFeedback('DEEPER');
         navigator.vibrate?.([200, 50, 200]);
-      } else if (now - lastBeatRef.current > 750) {
+      } else if (beatDuration > 750) {
         setDepthFeedback('FASTER');
         navigator.vibrate?.([100]);
       } else {
