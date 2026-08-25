@@ -65,16 +65,54 @@ const TEAL = '#4db6ac';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function statusBadge(estado: string) {
-  const map: Record<string, string> = {
-    Vigente:      'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-    Obsoleto:     'bg-red-500/10 text-red-600 dark:text-red-400',
-    'En revisión':'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    pending:      'bg-zinc-400/10 text-zinc-500',
-    in_progress:  'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    done:         'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-  };
-  return map[estado] ?? 'bg-zinc-400/10 text-zinc-500';
+// [Hy3-audit 3c4aa66d-73fe-8101-a36a-d376d30dcd6c reabierto 2026-08-24]:
+// Original `statusBadge(estado: string)` mixed two domains (ISO Document
+// Vigente/Obsoleto/En revisión vs. Checklist pending/in_progress/done)
+// in a single Record<string,string>. New states silently degraded to
+// the gray fallback without any compile-time signal.
+//
+// Split into two domain-typed helpers and a generic fallback for
+// ad-hoc statuses (e.g. worker competence states). The compiler will
+// surface a missing case for any new ISO state or Checklist state.
+
+type ISODocumentEstado = 'Vigente' | 'Obsoleto' | 'En revisión';
+type ChecklistItemStatus = 'pending' | 'in_progress' | 'done';
+
+const ISO_ESTADO_BADGE: Record<ISODocumentEstado, string> = {
+  Vigente: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  Obsoleto: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  'En revisión': 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+};
+
+const CHECKLIST_STATUS_BADGE: Record<ChecklistItemStatus, string> = {
+  pending: 'bg-zinc-400/10 text-zinc-500',
+  in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  done: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+};
+
+function isoEstadoBadge(estado: ISODocumentEstado): string {
+  return ISO_ESTADO_BADGE[estado];
+}
+
+function checklistStatusBadge(status: ChecklistItemStatus): string {
+  return CHECKLIST_STATUS_BADGE[status];
+}
+
+/**
+ * Generic fallback for arbitrary status strings (e.g. worker competence
+ * state from external data). Kept for backward compatibility but new
+ * callers should prefer `isoEstadoBadge` or `checklistStatusBadge` so the
+ * compiler can enforce exhaustive case coverage.
+ */
+function statusBadge(estado: string): string {
+  // First try the typed maps (ISO + checklist) before falling back to gray.
+  if ((Object.keys(ISO_ESTADO_BADGE) as ISODocumentEstado[]).includes(estado as ISODocumentEstado)) {
+    return ISO_ESTADO_BADGE[estado as ISODocumentEstado];
+  }
+  if ((Object.keys(CHECKLIST_STATUS_BADGE) as ChecklistItemStatus[]).includes(estado as ChecklistItemStatus)) {
+    return CHECKLIST_STATUS_BADGE[estado as ChecklistItemStatus];
+  }
+  return 'bg-zinc-400/10 text-zinc-500';
 }
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
