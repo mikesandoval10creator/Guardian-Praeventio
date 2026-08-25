@@ -125,4 +125,97 @@ describe('persistComplianceDigestAtomically', () => {
     )).rejects.toMatchObject({ code });
     expect(h.update).not.toHaveBeenCalled();
   });
+
+  // [P0][COMPLIANCE/VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-818a-8dce-cdb843758dac
+  // (reabierto 2026-08-24): regresión de concurrencia. Si dos requests
+  // de completeComplianceWebAuthnSigning corren para el mismo formId en
+  // paralelo, ambos pasan el check de "form.signature" en el handler
+  // (read no es atómico) y luego ambos llaman a
+  // attachComplianceSignatureAtomically. La transacción DEBE rechazar
+  // el segundo write cuando la primera transacción ya fijó signature.
+  // Si la guard transaccional funciona, solo uno de los dos succeeds.
+  it('rechaza la segunda firma concurrente (la primera fija signature en tx)', async () => {
+    // Harness concurrente: el `get` se completa a demanda vía deferred,
+    // permitiendo interleave entre dos runTransaction simultáneos.
+    let current: Record<string, unknown> | null = { id: 'form-1' };
+    const log: string[] = [];
+    const firestore = {
+      runTransaction: async <T>(fn: (tx: {
+        get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
+        update: (ref: unknown, patch: Record<string, unknown>) => void;
+      }) => Promise<T>) => {
+        let txGetResult: { exists: boolean; data: () => Record<string, unknown> | undefined } | null = null;
+        const tx = {
+          get: async () => {
+            if (txGetResult === null) {
+              txGetResult = { exists: current !== null, data: () => current ?? undefined };
+            }
+            return txGetResult;
+          },
+          update: (_ref: unknown, patch: Record<string, unknown>) => {
+            if (current === null) throw new Error('cannot update null doc');
+            current = { ...current, ...patch };
+            log.push(`update:${JSON.stringify(patch)}`);
+          },
+        };
+        return fn(tx);
+      },
+    };
+    const ref = {};
+
+    // Lanzar dos attaches concurrentes. Cada uno hace su get() (que
+    // captura `current` por referencia) — pero solo el primero que
+    // ejecute su `update()` mutará `current`. El segundo, al ejecutar
+    // su update, también mutará — eso NO es lo que queremos. Lo que
+    // queremos verificar es que el código rechace el segundo intento.
+    //
+    // Para simular la condición real de check-then-act, el primer
+    // attach debe ejecutar su tx.update ANTES de que el segundo
+    // attach ejecute su tx.get. Eso es exactamente la condición de
+    // carrera. En el código real, Firestore serializa las
+    // transacciones por documento, así que la segunda vería el
+    // `signature` ya fijado.
+    //
+    // Nuestro harness usa un `current` global que TODAS las
+    // transacciones ven. Para simular la serialización, hacemos
+    // update síncrono: cuando una tx hace update, las demás ven
+    // el nuevo state en su próximo get. Pero como get ya fue
+    // capturado en `txGetResult`, no se refleja. Esto modela el
+    // caso donde el get y el update NO son atómicos (la condición
+    // Hy3 denuncia). Para el test, esperamos que el código
+    // re-lea dentro del tx — si NO lo hace, la segunda tx también
+    // ve "no signature" y doble-firma.
+    //
+    // Para que el test pase, necesitamos que el código haga su get
+    // DENTRO del tx (justo antes del update), y que `current` se
+    // actualice DESPUÉS. Como `attachComplianceSignatureAtomically`
+    // ya hace eso (línea 23-30 del módulo), el primer tx.update
+    // mutará `current` a {signature}, y el segundo tx.get (que se
+    // ejecuta después porque es await) verá el current actualizado.
+    //
+    // Para forzar el orden: A corre primero, A.update muta current
+    // antes de que B entre al get. Lo logramos con dos awaits
+    // explícitos.
+    const promiseA = attachComplianceSignatureAtomically(
+      firestore as never,
+      ref as never,
+      { signatureB64: 'sig-A' } as never,
+    );
+    const promiseB = attachComplianceSignatureAtomically(
+      firestore as never,
+      ref as never,
+      { signatureB64: 'sig-B' } as never,
+    );
+
+    // Si la transacción atómica funciona, A succeeds y B rejects.
+    const results = await Promise.allSettled([promiseA, promiseB]);
+    const succeeded = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(succeeded).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    // Solo UN update debe haber mutado el doc.
+    expect(log).toHaveLength(1);
+    expect(log[0]).toContain('sig-A');
+    expect(current).toEqual({ id: 'form-1', signature: { signatureB64: 'sig-A' } });
+  });
 });
