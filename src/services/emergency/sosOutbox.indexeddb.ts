@@ -20,6 +20,20 @@ import { logger } from '../../utils/logger';
 const STORAGE_KEY = 'praeventio:sos-outbox:v1';
 
 export class IndexedDbSosStorage implements SosOutboxStorage {
+  /**
+   * [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-8167-90ae-ec60dbb94c6c
+   * (reabierto 2026-08-24): este adapter NO tiene mutex propio. El
+   * engine (SosOutbox en sosOutbox.ts:129) serializa load/save/clear
+   * vía `private mutation: Promise<unknown>` — toda escritura DEBE
+   * pasar por el engine para evitar read-modify-write race que
+   * sobrescriba un SOS concurrente. Cualquier caller que invoque
+   * load() o save() directamente fuera del engine es un bug de
+   * data-loss esperando a ocurrir.
+   *
+   * El fix completo (mover el lock al adapter) es scope > 1 archivo
+   * y cambia el contrato del engine. Por ahora la invariante queda
+   * documentada aquí como guard contra mal uso futuro.
+   */
   async load(): Promise<OutboxEntry[]> {
     try {
       const raw = await get<OutboxEntry[]>(STORAGE_KEY);
