@@ -10,7 +10,7 @@
  * through Cloud KMS, derives every configured HMAC in memory, and delegates an
  * atomic identity/index/audit write to the production repository.
  */
-import admin from 'firebase-admin';
+import admin from '../src/server/firebase-admin-shim.ts';
 
 import {
   createFirestoreProfessionalIdentityRepository,

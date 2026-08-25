@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import admin from '../../src/server/firebase-admin-shim.ts';
 import { loginAsTestUser, signInBrowserViaCustomToken, buildE2EAuthHeader } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 

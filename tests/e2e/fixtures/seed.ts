@@ -14,7 +14,11 @@
 //
 // Producción jamás usa estos archivos: viven bajo `tests/e2e/`.
 
-import admin from 'firebase-admin';
+// Firebase-admin v13 → v14 compatibility shim (2026-08-25):
+// v14 removed the top-level admin.apps/admin.firestore/admin.auth exports.
+// Route the legacy `admin` import through our shim so seed.ts keeps
+// working without rewriting every call site.
+import admin from '../../../src/server/firebase-admin-shim.js';
 
 let initialized = false;
 

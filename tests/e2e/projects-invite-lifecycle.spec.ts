@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import admin from '../../src/server/firebase-admin-shim.ts';
 import {
   buildE2EAuthHeader,
   DEFAULT_TEST_USER,

@@ -40,7 +40,7 @@
 // NEVER runs against real Firestore.
 
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
-import admin from 'firebase-admin';
+import admin from '../../src/server/firebase-admin-shim.ts';
 
 const seedModule = require('./seed-dr-dataset.cjs') as {
   seed: () => Promise<{
