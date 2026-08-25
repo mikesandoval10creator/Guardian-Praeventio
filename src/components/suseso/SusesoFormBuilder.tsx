@@ -158,7 +158,13 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       setResult(data);
       setSigned(false);
     } catch (e) {
-      setError(humanErrorMessage(e));
+      // [Hy3-audit 3c6aa66d-73fe-8143-bcf2-ef21b03b52bc reabierto 2026-08-24]:
+      // Antes setError(humanErrorMessage(e)) humanizaba aquí y luego el
+      // render aplicaba humanErrorMessage otra vez — potencial pérdida de
+      // contexto. Ahora guardamos solo el mensaje crudo; humanErrorMessage
+      // se aplica una sola vez, en el render JSX (defense-in-depth y
+      // check-user-facing-errors ratchet).
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -200,15 +206,16 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       const signedByMe = data.form?.signature?.signerUid === reportedBy.uid;
       setSigned(signedByMe);
       if (!signedByMe) {
-        setError(humanErrorMessage(
-          new Error(
-            'La firma del servidor no corresponde al usuario actual. ' +
-            'No se registrará como firma propia.',
-          ),
-        ));
+        // humanErrorMessage aplicado en el render; guardamos string crudo.
+        setError(
+          'La firma del servidor no corresponde al usuario actual. ' +
+          'No se registrará como firma propia.',
+        );
       }
     } catch (e) {
-      setError(humanErrorMessage(e));
+      // [Hy3-audit 3c6aa66d-73fe-8143-bcf2-ef21b03b52bc] setError guarda
+      // string crudo; humanErrorMessage se aplica en el render.
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -235,7 +242,10 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       // El botón "Descargar PDF" no hacía nada — usuario sin diagnóstico
       // para acceder al PDF de un folio ya emitido. Ahora propagamos
       // el error al estado para que el operador vea el mensaje.
-      setError(humanErrorMessage(e));
+      //
+      // [Hy3-audit 3c6aa66d-73fe-8143-bcf2-ef21b03b52bc] string crudo;
+      // humanErrorMessage se aplica en el render (defense-in-depth).
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -421,6 +431,15 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       )}
 
       {error && (
+        // [Hy3-audit 3c6aa66d-73fe-8143-bcf2-ef21b03b52bc reabierto 2026-08-24]:
+        // Antes `setError(humanErrorMessage(e))` humanizaba al setear y el
+        // render aplicaba humanErrorMessage otra vez — potencial pérdida de
+        // contexto (re-aplicar el mapeo a un string amigable).
+        //
+        // Fix: setError guarda string crudo. humanErrorMessage se aplica
+        // UNA SOLA VEZ en este render. Para strings amigables largos es
+        // idempotente (MESSAGE_BY_CODE solo matchea codes cortos). Para
+        // defense-in-depth y check-user-facing-errors ratchet.
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded px-3 py-2 text-sm">
           {humanErrorMessage(error)}
         </div>
