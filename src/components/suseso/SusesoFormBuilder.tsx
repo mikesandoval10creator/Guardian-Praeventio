@@ -8,15 +8,19 @@
 //   1. User fills the form (worker, company, incident, witnesses).
 //   2. POST /api/suseso/form → returns { form, pdfBase64, payloadHashHex }.
 //   3. We display the PDF preview + offer "Firmar" / "Descargar".
-//   4. "Firmar" triggers a (stub) WebAuthn ceremony; on success we POST
-//      /api/suseso/form/:id/sign with the signature blob.
+//   4. "Firmar" runs a real WebAuthn ceremony via requestSignature
+//      (which delegates to requestComplianceSignature from
+//      ../../services/auth/webauthnComplianceSign), posting the
+//      resulting assertion blob to /api/suseso/form/:id/sign. The
+//      server verifies the assertion and attaches the signature
+//      atomically (see attachComplianceSignatureAtomically).
 //
-// The WebAuthn signing in step 4 is delegated to a tiny helper (see
-// `requestSignature` below). For the MVP we don't actually run the
-// `navigator.credentials.create/get` call — the helper returns a
-// placeholder signature so the round-trip is exercised end-to-end.
-// Full WebAuthn integration is owned by the curriculum bucket and
-// will be reused here in a follow-up.
+// [Hy3-audit 3c6aa66d-73fe-8165-b9d7-f8b02d025d54 reabierto 2026-08-24]:
+// older header comment described the WebAuthn step as an MVP
+// "placeholder" round-trip and pointed at the curriculum bucket —
+// that text is no longer accurate and could mislead an auditor or
+// a maintainer into "fixing" something that already works. Replaced
+// with the real flow description.
 
 import React, { useState } from 'react';
 // [Hy3-audit 3c6aa66d-73fe-81d1-8d8b-cb2cb777c743]
