@@ -177,7 +177,22 @@ export function SupplierComparator(props: SupplierComparatorProps) {
         hasHighSystemicRisk: c.hasHighSystemicRisk,
       }));
     return { rows: rankingRows, risks: riskRows, serviceLabel: props.service };
-  }, [props]);
+  }, [
+    // [Hy3-audit 3c6aa66d-73fe-81d6-83f1-ec13df984cec reabierto 2026-08-24]:
+    // Depender de [props] invalida el cache en cada render del padre
+    // porque props es un objeto nuevo. rankSuppliers y
+    // auditCriticalServices se ejecutaban en cada render aunque los
+    // inputs no cambiaran. Listamos las props reales consumidas.
+    // (discriminated union: RankingModeProps | ServiceModeProps — todas
+    // comparten suppliers/events/service/defaultTarget/criticalServices,
+    // solo RankingModeProps tiene ranking.)
+    props.suppliers,
+    props.events,
+    props.service,
+    props.defaultTarget,
+    props.criticalServices,
+    ...(isRankingMode(props) ? [props.ranking] : []),
+  ]);
 
   return (
     <section
