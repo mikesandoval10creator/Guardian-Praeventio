@@ -118,11 +118,22 @@ async function prepareSigningContext(
   const hasStoredVersion = form.payloadRendererVersion !== undefined;
   if (!hasStoredHash && !hasStoredVersion) {
     await documents.persistLegacyDigest(payload.payloadHashHex, payload.payloadRendererVersion);
-  } else if (
-    form.payloadHashHex !== payload.payloadHashHex ||
-    form.payloadRendererVersion !== payload.payloadRendererVersion
-  ) {
-    throw new ComplianceSigningFlowError('payload_hash_mismatch');
+  } else {
+    // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81e8-bb9b-d0ebaeda5669
+    // (reabierto 2026-08-24): si un form tiene SOLO uno de los dos campos
+    // persistidos (hash pero no version, o viceversa), el código legacy
+    // entraba al else-if y comparaba `undefined !== 1`, lanzando
+    // payload_hash_mismatch incluso cuando el hash sí coincidía. Esto
+    // dejaba documentos de cumplimiento legítimos in-firmables de
+    // forma permanente. Comparar solo los campos presentes y exigir
+    // que el campo no-presente tampoco se asuma "match" si el payload
+    // actual sí tiene ese campo.
+    if (hasStoredHash && form.payloadHashHex !== payload.payloadHashHex) {
+      throw new ComplianceSigningFlowError('payload_hash_mismatch');
+    }
+    if (hasStoredVersion && form.payloadRendererVersion !== payload.payloadRendererVersion) {
+      throw new ComplianceSigningFlowError('payload_hash_mismatch');
+    }
   }
 
   const signer = await resolveSigner(target.uid);
