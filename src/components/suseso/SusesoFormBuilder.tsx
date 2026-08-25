@@ -216,18 +216,27 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
 
   const handleDownload = () => {
     if (!result) return;
-    const bin = atob(result.pdfBase64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    const blob = new Blob([arr], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${result.form.kind}_${result.form.folio}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const bin = atob(result.pdfBase64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const blob = new Blob([arr], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${result.form.kind}_${result.form.folio}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      // [P1] Hy3-audit 3c6aa66d-73fe-8135-af6f-da231a024d1c (reabierto 2026-08-24):
+      // atob lanza InvalidCharacterError si pdfBase64 está malformado.
+      // El botón "Descargar PDF" no hacía nada — usuario sin diagnóstico
+      // para acceder al PDF de un folio ya emitido. Ahora propagamos
+      // el error al estado para que el operador vea el mensaje.
+      setError(humanErrorMessage(e));
+    }
   };
 
   return (
