@@ -37,7 +37,21 @@ export class IndexedDbSosStorage implements SosOutboxStorage {
   async load(): Promise<OutboxEntry[]> {
     try {
       const raw = await get<OutboxEntry[]>(STORAGE_KEY);
-      return Array.isArray(raw) ? raw : [];
+      if (Array.isArray(raw)) return raw;
+      // raw is NOT an array here — could be string, number, object,
+      // null, undefined, etc. Log type and length for forense.
+      const rawAsUnknown: unknown = raw;
+      const rawType: string = typeof rawAsUnknown;
+      const rawLength: string =
+        typeof rawAsUnknown === 'string' || Array.isArray(rawAsUnknown)
+          ? String((rawAsUnknown as { length: number }).length)
+          : 'N/A';
+      logger.error(
+        'sosOutbox: IndexedDB load returned non-array (corruption or schema mismatch). ' +
+        'Discarding. Investigate before this happens again — offline SOS may be lost.',
+        { rawType, rawIsNull: rawAsUnknown === null, rawLength },
+      );
+      return [];
     } catch (err) {
       // IndexedDB unavailable (private mode / quota) — degrade to empty rather
       // than crashing the flush loop. Logged, never silent.
