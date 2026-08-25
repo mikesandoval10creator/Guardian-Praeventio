@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Briefcase, Users, Folder, UserCheck, Calendar, Activity, 
@@ -328,7 +328,35 @@ export function ModuleHub() {
   }, [hub?.title, selectedProject?.id, nodes.length]);
 
   if (!hub) {
-    return <Navigate to="/" />;
+    // [Hy3-audit 3c4aa66d-73fe-8108-a2e3-efdf143ada79 reabierto 2026-08-24]:
+    // Antes hacía un Navigate ciego a "/". Un deep-link roto o un cambio
+    // de ruta quedaba invisible para el usuario y para telemetry. Ahora
+    // mostramos un banner explícito con link de vuelta al home para que
+    // sea detectable.
+    return (
+      <div className="p-6 sm:p-10 max-w-2xl mx-auto">
+        <div
+          role="alert"
+          aria-live="polite"
+          data-testid="modulehub-notfound"
+          className="rounded-2xl border border-default-token bg-canvas p-6 sm:p-8 shadow-mode"
+        >
+          <h1 className="text-xl sm:text-2xl font-semibold text-primary-token mb-2">
+            Hub no encontrado
+          </h1>
+          <p className="text-secondary-token mb-4">
+            La ruta <code className="px-1 py-0.5 rounded bg-surface">/hub/{id}</code> no
+            existe o cambió. Verifica el enlace o vuelve al inicio.
+          </p>
+          <Link
+            to="/"
+            className="inline-block px-4 py-2 rounded-xl bg-accent text-on-accent hover:opacity-90 transition-opacity"
+          >
+            Volver al inicio
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // Filter Risk nodes based on hub keywords
