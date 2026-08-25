@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EmergencyAuthorityCallPanel } from './EmergencyAuthorityCallPanel';
+import { DispatchSummary } from './DispatchSummary';
+import { formatDispatchSummary } from '../../services/emergency/dispatchSummary';
 import { 
   AlertTriangle, 
   Users, 
@@ -331,6 +333,36 @@ export function EmergencyDashboard() {
                   ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
                   : undefined
               }
+            />
+            {/* [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81e4-9138-e51a621867fb
+                (reabierto 2026-08-24): el operador humano que llama al
+                131/132/133 necesita leer el resumen estructurado de
+                la emergencia en 5-10s antes de marcar. El componente
+                <DispatchSummary> existía pero NUNCA se montaba — el
+                operador llamaba sin texto estructurado. Ahora se
+                renderiza debajo del call panel con los datos
+                disponibles del proyecto. Los campos del worker
+                (nombre, RUT, sangre, alergias) requieren data wiring
+                adicional (suscripción a /workers/{uid}); por ahora
+                el summary se genera con lo que tenemos (proyecto,
+                coords, tipo de evento activo). Sigue como follow-up. */}
+            <DispatchSummary
+              summary={formatDispatchSummary({
+                projectId: selectedProject?.id ?? 'unknown',
+                projectName: selectedProject?.name ?? 'Proyecto sin nombre',
+                workerUid: user?.uid ?? 'unknown',
+                workerFullName: user?.displayName ?? user?.email ?? 'Trabajador',
+                workerRut: '',
+                detectedAt: new Date(),
+                eventType: 'other',
+                workerCoords: selectedProject?.coordinates
+                  ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
+                  : { lat: 0, lng: 0 },
+                regionCode: selectedProject?.country ?? 'CL',
+              })}
+              coords={selectedProject?.coordinates
+                ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
+                : { lat: 0, lng: 0 }}
             />
             <button
               type="button"
