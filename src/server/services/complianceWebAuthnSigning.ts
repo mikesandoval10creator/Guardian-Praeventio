@@ -55,6 +55,15 @@ export interface ComplianceSigningDocuments {
   loadForm(): Promise<ComplianceSignableForm | null>;
   renderUnsignedPayload(form: ComplianceSignableForm): Promise<ComplianceUnsignedPayload>;
   persistLegacyDigest(payloadHashHex: string, payloadRendererVersion: 1 | 2): Promise<void>;
+  /**
+   * [P0][PERF/VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81dc-95ce-d43cb4d541a6
+   * (reabierto 2026-08-24): método OPCIONAL. Si el adapter puede proveer
+   * el hash ya calculado (sin re-renderizar el PDF binario), retorna
+   * el hash + versión. Si retorna null/undefined, prepareSigningContext
+   * cae al render completo. Esto evita renderizar el PDF entero 2
+   * veces (challenge + complete) cuando el hash ya está persistido.
+   */
+  loadCachedPayloadHash?(form: ComplianceSignableForm): Promise<{ payloadHashHex: string; payloadRendererVersion: 1 | 2 } | null>;
 }
 
 export interface ComplianceSigningTarget {
@@ -90,7 +99,21 @@ async function prepareSigningContext(
   if (!form) throw new ComplianceSigningFlowError('not_found');
   if (form.signature) throw new ComplianceSigningFlowError('already_signed');
 
-  const payload = await documents.renderUnsignedPayload(form);
+  // [P0][PERF/VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81dc-95ce-d43cb4d541a6
+  // (reabierto 2026-08-24): si el adapter provee loadCachedPayloadHash
+  // y el form ya tiene payloadHashHex persistido, evitamos re-renderizar
+  // el PDF binario completo. Si no hay cache o no está persistido,
+  // caemos al render completo (comportamiento legacy).
+  const cachedHash = form.payloadHashHex && form.payloadRendererVersion
+    ? await documents.loadCachedPayloadHash?.(form).catch(() => null)
+    : null;
+  const payload = cachedHash
+    ? {
+        payloadHashHex: cachedHash.payloadHashHex,
+        payloadRendererVersion: cachedHash.payloadRendererVersion,
+        pdfBytes: undefined as unknown as Uint8Array,
+      }
+    : await documents.renderUnsignedPayload(form);
   const hasStoredHash = form.payloadHashHex !== undefined;
   const hasStoredVersion = form.payloadRendererVersion !== undefined;
   if (!hasStoredHash && !hasStoredVersion) {
