@@ -63,6 +63,23 @@ function wrapFirestore(base: Firestore): Firestore & { FieldValue: typeof FieldV
   }) as unknown as Firestore & { FieldValue: typeof FieldValue };
 }
 
+function makeFirestoreAccessor() {
+  const fn = ((app?: adminApp.App) => {
+    if (app) return wrapFirestore(getFirestore(app));
+    if (!_firestoreCache) {
+      _firestoreCache = { value: wrapFirestore(getFirestore(getDefaultApp())) };
+    }
+    return _firestoreCache.value;
+  }) as ((app?: adminApp.App) => Firestore & { FieldValue: typeof FieldValue }) & {
+    FieldValue: typeof FieldValue;
+  };
+  // Expose `FieldValue` as a property on the function itself so legacy
+  // call sites like `admin.firestore.FieldValue.serverTimestamp()` work
+  // at runtime (not just at the type level). This is the v13 pattern.
+  Object.defineProperty(fn, 'FieldValue', { value: FieldValue, enumerable: true });
+  return fn;
+}
+
 export const admin = {
   // App lifecycle (delegates straight through — v14 has these too).
   initializeApp: (...args: Parameters<typeof adminApp.initializeApp>) =>
@@ -93,22 +110,8 @@ export const admin = {
   // proxy that exposes `FieldValue` (and other helpers) so legacy
   // call sites like `admin.firestore.FieldValue.serverTimestamp()`
   // and `admin.firestore().FieldValue.serverTimestamp()` both
-  // keep working without changes. At runtime, a Proxy forwards
-  // unknown property accesses on the Firestore instance to
-  // `FieldValue`. At type-time, an intersection type lets the
-  // compiler see `FieldValue` as a member of the returned
-  // Firestore. The function itself also exposes `FieldValue` so
-  // `admin.firestore.FieldValue` (property access on the function)
-  // typechecks.
-  firestore: ((app?: adminApp.App) => {
-    if (app) return wrapFirestore(getFirestore(app));
-    if (!_firestoreCache) {
-      _firestoreCache = { value: wrapFirestore(getFirestore(getDefaultApp())) };
-    }
-    return _firestoreCache.value;
-  }) as ((app?: adminApp.App) => Firestore & { FieldValue: typeof FieldValue }) & {
-    FieldValue: typeof FieldValue;
-  },
+  // keep working without changes.
+  firestore: makeFirestoreAccessor(),
   auth(app?: adminApp.App): Auth {
     if (app) return getAuth(app);
     if (!_authCache) {
