@@ -137,7 +137,27 @@ export async function hashEntry(entry: Omit<RegulatoryAuditEntry, 'hash'>): Prom
  * NO escribe a Firestore — esa responsabilidad queda en el adapter
  * (`adapters/regulatoryAuditFirestoreAdapter.ts` cuando se cree).
  *
- * Retorna entry completa lista para persistir.
+ * @param event  Mutación a registrar.
+ * @param previousHash  Hash de la entry anterior en la chain (null si primera).
+ * @param entryId  ID único de la entry (UUID v4 preferido).
+ * @returns Entry completa con `hash` calculado, lista para persistir.
+ *
+ * @throws RegulatoryAuditError si la validación de formato falla.
+ *
+ * **PRECONDITION DE IDENTIDAD (JSDoc enforced, no en runtime)**:
+ * El llamador (adapter, endpoint) es responsable de haber verificado la
+ * identidad de `event.byUid` ANTES de invocar `createAuditEntry`. Esto
+ * incluye típicamente: `verifyAuth()` (verifica token de Firebase Auth o
+ * similar) + `assertProjectMember()` (autorización). Si el adapter olvida
+ * este paso, el chain persiste un `byUid` falsificado con una chain
+ * cripto-válida — falla de compliance regulatorio (CLAUDE.md hard #6:
+ * "Vida-safety free all tiers" implica que el audit chain sostiene la
+ * promesa legal de identidad verificada).
+ *
+ * El adapter/endpoint DEBE documentar cómo se cumple este precondition
+ * en su JSDoc. Considerar agregar un campo `identityVerifiedBy: string`
+ * al `RegulatoryMutationEvent` para evidenciar quién verificó, cuando
+ * el adapter exista.
  */
 export async function createAuditEntry(
   event: RegulatoryMutationEvent,
