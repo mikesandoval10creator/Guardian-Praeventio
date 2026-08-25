@@ -5572,5 +5572,10 @@
     "openInMaps": "Open in Google Maps",
     "humanInTheLoop": "A human initiates the dispatch. NEVER auto-dispatches.",
     "medicalContext": "Consented medical data"
+  },
+  "suppliers": {
+    "ranking": {
+      "allServices": "All services"
+    }
   }
 }
