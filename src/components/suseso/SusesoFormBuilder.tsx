@@ -19,13 +19,16 @@
 // will be reused here in a follow-up.
 
 import React, { useState } from 'react';
-import { auth } from '../../services/firebase';
+// [Hy3-audit 3c6aa66d-73fe-81d1-8d8b-cb2cb777c743]
+// Removed dead imports: `auth` (no used in body — only line 86 string
+// is `'../../services/auth/webauthnComplianceSign'`, not the auth
+// instance) and `SusesoSignature` type (declared but never referenced).
+// Both were inflating the chunk with firebase-auth + a TS type.
 import type {
   SusesoFormKind,
   SusesoMutualidad,
   SusesoIncidentClassification,
   SusesoForm,
-  SusesoSignature,
 } from '../../services/suseso/types';
 import { folioToDocId } from '../../services/suseso/susesoService';
 import { apiAuthHeader } from '../../lib/apiAuth';
@@ -413,7 +416,7 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
             <button
               onClick={() => void handleSign()}
               disabled={busy}
-              className="bg-petroleum-700 bg-zinc-900 text-white rounded px-3 py-2"
+              className="bg-petroleum-700 text-white rounded px-3 py-2"
             >
               {busy ? 'Firmando...' : 'Firmar electrónicamente'}
             </button>
