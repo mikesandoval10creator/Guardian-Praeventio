@@ -37,6 +37,7 @@ import type {
 import { folioToDocId } from '../../services/suseso/susesoService';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { humanErrorFromResponse, humanErrorMessage } from '../../lib/humanError';
+import { isValidRut } from '../../utils/rut';
 
 interface BuilderState {
   kind: SusesoFormKind;
@@ -115,6 +116,19 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
     setState((s) => ({ ...s, [k]: v }));
 
   const handleGenerate = async () => {
+    // [Hy3-audit 3c6aa66d-73fe-816f-a44a-f839c9a59a09 reabierto 2026-08-24]:
+    // Validate RUT (módulo 11) client-side BEFORE the POST so that
+    // invalid RUTs do not consume folios and produce useless legal
+    // documents. The isValidRut helper in src/utils/rut.ts already
+    // implements módulo 11. Empty values are also rejected here.
+    if (!state.workerRut || !isValidRut(state.workerRut)) {
+      setError('RUT del trabajador inválido. Verifica el formato y dígito verificador.');
+      return;
+    }
+    if (!state.companyRut || !isValidRut(state.companyRut)) {
+      setError('RUT de la empresa inválido. Verifica el formato y dígito verificador.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
