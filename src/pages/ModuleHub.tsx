@@ -15,8 +15,11 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { generateModuleRecommendations } from '../services/geminiService';
 import { logger } from '../utils/logger';
 
-// Define the hub configurations focusing on conditions, equipment, and responsibilities
-const hubsData: Record<string, any> = {
+// Define the hub configurations focusing on conditions, equipment, and responsibilities.
+// [Hy3-audit 3c4aa66d-73fe-8172-a14d-d88f510a03d5] exported so the dashboard
+// test can assert exhaustivity of the catalog (every moduleGroup.id must
+// resolve to a hub; otherwise the carousel links silently break).
+export const hubsData: Record<string, any> = {
   'main': {
     title: 'Principal',
     icon: Home,
