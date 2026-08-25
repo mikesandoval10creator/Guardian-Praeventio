@@ -188,8 +188,28 @@ export async function createAuditEntry(
 export async function verifyAuditChain(
   entries: RegulatoryAuditEntry[],
 ): Promise<{ valid: boolean; errors: Array<{ entryId: string; reason: string }> }> {
+  // [P1][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81e5-9287-d70e3b58960f
+  // (reabierto 2026-08-24): el loop original era serial (await por entry),
+  // así que la verificación de N entries tardaba N × latencia-SHA256.
+  // Para una chain de 1000 entries (forense regulatorio), eso podía
+  // exceder el timeout del endpoint. Mantenemos el chain check
+  // SECUENCIAL (porque `previousHash` depende de la entry anterior y
+  // cualquier reorden cambiaría el resultado) pero paralelizamos el
+  // recompute de hash con `Promise.all`. Para mantener el orden de los
+  // errores consistente con el orden de entries, capturamos el índice.
   const errors: Array<{ entryId: string; reason: string }> = [];
 
+  // Phase 1 (parallel): recompute hash for every entry.
+  // Returns an array aligned with `entries` (same length, same order).
+  const recomputedHashes = await Promise.all(
+    entries.map((entry) => {
+      const { hash: _hash, ...unhashed } = entry;
+      return hashEntry(unhashed);
+    }),
+  );
+
+  // Phase 2 (sequential): walk the chain in order, validating both
+  // previousHash linkage and recomputed hash against stored.
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!;
     const expectedPrev = i === 0 ? null : entries[i - 1]!.hash;
@@ -199,9 +219,7 @@ export async function verifyAuditChain(
         reason: `previousHash mismatch (expected ${expectedPrev}, got ${entry.previousHash})`,
       });
     }
-    // Recompute hash
-    const { hash: _hash, ...unhashed } = entry;
-    const recomputed = await hashEntry(unhashed);
+    const recomputed = recomputedHashes[i]!;
     if (recomputed !== entry.hash) {
       errors.push({
         entryId: entry.entryId,
