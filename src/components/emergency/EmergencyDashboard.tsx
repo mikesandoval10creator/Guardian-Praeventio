@@ -36,7 +36,24 @@ export function EmergencyDashboard() {
   const [stats, setStats] = useState({ total: 0, safe: 0, danger: 0, unknown: 0 });
   const [activeProtocol, setActiveProtocol] = useState<string>('Emergencia General');
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [emergencyStartMs, setEmergencyStartMs] = useState<number | null>(null);
   const { isSupported: isBluetoothSupported, isScanning, nearbyDevices, startScanning } = useBluetoothMesh();
+
+  // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-81cb-ae47-c568a723e56b
+  // (reabierto 2026-08-24): el interval del timer de 1s vivía DENTRO del
+  // callback de onSnapshot. El return del callback es ignorado por
+  // Firestore, así que el interval quedaba vivo tras unmount y se
+  // duplicaba en cada cambio del doc. Pantalla crítica de rescate con
+  // elapsedTime errático y fuga de memoria. Movido a useEffect propio
+  // con cleanup real: cuando emergencyStartMs cambia, se reemplaza el
+  // interval (cleanup del effect anterior) y al unmount se limpia.
+  useEffect(() => {
+    if (emergencyStartMs == null) return undefined;
+    const id = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - emergencyStartMs) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [emergencyStartMs]);
 
   const isWorker = userRole === 'worker' && !isAdmin;
   const navigate = useNavigate();
@@ -55,15 +72,10 @@ export function EmergencyDashboard() {
         }
         if (data.emergencyStartTime) {
           const startTime = data.emergencyStartTime.toDate ? data.emergencyStartTime.toDate().getTime() : new Date(data.emergencyStartTime).getTime();
-          const updateTimer = () => {
-            setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
-          };
-          updateTimer();
-          const interval = setInterval(updateTimer, 1000);
-          return () => clearInterval(interval);
+          setEmergencyStartMs(startTime);
+          setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
         }
       }
-      return undefined;
     });
 
     let checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`));
