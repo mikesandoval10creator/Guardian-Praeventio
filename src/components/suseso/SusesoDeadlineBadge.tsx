@@ -85,8 +85,22 @@ export const SusesoDeadlineBadge: React.FC<SusesoDeadlineBadgeProps> = ({
     );
   }
 
-  const daysLeft = daysUntilDeadline(deadline, now);
-  const level = escalationLevel(daysLeft);
+  // [P0][VIDA-SAFETY][Ley 16.744] Hy3-audit 3c6aa66d-73fe-819e-9955-c7fea64efbc8
+  // (reabierto 2026-08-24): si status='overdue' pero el deadline es
+  // todavía futuro (cron de marquee desincronizado, cambio de fecha
+  // legal retroactivo, datos importados), el badge mostraba "vence
+  // en N días" contradiciendo el estado BD. Riesgo de cumplimiento
+  // Ley 16.744 — el operador veía un plazo legal futuro cuando ya
+  // estaba vencido. Forzamos level='overdue' cuando status='overdue'.
+  let level: EscalationLevel;
+  let daysLeft: number;
+  if (status === 'overdue') {
+    level = 'overdue';
+    daysLeft = 0;
+  } else {
+    daysLeft = daysUntilDeadline(deadline, now);
+    level = escalationLevel(daysLeft);
+  }
   const palette = LEVEL_STYLES[level];
   const label = buildLabel(formKind, level, daysLeft);
 
