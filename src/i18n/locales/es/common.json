@@ -757,7 +757,8 @@
       "allergies_placeholder": "Ej: Penicilina, látex",
       "consent": "Autorizo compartir esta ficha en una emergencia (a los rescatistas y por la red mesh Bluetooth) para acelerar mi atención.",
       "saved": "Guardado",
-      "save": "Guardar ficha"
+      "save": "Guardar ficha",
+      "save_error": "No se pudo guardar la ficha. Reintenta; si persiste, tu información médica podría no estar disponible en una emergencia."
     },
     "public_call_medical": "Ambulancia",
     "public_call_fire": "Bomberos",

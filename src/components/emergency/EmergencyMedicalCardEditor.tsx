@@ -10,7 +10,8 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { HeartPulse, Check } from 'lucide-react';
+import { HeartPulse, Check, AlertCircle } from 'lucide-react';
+import { logger } from '../../utils/logger';
 import {
   useEmergencyMedicalCard,
   BLOOD_TYPES,
@@ -25,6 +26,7 @@ export function EmergencyMedicalCardEditor() {
   const [allergies, setAllergies] = useState('');
   const [shareConsent, setShareConsent] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   // Seed local form from the persisted card once it loads.
@@ -36,9 +38,23 @@ export function EmergencyMedicalCardEditor() {
   }
 
   const onSave = async () => {
-    await saveCard({ bloodType, allergies: allergies.trim() || undefined, shareConsent });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-812a-b1e1-f03785423dd9
+    // (reabierto 2026-08-24): antes el componente siempre ponía
+    // saved=true después de await, sin chequear si saveCard tuvo
+    // éxito. Si IDB fallaba (cuota llena, modo privado, error
+    // de transacción), el worker veía "Guardado" sin que nada
+    // se persistiera. Ahora: si saveCard lanza, mostramos error
+    // y NO marcamos saved.
+    setSaveError(false);
+    try {
+      await saveCard({ bloodType, allergies: allergies.trim() || undefined, shareConsent });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      logger.error('EmergencyMedicalCardEditor: save failed', err instanceof Error ? err : new Error(String(err)));
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 5000);
+    }
   };
 
   return (
@@ -124,6 +140,23 @@ export function EmergencyMedicalCardEditor() {
           ? t('emergency.medical_card.saved', 'Guardado')
           : t('emergency.medical_card.save', 'Guardar ficha')}
       </button>
+      {/* [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-812a-b1e1-f03785423dd9
+          (reabierto 2026-08-24): banner de error cuando el guardado IDB
+          falla. Sin este banner, el worker no se entera de que su
+          ficha médica no se persistió. */}
+      {saveError && (
+        <p
+          data-testid="medical-card-save-error"
+          role="alert"
+          className="mt-2 flex items-center gap-2 text-sm text-rose-200"
+        >
+          <AlertCircle className="h-4 w-4" />
+          {t(
+            'emergency.medical_card.save_error',
+            'No se pudo guardar la ficha. Reintenta; si persiste, tu información médica podría no estar disponible en una emergencia.',
+          )}
+        </p>
+      )}
     </section>
   );
 }
