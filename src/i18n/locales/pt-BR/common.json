@@ -757,7 +757,8 @@
       "save": "Salvar ficha",
       "saved": "Salvo",
       "subtitle": "Apenas no seu dispositivo. Mostrada aos socorristas somente se você autorizar, para acelerar seu atendimento em uma emergência.",
-      "title": "Ficha médica de emergência"
+      "title": "Ficha médica de emergência",
+      "save_error": "Não foi possível salvar a ficha. Tente novamente; se persistir, suas informações médicas podem não estar disponíveis em uma emergência."
     },
     "public_back": "Voltar",
     "public_button": "Emergência",

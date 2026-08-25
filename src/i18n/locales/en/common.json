@@ -757,7 +757,8 @@
       "save": "Save card",
       "saved": "Saved",
       "subtitle": "Only on your device. Shown to rescuers only if you authorize it, to speed up your care in an emergency.",
-      "title": "Emergency medical card"
+      "title": "Emergency medical card",
+      "save_error": "Could not save the card. Retry; if it persists, your medical info may not be available in an emergency."
     },
     "public_back": "Back",
     "public_button": "Emergency",

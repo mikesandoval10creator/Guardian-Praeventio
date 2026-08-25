@@ -87,10 +87,20 @@ export function useEmergencyMedicalCard(): UseEmergencyMedicalCard {
         updatedAt: new Date().toISOString(),
       };
       setCard(merged);
+      // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-812a-b1e1-f03785423dd9
+      // (reabierto 2026-08-24): el catch anterior logueaba y retornaba
+      // `merged` aunque IDB falló → el componente marcaba "Guardado"
+      // sin que nada se persistiera. Ficha médica ausente en
+      // emergencia offline real → rescatista sin tipo de sangre/alergias.
+      // Re-lanzamos el error para que el caller muestre UI de error.
       try {
         await set(STORAGE_KEY, merged);
       } catch (err) {
-        logger.warn('useEmergencyMedicalCard: save failed', { err });
+        logger.error('useEmergencyMedicalCard: save failed', err instanceof Error ? err : new Error(String(err)));
+        // Re-throw para que el caller pueda manejar el error. El state
+        // local (setCard(merged)) queda, pero NO marcamos nada como
+        // "saved" — solo el IDB persistido cuenta.
+        throw err;
       }
       return merged;
     },
