@@ -35,6 +35,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
 // Sprint 22 Bucket AA — request-scoped tracing on the SOS path. Emergency
@@ -249,12 +250,21 @@ export async function sendToProjectSupervisors(
   if (tokens.length === 0) {
     return { notified: 0, failed: 0, supervisorEmails };
   }
-  const result = await messaging.sendEachForMulticast(
+  // [P0][VIDA-SAFETY] Hy3-audit 3c2aa66d-73fe-8185-b3da-e8ae82132720
+  // (reabierto 2026-08-24): sendEachForMulticast rechaza batches >500
+  // tokens. Proyectos grandes con brigada amplia recibían 0
+  // notificaciones de emergencia — SOS/alertas críticas perdidas
+  // sin reintento. sendMulticastChunked parte el array en chunks
+  // de FCM_MULTICAST_MAX_TOKENS, agrega results, y registra
+  // chunks fallidos via logger.warn.
+  const result = await sendMulticastChunked(
+    messaging,
+    tokens,
     buildEmergencyMulticastMessage(tokens, payload),
   );
   return {
     notified: result.successCount,
-    failed: result.failureCount,
+    failed: result.failureCount + result.errorCount,
     supervisorEmails,
   };
 }
