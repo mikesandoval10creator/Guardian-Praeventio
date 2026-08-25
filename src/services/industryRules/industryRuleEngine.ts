@@ -43,6 +43,14 @@ export interface IndustryPreset {
    * para detectar proyectos con subcobertura de riesgos/EPP del sector.
    */
   isFallback?: boolean;
+  /**
+   * [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-8102-9e44-e7f02d8152f0
+   * (reabierto 2026-08-24): severity override por riskType. Si un riesgo
+   * está aquí, su severity SIEMPRE se respeta (no cae al hardcodeado
+   * "alta_tension" o "silice"). Permite declarar 'arco_electrico' = high,
+   * 'espacio_confinado' = high, 'quimico' = high, etc. por sector.
+   */
+  severityOverrides?: Record<string, 'medium' | 'high'>;
 }
 
 const PRESETS: Record<string, Omit<IndustryPreset, 'industryPrefix' | 'baseEpp'>> = {
@@ -92,6 +100,11 @@ const PRESETS: Record<string, Omit<IndustryPreset, 'industryPrefix' | 'baseEpp'>
     mandatoryDocuments: ['Plan LOTO', 'Procedimientos Arco Eléctrico', 'RIOHS'],
     mandatoryTrainings: ['electricidad_baja_tension', 'electricidad_alta_tension', 'loto_bloqueo', 'rescate_electrico'],
     applicableRegulations: ['DS 109', 'DS 132 baja tensión', 'Reglamento SEC', 'NFPA 70E'],
+    // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-8102-9e44-e7f02d8152f0:
+    // 'arco_electrico' caía a medium (no contiene 'alta_tension' como
+    // substring y no es 'silice'/'altura' exacto). El preset declara
+    // aquí la severidad correcta.
+    severityOverrides: { arco_electrico: 'high' },
     minsalProtocols: [],
   },
   'GP-MANU': {
@@ -334,7 +347,14 @@ export function buildPresetApplication(
     industryPrefix,
     risksToCreate: preset.typicalRisks.map((r) => ({
       riskType: r,
-      severity: r.includes('alta_tension') || r === 'silice' || r === 'altura' ? 'high' : 'medium',
+      // [P0][VIDA-SAFETY] Hy3-audit 3c3aa66d-73fe-8102-9e44-e7f02d8152f0:
+      // el severity override del preset tiene prioridad sobre el fallback
+      // hardcodeado (alta_tension/silice/altura = high). Permite que
+      // cada sector declare la severidad real de sus riesgos
+      // (espacio_confinado=high, arco_electrico=high, etc.).
+      severity:
+        preset.severityOverrides?.[r] ??
+        (r.includes('alta_tension') || r === 'silice' || r === 'altura' ? 'high' : 'medium'),
     })),
     documentsToGenerate: preset.mandatoryDocuments,
     trainingsToSchedule: preset.mandatoryTrainings,
