@@ -169,6 +169,14 @@ export interface CriticalServiceRisk {
   hasHighSystemicRisk: boolean;
 }
 
+/**
+ * @deprecated Use the server endpoint GET /suppliers/ranking which returns
+ * `rankingMeta.hasHighSystemicRisk` and `rankingMeta.isSoleQualifiedSupplier`
+ * computed over the FULL population. This function remains for legacy
+ * `ServiceModeProps` (no server ranking); new code should not use it.
+ *
+ * See Hy3-audit 3c6aa66d-73fe-81f5-99ea-ea6aa10b354c (reabierto 2026-08-24).
+ */
 export function auditCriticalServices(
   suppliers: Supplier[],
   events: ServiceDeliveryEvent[],
