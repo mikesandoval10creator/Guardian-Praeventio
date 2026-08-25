@@ -72,7 +72,15 @@ export const admin = {
   getApps: () => adminApp.getApps(),
   deleteApp: (...args: Parameters<typeof adminApp.deleteApp>) =>
     adminApp.deleteApp(...args),
-  apps: adminApp.getApps(),
+  // `admin.app()` (no args) returns the default app, matching v13.
+  app: (name?: string) => (name ? adminApp.getApp(name) : adminApp.getApp()),
+  // `apps` is exposed as a getter so it always reflects the current set of
+  // initialized apps, not a snapshot from module-load time. Legacy call
+  // sites do `if (!admin.apps.length) admin.initializeApp();` and expect
+  // the array to be live.
+  get apps(): adminApp.App[] {
+    return adminApp.getApps();
+  },
 
   // Credentials (re-exported as namespace for `admin.credential.cert(...)`).
   credential: {

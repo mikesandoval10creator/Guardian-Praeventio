@@ -473,7 +473,11 @@ import {
   startMqttTelemetryBridge,
   type MqttBridgeHandle,
 } from "./src/server/triggers/mqttTelemetryBridge.js";
-import admin from "firebase-admin";
+// Firebase-admin v13 → v14 compatibility shim (2026-08-25):
+// v14 removed the top-level admin.apps/admin.firestore/admin.auth exports.
+// To keep server.ts working without rewriting every reference, route the
+// legacy `admin` import through our shim.
+import admin from "./src/server/firebase-admin-shim.js";
 import fs from 'fs';
 // [P0] Secret redaction for error-handler URLs (health-vault share legacy
 // path form + generic token-in-path segments).

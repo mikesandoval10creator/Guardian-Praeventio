@@ -4,6 +4,8 @@
 // anonymization_events proof — plus the uid guard.
 
 import { describe, it, expect, vi } from 'vitest';
+import type { Auth } from 'firebase-admin/auth';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   anonymizeUser,
   ANONYMIZATION_USERS_DOC_REDACT,
@@ -28,7 +30,7 @@ function buildDeps(
     updateUser,
     revokeRefreshTokens: revoke,
     setCustomUserClaims: setClaims,
-  })) as unknown as typeof import('firebase-admin').auth;
+  })) as unknown as () => Auth;
 
   const setCalls: Array<{ coll: string; id: string; data: Record<string, unknown>; merge?: boolean }> = [];
   const batchDeletes: unknown[] = [];
@@ -62,7 +64,7 @@ function buildDeps(
       update: (ref: unknown, patch: Record<string, unknown>) => batchUpdates.push({ ref, patch }),
       commit,
     }),
-  } as unknown as import('firebase-admin').firestore.Firestore;
+  } as unknown as Firestore;
 
   return { deps: { authAdmin, db }, updateUser, revoke, setClaims, setCalls, batchDeletes, batchUpdates, commit };
 }
