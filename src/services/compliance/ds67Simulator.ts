@@ -197,6 +197,19 @@ const DS67_ADDITIONAL_COTIZACION_TABLE: ReadonlyArray<
   [Number.POSITIVE_INFINITY, 6.8], // 981 y más
 ];
 
+/**
+ * Máximo legal absoluto de la cotización adicional que un empleador
+ * puede pagar hoy bajo DS 67 art. 5 (Tasa de Siniestralidad Total
+ * ≥ 9.81). El campo `currentAdditionalCotizacionPct` del input de
+ * simulación DEBE estar dentro de [0, DS67_MAX_ADDITIONAL_COTIZACION_PCT].
+ *
+ * [Hy3-audit 3c4aa66d-73fe-81ea-b73e-f176924b6c20 2026-08-25,
+ *  vida-safety / Ley 16.744]: el límite superior anterior era 100,
+ * un valor imposible bajo DS 67. La validación vivía en
+ * src/services/compliance/ds67Simulator.ts y src/server/routes/ds67.ts.
+ */
+export const DS67_MAX_ADDITIONAL_COTIZACION_PCT = 6.8;
+
 /** Tabla art. 5: Tasa de Siniestralidad Total → cotización adicional %. */
 export function lookupAdditionalCotizacion(totalRate: number): number {
   if (!Number.isFinite(totalRate) || totalRate < 0) {
@@ -393,10 +406,14 @@ export function simulateDs67(input: Ds67SimulationInput): Ds67SimulationResult {
 
   if (input.currentAdditionalCotizacionPct !== undefined) {
     const pct = input.currentAdditionalCotizacionPct;
-    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    if (
+      !Number.isFinite(pct) ||
+      pct < 0 ||
+      pct > DS67_MAX_ADDITIONAL_COTIZACION_PCT
+    ) {
       throw new Ds67ValidationError(
         'invalid_current_pct',
-        `currentAdditionalCotizacionPct must be within [0, 100], got ${pct}`,
+        `currentAdditionalCotizacionPct must be within [0, ${DS67_MAX_ADDITIONAL_COTIZACION_PCT}] per DS 67 art. 5, got ${pct}`,
       );
     }
   }
