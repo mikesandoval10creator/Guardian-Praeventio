@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../shared/Card';
 
@@ -33,8 +33,26 @@ export function SentryTestButton({
 }: SentryTestButtonProps): ReactElement {
   const { t } = useTranslation();
   const [lastEventId, setLastEventId] = useState<string | null>(null);
+  // [Hy3-audit 3c4aa66d-73fe-818b-813c-d99c7f46845f 2026-08-25]: the
+  // previous code never cleared on retry, so an eventId from 10
+  // minutes ago looked like a recent one. Track the time of the
+  // last probe so the operator can tell whether the displayed
+  // eventId is fresh or stale.
+  const [lastProbeAt, setLastProbeAt] = useState<Date | null>(null);
+
+  // Reset the displayed probe state when the variant changes —
+  // the operator shouldn't see a "message" eventId next to the
+  // "throw" button.
+  useEffect(() => {
+    setLastEventId(null);
+    setLastProbeAt(null);
+  }, [variant]);
 
   const handleClick = () => {
+    // [Hy3-audit ... 2026-08-25]: clear the prior id so a new click
+    // doesn't stack on a stale one.
+    setLastEventId(null);
+    setLastProbeAt(new Date());
     const tag = new Date().toISOString();
     if (variant === 'throw') {
       // Intentionally synchronous so React/Sentry ErrorBoundary catches it.
@@ -59,6 +77,17 @@ export function SentryTestButton({
       {lastEventId && variant === 'message' && (
         <p className="text-xs text-zinc-500" data-testid="sentry-test-event-id">
           {t('settings.observability.event_sent', 'Evento enviado')}: <code>{lastEventId}</code>
+          {/* [Hy3-audit 3c4aa66d-73fe-818b-813c-d99c7f46845f 2026-08-25]:
+              surface the probe time so the operator can tell
+              whether the displayed eventId is fresh. */}
+          {lastProbeAt && (
+            <>
+              {' · '}
+              <time dateTime={lastProbeAt.toISOString()}>
+                {lastProbeAt.toLocaleTimeString()}
+              </time>
+            </>
+          )}
         </p>
       )}
     </div>
