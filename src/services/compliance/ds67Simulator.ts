@@ -275,7 +275,37 @@ export interface Ds67AnnualPeriodWindow {
 export function evaluationPeriodWindows(
   reference: Date,
   count: 2 | 3 = 3,
+  affiliationYears?: number,
 ): Ds67AnnualPeriodWindow[] {
+  // [Hy3-audit 3c4aa66d-73fe-8128-89c5-c3a6240a7759 2026-08-25,
+  //  compliance / Ley 16.744 art. 2 a) inciso 2do]: an employer with
+  // 2 to 3 years of affiliation is evaluated against the LAST 2
+  // annual periods, not 3. The previous signature hard-coded 3 as
+  // the default, which over-counts tenencia for new affiliates
+  // and silently biases the Tasa de Siniestralidad and the
+  // cotización adicional derived from it.
+  //
+  // If the caller passes affiliationYears explicitly, we pick 2 or
+  // 3 per the legal rule. The route server at
+  // src/server/routes/ds67.ts:255 currently passes periods.length
+  // from the body — it doesn't yet look up the tenant's
+  // affiliation, so this fix is one of two pieces. The route
+  // server should compute affiliationYears from the tenant record
+  // and pass it here. That cross-file work is a follow-up.
+  let effectiveCount: 2 | 3 = count;
+  if (affiliationYears !== undefined) {
+    if (!Number.isFinite(affiliationYears) || affiliationYears < 0) {
+      throw new Ds67ValidationError(
+        'invalid_affiliation_years',
+        `affiliationYears must be a non-negative finite number, got ${affiliationYears}`,
+      );
+    }
+    if (affiliationYears < 3) {
+      effectiveCount = 2;
+    } else {
+      effectiveCount = 3;
+    }
+  }
   // Periods are anchored to **UTC midnight, July 1** per the canonical
   // table that lookupAdditionalCotizacion() consumes (DS67_ADDITIONAL_COTIZACION_TABLE).
   // That means an incident stamped 30-jun 21:00 CLT (≈01-jul 00:00
@@ -304,7 +334,7 @@ export function evaluationPeriodWindows(
   const julyFirstOfYear = Date.UTC(year, 6, 1);
   const cutYear = refMs >= julyFirstOfYear ? year : year - 1;
   const windows: Ds67AnnualPeriodWindow[] = [];
-  for (let i = count; i >= 1; i--) {
+  for (let i = effectiveCount; i >= 1; i--) {
     const startYear = cutYear - i;
     const start = new Date(Date.UTC(startYear, 6, 1));
     const end = new Date(Date.UTC(startYear + 1, 6, 1));
