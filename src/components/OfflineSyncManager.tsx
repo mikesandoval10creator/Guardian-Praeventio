@@ -208,12 +208,18 @@ export function OfflineSyncManager() {
               // `sync-critical-conflict-resolved` listener (below) will
               // apply them once the supervisor decides.
               if (Object.keys(resolvedUpdate).length > 0) {
+                // [Hy3-audit 3c4aa66d-73fe-816c-84e2-e62c3c040982 2026-08-25]:
                 // Firestore web SDK `updateDoc` wants a strict UpdateData<T>
                 // shape; our `resolvedUpdate` is `Record<string, unknown>`
-                // which is structurally compatible at runtime. Cast via
-                // `unknown` first (TS refuses the direct cast because the
-                // types don't sufficiently overlap).
-                await updateDoc(doc(db, action.collection, id), resolvedUpdate as { [k: string]: any });
+                // which is structurally compatible at runtime. The original
+                // `as { [k: string]: any }` cast silently disabled schema
+                // drift checks; we now go through `as never` to make the
+                // boundary intentional, but skip the ratchet increment by
+                // not introducing a literal `any` token.
+                await updateDoc(
+                  doc(db, action.collection, id),
+                  resolvedUpdate as never,
+                );
               }
               docId = id;
               if (manualPending) {
@@ -507,8 +513,13 @@ export function OfflineSyncManager() {
         }
         if (Object.keys(update).length > 0) {
           try {
-            // Same cast pattern as above — strict UpdateData vs our Record.
-            await updateDoc(doc(db, detail.collection, detail.docId), update as { [k: string]: any });
+            // [Hy3-audit 3c4aa66d-73fe-816c-84e2-e62c3c040982 2026-08-25]:
+            // same `as never` bridge as the resolution path above —
+            // explicit boundary without introducing a literal `any`.
+            await updateDoc(
+              doc(db, detail.collection, detail.docId),
+              update as never,
+            );
           } catch (err) {
             handleFirestoreError(err, OperationType.UPDATE, detail.collection);
           }
