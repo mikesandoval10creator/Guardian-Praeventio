@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import type { AuditModule } from '../../services/auditPortal/externalAuditPortal';
 import {
+  PortalForbiddenError,
   fetchPublicAuditPortal,
   type PortalPublicView as PortalPublicViewData,
 } from '../../hooks/useExternalAuditPortal';
@@ -124,11 +125,14 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
         });
         setBootstrap({ kind: 'ok', data: portal });
       } catch (err) {
-        const msg = (err as Error).message;
-        if (msg === 'forbidden') {
+        // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]:
+        // discriminate by class, not by message-string equality. Server
+        // can change the 4xx body shape (code, message, error) without
+        // regressing the deny surface.
+        if (err instanceof PortalForbiddenError) {
           setBootstrap({ kind: 'forbidden' });
         } else {
-          setBootstrap({ kind: 'error', message: msg });
+          setBootstrap({ kind: 'error', message: (err as Error).message });
         }
       }
     },
@@ -158,11 +162,12 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
         });
         setModuleState({ kind: 'ok', data: portal });
       } catch (err) {
-        const msg = (err as Error).message;
-        if (msg === 'forbidden') {
+        // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]:
+        // see probe handler above — same instanceof check.
+        if (err instanceof PortalForbiddenError) {
           setModuleState({ kind: 'forbidden' });
         } else {
-          setModuleState({ kind: 'error', message: msg });
+          setModuleState({ kind: 'error', message: (err as Error).message });
         }
       }
     },
