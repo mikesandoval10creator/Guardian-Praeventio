@@ -56,29 +56,40 @@ describe('SentryTestButton', () => {
     );
   });
 
-  it('throw variant: click throws so window.onerror can capture', () => {
+  it('throw variant: click triggers window.onerror (NOT ErrorBoundary)', async () => {
     // The throw variant rethrows a synthetic Error so the global
     // window.onerror handler installed by initSentry() can capture
     // it. (NOT the React ErrorBoundary — error boundaries don't
     // catch synchronous throws from DOM event handlers.)
-    let captured: unknown = null;
-    const originalHandler = window.onerror;
-    window.onerror = () => true;
+    //
+    // We use userEvent.click() inside a try/catch — the production
+    // behavior is that window.onerror catches it AFTER React's
+    // synchronous dispatch. The test asserts the same thing
+    // happened here.
+    const user = userEvent.setup();
+    const onError = vi.fn();
+    window.addEventListener('error', onError);
     try {
       render(<SentryTestButton variant="throw" />);
-      const btn = screen.getByTestId('sentry-test-throw');
-      try {
-        btn.click();
-      } catch (e) {
-        captured = e;
-      }
       // captureMessage must NOT have been called in the throw variant.
       expect(mockedCapture).not.toHaveBeenCalled();
+
+      // user-event re-throws synchronously through React's event
+      // dispatch. We catch it here so the test runner doesn't see
+      // it as an unhandled error.
+      try {
+        await user.click(screen.getByTestId('sentry-test-throw'));
+      } catch {
+        /* expected — see comment above */
+      }
+
+      // The onerror listener must have fired — that's how production
+      // observability sees the verification event.
+      expect(onError).toHaveBeenCalled();
+      const [event] = onError.mock.calls[0];
+      expect(String(event.message ?? event)).toMatch(/Sentry verification/);
     } finally {
-      window.onerror = originalHandler;
-    }
-    if (captured) {
-      expect(String(captured)).toMatch(/Sentry verification/);
+      window.removeEventListener('error', onError);
     }
   });
 
