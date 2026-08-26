@@ -21,6 +21,34 @@ import type {
 } from '../services/auditPortal/externalAuditPortal';
 
 // ────────────────────────────────────────────────────────────────────────
+// Discriminated auth-boundary error class
+// ────────────────────────────────────────────────────────────────────────
+//
+// [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]: replaces
+// message-string equality (`err.message === 'forbidden'`) with a proper
+// error class so consumers can rely on `instanceof PortalForbiddenError`
+// regardless of how the server formatted the 4xx body. Server stays
+// intentionally opaque on the wire; the classifier is purely client-side
+// and keyed on HTTP status, so any change to the deny message format
+// cannot regress the deny surface.
+//
+// `name` is set so the legacy `err.message === 'forbidden'` check still
+// works for callers we haven't migrated yet (PortalPublicView — see
+// follow-up patch in this same commit).
+export class PortalForbiddenError extends Error {
+  public readonly status: 401 | 403;
+  public readonly serverHint: string | undefined;
+  constructor(status: 401 | 403, serverHint: string | undefined) {
+    // Preserve `err.message === 'forbidden'` semantics for any leftover
+    // string checks. The OPAQUE_TOKEN semantics are unchanged.
+    super('forbidden');
+    this.name = 'PortalForbiddenError';
+    this.status = status;
+    this.serverHint = serverHint;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Shared response envelope helper
 // ────────────────────────────────────────────────────────────────────────
 
@@ -31,6 +59,14 @@ async function unwrap<T>(res: Response): Promise<T> {
       message?: string;
       code?: string;
     };
+    // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]: any 4xx
+    // auth boundary is treated as PortalForbiddenError so callers can
+    // discriminate via instanceof instead of message-string equality. The
+    // server response shape is still opaque on the wire — the classifier
+    // is purely client-side and keyed on HTTP status.
+    if (res.status === 401 || res.status === 403) {
+      throw new PortalForbiddenError(res.status, body.message ?? body.error ?? body.code);
+    }
     throw new Error(body.message ?? body.error ?? body.code ?? `http_${res.status}`);
   }
   return (await res.json()) as T;

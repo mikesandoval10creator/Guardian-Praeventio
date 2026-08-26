@@ -16,8 +16,20 @@ vi.mock('react-i18next', () => ({
 // Mock the fetchPublicAuditPortal module BEFORE importing the component.
 // [TS error 2026-08-25] import path corrected: function lives in
 // src/hooks/useExternalAuditPortal.ts (not externalAuditPortal.ts).
+// [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]: the mock
+// must also re-export PortalForbiddenError because the component uses
+// `err instanceof PortalForbiddenError` instead of message equality.
+// Pass-through via requireActual would also work, but explicit listing
+// keeps the mock surface minimal and intentional.
 vi.mock('../../hooks/useExternalAuditPortal', () => ({
   fetchPublicAuditPortal: vi.fn(),
+  PortalForbiddenError: class extends Error {
+    constructor(status: number, _hint: string | undefined) {
+      super('forbidden');
+      this.name = 'PortalForbiddenError';
+      void status;
+    }
+  },
 }));
 
 import { PortalPublicView } from './PortalPublicView';
@@ -42,8 +54,15 @@ describe('PortalPublicView — minimal coverage', () => {
   // represent the user-visible failure modes.
 
   it('shows forbidden state when fetchPublicAuditPortal throws forbidden', async () => {
+    // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]:
+    // throw a real PortalForbiddenError instance so the component's
+    // instanceof check is exercised end-to-end (not the old message
+    // equality path).
+    const { PortalForbiddenError } = await import(
+      '../../hooks/useExternalAuditPortal'
+    );
     mockedFetch.mockRejectedValueOnce(
-      Object.assign(new Error('forbidden'), { code: 'forbidden' }),
+      new PortalForbiddenError(403, 'forbidden'),
     );
     render(<PortalPublicView token="bad-token" projectId="proj-1" />);
     await waitFor(() => {
