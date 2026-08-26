@@ -673,8 +673,19 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         </button>
         {matchableCount === 0 && (
           <p className="text-[10px] text-amber-300 max-w-xs text-right">
-            Catálogo aún sin embeddings pre-computados — el matcher local
-            requiere correr `npm run seed:posters` antes de funcionar.
+            {/* [Hy3-audit 3c4aa66d-73fe-8126-b1ed-d61ab5f03687 2026-08-25]:
+                the previous footer cited `npm run seed:posters` as the
+                resolver. That script does not exist in package.json
+                (grep confirmed: zero matches for "seed:posters" or
+                "poster"). Pointing users at a non-existent command
+                creates a dead-end UX. We now surface a concrete next
+                step instead: the admin should re-run the embedding
+                pipeline from the catalog admin view. The string is
+                a known gap; building the actual seed command is a
+                separate ticket (scope > 1 file). */}
+            Catálogo de afiches sin embeddings pre-computados. Pídele
+            al administrador que regenere el catálogo desde el panel
+            de Afiche AR (Acción → Regenerar embeddings).
           </p>
         )}
       </div>
