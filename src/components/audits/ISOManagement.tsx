@@ -132,6 +132,14 @@ function DashboardTab(props: {
 
 function DocumentosTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]:
+  // ISOManagement passes projectId through with `?? ''` fallback.
+  // The parent does guard `if (!user || !projectId)` at the dashboard
+  // level, but a refactor that moves/removes that guard would silently
+  // mount this tab with projectId='' and `projects//iso_documents` is
+  // an invalid Firestore path that fails type checks but not runtime.
+  // Local guard makes the invariant local to each tab.
+  if (!projectId) return null;
   const { data: docs, loading } = useFirestoreCollection<ISODocument>(
     `projects/${projectId}/iso_documents`
   );
@@ -243,6 +251,9 @@ function DocumentosTab({ projectId }: { projectId: string }) {
 
 function CompetenciasTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]: see
+  // DocumentosTab — same invariant local guard.
+  if (!projectId) return null;
   const { data: workers, loading } = useFirestoreCollection<Worker>(
     `projects/${projectId}/workers`
   );
@@ -411,6 +422,9 @@ const PHASE_HEADER: Record<ISOImprovement['phase'], string> = {
 
 function MejoraTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]: see
+  // DocumentosTab — same invariant local guard.
+  if (!projectId) return null;
   const { data: improvements, loading } = useFirestoreCollection<ISOImprovement>(
     `projects/${projectId}/iso_improvements`
   );
