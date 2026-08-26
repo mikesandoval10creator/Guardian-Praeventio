@@ -262,6 +262,14 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
   const intervalRef = useRef<number | null>(null);
   const lastMatchAtRef = useRef<number>(0);
   const lastMatchIdRef = useRef<string | null>(null);
+  // [Hy3-audit 3c4aa66d-73fe-8136-9edd-e8b11c15da91 2026-08-25]:
+  // Holds the matcher instance that initMatcher() configured. The
+  // tick uses getPosterMatcher() (singleton) without options — if
+  // closePosterMatcher() ran in the cleanup and the tick is still
+  // in flight, the next call would create a fresh matcher with
+  // default options, silently mis-matching. The ref lets the tick
+  // bail out if the captured instance was closed underneath.
+  const matcherRef = useRef<{ closed: boolean } | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -336,6 +344,11 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
           runningMode: 'IMAGE',
         });
         await matcher.init();
+        // [Hy3-audit 3c4aa66d-73fe-8136-9edd-e8b11c15da91 2026-08-25]:
+        // capture this instance for the tick to consult. PosterMatcher
+        // exposes `.closed`; we duck-type the ref so this file stays
+        // decoupled from the service's internals.
+        matcherRef.current = matcher as unknown as { closed: boolean };
         if (!cancelled) setMatcherReady(true);
       } catch (err) {
         logger.error('ARPosterScanner: matcher init failed', err);
@@ -349,6 +362,10 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
     return () => {
       cancelled = true;
       // Cerramos el matcher al salir del scanner.
+      // [Hy3-audit 3c4aa66d-73fe-8136-9edd-e8b11c15da91 2026-08-25]:
+      // also flip the captured ref so any tick still running sees
+      // the closed state and bails out before issuing matchFrame.
+      if (matcherRef.current) matcherRef.current.closed = true;
       closePosterMatcher();
     };
   }, [matcherInitNonce]);
@@ -457,6 +474,11 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
       setScanCount((c) => c + 1);
 
       try {
+        // [Hy3-audit 3c4aa66d-73fe-8136-9edd-e8b11c15da91 2026-08-25]:
+        // bail out if the captured matcher was closed underneath
+        // (rapid unmount). Avoids the previous behavior of silently
+        // creating a fresh default-options matcher.
+        if (!matcherRef.current || matcherRef.current.closed) return;
         const matcher = getPosterMatcher();
         const result: PosterMatchResult | null = await matcher.matchFrame(
           canvas,
