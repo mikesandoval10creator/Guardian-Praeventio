@@ -160,9 +160,19 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
     // sees a graceful "no scope" message and can pick another module.
     // The projectId is required — if the auditor opens the URL without one,
     // we attempt with a sentinel and let the deny surface guide them.
-    if (token) {
-      void probe('compliance_snapshot', projectId ?? '__probe__');
-    }
+    // [Hy3-audit 3c4aa66d-73fe-8152-ad5b-efea5bd00cbc 2026-08-25]:
+// The auditor opens /audit-portal/{token} WITHOUT ?projectId as the
+// L4-6 documented entry path. The previous code probed with a
+// '__probe__' sentinel, which the server rejects as out-of-scope, so
+// valid tokens showed DenyScreen and bogus access_log entries were
+// created. Now: skip the probe until the auditor picks a project (or
+// one is supplied via the URL). The component stays at bootstrap.kind:
+// 'idle' which renders the LoadingScreen; once the parent passes a
+// projectId via the URL or ProjectPicker, the probe fires and the OK
+// path takes over.
+if (token && projectId) {
+  void probe('compliance_snapshot', projectId);
+}
   }, [probe, token, projectId]);
 
   const fetchModule = useCallback(
@@ -183,8 +193,15 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
   if (bootstrap.kind === 'forbidden') {
     return <DenyScreen />;
   }
-  if (bootstrap.kind === 'error') {
-    return <ErrorScreen message={bootstrap.message} onRetry={() => void probe('compliance_snapshot', projectId ?? '__probe__')} />;
+  // [Hy3-audit 3c4aa66d-73fe-8152-ad5b-efea5bd00cbc 2026-08-25]: retry
+// only fires if a real projectId is available — never with the
+// '__probe__' sentinel that triggers false denies. If no projectId
+// is set, retry is a no-op (the auditor must pick one first).
+if (bootstrap.kind === 'error') {
+    const handleRetry = projectId
+      ? () => void probe('compliance_snapshot', projectId)
+      : () => undefined;
+    return <ErrorScreen message={bootstrap.message} onRetry={handleRetry} />;
   }
   if (bootstrap.kind === 'idle' || bootstrap.kind === 'loading') {
     return <LoadingScreen />;
