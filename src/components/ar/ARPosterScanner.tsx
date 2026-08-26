@@ -32,6 +32,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTenantId } from '../../hooks/useTenantId';
 import {
+  arrayUnion,
   collection,
   doc,
   getDocs,
@@ -413,11 +414,18 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         if (!existingSnap.empty) {
           const docSnap = existingSnap.docs[0]!;
           const existing = docSnap.data() as PosterAnchor;
+          // [Hy3-audit 3c4aa66d-73fe-81d8-990d-e4ba48993301 2026-08-25]:
+          // The previous updateDoc overwrote tags (lost history) and
+          // gps (lost first-seen position). For life-safety-adjacent
+          // traceability we want to keep the original scan location
+          // and accumulate per-scan metadata. Use arrayUnion to append
+          // rather than replace, and only set gpsFirstSeen on the
+          // create path below.
           await updateDoc(docSnap.ref, {
             scanCount: (existing.scanCount ?? 0) + 1,
             updatedAt: nowIso,
-            gps, // refresca posición — el poster puede haber sido movido
-            tags: [`sim:${similarity.toFixed(3)}`],
+            gps, // last-known position (moved poster)
+            tags: arrayUnion(`sim:${similarity.toFixed(3)}`),
           });
           return;
         }
@@ -431,6 +439,11 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
           createdAt: nowIso,
           updatedAt: nowIso,
           gps,
+          // [Hy3-audit 3c4aa66d-73fe-81d8-990d-e4ba48993301 2026-08-25]:
+          // first-seen position is the audit-of-record. The update
+          // path never touches it, so the trail of "where was this
+          // poster first scanned" survives subsequent re-scans.
+          gpsFirstSeen: gps,
           matrix: matrixFromPosition(0, 0, 0),
           label: poster.title,
           posterId: poster.id,
