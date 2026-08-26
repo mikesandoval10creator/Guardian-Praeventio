@@ -114,6 +114,14 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
     null,
   );
   const [moduleState, setModuleState] = useState<LoadState>({ kind: 'idle' });
+  // [Hy3-audit 3c4aa66d-73fe-819b-80df-d30b531e586e 2026-08-25]: the
+  // prop is the bootstrap project, not the user's live pick. Once the
+  // auditor chooses a project from the picker, the picker reverts to
+  // the bootstrap value and ModuleNav keeps refetching with the prop
+  // instead of the picked id — the auditor then sees/requests evidence
+  // from the wrong project. Local state is the source of truth after
+  // first pick; effectiveProjectId is computed from it.
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   // [Hy3-audit 3c4aa66d-73fe-81fe-adc9-c341c2939d30 2026-08-25]: shared
   // fetch pipeline so probe and fetchModule can't diverge on auth /
@@ -208,10 +216,15 @@ if (bootstrap.kind === 'error') {
   }
 
   const data = bootstrap.data;
+  // [Hy3-audit 3c4aa66d-73fe-819b-80df-d30b531e586e 2026-08-25]: the
+  // user's live pick wins over the bootstrap projectId prop. Fall back
+  // to the prop if it's in scope, otherwise to the first scoped
+  // project.
   const effectiveProjectId =
-    projectId && data.scopeProjectIds.includes(projectId)
+    activeProjectId ??
+    (projectId && data.scopeProjectIds.includes(projectId)
       ? projectId
-      : data.scopeProjectIds[0] ?? '';
+      : data.scopeProjectIds[0] ?? '');
 
   return (
     <div
@@ -235,7 +248,11 @@ if (bootstrap.kind === 'error') {
           projectIds={data.scopeProjectIds}
           selected={effectiveProjectId}
           onChange={(pid) => {
-            // Re-probe with the new project to refresh the access decision.
+            // [Hy3-audit 3c4aa66d-73fe-819b-80df-d30b531e586e 2026-08-25]:
+            // commit the pick to local state first so the <select>
+            // doesn't revert, then refetch with the picked id (the
+            // previous code dropped the argument and used the prop).
+            setActiveProjectId(pid);
             void fetchModule(selectedModule ?? 'compliance_snapshot', pid);
           }}
         />
@@ -243,7 +260,13 @@ if (bootstrap.kind === 'error') {
         <ModuleNav
           available={data.scopeModules}
           selected={selectedModule}
-          onSelect={(m) => void fetchModule(m, effectiveProjectId)}
+          onSelect={(m) => {
+            // [Hy3-audit 3c4aa66d-73fe-819b-80df-d30b531e586e 2026-08-25]:
+            // the onSelect fires with the picked module; the project is
+            // whatever the user has currently chosen via ProjectPicker
+            // (effectiveProjectId). Both pieces now drive the same fetch.
+            void fetchModule(m, effectiveProjectId);
+          }}
         />
 
         <ModulePanel
