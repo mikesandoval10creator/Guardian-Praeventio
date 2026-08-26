@@ -265,6 +265,12 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // [Hy3-audit 3c4aa66d-73fe-81ac-a35b-d847e613b98e 2026-08-25]:
+  // iOS Safari rejects play() until a user gesture; surfaced via
+  // setNeedsUserGesture(true) inside the catch above. Render a
+  // "Tap to enable camera" affordance and retry play() from the
+  // gesture handler.
+  const [needsUserGesture, setNeedsUserGesture] = useState(false);
   const [matcherReady, setMatcherReady] = useState(false);
   // Codex fix 2026-05-16: antes solo logueábamos el error de init y
   // dejábamos `matcherReady=false` permanente — el usuario veía
@@ -301,7 +307,15 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {
-            /* play() rejected — quizá user gesture requerido */
+            // [Hy3-audit 3c4aa66d-73fe-81ac-a35b-d847e613b98e 2026-08-25]:
+            // iOS Safari rejects play() until a user gesture has been
+            // observed; the empty catch left the loop running with
+            // readyState<2, so 0 matches with no diagnostic. Surface
+            // a user-facing state that explains what to do. The fix
+            // is small: record the rejection, render a "Tap to
+            // enable camera" affordance, and call play() again from
+            // the first user gesture.
+            setNeedsUserGesture(true);
           });
         }
         setCameraReady(true);
@@ -518,6 +532,23 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
               {' · '}
               <span>{matchableCount}/{totalCatalog} afiches matcheables</span>
             </p>
+            {/* [Hy3-audit 3c4aa66d-73fe-81ac-a35b-d847e613b98e 2026-08-25]:
+                iOS Safari rejected video.play() above. Surface the
+                actionable next step in the header (always visible,
+                not buried under the footer) and wire the header tap
+                to retry play(). */}
+            {needsUserGesture && (
+              <button
+                type="button"
+                onClick={() => {
+                  videoRef.current?.play().catch(() => {});
+                  setNeedsUserGesture(false);
+                }}
+                className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-amber-500/30 text-amber-100 border border-amber-400/40"
+              >
+                Toca aquí para activar la cámara (iOS)
+              </button>
+            )}
           </div>
         </div>
         <button
