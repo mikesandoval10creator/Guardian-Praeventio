@@ -23,19 +23,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { SentryTestButton } from './SentryTestButton';
-
-// Mock the Sentry SDK at the vendor boundary.
-vi.mock('@sentry/react', () => ({
-  captureMessage: vi.fn(() => 'mock-event-id-abc123'),
+// Mock the observability adapter facade BEFORE importing the component.
+// [Refactor 2026-08-25] The button no longer imports @sentry/react
+// directly (PR #1587 routed it through the ErrorTrackingAdapter
+// facade). Tests must stub the facade, not the vendor SDK.
+vi.mock('../../services/observability', () => ({
+  getErrorTracker: vi.fn(),
 }));
 
-import * as Sentry from '@sentry/react';
-const mockedCapture = vi.mocked(Sentry.captureMessage);
+import { SentryTestButton } from './SentryTestButton';
+import * as Observability from '../../services/observability';
+const mockedTracker = vi.mocked(Observability.getErrorTracker);
 
 describe('SentryTestButton', () => {
+  let mockCaptureMessage: ReturnType<typeof vi.fn>;
   beforeEach(() => {
-    mockedCapture.mockClear();
+    mockCaptureMessage = vi.fn(() => 'mock-event-id-abc123');
+    mockedTracker.mockReturnValue({
+      captureMessage: mockCaptureMessage,
+      captureException: vi.fn(),
+      // other methods unused by this component
+      ...(vi.fn().mockReturnThis() as unknown as Record<string, unknown>),
+    } as unknown as ReturnType<typeof Observability.getErrorTracker>);
   });
 
   it('message variant: click calls captureMessage at level info and renders the eventId', async () => {
@@ -45,9 +54,9 @@ describe('SentryTestButton', () => {
     await user.click(screen.getByTestId('sentry-test-message'));
 
     await waitFor(() =>
-      expect(mockedCapture).toHaveBeenCalledTimes(1),
+      expect(mockCaptureMessage).toHaveBeenCalledTimes(1),
     );
-    expect(mockedCapture).toHaveBeenCalledWith(
+    expect(mockCaptureMessage).toHaveBeenCalledWith(
       expect.stringMatching(/^Sentry verification: mensaje de prueba /),
       'info',
     );
@@ -72,7 +81,7 @@ describe('SentryTestButton', () => {
     try {
       render(<SentryTestButton variant="throw" />);
       // captureMessage must NOT have been called in the throw variant.
-      expect(mockedCapture).not.toHaveBeenCalled();
+      expect(mockCaptureMessage).not.toHaveBeenCalled();
 
       // user-event re-throws synchronously through React's event
       // dispatch. We catch it here so the test runner doesn't see
