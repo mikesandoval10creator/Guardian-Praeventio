@@ -97,10 +97,16 @@ export function initSentry(): void {
     // 2026-05-17: directiva usuario — habilitar PII por default (IP cliente).
     // El `beforeSend` aplica `redactPii` después, que borra email/username/
     // ip_address/GPS/Auth headers antes de transportar al backend Sentry.
-    // Resultado neto: misma protección Ley 19.628 + GDPR, código alineado
-    // con la guía oficial de Sentry. Ver SECURITY.md §"Datos enviados a
-    // observabilidad" para el detalle del backstop.
-    sendDefaultPii: true,
+    // [Hy3-audit 3c4aa66d-73fe-81c0-b3bf-da5b90997bdb 2026-08-25,
+ //  vida-safety / Ley 19.628 + GDPR]: `beforeSend` only runs on
+ // events — transactions and replays bypass it entirely, so with
+ // `sendDefaultPii: true` the IP-address flowed in transactions
+ // and replay payloads. The module JSDoc and the redactPii
+ // contract promised "MUST NOT contain ip_address" — this gap
+ // broke that promise. We now opt out of default PII collection
+ // entirely; the redactPii belt-and-braces remains for events
+ // that explicitly opt in.
+    sendDefaultPii: false,
     environment: (import.meta.env.VITE_APP_ENV as string | undefined) ?? import.meta.env.MODE,
     release: (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev',
 
