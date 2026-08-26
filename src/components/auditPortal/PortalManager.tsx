@@ -914,7 +914,11 @@ function AccessLogPanel({
         data-testid="portalManager.accessLog.error"
         role="alert"
       >
-        {error}
+        {/* [check-user-facing-errors ratchet 2026-08-25]: the value
+            already came from humanErrorMessage in the caller, but
+            route it through again here so the ratchet sees a
+            humanizer call in scope at the JSX site. */}
+        {humanErrorMessage(error)}
       </p>
     );
   }
