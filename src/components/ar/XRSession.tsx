@@ -191,8 +191,36 @@ export function XRSession({
       }
 
       // Hit-test source
-      const viewerSpace = await session.requestReferenceSpace('viewer');
-      const localSpace = await session.requestReferenceSpace('local');
+      // [Hy3-audit 3c4aa66d-73fe-81fd-bc24-f4e896f8855a 2026-08-25]:
+      // requestReferenceSpace() can reject (not all XR runtimes support
+      // 'local' or 'viewer', permissions, frame-rate mismatch). An
+      // unhandled rejection here aborts start() mid-flight: no
+      // setError, no session.end(), component stays mounted showing a
+      // black reticle. Wrap both acquisitions in try; on failure,
+      // surface a human message and end the session cleanly so the
+      // caller can recover.
+      let viewerSpace: XRReferenceSpace | null = null;
+      let localSpace: XRReferenceSpace | null = null;
+      try {
+        // The XRSessionInstance type we use locally is wider than what
+        // requestReferenceSpace returns in DOM lib types; cast at the
+        // boundary because we only ever read pose/timestamp.
+        viewerSpace = (await session.requestReferenceSpace(
+          'viewer',
+        )) as XRReferenceSpace;
+        localSpace = (await session.requestReferenceSpace(
+          'local',
+        )) as XRReferenceSpace;
+      } catch (err) {
+        setError(
+          humanErrorMessage(
+            `No se pudo inicializar el espacio de referencia AR: ${(err as Error).message}`,
+          ),
+        );
+        await session.end().catch(() => {});
+        return;
+      }
+      if (cancelled || !session || !viewerSpace || !localSpace) return;
       if (typeof session.requestHitTestSource === 'function') {
         try {
           hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
@@ -227,7 +255,7 @@ export function XRSession({
         if (hitTestSource) {
           const results = frame.getHitTestResults(hitTestSource);
           if (results.length > 0) {
-            const pose = results[0].getPose(localSpace);
+            const pose = results[0].getPose(localSpace!);
             if (pose) {
               reticle.visible = true;
               reticle.matrix.fromArray(pose.transform.matrix);
