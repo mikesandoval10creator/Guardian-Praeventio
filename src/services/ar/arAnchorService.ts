@@ -83,6 +83,13 @@ export interface BaseAnchor {
   updatedAt: string;
   /** Coordenadas GPS aproximadas del faena (para listar "anchors cerca"). */
   gps: GpsCoordinates;
+  /**
+   * Coordenadas GPS de la primera vez que se vio este anchor. Inmutable
+   * tras el primer setDoc — la ruta de updateDoc nunca lo toca. Sirve
+   * como audit-of-record ("¿dónde se vió por primera vez este afiche
+   * de riesgo?") incluso cuando el poster se reescanea o se mueve.
+   */
+  gpsFirstSeen?: GpsCoordinates;
   /** Matriz transformación local respecto al XRReferenceSpace 'local'. */
   matrix: AnchorMatrix4;
   /** Label visible en AR. */
