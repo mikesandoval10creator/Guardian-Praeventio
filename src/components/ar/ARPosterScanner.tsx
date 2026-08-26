@@ -511,6 +511,14 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
 
   const handleCloseAnimation = () => {
     setMatchedPoster(null);
+    // [Hy3-audit 3c4aa66d-73fe-8158-903a-c50f5ad0fc71 2026-08-25]:
+    // The debounce window was anchored to the last match. After the
+    // user dismisses the overlay and re-scans the same poster within
+    // 5s of the *match*, it silently fires the debounce. The user
+    // expects "close = fresh start". Reset both refs so the next
+    // match goes through.
+    lastMatchIdRef.current = null;
+    lastMatchAtRef.current = 0;
   };
 
   const projectMissing = !projectId;
