@@ -156,6 +156,19 @@ export function PortalManager({
     return () => window.clearInterval(id);
   }, [pollIntervalMs, refresh]);
 
+  // [Hy3-audit 3c4aa66d-73fe-810a-ac09-ee8e4dbb09c2 2026-08-25]:
+  // OneTimeTokenBanner's docstring promised an ~60s self-dismiss
+  // ("visible ~60s o hasta cerrar") but no setTimeout was wired.
+  // The plaintext one-time token stayed on screen until the admin
+  // clicked the X — exposure surface in a security-sensitive UI.
+  // Auto-dismiss after 60s; cleanup on unmount or early dismiss so
+  // we don't fire setState after the component is gone.
+  useEffect(() => {
+    if (!oneTimeToken) return;
+    const id = window.setTimeout(() => setOneTimeToken(null), 60_000);
+    return () => window.clearTimeout(id);
+  }, [oneTimeToken]);
+
   const counters = useMemo(() => {
     const c = { active: 0, expired: 0, revoked: 0 } as Record<
       AdminPortalView['status'],
