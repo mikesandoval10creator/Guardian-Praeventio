@@ -86,7 +86,15 @@ export function OfflineSyncManager() {
                 const docSnap = await getDoc(doc(db, action.collection, id));
                 if (docSnap.exists()) {
                   const currentData = docSnap.data();
-                  const currentUpdatedAt = currentData.updatedAt?.toDate()?.toISOString() || currentData.updatedAt;
+                  // [Hy3-audit 3c4aa66d-73fe-813f-8495-efee9d6356bb
+                  //  2026-08-25]: normalize via pickUpdatedAt() so the
+                  // sync-conflict comparison below always sees ISO strings
+                  // (or null). The previous `?.toDate()?.toISOString() ||
+                  // currentData.updatedAt` chain returned a Timestamp
+                  // object whenever the upstream cast was wrong, and
+                  // `new Date(Timestamp)` could yield Invalid Date → NaN
+                  // comparison → silent LWW without warning.
+                  const currentUpdatedAt = pickUpdatedAt(currentData);
 
                   // Per-field divergence pass.
                   const pending: PendingAction = {
