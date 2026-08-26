@@ -131,6 +131,11 @@ export function PortalManager({
   const [accessLogFor, setAccessLogFor] = useState<string | null>(null);
   const [accessLog, setAccessLog] = useState<PortalAccessLogEntry[]>([]);
   const [accessLogLoading, setAccessLogLoading] = useState(false);
+  // [Hy3-audit 3c4aa66d-73fe-81cc-ab52-cfafef6e85ae 2026-08-25]:
+  // dedicated error state so an access-log failure doesn't paint over
+  // the list banner (and vice-versa). Mixing the two made failures
+  // hard to attribute and felt like a "bug where errors vanish".
+  const [accessLogError, setAccessLogError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   const refresh = useCallback(async () => {
@@ -183,10 +188,12 @@ export function PortalManager({
       if (accessLogFor === portalId) {
         setAccessLogFor(null);
         setAccessLog([]);
+        setAccessLogError(null);
         return;
       }
       setAccessLogFor(portalId);
       setAccessLog([]);
+      setAccessLogError(null);
       setAccessLogLoading(true);
       try {
         const { logs } = await getExternalAuditPortalAccessLog(portalId, {
@@ -194,7 +201,9 @@ export function PortalManager({
         });
         setAccessLog(logs);
       } catch (err) {
-        setError(humanErrorMessage((err as Error).message));
+        // [Hy3-audit 3c4aa66d-73fe-81cc-ab52-cfafef6e85ae 2026-08-25]:
+        // local error sink — see comment at the useState above.
+        setAccessLogError(humanErrorMessage(err));
       } finally {
         setAccessLogLoading(false);
       }
@@ -401,6 +410,7 @@ export function PortalManager({
                         <AccessLogPanel
                           logs={accessLog}
                           loading={accessLogLoading}
+                          error={accessLogError}
                         />
                       </td>
                     </tr>
@@ -888,10 +898,26 @@ function RevokeDialog({
 function AccessLogPanel({
   logs,
   loading,
+  error,
 }: {
   logs: PortalAccessLogEntry[];
   loading: boolean;
+  error?: string | null;
 }) {
+  // [Hy3-audit 3c4aa66d-73fe-81cc-ab52-cfafef6e85ae 2026-08-25]:
+  // error renders inside this panel now, scoped to the audit-log
+  // viewer only. The list-level banner stays untouched.
+  if (error) {
+    return (
+      <p
+        className="text-xs text-rose-700 dark:text-rose-300"
+        data-testid="portalManager.accessLog.error"
+        role="alert"
+      >
+        {error}
+      </p>
+    );
+  }
   if (loading) {
     return (
       <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
