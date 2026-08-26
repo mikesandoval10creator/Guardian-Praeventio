@@ -1,7 +1,12 @@
-import * as Sentry from '@sentry/react';
+// [Hy3-audit 3c4aa66d-73fe-8164-bc52-c46bed743586 2026-08-25]:
+// the previous code imported @sentry/react directly, bypassing the
+// ErrorTrackingAdapter facade. Tests had to vi.mock('@sentry/react')
+// to stub the call, and any vendor swap meant touching UI code.
+// The adapter already exposes captureMessage; route through it.
 import { useEffect, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../shared/Card';
+import { getErrorTracker } from '../../services/observability';
 
 /**
  * Sentry verification button (2026-05-17).
@@ -60,11 +65,15 @@ export function SentryTestButton({
         `Sentry verification: error de prueba ${tag} (admin-triggered)`,
       );
     }
-    const eventId = Sentry.captureMessage(
+    // [Hy3-audit 3c4aa66d-73fe-8164-bc52-c46bed743586 2026-08-25]:
+    // route through the ErrorTrackingAdapter instead of Sentry.captureMessage
+    // directly. captureMessage may return string | undefined depending on
+    // the adapter (noop returns undefined), so we coerce to nullable string.
+    const eventId = getErrorTracker().captureMessage(
       `Sentry verification: mensaje de prueba ${tag} (admin-triggered)`,
       'info',
     );
-    setLastEventId(eventId ?? null);
+    setLastEventId(typeof eventId === 'string' ? eventId : null);
   };
 
   return (
