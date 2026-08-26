@@ -164,6 +164,30 @@ export function XRSession({
       if (previewMesh) {
         previewMesh.position.y = 0;
         reticle.add(previewMesh);
+        // [Hy3-audit 3c4aa66d-73fe-8121-bef5-cb5e1618dfd0 2026-08-25]:
+        // the consumer's previewMesh carries its own geometry/materials.
+        // When the AR session ends and the reticle is disposed, the
+        // ring's geometry/material are released (L159-162), but the
+        // previewMesh's GPU resources stay resident across repeated
+        // sessions — leaks on every mount in long-running faena use.
+        // Traverse and dispose every Mesh/Line/Sprite material and
+        // geometry on unmount. Guard against missing/typed-as-undefined
+        // .geometry and .material on Object3D-derived types.
+        disposables.push(() => {
+          previewMesh.traverse((child) => {
+            const node = child as THREE.Mesh;
+            if (node.geometry?.dispose) node.geometry.dispose();
+            const mat = node.material as
+              | THREE.Material
+              | THREE.Material[]
+              | undefined;
+            if (Array.isArray(mat)) {
+              mat.forEach((m) => m?.dispose?.());
+            } else if (mat?.dispose) {
+              mat.dispose();
+            }
+          });
+        });
       }
 
       // Hit-test source
