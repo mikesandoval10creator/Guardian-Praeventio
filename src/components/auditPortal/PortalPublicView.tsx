@@ -289,6 +289,24 @@ function Watermark({
   );
 }
 
+// [Hy3-audit 3c4aa66d-73fe-81d0-9820-c2f19de94992 2026-08-25]:
+// expiresAt can come back as '' or another unparseable string if the
+// server contract ever breaks; new Date('') is Invalid Date and
+// getTime() returns NaN — previously displayed "NaN días" to the
+// auditor. Treat any unparseable input as "unknown" instead of
+// silently rendering a broken value. We pick '—' (em dash) over
+// "0 días" because 0 would imply "expired" and mislead the auditor
+// into thinking access is gone when the underlying signal is
+// actually "we don't know".
+function computeRemainingDays(expiresAt: string): number | null {
+  const expires = new Date(expiresAt);
+  if (Number.isNaN(expires.getTime())) return null;
+  return Math.max(
+    0,
+    Math.ceil((expires.getTime() - Date.now()) / 86_400_000),
+  );
+}
+
 function Header({
   auditorName,
   affiliation,
@@ -300,11 +318,7 @@ function Header({
   expiresAt: string;
   tenantId: string;
 }) {
-  const expires = new Date(expiresAt);
-  const remainingDays = Math.max(
-    0,
-    Math.ceil((expires.getTime() - Date.now()) / 86_400_000),
-  );
+  const remainingDays = computeRemainingDays(expiresAt);
   return (
     <header
       className="rounded-2xl border-2 border-teal-200 dark:border-teal-800 bg-white dark:bg-zinc-900 shadow-sm p-5 space-y-2"
@@ -368,7 +382,9 @@ function Header({
             className="font-bold text-zinc-800 dark:text-zinc-100 tabular-nums"
             data-testid="portalPublic.header.expires"
           >
-            {remainingDays} día{remainingDays === 1 ? '' : 's'}
+            {remainingDays === null
+              ? '—'
+              : `${remainingDays} día${remainingDays === 1 ? '' : 's'}`}
           </dd>
         </div>
       </dl>
