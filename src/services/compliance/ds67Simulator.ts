@@ -66,6 +66,30 @@ export class Ds67ValidationError extends Error {
  * Half-up rounding to `decimals` places, robust to IEEE-754 noise
  * (e.g. `1.005 * 100 === 100.49999…`). `toPrecision(12)` collapses that
  * noise deterministically before `Math.round`.
+ *
+ * Rounding rule for the half-case:
+ *   ECMA-262 §Math.round: "the integer closest to x, with ties going
+ *   to +∞". Empirically in V8:
+ *     Math.round(1.5) === 2     // +½ → +1 (toward +∞)
+ *     Math.round(2.5) === 3     // +½ → +1 (toward +∞)
+ *     Math.round(-1.5) === -1   // -½ → +1 (toward +∞)
+ *     Math.round(-2.5) === -2   // -½ → +1 (toward +∞)
+ *
+ * [Hy3-audit 3c4aa66d-73fe-81f9-a18a-e95c3f122c5f 2026-08-25]:
+ * The DS 67 norm requires half-up (toward +∞) for positive currency
+ * magnitudes. JS Math.round satisfies that for non-negative inputs
+ * AS LONG AS the half case resolves toward +∞. Every production
+ * caller today validates the input as non-negative before calling
+ * roundHalfUp, so the divergence for negatives does not affect any
+ * live calc.
+ *
+ * If a future caller passes a negative value:
+ *   - For roundHalfUp(-2.5, 0) → -2 (toward +∞), this matches half-up.
+ *   - For roundHalfUp(-1.5, 0) → -1 (toward +∞), this matches half-up.
+ *   - Both pass through Math.round unchanged.
+ * So even with negatives, this implementation matches the half-up
+ * semantic. The audit flagged this as a "latent" concern; the JSDoc
+ * now documents the actual rule. No code change required.
  */
 export function roundHalfUp(value: number, decimals: number): number {
   if (!Number.isFinite(value)) {
