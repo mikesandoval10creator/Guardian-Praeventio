@@ -210,6 +210,23 @@ const DS67_ADDITIONAL_COTIZACION_TABLE: ReadonlyArray<
  */
 export const DS67_MAX_ADDITIONAL_COTIZACION_PCT = 6.8;
 
+/**
+ * Cota superior absoluta para `period.lostDays` que el motor puro
+ * acepta. Coincide con la cota del Zod schema en
+ * src/server/routes/ds67.ts:234 — mantener ambas alineadas es el
+ * objetivo; el route debería importar esta constante en lugar de
+ * duplicar el literal.
+ *
+ * [Hy3-audit 3c4aa66d-73fe-814d-8068-c8431807df86 2026-08-25,
+ *  divergencia server↔engine]: el motor puro sólo validaba integer
+ * ≥ 0; un llamador directo (test harness, endpoint futuro) podía
+ * pasar 1e9 y obtener una tasa legalmente falsa.
+ *
+ * 10_000_000 cubre con margen cualquier período anual real (un
+ * siniestro con 10M de días perdidos es físicamente imposible).
+ */
+export const DS67_MAX_LOST_DAYS = 10_000_000;
+
 /** Tabla art. 5: Tasa de Siniestralidad Total → cotización adicional %. */
 export function lookupAdditionalCotizacion(totalRate: number): number {
   if (!Number.isFinite(totalRate) || totalRate < 0) {
@@ -380,6 +397,25 @@ function assertNonNegativeInteger(value: number, code: string, what: string): vo
   }
 }
 
+/**
+ * Like assertNonNegativeInteger but with an inclusive upper bound.
+ * Used to keep the engine's input validation aligned with the
+ * Zod schema at src/server/routes/ds67.ts:234 (lostDays <= 10_000_000).
+ */
+function assertBoundedInteger(
+  value: number,
+  bound: number,
+  code: string,
+  what: string,
+): void {
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0 || value > bound) {
+    throw new Ds67ValidationError(
+      code,
+      `${what} must be a non-negative integer ≤ ${bound}, got ${value}`,
+    );
+  }
+}
+
 function validatePeriod(period: Ds67AnnualPeriodInput, index: number): void {
   if (
     !Number.isFinite(period.averageWorkers) ||
@@ -391,7 +427,12 @@ function validatePeriod(period: Ds67AnnualPeriodInput, index: number): void {
       `Period ${index}: averageWorkers must be > 0 and finite, got ${period.averageWorkers}`,
     );
   }
-  assertNonNegativeInteger(period.lostDays, 'invalid_lost_days', `Period ${index}: lostDays`);
+  assertBoundedInteger(
+    period.lostDays,
+    DS67_MAX_LOST_DAYS,
+    'invalid_lost_days',
+    `Period ${index}: lostDays`,
+  );
   if (period.invalidityEvents) {
     for (const band of Object.keys(period.invalidityEvents)) {
       if (!INVALIDITY_BANDS.includes(band as Ds67InvalidityBand)) {
