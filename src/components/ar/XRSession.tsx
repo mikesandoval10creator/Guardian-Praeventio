@@ -235,8 +235,10 @@ export function XRSession({
         try {
           hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
         } catch {
-          // Fallback: sin hit-test el reticle se queda invisible y el user
-          // pulsa el botón "Ancla aquí" en el overlay (uses camera pose).
+          // Fallback (see render loop): pin the reticle to a fixed
+          // distance in front of the viewer pose so the worker can
+          // still anchor by tapping. Lives at L266+ in the
+          // setAnimationLoop callback.
         }
       }
 
@@ -273,6 +275,28 @@ export function XRSession({
             }
           } else {
             reticle.visible = false;
+          }
+        } else {
+          // [Hy3-audit 3c4aa66d-73fe-813f-97ac-d8e6ca4fb05a 2026-08-25]:
+          // fallback when the runtime refused requestHitTestSource.
+          // Earlier the comment promised a user-driven "Ancla aquí"
+          // button that didn't exist in the repo — workers on
+          // hit-test-less hardware couldn't place the AR anchor at all.
+          // Pin the reticle to a fixed distance in front of the
+          // viewer pose, always visible. onSelect below then emits
+          // the reticle.matrix as the anchor pose. Camera-pose
+          // anchoring is worse than a real hit-test but at least the
+          // user can complete the placement workflow. The consumer
+          // can still pass onSelectAnchor to capture this pose.
+          const viewerPose = frame.getViewerPose(localSpace!);
+          if (viewerPose) {
+            const m = new THREE.Matrix4().fromArray(
+              viewerPose.transform.matrix,
+            );
+            const offset = new THREE.Vector3(0, 0, -1.5).applyMatrix4(m);
+            reticle.position.copy(offset);
+            reticle.quaternion.setFromRotationMatrix(m);
+            reticle.visible = true;
           }
         }
         renderer.render(scene, camera);
