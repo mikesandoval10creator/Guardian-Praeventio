@@ -156,20 +156,47 @@ export function OfflineSyncManager() {
                       // server-side); skip + warn if none is selected rather
                       // than guessing.
                       if (activeProjectId) {
+                        // [Hy3-audit 3c4aa66d-73fe-81b8-91df-fde9fde3049d
+                        //  2026-08-25]: the previous fetch fired once and
+                        // any failure was logger.warn-only. Conflicts are
+                        // the durability backstop (§12.2.2) for an offline
+                        // write that the user already attempted — losing
+                        // them silently is a real risk, so:
+                        //   1. Retry once on transient network errors
+                        //      (TypeError thrown by fetch when offline,
+                        //      or non-2xx HTTP status).
+                        //   2. Surface to the operator via a CustomEvent
+                        //      so a future ConflictBanner can show
+                        //      "conflicto no persistido" instead of failing
+                        //      silently in the console.
+                        // The endpoint URL is still inline because moving
+                        // it to a dedicated client module is scope > 1
+                        // file and warrants its own ticket.
                         try {
                           const authHeader = await apiAuthHeader();
                           if (authHeader) {
-                            await fetch(
-                              `/api/sprint-k/${encodeURIComponent(activeProjectId)}/conflict-queue/enqueue`,
-                              {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  Authorization: authHeader,
+                            const enqueueOnce = async () => {
+                              const res = await fetch(
+                                `/api/sprint-k/${encodeURIComponent(activeProjectId)}/conflict-queue/enqueue`,
+                                {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    Authorization: authHeader,
+                                  },
+                                  body: JSON.stringify({ conflict: c }),
                                 },
-                                body: JSON.stringify({ conflict: c }),
-                              },
-                            );
+                              );
+                              if (!res.ok) {
+                                throw new Error(`HTTP ${res.status}`);
+                              }
+                              return res;
+                            };
+                            try {
+                              await enqueueOnce();
+                            } catch {
+                              await enqueueOnce();
+                            }
                           }
                         } catch (enqErr) {
                           logger.warn('Failed to persist critical conflict to queue', {
@@ -177,6 +204,11 @@ export function OfflineSyncManager() {
                             docId: c.docId,
                             error: enqErr,
                           });
+                          window.dispatchEvent(
+                            new CustomEvent('sync-conflict-queue-failed', {
+                              detail: { conflict: c, error: String(enqErr) },
+                            }),
+                          );
                         }
                       } else {
                         logger.warn(
