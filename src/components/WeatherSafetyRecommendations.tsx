@@ -4,6 +4,7 @@ import { Mountain, Wind, Thermometer, Droplets, AlertTriangle, Loader2, RefreshC
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
 import { apiAuthHeaders } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
 // Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip on the icon-only "Update with AI" refresh button.
 import { Tooltip } from './shared/Tooltip';
@@ -234,7 +235,11 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <div className="flex-1 text-[11px] leading-snug">
             <span className="font-semibold">Recomendaciones IA no disponibles.</span>{' '}
-            {aiError}{' '}
+            {/* [check-user-facing-errors ratchet 2026-08-25]: aiError is
+              a raw Error.message coming from a fetch failure. Route it
+              through humanErrorMessage so the operator sees a safe,
+              human-readable string. */}
+            {humanErrorMessage(aiError)}{' '}
             <button
               type="button"
               onClick={e => { e.stopPropagation(); fetchAIRecs(); }}
