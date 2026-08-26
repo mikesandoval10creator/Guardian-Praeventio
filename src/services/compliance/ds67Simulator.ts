@@ -126,9 +126,35 @@ export const DS67_INVALIDITY_VALUES: Readonly<Record<Ds67InvalidityBand, number>
 // ─────────────────────────────────────────────────────────────────────────
 // LEGAL SOURCE: DS 67/1999 art. 2 letra j) (BCN idNorma=159800) — mapping
 // from the average invalidity/death factor (2 decimals) to the Tasa de
-// Siniestralidad por Invalideces y Muertes. Ranges are contiguous at the
-// centésima because the promedio is expressed with two decimals.
-// Each row: inclusive upper bound of the range → tasa.
+// Siniestralidad por Invalideces y Muertes.
+//
+// IMPORTANT — ranges look contiguous but are NOT contiguous at the
+// centésima:
+//
+//   [0.1, 35]   [0.3, 70]   [0.5, 105]   ...
+//     0.00–0.10   0.11–0.30   0.31–0.50
+//
+// Each [upperInclusive, rate] pair is the *end* of a row (inclusive).
+// Row "0.11–0.30" ends at 0.30; the next row starts at 0.31. There is
+// no 0.305 row — the gap from 0.30 to 0.31 is one centésima but it is
+// NOT covered. This works only because roundHalfUp(value, 2) never
+// emits 0.305 (any value in [0.300, 0.315) rounds to either 0.30 or
+// 0.31, never to a fraction).
+//
+// DO NOT insert a row whose lower bound sits strictly inside a
+// gap (e.g. adding [0.35, ...]) without first verifying the rounding
+// behavior — a 0.34 input would still quantize to 0.34 and miss the
+// new row entirely. If the legal table changes and the new bound is
+// not on the 0.01 grid, the right fix is to convert the table to
+// explicit [lower, upper, rate] triples so the contiguity is visible
+// in code, not in rounding behavior.
+//
+// [Hy3-audit 3c4aa66d-73fe-81a2-a4fa-e579150432a1 2026-08-25]: the
+// previous comment said "contiguous at the centésima" which was
+// technically true under roundHalfUp but misleading in isolation —
+// the gap is real even if hidden by quantization. This JSDoc makes
+// the contract explicit so a future maintainer doesn't insert a
+// non-grid bound and silently break the table.
 // ─────────────────────────────────────────────────────────────────────────
 
 const DS67_IM_RATE_TABLE: ReadonlyArray<readonly [upperInclusive: number, rate: number]> = [
