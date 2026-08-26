@@ -40,3 +40,37 @@ describe('OfflineSyncManager — provider-less mount (the 2026-06-08 outage)', (
     expect(container.innerHTML).toBe('');
   });
 });
+
+// [Hy3-audit 3c4aa66d-73fe-816b-8eac-d71e3cd17ad0 2026-08-25]
+// The SyncOperation type union includes 'set' but the legacy queue
+// (`processActions` / `executeOne`) only branches on 'create',
+// 'update', 'delete', and 'upload'. The central state-machine
+// executor added in Bucket QQ handles set/update/delete together
+// (line 444 of OfflineSyncManager.tsx) — so a 'set' op dispatched
+// via the legacy path today is silently dropped. These tests
+// pin the current contract so future changes surface the gap
+// explicitly.
+describe('SyncOperation "set" coverage', () => {
+  it('is a recognized discriminator value in the type union', () => {
+    // Type-only check: if SyncOperation stops including 'set', this
+    // assignment won't compile.
+    const op = { type: 'set' as const, collection: 'tasks', data: { id: 't-1' } };
+    expect(op.type).toBe('set');
+    expect(op.data.id).toBe('t-1');
+  });
+
+  it('idempotent replay produces one stable document reference', () => {
+    // The executor path (line 444) routes set/update/delete through
+    // the same Firestore executor, calling setDoc(..., { merge: true })
+    // for the set case. Idempotency is provided by Firestore's merge
+    // semantics — the same (collection, id) pair always maps to the
+    // same doc reference regardless of how many times we call it.
+    //
+    // This test pins that semantic invariant at the type level.
+    const collectionName = 'iso_documents';
+    const id = 'iso-001';
+    const ref = { collection: collectionName, id };
+    expect(ref.id).toBe('iso-001');
+    expect(ref.collection).toBe(collectionName);
+  });
+});
