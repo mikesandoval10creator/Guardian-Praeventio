@@ -4,6 +4,7 @@ import { Mountain, Wind, Thermometer, Droplets, AlertTriangle, Loader2, RefreshC
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
 import { apiAuthHeaders } from '../lib/apiAuth';
+import { humanErrorMessage } from '../lib/humanError';
 // Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip on the icon-only "Update with AI" refresh button.
 import { Tooltip } from './shared/Tooltip';
@@ -125,6 +126,15 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [aiRecs, setAiRecs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // [Hy3-audit 3c4aa66d-73fe-813d-8ec7-ead562f2e44a 2026-08-25,
+  //  vida-safety]: the previous catch only logged a warning. The
+  // spinner disappeared, the user kept the static fallback recs,
+  // and there was no visible signal that the AI source was down
+  // (network, 429 limiter, expired token, 5xx). For a vida-safety
+  // surface, silent failure is unacceptable — the user must know
+  // that the recs they're reading are stale fallbacks, not fresh
+  // AI-generated ones.
+  const [aiError, setAiError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
@@ -137,6 +147,10 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
 
   const fetchAIRecs = async () => {
     if (!weather) return;
+    // [Hy3-audit 3c4aa66d-73fe-813d-8ec7-ead562f2e44a 2026-08-25]:
+    // clear any prior error before retry so a fresh failure replaces
+    // a stale message rather than stacking.
+    setAiError(null);
     setLoading(true);
     try {
       const prompt = `Eres un experto en seguridad laboral chilena (DS 594, Ley 16.744). Genera EXACTAMENTE 3 recomendaciones de seguridad breves (máx 25 palabras cada una) para trabajadores de campo con estas condiciones: Temperatura ${weather.temp ?? '--'}°C, Humedad ${weather.humidity ?? '--'}%, Viento ${weather.windSpeed ?? '--'} km/h, UV ${weather.uvIndex ?? '--'}, Altitud ${altitude}m. Formato: JSON array de strings ["rec1","rec2","rec3"].`;
@@ -163,6 +177,12 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
       }
     } catch (err) {
       logger.warn('[WeatherSafetyRecs] AI fetch failed, using fallback', { message: (err as Error).message });
+      // [Hy3-audit 3c4aa66d-73fe-813d-8ec7-ead562f2e44a 2026-08-25,
+      //  vida-safety]: surface the failure to the user. They must
+      // know the AI source is down so they don't trust the static
+      // fallback as if it were fresh. The message is short and
+      // actionable (retry hint).
+      setAiError('No pudimos actualizar las recomendaciones con IA. Revisa tu conexión o vuelve a intentar en unos segundos.');
     } finally {
       setLoading(false);
     }
@@ -202,6 +222,35 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
           {expanded ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
         </div>
       </button>
+      {/* [Hy3-audit 3c4aa66d-73fe-813d-8ec7-ead562f2e44a 2026-08-25,
+          vida-safety]: surface the AI failure to the user. Visible
+          right under the header (above the rec list), with a retry
+          affordance. Without this, the user sees the static fallback
+          and assumes it's fresh AI output. */}
+      {aiError && (
+        <div
+          role="alert"
+          className="mx-4 mt-1 mb-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-200"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex-1 text-[11px] leading-snug">
+            <span className="font-semibold">Recomendaciones IA no disponibles.</span>{' '}
+            {/* [check-user-facing-errors ratchet 2026-08-25]: aiError is
+              a raw Error.message coming from a fetch failure. Route it
+              through humanErrorMessage so the operator sees a safe,
+              human-readable string. */}
+            {humanErrorMessage(aiError)}{' '}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); fetchAIRecs(); }}
+              disabled={loading || !weather}
+              className="underline underline-offset-2 font-semibold disabled:opacity-40"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence initial={false}>
         {expanded && (
