@@ -132,8 +132,20 @@ function DashboardTab(props: {
 
 function DocumentosTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]:
+  // ISOManagement passes projectId through with `?? ''` fallback.
+  // The parent does guard `if (!user || !projectId)` at the dashboard
+  // level, but a refactor that moves/removes that guard would silently
+  // mount this tab with projectId='' and `projects//iso_documents` is
+  // an invalid Firestore path. Defend by gating the path argument to
+  // null so useFirestoreCollection's own null-handler kicks in (the
+  // hook is defensive: returns [], loading=false, no fetch). Hooks
+  // below this still run unconditionally to satisfy react-hooks rules.
+  const documentsPath = projectId
+    ? `projects/${projectId}/iso_documents`
+    : null;
   const { data: docs, loading } = useFirestoreCollection<ISODocument>(
-    `projects/${projectId}/iso_documents`
+    documentsPath
   );
 
   const [showForm, setShowForm] = useState(false);
@@ -243,8 +255,12 @@ function DocumentosTab({ projectId }: { projectId: string }) {
 
 function CompetenciasTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]: see
+  // DocumentosTab — same path-argument gating, no early return (rules
+  // of hooks require hooks below to run unconditionally).
+  const workersPath = projectId ? `projects/${projectId}/workers` : null;
   const { data: workers, loading } = useFirestoreCollection<Worker>(
-    `projects/${projectId}/workers`
+    workersPath
   );
 
   // Flatten workers with multiple competencias into rows
@@ -411,8 +427,13 @@ const PHASE_HEADER: Record<ISOImprovement['phase'], string> = {
 
 function MejoraTab({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
+  // [Hy3-audit 3c4aa66d-73fe-819b-a744-de2ecfd3f18f 2026-08-25]: see
+  // DocumentosTab — same path-argument gating, no early return.
+  const improvementsPath = projectId
+    ? `projects/${projectId}/iso_improvements`
+    : null;
   const { data: improvements, loading } = useFirestoreCollection<ISOImprovement>(
-    `projects/${projectId}/iso_improvements`
+    improvementsPath
   );
 
   const [showForm, setShowForm] = useState(false);
