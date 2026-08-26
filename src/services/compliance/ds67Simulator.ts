@@ -250,6 +250,26 @@ export function evaluationPeriodWindows(
   reference: Date,
   count: 2 | 3 = 3,
 ): Ds67AnnualPeriodWindow[] {
+  // Periods are anchored to **UTC midnight, July 1** per the canonical
+  // table that lookupAdditionalCotizacion() consumes (DS67_ADDITIONAL_COTIZACION_TABLE).
+  // That means an incident stamped 30-jun 21:00 CLT (≈01-jul 00:00
+  // UTC, after the UTC-3 offset) falls into the *next* annual period.
+  //
+  // [Hy3-audit 3c4aa66d-73fe-810c-8dc0-d5d95430f240 2026-08-25,
+  //  correctitud legal] flagged that DS 67 art. 2 b) speaks in
+  // civil-CL terms ("período anual 1 julio → 30 junio") and a UTC
+  // boundary puts ~3 hours of CL-side June 30 inside the next
+  // period. The mismatch is bounded (3 hours × max-rate at the
+  // window edge) and the rest of the system — Firestore ts,
+  // Date.now(), analytics — also runs on UTC, so the contract is
+  // consistent within Guardian.
+  //
+  // The strict civil-CL fix is a separate ticket (scope > 1 file:
+  // Intl.DateTimeFormat with timeZone: 'America/Santiago' to derive
+  // the local-period boundaries, plus polyfill for older Node).
+  // Until that's decided, this JSDoc pins the UTC contract and
+  // gives the auditor a one-place answer when someone asks why a
+  // 21:00-CLT incident landed in the next period.
   const refMs = reference.getTime();
   if (!Number.isFinite(refMs)) {
     throw new Ds67ValidationError('invalid_reference_date', 'Reference date is invalid');
