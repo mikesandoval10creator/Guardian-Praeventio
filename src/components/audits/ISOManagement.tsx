@@ -328,15 +328,10 @@ function CompetenciasTab({ projectId }: { projectId: string }) {
 function RiesgosTab() {
   const { t } = useTranslation();
   const { nodes, loading } = useRiskEngine();
-  const isoRisks = nodes.filter(
-    n =>
-      n.type === NodeType.RISK &&
-      (n.tags?.some(t => t.toLowerCase().includes('iso')) ||
-        (n.metadata?.standard ?? '').toLowerCase().includes('iso') ||
-        (n.metadata?.norm ?? '').toLowerCase().includes('iso') ||
-        (n.title ?? '').toLowerCase().includes('iso') ||
-        (n.description ?? '').toLowerCase().includes('iso 45001'))
-  );
+  // [operations 3c4aa66d-73fe-8188-9a6a-c0a80066e9a4 2026-08-25]: route
+  // through the shared predicate so the Riesgos table and the
+  // dashboard KPI agree on what "ISO risk" means.
+  const isoRisks = nodes.filter(isISORiskNode);
 
   const severityColor = (level: string) => {
     const l = normalizeLevel(level);
@@ -587,7 +582,41 @@ function EmptyState({ icon: Icon, message }: { icon: IconType; message: string }
   );
 }
 
-// ─── Severity normalization ──────────────────────────────────────────────────
+// ─── ISO risk predicate ──────────────────────────────────────────────────────
+//
+// [operations 3c4aa66d-73fe-8188-9a6a-c0a80066e9a4 2026-08-25]: the
+// dashboard KPI used 2 predicates (tags OR standard), while
+// RiesgosTab's table used 5 (tags OR standard OR norm OR title OR
+// description containing "iso 45001"). That meant a node flagged as
+// ISO by `metadata.norm` or by title/description was rendered in the
+// table but excluded from the dashboard count — the prevention lead
+// was reading a number lower than reality and prioritising on a
+// false floor. Single source of truth: this predicate. Both the
+// dashboard KPI and the table route through it.
+function isISORiskNode(n: RiskNodeLike): boolean {
+  if (n.type !== NodeType.RISK) return false;
+  if (n.tags?.some(t => t.toLowerCase().includes('iso'))) return true;
+  if ((n.metadata?.standard ?? '').toLowerCase().includes('iso')) return true;
+  if ((n.metadata?.norm ?? '').toLowerCase().includes('iso')) return true;
+  if ((n.title ?? '').toLowerCase().includes('iso')) return true;
+  if ((n.description ?? '').toLowerCase().includes('iso 45001')) return true;
+  return false;
+}
+
+// Minimal structural type the predicate needs. Kept local because
+// the real RiskNode shape lives in useRiskEngine and would pull in
+// the engine dependency for what is purely a string-matching helper.
+interface RiskNodeLike {
+  type?: unknown;
+  tags?: string[];
+  title?: string;
+  description?: string;
+  metadata?: {
+    standard?: string;
+    norm?: string;
+    [k: string]: unknown;
+  };
+}
 //
 // [operations 3c4aa66d-73fe-8158-92cb-f3ffb7f9b05e 2026-08-25]:
 // Variants of "high severity" were not normalized, so the dashboard
@@ -645,13 +674,14 @@ export function ISOManagement() {
 
   const isoHighRisks = nodes.filter(
     n =>
-      n.type === NodeType.RISK &&
+      // [operations 3c4aa66d-73fe-8188-9a6a-c0a80066e9a4 2026-08-25]:
+      // predicate is shared with the Riesgos table now — see
+      // isISORiskNode() above. The dashboard KPI matches the table.
+      isISORiskNode(n) &&
       (!selectedProject || n.projectId === selectedProject.id) &&
-      (n.tags?.some(t => t.toLowerCase().includes('iso')) ||
-        (n.metadata?.standard ?? '').toLowerCase().includes('iso')) &&
       // [operations 3c4aa66d-73fe-8158-92cb-f3ffb7f9b05e 2026-08-25]: see
-// isHighSeverity() defined above. Same helper, no inline list.
-isHighSeverity((n.metadata?.severity ?? n.metadata?.nivel) as string | undefined)
+      // isHighSeverity() defined above. Same helper, no inline list.
+      isHighSeverity((n.metadata?.severity ?? n.metadata?.nivel) as string | undefined)
   ).length;
 
   if (!user || !projectId) {
