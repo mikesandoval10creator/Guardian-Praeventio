@@ -115,33 +115,43 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
   );
   const [moduleState, setModuleState] = useState<LoadState>({ kind: 'idle' });
 
-  const probe = useCallback(
-    async (m: AuditModule, pid: string) => {
-      setBootstrap({ kind: 'loading' });
+  // [Hy3-audit 3c4aa66d-73fe-81fe-adc9-c341c2939d30 2026-08-25]: shared
+  // fetch pipeline so probe and fetchModule can't diverge on auth /
+  // error handling again. The setter is parameterised because the two
+  // call sites track independent state (bootstrap vs moduleState). The
+  // returned state kind maps to LoadState and is stored as-is. The
+  // optional `onOk` lets fetchModule set selectedModule atomically
+  // alongside `ok`.
+  const loadPortal = useCallback(
+    async (
+      m: AuditModule,
+      pid: string,
+      setState: (next: LoadState) => void,
+    ) => {
+      setState({ kind: 'loading' });
       try {
         const { portal } = await fetchPublicAuditPortal({
           token,
           module: m,
           projectId: pid,
         });
-        setBootstrap({ kind: 'ok', data: portal });
+        setState({ kind: 'ok', data: portal });
       } catch (err) {
-        // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]:
-        // discriminate by class, not by message-string equality. Server
-        // can change the 4xx body shape (code, message, error) without
-        // regressing the deny surface.
         if (err instanceof PortalForbiddenError) {
-          setBootstrap({ kind: 'forbidden' });
+          setState({ kind: 'forbidden' });
         } else {
-          // [check-user-facing-errors ratchet 2026-08-25]: route the raw
-          // error message through humanErrorMessage() before storing it
-          // in render state so the user sees a safe string, not an
-          // arbitrary err.message.
-          setBootstrap({ kind: 'error', message: humanErrorMessage(err) });
+          // [check-user-facing-errors ratchet 2026-08-25]: route raw
+          // error through humanErrorMessage() before render.
+          setState({ kind: 'error', message: humanErrorMessage(err) });
         }
       }
     },
     [token],
+  );
+
+  const probe = useCallback(
+    (m: AuditModule, pid: string) => loadPortal(m, pid, setBootstrap),
+    [loadPortal],
   );
 
   useEffect(() => {
@@ -157,28 +167,15 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
 
   const fetchModule = useCallback(
     async (m: AuditModule, pid: string) => {
+      // [Hy3-audit 3c4aa66d-73fe-81fe-adc9-c341c2939d30 2026-08-25]:
+      // delegate to loadPortal so the auth / error pipeline is shared
+      // with probe. selectedModule is set synchronously here because
+      // it's a UI-only signal (which card is highlighted) that has no
+      // place inside the loading → ok state machine.
       setSelectedModule(m);
-      setModuleState({ kind: 'loading' });
-      try {
-        const { portal } = await fetchPublicAuditPortal({
-          token,
-          module: m,
-          projectId: pid,
-        });
-        setModuleState({ kind: 'ok', data: portal });
-      } catch (err) {
-        // [Hy3-audit 3c4aa66d-73fe-8183-b87e-d508903d2418 2026-08-25]:
-        // see probe handler above — same instanceof check.
-        if (err instanceof PortalForbiddenError) {
-          setModuleState({ kind: 'forbidden' });
-        } else {
-          // [check-user-facing-errors ratchet 2026-08-25]: see probe
-          // handler above — same humanErrorMessage() wrapping.
-          setModuleState({ kind: 'error', message: humanErrorMessage(err) });
-        }
-      }
+      await loadPortal(m, pid, setModuleState);
     },
-    [token],
+    [loadPortal],
   );
 
   // If bootstrap denied (token invalid/expired/revoked), show a single deny
