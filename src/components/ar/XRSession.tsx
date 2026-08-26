@@ -94,6 +94,16 @@ export function XRSession({
     let session: XRSessionInstance | null = null;
     let renderer: THREE.WebGLRenderer | null = null;
     let hitTestSource: { cancel(): void } | null = null;
+    // [Hy3-audit 3c4aa66d-73fe-810c-969d-fcdf253472d1 2026-08-25]:
+    // tracks whether the XR session ever reached setActive(true).
+    // When the start path fails before that point (e.g. webgl2
+    // unavailable, requestReferenceSpace rejected, user cancelled
+    // mid-init), the cleanup runs session.end() but onEnd never
+    // fires — so the consumer's onSessionEnd callback isn't called.
+    // Without this flag, the consumer's UI state desyncs and may
+    // attempt to mount a duplicate XR session. We mirror onSessionEnd
+    // from the cleanup when everActive is still false.
+    let everActive = false;
     const disposables: Array<() => void> = [];
 
     async function start() {
@@ -248,6 +258,7 @@ export function XRSession({
       disposables.push(() => session?.removeEventListener('end', onEnd as EventListener));
 
       setActive(true);
+      everActive = true;
 
       // Render loop
       renderer.setAnimationLoop((_t: number, frame?: XRFrame) => {
@@ -287,6 +298,15 @@ export function XRSession({
         /* noop */
       }
       session?.end().catch(() => {});
+      // [Hy3-audit 3c4aa66d-73fe-810c-969d-fcdf253472d1 2026-08-25]:
+      // if start() never reached setActive(true) (failure path or
+      // early unmount), the 'end' event above won't fire on the
+      // session and onSessionEnd?.() inside onEnd never runs. Mirror
+      // the callback here so the consumer's UI state stays in sync.
+      if (!everActive) {
+        setActive(false);
+        onSessionEnd?.();
+      }
     };
   // We intentionally re-run only on mount/unmount. Props changes don't restart
   // the session (would require teardown+re-request).
