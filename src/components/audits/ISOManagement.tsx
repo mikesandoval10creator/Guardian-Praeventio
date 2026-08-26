@@ -339,8 +339,8 @@ function RiesgosTab() {
   );
 
   const severityColor = (level: string) => {
-    const l = level?.toLowerCase();
-    if (l === 'alto' || l === 'crítico' || l === 'critico') return 'bg-red-500/10 text-red-600 dark:text-red-400';
+    const l = normalizeLevel(level);
+    if (l === 'alto' || l === 'critico') return 'bg-red-500/10 text-red-600 dark:text-red-400';
     if (l === 'medio') return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
     return 'bg-zinc-400/10 text-zinc-500';
   };
@@ -587,6 +587,29 @@ function EmptyState({ icon: Icon, message }: { icon: IconType; message: string }
   );
 }
 
+// ─── Severity normalization ──────────────────────────────────────────────────
+//
+// [operations 3c4aa66d-73fe-8158-92cb-f3ffb7f9b05e 2026-08-25]:
+// Variants of "high severity" were not normalized, so the dashboard
+// silently underreported critical risks when the value came back as
+// "Alto", "ALTA", "alto " (trailing space), "critica", or "high".
+// Use these helpers everywhere instead of the inline list. Trim
+// first, drop accents (alto/crítico both normalize to `alto` after
+// NFD decomposition + combining-mark strip), and treat the canonical
+// English alias "high" the same as Spanish "alto".
+function normalizeLevel(level: string | undefined): string {
+  const trimmed = (level ?? '').trim();
+  return trimmed
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isHighSeverity(level: string | undefined): boolean {
+  const norm = normalizeLevel(level);
+  return norm === 'alto' || norm === 'high' || norm === 'critico';
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ISOManagement() {
@@ -626,7 +649,9 @@ export function ISOManagement() {
       (!selectedProject || n.projectId === selectedProject.id) &&
       (n.tags?.some(t => t.toLowerCase().includes('iso')) ||
         (n.metadata?.standard ?? '').toLowerCase().includes('iso')) &&
-      ['alto', 'crítico', 'critico'].includes((n.metadata?.severity ?? n.metadata?.nivel ?? '').toLowerCase())
+      // [operations 3c4aa66d-73fe-8158-92cb-f3ffb7f9b05e 2026-08-25]: see
+// isHighSeverity() defined above. Same helper, no inline list.
+isHighSeverity((n.metadata?.severity ?? n.metadata?.nivel) as string | undefined)
   ).length;
 
   if (!user || !projectId) {
