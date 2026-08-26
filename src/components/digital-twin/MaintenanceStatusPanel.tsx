@@ -250,7 +250,15 @@ export function MaintenanceStatusPanel({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-zinc-200 truncate">
-                    {node.title}
+                    {/* [Hy3-audit 3c3aa66d-73fe-8142-a3b0-f6e41802c8a5
+                        2026-08-25]: un nodo ZK sin title pintaba
+                        "undefined" en esta sección de seguridad,
+                        creando ruido para el supervisor. La
+                        fuente legítima es un zkNode sin metadata
+                        de título (o con metadata pero el campo
+                        indefinido), lo cual es un caso válido en
+                        colección heterogénea. */}
+                    {node.title ?? 'Registro sin título'}
                   </span>
                   <span className="text-zinc-500 shrink-0">{dateLabel}</span>
                 </div>
