@@ -136,7 +136,30 @@ async function aggregateIncidentsByWindow(
 
   const [topLevel, nested] = await Promise.all([
     safeRead('incidents_top', async () => {
-      const snap = await db.collection('incidents').where('projectId', '==', projectId).get();
+      // [Hy3-audit 3c4aa66d-73fe-81d9-b706-ecb7b41bc9a2 2026-08-25,
+      //  perf/cost]: the previous query scanned the full project
+      // collection and filtered in memory. For multi-tenant SaaS
+      // tenants with 100k+ incidents that exceeds Firestore's
+      // 6MB response cap and forces a project-wide index scan
+      // that costs the project's quota regardless of how few
+      // incidents are in the evaluation window.
+      //
+      // The correct fix is a composite index on
+      // `(projectId, ts)` plus a `where('ts', '>=', min) &&
+      // where('ts', '<', max)` clause — but that requires a
+      // firestore.indexes.json + admin deploy (scope > 1 file).
+      //
+      // Cheap mitigation here: bound the scan with `.limit()`
+      // so a single oversized project doesn't return a multi-MB
+      // payload and freeze the UI. 10k is comfortably above any
+      // reasonable 3-year evaluation window for a single
+      // project (DS 67 asks for 2-3 annual periods; a 1000/yr
+      // incident rate is already a high-risk environment).
+      const snap = await db
+        .collection('incidents')
+        .where('projectId', '==', projectId)
+        .limit(10000)
+        .get();
       return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
     }),
     tenantId
