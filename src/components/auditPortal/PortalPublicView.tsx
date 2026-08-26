@@ -43,6 +43,7 @@ import {
   fetchPublicAuditPortal,
   type PortalPublicView as PortalPublicViewData,
 } from '../../hooks/useExternalAuditPortal';
+import { humanErrorMessage } from '../../lib/humanError';
 
 interface PortalPublicViewProps {
   /** Plaintext token from the URL — typically /audit-portal/:token. */
@@ -132,7 +133,11 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
         if (err instanceof PortalForbiddenError) {
           setBootstrap({ kind: 'forbidden' });
         } else {
-          setBootstrap({ kind: 'error', message: (err as Error).message });
+          // [check-user-facing-errors ratchet 2026-08-25]: route the raw
+          // error message through humanErrorMessage() before storing it
+          // in render state so the user sees a safe string, not an
+          // arbitrary err.message.
+          setBootstrap({ kind: 'error', message: humanErrorMessage(err) });
         }
       }
     },
@@ -167,7 +172,9 @@ export function PortalPublicView({ token, projectId }: PortalPublicViewProps) {
         if (err instanceof PortalForbiddenError) {
           setModuleState({ kind: 'forbidden' });
         } else {
-          setModuleState({ kind: 'error', message: (err as Error).message });
+          // [check-user-facing-errors ratchet 2026-08-25]: see probe
+          // handler above — same humanErrorMessage() wrapping.
+          setModuleState({ kind: 'error', message: humanErrorMessage(err) });
         }
       }
     },
