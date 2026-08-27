@@ -38,8 +38,15 @@ export class IndexedDbSosStorage implements SosOutboxStorage {
     try {
       const raw = await get<OutboxEntry[]>(STORAGE_KEY);
       if (Array.isArray(raw)) return raw;
-      // raw is NOT an array here — could be string, number, object,
-      // null, undefined, etc. Log type and length for forense.
+      // Distinguish "no key set yet" (legitimate first run) from "key set
+      // but stored value isn't an array" (real corruption/schema drift).
+      // The previous code logged every miss as corruption, which fires on
+      // every fresh device — burying real corruption in noise. Treat
+      // undefined/null as a legitimate empty outbox; log only when the
+      // store actually has a non-array value worth investigating.
+      if (raw === undefined || raw === null) return [];
+      // raw is NOT an array here — could be string, number, object, etc.
+      // Log type and length for forense.
       const rawAsUnknown: unknown = raw;
       const rawType: string = typeof rawAsUnknown;
       const rawLength: string =
