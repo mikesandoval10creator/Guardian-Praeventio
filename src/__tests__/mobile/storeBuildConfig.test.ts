@@ -108,6 +108,7 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
     expect(androidScript.indexOf('guard:store-build')).toBeGreaterThan(
       androidScript.indexOf('cap sync android'),
     );
+    expect(androidScript).toContain('node scripts/run-gradle.cjs bundleRelease');
     expect(iosScript).toContain('cross-env NODE_ENV=production npm run build');
     expect(iosScript).toContain('cross-env NODE_ENV=production npx cap sync ios');
   });
