@@ -21,7 +21,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { findStoreBuildProblems } = require('../../../scripts/check-store-build-config.cjs');
 
 const MOBILE_RELEASE_WORKFLOW = fileURLToPath(
