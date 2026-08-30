@@ -73,12 +73,22 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
   });
   it('release workflow resolves production config and guards the synced artifact', () => {
     const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, 'utf8');
-    expect(workflow).toContain('NODE_ENV: production');
+    const androidJobStart = workflow.indexOf('  android-release:');
+    const iosJobStart = workflow.indexOf('  ios-release:');
+    const fastfileLintStart = workflow.indexOf('  fastfile-lint:');
+    const androidJob = workflow.slice(androidJobStart, iosJobStart);
+    const iosJob = workflow.slice(iosJobStart, fastfileLintStart);
 
-    const syncIndex = workflow.indexOf('name: Capacitor sync (Android)');
-    const guardIndex = workflow.indexOf('name: Store-build guard (post-sync)');
-    const fastlaneIndex = workflow.indexOf('name: Fastlane lane');
+    expect(androidJob).toContain('env:\n      NODE_ENV: production');
+    expect(iosJob).toContain('env:\n      NODE_ENV: production');
 
+    const syncIndex = androidJob.indexOf('name: Capacitor sync (Android)');
+    const guardIndex = androidJob.indexOf('name: Store-build guard (post-sync)');
+    const fastlaneIndex = androidJob.indexOf('name: Fastlane lane');
+
+    expect(androidJobStart).toBeGreaterThanOrEqual(0);
+    expect(iosJobStart).toBeGreaterThan(androidJobStart);
+    expect(fastfileLintStart).toBeGreaterThan(iosJobStart);
     expect(syncIndex).toBeGreaterThanOrEqual(0);
     expect(guardIndex).toBeGreaterThan(syncIndex);
     expect(fastlaneIndex).toBeGreaterThan(guardIndex);
@@ -87,10 +97,12 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
   it('local mobile release commands force production mode before syncing', () => {
     const packageJson = JSON.parse(readFileSync(PACKAGE_JSON, 'utf8')) as {
       scripts?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
     const androidScript = packageJson.scripts?.['mobile:build:android'] ?? '';
     const iosScript = packageJson.scripts?.['mobile:build:ios'] ?? '';
 
+    expect(packageJson.devDependencies?.['cross-env']).toBe('^7.0.3');
     expect(androidScript).toContain('cross-env NODE_ENV=production npm run build');
     expect(androidScript).toContain('cross-env NODE_ENV=production npx cap sync android');
     expect(androidScript.indexOf('guard:store-build')).toBeGreaterThan(
