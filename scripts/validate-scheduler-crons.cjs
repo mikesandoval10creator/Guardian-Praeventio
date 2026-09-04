@@ -13,6 +13,7 @@ const required = [
   ['lone-worker-escalation', '*/5 * * * *', '/api/maintenance/run-lone-worker-escalation'],
   ['man-down-escalation', '* * * * *', '/api/maintenance/run-man-down-escalation'],
   ['aggregate-ai-feedback', '0 8 * * 1', '/api/admin/jobs/aggregate-ai-feedback'],
+  ['b2d-mrr-snapshot', '30 0 1 * *', '/api/maintenance/run-b2d-mrr-snapshot'],
 ];
 
 for (const [job, schedule, endpoint] of required) {

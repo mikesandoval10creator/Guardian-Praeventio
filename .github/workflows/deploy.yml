@@ -687,4 +687,12 @@ jobs:
             "/api/maintenance/run-slo-metrics-refresh" \
             "Daily SLO metrics refresh from Sentry (Discovery 2026-08-17). Sentry-gated; fail-soft if credentials missing."
 
+          # B2D MRR snapshot — monthly, after the previous month closes.
+          # The endpoint and dashboard already exist; provisioning the job here
+          # makes the historical MRR series populate without manual replay.
+          ensure_job "b2d-mrr-snapshot" \
+            "30 0 1 * *" \
+            "/api/maintenance/run-b2d-mrr-snapshot" \
+            "Monthly B2D MRR snapshot on day 1 at 00:30 America/Santiago."
+
           echo "✓ Housekeeping + dedicated scheduler jobs setup complete"
