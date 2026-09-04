@@ -18,9 +18,17 @@
 // The Android build runs locally (ADR-0006), so this gate is the only thing
 // standing between a careless `cap sync` and a broken store release.
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { findStoreBuildProblems } = require('../../../scripts/check-store-build-config.cjs');
+
+const MOBILE_RELEASE_WORKFLOW = fileURLToPath(
+  new URL('../../../.github/workflows/mobile-release.yml', import.meta.url),
+);
+const PACKAGE_JSON = fileURLToPath(
+  new URL('../../../package.json', import.meta.url),
+);
 
 /** Import capacitor.config.ts fresh under a given NODE_ENV. */
 async function loadCapacitorConfig(nodeEnv: string) {
@@ -61,6 +69,47 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
   it('dev: live-reload still points at the emulator host (we did not break dev)', async () => {
     const cfg = await loadCapacitorConfig('development');
     expect(cfg.server?.url).toContain('10.0.2.2');
+  });
+  it('release workflow resolves production config and guards the synced artifact', () => {
+    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, 'utf8');
+    const androidJobStart = workflow.indexOf('  android-release:');
+    const iosJobStart = workflow.indexOf('  ios-release:');
+    const fastfileLintStart = workflow.indexOf('  fastfile-lint:');
+    const androidJob = workflow.slice(androidJobStart, iosJobStart);
+    const iosJob = workflow.slice(iosJobStart, fastfileLintStart);
+
+    expect(androidJob).toContain('env:\n      NODE_ENV: production');
+    expect(iosJob).toContain('env:\n      NODE_ENV: production');
+
+    const syncIndex = androidJob.indexOf('name: Capacitor sync (Android)');
+    const guardIndex = androidJob.indexOf('name: Store-build guard (post-sync)');
+    const fastlaneIndex = androidJob.indexOf('name: Fastlane lane');
+
+    expect(androidJobStart).toBeGreaterThanOrEqual(0);
+    expect(iosJobStart).toBeGreaterThan(androidJobStart);
+    expect(fastfileLintStart).toBeGreaterThan(iosJobStart);
+    expect(syncIndex).toBeGreaterThanOrEqual(0);
+    expect(guardIndex).toBeGreaterThan(syncIndex);
+    expect(fastlaneIndex).toBeGreaterThan(guardIndex);
+  });
+
+  it('local mobile release commands force production mode before syncing', () => {
+    const packageJson = JSON.parse(readFileSync(PACKAGE_JSON, 'utf8')) as {
+      scripts?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const androidScript = packageJson.scripts?.['mobile:build:android'] ?? '';
+    const iosScript = packageJson.scripts?.['mobile:build:ios'] ?? '';
+
+    expect(packageJson.devDependencies?.['cross-env']).toBe('^7.0.3');
+    expect(androidScript).toContain('cross-env NODE_ENV=production npm run build');
+    expect(androidScript).toContain('cross-env NODE_ENV=production npx cap sync android');
+    expect(androidScript.indexOf('guard:store-build')).toBeGreaterThan(
+      androidScript.indexOf('cap sync android'),
+    );
+    expect(androidScript).toContain('node scripts/run-gradle.cjs bundleRelease');
+    expect(iosScript).toContain('cross-env NODE_ENV=production npm run build');
+    expect(iosScript).toContain('cross-env NODE_ENV=production npx cap sync ios');
   });
 });
 
