@@ -2,13 +2,13 @@
 
 > Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
 
-## CL/safety_inspection — PDF server-side generator not yet integrated (Sprint 40)
-- **File**: `src/services/compliance/registry.ts` — `clSafetyInspectionAdapter.generate()`
-- **Owner**: Sprint 40 (pdfkit server-side integration)
-- **Sprint target**: Sprint 40 — wire `checklistBuilder.ts` + pdfkit render layer
-- **User-visible?**: NO — HTTP 503 is returned by `complianceEmit.ts` (not fake data). Client renders PDF via `buildImmutablePdf` (jsPDF client-side). CLAUDE.md #13 compliant.
-- **Why stub**: `checklistBuilder.ts` produces a JSON schema (not PDF bytes). Server-side PDF generation from a checklist response requires a pdfkit integration pass that is out of scope for Sprint 38/39.
-- **Removal criteria**: `buildImmutablePdf` server-side variant wired + test covering 200 + PDF bytes response.
+## CL/safety_inspection — PDF server-side generator ✅ RESUELTO 2026-09-04
+- **File**: `src/services/compliance/registry.ts` — `clSafetyInspectionAdapter.generate()` + `renderSafetyInspectionPdf()`
+- **Owner**: Guardian implementation
+- **Implementation**: `pdfkit` genera bytes PDF server-side desde el checklist validado; el resultado se devuelve como `pdfBase64` mediante `POST /api/compliance/emit/safety_inspection`.
+- **User-visible**: SÍ — el endpoint devuelve HTTP 200, JSON canónico y PDF real; no inventa observaciones ni resultados de cumplimiento.
+- **Evidence**: `src/__tests__/server/complianceEmit.router.test.ts` valida 200, contenido del checklist, cabecera `%PDF-` y auditoría `result: generated`.
+- **Resolution criteria**: cumplidos; mantener prueba de bytes PDF y trazabilidad legal DS 594/1999 + DS 44/2024 + NCh ISO 45001 §9.1.
 
 > **TRIAGE 2026-06-19** (verificado contra el código, no contra este doc): de las 86 entradas, **~9 accionables**.
 > - **REAL-NEEDED (3, construir):** `src/server/jobs/runB2dMrrSnapshot.ts:15` (cron B2D MRR; backend listo) · `src/hooks/useGeofenceWithEvents.ts` (hook real sin consumer) · Wi-Fi Direct nativo `packages/capacitor-mesh/android/.../MeshPlugin.kt:552` + `ios/.../Plugin.swift:350` (BLE ya real).

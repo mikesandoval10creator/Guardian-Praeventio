@@ -581,32 +581,67 @@ function clTrainingRecordAdapter(): EmissionAdapter {
 }
 
 function clSafetyInspectionAdapter(): EmissionAdapter {
-  // TODO(sprint-40): wire to server-side checklist-PDF generator once
-  // checklistBuilder.ts + pdfkit integration is complete. The
-  // checklistBuilder produces JSON schemas (not PDF bytes); a pdfkit
-  // render layer is needed server-side.
-  // Registered in docs/stubs-inventory.md per CLAUDE.md #13.
-  //
-  // This adapter is 503-gated at the route layer — it deliberately does
-  // NOT return fake/passthrough data (CLAUDE.md #13 anti-stub rule).
   return {
     country: 'CL',
     type: 'safety_inspection',
     validate: ds67Schema,
     suggestedFormats: ['application/pdf'],
     legalCitation: 'DS 594/1999 (Condiciones Sanitarias) + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + NCh ISO 45001 §9.1',
-    async generate(_payload: unknown): Promise<EmissionResult> {
-      // 503 gate: the real checklist-PDF builder requires pdfkit on the
-      // server which is not yet integrated. Do NOT return passthrough JSON
-      // (anti-stub per CLAUDE.md #13). The route maps this error to 503.
-      const err = new Error(
-        'safety_inspection PDF generator not yet available server-side (Sprint 40). ' +
-        'Use the mobile checklist builder UI which renders the PDF client-side.',
-      );
-      (err as Error & { code: string }).code = 'not_implemented_503';
-      throw err;
+    async generate(payload: unknown): Promise<EmissionResult> {
+      const parsed = payload as { tenantId: string; body: Record<string, unknown> };
+      const generatedAt = new Date().toISOString();
+      const pdfBase64 = await renderSafetyInspectionPdf(parsed.tenantId, parsed.body, generatedAt);
+      return {
+        json: {
+          tenantId: parsed.tenantId,
+          body: parsed.body,
+          generatedAt,
+          legalReferences: ['DS 594/1999', 'DS 44/2024', 'NCh ISO 45001 §9.1'],
+        },
+        pdfBase64,
+      };
     },
   };
+}
+
+/**
+ * Render the validated checklist as real PDF bytes without writing to disk.
+ * The input is preserved as supplied; this renderer never invents inspection
+ * observations or marks an item as compliant. It only lays out the submitted
+ * checklist and its legal provenance.
+ */
+export async function renderSafetyInspectionPdf(
+  tenantId: string,
+  body: Record<string, unknown>,
+  generatedAt: string,
+): Promise<string> {
+  const { default: PDFDocument } = await import('pdfkit');
+  const doc = new PDFDocument({ margin: 50, info: { Title: 'Inspección de seguridad Guardian Praeventio' } });
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const done = new Promise<void>((resolve, reject) => {
+    doc.on('end', resolve);
+    doc.on('error', reject);
+  });
+
+  doc.fontSize(18).text('Guardian Praeventio', { align: 'center' });
+  doc.moveDown(0.4).fontSize(14).text('Registro de inspección de seguridad', { align: 'center' });
+  doc.moveDown().fontSize(9).fillColor('#555555').text(`Tenant: ${tenantId}`);
+  doc.text(`Generado: ${generatedAt}`);
+  doc.moveDown().fillColor('#000000').fontSize(11).text('Checklist recibido', { underline: true });
+
+  for (const [key, value] of Object.entries(body)) {
+    const rendered = typeof value === 'string' ? value : JSON.stringify(value);
+    doc.moveDown(0.35).fontSize(10).text(`${key}: ${rendered ?? ''}`);
+  }
+
+  doc.moveDown().fontSize(9).fillColor('#555555').text(
+    'Marco informado: DS 594/1999 · DS 44/2024 · NCh ISO 45001 §9.1. ' +
+      'Este documento refleja exclusivamente los datos enviados por el responsable de la inspección.',
+  );
+  doc.end();
+  await done;
+  return Buffer.concat(chunks).toString('base64');
 }
 
 // ─── Registry table ─────────────────────────────────────────────────────────
