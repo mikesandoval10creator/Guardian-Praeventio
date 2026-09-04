@@ -40,6 +40,7 @@ import {
 } from './backgroundTriggerClaim.js';
 import { createCriticalAlertOutbox } from './criticalAlertOutbox.js';
 import { deliverOutboxItem, type OutboxDeliveryDeps } from './criticalAlertOutboxWorker.js';
+import { EmailService, incidentAlertTemplate } from '../../services/email/index.js';
 
 const TRIGGER_LEASE_MS = 2 * 60 * 1000;
 
@@ -720,14 +721,38 @@ export function setupBackgroundTriggers(
                       });
                       return { successCount: r.successCount, failureCount: r.failureCount };
                     },
-                    sendCphsEmail: async (_recipients, _projectId, _severity, _title) => {
-                      // El worker de outbox reutiliza el envío CPHS de la capa de
-                      // servicio; en esta primera integración conservamos la
-                      // lógica de email fuera del scope de outbox para mantener
-                      // el cambio quirúrgico. La rama sent por FCM es suficiente
-                      // para cerrar la deuda; email queda como canal secundario
-                      // en una iteración posterior si la auditoría lo requiere.
-                      return false;
+                    sendCphsEmail: async (recipients, projectId, severity, title, nodeId) => {
+                      // Real CPHS fallback: the outbox owns retry/dead-letter
+                      // semantics, while EmailService owns Resend transport.
+                      // Missing configuration is an honest unavailable channel,
+                      // not a fake success that would suppress retries.
+                      const emailService = EmailService.fromEnv();
+                      if (!emailService || recipients.length === 0) return false;
+                      const normalizedSeverity =
+                        severity.toLowerCase().includes('crít') || severity.toLowerCase().includes('critic')
+                          ? 'critical'
+                          : severity.toLowerCase().includes('alta') || severity.toLowerCase().includes('high')
+                            ? 'high'
+                            : severity.toLowerCase().includes('media') || severity.toLowerCase().includes('medium')
+                              ? 'medium'
+                              : 'low';
+                      const html = incidentAlertTemplate({
+                        incidentId: nodeId ?? projectId,
+                        severity: normalizedSeverity,
+                        title: title || 'Nuevo incidente crítico',
+                        projectId,
+                        projectName: projectId,
+                        occurredAt: new Date().toISOString(),
+                      });
+                      const batch = await emailService.sendBatch(
+                        recipients.map((to) => ({
+                          to,
+                          subject: `⚠️ Incidente ${severity || 'crítico'} — ${projectId}`,
+                          html,
+                          tag: 'incident-alert',
+                        })),
+                      );
+                      return batch.sent > 0;
                     },
                     mirrorNodeSent: async (nodeId) => {
                       const nodeRef = db.collection('nodes').doc(nodeId);

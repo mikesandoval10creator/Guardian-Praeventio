@@ -16,7 +16,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isLongPress } from './SOSButton';
+import { createSosClientEventId, isLongPress } from './SOSButton';
+
+describe('SOSButton — client event identity', () => {
+  it('creates a non-empty idempotency identity for one SOS attempt', () => {
+    expect(createSosClientEventId()).toMatch(/^(.+)+$/);
+  });
+});
 
 describe('SOSButton — long-press predicate', () => {
   it('short tap (1s) does NOT count as a long press', () => {

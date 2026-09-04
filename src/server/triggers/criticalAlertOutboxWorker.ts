@@ -20,7 +20,7 @@ export interface OutboxDeliveryDeps {
   backoffBaseMs: number;
   maxAttempts: number;
   sendFcmMulticast: (msg: { tokens: string[]; title: string; body: string; projectId: string; nodeId: string; severity: string }) => Promise<FcmMulticastResult>;
-  sendCphsEmail: (recipients: string[], projectId: string, severity: string, title: string) => Promise<boolean>;
+  sendCphsEmail: (recipients: string[], projectId: string, severity: string, title: string, nodeId?: string) => Promise<boolean>;
   mirrorNodeSent: (nodeId: string) => Promise<void>;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 }
@@ -103,6 +103,7 @@ export async function deliverOutboxItem(
         payload.projectId,
         payload.severity,
         payload.title,
+        payload.nodeId,
       );
     } catch (error) {
       deps.logger.warn('outbox_email_send_failed', { nodeId: payload.nodeId, error });

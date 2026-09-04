@@ -44,6 +44,17 @@ const GEO_TIMEOUT_MS = 5_000;
 // but long enough for a slow mobile data connection to succeed.
 const SOS_FETCH_TIMEOUT_MS = 7_000;
 
+/**
+ * Identity of one manual SOS attempt. It must be created before the initial
+ * POST so a lost response can safely transition to the outbox without
+ * changing the Idempotency-Key.
+ */
+export function createSosClientEventId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `sos-${Date.now()}`;
+}
+
 interface GeoPoint {
   lat: number;
   lng: number;
@@ -106,6 +117,10 @@ export function SOSButton(): React.ReactElement | null {
 
   const fireSOS = useCallback(async (): Promise<void> => {
     setSubmitting(true);
+    // One identity for the complete attempt: initial POST and offline outbox.
+    // If the server accepted the SOS but the response was lost, the retry
+    // must replay the same idempotent request instead of creating a duplicate.
+    const clientEventId = createSosClientEventId();
     // Hoisted so the catch can attach the captured location to the queued SOS.
     let geo: GeoPoint | null = null;
     try {
@@ -136,6 +151,7 @@ export function SOSButton(): React.ReactElement | null {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Idempotency-Key': clientEventId,
             ...(authHeader ? { Authorization: authHeader } : {}),
           },
           body: JSON.stringify(body),
@@ -192,10 +208,7 @@ export function SOSButton(): React.ReactElement | null {
         try {
           const { enqueueSos } = await import('../../services/emergency/sosOutboxClient');
           await enqueueSos({
-            clientEventId:
-              typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                ? crypto.randomUUID()
-                : `sos-${Date.now()}`,
+            clientEventId,
             workerUid: user?.uid ?? 'anonymous',
             reason: 'manual_button',
             projectId,

@@ -49,6 +49,7 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 // silently skip the email step.
 import { EmailService } from '../../services/email/resendService.js';
 import { sosBackupTemplate } from '../../services/email/templates.js';
+import { EMERGENCY_CHANNEL_ID } from '../../services/notifications/criticalNotificationChannel.js';
 
 export const sosLimiter = rateLimit({
   windowMs: 60_000,
@@ -178,7 +179,13 @@ export function buildEmergencyMulticastMessage(
     tokens,
     notification: { title: payload.title, body: payload.body },
     data: payload.data ?? {},
-    android: { priority: 'high' },
+    android: {
+      priority: 'high',
+      // Android must route life-safety pushes to the dedicated high-importance
+      // channel created by usePushNotifications before registration. Without
+      // this field FCM may use its default channel and lose heads-up/sound.
+      notification: { channelId: EMERGENCY_CHANNEL_ID },
+    },
     apns: {
       headers: {
         'apns-priority': '10',

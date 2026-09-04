@@ -96,7 +96,8 @@
     "canary:monitor": "node scripts/canary-monitor.cjs",
     "retro:weekly": "node scripts/retro-weekly.cjs",
     "test:readiness-matrix": "node --test scripts/generate-readiness-matrix.test.cjs",
-    "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check"
+    "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check",
+    "test:scheduler-crons": "node scripts/validate-scheduler-crons.cjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
