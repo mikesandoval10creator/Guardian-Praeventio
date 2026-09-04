@@ -166,6 +166,18 @@ type EmergencyPushPayload = {
 };
 
 /**
+ * The Android notification channel that surfaces critical alerts (SOS,
+ * manDown, evacuation, gas-alert) as 911-grade alarms even when the screen
+ * is off. The channel itself is declared in
+ * `android/app/src/main/AndroidManifest.xml` (IMPORTANCE_HIGH). Without this
+ * `notification.channel_id`, FCM falls back to the default channel and the
+ * alarm does not surface — closing the vida-safety gap noted in the
+ * Android Launch Triage audit (Notion id 3ccaa66d-73fe-81e2-8efe-d24072b0da74)
+ * and the v1.0.0 master plan §3.1 + §3.4.
+ */
+export const PRAEVENTIO_EMERGENCY_CHANNEL_ID = 'praeventio_emergency';
+
+/**
  * Build the exact cross-platform message passed to Firebase Admin.
  * Keeping construction pure makes the life-safety delivery contract
  * executable without mocking Firestore membership traversal.
@@ -178,7 +190,13 @@ export function buildEmergencyMulticastMessage(
     tokens,
     notification: { title: payload.title, body: payload.body },
     data: payload.data ?? {},
-    android: { priority: 'high' },
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
+        sound: 'default',
+      },
+    },
     apns: {
       headers: {
         'apns-priority': '10',
