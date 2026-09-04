@@ -74,6 +74,8 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.android_ready == 'true'
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
     steps:
       - uses: actions/checkout@v7
 
@@ -90,7 +92,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -121,6 +123,9 @@ jobs:
       # commit. CI assumes android/ exists in the checkout.
       - name: Capacitor sync (Android)
         run: npx cap sync android
+
+      - name: Store-build guard (post-sync)
+        run: npm run guard:store-build
 
       - name: Fastlane lane
         env:
@@ -156,6 +161,8 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.ios_ready == 'true'
     runs-on: macos-14
+    env:
+      NODE_ENV: production
     steps:
       - uses: actions/checkout@v7
 

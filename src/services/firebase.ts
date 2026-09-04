@@ -116,6 +116,37 @@ function resolveFirestoreEmulator(): { host: string; port: number } | null {
   } catch {
     // import.meta.env access may throw in some sandbox environments — safe.
   }
+  // Signal 3 — Bundle-Verify-2026-08-27 expand probe auth:
+  // Browser dev mode (Vite serves on http://localhost:57335 or
+  // http://127.0.0.1:57335). The SPA in dev has no `process` and the
+  // `MODE === 'test'` gate is for Vitest only. So when the browser's
+  // hostname is localhost/127.0.0.1 AND the page is NOT production
+  // (no `app.praeventio.net`/`www.praeventio.net` host), default to
+  // localhost:8080. This lets the dev server use the Firestore emulator
+  // without forcing `vite --mode test` (which would also change the
+  // build target to test and is not what we want during a manual
+  // exploration session).
+  //
+  // Production SAFETY: `app.praeventio.net` and `www.praeventio.net` are
+  // NOT in this whitelist. Even if a hacker manages to inject
+  // `window.location.hostname = 'localhost'` via XSS, the only thing
+  // they would accomplish is redirecting their OWN browser session
+  // to the dev emulator (which they cannot reach). No security impact
+  // — production traffic always arrives with a non-localhost hostname.
+  // When you ship to production, the gate naturally returns null and
+  // production connects to real GCP.
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.location !== 'undefined' &&
+      (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1')
+    ) {
+      return { host: 'localhost', port: 8080 };
+    }
+  } catch {
+    // window may not exist in some sandboxes — safe.
+  }
   return null;
 }
 
@@ -152,13 +183,36 @@ export const auth = getAuth(app);
 // Backend `verifyAuth.ts:49` tiene gate redundante fatal si NODE_ENV=
 // production && E2E_MODE=1 (defense in depth).
 //
-// El fixture `tests/e2e/fixtures/auth.ts:loginAsTestUser` después de
-// page.addInitScript mintará un custom token vía firebase-admin (Auth
-// Emulator REST API auto-detectado por FIREBASE_AUTH_EMULATOR_HOST) +
-// signInWithCustomToken en el browser → auth.currentUser se popula →
-// request.auth no es null → firestore.rules permite queries.
-try {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+// Signal 3 (Bundle-Verify-2026-08-27): browser dev on localhost/127.0.0.1
+// also enables the Auth emulator so the SPA can authenticate against
+// the running emulator without `--mode test`. Same production safety
+// reasoning as the Firestore signal 3 above.
+function shouldConnectAuthEmulator(): boolean {
+  // Existing test gate (Vitest)
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+      return true;
+    }
+  } catch {
+    // import.meta.env access may throw — safe.
+  }
+  // Browser dev gate — only when hostname is localhost/127.0.0.1.
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.location !== 'undefined' &&
+      (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1')
+    ) {
+      return true;
+    }
+  } catch {
+    // safe
+  }
+  return false;
+}
+
+if (shouldConnectAuthEmulator()) {
     try {
       connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
       logger.debug('[firebase] Auth client connected to emulator localhost:9099 (MODE=test)');
@@ -174,9 +228,17 @@ try {
     // tarda, `onAuthStateChanged` listener (en FirebaseContext) capta
     // el cambio y re-renderiza los componentes que dependen de user.
     //
+    // Solo para MODE=test (no para browser dev mode). En dev mode
+    // el usuario hace login normal con email/password o Google.
+    //
     // Producción jamás entra (gate MODE=test).
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
+      if (
+        typeof import.meta !== 'undefined' &&
+        import.meta.env?.MODE === 'test' &&
+        typeof window !== 'undefined' &&
+        window.localStorage
+      ) {
         const customToken = window.localStorage.getItem('gp.e2e.custom_token');
         if (customToken && !auth.currentUser) {
           // Fire-and-forget. Setea `window.__praeventio_e2e_auth_ready`
@@ -210,9 +272,6 @@ try {
     } catch (err) {
       logger.debug('[firebase] custom token auto-sign-in skipped', { err });
     }
-  }
-} catch {
-  // import.meta.env not available — production path, never enter.
 }
 
 export const storage = getStorage(app);

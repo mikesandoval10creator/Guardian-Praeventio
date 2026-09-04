@@ -502,7 +502,10 @@ describe('buildEmergencyMulticastMessage — iOS Critical Alerts config (P0)', (
       data: { projectId: 'p1', alertId: 'alert-7' },
       android: {
         priority: 'high',
-        notification: { channelId: 'praeventio_emergency' },
+        notification: {
+          channelId: 'praeventio_emergency',
+          sound: 'default',
+        },
       },
       apns: {
         headers: {

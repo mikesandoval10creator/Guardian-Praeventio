@@ -56,11 +56,32 @@ npx cap sync
 
 ## 3. Subsequent builds (per change)
 
+For development or a debug device, the normal sync is still valid:
+
 ```bash
 # After any change in src/, capacitor.config.ts, or web assets:
 npm run build && npx cap sync
+```
 
-# Then open the native IDE for run / debug / archive:
+For a **store/release artifact**, production mode is mandatory during both
+commands that resolve or bake `capacitor.config.ts`. The guard must run after
+sync, before Gradle/Fastlane:
+
+```bash
+# Cross-platform (Windows, macOS, Linux):
+npx cross-env NODE_ENV=production npm run build
+npx cross-env NODE_ENV=production npx cap sync android
+npm run guard:store-build
+```
+
+The `mobile:build:android` and `mobile:build:ios` scripts already apply this
+sequence. Never reuse a development-synced
+`android/app/src/main/assets/capacitor.config.json` for a release; regenerate it
+from the release checkout.
+
+Then open the native IDE for run / debug / archive:
+
+```bash
 npx cap open android   # opens Android Studio
 npx cap open ios       # opens Xcode (macOS only)
 ```
@@ -242,6 +263,11 @@ export KEYSTORE_PATH="$(pwd)/release.keystore"
 export ANDROID_KEYSTORE_PASSWORD="..."
 export KEY_ALIAS="praeventio"
 export KEY_PASSWORD="..."
+
+# Produce and validate a store-safe Capacitor artifact before Fastlane.
+npx cross-env NODE_ENV=production npm run build
+npx cross-env NODE_ENV=production npx cap sync android
+npm run guard:store-build
 
 # Compiles + signs the AAB without uploading.
 bundle exec fastlane android build_only
