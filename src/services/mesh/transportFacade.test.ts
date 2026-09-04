@@ -173,6 +173,49 @@ describe('TransportFacade', () => {
     await facade.stopMesh();
   });
 
+  it('peer discovery drains queued packets and removes only confirmed delivery', async () => {
+    plugin.__sendImpl = () => ({ deliveredTo: ['peer-1'], queued: [] });
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+
+    const packet = makePacket({ fromUid: 'worker-self' });
+    await facade.sendLocal(packet);
+    expect(queue.size()).toBe(1);
+
+    plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(plugin.__sentPackets).toHaveLength(2);
+    expect(queue.size()).toBe(0);
+
+    await facade.stopMesh();
+  });
+
+  it('requeues a packet when the discovered peer is not confirmed as delivered', async () => {
+    plugin.__sendImpl = () => ({ deliveredTo: [], queued: ['peer-1'] });
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+
+    await facade.sendLocal(makePacket({ fromUid: 'worker-self' }));
+    plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(plugin.__sentPackets).toHaveLength(2);
+    expect(queue.size()).toBe(1);
+
+    await facade.stopMesh();
+  });
+
   it('sendLocal enqueues into the queue AND fans out via the plugin', async () => {
     plugin.__sendImpl = () => ({
       deliveredTo: ['peer-1', 'peer-2'],

@@ -107,10 +107,11 @@ export class TransportFacade {
     );
     const onPeerDiscovered = await this.plugin.addListener(
       'mesh:peer-discovered',
-      () => {
-        // Peer discovery alone does not move packets; reconciliation
-        // will pick up the new peer in its next pass. We still record
-        // the listener so removeAllListeners cleans up.
+      (peer: MeshPeerInfo) => {
+        // A newly discovered peer is an immediate delivery opportunity. The
+        // previous listener was informational only, so queued SOS/breadcrumb
+        // packets waited until expiry even though a relay peer had appeared.
+        void this.drainForPeer(peer.id);
       },
     );
     const onPeerLost = await this.plugin.addListener(
@@ -204,6 +205,25 @@ export class TransportFacade {
   /** Snapshot for UI consumers without forcing a reconcile cycle. */
   async snapshot(): Promise<TransportSnapshot> {
     return this.reconcile();
+  }
+
+  /**
+   * Retry queued packets when a peer appears. The native plugin currently
+   * fans out to known peers, so a packet is removed only when the returned
+   * deliveredTo list confirms this discovered peer specifically.
+   */
+  private async drainForPeer(peerId: string): Promise<void> {
+    const { toSend } = this.queue.drainForPeer(peerId);
+    for (const packet of toSend) {
+      try {
+        const result = await this.plugin.send(packet);
+        if (!result.deliveredTo.includes(peerId)) {
+          this.queue.requeue(packet);
+        }
+      } catch {
+        this.queue.requeue(packet);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
