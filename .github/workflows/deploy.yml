@@ -432,7 +432,7 @@ jobs:
           # así que el resumen semanal del feedback de IA nunca se generaba
           # en producción — admin/gerente recibían 403 o "Sin datos".
           ensure_job "aggregate-ai-feedback" \
-            "0 8 * * * 1" \
+            "0 8 * * 1" \
             "/api/admin/jobs/aggregate-ai-feedback" \
             "Weekly RLHF aggregate of ai_feedback per tenant (Tarea P1 RLHF)."
 
@@ -532,7 +532,7 @@ jobs:
           # a button. The cron was never provisioned, so the escalation only
           # ever ran when an operator manually POSTed the endpoint.
           ensure_vital_job "lone-worker-escalation" \
-            "*/5* * * *" \
+            "*/5 * * * *" \
             "/api/maintenance/run-lone-worker-escalation" \
             "Lone-worker escalation sweep every 5 min (AUDIT-2026-06 B19). Reads active lone_worker_sessions, applies the pure escalation engine, multicasts FCM to supervisor/brigade/emergency_services."
 

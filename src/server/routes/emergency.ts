@@ -50,6 +50,7 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 import { EmailService } from '../../services/email/resendService.js';
 import { sosBackupTemplate } from '../../services/email/templates.js';
 
+
 export const sosLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
