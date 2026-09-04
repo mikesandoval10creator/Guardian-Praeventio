@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runExceptionAutoExpire } from './runExceptionAutoExpire.js';
+import { runExceptionAutoExpire, type ExceptionAutoExpireDeps } from './runExceptionAutoExpire.js';
 
 function buildDb(opts: {
   expiredDocs: Array<{ id: string; data: Record<string, unknown> }>;
@@ -54,7 +54,7 @@ describe('runExceptionAutoExpire', () => {
       ],
     });
 
-    const r = await runExceptionAutoExpire({ db, now: NOW });
+    const r = await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions' });
     expect(r.scanned).toBe(2);
     expect(r.expired).toBe(2);
     expect(r.errors).toBe(0);
@@ -65,14 +65,14 @@ describe('runExceptionAutoExpire', () => {
 
   it('sin docs activos vencidos → expired=0', async () => {
     const { db } = buildDb({ expiredDocs: [] });
-    const r = await runExceptionAutoExpire({ db, now: NOW });
+    const r = await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions' });
     expect(r.scanned).toBe(0);
     expect(r.expired).toBe(0);
   });
 
   it('falla de scan no rompe — devuelve error count', async () => {
     const { db } = buildDb({ expiredDocs: [], scanShouldFail: true });
-    const r = await runExceptionAutoExpire({ db, now: NOW });
+    const r = await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions' });
     expect(r.errors).toBe(1);
     expect(r.expired).toBe(0);
   });
@@ -86,7 +86,7 @@ describe('runExceptionAutoExpire', () => {
       ],
       writeShouldFailFor: new Set(['e2']),
     });
-    const r = await runExceptionAutoExpire({ db, now: NOW });
+    const r = await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions' });
     expect(r.scanned).toBe(3);
     expect(r.expired).toBe(2);
     expect(r.errors).toBe(1);
@@ -103,7 +103,7 @@ describe('runExceptionAutoExpire', () => {
       ],
     });
     const notify = vi.fn().mockResolvedValue(undefined);
-    await runExceptionAutoExpire({ db, now: NOW, notifyExpired: notify });
+    await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions', notifyExpired: notify });
     expect(notify).toHaveBeenCalledWith('e1', expect.objectContaining({
       subjectRef: expect.objectContaining({ id: 'w1' }),
     }));
@@ -114,8 +114,17 @@ describe('runExceptionAutoExpire', () => {
       expiredDocs: [{ id: 'e1', data: { validUntil: '2026-05-10T00:00:00Z' } }],
     });
     const notify = vi.fn().mockRejectedValue(new Error('FCM down'));
-    const r = await runExceptionAutoExpire({ db, now: NOW, notifyExpired: notify });
+    const r = await runExceptionAutoExpire({ db, now: NOW, collectionPath: 'projects/p1/exceptions', notifyExpired: notify });
     expect(r.expired).toBe(1);
     expect(r.errors).toBe(0);
+  });
+
+  it('rechaza una collectionPath ausente o vacía en vez de usar la colección global', async () => {
+    await expect(
+      runExceptionAutoExpire({ db: {} as never, now: NOW } as unknown as ExceptionAutoExpireDeps),
+    ).rejects.toThrow('requires a tenant-scoped collectionPath');
+    await expect(
+      runExceptionAutoExpire({ db: {} as never, now: NOW, collectionPath: '   ' }),
+    ).rejects.toThrow('requires a tenant-scoped collectionPath');
   });
 });

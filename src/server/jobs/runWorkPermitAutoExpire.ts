@@ -11,9 +11,8 @@ import { logger } from '../../utils/logger.js';
 export interface WorkPermitAutoExpireDeps {
   db: admin.firestore.Firestore;
   now?: () => Date;
-  /** Default 'work_permits' (legacy); tenant-scoped:
-   *  `tenants/{tid}/projects/{pid}/work_permits`. */
-  collectionPath?: string;
+  /** Required tenant/project-scoped collection path. */
+  collectionPath: string;
   notifyExpired?: (
     docId: string,
     doc: { workerUid?: string; kind?: string; validUntil?: string },
@@ -41,7 +40,10 @@ export async function runWorkPermitAutoExpire(
     finishedAtIso: '',
   };
 
-  const collection = deps.collectionPath ?? 'work_permits';
+  const collection = typeof deps.collectionPath === 'string' ? deps.collectionPath.trim() : '';
+  if (!collection) {
+    throw new Error('work permit auto-expire requires a tenant-scoped collectionPath');
+  }
   const nowIso = now().toISOString();
 
   let snap: admin.firestore.QuerySnapshot;
