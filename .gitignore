@@ -79,3 +79,11 @@ audit_scan_results.json
 
 # graphify knowledge-graph output (generated, ~52MB; regenerate with `graphify update .`)
 graphify-out/
+
+# Smoke-Lab hygiene 2026-09-02 — local probing artifacts (Bundle-Verify-2026-08-27)
+_scripts/
+probe-*.mjs
+probe-*.json
+all-page-names.json
+community-index.json
+kanban-db-id.txt
