@@ -651,6 +651,14 @@ const app = express();
 configureTrustProxy(app);
 const PORT = Number(process.env.PORT) || 57335;
 
+// CORS whitelist — Bug 2 (Bundle-Verify-2026-08-27).
+// Frontend and API live on the same host (`app.praeventio.net` in prod),
+// so same-origin covers the normal case. This middleware is defense in
+// depth for subdomains, mobile shells, and dev. Whitelist is explicit;
+// credentials-enabled means we cannot use `*`. See src/server/middleware/cors.ts.
+import { applyCors } from "./src/server/middleware/cors.js";
+applyCors(app);
+
 // `safeSecretEqual` extracted to src/server/middleware/safeSecretEqual.ts in
 // Round 16 R5 Phase 1 split.
 
