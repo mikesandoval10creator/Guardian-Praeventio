@@ -52,15 +52,30 @@ function makeFakeDb(projects: ProjectSeed[]) {
   const db: any = {
     collection(name: string) {
       if (name === 'projects') {
+        let projectLimit = projects.length;
+        let projectCursor: string | null = null;
         return {
-          limit() {
+          orderBy() {
+            return this;
+          },
+          startAfter(doc: { id: string }) {
+            projectCursor = doc.id;
+            return this;
+          },
+          limit(value: number) {
+            projectLimit = value;
             return this;
           },
           get: async () => ({
-            docs: projects.map((p) => ({
+            docs: projects
+              .slice()
+              .sort((a, b) => a.id.localeCompare(b.id))
+              .filter((p) => !projectCursor || p.id > projectCursor)
+              .slice(0, projectLimit)
+              .map((p) => ({
               id: p.id,
               data: () => ({}),
-            })),
+              })),
           }),
           doc(projectId: string) {
             const proj = projects.find((p) => p.id === projectId);
@@ -68,21 +83,35 @@ function makeFakeDb(projects: ProjectSeed[]) {
               collection(sub: string) {
                 if (sub === 'epp_assignments') {
                   let statusFilter: string | null = null;
+                  let assignmentLimit = (proj?.assignments ?? []).length;
+                  let assignmentCursor: string | null = null;
                   const builder: any = {
                     where(_field: string, _op: string, value: string) {
                       statusFilter = value;
                       return builder;
                     },
-                    limit() {
+                    orderBy() {
+                      return builder;
+                    },
+                    startAfter(doc: { id: string }) {
+                      assignmentCursor = doc.id;
+                      return builder;
+                    },
+                    limit(value: number) {
+                      assignmentLimit = value;
                       return builder;
                     },
                     get: async () => {
                       const docs = (proj?.assignments ?? [])
+                        .slice()
+                        .sort((a, b) => a.id.localeCompare(b.id))
                         .filter((a) =>
                           statusFilter === null
                             ? true
                             : a.data.status === statusFilter,
                         )
+                        .filter((a) => !assignmentCursor || a.id > assignmentCursor)
+                        .slice(0, assignmentLimit)
                         .map((a) => ({
                           id: a.id,
                           data: () => a.data,
@@ -507,5 +536,60 @@ describe('checkExpiredPpe', () => {
     expect(result.findingsCreated).toBe(2);
     expect(assignmentUpdates).toHaveLength(2);
     expect(auditAdded).toHaveLength(2);
+  });
+
+  it('paginates beyond 100 projects without skipping expirations', async () => {
+    const projects = Array.from({ length: 101 }, (_, i) => ({
+      id: `project-${String(i).padStart(3, '0')}`,
+      assignments: [{
+        id: `assignment-${String(i).padStart(3, '0')}`,
+        data: {
+          workerId: `worker-${i}`,
+          eppItemName: 'Casco',
+          expiresAt: '2026-04-01T00:00:00Z',
+          status: 'active',
+        },
+      }],
+    }));
+    const { db, assignmentUpdates, findingsSet } = makeFakeDb(projects);
+
+    const result = await checkExpiredPpe({
+      getDb: () => db as any,
+      getMessaging: () => ({} as any),
+      now: () => NOW,
+      projectLimit: 100,
+    });
+
+    expect(result.scanned).toBe(101);
+    expect(result.expired).toBe(101);
+    expect(assignmentUpdates).toHaveLength(101);
+    expect(findingsSet).toHaveLength(101);
+  });
+
+  it('paginates beyond 200 assignments in one project without duplicate processing', async () => {
+    const assignments = Array.from({ length: 201 }, (_, i) => ({
+      id: `assignment-${String(i).padStart(3, '0')}`,
+      data: {
+        workerId: `worker-${i}`,
+        eppItemName: 'Guantes',
+        expiresAt: '2026-04-01T00:00:00Z',
+        status: 'active',
+      },
+    }));
+    const { db, assignmentUpdates, findingsSet } = makeFakeDb([
+      { id: 'project-001', assignments },
+    ]);
+
+    const result = await checkExpiredPpe({
+      getDb: () => db as any,
+      getMessaging: () => ({} as any),
+      now: () => NOW,
+      assignmentLimit: 200,
+    });
+
+    expect(result.scanned).toBe(201);
+    expect(result.expired).toBe(201);
+    expect(new Set(assignmentUpdates.map((u) => u.assignmentId)).size).toBe(201);
+    expect(findingsSet).toHaveLength(201);
   });
 });
