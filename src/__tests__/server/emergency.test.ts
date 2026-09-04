@@ -500,7 +500,13 @@ describe('buildEmergencyMulticastMessage — iOS Critical Alerts config (P0)', (
       tokens: ['token-ios', 'token-android'],
       notification: { title: 'SOS dinámico', body: 'Ayuda en proyecto p1' },
       data: { projectId: 'p1', alertId: 'alert-7' },
-      android: { priority: 'high' },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'praeventio_emergency',
+          sound: 'default',
+        },
+      },
       apns: {
         headers: {
           'apns-priority': '10',
