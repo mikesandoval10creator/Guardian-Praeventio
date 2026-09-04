@@ -234,6 +234,14 @@ export default defineConfig(({mode}) => {
           __dirname,
           'packages/capacitor-proximity/src/index.ts',
         ),
+        // Vida-XX 2026-08-26 — missing alias discovered by runtime probe.
+        // vitest.rules.config.ts had this entry; vite.config.ts did not.
+        // Without it, src/services/mobile/batteryOptimization.ts:106 fails
+        // to resolve in dev and the app boots to a blank screen.
+        '@praeventio/capacitor-battery-optimization': path.resolve(
+          __dirname,
+          'packages/capacitor-battery-optimization/src/index.ts',
+        ),
         // Sprint 32 audit P0 build fix — redirect server-only error
         // tracker adapters to browser stubs in the client bundle.
         // `services/observability/index.ts` statically imports
