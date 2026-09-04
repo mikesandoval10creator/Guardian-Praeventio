@@ -33,7 +33,9 @@ describe('buildEmergencyMulticastMessage (v1.0.0 vida-safety contract)', () => {
     const msg = buildEmergencyMulticastMessage(tokens, payload);
     expect(msg.android).toBeDefined();
     expect(msg.android?.notification).toBeDefined();
-    expect(msg.android?.notification?.channel_id).toBe('praeventio_emergency');
+    // firebase-admin v13 uses camelCase `channelId` in the TypeScript surface;
+    // the SDK serializes it to `channel_id` on the wire for FCM.
+    expect(msg.android?.notification?.channelId).toBe('praeventio_emergency');
     expect(PRAEVENTIO_EMERGENCY_CHANNEL_ID).toBe('praeventio_emergency');
   });
 

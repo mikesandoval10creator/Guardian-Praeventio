@@ -193,7 +193,7 @@ export function buildEmergencyMulticastMessage(
     android: {
       priority: 'high',
       notification: {
-        channel_id: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
+        channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
         sound: 'default',
       },
     },
