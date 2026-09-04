@@ -241,9 +241,9 @@ describe('CL/training_record adapter — real generator', () => {
   });
 });
 
-// ── safety_inspection — 503 gated ─────────────────────────────────────────────
+// ── safety_inspection — server-side PDF ───────────────────────────────────────
 
-describe('CL/safety_inspection adapter — 503 gated (Sprint 40)', () => {
+describe('CL/safety_inspection adapter — server-side PDF', () => {
   const validPayload = {
     tenantId: 'tenant-001',
     body: { area: 'Bodega norte', date: '12-06-2026' },
@@ -258,19 +258,19 @@ describe('CL/safety_inspection adapter — 503 gated (Sprint 40)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns 503 not_implemented for valid auth (real 503 gate, not fake data)', async () => {
+  it('returns a real PDF for valid auth', async () => {
     const res = await request(buildApp())
       .post('/api/compliance/emit/safety_inspection')
       .set('x-test-uid', 'u1')
       .set('x-test-role', 'supervisor')
       .send({ country: 'CL', payload: validPayload });
-    expect(res.status).toBe(503);
-    expect(res.body.error).toBe('not_implemented');
-    // Must never return passthrough data (anti-stub rule CLAUDE.md #13).
-    expect(res.body.json).toBeUndefined();
-    expect(res.body.folio).toBeUndefined();
+    expect(res.status).toBe(200);
+    expect(res.body.type).toBe('safety_inspection');
+    expect(res.body.json.body.area).toBe('Bodega norte');
+    expect(typeof res.body.pdfBase64).toBe('string');
+    expect(Buffer.from(res.body.pdfBase64, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
     expect(auditSpy).toHaveBeenCalledOnce();
-    expect(auditSpy.mock.calls[0]?.[3]).toMatchObject({ result: 'not_implemented' });
+    expect(auditSpy.mock.calls[0]?.[3]).toMatchObject({ result: 'generated' });
   });
 });
 
