@@ -40,7 +40,10 @@ import {
   runDteIssueQueueDrain,
   type DteIssueQueueDrainResult,
 } from '../jobs/runDteIssueQueueDrain.js';
-import { sendToProjectSupervisors } from './emergency.js';
+import {
+  sendToProjectSupervisors,
+  PRAEVENTIO_EMERGENCY_CHANNEL_ID,
+} from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 // Sprint 29 Bucket DD F-E — predictive×calendar pre-warn cron.
 // Mounted as a fourth no-op step after the SUSESO reminder reaper. The
@@ -589,7 +592,13 @@ router.post(
                 : {}),
               ...deaData,
             },
-            android: { priority: 'high' },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
+                sound: 'default',
+              },
+            },
             apns: { headers: { 'apns-priority': '10' } },
           });
           aggregated.notifications.attempted += result.attempted;
@@ -787,7 +796,13 @@ router.post(
                   }
                 : {}),
             },
-            android: { priority: 'high' },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
+                sound: 'default',
+              },
+            },
             apns: { headers: { 'apns-priority': '10' } },
           });
           aggregated.notifications.attempted += result.attempted;

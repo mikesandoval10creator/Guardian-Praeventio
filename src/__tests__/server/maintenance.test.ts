@@ -150,6 +150,7 @@ vi.mock('../../server/jobs/runDteIssueQueueDrain.js', () => ({
 // emergency.js re-exports sendToProjectSupervisors used by check-expired-ppe
 vi.mock('../../server/routes/emergency.js', () => ({
   sendToProjectSupervisors: H.sendToProjectSupervisors,
+  PRAEVENTIO_EMERGENCY_CHANNEL_ID: 'praeventio_emergency',
 }));
 
 // fcmAdapter used by resilience-health notifyOps
@@ -960,6 +961,13 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
       level: 'supervisor',
       lat: '-33.45',
       lng: '-70.66',
+    });
+    expect(payload.android).toEqual({
+      priority: 'high',
+      notification: {
+        channelId: 'praeventio_emergency',
+        sound: 'default',
+      },
     });
     expect(res.body.notifications.delivered).toBe(1);
   });

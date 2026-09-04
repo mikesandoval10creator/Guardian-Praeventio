@@ -41,6 +41,7 @@ import {
 import { createCriticalAlertOutbox } from './criticalAlertOutbox.js';
 import { deliverOutboxItem, type OutboxDeliveryDeps } from './criticalAlertOutboxWorker.js';
 import { EmailService, incidentAlertTemplate } from '../../services/email/index.js';
+import { EMERGENCY_CHANNEL_ID } from '../../services/notifications/criticalNotificationChannel.js';
 
 const TRIGGER_LEASE_MS = 2 * 60 * 1000;
 
@@ -717,7 +718,13 @@ export function setupBackgroundTriggers(
                         tokens: msg.tokens,
                         notification: { title: msg.title, body: msg.body },
                         data: { projectId: msg.projectId, nodeId: msg.nodeId },
-                        android: { priority: 'high' },
+                        android: {
+                          priority: 'high',
+                          notification: {
+                            channelId: EMERGENCY_CHANNEL_ID,
+                            sound: 'default',
+                          },
+                        },
                       });
                       return { successCount: r.successCount, failureCount: r.failureCount };
                     },

@@ -20,7 +20,7 @@ import { createSosClientEventId, isLongPress } from './SOSButton';
 
 describe('SOSButton — client event identity', () => {
   it('creates a non-empty idempotency identity for one SOS attempt', () => {
-    expect(createSosClientEventId()).toMatch(/^(.+)+$/);
+    expect(createSosClientEventId()).toBeTruthy();
   });
 });
 
