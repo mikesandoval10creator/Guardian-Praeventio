@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runWorkPermitAutoExpire } from './runWorkPermitAutoExpire.js';
+import { runWorkPermitAutoExpire, type WorkPermitAutoExpireDeps } from './runWorkPermitAutoExpire.js';
 
 function buildDb(opts: {
   expiredDocs: Array<{ id: string; data: Record<string, unknown> }>;
@@ -50,7 +50,7 @@ describe('runWorkPermitAutoExpire', () => {
         { id: 'wp2', data: { workerUid: 'w2', kind: 'caliente', validUntil: '2026-05-11T00:00:00Z' } },
       ],
     });
-    const r = await runWorkPermitAutoExpire({ db, now: NOW });
+    const r = await runWorkPermitAutoExpire({ db, now: NOW, collectionPath: 'tenants/t1/projects/p1/work_permits' });
     expect(r.scanned).toBe(2);
     expect(r.expired).toBe(2);
     expect(writes).toHaveLength(2);
@@ -59,13 +59,13 @@ describe('runWorkPermitAutoExpire', () => {
 
   it('sin docs vencidos → 0', async () => {
     const { db } = buildDb({ expiredDocs: [] });
-    const r = await runWorkPermitAutoExpire({ db, now: NOW });
+    const r = await runWorkPermitAutoExpire({ db, now: NOW, collectionPath: 'tenants/t1/projects/p1/work_permits' });
     expect(r.expired).toBe(0);
   });
 
   it('scan failure → errors=1', async () => {
     const { db } = buildDb({ expiredDocs: [], scanShouldFail: true });
-    const r = await runWorkPermitAutoExpire({ db, now: NOW });
+    const r = await runWorkPermitAutoExpire({ db, now: NOW, collectionPath: 'tenants/t1/projects/p1/work_permits' });
     expect(r.errors).toBe(1);
   });
 
@@ -76,7 +76,7 @@ describe('runWorkPermitAutoExpire', () => {
       ],
     });
     const notify = vi.fn().mockResolvedValue(undefined);
-    await runWorkPermitAutoExpire({ db, now: NOW, notifyExpired: notify });
+    await runWorkPermitAutoExpire({ db, now: NOW, collectionPath: 'tenants/t1/projects/p1/work_permits', notifyExpired: notify });
     expect(notify).toHaveBeenCalledWith('wp1', expect.objectContaining({
       workerUid: 'w1',
       kind: 'confinado',
@@ -91,9 +91,18 @@ describe('runWorkPermitAutoExpire', () => {
       ],
       writeShouldFailFor: new Set(['wp1']),
     });
-    const r = await runWorkPermitAutoExpire({ db, now: NOW });
+    const r = await runWorkPermitAutoExpire({ db, now: NOW, collectionPath: 'tenants/t1/projects/p1/work_permits' });
     expect(r.expired).toBe(1);
     expect(r.errors).toBe(1);
     expect(writes.map((w) => w.path)).toEqual(['work_permits/wp2']);
+  });
+
+  it('rechaza una collectionPath ausente o vacía en vez de usar la colección global', async () => {
+    await expect(
+      runWorkPermitAutoExpire({ db: {} as never, now: NOW } as unknown as WorkPermitAutoExpireDeps),
+    ).rejects.toThrow('requires a tenant-scoped collectionPath');
+    await expect(
+      runWorkPermitAutoExpire({ db: {} as never, now: NOW, collectionPath: '   ' }),
+    ).rejects.toThrow('requires a tenant-scoped collectionPath');
   });
 });

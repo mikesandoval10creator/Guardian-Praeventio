@@ -16,9 +16,8 @@ export interface ExceptionAutoExpireDeps {
   db: admin.firestore.Firestore;
   /** Override clock para tests. */
   now?: () => Date;
-  /** Collection path. Default 'exceptions' (legacy global). Tenant-scoped
-   *  override = `tenants/${tid}/projects/${pid}/exceptions`. */
-  collectionPath?: string;
+  /** Required tenant/project-scoped collection path. */
+  collectionPath: string;
   /** Hook opcional para notificar al subject cuando se expira. */
   notifyExpired?: (docId: string, doc: { subjectRef?: unknown; validUntil?: string }) => Promise<void>;
 }
@@ -44,7 +43,10 @@ export async function runExceptionAutoExpire(
     finishedAtIso: '',
   };
 
-  const collection = deps.collectionPath ?? 'exceptions';
+  const collection = typeof deps.collectionPath === 'string' ? deps.collectionPath.trim() : '';
+  if (!collection) {
+    throw new Error('exception auto-expire requires a tenant-scoped collectionPath');
+  }
   const nowIso = now().toISOString();
 
   let snap: admin.firestore.QuerySnapshot;
