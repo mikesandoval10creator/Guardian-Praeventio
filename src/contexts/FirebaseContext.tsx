@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, testConnection } from '../services/firebase';
+import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, testConnection, serverTimestamp } from '../services/firebase';
 import { logger } from '../utils/logger';
 import { isE2EMode, getE2EUser } from '../lib/e2eAuth';
 
@@ -128,7 +128,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               email: currentUser.email || '',
               role: 'operario', // Default role matching firestore rules
               industry: 'General',
-              createdAt: new Date().toISOString(),
+              // Firestore rules require a server-authoritative request.time
+              // on first-user creation; a client ISO timestamp is rejected.
+              createdAt: serverTimestamp(),
               onboarded: false,
             };
             if (currentUser.photoURL) {
