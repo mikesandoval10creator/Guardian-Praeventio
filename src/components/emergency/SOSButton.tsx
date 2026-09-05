@@ -26,7 +26,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppMode } from '../../contexts/AppModeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
-import { auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
 // 16th wave (Bucket B) analytics: catalog row 66 — wire
 // `emergency.sos.triggered` at the moment the long-press confirmed and the
@@ -58,6 +57,31 @@ export function createSosClientEventId(): string {
 interface GeoPoint {
   lat: number;
   lng: number;
+}
+
+type SosRequestBody = {
+  type: 'sos';
+  uid: string | null;
+  projectId: string | null;
+  geo: GeoPoint | null;
+  timestamp: string;
+};
+
+/** Build the audited SOS request shared by the initial POST and its replay key. */
+export function buildSosRequest(
+  clientEventId: string,
+  authHeader: string | null,
+  body: SosRequestBody,
+): Pick<RequestInit, 'method' | 'headers' | 'body'> & { headers: Record<string, string> } {
+  return {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': clientEventId,
+      ...(authHeader ? { Authorization: authHeader } : {}),
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 async function captureGeo(): Promise<GeoPoint | null> {
@@ -148,13 +172,7 @@ export function SOSButton(): React.ReactElement | null {
       let res: Response;
       try {
         res = await fetch('/api/emergency/sos', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': clientEventId,
-            ...(authHeader ? { Authorization: authHeader } : {}),
-          },
-          body: JSON.stringify(body),
+          ...buildSosRequest(clientEventId, authHeader, body),
           signal: abortCtrl.signal,
         });
       } finally {

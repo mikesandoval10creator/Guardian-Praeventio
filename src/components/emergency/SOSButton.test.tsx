@@ -16,11 +16,49 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createSosClientEventId, isLongPress } from './SOSButton';
+import {
+  buildSosRequest,
+  createSosClientEventId,
+  isLongPress,
+} from './SOSButton';
 
 describe('SOSButton — client event identity', () => {
   it('creates a non-empty idempotency identity for one SOS attempt', () => {
     expect(createSosClientEventId()).toBeTruthy();
+  });
+
+  it('builds the initial POST with the same idempotency identity used by retries', () => {
+    const clientEventId = 'sos-attempt-42';
+    const request = buildSosRequest(
+      clientEventId,
+      'Bearer test-token',
+      {
+        type: 'sos',
+        uid: 'worker-1',
+        projectId: 'project-1',
+        geo: { lat: -33.4, lng: -70.6 },
+        timestamp: '2026-09-04T17:00:00.000Z',
+      },
+    );
+
+    expect(request.method).toBe('POST');
+    expect(request.headers?.['Idempotency-Key']).toBe(clientEventId);
+    expect(request.headers?.Authorization).toBe('Bearer test-token');
+    expect(request.body).toContain('"projectId":"project-1"');
+  });
+
+  it('keeps the idempotency key while omitting auth when no token exists', () => {
+    const request = buildSosRequest('sos-anonymous-7', null, {
+      type: 'sos',
+      uid: null,
+      projectId: 'project-1',
+      geo: null,
+      timestamp: '2026-09-04T17:00:00.000Z',
+    });
+
+    expect(request.headers['Idempotency-Key']).toBe('sos-anonymous-7');
+    expect(request.headers.Authorization).toBeUndefined();
+    expect(request.body).toContain('"geo":null');
   });
 });
 
