@@ -21,6 +21,10 @@ export default defineConfig({
         __dirname,
         'packages/capacitor-proximity/src/index.ts',
       ),
+      '@praeventio/capacitor-battery-optimization': path.resolve(
+        __dirname,
+        'packages/capacitor-battery-optimization/src/index.ts',
+      ),
     },
   },
   test: {
