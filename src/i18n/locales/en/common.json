@@ -2060,6 +2060,10 @@
     "add_friends": "Add Friends",
     "settings": "Settings",
     "logout": "Sign Out",
+    "metrics_select_project": "Select a project to view your prevention metrics.",
+    "metrics_loading": "Loading project metrics…",
+    "metrics_error": "We could not load this project's metrics.",
+    "metrics_ready": "Metrics calculated from the selected project data.",
     "achievements": {
       "first_steps": {
         "title": "First Steps",

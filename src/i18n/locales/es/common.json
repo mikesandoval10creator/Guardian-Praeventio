@@ -2060,6 +2060,10 @@
     "add_friends": "Añadir Amigos",
     "settings": "Ajustes",
     "logout": "Salir",
+    "metrics_select_project": "Selecciona un proyecto para ver tus métricas de prevención.",
+    "metrics_loading": "Cargando métricas del proyecto…",
+    "metrics_error": "No pudimos cargar las métricas de este proyecto.",
+    "metrics_ready": "Métricas calculadas con datos del proyecto seleccionado.",
     "achievements": {
       "first_steps": {
         "title": "Primeros Pasos",

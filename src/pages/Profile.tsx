@@ -3,15 +3,8 @@ import { useTranslation } from 'react-i18next';
 import {
   User as UserIcon,
   Shield, 
-  Award, 
   Settings, 
   LogOut, 
-  Bell, 
-  Lock, 
-  HelpCircle, 
-  ChevronRight, 
-  Activity, 
-  MapPin, 
   MessageSquare, 
   Heart,
   Flame,
@@ -21,7 +14,7 @@ import {
   Target,
   Zap,
   CheckCircle2,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -29,19 +22,27 @@ import { logOut } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { TrainingSession, SafetyPost, RiskNode, NodeType } from '../types';
-import { motion } from 'framer-motion';
-import { get, set } from 'idb-keyval';
+import { set } from 'idb-keyval';
+import { where } from 'firebase/firestore';
 
 import { MFASetupModal } from '../components/auth/MFASetupModal';
 import { Medal3DViewer } from '../components/gamification/Medal3DViewer';
+import { useProject } from '../contexts/ProjectContext';
 
 export function Profile() {
   const { t } = useTranslation();
-  const { user, isAdmin } = useFirebase();
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const navigate = useNavigate();
   const [isMfaSetupOpen, setIsMfaSetupOpen] = useState(false);
 
-  const { data: sessions } = useFirestoreCollection<TrainingSession>('training');
+  const projectId = selectedProject?.id ?? null;
+  const projectFilter = projectId ? [where('projectId', '==', projectId)] : [];
+  const {
+    data: sessions,
+    loading: sessionsLoading,
+    error: sessionsError,
+  } = useFirestoreCollection<TrainingSession>(projectId ? 'training' : null, projectFilter);
 
   const totalPoints = sessions.reduce((total, session) => {
     if (session.status === 'completed' && session.attendees?.includes(user?.uid || '')) {
@@ -51,13 +52,25 @@ export function Profile() {
   }, 0);
 
   const completedCourses = sessions.filter(s => s.status === 'completed' && s.attendees?.includes(user?.uid || '')).length;
-  const { data: posts } = useFirestoreCollection<SafetyPost>('safety_posts');
+  const {
+    data: posts,
+    loading: postsLoading,
+    error: postsError,
+  } = useFirestoreCollection<SafetyPost>(
+    projectId ? `projects/${projectId}/safety_posts` : null,
+  );
   const userPosts = posts.filter(p => p.userId === user?.uid).length;
   const userLikes = posts.reduce((total, p) => total + (p.likes.includes(user?.uid || '') ? 1 : 0), 0);
 
-  const { data: nodes } = useFirestoreCollection<RiskNode>('nodes');
+  const {
+    data: nodes,
+    loading: nodesLoading,
+    error: nodesError,
+  } = useFirestoreCollection<RiskNode>(projectId ? 'nodes' : null, projectFilter);
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recentIncidents = nodes.filter(n => n.type === NodeType.INCIDENT && new Date(n.createdAt).getTime() > sevenDaysAgo).length;
+  const metricsLoading = sessionsLoading || postsLoading || nodesLoading;
+  const metricsError = sessionsError || postsError || nodesError;
 
   const memberSince = user?.metadata?.creationTime ? new Date(user.metadata.creationTime).getTime() : Date.now();
   const daysSinceMember = Math.floor((Date.now() - memberSince) / (24 * 60 * 60 * 1000));
@@ -142,6 +155,26 @@ export function Profile() {
           <span className="text-xl font-black text-blue-600">{t('profile.league_gold', 'Oro')}</span>
           <span className="text-[8px] font-black text-blue-500/60 uppercase tracking-widest">{t('profile.current_league', 'Liga Actual')}</span>
         </Card>
+      </div>
+
+      <div className="px-4" role="status" aria-live="polite">
+        {!projectId ? (
+          <p data-testid="profile-metrics-no-project" className="text-xs text-muted-token">
+            {t('profile.metrics_select_project', 'Selecciona un proyecto para ver tus métricas de prevención.')}
+          </p>
+        ) : metricsLoading ? (
+          <p data-testid="profile-metrics-loading" className="text-xs text-muted-token">
+            {t('profile.metrics_loading', 'Cargando métricas del proyecto…')}
+          </p>
+        ) : metricsError ? (
+          <p data-testid="profile-metrics-error" className="text-xs text-rose-500">
+            {t('profile.metrics_error', 'No pudimos cargar las métricas de este proyecto.')}
+          </p>
+        ) : (
+          <p data-testid="profile-metrics-ready" className="text-xs text-muted-token">
+            {t('profile.metrics_ready', 'Métricas calculadas con datos del proyecto seleccionado.')}
+          </p>
+        )}
       </div>
 
       {/* Achievements Section */}
