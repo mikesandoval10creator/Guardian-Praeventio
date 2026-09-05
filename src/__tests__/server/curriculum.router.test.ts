@@ -908,6 +908,23 @@ describe('POST /api/auth/webauthn/verify (validation)', () => {
     expect(res.body.error).toMatch(/id is required/i);
   });
 
+  it('400 rejects the documented legacy consume-only body before consuming the challenge', async () => {
+    const { consumeWebAuthnChallenge } = await import('../../services/auth/webauthnChallenge.js');
+    const res = await request(buildApp())
+      .post('/api/auth/webauthn/verify')
+      .set('x-test-uid', 'worker-1')
+      .send({
+        challengeId: 'challenge-id-1',
+        clientDataJSON,
+        authenticatorData: 'auth-data',
+        signature: 'sig-data',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/id is required/i);
+    expect(consumeWebAuthnChallenge).not.toHaveBeenCalled();
+  });
+
   it('400 when rawId is missing', async () => {
     const res = await request(buildApp())
       .post('/api/auth/webauthn/verify')

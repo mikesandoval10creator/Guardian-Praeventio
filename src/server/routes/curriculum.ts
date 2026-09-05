@@ -661,17 +661,16 @@ webauthnChallengeRouter.get('/webauthn/credentials', verifyAuth, async (req, res
 //               replay-prevention via authenticator counter.
 //
 // Body shape:
-//   • Legacy MVP (R18 backwards-compat):
-//       { challengeId, clientDataJSON, authenticatorData, signature }
-//     Consume-only path. Kept so already-deployed clients keep working
-//     during the rollout window. Will be removed once all clients send
-//     the credential id field.
 //   • R19 full WebAuthn path:
 //       { challengeId, id, rawId?, clientDataJSON, authenticatorData,
 //         signature, type? }
 //     `id` is the WebAuthn credential id (base64url) the authenticator
 //     returned. Triggers full @simplewebauthn/server verification +
 //     monotonic-counter replay-prevention.
+//   • Legacy consume-only bodies without `id`/`rawId` are intentionally
+//     rejected. The old rollout comment promised compatibility that the
+//     handler never implemented; keeping that promise would permit a
+//     challenge to be consumed without a signature verification boundary.
 //
 // Replay-prevention layers (defense-in-depth):
 //   1. The server-issued challenge is single-use (R17/R18). A captured
