@@ -111,28 +111,28 @@ async function checkExpiredPpeInner(
   const projectLimit = opts.projectLimit ?? 100;
   const assignmentLimit = opts.assignmentLimit ?? 200;
 
-  const projectsSnap = await db
-    .collection('projects')
-    .limit(projectLimit)
-    .get();
-
   let scanned = 0;
   let expired = 0;
   let notified = 0;
   let findingsCreated = 0;
   const nowIso = now.toISOString();
 
-  for (const projectDoc of projectsSnap.docs) {
-    const projectId = projectDoc.id;
-    const assignSnap = await db
-      .collection('projects')
-      .doc(projectId)
-      .collection('epp_assignments')
-      .where('status', '==', 'active')
-      .limit(assignmentLimit)
-      .get();
+  let projectQuery = db.collection('projects').orderBy('__name__').limit(projectLimit);
+  while (true) {
+    const projectsSnap = await projectQuery.get();
+    for (const projectDoc of projectsSnap.docs) {
+      const projectId = projectDoc.id;
+      let assignmentQuery = db
+        .collection('projects')
+        .doc(projectId)
+        .collection('epp_assignments')
+        .where('status', '==', 'active')
+        .orderBy('__name__')
+        .limit(assignmentLimit);
 
-    for (const assignmentDoc of assignSnap.docs) {
+      while (true) {
+        const assignSnap = await assignmentQuery.get();
+        for (const assignmentDoc of assignSnap.docs) {
       scanned += 1;
       const a = assignmentDoc.data() as {
         workerId?: string;
@@ -250,7 +250,24 @@ async function checkExpiredPpeInner(
           err: String(err),
         });
       }
+        }
+
+        if (assignSnap.docs.length < assignmentLimit) break;
+        const lastAssignment = assignSnap.docs[assignSnap.docs.length - 1];
+        assignmentQuery = db
+          .collection('projects')
+          .doc(projectId)
+          .collection('epp_assignments')
+          .where('status', '==', 'active')
+          .orderBy('__name__')
+          .startAfter(lastAssignment)
+          .limit(assignmentLimit);
+      }
     }
+
+    if (projectsSnap.docs.length < projectLimit) break;
+    const lastProject = projectsSnap.docs[projectsSnap.docs.length - 1];
+    projectQuery = db.collection('projects').orderBy('__name__').startAfter(lastProject).limit(projectLimit);
   }
 
   return { scanned, expired, notified, findingsCreated };
