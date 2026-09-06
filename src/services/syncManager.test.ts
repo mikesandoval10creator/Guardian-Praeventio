@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { RiskNode } from '../types';
 
 // --- Mocks for transitive Firebase / Gemini / idb-keyval imports ---
@@ -60,6 +60,10 @@ const fakeNode = (id: string, title = 'A'): RiskNode =>
   } as unknown as RiskNode);
 
 describe('MatrixSyncManager.restoreServerVersion', () => {
+  afterEach(() => {
+    matrixSyncManager.dispose();
+  });
+
   beforeEach(() => {
     // Reset the singleton's queue between tests by draining pending ops via
     // the public API.
