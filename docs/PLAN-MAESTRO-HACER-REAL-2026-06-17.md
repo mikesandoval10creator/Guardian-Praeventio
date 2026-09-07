@@ -1,5 +1,173 @@
 # Plan Maestro — "Hacer Real Toda la App" · Guardian Praeventio
 
+## Actualización vigente — 2026-09-06: aplicación completa, evidencia reconciliada
+
+**Pedido de Daniel:** actualizar este plan con las investigaciones del Segundo Cerebro,
+hacer reales **todas** las funciones y no confundir tickets pendientes con funciones
+inexistentes. La finalidad es proteger vidas y mejorar el bienestar de las personas,
+no solamente conseguir una compilación o publicar pantallas.
+
+Esta actualización tiene precedencia sobre diagnósticos, porcentajes, estimaciones y
+alternativas de recorte de las secciones históricas de junio. **Se conserva el documento
+anterior íntegro** para mantener su razonamiento y los paquetes WP; ninguno se reabre ni
+se considera resuelto automáticamente. No se crea otro backlog ni otro plan maestro.
+El tracker de ejecución sigue siendo Notion Alpha 41.
+
+### 1. Qué sabemos y qué no mide el porcentaje de auditoría
+
+Corte de código: `e27d4244ecfc667a442115f6e3ee8de49e498a5a`, también base de
+`origin/main` al preparar esta actualización. Lectura focalizada de investigaciones y
+código: **no es una auditoría total de Guardian**.
+
+| Medición | Resultado comprobado | Interpretación correcta |
+|---|---|---|
+| Notas Markdown de `01-Guardian` inventariadas | 294 | Inventario físico, no 294 notas leídas íntegramente en esta revisión |
+| Ledger histórico de código | 3.943 filas; 124 declaradas estrictas | Conserva un denominador anterior; requiere actualización antes de un nuevo porcentaje global |
+| Revalidación de esas 124 filas | 96 conservan hash y evidencia resoluble; 28 cambiaron o faltan | 2,435% **del denominador histórico**, no porcentaje construido ni toda la lectura realizada |
+| Historia candidata sobre código productivo `src` actual | 855 rutas declaradas en frontmatter; 2.119 mencionadas | Declaración y mención no son lectura certificada; los conjuntos se superponen y no se suman |
+| Inventario `src` TS/TSX actual | 3.895 archivos; 2.126 productivos; 141 rutas no presentes en el ledger anterior | Alcance distinto del ledger, que también incluye código nativo, infra y automatización |
+| Notion completo, consulta paginada del 06-sep | 1.710 páginas únicas: 734 activas, 372 cerradas por estado, 604 canceladas | No hay equivalencia entre ticket y función; cancelado no significa implementado |
+| Inventario de navegación de la revisión anterior | 208 patrones URL y 160 entradas de navegación | Existencia de superficie, no certificación de 208 funciones |
+
+El «5–6% aproximadamente» es una referencia a la cobertura de investigación, **no un
+porcentaje exacto que esta revisión pueda ratificar**, ni una medida del producto que
+falta construir. No reemplazar la historia por el piso estricto ni afirmar «falta el
+resto de la app». Tampoco afirmar «queda poco» sin medir recorridos completos.
+
+**Trabajo de reconciliación:** recuperar lecturas históricas completas, comparar hashes,
+leer diffs y volver a revisar solo lo que cambió; promover cada archivo con su evidencia.
+No reiniciar la lectura ni acreditar un archivo porque aparece mencionado. Esta
+actualización no modifica ni infla el ledger.
+
+### 2. Investigación aprovechable y correcciones al diagnóstico anterior
+
+| Área / fuente del Segundo Cerebro | Avance o conocimiento que se conserva | Próxima comprobación; no volver a construir por defecto |
+|---|---|---|
+| `Smoke-Lab-Android-Emuladores-2026-09-02` y reporte final `C:/tmp/android-ui-smoke-final-2026-09-03.md` | Smoke documentado en API 36, bundle interno, acceso y rutas públicas; el APK final conservado coincide con el SHA-256 `b3816722a9e6ef3e595b202e451c6f7180e3fe9d2e5d1b8a072cd9afdaeb395b` del reporte | Preservar la evidencia: DOM se inspeccionó con variante debug del mismo bundle; no confundirla con el APK final ni con un AAB de producción. Pasar a sesión autenticada, persistencia y hardware; no se repitió el smoke en esta actualización |
+| `Indice-E9-ManDown-2026-08-31` | Mapa de sensores, foreground, watchdog, cola y transporte; permisos y lifecycle como puntos de riesgo | Contrastar cada hallazgo con PRs actuales y demostrar el recorrido en dispositivo. No certificarlo por mocks |
+| `Indice-E10-Notifications-Emergency-2026-08-31` | Mapa de FCM, canales, permisos, acción y emergencia; historial de falsos positivos | Probar recepción, acción y confirmación con proceso muerto/pantalla apagada; preservar identidad del SOS |
+| `Indice-E11-Workers-Offline-2026-08-31`, `Indice-E12-Geolocation-Tenant-2026-08-31`, `Indice-E13-Worker-Readiness-History-2026-08-31` | Dependencias entre trabajadores, tenant, geolocalización, readiness e historial | Auditar cambios de proyecto/usuario, aislamiento, permisos, modo offline y convergencia. Sus hallazgos son candidatos hasta revalidar el HEAD |
+| `Barrido-E7c-Wisdom-Capsules-2026-08-31`, `Barrido-E7d-Zettelkasten-Graph-Risk-2026-08-31` | Investigación de cápsulas, conocimiento y conexiones de riesgo, con código y límites registrados | Completar incidente → acción/lección → capacitación/conocimiento y demostrar consumo real; no tratar Zettelkasten como pantalla aislada |
+| `Barrido-E14-Consistency-Privacy-Revalidacion-2026-09-02` | Ya rechazó falsos positivos sobre mounts: `consistencyRouter` y `privacyRetentionRouter` existen en `server.ts` | El ADR 0024 exige retención sin borrado discrecional, pero no demuestra que todos los ejecutores lo cumplan: `runRetentionSweep.ts:230-232` todavía contiene borrado. Mantener esa brecha explícita |
+| `Barrido-E14-Consolidado-Scheduler-Observability-Backup-2026-08-31` | Mapa útil de jobs, observabilidad y recuperación | Corregir inferencias antes de generar trabajo: `*/5 * * * *` y `*/1 * * * *` tienen cinco campos; existen `DR_RUNBOOK.md`, backup e importación Firestore. Falta probar operación real, no necesariamente escribir todo desde cero |
+| Revisión Graphify/código del 05–06-sep | IPER tiene cálculo/persistencia/auditoría; incidentes tiene conexiones; gemelo requiere revisar alimentación del panel | Trazar entrada → servicio → datos reales → resultado visible. No extrapolar esos ejemplos a toda la app |
+
+**Nivel de evidencia:** las notas documentan observaciones de sus respectivos snapshots.
+Esta revisión revalidó directamente la muestra de abajo, el ledger por hash y los
+artefactos indicados; no vuelve actuales todos los hallazgos de cada índice.
+
+### 3. Muestra de Notion reconciliada con código y pruebas
+
+Los siguientes veredictos orientan la siguiente acción; **no se cambiaron estados de
+Notion durante la actualización del plan**.
+
+| Ticket / asunto | Contraste actual | Clasificación y acción mínima |
+|---|---|---|
+| [`3c2aa66d-73fe-81bc-b505-c1ef6047c01f`](https://www.notion.so/3c2aa66d73fe81bcb505c1ef6047c01f), ausencia de tests de `aggregateAiFeedback` | PR [#1618](https://github.com/mikesandoval10creator/Guardian-Praeventio/pull/1618) integrado; `src/server/jobs/aggregateAiFeedback.test.ts:27-131` cubre ventana temporal, tenant vacío, agregación, idempotencia y fallo de lectura. El ticket solapado [`3cfaa66d-73fe-8141-8b74-e24313982e04`](https://www.notion.so/3cfaa66d73fe81418b74e24313982e04) figura Verified | **Parcialmente resuelto; no cerrar como duplicado íntegro**. El original pide además >1.000 feedbacks y schema drift, no demostrados por esta suite. Reutilizar lo existente y completar esos criterios; el ticket Verified tampoco demuestra por su etiqueta cada prueba exigida |
+| [`3ceaa66d-73fe-81a8-8033-dcf3343f4278`](https://www.notion.so/3ceaa66d73fe81a88033dcf3343f4278), supuesto path incorrecto del scheduler | `src/server/routes/adminJobs.ts:26` define `/aggregate-ai-feedback`; `server.ts:806` monta `/api/admin/jobs`; `.github/workflows/deploy.yml:434-437` coincide. El mount distinto del test aislado no prueba un 404 productivo | **Premisa refutada en código**. Falta test que relacione deploy con el mount productivo y comprobar URL desplegada, autenticación y ejecución del scheduler antes de cerrar su alcance operativo |
+| [`3ceaa66d-73fe-8176-add7-fdbf74f3c4e2`](https://www.notion.so/3ceaa66d73fe8176add7fdbf74f3c4e2), `runRetentionSweep` contradice ADR 0024 | `src/server/jobs/runRetentionSweep.ts:209-216` protege audit logs, pero `:230-232` todavía ejecuta `doc.ref.delete()` para otros registros; el ADR prohíbe borrado discrecional | **Brecha vigente en código; no descartar ni cerrar**. Trazar callers y exposición productiva, impedir purga masiva conforme al ADR y añadir regresión. No ejecutar el job contra datos reales ni inventar una política alternativa sin decisión autorizada |
+| Backup/restore en E14 | Existen exportación/importación en `scripts/backup-firestore.cjs` y `scripts/restore-firestore.cjs`, runbook y validador con tests | **Implementación presente; evidencia operativa pendiente**. Ejecutar un drill autorizado en staging, medir restauración/integridad y recién acreditar RPO/RTO. No ejecutar restore de producción desde esta revisión |
+
+Pruebas realizadas sobre archivos equivalentes a la base del plan:
+
+```text
+npx --no-install vitest run src/server/jobs/aggregateAiFeedback.test.ts src/__tests__/server/adminJobs.test.ts --reporter=dot
+Test Files  2 passed (2)
+Tests       7 passed (7)
+
+node scripts/validate-scheduler-crons.cjs
+SCHEDULER_CRONS=PASS (4 vital jobs validated)
+
+node --test scripts/verify-firestore-restore.test.cjs
+# tests 3
+# pass 3
+# fail 0
+```
+
+No son pruebas de despliegue, de restauración cloud ni E2E de toda la aplicación.
+No extrapolar esta muestra a los 734 pendientes; sí demuestra por qué la reconciliación
+puede ahorrar implementación innecesaria.
+
+### 4. Método de ejecución: completar recorridos, sin recortar funciones
+
+**Unidad de trabajo = una capacidad y su recorrido demostrable**, no una pantalla ni un
+número de ticket. Para cada capacidad conservar: identificador actual de catálogo/Notion,
+usuario/rol, entrada UI/API/nativa, servicio, persistencia/tenant, trabajo offline,
+recuperación, salida útil, prueba, PR/SHA, evidencia de entorno y limitación vigente.
+
+Clasificarla como: **verificada en el entorno requerido**, **implementada sin evidencia
+suficiente**, **integración incompleta**, **defecto reproducido**, **dependencia externa**,
+**especificación desactualizada/duplicada** o **sin investigar**. Esta clasificación se
+anota en tickets existentes; no sustituye sus estados ni crea una segunda lista ejecutable.
+
+Orden de trabajo por dependencia y riesgo, **no orden de exclusión del lanzamiento**:
+
+| Frente del plan existente | Aprovechar primero | Criterio de salida para la aplicación completa |
+|---|---|---|
+| R0 — Reconciliar alcance y conocimiento | WP históricos, Notion, `FEATURE_REGISTRY.yaml`, `READINESS_MATRIX.md`, navegación, Graphify y bóveda | Toda capacidad conocida tiene ticket/evidencia y recorrido; duplicados y cancelaciones preservan su capacidad en un ticket canónico. Ningún tier decide un recorte automático |
+| R1 — Base ejecutable y datos | Capacitor/proyecto Android existente y smoke documentado; backend, identidad, roles/proyectos y seed | Build reproducible identificado; sesión real; datos persistentes aislados por tenant; DNS/TLS/pinning, APIs y proveedores comprobados. Separar configuración/coste externo de cambio de código |
+| R2 — Vida-safety | SOS, man-down, trabajador solitario, alertas, brigadas, evacuación, mesh y outbox existentes | Evento real → recepción → acción → confirmación/reintento; offline, permisos denegados, Doze, reinicio, pantalla apagada y varios dispositivos BLE. Nunca bloquear protección por pago ni usar datos simulados como protección real |
+| R3 — Prevención y operación | IPER/EPP/controles, PTS/LOTO, cuadrillas, inspecciones, sustancias y riesgos ambientales | Riesgo detectado → medida/responsable → evidencia → seguimiento; recalcular con datos reales y demostrar permisos, sincronización e historial |
+| R4 — Incidentes y aprendizaje | Investigación/PDCA, acciones, lecciones, cápsulas, capacitación, mentoría y Zettelkasten | Incidente → investigación → acción → lección/capacitación → evaluación → conocimiento reutilizado. Evitar doble captura y vínculos solo decorativos |
+| R5 — Salud y cumplimiento | TMERT/PREXOR/PLANESI/CEAL-SM, HealthVault, CPHS/SUSESO, custodia y firma | Recorrido autorizado, privacidad y trazabilidad; exportación/firma verificable; retención conforme al ADR. No acreditar cumplimiento legal solo por tener un formulario |
+| R6 — IA, gemelo digital y AR | Servicios, modelos, OCR, conocimiento, escena/paneles y fuentes IoT/wearables existentes | Datos reales autorizados → inferencia/escena → resultado útil/explicable; límites y degradación explícitos. Conectar paneles a trabajadores/equipos/sensores sin inventar mediciones ni eliminar la función |
+| R7 — Gestión e integraciones | ERP/Drive/SSO, pagos y demás proveedores prometidos | Credenciales/entorno correctos, operación real, idempotencia, errores/reintentos y salida verificable; ningún sandbox presentado como producción |
+| R8 — Operación sostenida | Jobs, scheduler, observabilidad, backup/restore y runbooks existentes | Drill staging, alertas útiles, métricas, ejecución autenticada de jobs, recuperación y rollback demostrados. Evidencia de operación además del wiring |
+| R9 — Validación Android y publicación completa | Contratos móviles, artefactos previos y scripts del proyecto | Matriz real de dispositivos/entornos, AAB firmado y trazable, permisos/requisitos Play vigentes, privacidad y todas las capacidades reconciliadas. Publicación es una acción posterior autorizada, no una consecuencia automática de este plan |
+
+**Paralelización:** investigar/reconciliar verticales independientes a la vez; código en
+worktrees aislados y contratos compartidos coordinados. Implementación, verificación e
+integración son pasos separados. No poner varios agentes a modificar el mismo servicio.
+
+### 5. Primer tramo concreto y gates de cierre
+
+1. Reconciliar los tickets de la muestra anterior y los PRs integrados contra sus
+   criterios completos. Empezar por trabajo ya realizado; no crear duplicados.
+2. Actualizar el catálogo existente para enlazar **todas** las familias funcionales,
+   incluidos tiers C/D que el snapshot A/B no enumera. Auditar cancelaciones para asegurar
+   que no se perdió una capacidad prometida. La actualización de este plan no reetiqueta
+   en masa el catálogo ni afirma haber completado esa conciliación. Su opción histórica
+   de retirar funciones no rige este plan. El YAML presenta un error de sintaxis previo
+   (`name: [P1] ...` sin comillas); repararlo y validar el registro completo antes de
+   usarlo como entrada automatizada. Esta revisión no modificó dicho snapshot.
+3. Reproducir el smoke Android con nuevo hash/commit/entorno, preparar cuenta de prueba
+   y datos autorizados y recorrer primero un flujo vital y uno de operación persistente.
+   Esa selección es una secuencia de pruebas, **no un MVP recortado**.
+4. Atacar el primer fallo real de cada recorrido con reproducción → test rojo → fix mínimo
+   preservando capacidades → test verde → PR → CI → merge normal cuando esté verde/clean.
+5. Tras el merge, revalidar en el entorno exigido, enlazar evidencia a Notion y bóveda y
+   cerrar únicamente los criterios satisfechos. No cerrar un ticket amplio con un fix menor.
+
+**Gate de lanzamiento completo:** todos los pendientes de Alpha 41 deben reconciliarse y
+quedar resueltos con evidencia bajo el contrato de Daniel; los cancelados no se cuentan
+como implementados y no pueden ocultar funciones retiradas. Además deben pasar los
+recorridos funcionales y las pruebas Android/operativas requeridas. Con **734 activos en
+el corte actual: NO está acreditado el lanzamiento completo**. Esto no expresa cuánto
+software falta escribir ni invalida los avances existentes.
+
+No se asignan fechas, horas ahorradas ni un porcentaje «listo» hasta medir los recorridos.
+El progreso se comunicará por capacidad demostrada, integración completada, defecto
+resuelto y deuda documental reconciliada, manteniendo separada la incertidumbre.
+
+### 6. Fuentes y continuidad
+
+- Bóveda: `01-Guardian/01-MOC-INDEX/00-MOC-Guardian-Maestro.md` y
+  `Ledger-Cobertura-Codigo-Guardian.{md,csv}`; investigaciones citadas arriba.
+- Evidencia reproducible de esta revisión:
+  `C:/Users/Usuario/guardian-review-2026-09-05/plan-coverage-evidence.json`,
+  `plan-live-ticket-samples.json`, `notion-snapshot.json`, `notion-counts.json` y
+  `reconcile_plan_evidence.py`. Son artefactos de auditoría, no un backlog nuevo.
+- [Registro funcional existente](guardian/FEATURE_REGISTRY.yaml),
+  [matriz existente](readiness/READINESS_MATRIX.md),
+  [ADR 0024](architecture-decisions/0024-retention-by-default-no-discretionary-deletion.md),
+  [runbook de recuperación](../DR_RUNBOOK.md).
+- La revisión `REVISION-GUARDIAN-ANDROID.md` del 05–06-sep se complementa con esta
+  actualización: no sustituye las investigaciones históricas ni certifica totalidad.
+
+---
+
+## Histórico preservado — diagnóstico y paquetes de junio de 2026
+
 > **▶ Actualización 2026-06-19 (APROBADO — ejecución en curso).** Tras auditar la ola
 > MiMo (#1000+) + 2 auditorías externas (40k LOC), el fundador aprobó el plan end-to-end
 > de 6 fases: **F0** consolidar conocimiento (este commit) · **F1** cerrar ola MiMo
