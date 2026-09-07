@@ -228,10 +228,10 @@ beforeEach(() => {
   H.runRetentionSweep.mockResolvedValue({
     runId: 'retention-2026-08-01',
     totalDocs: 3,
-    archived: 1,
-    purged: 1,
+    archived: 2,
+    purged: 0,
     auditLogLeftAlone: true,
-    counts: { keep_active: 1, archive_immutable: 1, purge: 1 },
+    counts: { keep_active: 1, archive_immutable: 2, purge: 0 },
   });
   H.runLoneWorkerEscalationCron.mockResolvedValue({
     sessionsScanned: 0,
@@ -647,10 +647,10 @@ describe('POST /api/maintenance/run-retention-sweep', () => {
     H.runRetentionSweep.mockResolvedValueOnce({
       runId: 'retention-2026-08-01',
       totalDocs: 5,
-      archived: 2,
-      purged: 1,
+      archived: 3,
+      purged: 0,
       auditLogLeftAlone: true,
-      counts: { keep_active: 2, archive_immutable: 2, purge: 1 },
+      counts: { keep_active: 2, archive_immutable: 3, purge: 0 },
     });
 
     const res = await request(buildApp())
@@ -663,8 +663,8 @@ describe('POST /api/maintenance/run-retention-sweep', () => {
       ok: true,
       runId: 'retention-2026-08-01',
       totalDocs: 5,
-      archived: 2,
-      purged: 1,
+      archived: 3,
+      purged: 0,
       auditLogLeftAlone: true,
     });
     expect(typeof res.body.tookMs).toBe('number');
