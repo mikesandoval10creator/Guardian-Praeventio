@@ -42,7 +42,7 @@ function parseDraft(d: ItemDraft): CargoItem | null {
   const y = parseFloat(d.dimY);
   const z = parseFloat(d.dimZ);
   const m = parseFloat(d.mass);
-  if ([x, y, z, m].some((v) => Number.isNaN(v) || v <= 0)) return null;
+  if ([x, y, z, m].some((v) => !Number.isFinite(v) || v <= 0)) return null;
   return { id: d.id, dimensions: { x, y, z }, mass: m, fragile: d.fragile, cannotBeStacked: d.cannotBeStacked };
 }
 
@@ -66,7 +66,7 @@ export function CargoCogPage() {
     const y = parseFloat(contY);
     const z = parseFloat(contZ);
     const p = parseFloat(contPayload);
-    if ([x, y, z, p].some((v) => Number.isNaN(v) || v <= 0)) return null;
+    if ([x, y, z, p].some((v) => !Number.isFinite(v) || v <= 0)) return null;
     return { dimensions: { x, y, z }, maxPayloadKg: p };
   }, [contX, contY, contZ, contPayload]);
 

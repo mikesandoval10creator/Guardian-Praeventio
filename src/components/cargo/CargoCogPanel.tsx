@@ -35,6 +35,18 @@ function defaultLimits(container: Container): CogSafetyLimits {
   };
 }
 
+function invalidUtilization(): ReturnType<typeof computeUtilization> {
+  return {
+    loadedVolume: 0,
+    containerVolume: 0,
+    volumePercent: 0,
+    loadedMass: 0,
+    massPercent: 0,
+    overweight: false,
+    invalid: true,
+  };
+}
+
 export function CargoCogPanel({ container, placedItems, limits }: CargoCogPanelProps) {
   const { t } = useTranslation();
   const effectiveLimits = limits ?? defaultLimits(container);
@@ -43,11 +55,20 @@ export function CargoCogPanel({ container, placedItems, limits }: CargoCogPanelP
     [placedItems, effectiveLimits],
   );
   const util = useMemo(
-    () => computeUtilization(placedItems, container),
+    () => {
+      try {
+        return computeUtilization(placedItems, container);
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        return invalidUtilization();
+      }
+    },
     [placedItems, container],
   );
 
-  const safeTone = validation.isSafe
+  const isOperationallySafe = validation.isSafe && !validation.invalid && !util.invalid && !util.overweight;
+
+  const safeTone = isOperationallySafe
     ? 'border-emerald-500/30 bg-emerald-500/5'
     : 'border-rose-500/30 bg-rose-500/5';
 
@@ -80,13 +101,13 @@ export function CargoCogPanel({ container, placedItems, limits }: CargoCogPanelP
         </h2>
         <span
           className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-            validation.isSafe
+            isOperationallySafe
               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
               : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
           }`}
           data-testid="cargo-cog-safe-badge"
         >
-          {validation.isSafe ? t('cargo.safe', 'SEGURO') : t('cargo.unsafe', 'REVISAR')}
+          {isOperationallySafe ? t('cargo.safe', 'SEGURO') : t('cargo.unsafe', 'REVISAR')}
         </span>
       </header>
 
@@ -155,7 +176,7 @@ export function CargoCogPanel({ container, placedItems, limits }: CargoCogPanelP
             cx={cogPx.x}
             cy={cogPx.y}
             r={6}
-            fill={validation.isSafe ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
+            fill={isOperationallySafe ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
             stroke="white"
             strokeWidth={1}
             data-testid="cargo-cog-marker"
@@ -193,6 +214,15 @@ export function CargoCogPanel({ container, placedItems, limits }: CargoCogPanelP
           </p>
         </div>
       </div>
+
+      {(validation.invalid || util.invalid) && (
+        <p
+          className="text-[11px] bg-rose-500/10 text-rose-700 dark:text-rose-300 p-2 rounded font-bold"
+          data-testid="cargo-invalid-warning"
+        >
+          {t('cargo.invalid', 'DATOS DE CARGA INVÁLIDOS: revisar masa, dimensiones y posiciones.')}
+        </p>
+      )}
 
       {util.overweight && (
         <p

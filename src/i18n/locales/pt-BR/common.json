@@ -5554,7 +5554,8 @@
     "fragile": "Frágil",
     "no_stack": "Não empilhável",
     "no_items_placed": "Nenhum item posicionado",
-    "unplaced_title": "Não posicionados"
+    "unplaced_title": "Não posicionados",
+    "invalid": "DADOS DE CARGA INVÁLIDOS: verifique massa, dimensões e posições."
   },
   "emergencyAuthority": {
     "title": "Chamar serviços de emergência",

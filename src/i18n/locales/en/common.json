@@ -5554,7 +5554,8 @@
     "fragile": "Fragile",
     "no_stack": "No stacking",
     "no_items_placed": "No items placed",
-    "unplaced_title": "Unplaced"
+    "unplaced_title": "Unplaced",
+    "invalid": "INVALID CARGO DATA: check mass, dimensions, and positions."
   },
   "emergencyAuthority": {
     "title": "Call emergency services",

@@ -212,3 +212,60 @@ describe('packCargoFFD', () => {
     }
   });
 });
+
+describe('runtime cargo validation', () => {
+  const container: Container = {
+    dimensions: { x: 10, y: 4, z: 3 },
+    maxPayloadKg: 5000,
+  };
+  const limits = {
+    ideal: { x: 5, y: 2, z: 0 },
+    toleranceX: 1,
+    toleranceY: 0.5,
+    maxHeightZ: 2,
+  };
+  const position = { x: 0, y: 0, z: 0 };
+
+  it.each([
+    ['NaN mass', { id: 'bad-mass', dimensions: { x: 1, y: 1, z: 1 }, mass: Number.NaN }],
+    ['infinite mass', { id: 'infinite-mass', dimensions: { x: 1, y: 1, z: 1 }, mass: Number.POSITIVE_INFINITY }],
+    ['negative dimension', { id: 'negative-dim', dimensions: { x: -1, y: 1, z: 1 }, mass: 10 }],
+    ['infinite position', { id: 'infinite-position', dimensions: { x: 1, y: 1, z: 1 }, mass: 10, position: { x: Number.POSITIVE_INFINITY, y: 0, z: 0 } }],
+  ])('rejects %s at the runtime boundary', (_label, rawItem) => {
+    const item = rawItem as CargoItem & { position?: typeof position };
+    const placed = [{ item, position: item.position ?? position }];
+    expect(() => computeCenterOfGravity(placed)).toThrow(RangeError);
+    expect(() => computeUtilization(placed, container)).toThrow(RangeError);
+    if (!item.position) expect(() => packCargoFFD([item], container)).toThrow(RangeError);
+  });
+
+  it('returns a finite unsafe sentinel when the validator receives invalid data', () => {
+    const result = validateCogAgainstLimits(
+      [{ item: { id: 'bad', dimensions: { x: 1, y: 1, z: 1 }, mass: Number.NaN }, position }],
+      limits,
+    );
+    expect(result.invalid).toBe(true);
+    expect(result.isSafe).toBe(false);
+    expect(result.cog).toEqual({ x: 0, y: 0, z: 0 });
+    expect(Number.isFinite(result.cog.x)).toBe(true);
+    expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('rejects arithmetic overflow even when scalar inputs are individually finite', () => {
+    const item: CargoItem = {
+      id: 'overflow',
+      dimensions: { x: Number.MAX_VALUE, y: 2, z: 1 },
+      mass: Number.MAX_VALUE,
+    };
+    const placed = [{ item, position }];
+    expect(() => computeCenterOfGravity(placed)).toThrow(RangeError);
+    expect(() => computeUtilization(placed, container)).toThrow(RangeError);
+  });
+
+  it('rejects malformed placed entries without leaking a TypeError', () => {
+    const malformed = [null as never];
+    expect(() => computeCenterOfGravity(malformed)).toThrow(RangeError);
+    expect(() => computeUtilization(malformed, container)).toThrow(RangeError);
+    expect(validateCogAgainstLimits(malformed, limits).invalid).toBe(true);
+  });
+});
