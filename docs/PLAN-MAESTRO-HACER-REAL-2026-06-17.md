@@ -15,9 +15,13 @@ El tracker de ejecución sigue siendo Notion Alpha 41.
 
 ### 1. Qué sabemos y qué no mide el porcentaje de auditoría
 
-Corte de código: `e27d4244ecfc667a442115f6e3ee8de49e498a5a`, también base de
-`origin/main` al preparar esta actualización. Lectura focalizada de investigaciones y
-código: **no es una auditoría total de Guardian**.
+Corte de código investigado: `e27d4244ecfc667a442115f6e3ee8de49e498a5a` en
+`fix/a41-sync-manager-teardown`. Base del PR documental: `origin/main` en
+`a7d1f740d31cfb1669149941eaf9125b60e0d1e0`. Se compararon ambos: difieren en
+`src/services/syncManager.ts` y sus dos tests; los archivos de la muestra funcional y
+las pruebas citadas son equivalentes. El teardown de esa rama no se acredita como
+integrado por aparecer en el checkout investigado. Lectura focalizada de investigaciones
+y código: **no es una auditoría total de Guardian**.
 
 | Medición | Resultado comprobado | Interpretación correcta |
 |---|---|---|
