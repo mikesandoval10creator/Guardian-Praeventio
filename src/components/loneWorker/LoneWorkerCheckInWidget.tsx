@@ -91,7 +91,7 @@ export function LoneWorkerCheckInWidget({
     setBusy('end');
     try {
       const idk = `lw-end-${session.id}-${Date.now()}`;
-      const res = await endLoneWorkerSession(projectId, { session }, idk);
+      const res = await endLoneWorkerSession(projectId, { sessionId: session.id }, idk);
       onSessionUpdated(res.session);
     } catch (err) {
       onError?.((err as Error).message);

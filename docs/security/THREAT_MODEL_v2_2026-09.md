@@ -96,7 +96,7 @@
 
 | Amenaza | Surface | Mitigación actual | Gap residual |
 |---|---|---|---|
-| Tampering (data) | Firestore | rules + tenant guard | runRetentionSweep contradice ADR-0024 (Audit-2026-08-31) |
+| Tampering (data) | Firestore | rules + tenant guard + archive-only retention guard (candidate) | Merge, scheduler state and historical production runs still unverified |
 | Disclosure | GCS | CMEK encryption | Backups sin cifrado adicional de envelope |
 | Tampering (evidence) | `photoEvidence` | Hash local + signed upload | PhotoEvidence GET sin verificar hash declarado (Audit-2026-08-31) |
 | Cross-tenant | `wisdomCapsules` | Top-level read con tenant claim | Lectura geográfica top-level sin aislamiento tenant/project (Audit-2026-08-31) |
@@ -141,7 +141,7 @@
 - Consentimiento explícito por feature (Health Connect, OBS, ubicación background).
 - Eliminación de cuenta: pendiente script + verificación cross-tenant (W6).
 - Export de datos: pendiente portal usuario (W6/W8).
-- Retention: `runRetentionSweep` contradice ADR-0024 (debe rehacerse).
+- Retention: archive-only guard en `runRetentionSweep` está en esta misión; falta merge y verificación cloud del scheduler/historial.
 
 ## 7. Gaps explícitos (no cerrar antes de v1.0.0 → W7/W8)
 
@@ -153,7 +153,7 @@
 | `capacitor-mandown` tests nativos | Vida-safety / FGS | W4 |
 | RBAC verifier + platform_operator | M3 | W2 |
 | ARCO tenant check | M3 / M6 | W2 |
-| runRetentionSweep rewrite | M9 | W6 |
+| runRetentionSweep archive-only guard + cloud reconciliation | M9 | W6 |
 
 ## 8. Out of scope para v1.0.0 (acordado contractualmente)
 

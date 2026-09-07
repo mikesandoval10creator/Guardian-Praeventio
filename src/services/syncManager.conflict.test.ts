@@ -64,6 +64,7 @@ vi.stubGlobal('fetch', fetchMock);
 // Worker hygiene — never leak the fetch stub into sibling test files
 // scheduled in the same worker.
 afterEach(() => {
+  matrixSyncManager.dispose();
   vi.unstubAllGlobals();
   vi.stubGlobal('fetch', fetchMock);
 });

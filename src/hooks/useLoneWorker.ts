@@ -115,10 +115,10 @@ export async function recordLoneWorkerCheckIn(
 }
 
 // ── 2. end-session ─────────────────────────────────────────────────────
-
+// The server reads the canonical persisted session and owns the terminal
+// transition; the client sends only its stable id.
 export interface EndSessionInput {
-  session: LoneWorkerSession;
-  endedAt?: string;
+  sessionId: string;
 }
 export interface EndSessionResponse {
   session: LoneWorkerSession;

@@ -169,6 +169,20 @@ class MatrixSyncManager {
   }
 
   /**
+   * Release scheduled work owned by this manager instance.
+   *
+   * Consumers that create/destroy a manager in tests or a short-lived
+   * lifecycle scope must call this so a batching timeout cannot outlive the
+   * owner. The singleton application instance remains scheduled normally.
+   */
+  dispose(): void {
+    if (this.flushInterval) {
+      clearTimeout(this.flushInterval);
+      this.flushInterval = null;
+    }
+  }
+
+  /**
    * §16.2.2 — ops retained after a safety-critical divergence. They hold
    * the LOCAL version of the document and wait for human resolution; they
    * are never re-flushed automatically.
@@ -452,6 +466,15 @@ class MatrixSyncManager {
   }
 
   async flush() {
+    // A timer-triggered flush has already fired, but explicitly clearing the
+    // handle makes manual flushes and teardown deterministic too. Without
+    // this, `finally` could null the handle while the original Timeout still
+    // remained live and became invisible to `dispose()`.
+    const scheduledFlush = this.flushInterval;
+    if (scheduledFlush) {
+      clearTimeout(scheduledFlush);
+      this.flushInterval = null;
+    }
     if (this.isFlushing || this.flushableEntries().length === 0) return;
 
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;

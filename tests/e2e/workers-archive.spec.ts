@@ -51,7 +51,7 @@ test.describe('Workers — archivar (nunca hard-delete) con audit', () => {
       await signInBrowserViaCustomToken(page);
 
       // The worker row renders from the real client Firestore read.
-      await expect(page.getByText('Juan Pérez E2E')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('heading', { name: 'Juan Pérez E2E', exact: true })).toBeVisible({ timeout: 20_000 });
 
       // Row menu → Archivar → confirm.
       await page.getByTestId(`worker-menu-${WORKER_ID}`).click();

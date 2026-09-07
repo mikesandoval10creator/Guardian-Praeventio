@@ -413,10 +413,10 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
 //
 //   POST /api/maintenance/run-retention-sweep
 //
-// Cloud Scheduler should run this daily after business hours. The job applies
+// Cloud Scheduler should run this weekly after business hours. The job applies
 // the deterministic retention policy to real Firestore docs, respecting legal
-// holds, never deleting audit_log source docs, and persisting an audited run
-// report in `retention_sweep_runs/{runId}`.
+// holds, never deleting source docs under ADR-0024, and persisting an audited
+// archive-only run report in `retention_sweep_runs/{runId}`.
 router.post('/run-retention-sweep', verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {

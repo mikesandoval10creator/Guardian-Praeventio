@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// runRetentionSweep — aplica la política de retención sobre datos reales.
+// runRetentionSweep — evalúa la política y archiva sin eliminar datos fuente.
 //
 // Ticket 39baa66d-73fe-81f8-b9f0-da5503007f5b:
 // el motor `decideRetention()` existía, pero la ruta HTTP era deliberadamente
@@ -11,12 +11,12 @@
 //   1. recorre colecciones cubiertas;
 //   2. transforma cada doc a DataRecord;
 //   3. evalúa `decideRetention`;
-//   4. aplica acciones reales (archive_immutable o purge);
+//   4. aplica archive_immutable sin eliminar el documento fuente;
 //   5. persiste `retention_sweep_runs/{runId}` con métricas y decisiones.
 //
-// Protección importante: `audit_log` NUNCA se borra. Aunque una regla de
+// Protección importante: ningún documento fuente se borra. Aunque una regla de
 // retención diga `purge`, el job lo degrada a `archive_immutable`/keep-source
-// para preservar trazabilidad y evidencia de cumplimiento.
+// conforme al ADR-0024, preservando datos de prevención y trazabilidad.
 
 import type admin from "firebase-admin";
 import {
@@ -46,7 +46,6 @@ interface CollectionRefLike {
 interface DocRefLike {
   path: string;
   set(data: Record<string, unknown>, opts?: { merge?: boolean }): Promise<void>;
-  delete(): Promise<void>;
 }
 
 export interface RetentionSweepDb {
@@ -77,8 +76,10 @@ export interface RetentionSweepReport {
   collectionPaths: string[];
   categories: DataCategory[];
   totalDocs: number;
+  /** `purge` remains for report compatibility and is always zero. */
   counts: Record<"keep_active" | "archive_immutable" | "purge", number>;
   archived: number;
+  /** Source documents are never deleted; this remains zero under ADR-0024. */
   purged: number;
   auditLogLeftAlone: boolean;
   decisions: AppliedRetentionDecision[];
@@ -206,13 +207,18 @@ export async function runRetentionSweep(
         customRules: options.defaultRules,
       });
 
-      // Audit logs preserve traceability. They may be archived/marked but never deleted.
-      if (record.category === "audit_log" && decision.action === "purge") {
-        report.auditLogLeftAlone = true;
+      // ADR-0024: el motor conserva su acción advisory `purge`, pero este
+      // ejecutor nunca puede eliminar documentos fuente. Se degrada a un
+      // archivo inmutable y la fuente se conserva para prevención/trazabilidad.
+      if (decision.action === "purge") {
+        const isAuditLog = record.category === "audit_log";
+        if (isAuditLog) report.auditLogLeftAlone = true;
         decision = {
           ...decision,
           action: "archive_immutable",
-          rationale: `${decision.rationale} Audit_log preserve-traceability guard — no source delete.`,
+          rationale: `${decision.rationale} Purge blocked by ADR-0024 — source retained and archived.${
+            isAuditLog ? " Audit_log preserve-traceability guard." : ""
+          }`,
         };
       }
 
@@ -226,11 +232,6 @@ export async function runRetentionSweep(
       if (decision.action === "archive_immutable") {
         await archiveImmutable(db, collectionPath, doc, raw, decision, nowIso);
         report.archived += 1;
-        // Source stays present for audit_log; other records are archived out of active set.
-        if (record.category !== "audit_log") await doc.ref.delete();
-      } else if (decision.action === "purge") {
-        await doc.ref.delete();
-        report.purged += 1;
       }
     }
   }
