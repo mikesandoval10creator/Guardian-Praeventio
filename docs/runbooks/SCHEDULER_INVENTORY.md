@@ -44,7 +44,7 @@ Todos los endpoints están gated por `verifySchedulerToken` middleware
 
 | Endpoint | Cadencia | Job |
 |---|---|---|
-| `POST /api/maintenance/run-retention-sweep` | Domingo 04:00 UTC | `runRetentionSweep` |
+| `POST /api/maintenance/run-retention-sweep` | Domingo 04:00 UTC | `runRetentionSweep` (archive-only, ADR-0024; no source delete) |
 | `POST /api/jobs/weekly-digest` | Lunes 09:00 UTC | `weeklyDigest` |
 | `POST /api/admin/firestore-replicate-critical` | Domingo 04:00 UTC | `firestoreCriticalReplicate` |
 
@@ -142,5 +142,6 @@ gcloud scheduler jobs list --location=southamerica-west1 --format="table(name,sc
   (Día 1 mes 02:00 UTC) en vez de vivir dentro del housekeeping diario
   (donde igual se invoca una vez pero el crontab dedicado documenta la
   cadencia real).
-- `runRetentionSweep` se mueve a crontab dedicado semanal (Domingo 04:00 UTC).
+- `runRetentionSweep` se mueve a crontab dedicado semanal (Domingo 04:00 UTC),
+  en modo archive-only conforme al ADR-0024; nunca elimina el documento fuente.
 - `expiryFindings` se reclasifica como helper interno (no expone endpoint).
