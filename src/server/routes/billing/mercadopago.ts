@@ -34,6 +34,11 @@ import {
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
 import {
+  buildDteQueueInvoicePayload,
+  enqueueDteIssueJob,
+  shouldQueueDteRetry,
+} from '../../../services/dte/dteIssueQueueStore.js';
+import {
   MP_CURRENCY_BY_COUNTRY,
   type LatamCurrency,
 } from '../../../services/billing/currency.js';
@@ -370,6 +375,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
             const amountClp =
               typeof invoiceData?.totals?.total === 'number' ? invoiceData.totals.total : 0;
             if (ownerUid) {
+              const paidAtIso = new Date().toISOString();
               const decision = decideDteIssue({
                 paymentId: String(paymentId ?? result.invoiceId),
                 tenantId: ownerUid,
@@ -377,7 +383,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                 amountClp,
                 planCode,
                 paymentGateway: 'mercadopago',
-                paidAt: new Date().toISOString(),
+                paidAt: paidAtIso,
               });
               logger.info('dte_autoissue_decision', {
                 source: 'mercadopago-ipn',
@@ -390,6 +396,13 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
               });
 
               if (decision.shouldIssue && invoiceData) {
+                // Whitelist the persisted invoice fields so MP credentials,
+                // payment tokens and unrelated PII never enter the retry doc.
+                const invoicePayload = buildDteQueueInvoicePayload(
+                  result.invoiceId,
+                  invoiceData,
+                  paidAtIso,
+                );
                 try {
                   const { tryAutoIssueDte } = await import(
                     '../../../services/billing/invoice.js'
@@ -398,7 +411,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                     ...invoiceData,
                     id: result.invoiceId,
                     status: 'paid' as const,
-                    paidAt: new Date().toISOString(),
+                    paidAt: paidAtIso,
                   };
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const issueResult = await tryAutoIssueDte(invoiceForDte as any);
@@ -411,6 +424,19 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                     folio: issueResult.result?.folio ?? null,
                     errorMessage: issueResult.errorMessage ?? null,
                   });
+                  if (shouldQueueDteRetry(issueResult)) {
+                    const queued = await enqueueDteIssueJob(
+                      admin.firestore(),
+                      decision,
+                      invoicePayload,
+                      'mercadopago-ipn',
+                    );
+                    logger.warn('dte_autoissue_queued_for_retry', {
+                      source: 'mercadopago-ipn',
+                      invoiceId: result.invoiceId,
+                      queued,
+                    });
+                  }
                 } catch (issueErr) {
                   logger.error('dte_autoissue_invoke_failed', issueErr as Error, {
                     source: 'mercadopago-ipn',
@@ -420,6 +446,29 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                     endpoint: 'billing.mp.dteAutoIssue.invoke',
                     tags: { invoiceId: result.invoiceId },
                   });
+                  // A thrown adapter call is also recoverable: persist the
+                  // same whitelisted payload so the maintenance drain retries.
+                  try {
+                    const queued = await enqueueDteIssueJob(
+                      admin.firestore(),
+                      decision,
+                      invoicePayload,
+                      'mercadopago-ipn',
+                    );
+                    logger.warn('dte_autoissue_queued_for_retry', {
+                      source: 'mercadopago-ipn',
+                      invoiceId: result.invoiceId,
+                      queued,
+                    });
+                  } catch (queueErr) {
+                    logger.error('dte_queue_enqueue_failed', queueErr as Error, {
+                      invoiceId: result.invoiceId,
+                    });
+                    sentryCapture(queueErr, {
+                      endpoint: 'billing.mp.dteQueue',
+                      tags: { invoiceId: result.invoiceId },
+                    });
+                  }
                 }
               }
             }
