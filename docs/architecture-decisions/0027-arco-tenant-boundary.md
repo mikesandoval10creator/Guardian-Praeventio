@@ -63,11 +63,21 @@ El helper:
 - obtiene ambos usuarios con Admin SDK;
 - compara `customClaims.tenantId` del caller y target;
 - deniega si el target no existe, si falta cualquiera de los tenants o si son
-distintos;
+  distintos;
 - deja intacta la regla de `isAdminRole` y no crea un rol global implícito.
+
+`platform_operator` existe para operaciones B2D específicas en `roles.ts`; no es
+un administrador ARCO tenant-scoped y por eso no satisface `isAdminRole` en estos
+endpoints. No se amplía su autoridad con esta ADR.
 
 Los endpoints ARCO pasan `existing.uid` como target. El `requestId` del URL solo
 identifica la solicitud; nunca define autorización por sí mismo.
+
+La búsqueda de `firestore.rules` confirma que el archivo contiene funciones de
+pertenencia para otras colecciones, pero no un `match` para
+`compliance_data_requests`. Como estos endpoints usan Admin SDK, esta guardia es
+la barrera server-side vigente para ARCO; cualquier futura regla de esa colección
+deberá conservar la misma invariante.
 
 ## Seguridad y privacidad
 
@@ -88,6 +98,12 @@ mutan solo después de ambos controles.
 un sistema externo de membresías; este ADR define Auth como autoridad vigente para
 las operaciones admin existentes. La provisión/rotación de claims y el rol
 `platform_admin` global quedan fuera de este cambio.
+
+Otros riesgos operativos quedan fuera de scope: no se añade un rate-limit ARCO
+específico ni una lease/CAS que serialice dos solicitudes `/erase` concurrentes.
+La idempotencia de estado existente se conserva, pero los side-effects de Auth
+pueden repetirse si dos requests pasan simultáneamente; requiere un ticket propio
+con contrato de concurrencia y métricas antes de declararlo resuelto.
 
 ## Operación, migración y rollback
 
