@@ -46,7 +46,7 @@ test.describe('Offline-first sync', () => {
       // selectedProject === null → AddFindingModal.handleSubmit hace
       // `if (!selectedProject) return` (early-return silencioso, sin cerrar el
       // modal). El nombre accesible del selector es "Proyecto Activo E2E Project".
-      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('button', { name: 'Proyecto Activo E2E Project', exact: true })).toBeVisible({ timeout: 15_000 });
 
       // Sprint E2E-99 — no hay ruta /findings/new; el formulario se abre con el
       // botón "Nuevo hallazgo" (data-testid estable agregado en este sprint).
@@ -100,7 +100,7 @@ test.describe('Offline-first sync', () => {
       // Barrera de proyecto activo tras el reload: el feed filtra por
       // selectedProject.id, que arranca null en cada carga hasta que la query lo
       // re-entrega. Sin esto el poll leería un feed sin proyecto.
-      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('button', { name: 'Proyecto Activo E2E Project', exact: true })).toBeVisible({ timeout: 15_000 });
 
       // El hallazgo debe haberse pushed al backend y aparecer en el feed. El
       // flush post-reload arranca con el timer de scheduleFlush (5s) + POST +
