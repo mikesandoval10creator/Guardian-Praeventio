@@ -21,6 +21,8 @@ import request from 'supertest';
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
   roles: {} as Record<string, string | undefined>,
+  tenants: {} as Record<string, string | undefined>,
+  missingAuthUids: new Set<string>(),
   auth: null as {
     updateUser: ReturnType<typeof vi.fn>;
     revokeRefreshTokens: ReturnType<typeof vi.fn>;
@@ -34,7 +36,13 @@ vi.mock('firebase-admin', async () => {
   const auth = Object.assign(
     async () => ({ uid: 'test' }),
     {
-      getUser: async (uid: string) => ({ uid, customClaims: { role: H.roles[uid] } }),
+      getUser: async (uid: string) => {
+        if (H.missingAuthUids.has(uid)) throw new Error('auth/user-not-found');
+        return {
+          uid,
+          customClaims: { role: H.roles[uid], tenantId: H.tenants[uid] },
+        };
+      },
       // [P0][privacidad] Erasure now orchestrates anonymizeUser: the auth
       // surface must record disable + revoke + claims for the happy path.
       updateUser: vi.fn(async () => ({})),
@@ -90,7 +98,9 @@ function auditRows(action: string) {
 
 beforeEach(() => {
   H.db = createFakeFirestore();
-  H.roles = { admin1: 'admin', gerente1: 'gerente', worker1: 'operario' };
+  H.missingAuthUids.clear();
+  H.roles = { admin1: 'admin', gerente1: 'gerente', worker1: 'operario', platform1: 'platform_operator' };
+  H.tenants = { admin1: 'tenant-a', gerente1: 'tenant-a', worker1: 'tenant-a', victim: 'tenant-a' };
 });
 
 // ---------------------------------------------------------------------------
@@ -124,6 +134,45 @@ describe('POST /api/compliance/admin/data-request/:id/process', () => {
     expect(res.status).toBe(403);
     // The real processDataAccessRequest never ran: request still pending.
     expect(H.db!._store.get('compliance_data_requests/req-acc-1')?.status).toBe('pending');
+  });
+
+  it('403 platform_operator is not an ARCO tenant admin', async () => {
+    seedAccessRequest('req-platform-operator', 'victim');
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-platform-operator/process')
+      .set(asUser('platform1'));
+    expect(res.status).toBe(403);
+    expect(H.db!._store.get('compliance_data_requests/req-platform-operator')?.status).toBe('pending');
+  });
+
+  it('403 target missing from Auth cannot process a request', async () => {
+    seedAccessRequest('req-missing-auth', 'victim');
+    H.missingAuthUids.add('victim');
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-missing-auth/process')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(403);
+    expect(H.db!._store.get('compliance_data_requests/req-missing-auth')?.status).toBe('pending');
+  });
+
+  it('403 cross-tenant admin cannot process another tenant\'s access request', async () => {
+    seedAccessRequest('req-cross-process', 'victim');
+    H.tenants.victim = 'tenant-b';
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-cross-process/process')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(403);
+    expect(H.db!._store.get('compliance_data_requests/req-cross-process')?.status).toBe('pending');
+  });
+
+  it('403 tenant-less admin cannot process a request', async () => {
+    seedAccessRequest('req-no-caller-tenant', 'victim');
+    H.tenants.admin1 = undefined;
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-no-caller-tenant/process')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(403);
+    expect(H.db!._store.get('compliance_data_requests/req-no-caller-tenant')?.status).toBe('pending');
   });
 
   it('404 nonexistent request id', async () => {
@@ -225,6 +274,31 @@ describe('POST /api/compliance/admin/data-request/:id/erase', () => {
     expect(res.status).toBe(403);
     expect(H.db!._store.has('users/victim-doc')).toBe(true);
     expect(H.db!._store.get('compliance_data_requests/req-er-1')?.status).toBe('pending');
+  });
+
+  it('403 cross-tenant admin cannot erase another tenant\'s request', async () => {
+    seedErasureWorld();
+    H.tenants.victim = 'tenant-b';
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-er-1/erase')
+      .set(asUser('admin1'))
+      .send({ confirm: 'req-er-1' });
+    expect(res.status).toBe(403);
+    expect(H.db!._store.has('users/victim-doc')).toBe(true);
+    expect(H.db!._store.get('compliance_data_requests/req-er-1')?.status).toBe('pending');
+    expect(auditRows('arco_erasure_started').length).toBe(0);
+  });
+
+  it('403 target without tenant claim cannot be erased', async () => {
+    seedErasureWorld();
+    H.tenants.victim = undefined;
+    const res = await request(buildApp())
+      .post('/api/compliance/admin/data-request/req-er-1/erase')
+      .set(asUser('admin1'))
+      .send({ confirm: 'req-er-1' });
+    expect(res.status).toBe(403);
+    expect(H.db!._store.has('users/victim-doc')).toBe(true);
+    expect(auditRows('arco_erasure_started').length).toBe(0);
   });
 
   it('400 without confirm — destructive op requires body { confirm: requestId }', async () => {

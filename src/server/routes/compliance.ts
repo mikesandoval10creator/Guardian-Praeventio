@@ -34,6 +34,7 @@ import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { assertTargetInCallerTenant } from '../auth/tenantAuthorization.js';
 import {
   recordConsent,
   revokeConsent,
@@ -512,6 +513,7 @@ router.post('/admin/data-request/:id/process', verifyAuth, async (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'not_found' });
     }
+    if (!(await assertTargetInCallerTenant(res, callerUid, existing.uid))) return undefined;
     if (existing.type !== 'access' && existing.type !== 'portability') {
       // Erasure goes through the confirmed /erase endpoint; rectification
       // has no automated apply path yet (manual via support + audit).
@@ -571,6 +573,7 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'not_found' });
     }
+    if (!(await assertTargetInCallerTenant(res, callerUid, existing.uid))) return undefined;
     if (existing.type !== 'erasure') {
       return res.status(400).json({ error: 'not_an_erasure_request' });
     }

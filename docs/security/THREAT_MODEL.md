@@ -235,7 +235,7 @@ encyclopedic.
 | TM-E02 | Cloud Run service account over-privileged | Compromised process gets full project access | **open (verify)** — confirm SA holds only `roles/aiplatform.user` scoped to one model, not project-wide |
 | TM-E03 | Self-promote to admin via custom claims | Worker calls `/api/admin/set-role` for own uid | **mitigated** — caller's `customClaims.role` checked first, `revokeRefreshTokens` invalidates old token. **Validated by `dirtyDozen.test.ts` #11 (token without role claim cannot reach admin paths).** |
 | TM-E04 | E2E secret replay against production | Stolen `E2E_TEST_SECRET` used live | **mitigated** — boot-time guard refuses prod+E2E |
-
+| TM-E05 | Tenant-scoped admin ARCO operation | Admin of tenant A targets an access/erasure request whose subject is in tenant B | **partial (PR pending)** — `tenantAuthorization.ts` re-reads caller/target Auth tenant claims before ARCO mutation; real-router tests cover cross-tenant, tenant-less and same-tenant cases. Deployment/Auth-claims evidence remains pending. |
 ---
 
 ## 8. Prioritized open backlog
