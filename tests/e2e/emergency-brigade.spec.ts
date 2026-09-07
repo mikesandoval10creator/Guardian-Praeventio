@@ -32,7 +32,7 @@ test.describe('Emergency brigade roster (real write)', () => {
 
       // Active-project barrier: the brigade snapshot fetch is keyed on the
       // auto-selected project (query members array-contains uid).
-      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('button', { name: 'Proyecto Activo E2E Project', exact: true })).toBeVisible({ timeout: 15_000 });
 
       // A fresh project has an EMPTY brigade → the empty-state CTA shows. (Fall
       // back to the header button if a default roster ever renders.)
@@ -92,7 +92,7 @@ test.describe('Emergency brigade roster (real write)', () => {
     try {
       await page.goto('/emergency-brigade');
       await signInBrowserViaCustomToken(page);
-      await expect(page.getByRole('button', { name: /E2E Project/i })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('button', { name: 'Proyecto Activo E2E Project', exact: true })).toBeVisible({ timeout: 15_000 });
 
       const openAdd = page
         .getByTestId('emergency-brigade-empty-add-resource')
