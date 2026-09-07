@@ -237,29 +237,55 @@ describe("native ManDown foreground capability", () => {
     expect(res.status).toBe(409);
   });
 
-  it("end-session is pure-compute: returns 200 even when no Firestore session exists", async () => {
-    H.db = createFakeFirestore();
-    H.db!._seed(`projects/${PROJECT}`, { members: [UID], createdBy: UID });
-    const res = await request(app())
+  it('end-session reads the persisted session and revokes native capability', async () => {
+    const cap = await request(app())
+      .post(`${base}/native-mandown-capability`)
+      .set('x-test-uid', UID)
+      .send({});
+
+    const legacyPayload = await request(app())
       .post(`/api/${PROJECT}/lone-worker/end-session`)
-      .set("x-test-uid", UID)
+      .set('x-test-uid', UID)
       .send({
+        sessionId: SESSION,
         session: {
           id: SESSION,
-          workerUid: UID,
-          status: "active",
-          startedAt: "2026-08-13T15:00:00.000Z",
+          workerUid: 'attacker',
+          status: 'active',
+          startedAt: '2026-08-13T15:00:00.000Z',
           checkInIntervalMin: 15,
           checkIns: [],
         },
-        endedAt: "2026-08-13T15:01:00.000Z",
       });
-    expect(res.status).toBe(200);
-    expect(res.body.session).toMatchObject({
+    expect(legacyPayload.status).toBe(400);
+
+    const ended = await request(app())
+      .post(`/api/${PROJECT}/lone-worker/end-session`)
+      .set('x-test-uid', UID)
+      .send({ sessionId: SESSION, endedAt: '2099-01-01T00:00:00.000Z' });
+    expect(ended.status).toBe(200);
+    expect(ended.body.session).toMatchObject({
       id: SESSION,
-      status: "ended",
-      endedAt: "2026-08-13T15:01:00.000Z",
+      workerUid: UID,
+      status: 'ended',
     });
-    expect(res.body.session.nativeManDownCapabilityHash).toBeUndefined();
+    expect(ended.body.session.endedAt).not.toBe('2099-01-01T00:00:00.000Z');
+
+    const persisted = H.db!._dump()[`projects/${PROJECT}/lone_worker_sessions/${SESSION}`];
+    expect(persisted.status).toBe('ended');
+    expect(persisted.endedBy).toBe(UID);
+    expect(persisted.nativeManDownCapabilityHash).toBeUndefined();
+    expect(persisted.nativeManDownCapabilityExpiresAt).toBeUndefined();
+
+    const afterEnd = await request(app())
+      .post(`${base}/native-man-down`)
+      .set('x-mandown-capability', cap.body.capability)
+      .send({
+        clientEventId: '66666666-6666-4666-8666-666666666666',
+        kind: 'impact',
+        occurredAt: new Date().toISOString(),
+        accelerationMps2: 28,
+      });
+    expect(afterEnd.status).toBe(409);
   });
 });

@@ -21,7 +21,6 @@
     "incidentTrends GET /:projectId/incidents/list": "false positive: byId.set deduplicates an in-memory incident list",
     "incidentTrends GET /:projectId/incidents/trends": "false positive: byId/bucketMap mutations build in-memory trend buckets",
     "legalReconcile POST /:projectId/reconcile-obligations": "correlated predicate: batch writes and the awaited audit are both guarded by the same toCreate.length > 0 condition in consecutive blocks",
-    "loneWorker POST /:projectId/lone-worker/end-session": "best-effort native authority revoke: the awaited auditServerEvent for endSession already ran above; the sessionRef.update inside try/catch deletes capability fields only when the persisted worker matches the caller-supplied session, and any failure is logged+swallowed so the human-facing response never 500s on a closeout",
     "misc POST /erp/sync": "infra telemetry: erp_sync_logs records the integration attempt/result itself and is not a new domain record",
     "offlineInspections POST /:projectId/inspections/:inspectionId/observations": "correlated transaction outcome: tx.set only occurs for outcome.kind created, and that exact outcome receives an awaited auditServerEvent",
     "preShiftRisk GET /:projectId/pre-shift-risk": "false positive: merged.set writes an in-memory deduplication Map",

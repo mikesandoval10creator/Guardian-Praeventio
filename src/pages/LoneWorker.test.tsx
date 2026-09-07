@@ -221,6 +221,24 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(screen.getByTestId('loneWorker.widget')).toBeTruthy();
   });
 
+  it('end-session sends only the persisted sessionId and applies the canonical server result', async () => {
+    mockActiveSessions = [session()];
+    endLoneWorkerSession.mockResolvedValueOnce({
+      session: session({ status: 'ended', endedAt: '2026-06-14T11:10:00Z' }),
+    });
+    render(<LoneWorker />);
+    fireEvent.click(await screen.findByTestId('loneWorker.widget.end'));
+    await waitFor(() => expect(endLoneWorkerSession).toHaveBeenCalledOnce());
+    const [projectIdArg, inputArg, idempotencyArg] = endLoneWorkerSession.mock.calls[0];
+    expect(projectIdArg).toBe('proj-1');
+    expect(inputArg).toEqual({ sessionId: 'lws_1' });
+    expect(inputArg).not.toHaveProperty('session');
+    expect(idempotencyArg).toMatch(/^lw-end-lws_1-/);
+    // The server already persisted the terminal transition atomically.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(patchLoneWorkerSession).not.toHaveBeenCalled();
+  });
+
   it('subscription READ failure → distinct error state (NOT the start-empty-state), retry re-subscribes', async () => {
     mockActiveSessions = [session()];
     subMode = 'error';

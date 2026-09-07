@@ -4,7 +4,8 @@
 //
 // The service functions (recordCheckIn / endSession / deriveLoneWorkerStatus /
 // decideEscalation) are pure compute — they run real here so v8 counts them.
-// The only Firestore touch is assertProjectMember reading projects/{id}.
+// check-in/derive touch only the membership document; end-session additionally
+// reads and updates the persisted canonical session through Admin SDK.
 // idempotencyKey middleware is present on check-in + end-session but optional
 // (header-driven); tests omit the header so the middleware is a no-op pass-through
 // (avoiding the need to mock system_idempotency_cache).
@@ -28,7 +29,12 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: Record<string, unknown> }).user = { uid };
+    const role = req.header('x-test-role');
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      ...(role ? { role } : {}),
+      ...(req.header('x-test-admin') === 'true' ? { admin: true } : {}),
+    };
     next();
   },
 }));
@@ -82,6 +88,17 @@ function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
 /** Seed the fake Firestore so assertProjectMember passes for (uid, projectId). */
 function seedMember(uid: string, projectId: string) {
   H.db!._seed(`projects/${projectId}`, { members: [uid], createdBy: uid });
+}
+
+function seedPersistedSession(
+  overrides: Record<string, unknown> = {},
+): void {
+  H.db!._seed('projects/proj-1/lone_worker_sessions/sess-001', {
+    ...makeSession({ workerUid: 'worker-uid' }),
+    nativeManDownCapabilityHash: 'hash',
+    nativeManDownCapabilityExpiresAt: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+  });
 }
 
 // Reset mock call history before every test so a future assertion on H.audit
@@ -219,57 +236,134 @@ describe('POST /:projectId/lone-worker/check-in', () => {
 describe('POST /:projectId/lone-worker/end-session', () => {
   beforeEach(() => {
     H.db = createFakeFirestore();
-    seedMember('supervisor-uid', 'proj-1');
+    H.db!._seed('projects/proj-1', {
+      members: ['supervisor-uid', 'worker-uid', 'member-uid', 'rescue-uid'],
+      createdBy: 'supervisor-uid',
+    });
+    seedPersistedSession();
   });
 
-  it('200 supervisor ends a session → session.status is ended', async () => {
-    const session = makeSession({ workerUid: 'worker-uid', startedAt: STARTED_ISO });
+  it('200 worker closes their own persisted session and revokes capability', async () => {
     const res = await request(buildApp())
       .post('/api/proj-1/lone-worker/end-session')
-      .set('x-test-uid', 'supervisor-uid')
-      .send({ session, endedAt: NOW_ISO });
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'sess-001' });
     expect(res.status).toBe(200);
-    const returned = (res.body as Record<string, unknown>).session as Record<string, unknown>;
-    expect(returned.status).toBe('ended');
-    expect(returned.endedAt).toBe(NOW_ISO);
+    expect(res.body.session).toMatchObject({
+      id: 'sess-001',
+      workerUid: 'worker-uid',
+      status: 'ended',
+    });
+    expect(typeof res.body.session.endedAt).toBe('string');
+    const persisted = H.db!._dump()['projects/proj-1/lone_worker_sessions/sess-001'];
+    expect(persisted.status).toBe('ended');
+    expect(persisted.endedBy).toBe('worker-uid');
+    expect(persisted.nativeManDownCapabilityHash).toBeUndefined();
+    expect(persisted.nativeManDownCapabilityExpiresAt).toBeUndefined();
   });
 
-  it('200 without explicit endedAt → session.status is ended (defaults to now)', async () => {
-    const session = makeSession({ workerUid: 'worker-uid', startedAt: STARTED_ISO });
+  it('200 supervisor closes another worker session using the verified rescue role', async () => {
     const res = await request(buildApp())
       .post('/api/proj-1/lone-worker/end-session')
       .set('x-test-uid', 'supervisor-uid')
-      .send({ session });
+      .set('x-test-role', 'supervisor')
+      .send({ sessionId: 'sess-001', endedAt: '2099-01-01T00:00:00.000Z' });
     expect(res.status).toBe(200);
-    const returned = (res.body as Record<string, unknown>).session as Record<string, unknown>;
-    expect(returned.status).toBe('ended');
-    expect(typeof returned.endedAt).toBe('string');
+    expect(res.body.session.status).toBe('ended');
+    expect(res.body.session.endedAt).not.toBe('2099-01-01T00:00:00.000Z');
   });
 
-  it('400 missing session body', async () => {
-    const res = await request(buildApp())
-      .post('/api/proj-1/lone-worker/end-session')
-      .set('x-test-uid', 'supervisor-uid')
-      .send({});
-    expect(res.status).toBe(400);
-  });
+  for (const role of [
+    'admin',
+    'gerente',
+    'prevencionista',
+    'director_obra',
+    'medico_ocupacional',
+  ]) {
+    it(`200 ${role} closes another worker session`, async () => {
+      const res = await request(buildApp())
+        .post('/api/proj-1/lone-worker/end-session')
+        .set('x-test-uid', 'rescue-uid')
+        .set('x-test-role', role)
+        .send({ sessionId: 'sess-001' });
+      expect(res.status).toBe(200);
+      expect(res.body.session.status).toBe('ended');
+    });
+  }
 
-  it('400 endedAt too short (schema: min(10))', async () => {
-    const session = makeSession({ workerUid: 'worker-uid' });
+  it('403 project member without rescue role cannot close another worker persisted session', async () => {
     const res = await request(buildApp())
       .post('/api/proj-1/lone-worker/end-session')
-      .set('x-test-uid', 'supervisor-uid')
-      .send({ session, endedAt: 'short' });
-    expect(res.status).toBe(400);
+      .set('x-test-uid', 'member-uid')
+      .send({ sessionId: 'sess-001' });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe(
+      'forbidden_not_session_owner_or_rescuer',
+    );
+    expect(H.db!._dump()['projects/proj-1/lone_worker_sessions/sess-001'].status).toBe(
+      'active',
+    );
   });
 
   it('403 non-member caller', async () => {
-    const session = makeSession({ workerUid: 'worker-uid' });
     const res = await request(buildApp())
       .post('/api/proj-1/lone-worker/end-session')
       .set('x-test-uid', 'outsider')
-      .send({ session });
+      .send({ sessionId: 'sess-001' });
     expect(res.status).toBe(403);
+  });
+
+  it('403 platform_operator is not a project rescue role', async () => {
+    const res = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'rescue-uid')
+      .set('x-test-role', 'platform_operator')
+      .send({ sessionId: 'sess-001' });
+    expect(res.status).toBe(403);
+    expect(H.db!._dump()['projects/proj-1/lone_worker_sessions/sess-001'].status).toBe(
+      'active',
+    );
+  });
+
+  it('404 missing persisted session', async () => {
+    const res = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'missing-session' });
+    expect(res.status).toBe(404);
+    expect((res.body as Record<string, unknown>).error).toBe('session_not_found');
+  });
+
+  it('400 strict schema rejects the legacy full-session payload', async () => {
+    const res = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'sess-001', session: makeSession() });
+    expect(res.status).toBe(400);
+  });
+
+  it('200 replay returns the persisted ended session without changing endedAt', async () => {
+    const first = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'sess-001' });
+    const second = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'sess-001' });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body.session).toEqual(first.body.session);
+    expect(H.audit.mock.calls[0][3]).toMatchObject({ wasReplay: false });
+    expect(H.audit.mock.calls[1][3]).toMatchObject({ wasReplay: true });
+  });
+
+  it('400 invalid endedAt is rejected even though the server owns the timestamp', async () => {
+    const res = await request(buildApp())
+      .post('/api/proj-1/lone-worker/end-session')
+      .set('x-test-uid', 'worker-uid')
+      .send({ sessionId: 'sess-001', endedAt: 'not-a-date' });
+    expect(res.status).toBe(400);
   });
 });
 

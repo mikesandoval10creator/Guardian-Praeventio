@@ -4,7 +4,8 @@
 // engine at `src/services/loneWorker/loneWorkerService.ts`. The engine is
 // deterministic and stateless — these routes only marshal JSON in/out,
 // verify the caller is a project member, and surface idempotency support
-// for mutating calls (check-in, end-session).
+// for mutating calls (check-in, end-session). end-session additionally reads
+// and closes the persisted canonical session inside a Firestore transaction.
 //
 // Endpoints:
 //   POST /:projectId/lone-worker/start-session   { checkInIntervalMin, startedAt?, lastKnownLocation? }
@@ -18,15 +19,15 @@
 //   • A worker starts/checks-in their OWN session: start-session stamps
 //     `workerUid` from the verified TOKEN (never the body) and mints the id
 //     server-side; check-in requires `session.workerUid === caller`.
-//   • Anyone with project membership can end-session (supervisors close out).
+//   • A worker ends their own session; only a verified rescue role may close
+//     another worker's session. Project membership is still required.
 //   • Admin-overview is project-membership gated; no per-worker filtering.
 //
-// Persistence model: these routes are pure-compute + audit only (the engine is
-// stateless). The client persists the returned session to Firestore
-// (`projects/{pid}/lone_worker_sessions/{id}`, rules gate create to
-// workerUid==auth.uid). start-session is the AUDITED creation point so every
-// started lone-worker session is traced (the man-down escalation cron reads
-// these docs — a session that began must leave an audit trail).
+// Persistence model: check-in/derive remain engine-backed and the client
+// persists their returned state to Firestore. start-session is the AUDITED
+// creation point. end-session is different: it reads the persisted canonical
+// session and closes it server-side, because Admin SDK bypasses Firestore
+// rules; it also revokes native ManDown capability in the same transaction.
 
 import { Router } from "express";
 import { z } from "zod";
@@ -61,13 +62,13 @@ function sessionDocRef(
 import {
   startLoneWorkerSession,
   recordCheckIn,
-  endSession,
   deriveLoneWorkerStatus,
   decideEscalation,
   type LoneWorkerSession,
   type LoneWorkerStatus,
   type EscalationDecision,
 } from "../../services/loneWorker/loneWorkerService.js";
+import { isAdminRole, isSupervisorRole } from "../../types/roles.js";
 
 const router = Router();
 
@@ -121,6 +122,54 @@ const sessionSchema = z.object({
   endedAt: z.string().min(10).optional(),
   status: statusSchema,
 }) as unknown as z.ZodType<LoneWorkerSession>;
+
+const endSessionRequestSchema = z
+  .object({
+    sessionId: z
+      .string()
+      .min(1)
+      .max(200)
+      .regex(/^[A-Za-z0-9_-]+$/),
+    // Deprecated compatibility field. It is validated but never trusted for
+    // persistence; the server generates the canonical endedAt value.
+    endedAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+
+class EndSessionError extends Error {
+  constructor(
+    readonly httpStatus: 403 | 404 | 409,
+    readonly code:
+      | "forbidden_not_session_owner_or_rescuer"
+      | "session_not_found"
+      | "lone_worker_session_invalid",
+  ) {
+    super(code);
+    this.name = "EndSessionError";
+  }
+}
+
+function isRescueActor(user: Express.PraeventioAuthUser | undefined): boolean {
+  return (
+    Boolean(user?.admin) ||
+    isAdminRole(user?.role) ||
+    isSupervisorRole(user?.role)
+  );
+}
+
+function canonicalPersistedSession(
+  data: Record<string, unknown>,
+  sessionId: string,
+): LoneWorkerSession {
+  const parsed = sessionSchema.safeParse({
+    ...data,
+    id: typeof data.id === "string" ? data.id : sessionId,
+  });
+  if (!parsed.success) {
+    throw new EndSessionError(409, "lone_worker_session_invalid");
+  }
+  return parsed.data;
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // 0. start-session — worker begins a monitored solo-work session (AUDITED)
@@ -209,18 +258,12 @@ router.post(
 // expired capability, or mismatched hash fails closed.
 //
 // [P0][VIDA-SAFETY] Hy3-audit 3c2aa66d-73fe-8157-9b82-efbb115ff163
-// (reabierto 2026-08-24): el comentario original decía
-// "invalidates the capability in the same server transaction" — eso
-// promete atomicidad con end-session que NO existe. end-session
-// (línea ~688-718) hace revoke best-effort fuera de transacción.
-// Un mantenedor futuro puede creer que el capability siempre se
-// revoca atómicamente y eliminar la defensa en capas (isOpenNativeSession
-// + expiry) del /native-man-down, rompiendo el fail-closed.
-// CORRECCIÓN: el capability se revoca best-effort en el mismo
-// update Firestore de status/endedAt (ver end-session 688-718). El
-// fail-closed de /native-man-down DEBE seguir validando
-// isOpenNativeSession + expiry en cada request; no se debe
-// confiar en la atomicidad transaccional.
+// (reabierto 2026-08-24; hardened in this ticket): el comentario original
+// prometía atomicidad con end-session cuando el revoke era best-effort fuera de
+// transacción. Ahora end-session cierra el documento canónico y revoca la
+// capability dentro de una única transacción Firestore. El fail-closed de
+// /native-man-down DEBE seguir validando isOpenNativeSession + expiry en cada
+// request: no confiar solo en el revoke ni en la transacción.
 // A lone-worker session is capped at 12h. Leave a small delivery margin so an
 // alert captured near shift end can survive a transient offline retry; explicit
 // end-session remains the immediate authority revocation point.
@@ -656,42 +699,82 @@ router.post(
 );
 
 // ────────────────────────────────────────────────────────────────────────
-// 2. end-session — supervisor / worker closes the active session
+// 2. end-session — worker or rescue role closes the persisted session
 // ────────────────────────────────────────────────────────────────────────
-
-const endSessionSchema = z.object({
-  session: sessionSchema,
-  endedAt: z.string().min(10).optional(),
-});
 
 router.post(
   "/:projectId/lone-worker/end-session",
   verifyAuth,
   idempotencyKey(),
-  validate(endSessionSchema),
+  validate(endSessionRequestSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
-    const body = req.validated as z.infer<typeof endSessionSchema>;
+    const body = req.validated as z.infer<typeof endSessionRequestSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+
     try {
-      // Pure-compute close: the engine stamps endedAt + status on the
-      // caller-supplied session. The client persists to Firestore via the
-      // existing client write path. The native ManDown capability is revoked
-      // best-effort below — a failed revoke is observable but never blocks
-      // the human-facing response (the capability carries its own expiry and
-      // the next native trigger will fail closed if the session is gone).
-      const session = endSession(body.session, body.endedAt);
-      // CLAUDE.md #14: session already ended; audit failure must not 500 it.
+      const db = admin.firestore();
+      const transition = await db.runTransaction(async (tx) => {
+        const sessionRef = sessionDocRef(db, projectId, body.sessionId);
+        const persisted = await tx.get(sessionRef);
+        if (!persisted.exists) {
+          throw new EndSessionError(404, "session_not_found");
+        }
+
+        const data = (persisted.data() ?? {}) as Record<string, unknown>;
+        const isOwner = data.workerUid === callerUid;
+        if (!isOwner && !isRescueActor(req.user)) {
+          throw new EndSessionError(
+            403,
+            "forbidden_not_session_owner_or_rescuer",
+          );
+        }
+
+        const canonical = canonicalPersistedSession(data, body.sessionId);
+        if (canonical.status === "ended") {
+          if (!canonical.endedAt) {
+            throw new EndSessionError(409, "lone_worker_session_invalid");
+          }
+          return { session: canonical, wasReplay: true };
+        }
+        if (canonical.endedAt) {
+          throw new EndSessionError(409, "lone_worker_session_invalid");
+        }
+
+        // The timestamp is generated by the trusted server, never accepted
+        // from the client. The capability revocation and state transition are
+        // one atomic Firestore operation.
+        const endedAt = new Date().toISOString();
+        const session: LoneWorkerSession = {
+          ...canonical,
+          status: "ended",
+          endedAt,
+        };
+        tx.update(sessionRef, {
+          status: "ended",
+          endedAt,
+          endedBy: callerUid,
+          nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
+          nativeManDownCapabilityExpiresAt:
+            admin.firestore.FieldValue.delete(),
+          nativeManDownCapabilityIssuedAt:
+            admin.firestore.FieldValue.delete(),
+        });
+        return { session, wasReplay: false };
+      });
+
       try {
         await auditServerEvent(
           req,
           "loneWorker.endSession",
           "loneWorker",
           {
-            sessionId: session.id,
-            workerUid: session.workerUid,
+            sessionId: transition.session.id,
+            workerUid: transition.session.workerUid,
             projectId,
+            endedAt: transition.session.endedAt,
+            wasReplay: transition.wasReplay,
           },
           { projectId },
         );
@@ -702,40 +785,16 @@ router.post(
           projectId,
         });
       }
-      // Best-effort native authority revocation. If the session doc exists and
-      // carries a ManDown capability, drop it so the next Android trigger fails
-      // closed. Failures here are logged but do not block the human response.
-      try {
-        const db = admin.firestore();
-        const sessionRef = sessionDocRef(db, projectId, body.session.id);
-        const persisted = await sessionRef.get();
-        if (persisted.exists) {
-          const data = persisted.data() as NativeSessionRecord;
-          // Only delete the capability fields when the persisted worker matches
-          // the caller-supplied session — never collateral-update a different
-          // worker's record.
-          if (data.workerUid === body.session.workerUid) {
-            await sessionRef.update({
-              status: session.status,
-              endedAt: session.endedAt,
-              nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
-              nativeManDownCapabilityExpiresAt:
-                admin.firestore.FieldValue.delete(),
-              nativeManDownCapabilityIssuedAt:
-                admin.firestore.FieldValue.delete(),
-            });
-          }
-        }
-      } catch (revokeErr) {
-        logger.warn?.("loneWorker.endSession.nativeRevoke_failed", revokeErr);
-        // Best-effort: the capability is bound to the session in the caller
-        // handler; the next /native-man-down call fails closed server-side if
-        // the WebView died before the capability-expiry TTL elapses.
-      }
-      return res.json({ session });
+      return res.json({ session: transition.session });
     } catch (err) {
+      if (err instanceof EndSessionError) {
+        return res.status(err.httpStatus).json({ error: err.code });
+      }
       logger.error?.("loneWorker.endSession.error", err);
-      captureRouteError(err, "loneWorker.endSession", { callerUid, projectId });
+      captureRouteError(err, "loneWorker.endSession", {
+        callerUid,
+        projectId,
+      });
       return res.status(500).json({ error: "internal_error" });
     }
   },
