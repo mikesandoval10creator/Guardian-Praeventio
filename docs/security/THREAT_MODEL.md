@@ -203,7 +203,7 @@ encyclopedic.
 | TM-T02 | Self-fabricate audit log entry | Worker writes a fake "I revoked admin X" entry | **mitigated** — `audit_logs:create=false` + server-side actor stamping. **Validated by `dirtyDozen.test.ts` #2 (worker create denied) and #3 (gerente update denied).** |
 | TM-T03 | Tamper IndexedDB offline queue before reconciliation | Local malware modifies `{query, response}` on disk; reconciliation writes attacker-controlled node into Zettelkasten | **open** — needs HMAC over queued entries keyed on a device-derived secret |
 | TM-T04 | Webpay double-commit via redelivered token_ws | Browser refresh during Webpay return commits twice | **mitigated** — `processed_webpay/{token_ws}` lock-then-complete + 5-min stale window |
-| TM-T05 | DTE queue duplicate emission during concurrent drain/recovery | Two workers or a crash after a provider timeout can repeat a tax-document side effect | **partial (PR pending)** — dedicated transactional `dte_issue_claims/{idempotencyKey}` lease plus Bsale `salesId` deduplication are implemented in the candidate change; Emulator and deployed PSE evidence remain pending. |
+| TM-T05 | DTE queue duplicate emission during concurrent drain/recovery | Two workers or a crash after a provider timeout can repeat a tax-document side effect | **partial (merged; deployment pending)** — dedicated transactional `dte_issue_claims/{idempotencyKey}` lease plus Bsale `salesId` deduplication are integrated by PR #1638; local Emulator is 8/8, while deployed PSE evidence remains pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
