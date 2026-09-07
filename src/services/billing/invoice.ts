@@ -212,6 +212,8 @@ export interface AutoIssueDteOptions {
   adapter?: {
     createDte: (input: any) => Promise<DteResult>;
   } | null;
+  /** Stable payment key forwarded to the PSE as its external salesId. */
+  idempotencyKey?: string;
 }
 
 export interface AutoIssueDteResult {
@@ -291,6 +293,7 @@ export async function tryAutoIssueDte(
           : invoice.paymentMethod === 'manual-transfer'
             ? 'transferencia'
             : 'transferencia',
+      salesId: options.idempotencyKey,
     });
     return { ok: result.ok, result };
   } catch (err) {

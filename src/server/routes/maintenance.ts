@@ -200,6 +200,10 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       retried: 0,
       permanentFailures: 0,
       skippedNotDue: 0,
+      skippedLeased: 0,
+      reclaimedFromStale: 0,
+      legacyStuck: 0,
+      completionLost: 0,
       errors: 0,
     };
     try {

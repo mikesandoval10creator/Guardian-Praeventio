@@ -128,6 +128,8 @@ export interface DteCreateInput {
   customer: DteCustomer;
   items: DteItem[];
   paymentMethod: 'webpay' | 'mercadopago' | 'transferencia' | 'efectivo';
+  /** Stable external reference used by Bsale to suppress duplicate documents. */
+  salesId?: string;
   /** Folio references for NC/ND documents (must point at an existing factura/boleta). */
   references?: { type: string; folio: string; date: string }[];
 }
@@ -230,6 +232,13 @@ export function buildBsalePayload(
     date: r.date,
   }));
 
+  if (input.salesId !== undefined && (input.salesId.length === 0 || input.salesId.length > 255)) {
+    throw new SiiAdapterError(
+      'createDte',
+      'salesId must contain between 1 and 255 characters.',
+    );
+  }
+
   return {
     documentTypeId: dteCode,
     officeId,
@@ -238,6 +247,7 @@ export function buildBsalePayload(
     declareSii: 1,
     client,
     details,
+    ...(input.salesId !== undefined ? { salesId: input.salesId } : {}),
     ...(references.length > 0 ? { references } : {}),
   };
 }

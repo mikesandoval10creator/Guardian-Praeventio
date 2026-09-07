@@ -324,7 +324,9 @@ jobs:
         # → con las reglas de prod (default-deny) toda op daba 7 PERMISSION_
         # DENIED. Acá testeamos la LÓGICA del store, no las reglas (esas tienen
         # su propio job `Firestore rules tests` contra firestore.rules real).
-        run: firebase emulators:exec --config firebase.emulator-tests.json --only firestore --project praeventio-test "npx vitest run --config vitest.firestore.config.ts"
+        # The flag is a literal test-only value; it is not derived from any
+        # pull-request/event input and cannot become a shell injection vector.
+        run: RUN_DTE_QUEUE_FIRESTORE_TESTS=1 firebase emulators:exec --config firebase.emulator-tests.json --only firestore --project praeventio-test "npx vitest run --config vitest.firestore.config.ts"
 
   adr-0012-enforcement:
     # Sprint 26 Bucket XX — ADR 0012 (no diagnosis) automated enforcement.

@@ -181,7 +181,9 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                     status: 'paid' as const,
                     paidAt: paidAtIso,
                   } as unknown as Invoice;
-                  const issueResult = await tryAutoIssueDte(invoiceForDte);
+                  const issueResult = await tryAutoIssueDte(invoiceForDte, {
+                    idempotencyKey: decision.idempotencyKey,
+                  });
                   logger.info('dte_autoissue_result', {
                     source: 'mark-paid',
                     invoiceId,

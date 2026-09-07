@@ -569,7 +569,9 @@ export function registerWebpayRoutes(
                   paidAt: paidAtIso,
                 };
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const result = await tryAutoIssueDte(invoiceForDte as any);
+                const result = await tryAutoIssueDte(invoiceForDte as any, {
+                  idempotencyKey: decision.idempotencyKey,
+                });
                 logger.info('dte_autoissue_result', {
                   source: 'webpay-return',
                   invoiceId,

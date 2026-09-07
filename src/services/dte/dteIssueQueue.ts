@@ -3,8 +3,8 @@
 // PURPOSE
 //   In-memory / persistence-agnostic queue helpers around a DTE issuance
 //   entry. Pure: every function returns a new entry — no mutation, no I/O.
-//   The caller (a Firestore-backed worker in a future sprint) is responsible
-//   for reading/writing the entry into its store.
+//   The caller (`runDteIssueQueueDrain` plus `dteIssueClaim.ts`) is responsible
+//   for reading/writing the entry into its Firestore-backed store.
 //
 // BACKOFF
 //   Exponential ladder per attempt index (1-based):
@@ -47,6 +47,12 @@ export interface QueueEntry {
   updatedAt: string;
   /** Set on `markIssued`. Provider response opaque to the queue. */
   providerResponse?: ProviderResponseSnapshot;
+  /** Lease expiry for the current in-flight claim (ISO 8601). */
+  leaseExpiresAt?: string;
+  /** Unique worker token owning the current lease. */
+  claimToken?: string;
+  /** ISO 8601 timestamp when the current claim began. */
+  lastClaimStartedAt?: string;
 }
 
 export interface ProviderResponseSnapshot {
@@ -144,6 +150,9 @@ export function markIssued(
     status: 'succeeded',
     lastError: undefined,
     nextAttemptAt: undefined,
+    leaseExpiresAt: undefined,
+    claimToken: undefined,
+    lastClaimStartedAt: undefined,
     providerResponse,
     updatedAt: isoNow(now),
   };
@@ -169,6 +178,9 @@ export function markFailed(
       attempts,
       lastError: error,
       nextAttemptAt: undefined,
+      leaseExpiresAt: undefined,
+      claimToken: undefined,
+      lastClaimStartedAt: undefined,
       updatedAt: isoNow(now),
     };
   }
@@ -180,6 +192,9 @@ export function markFailed(
     attempts,
     lastError: error,
     nextAttemptAt: nextTs,
+    leaseExpiresAt: undefined,
+    claimToken: undefined,
+    lastClaimStartedAt: undefined,
     updatedAt: isoNow(now),
   };
 }

@@ -113,6 +113,7 @@ describe('runDteIssueQueueDrain — success path', () => {
 
     expect(result).toMatchObject({ scanned: 1, attempted: 1, issued: 1, retried: 0, permanentFailures: 0, errors: 0 });
     expect(issueDte).toHaveBeenCalledTimes(1);
+    expect((issueDte.mock.calls[0] as unknown[])[1]).toBe(decision.idempotencyKey);
     const invoiceArg = issueDte.mock.calls[0]![0] as { id: string; status: string };
     expect(invoiceArg.id).toBe('inv-q-1');
     expect(invoiceArg.status).toBe('paid');
@@ -242,5 +243,79 @@ describe('runDteIssueQueueDrain — retry/backoff path', () => {
     const doc = db._store.get(DOC_PATH) as Record<string, unknown>;
     expect(doc.status).toBe('failed_retry');
     expect(H.captureException).toHaveBeenCalled();
+  });
+
+  it('stale in_flight lease is reclaimed and completed without leaving claim metadata', async () => {
+    const db = createFakeFirestore();
+    db._seed(DOC_PATH, {
+      ...queueEntryToDoc(enqueue(decision, NOW), invoicePayload, 'mark-paid'),
+      status: 'in_flight',
+      attempts: 1,
+      leaseExpiresAt: new Date(NOW.getTime() - 1_000).toISOString(),
+      claimToken: 'dead-worker-token',
+      lastClaimStartedAt: new Date(NOW.getTime() - 61_000).toISOString(),
+    });
+    const issueDte = vi.fn(async () => ({ ok: true, result: { ok: true, folio: 4322 } }));
+
+    const result = await runDteIssueQueueDrain({
+      db: asDb(db),
+      now: () => NOW,
+      autoIssueEnabled: true,
+      issueDte,
+    });
+
+    expect(result).toMatchObject({ scanned: 1, attempted: 1, issued: 1, reclaimedFromStale: 1 });
+    expect(issueDte).toHaveBeenCalledTimes(1);
+    const doc = db._store.get(DOC_PATH) as Record<string, unknown>;
+    expect(doc.status).toBe('succeeded');
+    expect(doc).not.toHaveProperty('leaseExpiresAt');
+    expect(doc).not.toHaveProperty('claimToken');
+    expect(db._store.has(`dte_issue_claims/${decision.idempotencyKey}`)).toBe(false);
+  });
+
+  it('live in_flight lease is reported as leased and never calls the provider', async () => {
+    const db = createFakeFirestore();
+    db._seed(DOC_PATH, {
+      ...queueEntryToDoc(enqueue(decision, NOW), invoicePayload, 'mark-paid'),
+      status: 'in_flight',
+      attempts: 1,
+      leaseExpiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
+      claimToken: 'live-worker-token',
+      lastClaimStartedAt: NOW.toISOString(),
+    });
+    const issueDte = vi.fn();
+
+    const result = await runDteIssueQueueDrain({
+      db: asDb(db),
+      now: () => NOW,
+      autoIssueEnabled: true,
+      issueDte,
+    });
+
+    expect(result).toMatchObject({ scanned: 1, attempted: 0, skippedLeased: 1 });
+    expect(issueDte).not.toHaveBeenCalled();
+  });
+
+  it('legacy in_flight without a usable timestamp is not guessed into a second emission', async () => {
+    const db = createFakeFirestore();
+    const legacy = queueEntryToDoc(enqueue(decision, NOW), invoicePayload, 'mark-paid');
+    delete legacy.updatedAt;
+    db._seed(DOC_PATH, {
+      ...legacy,
+      status: 'in_flight',
+      attempts: 1,
+    });
+    const issueDte = vi.fn();
+
+    const result = await runDteIssueQueueDrain({
+      db: asDb(db),
+      now: () => NOW,
+      autoIssueEnabled: true,
+      issueDte,
+    });
+
+    expect(result).toMatchObject({ scanned: 1, attempted: 0, legacyStuck: 1 });
+    expect(issueDte).not.toHaveBeenCalled();
+    expect((db._store.get(DOC_PATH) as Record<string, unknown>).status).toBe('in_flight');
   });
 });

@@ -158,6 +158,7 @@ const M = vi.hoisted(() => ({
   tryAutoIssue: vi.fn(
     async (
       _invoice?: unknown,
+      _options?: unknown,
     ): Promise<{ ok: boolean; skipped?: string; errorMessage?: string; result?: { ok: boolean; folio?: number } }> => ({
       ok: true,
       result: { ok: true, folio: 1001 },
@@ -261,7 +262,7 @@ vi.mock('../../services/billing/invoice.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/billing/invoice.js')>();
   return {
     ...actual,
-    tryAutoIssueDte: (...args: unknown[]) => M.tryAutoIssue(...(args as [unknown])),
+    tryAutoIssueDte: (...args: unknown[]) => M.tryAutoIssue(...(args as [unknown, unknown])),
   };
 });
 
@@ -1166,6 +1167,9 @@ describe('POST /api/billing/webhook/mercadopago', () => {
     expect(res.status).toBe(200);
     expect((res.body as Record<string, unknown>).ok).toBe(true);
     expect(M.tryAutoIssue).toHaveBeenCalledTimes(1);
+    expect(M.tryAutoIssue.mock.calls[0]![1]).toEqual({
+      idempotencyKey: decision.idempotencyKey,
+    });
 
     const queueDoc = H.db!._store.get(
       'dte_issue_queue/idem-mp-dte-transient',

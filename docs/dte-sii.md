@@ -85,6 +85,22 @@ Resend → cliente.email
 `DTE_AUTO_ISSUE=false` desactiva la rama automática; los admins emiten
 manualmente por `POST /api/dte/create`.
 
+### Fallos y recuperación del DTE automático
+
+Los cuatro rails de pago pasan el mismo `idempotencyKey` a
+`tryAutoIssueDte`. Si el PSE falla de forma recuperable, el payload
+whitelistado se persiste en `dte_issue_queue/{idempotencyKey}`. El drain de
+maintenance reclama mediante `dte_issue_claims/{idempotencyKey}` con una
+transacción y lease de cinco minutos; una entrada `in_flight` expirada puede
+recuperarse y una entrada legada sin timestamp utilizable queda como
+`legacyStuck`, sin adivinar una segunda emisión.
+
+La key se envía a Bsale como `salesId`, la referencia externa documentada por
+Bsale para suprimir documentos duplicados. La semántica es
+**single-active-claim + at-least-once con deduplicación Bsale**; no es una
+garantía universal de exactly-once ni reemplaza la certificación SII/PSE real.
+Con `DTE_AUTO_ISSUE=false`, el drain no consulta ni muta la cola.
+
 ## Endpoints admin
 
 Todos requieren `verifyAuth` + role admin (excepto `GET /api/dte/:folio`
@@ -120,7 +136,12 @@ npx vitest run src/services/sii/
 Cobertura:
 - `siiAdapter.test.ts` — totales, IVA, facade `getSiiAdapter()`, noop.
 - `bsaleAdapter.test.ts` — fetch mocks: createDte, cancelDte, getDte,
-  emitDte, payload mapping.
+  emitDte, payload mapping y `salesId` externo.
+- `runDteIssueQueueDrain.test.ts` — gate, backoff, lease vivo, recovery stale,
+  legacy stuck, finalización y auditoría.
+- `runDteIssueQueueDrain.firestore.test.ts` — dos procesos independientes
+  contra Firestore Emulator; requiere `RUN_DTE_QUEUE_FIRESTORE_TESTS=1`.
+  CI lo ejecuta dentro del job `Firestore stores tests`.
 
 ## Troubleshooting
 

@@ -2,7 +2,7 @@
 
 Inventario de todos los jobs cron-style del servidor + su endpoint de
 invocación + cadencia recomendada en Cloud Scheduler. Última actualización:
-2026-08-18 (Discovery 2026-08-17, ticket 3bfaa66d-73fe-8173-ad1e-c652e00ad3a2).
+2026-09-07 (reconciliación DTE queue/lease, ADR-0028).
 
 Todos los endpoints están gated por `verifySchedulerToken` middleware
 (header `X-Scheduler-Token` con `SCHEDULER_SHARED_SECRET`).
@@ -105,6 +105,14 @@ agregá su `ensure_job` en el step correspondiente del deploy.yml.
 - `SENTRY_API_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_ID` — requeridos por
   `runSloMetricsRefresh` (honest-gate: si no están, el job hace fail-soft
   y `slo_metrics/{sloId}/daily` queda sin actualizar).
+- `DTE_AUTO_ISSUE` — el drain queda fail-closed cuando no es `true`; al
+  habilitarlo, revisar `skippedLeased`, `reclaimedFromStale`, `legacyStuck`
+  y `completionLost` en la respuesta/log del maintenance job.
+
+Para una operación normal, `dte_issue_claims/{idempotencyKey}` debe contener
+solo leases activos durante la emisión. Un `legacyStuck` o un
+`completionLost` requiere revisar el invoice y el PSE antes de intervenir;
+no se debe forzar una segunda emisión sin confirmar la deduplicación de Bsale.
 
 ## Reconciliación
 

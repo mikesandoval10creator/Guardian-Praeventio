@@ -125,6 +125,15 @@ describe('buildBsalePayload (pure mapper)', () => {
     expect(details[0].taxId).toBe('[1]'); // afecto IVA
   });
 
+  it('includes Bsale external salesId for provider-side duplicate suppression', () => {
+    const payload = buildBsalePayload(
+      { ...sampleInput, salesId: 'dte-idempotency-key-1' } as DteCreateInput,
+      5,
+      new Date('2026-05-04T12:00:00Z'),
+    );
+    expect(payload.salesId).toBe('dte-idempotency-key-1');
+  });
+
   it('flags exempt items with taxId "[]"', () => {
     const payload = buildBsalePayload(
       {
