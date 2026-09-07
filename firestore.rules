@@ -318,6 +318,37 @@ service cloud.firestore {
              data.recordedBy is string;
     }
 
+    // Wisdom capsules are public only inside the caller's authenticated
+    // tenant/project boundary. Legacy documents without both stamps fail
+    // closed here; the client also filters malformed records defensively.
+    function canReadWisdomCapsule(data) {
+      return isEmailVerified() &&
+             data.tenantId is string &&
+             data.projectId is string &&
+             request.auth.token.tenantId is string &&
+             data.tenantId == request.auth.token.tenantId &&
+             projectTenantId(data.projectId) == data.tenantId &&
+             isProjectMemberTenantScoped(data.projectId);
+    }
+
+    function isValidWisdomCapsule(data) {
+      return data.keys().hasOnly([
+               'tenantId', 'projectId', 'title', 'content', 'lat', 'lng',
+               'radius', 'machineId', 'nodeId', 'mediaUrl'
+             ]) &&
+             data.keys().hasAll(['tenantId', 'projectId', 'title', 'content', 'lat', 'lng', 'radius']) &&
+             data.tenantId is string && data.tenantId.size() > 0 && data.tenantId.size() <= 128 &&
+             isValidId(data.projectId) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+             data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+             data.radius is number && data.radius > 0 && data.radius <= 10000 &&
+             (!('machineId' in data) || (data.machineId is string && data.machineId.size() <= 256)) &&
+             (!('nodeId' in data) || (data.nodeId is string && data.nodeId.size() <= 256)) &&
+             (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 2048));
+    }
+
     // ===============================================================
     // COLLECTION MATCHING
     // ===============================================================
@@ -1669,10 +1700,17 @@ service cloud.firestore {
 
     // Wisdom capsules — geo-activated knowledge attached to machines/locations
     match /wisdomCapsules/{capsuleId} {
-      allow read: if isEmailVerified();
-      allow create: if isEmailVerified() && (isAdmin() || isSupervisor());
-      allow update: if isEmailVerified() && (isAdmin() || isSupervisor());
-      allow delete: if isAdmin();
+      allow read: if canReadWisdomCapsule(resource.data);
+      allow create: if canReadWisdomCapsule(incoming()) &&
+        (isAdmin() || isSupervisor()) &&
+        isValidWisdomCapsule(incoming());
+      allow update: if canReadWisdomCapsule(resource.data) &&
+        canReadWisdomCapsule(incoming()) &&
+        resource.data.tenantId == incoming().tenantId &&
+        resource.data.projectId == incoming().projectId &&
+        (isAdmin() || isSupervisor()) &&
+        isValidWisdomCapsule(incoming());
+      allow delete: if canReadWisdomCapsule(resource.data) && isAdmin();
     }
 
     // ===============================================================
