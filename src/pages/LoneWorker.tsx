@@ -5,10 +5,10 @@
 //
 //   1. Big-button check-in for the worker's OWN active lone-worker session,
 //      rendered by `LoneWorkerCheckInWidget` (posts through the AUDITED server
-//      routes `/api/sprint-k/{projectId}/lone-worker/{check-in,end-session}`,
-//      which write `audit_logs`). The page persists the engine's returned
-//      session to Firestore so the supervisor monitor's live subscription
-//      reflects it.
+//      routes `/api/sprint-k/{projectId}/lone-worker/{check-in,end-session}`.
+//      Check-in/help results are persisted by the existing client path;
+//      end-session closes the canonical Firestore document server-side and
+//      revokes the native capability atomically.
 //
 //   2. Android foreground service: while the worker is on this screen Android
 //      keeps the persistent "Guardian Activo" notification + process alive even
@@ -248,26 +248,20 @@ export function LoneWorker() {
     }
   }, [user, projectId, requestLocation, t]);
 
-  // Persist the engine's returned session (from the audited server route) so
-  // the supervisor monitor's live subscription reflects the check-in/end.
-  //
-  // The server route is pure-compute + audit only — it does NOT persist the
-  // session; THIS write is the only thing that lands the check-in/help in the
-  // Firestore doc the 5-minute escalation cron reads. So the persist must be
-  // AWAITED and verified: on failure we roll back the optimistic UI (so the
-  // screen matches Firestore, not a phantom success) and FAIL LOUD. A 'help'
-  // press that fails to persist would otherwise be silently downgraded — the
-  // cron never sees status:'help_requested', so it never escalates to
-  // emergency_services, while the worker believes help is on the way.
+  // The audited server route now persists end-session authoritatively and
+  // revokes native capability in one transaction. Check-in/help still need this
+  // client write because their returned state is persisted by the existing
+  // Firestore path; an ended response must not perform a second client write.
   const handleSessionUpdated = useCallback(
     async (next: LoneWorkerSession) => {
       const prev = session;
       const wasHelp =
         next.status === 'help_requested' || next.checkIns.some((c) => c.status === 'help');
       // Optimistic for snappy feedback; rolled back on failure below.
-      setSession(next.status === 'ended' || next.endedAt ? null : next);
+      const isEnded = next.status === 'ended' || Boolean(next.endedAt);
+      setSession(isEnded ? null : next);
       setPersistError(null);
-      if (!projectId) return;
+      if (!projectId || isEnded) return;
       try {
         await patchLoneWorkerSession(projectId, next.id, {
           checkIns: next.checkIns,
