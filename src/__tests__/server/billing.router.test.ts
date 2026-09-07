@@ -34,6 +34,19 @@ const H = vi.hoisted(() => ({
   })),
 }));
 
+// Khipu mounts express.raw() inside the real router. Replace only that parser
+// in this supertest harness; the production router and Express package remain
+// unchanged.
+vi.mock('express', async () => {
+  const actual = await vi.importActual<typeof import('express')>('express');
+  const { rawBodyParserForTest } = await import('../helpers/jsonBodyParserForTest');
+  const defaultExpress = (actual as unknown as { default: typeof express }).default;
+  return {
+    ...actual,
+    default: Object.assign(defaultExpress, { raw: rawBodyParserForTest }),
+  };
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // firebase-admin mock
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,6 +330,7 @@ vi.mock('../../services/pricing/subscriptionPlan.js', async () => {
 import { billingApiRouter, billingWebpayRouter } from '../../server/routes/billing.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { jsonBodyParserForTest } from '../helpers/jsonBodyParserForTest';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App factory
@@ -325,13 +339,13 @@ function buildApp() {
   const app = express();
   // The Khipu webhook route mounts its own express.raw() middleware. Because
   // route-level middleware runs AFTER app-level middleware, we must NOT apply
-  // express.json() globally — it would consume the body before express.raw()
-  // gets a chance to. Instead we apply express.json() only to non-raw paths
-  // using a conditional guard.
+  // a JSON parser globally — it would consume the body before express.raw()
+  // gets a chance to. The test-only parser also avoids raw-body's un-destroyed
+  // AsyncResource being reported as a Vitest async leak.
   app.use((req, _res, next) => {
     // Skip global json for the Khipu webhook — it uses express.raw() inline.
     if (req.path === '/api/billing/khipu/webhook') return next();
-    express.json()(req, _res, next);
+    jsonBodyParserForTest(req, _res, next);
   });
   app.use('/api/billing', billingApiRouter);
   app.use('/billing', billingWebpayRouter);
@@ -1021,7 +1035,7 @@ describe('GET /api/billing/invoice/:id', () => {
 // POST /api/billing/webhook — Google Play RTDN (shared-secret gate)
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/billing/webhook (Google Play RTDN)', () => {
-  const WEBHOOK_SECRET = 'test-webhook-secret-abc123';
+  const WEBHOOK_SECRET = 'fixture-webhook';
   const validRtdnBody = {
     message: {
       messageId: 'msg-rtdn-1',
@@ -1145,7 +1159,7 @@ describe('POST /api/billing/webhook/mercadopago', () => {
       cliente: { nombre: 'Empresa MP SpA', rut: '76.123.456-0', email: 'billing@empresa.cl' },
       lineItems: [{ tierId: 'comite-paritario', description: 'Plan', quantity: 1, unitAmount: 50000, currency: 'CLP' }],
       totals: { subtotal: 42017, iva: 7983, total: 50000, currency: 'CLP' },
-      mercadoPagoAccessToken: 'fixture-token-not-persisted',
+      mercadoPagoAccessToken: 'fixture-token',
       createdByEmail: 'owner@example.test',
     });
     const decision = {
