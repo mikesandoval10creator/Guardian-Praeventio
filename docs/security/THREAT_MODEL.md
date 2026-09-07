@@ -1,7 +1,7 @@
 # Guardian Praeventio — STRIDE Threat Model
 
 **Sprint 20, eighth wave (Bucket B — STRIDE).**
-**Date: 2026-05-04.**
+**Date: 2026-09-07.**
 **Status: living document; revisit each major release that touches the
 auth, billing, or AI surfaces.**
 
@@ -12,7 +12,7 @@ out.
 
 Companion artefacts:
 - [`data-flow-diagram.md`](./data-flow-diagram.md) — DFD with trust boundaries.
-- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (24 entries).
+- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (26 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
 - [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
@@ -203,6 +203,7 @@ encyclopedic.
 | TM-T02 | Self-fabricate audit log entry | Worker writes a fake "I revoked admin X" entry | **mitigated** — `audit_logs:create=false` + server-side actor stamping. **Validated by `dirtyDozen.test.ts` #2 (worker create denied) and #3 (gerente update denied).** |
 | TM-T03 | Tamper IndexedDB offline queue before reconciliation | Local malware modifies `{query, response}` on disk; reconciliation writes attacker-controlled node into Zettelkasten | **open** — needs HMAC over queued entries keyed on a device-derived secret |
 | TM-T04 | Webpay double-commit via redelivered token_ws | Browser refresh during Webpay return commits twice | **mitigated** — `processed_webpay/{token_ws}` lock-then-complete + 5-min stale window |
+| TM-T05 | DTE queue duplicate emission during concurrent drain/recovery | Two workers or a crash after a provider timeout can repeat a tax-document side effect | **partial (PR pending)** — dedicated transactional `dte_issue_claims/{idempotencyKey}` lease plus Bsale `salesId` deduplication are implemented in the candidate change; Emulator and deployed PSE evidence remain pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |

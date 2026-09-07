@@ -12,9 +12,10 @@
 //     purpose: no client ever reads or writes queue entries, so no client
 //     rules / rules-tests are needed (no new client-facing surface).
 //   • Doc id = `decision.idempotencyKey` = sha256(paymentId|tenantId) —
-//     DETERMINISTIC per invoice. Re-enqueueing the same payment can never
-//     create a second job, and a job that already succeeded is never reset,
-//     so a drained job can never double-emit a DTE.
+//     DETERMINISTIC per invoice. Re-enqueueing the same payment cannot create
+//     a second queue job, and a completed job is never reset. The drain's
+//     transactional claim + Bsale `salesId` handle the separate crash window
+//     around the external provider side effect.
 //
 // The drain worker lives in `src/server/jobs/runDteIssueQueueDrain.ts`
 // (mounted as a step of POST /api/maintenance/check-overdue, mirroring

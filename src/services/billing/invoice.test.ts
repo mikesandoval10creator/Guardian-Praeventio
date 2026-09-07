@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildInvoice, calculateInvoiceTotals, tryAutoIssueDte } from './invoice.js';
 import type { CheckoutRequest, Invoice, InvoiceLineItem } from './types.js';
 
@@ -312,6 +312,20 @@ describe('tryAutoIssueDte production fail-closed (sii-noop-guard)', () => {
     issuedAt: '2026-06-12T12:00:00.000Z',
     status: 'paid',
   };
+
+  it('passes the stable idempotency key to the injected DTE adapter as salesId', async () => {
+    const createDte = vi.fn(async (_input: Record<string, unknown>) => ({ ok: true, folio: 123 }));
+    const result = await tryAutoIssueDte(paidClpInvoice, {
+      autoIssueEnabled: true,
+      adapter: { createDte },
+      idempotencyKey: 'dte-idempotency-key-1',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(createDte).toHaveBeenCalledTimes(1);
+    const input = createDte.mock.calls[0]![0]!;
+    expect(input.salesId).toBe('dte-idempotency-key-1');
+  });
 
   it('skips with not-configured in prod when SII_PSE is unset (never noop-accepted)', async () => {
     process.env.NODE_ENV = 'production';

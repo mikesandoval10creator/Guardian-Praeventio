@@ -414,7 +414,9 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                     paidAt: paidAtIso,
                   };
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const issueResult = await tryAutoIssueDte(invoiceForDte as any);
+                  const issueResult = await tryAutoIssueDte(invoiceForDte as any, {
+                    idempotencyKey: decision.idempotencyKey,
+                  });
                   logger.info('dte_autoissue_result', {
                     source: 'mercadopago-ipn',
                     invoiceId: result.invoiceId,
