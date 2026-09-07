@@ -1129,6 +1129,132 @@ describe('POST /api/billing/webhook/mercadopago', () => {
       .send({ action: 'payment.updated', data: { id: 'pay-oidc-1' } });
     expect(res.status).toBe(200);
   });
+
+  it('transient DTE failure enqueues a retry and still ACKs the MercadoPago IPN', async () => {
+    M.mpProcess.mockResolvedValueOnce({
+      idempotencyKind: 'fresh-success' as const,
+      outcome: 'paid' as const,
+      invoiceId: 'inv-mp-dte-transient',
+    });
+    H.db!._seed('invoices/inv-mp-dte-transient', {
+      status: 'pending-payment',
+      createdBy: 'uid-mp-owner',
+      paymentMethod: 'mercadopago',
+      payerInfo: { taxId: '76.123.456-0', legalName: 'Empresa MP SpA', email: 'billing@empresa.cl' },
+      cliente: { nombre: 'Empresa MP SpA', rut: '76.123.456-0', email: 'billing@empresa.cl' },
+      lineItems: [{ tierId: 'comite-paritario', description: 'Plan', quantity: 1, unitAmount: 50000, currency: 'CLP' }],
+      totals: { subtotal: 42017, iva: 7983, total: 50000, currency: 'CLP' },
+      mercadoPagoAccessToken: 'fixture-token-not-persisted',
+      createdByEmail: 'owner@example.test',
+    });
+    const decision = {
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: 'idem-mp-dte-transient',
+      paymentGateway: 'mercadopago',
+    };
+    M.decideDte.mockReturnValueOnce(decision);
+    M.tryAutoIssue.mockResolvedValueOnce({ ok: false, errorMessage: 'bsale 503' });
+
+    const res = await request(buildApp())
+      .post('/api/billing/webhook/mercadopago')
+      .set('x-signature', 'ts=12345,v1=abc')
+      .set('x-request-id', 'req-mp-dte-transient')
+      .send({ action: 'payment.updated', data: { id: 'pay-mp-dte-transient' } });
+
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect(M.tryAutoIssue).toHaveBeenCalledTimes(1);
+
+    const queueDoc = H.db!._store.get(
+      'dte_issue_queue/idem-mp-dte-transient',
+    ) as Record<string, any>;
+    expect(queueDoc).toBeTruthy();
+    expect(queueDoc.status).toBe('pending');
+    expect(queueDoc.attempts).toBe(0);
+    expect(queueDoc.source).toBe('mercadopago-ipn');
+    expect((queueDoc.invoice as Record<string, unknown>).id).toBe('inv-mp-dte-transient');
+    expect((queueDoc.invoice as Record<string, unknown>).status).toBe('paid');
+    expect((queueDoc.invoice as Record<string, unknown>).mercadoPagoAccessToken).toBeUndefined();
+    expect((queueDoc.invoice as Record<string, unknown>).createdByEmail).toBeUndefined();
+    const decisionRequest = M.decideDte.mock.calls[0]![0] as Record<string, unknown>;
+    expect(decisionRequest.paidAt).toBe((queueDoc.invoice as Record<string, unknown>).paidAt);
+    const invoiceArg = M.tryAutoIssue.mock.calls[0]![0] as Record<string, unknown>;
+    expect(invoiceArg.status).toBe('paid');
+    expect(invoiceArg.paidAt).toBe((queueDoc.invoice as Record<string, unknown>).paidAt);
+  });
+
+  it('DTE emitter exception is persisted for retry without breaking the MercadoPago ACK', async () => {
+    M.mpProcess.mockResolvedValueOnce({
+      idempotencyKind: 'fresh-success' as const,
+      outcome: 'paid' as const,
+      invoiceId: 'inv-mp-dte-throw',
+    });
+    H.db!._seed('invoices/inv-mp-dte-throw', {
+      status: 'pending-payment',
+      createdBy: 'uid-mp-owner',
+      paymentMethod: 'mercadopago',
+      cliente: { nombre: 'Empresa MP SpA', rut: '76.123.456-0', email: 'billing@empresa.cl' },
+      lineItems: [{ tierId: 'comite-paritario', quantity: 1, unitAmount: 50000, currency: 'CLP' }],
+      totals: { total: 50000, currency: 'CLP' },
+    });
+    M.decideDte.mockReturnValueOnce({
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: 'idem-mp-dte-throw',
+      paymentGateway: 'mercadopago',
+    });
+    M.tryAutoIssue.mockRejectedValueOnce(new Error('PSE network unavailable'));
+
+    const res = await request(buildApp())
+      .post('/api/billing/webhook/mercadopago')
+      .set('x-signature', 'ts=12345,v1=abc')
+      .set('x-request-id', 'req-mp-dte-throw')
+      .send({ action: 'payment.updated', data: { id: 'pay-mp-dte-throw' } });
+
+    expect(res.status).toBe(200);
+    const queueDoc = H.db!._store.get('dte_issue_queue/idem-mp-dte-throw') as Record<string, any>;
+    expect(queueDoc).toBeTruthy();
+    expect(queueDoc.status).toBe('pending');
+    expect(queueDoc.source).toBe('mercadopago-ipn');
+  });
+
+  it('deliberate disabled DTE skip does not create a retry job', async () => {
+    const invoiceId = 'inv-mp-dte-disabled';
+    const key = 'idem-mp-dte-disabled';
+    M.mpProcess.mockResolvedValueOnce({
+      idempotencyKind: 'fresh-success' as const,
+      outcome: 'paid' as const,
+      invoiceId,
+    });
+    H.db!._seed(`invoices/${invoiceId}`, {
+      status: 'pending-payment',
+      createdBy: 'uid-mp-owner',
+      paymentMethod: 'mercadopago',
+      cliente: { nombre: 'Empresa MP SpA', rut: '76.123.456-0', email: 'billing@empresa.cl' },
+      lineItems: [{ tierId: 'comite-paritario', quantity: 1, unitAmount: 50000, currency: 'CLP' }],
+      totals: { total: 50000, currency: 'CLP' },
+    });
+    M.decideDte.mockReturnValueOnce({
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: key,
+      paymentGateway: 'mercadopago',
+    });
+    M.tryAutoIssue.mockResolvedValueOnce({ ok: false, skipped: 'disabled' });
+
+    const res = await request(buildApp())
+      .post('/api/billing/webhook/mercadopago')
+      .set('x-signature', 'ts=12345,v1=abc')
+      .set('x-request-id', `req-${key}`)
+      .send({ action: 'payment.updated', data: { id: `pay-${key}` } });
+
+    expect(res.status).toBe(200);
+    expect(H.db!._store.has(`dte_issue_queue/${key}`)).toBe(false);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
