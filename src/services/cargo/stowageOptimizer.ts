@@ -54,6 +54,85 @@ export interface Container {
   maxPayloadKg: number;
 }
 
+function assertFinitePositive(value: number, label: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new RangeError(`${label} must be a finite number greater than zero`);
+  }
+}
+
+function assertFiniteNonNegative(value: number, label: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError(`${label} must be a finite non-negative number`);
+  }
+}
+
+function assertValidVec3(
+  value: Vec3,
+  label: string,
+  mode: 'positive' | 'non-negative' | 'finite',
+): void {
+  if (!value || typeof value !== 'object') {
+    throw new RangeError(`${label} must be an object`);
+  }
+  if (mode === 'positive') {
+    assertFinitePositive(value.x, `${label}.x`);
+    assertFinitePositive(value.y, `${label}.y`);
+    assertFinitePositive(value.z, `${label}.z`);
+    return;
+  }
+  if (mode === 'non-negative') {
+    assertFiniteNonNegative(value.x, `${label}.x`);
+    assertFiniteNonNegative(value.y, `${label}.y`);
+    assertFiniteNonNegative(value.z, `${label}.z`);
+    return;
+  }
+  if (![value.x, value.y, value.z].every(Number.isFinite)) {
+    throw new RangeError(`${label} must contain only finite numbers`);
+  }
+}
+
+function assertValidCargoItem(item: CargoItem, label: string): void {
+  if (!item || typeof item !== 'object') {
+    throw new RangeError(`${label} must be an object`);
+  }
+  if (typeof item.id !== 'string' || item.id.trim().length === 0) {
+    throw new RangeError(`${label}.id must be a non-empty string`);
+  }
+  assertValidVec3(item.dimensions, `${label}.dimensions`, 'positive');
+  assertFinitePositive(item.mass, `${label}.mass`);
+}
+
+function assertValidPlacedItems(placedItems: PlacedItem[]): void {
+  if (!Array.isArray(placedItems)) {
+    throw new RangeError('placedItems must be an array');
+  }
+  placedItems.forEach((placed, index) => {
+    if (!placed || typeof placed !== 'object') {
+      throw new RangeError(`placedItems[${index}] must be an object`);
+    }
+    assertValidCargoItem(placed.item, `placedItems[${index}].item`);
+    assertValidVec3(placed.position, `placedItems[${index}].position`, 'non-negative');
+  });
+}
+
+function assertValidContainer(container: Container): void {
+  if (!container || typeof container !== 'object') {
+    throw new RangeError('container must be an object');
+  }
+  assertValidVec3(container.dimensions, 'container.dimensions', 'positive');
+  assertFinitePositive(container.maxPayloadKg, 'container.maxPayloadKg');
+}
+
+function assertValidLimits(limits: CogSafetyLimits): void {
+  if (!limits || typeof limits !== 'object') {
+    throw new RangeError('limits must be an object');
+  }
+  assertValidVec3(limits.ideal, 'limits.ideal', 'finite');
+  assertFiniteNonNegative(limits.toleranceX, 'limits.toleranceX');
+  assertFiniteNonNegative(limits.toleranceY, 'limits.toleranceY');
+  assertFiniteNonNegative(limits.maxHeightZ, 'limits.maxHeightZ');
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 1. Centro de gravedad ponderado
 // ────────────────────────────────────────────────────────────────────────
@@ -64,6 +143,7 @@ export interface Container {
  * Centroide de cada ítem = position + dimensions/2.
  */
 export function computeCenterOfGravity(placedItems: PlacedItem[]): Vec3 {
+  assertValidPlacedItems(placedItems);
   let totalMass = 0;
   const acc: Vec3 = { x: 0, y: 0, z: 0 };
   for (const p of placedItems) {
@@ -72,6 +152,9 @@ export function computeCenterOfGravity(placedItems: PlacedItem[]): Vec3 {
     acc.x += m * (p.position.x + p.item.dimensions.x / 2);
     acc.y += m * (p.position.y + p.item.dimensions.y / 2);
     acc.z += m * (p.position.z + p.item.dimensions.z / 2);
+  }
+  if (![totalMass, acc.x, acc.y, acc.z].every(Number.isFinite)) {
+    throw new RangeError('cargo arithmetic overflow');
   }
   if (totalMass <= 0) return { x: 0, y: 0, z: 0 };
   return {
@@ -102,6 +185,8 @@ export interface CogValidation {
   deviationY: number;
   /** True si COG dentro de límites en TODOS los ejes. */
   isSafe: boolean;
+  /** True when the input was rejected and the result is a safe sentinel. */
+  invalid: boolean;
   warnings: string[];
 }
 
@@ -109,32 +194,46 @@ export function validateCogAgainstLimits(
   placedItems: PlacedItem[],
   limits: CogSafetyLimits,
 ): CogValidation {
-  const cog = computeCenterOfGravity(placedItems);
-  const dx = Math.abs(cog.x - limits.ideal.x);
-  const dy = Math.abs(cog.y - limits.ideal.y);
-  const warnings: string[] = [];
-  if (dx > limits.toleranceX) {
-    warnings.push(
-      `COG desplazado ${dx.toFixed(2)}m en eje X (límite ${limits.toleranceX}m) — riesgo de vuelco lateral.`,
-    );
+  try {
+    assertValidLimits(limits);
+    const cog = computeCenterOfGravity(placedItems);
+    const dx = Math.abs(cog.x - limits.ideal.x);
+    const dy = Math.abs(cog.y - limits.ideal.y);
+    const warnings: string[] = [];
+    if (dx > limits.toleranceX) {
+      warnings.push(
+        `COG desplazado ${dx.toFixed(2)}m en eje X (límite ${limits.toleranceX}m) — riesgo de vuelco lateral.`,
+      );
+    }
+    if (dy > limits.toleranceY) {
+      warnings.push(
+        `COG desplazado ${dy.toFixed(2)}m en eje Y (límite ${limits.toleranceY}m) — distribución frontal/trasera asimétrica.`,
+      );
+    }
+    if (cog.z > limits.maxHeightZ) {
+      warnings.push(
+        `COG demasiado alto (${cog.z.toFixed(2)}m vs máx ${limits.maxHeightZ}m) — reduce centro de masa.`,
+      );
+    }
+    return {
+      cog,
+      deviationX: dx,
+      deviationY: dy,
+      isSafe: warnings.length === 0,
+      invalid: false,
+      warnings,
+    };
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return {
+      cog: { x: 0, y: 0, z: 0 },
+      deviationX: 0,
+      deviationY: 0,
+      isSafe: false,
+      invalid: true,
+      warnings: ['Datos de carga inválidos: revisar masa, dimensiones y posiciones.'],
+    };
   }
-  if (dy > limits.toleranceY) {
-    warnings.push(
-      `COG desplazado ${dy.toFixed(2)}m en eje Y (límite ${limits.toleranceY}m) — distribución frontal/trasera asimétrica.`,
-    );
-  }
-  if (cog.z > limits.maxHeightZ) {
-    warnings.push(
-      `COG demasiado alto (${cog.z.toFixed(2)}m vs máx ${limits.maxHeightZ}m) — reduce centro de masa.`,
-    );
-  }
-  return {
-    cog,
-    deviationX: dx,
-    deviationY: dy,
-    isSafe: warnings.length === 0,
-    warnings,
-  };
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -154,12 +253,16 @@ export interface UtilizationStats {
   massPercent: number;
   /** True si supera capacidad de masa. */
   overweight: boolean;
+  /** True when input validation failed before computing utilization. */
+  invalid: boolean;
 }
 
 export function computeUtilization(
   placedItems: PlacedItem[],
   container: Container,
 ): UtilizationStats {
+  assertValidContainer(container);
+  assertValidPlacedItems(placedItems);
   const containerVolume =
     container.dimensions.x * container.dimensions.y * container.dimensions.z;
   let loadedVolume = 0;
@@ -168,17 +271,22 @@ export function computeUtilization(
     loadedVolume += p.item.dimensions.x * p.item.dimensions.y * p.item.dimensions.z;
     loadedMass += p.item.mass;
   }
+  const volumePercent = containerVolume > 0 ? Math.round((loadedVolume / containerVolume) * 100) : 0;
+  const massPercent =
+    container.maxPayloadKg > 0
+      ? Math.round((loadedMass / container.maxPayloadKg) * 100)
+      : 0;
+  if (![containerVolume, loadedVolume, loadedMass, volumePercent, massPercent].every(Number.isFinite)) {
+    throw new RangeError('cargo arithmetic overflow');
+  }
   return {
     loadedVolume,
     containerVolume,
-    volumePercent:
-      containerVolume > 0 ? Math.round((loadedVolume / containerVolume) * 100) : 0,
+    volumePercent,
     loadedMass,
-    massPercent:
-      container.maxPayloadKg > 0
-        ? Math.round((loadedMass / container.maxPayloadKg) * 100)
-        : 0,
+    massPercent,
     overweight: loadedMass > container.maxPayloadKg,
+    invalid: false,
   };
 }
 
@@ -235,6 +343,11 @@ export function packCargoFFD(
   items: CargoItem[],
   container: Container,
 ): StowageResult {
+  assertValidContainer(container);
+  if (!Array.isArray(items)) {
+    throw new RangeError('items must be an array');
+  }
+  items.forEach((item, index) => assertValidCargoItem(item, `items[${index}]`));
   const sorted = [...items].sort(
     (a, b) =>
       b.dimensions.x * b.dimensions.y * b.dimensions.z -

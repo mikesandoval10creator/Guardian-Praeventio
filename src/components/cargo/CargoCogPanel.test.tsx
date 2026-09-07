@@ -69,6 +69,19 @@ describe('<CargoCogPanel />', () => {
     ];
     render(<CargoCogPanel container={container} placedItems={heavy} />);
     expect(screen.getByTestId('cargo-overweight-warning')).toBeInTheDocument();
+    expect(screen.getByTestId('cargo-cog-safe-badge').textContent).toBe('REVISAR');
+  });
+
+  it('badge REVISAR y warning when cargo contains a non-finite mass', () => {
+    const invalid: PlacedItem[] = [
+      {
+        item: { id: 'invalid', dimensions: { x: 1, y: 1, z: 1 }, mass: Number.POSITIVE_INFINITY },
+        position: { x: 4, y: 1, z: 0 },
+      },
+    ];
+    render(<CargoCogPanel container={container} placedItems={invalid} />);
+    expect(screen.getByTestId('cargo-cog-safe-badge').textContent).toBe('REVISAR');
+    expect(screen.getByTestId('cargo-invalid-warning')).toBeInTheDocument();
   });
 
   it('renderiza footprint por cada item', () => {

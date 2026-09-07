@@ -5554,7 +5554,8 @@
     "fragile": "Frágil",
     "no_stack": "No apilable",
     "no_items_placed": "No hay ítems ubicados",
-    "unplaced_title": "Sin ubicar"
+    "unplaced_title": "Sin ubicar",
+    "invalid": "DATOS DE CARGA INVÁLIDOS: revisar masa, dimensiones y posiciones."
   },
   "emergencyAuthority": {
     "title": "Llamar a emergencias",

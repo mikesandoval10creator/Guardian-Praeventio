@@ -12,7 +12,7 @@ out.
 
 Companion artefacts:
 - [`data-flow-diagram.md`](./data-flow-diagram.md) — DFD with trust boundaries.
-- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (26 entries).
+- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (28 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
 - [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
@@ -204,6 +204,7 @@ encyclopedic.
 | TM-T03 | Tamper IndexedDB offline queue before reconciliation | Local malware modifies `{query, response}` on disk; reconciliation writes attacker-controlled node into Zettelkasten | **open** — needs HMAC over queued entries keyed on a device-derived secret |
 | TM-T04 | Webpay double-commit via redelivered token_ws | Browser refresh during Webpay return commits twice | **mitigated** — `processed_webpay/{token_ws}` lock-then-complete + 5-min stale window |
 | TM-T05 | DTE queue duplicate emission during concurrent drain/recovery | Two workers or a crash after a provider timeout can repeat a tax-document side effect | **partial (merged; deployment pending)** — dedicated transactional `dte_issue_claims/{idempotencyKey}` lease plus Bsale `salesId` deduplication are integrated by PR #1638; local Emulator is 8/8, while deployed PSE evidence remains pending. |
+| TM-T06 | CargoCog/stowage safety label | Non-finite cargo data or payload overage can be presented as operationally safe | **partial (PR pending)** — runtime validators reject invalid/overflowing values; CargoCogPanel now combines COG validity with utilization/overweight before showing `SEGURO`. Tests cover NaN, Infinity, negative dimensions, infinite positions, arithmetic overflow and overweight+badge. Real cargo source, persistence and physical dispatch validation remain out of scope. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
