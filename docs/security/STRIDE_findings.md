@@ -31,6 +31,8 @@ D=Denial of service, E=Elevation of privilege.
 | TM-T06 | T | [H] | CargoCog / stowage | Non-finite input or payload overage can show an operationally safe label | PR #1641 (`a72ff325e0e032fe9c87358d6bf3e3b0058a2a9`) integrates runtime rejection of non-finite/range/overflow values and a CargoCogPanel gate that combines COG validity with utilization/overweight before showing `SEGURO`. Focal tests 28/28; GitHub CI passed 37 checks with Stryker Linux success. Real source/persistence/physical dispatch evidence remains pending. | partial (merged; deployment pending) | Validate the deployed cargo source/persistence and physical dispatch workflow before promoting beyond partial. | vidas/ops | 1 h |
 | TM-T07 | T | [H] | wisdomCapsules / Firestore | Verified user can read capsules from another tenant/project | `useWisdomCapsules` now requires tenant claim + selected project, filters malformed records and bounds the query; `firestore.rules` binds both stamps to project membership and validates bounded writes. Emulator matrix covers member/outsider/no-auth/admin and spoofed writes. Deployed Auth-claims/cross-tenant evidence remains pending. | partial (PR pending) | Merge the implementation, then exercise two deployed tenants with real Auth claims and confirm legacy records without stamps are not exposed. | privacy/sec | 1 h |
 
+| TM-T08 | T | [H] | ZK get-edges / EdgeStore | Same-tenant project A receives typed edges stamped for project B | `/api/zettelkasten/get-edges` previously called tenant-wide `listByTenant`; the route now requires `listByProject(tenantId, projectId, limit)` and fails closed if the adapter cannot provide it. Router coverage seeds two projects in one tenant and asserts only project A is returned. | partial (PR pending) | Merge and exercise two deployed projects with same-tenant Auth/membership; inventory legacy edges without `projectId`. | privacy/sec | 1 h |
+
 | TM-R01 | R | [M] | Webpay AUTHORIZED audit row | Audit log present for paid invoice transition | `src/server/routes/billing.ts:1079-1086` writes `billing.webpay-return.authorized` audit row including `invoiceId` and `amount` after `commit().status === AUTHORIZED`. The actor field is `null` here because Webpay return is unauthed (only `token_ws` validates) — the row records `invoiceId` instead, which keys back to the original `createdBy`. | partial | Enhance audit row to include `createdBy` lookup (one Firestore read on the invoice doc) so the actor chain is reconstructable without a second join. Document the invoice->actor join in `docs/security/incident-response.md`. | sec | 30 min |
 | TM-R02 | R | [L] | Refund / rejected branches | Refund and rejected paths now emit explicit audit rows | **Sprint 20 18th-wave Bucket B** — `src/server/routes/billing.ts` REJECTED branch writes `billing.webpay-return.rejected` and FAILED branch writes `billing.webpay-return.failed`, mirroring the AUTHORIZED audit-row contract (invoiceId + amount + ip + userAgent). A customer dispute over either outcome now has a tamper-evident server-side trail. Coverage in `src/__tests__/server/billing.test.ts` (REJECTED/FAILED branch assertions). | mitigated | None. Refund-side audit row (`webpayAdapter.refundTransaction`) deferred to a future bucket — currently no admin UI surfaces refunds and accountability is via Transbank console. | sec | done |
 | TM-I01 | I | [M] | Sentry server-side | Server scope strips PII keys before transport | `src/services/observability/sentryInstrumentation.ts:152-164` redacts `prompt`, `apiKey`, `token`, `cookie`, `authorization`, `userInput` etc. from the `input` context blob. Webpay `createTransaction` deliberately omits `sessionId` and `returnUrl` (`webpayAdapter.ts:270-280`). | mitigated | Keep. | n/a | none |
@@ -52,11 +54,11 @@ D=Denial of service, E=Elevation of privilege.
 
 ## Summary
 
-- 29 findings total.
-- Status: 22 mitigated / 6 partial / 1 open.
-- Severity: 5 [H], 17 [M], 7 [L].
+- 30 findings total.
+- Status: 22 mitigated / 7 partial / 1 open.
+- Severity: 6 [H], 17 [M], 7 [L].
 - Open backlog (top by severity): **TM-E02** (Cloud Run SA scope
   verification) — medium, ops-led.
 - Partial controls awaiting evidence: **TM-S03**, **TM-R01**, **TM-T05**,
-  **TM-T06**, **TM-T07** and **TM-E05**. The DTE claim change is not a production
+  **TM-T06**, **TM-T07**, **TM-T08** and **TM-E05**. The DTE claim change is not a production
   certification.

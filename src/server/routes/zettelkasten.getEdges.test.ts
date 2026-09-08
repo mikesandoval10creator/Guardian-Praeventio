@@ -73,6 +73,7 @@ function buildApp() {
 const TENANT_ID = 'tenant-zk-test';
 const EDGE_COLLECTION = `tenants/${TENANT_ID}/zettelkasten_edges`;
 const PROJECT_ID = 'p-zk-get-edges';
+const OTHER_PROJECT_ID = 'p-zk-get-edges-other';
 const MEMBER_UID = 'uid-zk-member';
 const OTHER_TENANT_ID = 'tenant-zk-other';
 const OTHER_EDGE_COLLECTION = `tenants/${OTHER_TENANT_ID}/zettelkasten_edges`;
@@ -108,6 +109,12 @@ beforeEach(() => {
     tenantId: TENANT_ID,
     members: [MEMBER_UID],
     createdBy: MEMBER_UID,
+  });
+  H.db._seed(`projects/${OTHER_PROJECT_ID}`, {
+    name: 'ZK Get Edges Other Project',
+    tenantId: TENANT_ID,
+    members: ['uid-zk-other-member'],
+    createdBy: 'uid-zk-other-member',
   });
 });
 
@@ -238,6 +245,23 @@ describe('POST /api/zettelkasten/get-edges', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.edges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('no devuelve edges de otro proyecto dentro del mismo tenant', async () => {
+    H.db._seed(`${EDGE_COLLECTION}/project-a`, makeEdge('A', 'B', 'mitigates') as any);
+    H.db._seed(
+      `${EDGE_COLLECTION}/project-b`,
+      makeEdge('X', 'Y', 'causes', 0.4, { projectId: OTHER_PROJECT_ID }) as any,
+    );
+
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .send({ projectId: PROJECT_ID });
+
+    expect(res.status).toBe(200);
+    expect(res.body.edges).toHaveLength(1);
+    expect(res.body.edges[0].projectId).toBe(PROJECT_ID);
   });
 
   it('shape: cada edge incluye campos de peso/decaimiento', async () => {
