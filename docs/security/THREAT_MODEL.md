@@ -207,7 +207,7 @@ encyclopedic.
 | TM-T06 | CargoCog/stowage safety label | Non-finite cargo data or payload overage can be presented as operationally safe | **partial (merged; deployment pending)** — PR #1641 (`a72ff325e0e032fe9c87358d6bf3e3b0058a2a9`) integrated runtime validators, overflow guards and the global `SEGURO` gate; local CargoCog tests are 28/28 and CI passed. Real cargo source, persistence and physical dispatch validation remain out of scope. |
 | TM-T07 | Top-level wisdomCapsules read | A verified user can read capsules from another tenant/project | **partial (PR pending)** — PR scope requires `tenantId` claim plus `selectedProject.id`, the Firestore rule binds both to project membership, and malformed client records fail closed. Emulator coverage includes member/outsider/no-auth/admin and spoofed writes. Deployed cross-tenant/Auth-claim evidence remains pending. |
 
-| TM-T08 | ZK get-edges project isolation | Same-tenant project A receives typed edges stamped for project B | **partial (PR pending)** — `/api/zettelkasten/get-edges` authenticates/membership-checks project A but must query the edge store by both tenant and project; legacy edges without `projectId` remain non-promotable. Emulator/router coverage is required before merge. |
+| TM-T08 | ZK get-edges project isolation | Same-tenant project A receives typed edges stamped for project B | **partial (merged; deployment pending)** — PR #1644 (`7a6400a974b6b452ca14c68061b110b84c5a5672`) integrates `listByProject(tenantId, projectId, limit)` in the adapter and a fail-closed route. Local router is 14/14 and GitHub CI completed all required checks; deployed two-project/Auth evidence and legacy edge inventory remain pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
