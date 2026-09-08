@@ -66,11 +66,11 @@ describe('materializeOne', () => {
       projectId: 'p1',
       now: NOW,
     });
-    // title='' es string válido pero payload check ahora valida title.length
-    // sample no captures missing — el chequeo es por title is string.
-    // Aún sin error en payload, projectId está OK, así que esto sí pasa:
-    expect(r.ok).toBe(true);
-    expect(writes).toHaveLength(1);
+    // The shared validator now closes the old one-vs-batch inconsistency:
+    // blank titles are rejected before any canonical write.
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/invalid_payload/);
+    expect(writes).toHaveLength(0);
   });
 
   it('missing tenantId → error', async () => {

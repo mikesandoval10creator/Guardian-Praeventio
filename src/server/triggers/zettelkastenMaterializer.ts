@@ -13,6 +13,7 @@ import { logger } from '../../utils/logger.js';
 import {
   materializeNode,
   canonicalNodePath,
+  isKnownRiskNodeType,
   type MaterializeInput,
   type CanonicalNode,
 } from '../../services/zettelkasten/canonical/materializer.js';
@@ -112,38 +113,6 @@ const VALID_SEVERITIES = new Set<RiskNodeSeverity>([
 const LEGACY_TYPE_ALIASES: Record<string, RiskNodeType> = {
   incident_postmortem: 'incident-reported',
 };
-
-const VALID_SOURCE_TYPES = new Set<RiskNodeType>([
-  'hidrante-pressure',
-  'misting-suppression',
-  'scaffold-uplift',
-  'confined-space-vent',
-  'gas-leak-anomaly',
-  'mining-extraction',
-  'hazmat-pipe',
-  'structural-wind',
-  'respirator-fatigue',
-  'pulmonary-altitude',
-  'micro-wind-energy',
-  'slope-stability',
-  'slam-mesh',
-  'dike-hydrostatic',
-  'gas-dispersion',
-  'safety-learning',
-  'epp_inspection',
-  'horometro-reading',
-  'maintenance-threshold-reached',
-  'maintenance-task-created',
-  'maintenance-task-completed',
-  'incident-reported',
-  'investigation-opened',
-  'root-cause-identified',
-  'lesson-published',
-  'microtraining-assigned',
-  'microtraining-completed',
-  'incident-investigation-closed',
-]);
-
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -246,7 +215,7 @@ export function normalizeZkNodeFirestoreDoc(data: unknown): NormalizeZkNodeResul
   const typeString = readRequiredString(rawType);
   if (!typeString) return { ok: false, error: 'invalid type' };
   const type = LEGACY_TYPE_ALIASES[typeString] ?? (typeString as RiskNodeType);
-  if (!VALID_SOURCE_TYPES.has(type)) return { ok: false, error: 'unsupported type' };
+  if (!isKnownRiskNodeType(type)) return { ok: false, error: 'unsupported type' };
 
 
   const rawSeverity = source.severity ?? data.severity ?? metadata.severity ?? 'info';
@@ -323,14 +292,13 @@ export async function materializeOne(
     now: input.now,
   };
 
-  const node = materializeNode(matInput);
-  const path = canonicalNodePath({
-    tenantId: input.tenantId,
-    projectId: input.projectId,
-    zkNodeId: input.zkNodeId,
-  });
-
   try {
+    const node = materializeNode(matInput);
+    const path = canonicalNodePath({
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      zkNodeId: input.zkNodeId,
+    });
     await firestore.doc(path).set(node, { merge: true });
     return { ok: true, path };
   } catch (err) {

@@ -6,6 +6,7 @@ import {
   canonicalNodePath,
   parseCanonicalNodePath,
   materializeBatch,
+  validateMaterializeInput,
   type MaterializeInput,
 } from './materializer.js';
 import type { RiskNodePayload } from '../types.js';
@@ -112,6 +113,75 @@ describe('materializeNode', () => {
     });
     payload.connections.push('extra');
     expect(node.connections).not.toContain('extra');
+  });
+
+  it('rechaza title vacío antes de producir un CanonicalNode', () => {
+    expect(() => materializeNode({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ title: '' }),
+      projectId: 'proj-1',
+      now: NOW,
+    })).toThrow('invalid_payload');
+  });
+
+  it('rechaza type/severity desconocidos, metadata no finita y arrays inválidos', () => {
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ type: 'future-type' as RiskNodePayload['type'] }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'invalid_type' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ severity: 'urgent' as RiskNodePayload['severity'] }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'invalid_severity' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ metadata: { score: Number.NaN } }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'invalid_metadata' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ connections: ['ok', null] as unknown as string[] }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'invalid_connections' });
+  });
+
+  it('rechaza IDs vacíos y tenantId whitespace', () => {
+    expect(validateMaterializeInput({
+      zkNodeId: ' ',
+      payload: samplePayload(),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'missing_zkNodeId' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload(),
+      projectId: 'proj-1',
+      tenantId: '  ',
+    })).toMatchObject({ code: 'invalid_tenantId' });
+  });
+
+  it('rechaza límites de title/description, arrays y metadata', () => {
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ title: 'x'.repeat(257) }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'title_too_long' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ description: 'x'.repeat(4097) }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'description_too_long' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ connections: Array.from({ length: 201 }, (_, i) => `node-${i}`) }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'connections_too_many' });
+    expect(validateMaterializeInput({
+      zkNodeId: 'zk-invalid',
+      payload: samplePayload({ metadata: { summary: 'x'.repeat(4097) } }),
+      projectId: 'proj-1',
+    } as MaterializeInput)).toMatchObject({ code: 'metadata_value_too_long' });
   });
 });
 
@@ -222,5 +292,29 @@ describe('materializeBatch', () => {
     });
     expect(r.upserts[0].path).toBe('nodes/tA_p1_zk-1');
     expect(r.upserts[0].data.tenantId).toBe('tA');
+  });
+
+  it('usa el mismo validador y reporta tipos/metadata inválidos sin escribir', () => {
+    const r = materializeBatch({
+      inputs: [
+        {
+          zkNodeId: 'zk-unknown',
+          payload: samplePayload({ type: 'future-type' as RiskNodePayload['type'] }),
+          projectId: 'p1',
+          now: NOW,
+        },
+        {
+          zkNodeId: 'zk-nan',
+          payload: samplePayload({ metadata: { score: Number.POSITIVE_INFINITY } }),
+          projectId: 'p1',
+          now: NOW,
+        },
+      ],
+    });
+    expect(r.upserts).toHaveLength(0);
+    expect(r.skipped).toEqual([
+      { zkNodeId: 'zk-unknown', reason: 'invalid_type' },
+      { zkNodeId: 'zk-nan', reason: 'invalid_metadata' },
+    ]);
   });
 });
