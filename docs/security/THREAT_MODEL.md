@@ -12,7 +12,7 @@ out.
 
 Companion artefacts:
 - [`data-flow-diagram.md`](./data-flow-diagram.md) — DFD with trust boundaries.
-- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (30 entries).
+- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (31 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
 - [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
@@ -209,6 +209,8 @@ encyclopedic.
 
 | TM-T08 | ZK get-edges project isolation | Same-tenant project A receives typed edges stamped for project B | **partial (merged; deployment pending)** — PR #1644 (`7a6400a974b6b452ca14c68061b110b84c5a5672`) integrates `listByProject(tenantId, projectId, limit)` in the adapter and a fail-closed route. Local router is 14/14 and GitHub CI completed all required checks; deployed two-project/Auth evidence and legacy edge inventory remain pending. |
 
+| TM-T09 | ZK materializer source projection | Flat/nested legacy ZK writers remain invisible to canonical `nodes`; a transient write can also leave projection stale | **partial (PR pending)** — listener now observes tenant-scoped collectionGroup plus top-level legacy source, normalizes both shapes, validates project→tenant, retries transient writes and is wired into server boot with SIGTERM cleanup. Focal integration/wiring tests pass; deployed backfill, cost and restart evidence remain pending. |
+
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
 |----|--------|---------------|--------|
@@ -230,7 +232,7 @@ encyclopedic.
 |----|--------|---------------|--------|
 | TM-D01 | Cost-DoS via unbounded Gemini calls | One actor exhausts daily budget | **mitigated** — `geminiGlobalDailyLimiter` 1000/day default |
 | TM-D02 | Oversize body DoS / heap exhaustion | 100 MB JSON body to any endpoint | **mitigated** — 64 kb default, opt-in 2 MB for PDF route |
-| TM-D03 | Firestore listener fan-out | Single onSnapshot pulling unfiltered collection | **mitigated** — listeners filtered per-tenant since Sprint Omicron |
+| TM-D03 | Firestore listener fan-out | Background notification/RAG triggers use bounded onSnapshot listeners | **mitigated for those triggers** — `backgroundTriggers.ts` mantiene filtros por `projectId`/`tenantId`; el listener global del materializer queda rastreado aparte como **TM-T09** y protegido por `MATERIALIZER_ENABLED`. |
 | TM-D04 | Webpay double-spend exhausting refund budget | Same `token_ws` redelivered fast | **mitigated** — see TM-T04 |
 
 ### 7.6 Elevation of privilege (E)
