@@ -201,6 +201,9 @@ describe('performance', () => {
     const t0 = Date.now();
     fft(input);
     const elapsed = Date.now() - t0;
-    expect(elapsed).toBeLessThan(100);
+    // Full CI shards execute hundreds of files concurrently; allow scheduler
+    // contention there without weakening the local 100ms regression budget.
+    const budgetMs = process.env.CI === 'true' ? 200 : 100;
+    expect(elapsed).toBeLessThan(budgetMs);
   });
 });
