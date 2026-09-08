@@ -46,5 +46,13 @@ export function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
       const snap = await q.get();
       return snap.docs.map((d) => d.data() as ZkEdge);
     },
+    async listByProject(tenantId: string, projectId: string, limit?: number) {
+      let q: admin.firestore.Query = db
+        .collection(EDGE_PATH(tenantId))
+        .where('projectId', '==', projectId);
+      if (typeof limit === 'number' && limit > 0) q = q.limit(limit);
+      const snap = await q.get();
+      return snap.docs.map((d) => d.data() as ZkEdge);
+    },
   };
 }

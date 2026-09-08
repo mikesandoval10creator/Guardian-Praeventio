@@ -837,7 +837,15 @@ router.post(
 
     try {
       const store = buildEdgeStore(db);
-      const edges = await store.listByTenant(tenantId, limit);
+      if (typeof store.listByProject !== 'function') {
+        logger.error?.('zettelkasten_get_edges_project_query_unavailable', {
+          callerUid,
+          projectId,
+          tenantId,
+        });
+        return res.status(500).json({ error: 'internal_error' });
+      }
+      const edges = await store.listByProject(tenantId, projectId, limit ?? 2000);
       logger.info?.('zettelkasten_get_edges_succeeded', {
         callerUid,
         projectId,
