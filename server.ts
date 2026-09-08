@@ -441,6 +441,10 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
+import {
+  setupMaterializerListener,
+  type MaterializerListenerHandle,
+} from "./src/server/triggers/zettelkastenMaterializer.js";
 import { setupRoleClaimsSync } from "./src/server/triggers/roleClaimsSync.js";
 import { setupAssignedSitesSync } from "./src/server/triggers/assignedSitesSync.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
@@ -1625,6 +1629,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 });
 
 let triggersHandle: { unsubscribe: () => void } | null = null;
+let materializerHandle: MaterializerListenerHandle | null = null;
 let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
 let roleClaimsSyncHandle: { unsubscribe: () => void } | null = null;
@@ -1643,6 +1648,27 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       resend,
       firestoreNamespace: admin.firestore,
     });
+
+    // Canonical Zettelkasten projection. The default is ON so every server
+    // instance converges tenant-scoped and legacy source docs into `nodes`.
+    // Set MATERIALIZER_ENABLED=false for an explicit emergency rollback.
+    if (process.env.MATERIALIZER_ENABLED !== 'false') {
+      const materializerDb = admin.firestore();
+      materializerHandle = setupMaterializerListener({
+        db: materializerDb,
+        resolveProjectTenant: async (projectId) => {
+          const project = await materializerDb.collection('projects').doc(projectId).get();
+          const data = project.exists ? project.data() as { tenantId?: unknown } | undefined : undefined;
+          return typeof data?.tenantId === 'string' && data.tenantId.length > 0
+            ? data.tenantId
+            : null;
+        },
+      });
+    } else {
+      logger.info('zettelkasten_materializer_disabled', {
+        reason: 'MATERIALIZER_ENABLED=false',
+      });
+    }
 
     // SystemEngine — server-side trigger. Listens via collectionGroup so a
     // single subscription covers every project's system_events subcollection
@@ -1736,6 +1762,7 @@ process.on('SIGTERM', () => {
   gracefulShutdown({
     server: httpServer,
     cleanups: [
+      () => materializerHandle?.unsubscribe(),
       () => triggersHandle?.unsubscribe(),
       () => healthHandle?.stop(),
       () => systemEngineHandle?.unsubscribe(),

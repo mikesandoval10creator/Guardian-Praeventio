@@ -33,6 +33,8 @@ D=Denial of service, E=Elevation of privilege.
 
 | TM-T08 | T | [H] | ZK get-edges / EdgeStore | Same-tenant project A receives typed edges stamped for project B | PR #1644 (`7a6400a974b6b452ca14c68061b110b84c5a5672`) integrates the project query and fail-closed adapter capability; router test 14/14, CI/Stryker Linux passed. Deployed two-project/Auth evidence and legacy edge inventory remain pending. | partial (merged; deployment pending) | Exercise two deployed projects with same-tenant Auth/membership; inventory legacy edges without `projectId`. | privacy/sec | 1 h |
 
+| TM-T09 | T | [H] | ZK materializer / source projection | Flat or nested legacy writers never reach canonical `nodes` | Listener observes tenant-scoped collectionGroup plus top-level legacy source, normalizes both shapes, validates project→tenant, retries transient writes and is wired into server boot with SIGTERM cleanup. Focal integration/wiring tests pass; deployed backfill/cost/restart evidence remains pending. | partial | Deploy behind `MATERIALIZER_ENABLED`, verify source-to-canonical convergence and restart recovery, then migrate/retire legacy paths under a backup. | zk/sec | 2 h |
+
 | TM-R01 | R | [M] | Webpay AUTHORIZED audit row | Audit log present for paid invoice transition | `src/server/routes/billing.ts:1079-1086` writes `billing.webpay-return.authorized` audit row including `invoiceId` and `amount` after `commit().status === AUTHORIZED`. The actor field is `null` here because Webpay return is unauthed (only `token_ws` validates) — the row records `invoiceId` instead, which keys back to the original `createdBy`. | partial | Enhance audit row to include `createdBy` lookup (one Firestore read on the invoice doc) so the actor chain is reconstructable without a second join. Document the invoice->actor join in `docs/security/incident-response.md`. | sec | 30 min |
 | TM-R02 | R | [L] | Refund / rejected branches | Refund and rejected paths now emit explicit audit rows | **Sprint 20 18th-wave Bucket B** — `src/server/routes/billing.ts` REJECTED branch writes `billing.webpay-return.rejected` and FAILED branch writes `billing.webpay-return.failed`, mirroring the AUTHORIZED audit-row contract (invoiceId + amount + ip + userAgent). A customer dispute over either outcome now has a tamper-evident server-side trail. Coverage in `src/__tests__/server/billing.test.ts` (REJECTED/FAILED branch assertions). | mitigated | None. Refund-side audit row (`webpayAdapter.refundTransaction`) deferred to a future bucket — currently no admin UI surfaces refunds and accountability is via Transbank console. | sec | done |
 | TM-I01 | I | [M] | Sentry server-side | Server scope strips PII keys before transport | `src/services/observability/sentryInstrumentation.ts:152-164` redacts `prompt`, `apiKey`, `token`, `cookie`, `authorization`, `userInput` etc. from the `input` context blob. Webpay `createTransaction` deliberately omits `sessionId` and `returnUrl` (`webpayAdapter.ts:270-280`). | mitigated | Keep. | n/a | none |
@@ -54,11 +56,11 @@ D=Denial of service, E=Elevation of privilege.
 
 ## Summary
 
-- 30 findings total.
-- Status: 22 mitigated / 7 partial / 1 open.
-- Severity: 6 [H], 17 [M], 7 [L].
+- 31 findings total.
+- Status: 22 mitigated / 8 partial / 1 open.
+- Severity: 7 [H], 17 [M], 7 [L].
 - Open backlog (top by severity): **TM-E02** (Cloud Run SA scope
   verification) — medium, ops-led.
 - Partial controls awaiting evidence: **TM-S03**, **TM-R01**, **TM-T05**,
-  **TM-T06**, **TM-T07**, **TM-T08** and **TM-E05**. The DTE claim change is not a production
+  **TM-T06**, **TM-T07**, **TM-T08**, **TM-T09** and **TM-E05**. The DTE claim change is not a production
   certification.
