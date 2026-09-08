@@ -120,12 +120,14 @@ vi.mock('firebase-admin', () => ({
 
 // @google/genai — we never want a real API call.
 vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: {
-      embedContent: vi.fn(async () => ({ embeddings: [{ values: [0.1, 0.2, 0.3] }] })),
-      generateContent: vi.fn(async () => ({ text: '[]' })),
-    },
-  })),
+  GoogleGenAI: vi.fn(function GoogleGenAIMock() {
+    return {
+      models: {
+        embedContent: vi.fn(async () => ({ embeddings: [{ values: [0.1, 0.2, 0.3] }] })),
+        generateContent: vi.fn(async () => ({ text: '[]' })),
+      },
+    };
+  }),
 }));
 
 // geminiBackend.autoConnectNodes — fully stubbed so the tests pin behaviour
@@ -347,5 +349,101 @@ describe('syncNodeToNetwork — project membership enforcement (B14)', () => {
     expect(r2.success).toBe(true);
     expect(fakeAdmin.docs.get('nodes/e2')?.projectId).toBe('global');
     expect(fakeAdmin.docs.get('vector_store/node-e2')?.projectId).toBe('global');
+  });
+});
+
+describe('syncBatchToNetwork — update identity and project context', () => {
+  it('merges a partial update into the authoritative node id and preserves project context', async () => {
+    fakeAdmin.docs.set('nodes/existing', {
+      id: 'existing',
+      title: 'old title',
+      description: 'D',
+      type: 'Riesgo',
+      projectId: 'p1',
+      tenantId: 'tenant-a',
+      connections: [],
+    });
+
+    const result = await syncBatchToNetwork([
+      { type: 'update', id: 'existing', data: { title: 'new title' } },
+    ], 'author-uid');
+
+    expect(result.results[0]).toMatchObject({ id: 'existing', status: 'success' });
+    expect(fakeAdmin.docs.get('nodes/existing')).toMatchObject({
+      id: 'existing',
+      title: 'new title',
+      projectId: 'p1',
+      tenantId: 'tenant-a',
+    });
+    expect([...fakeAdmin.docs.keys()].filter((key) => key.startsWith('nodes/') && key !== 'nodes/existing')).toHaveLength(0);
+  });
+
+  it('rejects a partial update that tries to move the node to another project', async () => {
+    fakeAdmin.docs.set('projects/p2', { members: ['author-uid'] });
+    fakeAdmin.docs.set('nodes/immutable-project', {
+      id: 'immutable-project',
+      title: 'old',
+      description: 'D',
+      type: 'Riesgo',
+      projectId: 'p1',
+      connections: [],
+    });
+
+    const result = await syncBatchToNetwork([
+      { type: 'update', id: 'immutable-project', data: { projectId: 'p2', title: 'spoof' } },
+    ], 'author-uid');
+
+    expect(result.results[0].status).toBe('error');
+    expect(fakeAdmin.docs.get('nodes/immutable-project')?.projectId).toBe('p1');
+  });
+
+  it('rejects a partial update that tries to move the node to another tenant', async () => {
+    fakeAdmin.docs.set('nodes/immutable-tenant', {
+      id: 'immutable-tenant',
+      title: 'old',
+      description: 'D',
+      type: 'Riesgo',
+      projectId: 'p1',
+      tenantId: 'tenant-a',
+      connections: [],
+    });
+
+    const result = await syncBatchToNetwork([
+      { type: 'update', id: 'immutable-tenant', data: { tenantId: 'tenant-b', title: 'spoof' } },
+    ], 'author-uid');
+
+    expect(result.results[0].status).toBe('error');
+    expect(fakeAdmin.docs.get('nodes/immutable-tenant')?.tenantId).toBe('tenant-a');
+  });
+
+  it('does not turn an update of a missing node into a new node', async () => {
+    const result = await syncBatchToNetwork([
+      { type: 'update', id: 'missing-node', data: { title: 'orphan' } },
+    ], 'author-uid');
+
+    expect(result.results[0]).toMatchObject({ id: 'missing-node', status: 'error' });
+    expect([...fakeAdmin.docs.keys()].some((key) => key.startsWith('nodes/'))).toBe(false);
+  });
+
+  it('uses the batch operation id as the authoritative id for set operations', async () => {
+    const result = await syncBatchToNetwork([
+      {
+        type: 'set',
+        id: 'batch-id',
+        data: {
+          id: 'payload-id',
+          title: 'canonical',
+          description: 'D',
+          type: 'Riesgo',
+          projectId: 'p1',
+          connections: [],
+          embedding: [0.1],
+        },
+      },
+    ], 'author-uid');
+
+    expect(result.results[0]).toMatchObject({ id: 'batch-id', status: 'success' });
+    expect(fakeAdmin.docs.has('nodes/batch-id')).toBe(true);
+    expect(fakeAdmin.docs.has('nodes/payload-id')).toBe(false);
   });
 });

@@ -218,4 +218,21 @@ describe('MatrixSyncManager.restoreServerVersion', () => {
 
     unsubscribe();
   });
+
+  it('forwards the update id and partial patch unchanged during flush', async () => {
+    const geminiService = await import('./geminiService');
+    const syncBatchToNetwork = geminiService.syncBatchToNetwork as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    syncBatchToNetwork.mockClear();
+    syncBatchToNetwork.mockResolvedValueOnce({ failedOps: [] });
+    Object.defineProperty(globalThis.navigator, 'onLine', { configurable: true, value: true });
+
+    await matrixSyncManager.enqueueUpdate('doc-Z', { title: 'offline edit' });
+    await matrixSyncManager.flush();
+
+    expect(syncBatchToNetwork).toHaveBeenCalledWith([
+      { type: 'update', id: 'doc-Z', data: { title: 'offline edit' } },
+    ]);
+  });
 });

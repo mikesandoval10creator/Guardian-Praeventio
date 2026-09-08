@@ -203,6 +203,65 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   return { success: true, nodeId, connectionSuggestions };
 };
 
+function canonicalBatchProjectId(value: unknown): string {
+  if (typeof value !== 'string') return 'global';
+  const normalized = value.trim();
+  return normalized === '' || normalized.toLowerCase() === 'global' ? 'global' : normalized;
+}
+
+async function resolveBatchNodeData(
+  op: { type: 'set' | 'update'; id: string; data: unknown },
+  db: any,
+): Promise<Record<string, any>> {
+  if (typeof op.id !== 'string' || op.id.trim() === '') {
+    throw new Error('Batch node operation requires a non-empty id');
+  }
+  if (!op.data || typeof op.data !== 'object' || Array.isArray(op.data)) {
+    throw new Error(`Batch ${op.type} operation ${op.id} requires an object payload`);
+  }
+
+  const patch = op.data as Record<string, any>;
+  if (op.type === 'set') {
+    return { ...patch, id: op.id };
+  }
+
+  const existingRef = db.collection('nodes').doc(op.id);
+  const existing = await existingRef.get();
+  if (!existing.exists) {
+    throw new Error(`Cannot update missing node ${op.id}`);
+  }
+  const existingData = existing.data();
+  if (!existingData || typeof existingData !== 'object' || Array.isArray(existingData)) {
+    throw new Error(`Cannot update node ${op.id}: stored document is invalid`);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'projectId')) {
+    if (typeof patch.projectId !== 'string') {
+      throw new Error(`Cannot change projectId for node ${op.id}: value is invalid`);
+    }
+    if (canonicalBatchProjectId(patch.projectId) !== canonicalBatchProjectId(existingData.projectId)) {
+      throw new Error(`Cannot change projectId for node ${op.id}`);
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'tenantId')) {
+    if (typeof patch.tenantId !== 'string' || patch.tenantId.trim() === '') {
+      throw new Error(`Cannot change tenantId for node ${op.id}: value is invalid`);
+    }
+    if (patch.tenantId.trim() !== existingData.tenantId) {
+      throw new Error(`Cannot change tenantId for node ${op.id}`);
+    }
+  }
+
+  const merged = { ...existingData, ...patch, id: op.id };
+  if (Object.prototype.hasOwnProperty.call(existingData, 'projectId')) {
+    merged.projectId = existingData.projectId;
+  }
+  if (Object.prototype.hasOwnProperty.call(existingData, 'tenantId')) {
+    merged.tenantId = existingData.tenantId;
+  }
+  return merged;
+}
+
 /**
  * Processes a batch of sync operations (set, update, delete) on nodes.
  * Ensures consistent RAG (Pinecone) state and admin-level cross-linking.
@@ -218,7 +277,8 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
   for (const op of operations) {
     try {
       if (op.type === 'set' || op.type === 'update') {
-        const res = await syncNodeToNetwork(op.data, authorUid);
+        const nodeData = await resolveBatchNodeData(op, db);
+        const res = await syncNodeToNetwork(nodeData, authorUid);
         results.push({ id: op.id, status: 'success', res });
       } else if (op.type === 'delete') {
         const nodeId = op.id;
