@@ -711,6 +711,15 @@
           }
         }
       ]
+    },
+    {
+      "_comment": "Wisdom capsules are queried only inside the authenticated tenant/project scope.",
+      "collectionGroup": "wisdomCapsules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "projectId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
