@@ -211,7 +211,7 @@ encyclopedic.
 
 | TM-T09 | ZK materializer source projection | Flat/nested legacy ZK writers remain invisible to canonical `nodes`; a transient write can also leave projection stale | **partial (merged; deployment pending)** — PR #1646 is integrated: listener observes tenant-scoped collectionGroup plus top-level legacy source, normalizes both shapes, validates project→tenant, retries transient writes and is wired into server boot with SIGTERM cleanup. Focal integration/wiring tests pass; deployed backfill, cost and restart evidence remain pending. |
 
-| TM-T10 | Offline replay operation identity | A partial `update` can lose its queued `op.id`/project/tenant context and create a new or global node | **partial (PR pending)** — batch replay now forces `op.id`, reads the existing target, preserves project/tenant and rejects moves; deployed offline/restart evidence remains pending. |
+| TM-T10 | Offline replay operation identity | A partial `update` can lose its queued `op.id`/project/tenant context and create a new or global node | **partial (merged; deployment pending)** — PR #1648 (`b5bd00f17bba5b9925a7d6f27e4f948ee1929aea`) is integrated; batch replay now forces `op.id`, reads the existing target, preserves project/tenant and rejects moves. Deployed offline/restart evidence remains pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
