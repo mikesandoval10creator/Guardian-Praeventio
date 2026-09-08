@@ -12,7 +12,7 @@ out.
 
 Companion artefacts:
 - [`data-flow-diagram.md`](./data-flow-diagram.md) — DFD with trust boundaries.
-- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (31 entries).
+- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (32 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
 - [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
@@ -210,6 +210,8 @@ encyclopedic.
 | TM-T08 | ZK get-edges project isolation | Same-tenant project A receives typed edges stamped for project B | **partial (merged; deployment pending)** — PR #1644 (`7a6400a974b6b452ca14c68061b110b84c5a5672`) integrates `listByProject(tenantId, projectId, limit)` in the adapter and a fail-closed route. Local router is 14/14 and GitHub CI completed all required checks; deployed two-project/Auth evidence and legacy edge inventory remain pending. |
 
 | TM-T09 | ZK materializer source projection | Flat/nested legacy ZK writers remain invisible to canonical `nodes`; a transient write can also leave projection stale | **partial (merged; deployment pending)** — PR #1646 is integrated: listener observes tenant-scoped collectionGroup plus top-level legacy source, normalizes both shapes, validates project→tenant, retries transient writes and is wired into server boot with SIGTERM cleanup. Focal integration/wiring tests pass; deployed backfill, cost and restart evidence remain pending. |
+
+| TM-T10 | Offline replay operation identity | A partial `update` can lose its queued `op.id`/project/tenant context and create a new or global node | **partial (PR pending)** — batch replay now forces `op.id`, reads the existing target, preserves project/tenant and rejects moves; deployed offline/restart evidence remains pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
