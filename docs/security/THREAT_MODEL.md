@@ -213,7 +213,7 @@ encyclopedic.
 
 | TM-T10 | Offline replay operation identity | A partial `update` can lose its queued `op.id`/project/tenant context and create a new or global node | **partial (merged; deployment pending)** — PR #1648 (`b5bd00f17bba5b9925a7d6f27e4f948ee1929aea`) is integrated; batch replay now forces `op.id`, reads the existing target, preserves project/tenant and rejects moves. Deployed offline/restart evidence remains pending. |
 
-| TM-T11 | ZK materializer invalid payload | Direct or batch materialization can diverge on blank IDs/title, unknown type, non-finite metadata or malformed arrays | **partial (PR pending)** — shared runtime validator now gates `materializeNode` and `materializeBatch`; trigger reuses the supported-type contract and `materializeOne` fails closed before writes. Deployed legacy/backfill evidence remains pending. |
+| TM-T11 | ZK materializer invalid payload | Direct or batch materialization can diverge on blank IDs/title, unknown type, non-finite metadata or malformed arrays | **partial (merged; deployment pending)** — PR #1650 (`79e96a5f198b3190f7703f4049682a16eff730ea`) is integrated; shared runtime validation gates `materializeNode`/`materializeBatch`, `materializeOne` fails closed before writes, and the trigger reuses the supported-type contract. Deployed legacy/backfill evidence remains pending. |
 
 ### 7.3 Repudiation (R)
 | ID | Threat | Manifestation | Status |
