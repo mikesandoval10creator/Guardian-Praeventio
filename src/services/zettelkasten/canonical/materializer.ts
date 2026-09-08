@@ -17,7 +17,7 @@
 // 100% determinístico — sin I/O, sin firebase. Eso permite tests
 // hermets + reuso en migración offline (CLI) sin tocar emulador.
 
-import type { RiskNodePayload, RiskNodeSeverity } from '../types.js';
+import type { RiskNodePayload, RiskNodeSeverity, RiskNodeType } from '../types.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -61,6 +61,200 @@ export interface MaterializeInput {
   extraTags?: string[];
   /** Override now para tests. */
   now?: Date;
+}
+
+export interface MaterializeValidationIssue {
+  code: string;
+  field: string;
+  message: string;
+}
+
+export const MATERIALIZER_LIMITS = {
+  id: 256,
+  title: 256,
+  description: 4096,
+  metadataEntries: 100,
+  metadataKey: 128,
+  metadataString: 4096,
+  connections: 200,
+  references: 200,
+  connectionOrReference: 256,
+  extraTags: 50,
+  extraTag: 128,
+} as const;
+
+const SUPPORTED_RISK_NODE_TYPES = new Set<string>([
+  'hidrante-pressure',
+  'misting-suppression',
+  'scaffold-uplift',
+  'confined-space-vent',
+  'gas-leak-anomaly',
+  'mining-extraction',
+  'hazmat-pipe',
+  'structural-wind',
+  'respirator-fatigue',
+  'pulmonary-altitude',
+  'micro-wind-energy',
+  'slope-stability',
+  'slam-mesh',
+  'dike-hydrostatic',
+  'gas-dispersion',
+  'safety-learning',
+  'epp_inspection',
+  'horometro-reading',
+  'maintenance-threshold-reached',
+  'maintenance-task-created',
+  'maintenance-task-completed',
+  'incident-reported',
+  'investigation-opened',
+  'root-cause-identified',
+  'lesson-published',
+  'microtraining-assigned',
+  'microtraining-completed',
+  'incident-investigation-closed',
+]);
+
+const VALID_SEVERITIES = new Set<RiskNodeSeverity>([
+  'info',
+  'low',
+  'medium',
+  'high',
+  'critical',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function issue(code: string, field: string, message: string): MaterializeValidationIssue {
+  return { code, field, message };
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isSafeMetadataValue(value: unknown): value is number | string | boolean | null {
+  return value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+    || (typeof value === 'number' && Number.isFinite(value));
+}
+
+export function isKnownRiskNodeType(value: unknown): value is RiskNodeType {
+  return typeof value === 'string' && SUPPORTED_RISK_NODE_TYPES.has(value);
+}
+
+/**
+ * Single runtime validation contract shared by `materializeNode`,
+ * `materializeBatch`, and the Firestore trigger boundary.
+ *
+ * The TypeScript interface protects typed callers; this function protects the
+ * runtime boundary where Firestore, migrations, and legacy writers provide
+ * untrusted `unknown` data. It returns an issue instead of throwing so batch
+ * migration can skip one bad record without losing the rest.
+ */
+export function validateMaterializeInput(input: unknown): MaterializeValidationIssue | null {
+  if (!isRecord(input)) return issue('invalid_input', 'input', 'input must be an object');
+  if (!isNonEmptyString(input.zkNodeId)) {
+    return issue('missing_zkNodeId', 'zkNodeId', 'zkNodeId must be a non-empty string');
+  }
+  if (input.zkNodeId.length > MATERIALIZER_LIMITS.id) {
+    return issue('zkNodeId_too_long', 'zkNodeId', 'zkNodeId exceeds the maximum length');
+  }
+  if (!isNonEmptyString(input.projectId)) {
+    return issue('missing_projectId', 'projectId', 'projectId must be a non-empty string');
+  }
+  if (input.projectId.length > MATERIALIZER_LIMITS.id) {
+    return issue('projectId_too_long', 'projectId', 'projectId exceeds the maximum length');
+  }
+  if (input.tenantId !== undefined && !isNonEmptyString(input.tenantId)) {
+    return issue('invalid_tenantId', 'tenantId', 'tenantId must be a non-empty string when present');
+  }
+  if (typeof input.tenantId === 'string' && input.tenantId.length > MATERIALIZER_LIMITS.id) {
+    return issue('tenantId_too_long', 'tenantId', 'tenantId exceeds the maximum length');
+  }
+  if (!isRecord(input.payload)) {
+    return issue('invalid_payload', 'payload', 'payload must be an object');
+  }
+
+  const payload = input.payload;
+  if (!isNonEmptyString(payload.title)) {
+    return issue('invalid_payload', 'payload.title', 'title must be a non-empty string');
+  }
+  if (payload.title.length > MATERIALIZER_LIMITS.title) {
+    return issue('title_too_long', 'payload.title', 'title exceeds the maximum length');
+  }
+  if (!isNonEmptyString(payload.description)) {
+    return issue('invalid_description', 'payload.description', 'description must be a non-empty string');
+  }
+  if (payload.description.length > MATERIALIZER_LIMITS.description) {
+    return issue('description_too_long', 'payload.description', 'description exceeds the maximum length');
+  }
+  if (!isKnownRiskNodeType(payload.type)) {
+    return issue('invalid_type', 'payload.type', 'type is not a supported RiskNodeType');
+  }
+  if (!VALID_SEVERITIES.has(payload.severity as RiskNodeSeverity)) {
+    return issue('invalid_severity', 'payload.severity', 'severity is not supported');
+  }
+  if (!isRecord(payload.metadata)) {
+    return issue('invalid_metadata', 'payload.metadata', 'metadata must contain only finite scalar values');
+  }
+  const metadataEntries = Object.entries(payload.metadata);
+  if (metadataEntries.length > MATERIALIZER_LIMITS.metadataEntries) {
+    return issue('metadata_too_many', 'payload.metadata', 'metadata has too many entries');
+  }
+  for (const [key, value] of metadataEntries) {
+    if (key.length > MATERIALIZER_LIMITS.metadataKey) {
+      return issue('metadata_key_too_long', `payload.metadata.${key}`, 'metadata key exceeds the maximum length');
+    }
+    if (!isSafeMetadataValue(value)) {
+      return issue('invalid_metadata', `payload.metadata.${key}`, 'metadata value must be finite and scalar');
+    }
+    if (typeof value === 'string' && value.length > MATERIALIZER_LIMITS.metadataString) {
+      return issue('metadata_value_too_long', `payload.metadata.${key}`, 'metadata string exceeds the maximum length');
+    }
+  }
+  if (!Array.isArray(payload.connections)
+    || payload.connections.some((value) => !isNonEmptyString(value))) {
+    return issue('invalid_connections', 'payload.connections', 'connections must be non-empty strings');
+  }
+  if (payload.connections.length > MATERIALIZER_LIMITS.connections) {
+    return issue('connections_too_many', 'payload.connections', 'connections exceed the maximum count');
+  }
+  if (payload.connections.some((value) => value.length > MATERIALIZER_LIMITS.connectionOrReference)) {
+    return issue('connection_too_long', 'payload.connections', 'connection id exceeds the maximum length');
+  }
+  if (!Array.isArray(payload.references)
+    || payload.references.some((value) => !isNonEmptyString(value))) {
+    return issue('invalid_references', 'payload.references', 'references must be non-empty strings');
+  }
+  if (payload.references.length > MATERIALIZER_LIMITS.references) {
+    return issue('references_too_many', 'payload.references', 'references exceed the maximum count');
+  }
+  if (payload.references.some((value) => value.length > MATERIALIZER_LIMITS.connectionOrReference)) {
+    return issue('reference_too_long', 'payload.references', 'reference exceeds the maximum length');
+  }
+  if (input.extraTags !== undefined
+    && (!Array.isArray(input.extraTags) || input.extraTags.some((value) => !isNonEmptyString(value)))) {
+    return issue('invalid_extraTags', 'extraTags', 'extraTags must be non-empty strings');
+  }
+  if (Array.isArray(input.extraTags) && input.extraTags.length > MATERIALIZER_LIMITS.extraTags) {
+    return issue('extraTags_too_many', 'extraTags', 'extraTags exceed the maximum count');
+  }
+  if (Array.isArray(input.extraTags)
+    && input.extraTags.some((value) => value.length > MATERIALIZER_LIMITS.extraTag)) {
+    return issue('extraTag_too_long', 'extraTags', 'extraTag exceeds the maximum length');
+  }
+  for (const field of ['createdAt', 'updatedAt'] as const) {
+    if (input[field] !== undefined && !isNonEmptyString(input[field])) {
+      return issue(`invalid_${field}`, field, `${field} must be a non-empty string when present`);
+    }
+  }
+  if (input.now !== undefined && (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime()))) {
+    return issue('invalid_now', 'now', 'now must be a valid Date when present');
+  }
+  return null;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -110,6 +304,10 @@ export function bernoulliTypeToCanonicalNodeType(t: string): string {
  * (shape `nodes` collection). Determinístico, sin I/O.
  */
 export function materializeNode(input: MaterializeInput): CanonicalNode {
+  const validationIssue = validateMaterializeInput(input);
+  if (validationIssue) {
+    throw new Error(`${validationIssue.code}: ${validationIssue.message}`);
+  }
   const nowIso = (input.now ?? new Date()).toISOString();
   const tags: string[] = ['materialized', ...(input.extraTags ?? [])];
   if (input.payload.severity) tags.push(`sev:${input.payload.severity}`);
@@ -210,7 +408,7 @@ export function parseCanonicalNodePath(path: string): {
   projectId: string;
   zkNodeId: string;
 } | null {
-  const m = /^nodes\/(.+)$/.exec(path);
+  const m = path.match(/^nodes\/(.+)$/);
   if (!m) return null;
   const parts = m[1].split('_');
   if (parts.length === 2) {
@@ -253,12 +451,10 @@ export function materializeBatch(
   const upserts: MaterializationBatchResult['upserts'] = [];
   const skipped: MaterializationBatchResult['skipped'] = [];
   for (const inp of input.inputs) {
-    if (!inp.payload || typeof inp.payload.title !== 'string' || inp.payload.title.length === 0) {
-      skipped.push({ zkNodeId: inp.zkNodeId, reason: 'invalid_payload' });
-      continue;
-    }
-    if (typeof inp.projectId !== 'string' || inp.projectId.length === 0) {
-      skipped.push({ zkNodeId: inp.zkNodeId, reason: 'missing_projectId' });
+    const validationIssue = validateMaterializeInput(inp);
+    if (validationIssue) {
+      const zkNodeId = isRecord(inp) && typeof inp.zkNodeId === 'string' ? inp.zkNodeId : 'unknown';
+      skipped.push({ zkNodeId, reason: validationIssue.code });
       continue;
     }
     const data = materializeNode(inp);

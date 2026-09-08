@@ -35,6 +35,7 @@ D=Denial of service, E=Elevation of privilege.
 
 | TM-T09 | T | [H] | ZK materializer / source projection | Flat or nested legacy writers never reach canonical `nodes` | PR #1646 integrates the listener over tenant-scoped collectionGroup plus top-level legacy source, shape normalization, project→tenant validation, bounded transient retries, server boot wiring and SIGTERM cleanup. Focal integration/wiring tests pass; deployed backfill/cost/restart evidence remains pending. | partial (merged; deployment pending) | Deploy behind `MATERIALIZER_ENABLED`, verify source-to-canonical convergence and restart recovery, then migrate/retire legacy paths under a backup. | zk/sec | 2 h |
 | TM-T10 | T | [H] | Offline replay / MatrixSyncManager | A partial `update` can lose its queued `op.id`/project/tenant context and create a new or global node | `src/services/networkBackend.ts` previously passed only `op.data` into `syncNodeToNetwork`; PR #1648 now resolves `nodes/{op.id}`, merges the patch, preserves immutable project/tenant identity, rejects missing targets and forces the batch id for `set`. Backend coverage is 15/15 and client flush coverage is 6/6; deployed offline/restart evidence remains pending. | partial (merged; deployment pending) | Exercise offline update/delete across restart with two real projects/tenants and verify no orphan/global node or vector-store divergence. | zk/sec | 2 h |
+| TM-T11 | T | [H] | ZK materializer / validation contract | Direct or batch materialization can diverge on blank IDs/title, unknown type, non-finite metadata or malformed arrays | Shared runtime validation now gates `materializeNode` and `materializeBatch`; `materializeOne` catches validation before any canonical write and the trigger reuses the supported-type contract. Focal validation/writer tests pass; deployed legacy/backfill evidence remains pending. | partial (PR pending) | Deploy and exercise malformed source documents, legacy backfill and project/tenant mismatch with production-like data before closing the gap. | zk/sec | 2 h |
 
 | TM-R01 | R | [M] | Webpay AUTHORIZED audit row | Audit log present for paid invoice transition | `src/server/routes/billing.ts:1079-1086` writes `billing.webpay-return.authorized` audit row including `invoiceId` and `amount` after `commit().status === AUTHORIZED`. The actor field is `null` here because Webpay return is unauthed (only `token_ws` validates) — the row records `invoiceId` instead, which keys back to the original `createdBy`. | partial | Enhance audit row to include `createdBy` lookup (one Firestore read on the invoice doc) so the actor chain is reconstructable without a second join. Document the invoice->actor join in `docs/security/incident-response.md`. | sec | 30 min |
 | TM-R02 | R | [L] | Refund / rejected branches | Refund and rejected paths now emit explicit audit rows | **Sprint 20 18th-wave Bucket B** — `src/server/routes/billing.ts` REJECTED branch writes `billing.webpay-return.rejected` and FAILED branch writes `billing.webpay-return.failed`, mirroring the AUTHORIZED audit-row contract (invoiceId + amount + ip + userAgent). A customer dispute over either outcome now has a tamper-evident server-side trail. Coverage in `src/__tests__/server/billing.test.ts` (REJECTED/FAILED branch assertions). | mitigated | None. Refund-side audit row (`webpayAdapter.refundTransaction`) deferred to a future bucket — currently no admin UI surfaces refunds and accountability is via Transbank console. | sec | done |
@@ -57,11 +58,11 @@ D=Denial of service, E=Elevation of privilege.
 
 ## Summary
 
-- 32 findings total.
-- Status: 22 mitigated / 9 partial / 1 open.
-- Severity: 8 [H], 17 [M], 7 [L].
+- 33 findings total.
+- Status: 22 mitigated / 10 partial / 1 open.
+- Severity: 9 [H], 17 [M], 7 [L].
 - Open backlog (top by severity): **TM-E02** (Cloud Run SA scope
   verification) — medium, ops-led.
 - Partial controls awaiting evidence: **TM-S03**, **TM-R01**, **TM-T05**,
-  **TM-T06**, **TM-T07**, **TM-T08**, **TM-T09**, **TM-T10** and **TM-E05**. The DTE claim change is not a production
+  **TM-T06**, **TM-T07**, **TM-T08**, **TM-T09**, **TM-T10**, **TM-T11** and **TM-E05**. The DTE claim change is not a production
   certification.
