@@ -58,13 +58,32 @@ still require the native lab before they can be treated as interoperable. No
 mixed-version path is considered production-ready until Android↔Android and
 Android↔iOS physical tests cover that case.
 
+## Application delivery ACK — Slice 2
+
+The Capacitor plugin's `deliveredTo` result means only that the local native
+layer accepted the write attempt. The TypeScript transport therefore keeps a
+packet pending until the receiving facade accepts the complete logical packet:
+
+- A receiver emits a `MeshPacket` of type `ack` with `ackedPacketId` and
+  `confirmedBy` after `MeshRelayQueue.receive()` accepts the packet.
+- When a project signing key is provisioned, generated ACKs are HMAC-signed
+  with that same key; an ACK from an unexpected peer cannot clear delivery.
+- The sender removes the packet only after a matching ACK from a peer that was
+  actually reported in `deliveredTo`.
+- If the ACK timeout expires (10 seconds by default), a packet removed by
+  `drainForPeer` is requeued for a later peer opportunity. Stop/restart also
+  preserves such in-flight packets.
+- This slice does not yet implement native GATT callback backpressure,
+  retransmission at frame level, or physical BLE loss/reorder validation.
+
 ## Current boundary
 
 Slice 1 proves zero-truncation framing/reassembly and checksum/tag validation.
-It does **not** yet prove message delivery. `WRITE_NO_RESPONSE` acceptance is
-only local enqueue evidence. Application ACK, write backpressure,
-retransmission, reconnection and physical Android↔Android/Android↔iOS drills
-remain Slice 2 / external validation.
+Slice 2 proves the TypeScript application-ACK state machine, signed ACKs and
+bounded timeout requeue in unit tests. It does **not** yet prove native GATT
+backpressure, frame-level retransmission, reconnection or physical
+Android↔Android/Android↔iOS behavior. `WRITE_NO_RESPONSE` acceptance remains
+local write evidence only.
 
 ## Golden vector
 

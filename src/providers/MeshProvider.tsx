@@ -136,6 +136,7 @@ export function MeshProvider({ children }: MeshProviderProps) {
         peerId: uid,
         projectId,
         queue,
+        signingKey,
         // [P0][VIDA] Route verified incoming packets to the local consumers.
         // Without a router the facade dropped every forLocal packet silently:
         // a supervisor physically in range of a worker's SOS got NOTHING.

@@ -9,6 +9,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPacket, type MeshPacket } from './meshPacket';
+import {
+  signPacket,
+  verifyPacket,
+  type MeshSigningKey,
+} from './meshPacketSigner';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { TransportFacade } from './transportFacade';
 import type {
@@ -104,6 +109,30 @@ function makePacket(overrides: Partial<Parameters<typeof buildPacket>[0]> = {}):
   });
 }
 
+function makeAck(ackedPacketId: string, fromUid = 'peer-1'): MeshPacket {
+  return buildPacket({
+    type: 'ack',
+    fromUid,
+    toUid: 'worker-self',
+    bornAtMs: Date.now(),
+    payload: {
+      ackedPacketId,
+      confirmedBy: fromUid,
+    },
+  });
+}
+
+async function makeSigningKey(keyId = 'project-X:v1'): Promise<MeshSigningKey> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new Uint8Array(32).fill(7),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify'],
+  );
+  return { keyId, key };
+}
+
 describe('TransportFacade', () => {
   let queue: MeshRelayQueue;
   let plugin: FakePlugin;
@@ -190,7 +219,12 @@ describe('TransportFacade', () => {
 
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(plugin.__sentPackets).toHaveLength(2);
+    expect(plugin.__sentPackets).toHaveLength(1);
+    // A native write is only local acceptance; the queue remains until peer ACK.
+    expect(queue.size()).toBe(1);
+
+    plugin.__emit('mesh:packet', makeAck(packet.id));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(queue.size()).toBe(0);
 
     await facade.stopMesh();
@@ -211,6 +245,50 @@ describe('TransportFacade', () => {
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(plugin.__sentPackets).toHaveLength(2);
+    expect(queue.size()).toBe(1);
+
+    await facade.stopMesh();
+  });
+
+  it('does not confirm a delivery from an unexpected peer', async () => {
+    plugin.__sendImpl = () => ({ deliveredTo: ['peer-1'], queued: [] });
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+
+    const packet = makePacket({ fromUid: 'worker-self' });
+    await facade.sendLocal(packet);
+    plugin.__emit('mesh:packet', makeAck(packet.id, 'peer-2'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(queue.size()).toBe(1);
+
+    await facade.stopMesh();
+  });
+
+  it('requeues a drained packet after the complete-packet ACK timeout', async () => {
+    plugin.__sendImpl = () => ({ deliveredTo: ['peer-1'], queued: [] });
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+      ackTimeoutMs: 20,
+    });
+    await facade.startMesh();
+
+    const packet = makePacket({ fromUid: 'worker-self' });
+    queue.enqueueLocal(packet);
+    plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(queue.size()).toBe(0);
+
+    await new Promise((resolve) => setTimeout(resolve, 35));
     expect(queue.size()).toBe(1);
 
     await facade.stopMesh();
@@ -238,6 +316,64 @@ describe('TransportFacade', () => {
     expect(plugin.__sentPackets).toHaveLength(1);
     expect(plugin.__sentPackets[0]?.id).toBe(packet.id);
     expect(queue.size()).toBe(1);
+
+    await facade.stopMesh();
+  });
+
+  it('receiving an accepted packet emits an ACK to its original sender', async () => {
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+
+    const packet = makePacket({ fromUid: 'worker-other' });
+    plugin.__emit('mesh:packet', packet);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
+    expect(ack).toMatchObject({
+      type: 'ack',
+      fromUid: 'worker-self',
+      toUid: 'worker-other',
+      payload: {
+        ackedPacketId: packet.id,
+        confirmedBy: 'worker-self',
+      },
+    });
+
+    await facade.stopMesh();
+  });
+
+  it('signs generated ACKs when verify-on-receive has a project key', async () => {
+    const signingKey = await makeSigningKey();
+    queue = new MeshRelayQueue({
+      selfUid: 'worker-self',
+      projectId: 'project-X',
+      signingKey,
+    });
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      signingKey,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+
+    const inbound = makePacket({ fromUid: 'worker-other' });
+    const signature = await signPacket(inbound, signingKey);
+    plugin.__emit('mesh:packet', { ...inbound, ...signature });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
+    expect(ack).toBeDefined();
+    if (!ack) throw new Error('expected a generated ACK');
+    expect(await verifyPacket(ack, signingKey)).toBe(true);
 
     await facade.stopMesh();
   });
