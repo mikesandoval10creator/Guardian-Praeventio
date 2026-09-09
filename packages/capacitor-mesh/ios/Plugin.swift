@@ -11,7 +11,8 @@
 //   - CBCentralManager scanning with CBCentralManagerScanOptionAllowDuplicatesKey
 //     for continuous RSSI tracking
 //   - CBMutableService + CBMutableCharacteristic for `mesh-data`
-//     (writeWithoutResponse, max 512 bytes)
+//     carrying a versioned PRM1 stream segmented by the effective
+//     maximumWriteValueLength (not a fixed 512-byte packet cap)
 //   - 30s peer-lost timeout
 //   - Background advertising via Info.plist UIBackgroundModes
 //     bluetooth-central + bluetooth-peripheral
@@ -41,10 +42,12 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
     // discover each other.
     static let serviceUUIDString = "00001234-12AE-3E45-7123-456789ABCDEF"
     static let meshDataCharUUIDString = "0000ABCD-12AE-3E45-7123-456789ABCDEF"
+    static let meshCapabilityCharUUIDString = "0000ABCE-12AE-3E45-7123-456789ABCDEF"
     static let peerLostTimeout: TimeInterval = 30.0
 
     private let serviceUUID = CBUUID(string: MeshPlugin.serviceUUIDString)
     private let meshDataCharUUID = CBUUID(string: MeshPlugin.meshDataCharUUIDString)
+    private let meshCapabilityCharUUID = CBUUID(string: MeshPlugin.meshCapabilityCharUUIDString)
 
     private var peripheralManager: CBPeripheralManager?
     private var centralManager: CBCentralManager?
@@ -53,6 +56,13 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
     private var connectedPeripherals: [String: CBPeripheral] = [:]
     private var peerCharacteristics: [String: CBCharacteristic] = [:]
     private var lastSeen: [String: Date] = [:]
+    // Incremental framed-message decoder per central. CoreBluetooth writes are
+    // stream segments, never complete JSON packet boundaries.
+    private var rxDecoders: [String: MeshWireProtocol.Decoder] = [:]
+    // Legacy JSON is retained only for peers without the PRM1 capability.
+    private var legacyBuffers: [String: Data] = [:]
+    private var modeProbes: [String: Data] = [:]
+    private var peerModes: [String: MeshWireMode] = [:]
     private var peerRssi: [String: Int] = [:]
     private var peerLostTimer: Timer?
 
@@ -127,6 +137,10 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
         }
         self.connectedPeripherals.removeAll()
         self.peerCharacteristics.removeAll()
+        self.rxDecoders.removeAll()
+        self.legacyBuffers.removeAll()
+        self.modeProbes.removeAll()
+        self.peerModes.removeAll()
         self.lastSeen.removeAll()
         self.peerRssi.removeAll()
 
@@ -151,25 +165,41 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
             call.reject("packet not JSON-serializable")
             return
         }
-
-        // 512 byte cap per BLE write-without-response payload contract.
-        let capped: Data = data.count > 512 ? data.subdata(in: 0..<512) : data
+        let framed: Data
+        do {
+            framed = try MeshWireProtocol.encode(data)
+        } catch {
+            call.reject("packet exceeds mesh wire limit")
+            return
+        }
 
         for (id, peripheral) in self.connectedPeripherals {
             guard let characteristic = self.peerCharacteristics[id] else {
                 queued.append(id)
                 continue
             }
-            if peripheral.state == .connected {
-                peripheral.writeValue(capped, for: characteristic, type: .withoutResponse)
-                deliveredTo.append(id)
-            } else {
+            guard peripheral.state == .connected else {
                 queued.append(id)
+                continue
             }
+            guard let mode = self.peerModes[id], mode != .unknown else {
+                // Never send PRM1 until discovery has classified the peer.
+                queued.append(id)
+                continue
+            }
+            let message = mode == .prm1 ? framed : data
+            let maxWrite = max(1, peripheral.maximumWriteValueLength(for: .withoutResponse))
+            var offset = 0
+            while offset < message.count {
+                let end = min(offset + maxWrite, message.count)
+                peripheral.writeValue(message.subdata(in: offset..<end), for: characteristic, type: .withoutResponse)
+                offset = end
+            }
+            deliveredTo.append(id)
         }
 
         self.packetsRelayed += 1
-        NSLog("[PraeventioMesh] send() packetId=\(packetId) delivered=\(deliveredTo.count) queued=\(queued.count)")
+        NSLog("[PraeventioMesh] send() packetId=\(packetId) framedBytes=\(framed.count) delivered=\(deliveredTo.count) queued=\(queued.count)")
 
         call.resolve([
             "deliveredTo": deliveredTo,
@@ -206,8 +236,14 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
             value: nil,
             permissions: [.writeable]
         )
+        let capability = CBMutableCharacteristic(
+            type: self.meshCapabilityCharUUID,
+            properties: [.read],
+            value: MeshWireNegotiation.capabilityData,
+            permissions: [.readable]
+        )
         let service = CBMutableService(type: self.serviceUUID, primary: true)
-        service.characteristics = [characteristic]
+        service.characteristics = [characteristic, capability]
         self.meshDataChar = characteristic
         peripheralManager.add(service)
 
@@ -227,23 +263,133 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
         }
     }
 
+    public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        guard request.characteristic.uuid == self.meshCapabilityCharUUID else {
+            peripheral.respond(to: request, withResult: .readNotPermitted)
+            return
+        }
+        let value = MeshWireNegotiation.capabilityData
+        guard request.offset <= value.count else {
+            peripheral.respond(to: request, withResult: .invalidOffset)
+            return
+        }
+        request.value = value.subdata(in: request.offset..<value.count)
+        peripheral.respond(to: request, withResult: .success)
+    }
+
     public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         for request in requests {
             guard let value = request.value else { continue }
-            self.handleIncomingPacket(data: value)
+            let centralId = request.central.identifier.uuidString
+            self.handleIncomingBytes(data: value, peerId: centralId)
             peripheral.respond(to: request, withResult: .success)
         }
     }
 
-    private func handleIncomingPacket(data: Data) {
-        guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-            NSLog("[PraeventioMesh] dropping malformed inbound packet")
+    private func handleIncomingBytes(data: Data, peerId: String) {
+        guard !data.isEmpty else { return }
+        let existingMode = self.peerModes[peerId] ?? .unknown
+        let mode: MeshWireMode
+        let candidate: Data
+
+        if existingMode == .unknown {
+            var probe = self.modeProbes[peerId] ?? Data()
+            probe.append(data)
+            let detected = MeshWireNegotiation.detectMode(probe)
+            guard detected != .unknown else {
+                if probe.count < 4 {
+                    self.modeProbes[peerId] = probe
+                } else {
+                    self.modeProbes.removeValue(forKey: peerId)
+                    NSLog("[PraeventioMesh] dropping unclassifiable mesh stream from \(peerId)")
+                }
+                return
+            }
+            self.modeProbes.removeValue(forKey: peerId)
+            self.peerModes[peerId] = detected
+            mode = detected
+            candidate = probe
+        } else {
+            mode = existingMode
+            candidate = data
+        }
+
+        switch mode {
+        case .prm1:
+            self.handlePRM1Bytes(data: candidate, peerId: peerId)
+        case .legacy:
+            self.handleLegacyBytes(data: candidate, peerId: peerId)
+        case .unknown:
             return
         }
+    }
+
+    private func handlePRM1Bytes(data: Data, peerId: String) {
+        let decoder = self.rxDecoders[peerId] ?? MeshWireProtocol.Decoder()
+        self.rxDecoders[peerId] = decoder
+        do {
+            for payload in try decoder.append(data) {
+                guard let json = try? JSONSerialization.jsonObject(with: payload, options: []) as? [String: Any] else {
+                    NSLog("[PraeventioMesh] dropping framed payload that is not JSON")
+                    continue
+                }
+                self.emitPacket(json)
+            }
+        } catch {
+            decoder.reset()
+            self.peerModes.removeValue(forKey: peerId)
+            NSLog("[PraeventioMesh] dropping malformed framed inbound packet: \(error)")
+        }
+    }
+
+    private func handleLegacyBytes(data: Data, peerId: String) {
+        var buffer = self.legacyBuffers[peerId] ?? Data()
+        buffer.append(data)
+        guard let text = String(data: buffer, encoding: .utf8), self.isBalancedJSON(text) else {
+            self.legacyBuffers[peerId] = buffer
+            return
+        }
+        self.legacyBuffers.removeValue(forKey: peerId)
+        guard let json = try? JSONSerialization.jsonObject(with: buffer, options: []) as? [String: Any] else {
+            NSLog("[PraeventioMesh] dropping malformed legacy JSON from \(peerId)")
+            return
+        }
+        self.emitPacket(json)
+    }
+
+    private func emitPacket(_ json: [String: Any]) {
         self.packetsRelayed += 1
         DispatchQueue.main.async { [weak self] in
             self?.notifyListeners("mesh:packet", data: json)
         }
+    }
+
+    private func isBalancedJSON(_ text: String) -> Bool {
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for character in text {
+            if escaped {
+                escaped = false
+                continue
+            }
+            if character == "\\" {
+                escaped = true
+                continue
+            }
+            if character == "\"" {
+                inString.toggle()
+                continue
+            }
+            if inString { continue }
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { return true }
+                if depth < 0 { return false }
+            }
+        }
+        return false
     }
 
     // MARK: - Central role (scanning + connecting)
@@ -302,6 +448,10 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
         let id = peripheral.identifier.uuidString
         NSLog("[PraeventioMesh] disconnected from \(id) error=\(String(describing: error))")
         self.peerCharacteristics.removeValue(forKey: id)
+        self.rxDecoders.removeValue(forKey: id)
+        self.legacyBuffers.removeValue(forKey: id)
+        self.modeProbes.removeValue(forKey: id)
+        self.peerModes.removeValue(forKey: id)
         // Keep in connectedPeripherals briefly; peer-lost sweep handles removal.
     }
 
@@ -311,6 +461,10 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
         let id = peripheral.identifier.uuidString
         NSLog("[PraeventioMesh] failed to connect to \(id) error=\(String(describing: error))")
         self.peerCharacteristics.removeValue(forKey: id)
+        self.rxDecoders.removeValue(forKey: id)
+        self.legacyBuffers.removeValue(forKey: id)
+        self.modeProbes.removeValue(forKey: id)
+        self.peerModes.removeValue(forKey: id)
     }
 
     // MARK: - CBPeripheralDelegate (service/characteristic discovery on remote peers)
@@ -318,7 +472,10 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard error == nil, let services = peripheral.services else { return }
         for service in services where service.uuid == self.serviceUUID {
-            peripheral.discoverCharacteristics([self.meshDataCharUUID], for: service)
+            peripheral.discoverCharacteristics(
+                [self.meshDataCharUUID, self.meshCapabilityCharUUID],
+                for: service
+            )
         }
     }
 
@@ -327,9 +484,11 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
                            error: Error?) {
         guard error == nil, let characteristics = service.characteristics else { return }
         let id = peripheral.identifier.uuidString
+        let supportsPrm1 = characteristics.contains { $0.uuid == self.meshCapabilityCharUUID }
         for characteristic in characteristics where characteristic.uuid == self.meshDataCharUUID {
             self.peerCharacteristics[id] = characteristic
-            NSLog("[PraeventioMesh] characteristic ready for \(id)")
+            self.peerModes[id] = supportsPrm1 ? .prm1 : .legacy
+            NSLog("[PraeventioMesh] characteristic ready for \(id), mode=\(self.peerModes[id]!)")
         }
     }
 
@@ -347,6 +506,10 @@ public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManage
             }
             self.connectedPeripherals.removeValue(forKey: id)
             self.peerCharacteristics.removeValue(forKey: id)
+            self.rxDecoders.removeValue(forKey: id)
+            self.legacyBuffers.removeValue(forKey: id)
+            self.modeProbes.removeValue(forKey: id)
+            self.peerModes.removeValue(forKey: id)
             self.lastSeen.removeValue(forKey: id)
             self.peerRssi.removeValue(forKey: id)
 

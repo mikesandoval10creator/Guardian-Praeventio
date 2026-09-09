@@ -7,12 +7,11 @@
 //     (peerIdHash[4] || projectIdHash[4]).
 //   - BluetoothLeScanner con ScanFilter por service UUID, dedupe Set<String>,
 //     y timeout 30s para emitir mesh:peer-lost.
-//   - BluetoothGattServer expone characteristic `mesh-data`
-//     (WRITE / WRITE_NO_RESPONSE, chunks 512 bytes, reassembly por peer).
-//   - BluetoothGatt client conecta a cada peer descubierto, reuso
-//     vía Map<String, BluetoothGatt>.
-//   - send(packet): serializa JSON, chunks 512B, write a cada GATT;
-//     deliveredTo = SUCCESS; queued = resto.
+//   - BluetoothGattServer expone characteristic `mesh-data` y un stream PRM1
+//     versionado; los writes se segmentan por ATT MTU y no son packet boundaries.
+//   - BluetoothGatt client conecta a cada peer descubierto.
+//   - send(packet): serializa JSON, enmarca el mensaje completo y segmenta el
+//     stream en writes GATT; el ACK/backpressure de aplicación queda pendiente.
 //   - Permission gating: API 31+ BLUETOOTH_SCAN/ADVERTISE/CONNECT,
 //     API ≤30 ACCESS_FINE_LOCATION + BLUETOOTH/BLUETOOTH_ADMIN.
 //   - Lifecycle: stop() + onDestroy() cancelan advertising/scan y cierran
@@ -62,6 +61,8 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -78,14 +79,18 @@ class MeshPlugin : Plugin() {
         private const val BLE_SERVICE_UUID_STR =
             "00001234-12AE-3E45-7123-456789ABCDEF"
 
-        /** Characteristic `mesh-data` — WRITE_NO_RESPONSE, 512-byte chunks. */
+        /** Characteristic `mesh-data` — framed stream over GATT writes. */
         private const val MESH_DATA_UUID_STR =
             "0000ABCD-12AE-3E45-7123-456789ABCDEF"
 
+        /** Readable capability marker; absent on legacy peers. */
+        private const val MESH_CAPABILITY_UUID_STR =
+            "0000ABCE-12AE-3E45-7123-456789ABCDEF"
+
         private val BLE_SERVICE_UUID: UUID = UUID.fromString(BLE_SERVICE_UUID_STR)
         private val MESH_DATA_UUID: UUID = UUID.fromString(MESH_DATA_UUID_STR)
+        private val MESH_CAPABILITY_UUID: UUID = UUID.fromString(MESH_CAPABILITY_UUID_STR)
 
-        private const val CHUNK_SIZE = 512
         /** Manufacturer ID arbitrario reservado para Praeventio (no IEEE-asignado). */
         private const val MANUFACTURER_ID = 0x0DA0
         /** Si no vemos un peer en este intervalo emitimos peer-lost. */
@@ -112,8 +117,16 @@ class MeshPlugin : Plugin() {
     private val lastSeen = ConcurrentHashMap<String, Long>()
     /** peerAddress → cliente GATT conectado. */
     private val gattClients = ConcurrentHashMap<String, BluetoothGatt>()
-    /** Reassembly buffer por peer (para chunks). */
-    private val rxBuffers = ConcurrentHashMap<String, StringBuilder>()
+    /** Incremental framed-message decoder per peer. GATT writes are not packet boundaries. */
+    private val rxDecoders = ConcurrentHashMap<String, MeshWireProtocol.Decoder>()
+    /** Per-peer legacy JSON byte accumulator used only after compatibility detection. */
+    private val legacyBuffers = ConcurrentHashMap<String, ByteArray>()
+    /** Bytes held while the first inbound write is classified. */
+    private val modeProbes = ConcurrentHashMap<String, ByteArray>()
+    /** Protocol mode selected after capability discovery or first-write probing. */
+    private val peerModes = ConcurrentHashMap<String, MeshWireMode>()
+    /** Negotiated ATT MTU per peer; 23 means the legacy 20-byte write payload. */
+    private val gattMtu = ConcurrentHashMap<String, Int>()
 
     // ---- Capacitor plugin methods -----------------------------------------
 
@@ -193,10 +206,22 @@ class MeshPlugin : Plugin() {
         }
 
         val payload = packet.toString().toByteArray(StandardCharsets.UTF_8)
-        val chunks = chunkify(payload)
+        val framedMessage = try {
+            MeshWireProtocol.encode(payload)
+        } catch (protocol: MeshWireProtocol.ProtocolException) {
+            call.reject("packet exceeds mesh wire limit: ${protocol.message}")
+            return
+        }
         val snapshot = gattClients.toMap()
         for ((addr, gatt) in snapshot) {
-            val ok = writeChunks(gatt, chunks)
+            val mode = peerModes[addr] ?: MeshWireMode.UNKNOWN
+            if (mode == MeshWireMode.UNKNOWN) {
+                // Never send PRM1 to a peer whose capability is not known yet.
+                queued.put(addr)
+                continue
+            }
+            val message = if (mode == MeshWireMode.PRM1) framedMessage else payload
+            val ok = writeFramedMessage(addr, gatt, message)
             if (ok) {
                 delivered.put(addr)
                 packetsRelayed += 1
@@ -356,7 +381,11 @@ class MeshPlugin : Plugin() {
                     gattClients.remove(addr)?.let {
                         try { it.close() } catch (_: Throwable) {}
                     }
-                    rxBuffers.remove(addr)
+                    rxDecoders.remove(addr)
+                    legacyBuffers.remove(addr)
+                    modeProbes.remove(addr)
+                    peerModes.remove(addr)
+                    gattMtu.remove(addr)
                     mainHandler.post {
                         notifyListeners("mesh:peer-lost", JSObject().apply {
                             put("id", addr)
@@ -371,6 +400,33 @@ class MeshPlugin : Plugin() {
     // ---- GATT Server ------------------------------------------------------
 
     private val gattServerCallback = object : BluetoothGattServerCallback() {
+        override fun onCharacteristicReadRequest(
+            device: BluetoothDevice?,
+            requestId: Int,
+            offset: Int,
+            characteristic: BluetoothGattCharacteristic?,
+        ) {
+            if (device == null || characteristic?.uuid != MESH_CAPABILITY_UUID) return
+            val capability = MeshWireNegotiation.capabilityBytes()
+            if (offset < 0 || offset > capability.size) {
+                gattServer?.sendResponse(
+                    device,
+                    requestId,
+                    BluetoothGatt.GATT_INVALID_OFFSET,
+                    offset,
+                    null,
+                )
+                return
+            }
+            gattServer?.sendResponse(
+                device,
+                requestId,
+                BluetoothGatt.GATT_SUCCESS,
+                offset,
+                capability.copyOfRange(offset, capability.size),
+            )
+        }
+
         override fun onCharacteristicWriteRequest(
             device: BluetoothDevice?,
             requestId: Int,
@@ -383,24 +439,7 @@ class MeshPlugin : Plugin() {
             val addr = device?.address ?: return
             if (characteristic?.uuid != MESH_DATA_UUID) return
             val bytes = value ?: ByteArray(0)
-            val chunk = String(bytes, StandardCharsets.UTF_8)
-            val buf = rxBuffers.getOrPut(addr) { StringBuilder() }
-            buf.append(chunk)
-            // Heurística: cada packet es JSON completo terminado por '}'
-            // y empieza por '{'. Cuando llaves balanceadas, emit + reset.
-            if (isBalancedJson(buf)) {
-                val raw = buf.toString()
-                buf.setLength(0)
-                try {
-                    val js = JSObject(raw)
-                    mainHandler.post {
-                        packetsRelayed += 1
-                        notifyListeners("mesh:packet", js)
-                    }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Bad JSON from $addr: ${t.message}")
-                }
-            }
+            handleIncomingBytes(addr, bytes)
             if (responseNeeded) {
                 try {
                     gattServer?.sendResponse(
@@ -411,23 +450,119 @@ class MeshPlugin : Plugin() {
         }
     }
 
-    private fun isBalancedJson(buf: StringBuilder): Boolean {
+    private fun handleIncomingBytes(addr: String, bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val existingMode = peerModes[addr] ?: MeshWireMode.UNKNOWN
+        val (mode, candidate) = if (existingMode == MeshWireMode.UNKNOWN) {
+            val probe = appendBytes(modeProbes[addr] ?: ByteArray(0), bytes)
+            val detected = MeshWireNegotiation.detectMode(probe)
+            if (detected == MeshWireMode.UNKNOWN) {
+                if (probe.size < 4) {
+                    modeProbes[addr] = probe
+                } else {
+                    modeProbes.remove(addr)
+                    Log.w(TAG, "Dropping unclassifiable mesh stream from $addr")
+                }
+                return
+            }
+            modeProbes.remove(addr)
+            peerModes[addr] = detected
+            detected to probe
+        } else {
+            existingMode to bytes
+        }
+
+        when (mode) {
+            MeshWireMode.PRM1 -> handlePrm1Bytes(addr, candidate)
+            MeshWireMode.LEGACY -> handleLegacyBytes(addr, candidate)
+            MeshWireMode.UNKNOWN -> Unit
+        }
+    }
+
+    private fun handlePrm1Bytes(addr: String, bytes: ByteArray) {
+        val decoder = rxDecoders.getOrPut(addr) { MeshWireProtocol.Decoder() }
+        try {
+            for (payload in decoder.append(bytes)) {
+                try {
+                    val js = JSObject(String(payload, StandardCharsets.UTF_8))
+                    mainHandler.post {
+                        packetsRelayed += 1
+                        notifyListeners("mesh:packet", js)
+                    }
+                } catch (parse: Exception) {
+                    Log.w(TAG, "Dropping framed payload that is not a JSON object from $addr", parse)
+                }
+            }
+        } catch (protocol: MeshWireProtocol.ProtocolException) {
+            decoder.reset()
+            peerModes.remove(addr)
+            Log.w(TAG, "Dropping malformed framed message from $addr: ${protocol.message}")
+        }
+    }
+
+    private fun handleLegacyBytes(addr: String, bytes: ByteArray) {
+        val buffer = appendBytes(legacyBuffers[addr] ?: ByteArray(0), bytes)
+        val raw = try {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(buffer))
+                .toString()
+        } catch (_: CharacterCodingException) {
+            legacyBuffers[addr] = buffer
+            return
+        }
+        if (!isBalancedJson(raw)) {
+            legacyBuffers[addr] = buffer
+            return
+        }
+        legacyBuffers.remove(addr)
+        try {
+            val js = JSObject(raw)
+            mainHandler.post {
+                packetsRelayed += 1
+                notifyListeners("mesh:packet", js)
+            }
+        } catch (parse: Exception) {
+            Log.w(TAG, "Dropping malformed legacy JSON from $addr", parse)
+        }
+    }
+
+    private fun isBalancedJson(raw: String): Boolean {
         var depth = 0
-        var inStr = false
+        var inString = false
         var escape = false
-        for (c in buf) {
-            if (escape) { escape = false; continue }
-            if (c == '\\') { escape = true; continue }
-            if (c == '"') { inStr = !inStr; continue }
-            if (inStr) continue
+        for (c in raw) {
+            if (escape) {
+                escape = false
+                continue
+            }
+            if (c == '\\') {
+                escape = true
+                continue
+            }
+            if (c == '"') {
+                inString = !inString
+                continue
+            }
+            if (inString) continue
             if (c == '{') depth += 1
             else if (c == '}') {
                 depth -= 1
                 if (depth == 0) return true
+                if (depth < 0) return false
             }
         }
         return false
     }
+
+    private fun appendBytes(first: ByteArray, second: ByteArray): ByteArray {
+        val output = ByteArray(first.size + second.size)
+        first.copyInto(output, 0)
+        second.copyInto(output, first.size)
+        return output
+    }
+
 
     private fun startGattServer(ctx: Context, mgr: BluetoothManager) {
         val server = mgr.openGattServer(ctx, gattServerCallback) ?: return
@@ -441,7 +576,13 @@ class MeshPlugin : Plugin() {
                 or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
             BluetoothGattCharacteristic.PERMISSION_WRITE,
         )
+        val capability = BluetoothGattCharacteristic(
+            MESH_CAPABILITY_UUID,
+            BluetoothGattCharacteristic.PROPERTY_READ,
+            BluetoothGattCharacteristic.PERMISSION_READ,
+        )
         service.addCharacteristic(characteristic)
+        service.addCharacteristic(capability)
         server.addService(service)
         gattServer = server
     }
@@ -465,11 +606,38 @@ class MeshPlugin : Plugin() {
         ) {
             val addr = gatt?.device?.address ?: return
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                try { gatt.discoverServices() } catch (_: SecurityException) {}
+                try {
+                    gatt.requestMtu(247)
+                    gatt.discoverServices()
+                } catch (_: SecurityException) {}
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 try { gatt.close() } catch (_: Throwable) {}
                 gattClients.remove(addr)
+                gattMtu.remove(addr)
+                rxDecoders.remove(addr)
+                legacyBuffers.remove(addr)
+                modeProbes.remove(addr)
+                peerModes.remove(addr)
             }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (gatt == null || status != BluetoothGatt.GATT_SUCCESS) return
+            val addr = gatt.device.address
+            val service = gatt.getService(BLE_SERVICE_UUID)
+            val data = service?.getCharacteristic(MESH_DATA_UUID)
+            if (data == null) {
+                peerModes.remove(addr)
+                return
+            }
+            val supportsPrm1 = service.getCharacteristic(MESH_CAPABILITY_UUID) != null
+            peerModes[addr] = if (supportsPrm1) MeshWireMode.PRM1 else MeshWireMode.LEGACY
+            Log.i(TAG, "Peer $addr negotiated ${peerModes[addr]}")
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+            if (gatt == null || status != BluetoothGatt.GATT_SUCCESS) return
+            gattMtu[gatt.device.address] = mtu
         }
     }
 
@@ -485,32 +653,32 @@ class MeshPlugin : Plugin() {
         }
     }
 
-    private fun chunkify(payload: ByteArray): List<ByteArray> {
-        if (payload.size <= CHUNK_SIZE) return listOf(payload)
-        val out = ArrayList<ByteArray>((payload.size + CHUNK_SIZE - 1) / CHUNK_SIZE)
-        var i = 0
-        while (i < payload.size) {
-            val end = minOf(i + CHUNK_SIZE, payload.size)
-            out.add(payload.copyOfRange(i, end))
-            i = end
-        }
-        return out
-    }
-
     /**
-     * Escribe todos los chunks a un GATT en orden. Devuelve true sólo si TODOS
-     * los writes retornaron success (sincrónico-best-effort: el write real es
-     * async; Android lo encola y reporta SUCCESS si lo pudo despachar).
+     * The logical message is framed before this method. We split that stream
+     * according to the negotiated ATT MTU; a GATT write is never parsed as a
+     * complete MeshPacket by the receiver.
+     *
+     * Slice 1 intentionally preserves the existing best-effort write result.
+     * Application ACK/backpressure/retry is Slice 2 of the mission.
      */
-    private fun writeChunks(gatt: BluetoothGatt, chunks: List<ByteArray>): Boolean {
+    private fun writeFramedMessage(
+        addr: String,
+        gatt: BluetoothGatt,
+        framedMessage: ByteArray,
+    ): Boolean {
         return try {
             val service = gatt.getService(BLE_SERVICE_UUID) ?: return false
             val ch = service.getCharacteristic(MESH_DATA_UUID) ?: return false
+            val maxWritePayload = maxOf(1, (gattMtu[addr] ?: 23) - 3)
             ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-            for (chunk in chunks) {
+            var offset = 0
+            while (offset < framedMessage.size) {
+                val end = minOf(offset + maxWritePayload, framedMessage.size)
+                val chunk = framedMessage.copyOfRange(offset, end)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val rc = gatt.writeCharacteristic(
-                        ch, chunk,
+                        ch,
+                        chunk,
                         BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
                     )
                     if (rc != BluetoothStatusCodes.SUCCESS) return false
@@ -520,12 +688,13 @@ class MeshPlugin : Plugin() {
                     @Suppress("DEPRECATION")
                     if (!gatt.writeCharacteristic(ch)) return false
                 }
+                offset = end
             }
             true
         } catch (sec: SecurityException) {
             false
         } catch (t: Throwable) {
-            Log.w(TAG, "writeChunks failed: ${t.message}")
+            Log.w(TAG, "writeFramedMessage failed: ${t.message}")
             false
         }
     }
@@ -541,7 +710,11 @@ class MeshPlugin : Plugin() {
             try { g.close() } catch (_: Throwable) {}
         }
         gattClients.clear()
-        rxBuffers.clear()
+        rxDecoders.clear()
+        legacyBuffers.clear()
+        modeProbes.clear()
+        peerModes.clear()
+        gattMtu.clear()
         knownPeers.clear()
         lastSeen.clear()
         stopGattServer()
