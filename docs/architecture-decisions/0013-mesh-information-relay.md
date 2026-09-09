@@ -274,7 +274,8 @@ encuentro).
 - `BluetoothLeAdvertiser` para advertising con service UUID propio
 - `BluetoothLeScanner` con filter por service UUID en background
 - `BluetoothGattServer` exponiendo characteristic `mesh-data`
-  (READ + WRITE_NO_RESPONSE para chunks de 512 bytes max)
+  (stream PRM1 versionado, segmentado según ATT MTU; el write BLE no es un
+  límite de packet lógico)
 - `BluetoothGatt` cliente para conectarse a peers descubiertos
 - Trabajo en `JobScheduler` low-power para mantener escaneo cuando
   pantalla apagada
@@ -283,6 +284,8 @@ encuentro).
 - `CBPeripheralManager` advertising con service UUID
 - `CBCentralManager` scanning con `CBCentralManagerScanOptionAllowDuplicatesKey`
 - `CBService` + `CBMutableCharacteristic` para `mesh-data`
+- Stream PRM1 versionado, segmentado con `maximumWriteValueLength`,
+  con reensamblaje y checksum antes de emitir `mesh:packet`
 - Background advertising activado vía `bluetooth-central` +
   `bluetooth-peripheral` en Info.plist `UIBackgroundModes`
 
@@ -300,7 +303,25 @@ export interface MeshTransport {
 export class BlePraeventioTransport implements MeshTransport { /* ... */ }
 ```
 
-#### Sprint 27 — Wi-Fi Direct para chunks grandes
+#### Slice 1 — PRM1 stream framing (2026-09-09)
+
+El transporte nativo no interpreta cada write GATT como un `MeshPacket`.
+Android e iOS serializan el JSON completo en un stream versionado `PRM1`:
+
+- Header fijo de 32 bytes: magic, versión, longitud, CRC32 y tag SHA-256
+  truncado a 128 bits.
+- El stream se segmenta según el payload de escritura efectivo del ATT MTU.
+- El receptor acumula por peer y solo emite `mesh:packet` cuando el mensaje
+  completo está disponible y las dos comprobaciones de integridad pasan.
+- El límite lógico actual es 1 MiB; no se permite truncar silenciosamente.
+- El contrato tiene vector dorado y tests de fronteras/reorden de writes en
+  TypeScript y Android.
+
+Este slice **no cierra** todavía la entrega end-to-end: ACK de mensaje,
+backpressure, retransmisión, pérdida/reconexión y laboratorio físico quedan
+abiertos para Slice 2/validación nativa. Un `WRITE_NO_RESPONSE` aceptado por el
+sistema operativo no se debe reportar como entrega remota confirmada.
+
 
 Trigger automático cuando `MeshPacket.type === 'file_chunk'` y el
 archivo total > 100 KB:
@@ -448,9 +469,9 @@ nodo del todo. La información circula por la red de personas.
 
 - Capacitor plugin custom con código nativo:
   * Android: Kotlin con `BluetoothLeAdvertiser` + `BluetoothLeScanner`
-    + `BluetoothGattServer` characteristic `mesh-data` 512 bytes
+    + `BluetoothGattServer` + stream PRM1 segmentado por ATT MTU
   * iOS: Swift con `CBPeripheralManager` + `CBCentralManager` + service
-    UUID `00001234-PRAE-VENTI-O123-456789ABCDEF`
+    UUID `00001234-12AE-3E45-7123-456789ABCDEF` + stream PRM1
 - TypeScript bridge: `BlePraeventioTransport implements MeshTransport`
 - UI de "Modo malla" en settings con toggle on/off + indicator de
   peers cercanos detectados

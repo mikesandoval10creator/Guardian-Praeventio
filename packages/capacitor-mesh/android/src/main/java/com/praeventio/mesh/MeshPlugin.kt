@@ -7,12 +7,11 @@
 //     (peerIdHash[4] || projectIdHash[4]).
 //   - BluetoothLeScanner con ScanFilter por service UUID, dedupe Set<String>,
 //     y timeout 30s para emitir mesh:peer-lost.
-//   - BluetoothGattServer expone characteristic `mesh-data`
-//     (WRITE / WRITE_NO_RESPONSE, chunks 512 bytes, reassembly por peer).
-//   - BluetoothGatt client conecta a cada peer descubierto, reuso
-//     vía Map<String, BluetoothGatt>.
-//   - send(packet): serializa JSON, chunks 512B, write a cada GATT;
-//     deliveredTo = SUCCESS; queued = resto.
+//   - BluetoothGattServer expone characteristic `mesh-data` y un stream PRM1
+//     versionado; los writes se segmentan por ATT MTU y no son packet boundaries.
+//   - BluetoothGatt client conecta a cada peer descubierto.
+//   - send(packet): serializa JSON, enmarca el mensaje completo y segmenta el
+//     stream en writes GATT; el ACK/backpressure de aplicación queda pendiente.
 //   - Permission gating: API 31+ BLUETOOTH_SCAN/ADVERTISE/CONNECT,
 //     API ≤30 ACCESS_FINE_LOCATION + BLUETOOTH/BLUETOOTH_ADMIN.
 //   - Lifecycle: stop() + onDestroy() cancelan advertising/scan y cierran
@@ -78,14 +77,13 @@ class MeshPlugin : Plugin() {
         private const val BLE_SERVICE_UUID_STR =
             "00001234-12AE-3E45-7123-456789ABCDEF"
 
-        /** Characteristic `mesh-data` — WRITE_NO_RESPONSE, 512-byte chunks. */
+        /** Characteristic `mesh-data` — framed stream over GATT writes. */
         private const val MESH_DATA_UUID_STR =
             "0000ABCD-12AE-3E45-7123-456789ABCDEF"
 
         private val BLE_SERVICE_UUID: UUID = UUID.fromString(BLE_SERVICE_UUID_STR)
         private val MESH_DATA_UUID: UUID = UUID.fromString(MESH_DATA_UUID_STR)
 
-        private const val CHUNK_SIZE = 512
         /** Manufacturer ID arbitrario reservado para Praeventio (no IEEE-asignado). */
         private const val MANUFACTURER_ID = 0x0DA0
         /** Si no vemos un peer en este intervalo emitimos peer-lost. */
@@ -112,8 +110,10 @@ class MeshPlugin : Plugin() {
     private val lastSeen = ConcurrentHashMap<String, Long>()
     /** peerAddress → cliente GATT conectado. */
     private val gattClients = ConcurrentHashMap<String, BluetoothGatt>()
-    /** Reassembly buffer por peer (para chunks). */
-    private val rxBuffers = ConcurrentHashMap<String, StringBuilder>()
+    /** Incremental framed-message decoder per peer. GATT writes are not packet boundaries. */
+    private val rxDecoders = ConcurrentHashMap<String, MeshWireProtocol.Decoder>()
+    /** Negotiated ATT MTU per peer; 23 means the legacy 20-byte write payload. */
+    private val gattMtu = ConcurrentHashMap<String, Int>()
 
     // ---- Capacitor plugin methods -----------------------------------------
 
@@ -193,10 +193,15 @@ class MeshPlugin : Plugin() {
         }
 
         val payload = packet.toString().toByteArray(StandardCharsets.UTF_8)
-        val chunks = chunkify(payload)
+        val framedMessage = try {
+            MeshWireProtocol.encode(payload)
+        } catch (protocol: MeshWireProtocol.ProtocolException) {
+            call.reject("packet exceeds mesh wire limit: ${protocol.message}")
+            return
+        }
         val snapshot = gattClients.toMap()
         for ((addr, gatt) in snapshot) {
-            val ok = writeChunks(gatt, chunks)
+            val ok = writeFramedMessage(addr, gatt, framedMessage)
             if (ok) {
                 delivered.put(addr)
                 packetsRelayed += 1
@@ -356,7 +361,8 @@ class MeshPlugin : Plugin() {
                     gattClients.remove(addr)?.let {
                         try { it.close() } catch (_: Throwable) {}
                     }
-                    rxBuffers.remove(addr)
+                    rxDecoders.remove(addr)
+                    gattMtu.remove(addr)
                     mainHandler.post {
                         notifyListeners("mesh:peer-lost", JSObject().apply {
                             put("id", addr)
@@ -383,23 +389,18 @@ class MeshPlugin : Plugin() {
             val addr = device?.address ?: return
             if (characteristic?.uuid != MESH_DATA_UUID) return
             val bytes = value ?: ByteArray(0)
-            val chunk = String(bytes, StandardCharsets.UTF_8)
-            val buf = rxBuffers.getOrPut(addr) { StringBuilder() }
-            buf.append(chunk)
-            // Heurística: cada packet es JSON completo terminado por '}'
-            // y empieza por '{'. Cuando llaves balanceadas, emit + reset.
-            if (isBalancedJson(buf)) {
-                val raw = buf.toString()
-                buf.setLength(0)
-                try {
-                    val js = JSObject(raw)
+            val decoder = rxDecoders.getOrPut(addr) { MeshWireProtocol.Decoder() }
+            try {
+                for (payload in decoder.append(bytes)) {
+                    val js = JSObject(String(payload, StandardCharsets.UTF_8))
                     mainHandler.post {
                         packetsRelayed += 1
                         notifyListeners("mesh:packet", js)
                     }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Bad JSON from $addr: ${t.message}")
                 }
+            } catch (protocol: MeshWireProtocol.ProtocolException) {
+                decoder.reset()
+                Log.w(TAG, "Dropping malformed framed message from $addr: ${protocol.message}")
             }
             if (responseNeeded) {
                 try {
@@ -409,24 +410,6 @@ class MeshPlugin : Plugin() {
                 } catch (_: SecurityException) {}
             }
         }
-    }
-
-    private fun isBalancedJson(buf: StringBuilder): Boolean {
-        var depth = 0
-        var inStr = false
-        var escape = false
-        for (c in buf) {
-            if (escape) { escape = false; continue }
-            if (c == '\\') { escape = true; continue }
-            if (c == '"') { inStr = !inStr; continue }
-            if (inStr) continue
-            if (c == '{') depth += 1
-            else if (c == '}') {
-                depth -= 1
-                if (depth == 0) return true
-            }
-        }
-        return false
     }
 
     private fun startGattServer(ctx: Context, mgr: BluetoothManager) {
@@ -465,11 +448,21 @@ class MeshPlugin : Plugin() {
         ) {
             val addr = gatt?.device?.address ?: return
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                try { gatt.discoverServices() } catch (_: SecurityException) {}
+                try {
+                    gatt.requestMtu(247)
+                    gatt.discoverServices()
+                } catch (_: SecurityException) {}
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 try { gatt.close() } catch (_: Throwable) {}
                 gattClients.remove(addr)
+                gattMtu.remove(addr)
+                rxDecoders.remove(addr)
             }
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+            if (gatt == null || status != BluetoothGatt.GATT_SUCCESS) return
+            gattMtu[gatt.device.address] = mtu
         }
     }
 
@@ -485,32 +478,32 @@ class MeshPlugin : Plugin() {
         }
     }
 
-    private fun chunkify(payload: ByteArray): List<ByteArray> {
-        if (payload.size <= CHUNK_SIZE) return listOf(payload)
-        val out = ArrayList<ByteArray>((payload.size + CHUNK_SIZE - 1) / CHUNK_SIZE)
-        var i = 0
-        while (i < payload.size) {
-            val end = minOf(i + CHUNK_SIZE, payload.size)
-            out.add(payload.copyOfRange(i, end))
-            i = end
-        }
-        return out
-    }
-
     /**
-     * Escribe todos los chunks a un GATT en orden. Devuelve true sólo si TODOS
-     * los writes retornaron success (sincrónico-best-effort: el write real es
-     * async; Android lo encola y reporta SUCCESS si lo pudo despachar).
+     * The logical message is framed before this method. We split that stream
+     * according to the negotiated ATT MTU; a GATT write is never parsed as a
+     * complete MeshPacket by the receiver.
+     *
+     * Slice 1 intentionally preserves the existing best-effort write result.
+     * Application ACK/backpressure/retry is Slice 2 of the mission.
      */
-    private fun writeChunks(gatt: BluetoothGatt, chunks: List<ByteArray>): Boolean {
+    private fun writeFramedMessage(
+        addr: String,
+        gatt: BluetoothGatt,
+        framedMessage: ByteArray,
+    ): Boolean {
         return try {
             val service = gatt.getService(BLE_SERVICE_UUID) ?: return false
             val ch = service.getCharacteristic(MESH_DATA_UUID) ?: return false
+            val maxWritePayload = maxOf(1, (gattMtu[addr] ?: 23) - 3)
             ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-            for (chunk in chunks) {
+            var offset = 0
+            while (offset < framedMessage.size) {
+                val end = minOf(offset + maxWritePayload, framedMessage.size)
+                val chunk = framedMessage.copyOfRange(offset, end)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val rc = gatt.writeCharacteristic(
-                        ch, chunk,
+                        ch,
+                        chunk,
                         BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
                     )
                     if (rc != BluetoothStatusCodes.SUCCESS) return false
@@ -520,12 +513,13 @@ class MeshPlugin : Plugin() {
                     @Suppress("DEPRECATION")
                     if (!gatt.writeCharacteristic(ch)) return false
                 }
+                offset = end
             }
             true
         } catch (sec: SecurityException) {
             false
         } catch (t: Throwable) {
-            Log.w(TAG, "writeChunks failed: ${t.message}")
+            Log.w(TAG, "writeFramedMessage failed: ${t.message}")
             false
         }
     }
@@ -541,7 +535,8 @@ class MeshPlugin : Plugin() {
             try { g.close() } catch (_: Throwable) {}
         }
         gattClients.clear()
-        rxBuffers.clear()
+        rxDecoders.clear()
+        gattMtu.clear()
         knownPeers.clear()
         lastSeen.clear()
         stopGattServer()
