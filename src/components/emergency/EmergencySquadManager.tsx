@@ -73,7 +73,7 @@ export function EmergencySquadManager() {
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const { triggerEmergency } = useEmergency();
-  const { isSupported: bleSupported, isScanning: bleScanning, peerBreadcrumbs, startScanning } = useBluetoothMesh();
+  const { isSupported: bleSupported, isScanning: bleScanning, peerBreadcrumbs, startScanning, stopScanning } = useBluetoothMesh();
 
   const projectId = selectedProject?.id ?? null;
   // Real brigade roster (server snapshot) + the project workers to resolve names.
@@ -128,16 +128,23 @@ export function EmergencySquadManager() {
   const [loadingCrumbs, setLoadingCrumbs] = useState(false);
   const [calling, setCalling] = useState(false);
 
+  const userUid = user?.uid;
   useEffect(() => {
-    if (viewMode !== 'search' || !user) return;
+    if (viewMode !== 'search' || !userUid) return;
+    let active = true;
     setLoadingCrumbs(true);
-    getBreadcrumbs(user.uid, 20)
-      .then(setBreadcrumbs)
-      .catch(() => setBreadcrumbs([]))
-      .finally(() => setLoadingCrumbs(false));
-    // Also trigger BLE scan to detect nearby peers and record their breadcrumbs
-    if (bleSupported) startScanning();
-  }, [viewMode, user, bleSupported]);
+    getBreadcrumbs(userUid, 20)
+      .then(value => { if (active) setBreadcrumbs(value); })
+      .catch(() => { if (active) setBreadcrumbs([]); })
+      .finally(() => { if (active) setLoadingCrumbs(false); });
+    return () => { active = false; };
+  }, [viewMode, userUid]);
+
+  useEffect(() => {
+    if (viewMode !== 'search' || !userUid || !bleSupported) return;
+    void startScanning();
+    return () => { void stopScanning(); };
+  }, [viewMode, userUid, bleSupported, startScanning, stopScanning]);
 
   // "Llamado General" — real action: fan out the brigade emergency push
   // (triggerEmergency → /api/emergency/notify-brigada) for the active project.

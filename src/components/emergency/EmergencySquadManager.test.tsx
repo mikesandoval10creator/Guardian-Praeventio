@@ -8,14 +8,29 @@
 // empty / loading / error states — and the old fabricated names never appear.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 
-vi.mock('../../contexts/FirebaseContext', () => ({ useFirebase: () => ({ user: { uid: 'u1' } }) }));
+const ble = vi.hoisted(() => ({
+  supported: false,
+  user: { uid: 'u1' } as { uid: string } | null,
+  start: vi.fn(async () => undefined),
+  stop: vi.fn(async () => undefined),
+}));
+vi.mock('../../contexts/FirebaseContext', () => ({ useFirebase: () => ({ user: ble.user }) }));
 vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => ({ selectedProject: { id: 'p1', name: 'Proj' } }) }));
 vi.mock('../../contexts/EmergencyContext', () => ({ useEmergency: () => ({ triggerEmergency: vi.fn() }) }));
 vi.mock('../../hooks/useBluetoothMesh', () => ({
-  useBluetoothMesh: () => ({ isSupported: false, isScanning: false, peerBreadcrumbs: [], startScanning: vi.fn() }),
+  useBluetoothMesh: () => ({ isSupported: ble.supported, isScanning: false, peerBreadcrumbs: [], startScanning: ble.start, stopScanning: ble.stop }),
 }));
+// Test scan lifecycle, not animation-frame scheduling (which leaks in jsdom).
+vi.mock('framer-motion', async () => {
+  const React = await import('react');
+  const Div = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { initial?: unknown; animate?: unknown; exit?: unknown; transition?: unknown }>(
+    ({ children, initial: _initial, animate: _animate, exit: _exit, transition: _transition, ...props }, ref) =>
+      React.createElement('div', { ...props, ref }, children),
+  );
+  return { motion: { div: Div }, AnimatePresence: ({ children }: { children: React.ReactNode }) => children };
+});
 vi.mock('./SkillTree', () => ({ SkillTree: () => null }));
 vi.mock('../../utils/offlineStorage', () => ({ getBreadcrumbs: vi.fn(async () => []) }));
 
@@ -28,11 +43,51 @@ import { EmergencySquadManager } from './EmergencySquadManager';
 
 beforeEach(() => {
   cleanup();
+  vi.clearAllMocks();
+  ble.supported = false;
+  ble.user = { uid: 'u1' };
   mockBrigade.mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() });
   mockWorkers.mockReturnValue({ data: [] });
 });
 
 describe('EmergencySquadManager — real brigade roster (B1)', () => {
+  it('stops BLE search when leaving the search view', async () => {
+    ble.supported = true;
+    render(<EmergencySquadManager />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Búsqueda/i })); });
+    expect(ble.start).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Brigada$/i })); });
+    expect(ble.stop).toHaveBeenCalledTimes(1);
+  });
+  it('stops search on unmount and logout, without restarting for an equivalent user object', async () => {
+    ble.supported = true;
+    const { rerender, unmount } = render(<EmergencySquadManager />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Búsqueda/i })); });
+    ble.user = { uid: 'u1' };
+    rerender(<EmergencySquadManager />);
+    expect(ble.start).toHaveBeenCalledTimes(1);
+    expect(ble.stop).not.toHaveBeenCalled();
+    ble.user = null;
+    rerender(<EmergencySquadManager />);
+    expect(ble.stop).toHaveBeenCalledTimes(1);
+    ble.user = { uid: 'u1' };
+    rerender(<EmergencySquadManager />);
+    expect(ble.start).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(ble.stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not start unsupported BLE or a search without a signed-in user', async () => {
+    const { rerender } = render(<EmergencySquadManager />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Búsqueda/i })); });
+    expect(ble.start).not.toHaveBeenCalled();
+    ble.supported = true;
+    ble.user = null;
+    rerender(<EmergencySquadManager />);
+    expect(ble.start).not.toHaveBeenCalled();
+    expect(ble.stop).not.toHaveBeenCalled();
+  });
+
   it('shows an honest empty state when no brigade is configured (no fabricated members)', () => {
     mockBrigade.mockReturnValue({ data: { members: [] }, loading: false, error: null, refetch: vi.fn() });
     render(<EmergencySquadManager />);
