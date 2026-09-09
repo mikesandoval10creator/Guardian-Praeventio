@@ -10,18 +10,22 @@
 // Mount point (from maintenance.ts line 6-7):
 //   app.use('/api/maintenance', maintenanceRouter);
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import express from 'express';
-import request from 'supertest';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import express from "express";
+import request from "supertest";
 
 // ── fake-admin hoisted holder + all vi.fn() mocks ────────────────────────────
 // All variables referenced inside vi.mock() factories MUST be hoisted via
 // vi.hoisted() to avoid "Cannot access before initialization" errors.
 
 const H = vi.hoisted(() => ({
-  db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  db: null as ReturnType<
+    typeof import("../helpers/fakeFirestore").createFakeFirestore
+  > | null,
   // fake messaging
-  fakeMessagingSendEach: vi.fn().mockResolvedValue({ successCount: 1, failureCount: 0, responses: [] }),
+  fakeMessagingSendEach: vi
+    .fn()
+    .mockResolvedValue({ successCount: 1, failureCount: 0, responses: [] }),
   // job mocks
   checkOverdueMaintenance: vi.fn(),
   checkExpiredPpe: vi.fn(),
@@ -47,8 +51,8 @@ const H = vi.hoisted(() => ({
 
 // ── firebase-admin mock ───────────────────────────────────────────────────────
 
-vi.mock('firebase-admin', async () => {
-  const { adminMock } = await import('../helpers/fakeFirestore');
+vi.mock("firebase-admin", async () => {
+  const { adminMock } = await import("../helpers/fakeFirestore");
   const fakeMessaging = { sendEachForMulticast: H.fakeMessagingSendEach };
   const base = adminMock(() => H.db!);
   return {
@@ -63,15 +67,15 @@ vi.mock('firebase-admin', async () => {
 
 // ── verifySchedulerToken: accept "Bearer ok-secret" ──────────────────────────
 
-vi.mock('../../server/middleware/verifySchedulerToken.js', () => ({
+vi.mock("../../server/middleware/verifySchedulerToken.js", () => ({
   verifySchedulerToken: (
-    req: import('express').Request,
-    res: import('express').Response,
-    next: import('express').NextFunction,
+    req: import("express").Request,
+    res: import("express").Response,
+    next: import("express").NextFunction,
   ) => {
-    const auth = req.header('authorization') ?? '';
-    if (auth !== 'Bearer ok-secret') {
-      res.status(401).json({ error: 'unauthorized' });
+    const auth = req.header("authorization") ?? "";
+    if (auth !== "Bearer ok-secret") {
+      res.status(401).json({ error: "unauthorized" });
       return;
     }
     next();
@@ -80,115 +84,115 @@ vi.mock('../../server/middleware/verifySchedulerToken.js', () => ({
 
 // ── infrastructure mocks ──────────────────────────────────────────────────────
 
-vi.mock('../../server/middleware/captureRouteError.js', () => ({
+vi.mock("../../server/middleware/captureRouteError.js", () => ({
   captureRouteError: (...args: unknown[]) => H.captureRouteError(...args),
 }));
 
-vi.mock('../../utils/logger.js', () => ({
+vi.mock("../../utils/logger.js", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 // ── domain job mocks ──────────────────────────────────────────────────────────
 
-vi.mock('../../server/jobs/checkOverdueMaintenance.js', () => ({
+vi.mock("../../server/jobs/checkOverdueMaintenance.js", () => ({
   checkOverdueMaintenance: H.checkOverdueMaintenance,
 }));
 
-vi.mock('../../server/jobs/checkExpiredPpe.js', () => ({
+vi.mock("../../server/jobs/checkExpiredPpe.js", () => ({
   checkExpiredPpe: H.checkExpiredPpe,
 }));
 
-vi.mock('../../server/jobs/checkExpiredBrigadeResources.js', () => ({
+vi.mock("../../server/jobs/checkExpiredBrigadeResources.js", () => ({
   checkExpiredBrigadeResources: H.checkExpiredBrigadeResources,
 }));
 
-vi.mock('../../server/jobs/sendSusesoReminders.js', () => ({
+vi.mock("../../server/jobs/sendSusesoReminders.js", () => ({
   sendSusesoReminders: H.sendSusesoReminders,
 }));
 
-vi.mock('../../services/predictiveAlerts/calendarPreWarn.js', () => ({
+vi.mock("../../services/predictiveAlerts/calendarPreWarn.js", () => ({
   runCalendarPreWarnCron: H.runCalendarPreWarnCron,
 }));
 
-vi.mock('../../server/jobs/runResilienceHealthAlert.js', () => ({
+vi.mock("../../server/jobs/runResilienceHealthAlert.js", () => ({
   runResilienceHealthAlertCron: H.runResilienceHealthAlertCron,
 }));
 
-vi.mock('../../server/jobs/runB2dMrrSnapshot.js', () => ({
+vi.mock("../../server/jobs/runB2dMrrSnapshot.js", () => ({
   runB2dMrrSnapshot: H.runB2dMrrSnapshot,
 }));
 
-vi.mock('../../server/jobs/runRetentionSweep.js', () => ({
+vi.mock("../../server/jobs/runRetentionSweep.js", () => ({
   runRetentionSweep: H.runRetentionSweep,
 }));
 
-vi.mock('../../server/jobs/runLoneWorkerEscalation.js', () => ({
+vi.mock("../../server/jobs/runLoneWorkerEscalation.js", () => ({
   runLoneWorkerEscalationCron: H.runLoneWorkerEscalationCron,
 }));
 
-vi.mock('../../server/jobs/runManDownEscalation.js', () => ({
+vi.mock("../../server/jobs/runManDownEscalation.js", () => ({
   runManDownEscalationCron: H.runManDownEscalationCron,
 }));
 
-vi.mock('../../server/jobs/runExceptionAutoExpire.js', () => ({
+vi.mock("../../server/jobs/runExceptionAutoExpire.js", () => ({
   runExceptionAutoExpire: H.runExceptionAutoExpire,
 }));
 
-vi.mock('../../server/jobs/runWorkPermitAutoExpire.js', () => ({
+vi.mock("../../server/jobs/runWorkPermitAutoExpire.js", () => ({
   runWorkPermitAutoExpire: H.runWorkPermitAutoExpire,
 }));
 
-vi.mock('../../server/jobs/runLegalCalendarReminders.js', () => ({
+vi.mock("../../server/jobs/runLegalCalendarReminders.js", () => ({
   runLegalCalendarReminders: H.runLegalCalendarReminders,
 }));
 
 // B5/B15 — DTE issue queue drain (fourth check-overdue step).
-vi.mock('../../server/jobs/runDteIssueQueueDrain.js', () => ({
+vi.mock("../../server/jobs/runDteIssueQueueDrain.js", () => ({
   runDteIssueQueueDrain: H.runDteIssueQueueDrain,
 }));
 
 // emergency.js re-exports sendToProjectSupervisors used by check-expired-ppe
-vi.mock('../../server/routes/emergency.js', () => ({
+vi.mock("../../server/routes/emergency.js", () => ({
   sendToProjectSupervisors: H.sendToProjectSupervisors,
-  PRAEVENTIO_EMERGENCY_CHANNEL_ID: 'praeventio_emergency',
+  PRAEVENTIO_EMERGENCY_CHANNEL_ID: "praeventio_emergency",
 }));
 
 // fcmAdapter used by resilience-health notifyOps
-vi.mock('../../services/notifications/fcmAdapter.js', () => ({
+vi.mock("../../services/notifications/fcmAdapter.js", () => ({
   fcmAdapter: { sendToTokens: H.fcmAdapterSendToTokens },
 }));
 
 // iterateAllProjects + resolveProjectMemberTokens + LONE_WORKER_ROLE_BUCKETS
-vi.mock('../../server/services/projectTokens.js', () => ({
+vi.mock("../../server/services/projectTokens.js", () => ({
   iterateAllProjects: H.iterateAllProjects,
   resolveProjectMemberTokens: H.resolveProjectMemberTokens,
   LONE_WORKER_ROLE_BUCKETS: {
-    supervisor: ['supervisor'],
-    brigade: ['brigade'],
-    emergency_services: ['emergency_services'],
+    supervisor: ["supervisor"],
+    brigade: ["brigade"],
+    emergency_services: ["emergency_services"],
   },
 }));
 
 // sendMulticastChunked (used by lone-worker + housekeeping FCM dispatch)
-vi.mock('../../server/utils/fcmMulticast.js', () => ({
+vi.mock("../../server/utils/fcmMulticast.js", () => ({
   sendMulticastChunked: H.sendMulticastChunked,
 }));
 
 // ── imports (after mocks) ─────────────────────────────────────────────────────
 
-import maintenanceRouter from '../../server/routes/maintenance.js';
-import { createFakeFirestore } from '../helpers/fakeFirestore';
+import maintenanceRouter from "../../server/routes/maintenance.js";
+import { createFakeFirestore } from "../helpers/fakeFirestore";
 
 // ── app factory ───────────────────────────────────────────────────────────────
 
 function buildApp() {
   const app = express();
   app.use(express.json());
-  app.use('/api/maintenance', maintenanceRouter);
+  app.use("/api/maintenance", maintenanceRouter);
   return app;
 }
 
-const AUTH = 'Bearer ok-secret';
+const AUTH = "Bearer ok-secret";
 
 // ── beforeEach ────────────────────────────────────────────────────────────────
 
@@ -196,11 +200,24 @@ beforeEach(() => {
   H.db = createFakeFirestore();
   vi.clearAllMocks();
 
-  H.fakeMessagingSendEach.mockResolvedValue({ successCount: 1, failureCount: 0, responses: [] });
+  H.fakeMessagingSendEach.mockResolvedValue({
+    successCount: 1,
+    failureCount: 0,
+    responses: [],
+  });
 
   // Default happy stubs
-  H.checkOverdueMaintenance.mockResolvedValue({ updated: 0, eventsFlipped: 0, skipped: 0 });
-  H.checkExpiredPpe.mockResolvedValue({ scanned: 0, expired: 0, notified: 0, findingsCreated: 0 });
+  H.checkOverdueMaintenance.mockResolvedValue({
+    updated: 0,
+    eventsFlipped: 0,
+    skipped: 0,
+  });
+  H.checkExpiredPpe.mockResolvedValue({
+    scanned: 0,
+    expired: 0,
+    notified: 0,
+    findingsCreated: 0,
+  });
   H.checkExpiredBrigadeResources.mockResolvedValue({
     scanned: 0,
     expired: 0,
@@ -212,21 +229,25 @@ beforeEach(() => {
     remindedTotal: 0,
     escalations: { green: 0, yellow: 0, orange: 0, red: 0, overdue: 0 },
   });
-  H.runCalendarPreWarnCron.mockResolvedValue({ scanned: 0, warned: 0 });
+  H.runCalendarPreWarnCron.mockResolvedValue({
+    scanned: 0,
+    warned: 0,
+    perProject: [],
+  });
   H.runResilienceHealthAlertCron.mockResolvedValue({
-    overallStatus: 'healthy',
+    overallStatus: "healthy",
     alertFired: false,
     reportPersisted: true,
     subsystems: [],
     generatedAt: new Date().toISOString(),
   });
   H.runB2dMrrSnapshot.mockResolvedValue({
-    monthKey: '2026-04',
+    monthKey: "2026-04",
     created: false,
     snapshot: { mrr: 0, arr: 0, customersActive: 0 },
   });
   H.runRetentionSweep.mockResolvedValue({
-    runId: 'retention-2026-08-01',
+    runId: "retention-2026-08-01",
     totalDocs: 3,
     archived: 2,
     purged: 0,
@@ -251,8 +272,16 @@ beforeEach(() => {
     finishedAtIso: new Date().toISOString(),
     errors: 0,
   });
-  H.runExceptionAutoExpire.mockResolvedValue({ scanned: 0, expired: 0, errors: 0 });
-  H.runWorkPermitAutoExpire.mockResolvedValue({ scanned: 0, expired: 0, errors: 0 });
+  H.runExceptionAutoExpire.mockResolvedValue({
+    scanned: 0,
+    expired: 0,
+    errors: 0,
+  });
+  H.runWorkPermitAutoExpire.mockResolvedValue({
+    scanned: 0,
+    expired: 0,
+    errors: 0,
+  });
   H.runLegalCalendarReminders.mockResolvedValue({
     scanned: 0,
     remindersEmitted: 0,
@@ -271,7 +300,10 @@ beforeEach(() => {
     errors: 0,
   });
   H.iterateAllProjects.mockResolvedValue(0);
-  H.resolveProjectMemberTokens.mockResolvedValue({ tokens: ['tkn-1'], emails: [] });
+  H.resolveProjectMemberTokens.mockResolvedValue({
+    tokens: ["tkn-1"],
+    emails: [],
+  });
   H.sendMulticastChunked.mockResolvedValue({
     attempted: 1,
     successCount: 1,
@@ -287,26 +319,35 @@ beforeEach(() => {
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/check-overdue', () => {
-  const URL = '/api/maintenance/check-overdue';
+describe("POST /api/maintenance/check-overdue", () => {
+  const URL = "/api/maintenance/check-overdue";
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('401 — wrong bearer secret', async () => {
+  it("401 — wrong bearer secret", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', 'Bearer wrong-secret')
+      .set("Authorization", "Bearer wrong-secret")
       .send();
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe('unauthorized');
+    expect(res.body.error).toBe("unauthorized");
   });
 
-  it('200 — happy path: all 5 sub-jobs succeed, response shape is correct', async () => {
-    H.checkOverdueMaintenance.mockResolvedValueOnce({ updated: 3, eventsFlipped: 3, skipped: 1 });
-    H.checkExpiredPpe.mockResolvedValueOnce({ scanned: 10, expired: 2, notified: 2, findingsCreated: 2 });
+  it("200 — happy path: all 5 sub-jobs succeed, response shape is correct", async () => {
+    H.checkOverdueMaintenance.mockResolvedValueOnce({
+      updated: 3,
+      eventsFlipped: 3,
+      skipped: 1,
+    });
+    H.checkExpiredPpe.mockResolvedValueOnce({
+      scanned: 10,
+      expired: 2,
+      notified: 2,
+      findingsCreated: 2,
+    });
     H.checkExpiredBrigadeResources.mockResolvedValueOnce({
       scanned: 4,
       expired: 1,
@@ -318,44 +359,63 @@ describe('POST /api/maintenance/check-overdue', () => {
       remindedTotal: 3,
       escalations: { green: 1, yellow: 1, orange: 0, red: 1, overdue: 0 },
     });
-    H.runCalendarPreWarnCron.mockResolvedValueOnce({ scanned: 20, warned: 4 });
+    H.runCalendarPreWarnCron.mockResolvedValueOnce({
+      scanned: 20,
+      warned: 4,
+      perProject: [],
+    });
     H.runResilienceHealthAlertCron.mockResolvedValueOnce({
-      overallStatus: 'healthy',
+      overallStatus: "healthy",
       alertFired: false,
       reportPersisted: true,
-      subsystems: [{ id: 'firestore', status: 'healthy' }],
+      subsystems: [{ id: "firestore", status: "healthy" }],
       generatedAt: new Date().toISOString(),
     });
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.updated).toBe(3);
     expect(res.body.eventsFlipped).toBe(3);
-    expect(res.body.ppe).toMatchObject({ scanned: 10, expired: 2, notified: 2, findingsCreated: 2 });
+    expect(res.body.ppe).toMatchObject({
+      scanned: 10,
+      expired: 2,
+      notified: 2,
+      findingsCreated: 2,
+    });
     expect(res.body.brigadeResources).toMatchObject({
       scanned: 4,
       expired: 1,
       notified: 1,
       findingsCreated: 1,
     });
-    expect(res.body.susesoReminders).toMatchObject({ scanned: 5, remindedTotal: 3 });
+    expect(res.body.susesoReminders).toMatchObject({
+      scanned: 5,
+      remindedTotal: 3,
+    });
     expect(res.body.calendarPreWarn).toMatchObject({ scanned: 20, warned: 4 });
-    expect(res.body.resilienceHealth).toMatchObject({ status: 'healthy', alertFired: false });
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(res.body.resilienceHealth).toMatchObject({
+      status: "healthy",
+      alertFired: false,
+    });
+    expect(typeof res.body.tookMs).toBe("number");
   });
 
-  it('200 — ppe sub-job throws: fault isolation, rest continue', async () => {
-    H.checkOverdueMaintenance.mockResolvedValueOnce({ updated: 1, eventsFlipped: 1, skipped: 0 });
-    H.checkExpiredPpe.mockRejectedValueOnce(new Error('ppe boom'));
+  it("200 — ppe sub-job throws: fault isolation, rest continue", async () => {
+    H.checkOverdueMaintenance.mockResolvedValueOnce({
+      updated: 1,
+      eventsFlipped: 1,
+      skipped: 0,
+    });
+    H.checkExpiredPpe.mockRejectedValueOnce(new Error("ppe boom"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -365,12 +425,14 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.body.ppe).toMatchObject({ scanned: 0, expired: 0, notified: 0 });
   });
 
-  it('200 — brigade-resources sub-job throws: fault isolation, rest continue', async () => {
-    H.checkExpiredBrigadeResources.mockRejectedValueOnce(new Error('brigade boom'));
+  it("200 — brigade-resources sub-job throws: fault isolation, rest continue", async () => {
+    H.checkExpiredBrigadeResources.mockRejectedValueOnce(
+      new Error("brigade boom"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -384,22 +446,25 @@ describe('POST /api/maintenance/check-overdue', () => {
     });
   });
 
-  it('200 — suseso sub-job throws: fault isolation', async () => {
-    H.sendSusesoReminders.mockRejectedValueOnce(new Error('suseso boom'));
+  it("200 — suseso sub-job throws: fault isolation", async () => {
+    H.sendSusesoReminders.mockRejectedValueOnce(new Error("suseso boom"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.susesoReminders).toMatchObject({ scanned: 0, remindedTotal: 0 });
+    expect(res.body.susesoReminders).toMatchObject({
+      scanned: 0,
+      remindedTotal: 0,
+    });
   });
 
   // ── B5/B15 — DTE issue queue drain step (mirrors the PPE mounting) ────────
 
-  it('200 — dte-queue drain is invoked and its counts surface in the response', async () => {
+  it("200 — dte-queue drain is invoked and its counts surface in the response", async () => {
     H.runDteIssueQueueDrain.mockResolvedValueOnce({
       gateClosed: false,
       scanned: 3,
@@ -413,7 +478,7 @@ describe('POST /api/maintenance/check-overdue', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -427,26 +492,30 @@ describe('POST /api/maintenance/check-overdue', () => {
     });
   });
 
-  it('200 — dte-queue drain throws: fault isolation, rest continue', async () => {
-    H.runDteIssueQueueDrain.mockRejectedValueOnce(new Error('drain boom'));
+  it("200 — dte-queue drain throws: fault isolation, rest continue", async () => {
+    H.runDteIssueQueueDrain.mockRejectedValueOnce(new Error("drain boom"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     // dteQueue defaults to zeros because of the isolation catch.
-    expect(res.body.dteQueue).toMatchObject({ scanned: 0, issued: 0, permanentFailures: 0 });
+    expect(res.body.dteQueue).toMatchObject({
+      scanned: 0,
+      issued: 0,
+      permanentFailures: 0,
+    });
   });
 
-  it('200 — calendar-prewarn sub-job throws: fault isolation', async () => {
-    H.runCalendarPreWarnCron.mockRejectedValueOnce(new Error('prewarn boom'));
+  it("200 — calendar-prewarn sub-job throws: fault isolation", async () => {
+    H.runCalendarPreWarnCron.mockRejectedValueOnce(new Error("prewarn boom"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -454,100 +523,112 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.body.calendarPreWarn).toMatchObject({ scanned: 0, warned: 0 });
   });
 
-  it('200 — ejecuta resilience-health con agregación estricta', async () => {
+  it("200 — ejecuta resilience-health con agregación estricta", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(H.runResilienceHealthAlertCron).toHaveBeenCalledWith(
-      expect.objectContaining({ overallPolicy: 'strict' }),
+      expect.objectContaining({ overallPolicy: "strict" }),
     );
   });
 
-  it('200 — resilience-health sub-job throws: fault isolation', async () => {
-    H.runResilienceHealthAlertCron.mockRejectedValueOnce(new Error('health boom'));
+  it("200 — resilience-health sub-job throws: fault isolation", async () => {
+    H.runResilienceHealthAlertCron.mockRejectedValueOnce(
+      new Error("health boom"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.resilienceHealth).toMatchObject({ status: 'unknown', alertFired: false });
+    expect(res.body.resilienceHealth).toMatchObject({
+      status: "unknown",
+      alertFired: false,
+    });
   });
 
-  it('500 — top-level checkOverdueMaintenance throws → 500 internal_error', async () => {
-    H.checkOverdueMaintenance.mockRejectedValueOnce(new Error('db exploded'));
+  it("500 — top-level checkOverdueMaintenance throws → 500 internal_error", async () => {
+    H.checkOverdueMaintenance.mockRejectedValueOnce(new Error("db exploded"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.body.error).toBe("internal_error");
   });
 
-  it('200 — resilience-health critical: fcmAdapter.sendToTokens called for admin tokens', async () => {
+  it("200 — resilience-health critical: fcmAdapter.sendToTokens called for admin tokens", async () => {
     // Seed an admin user with FCM tokens
-    H.db!._seed('users/admin-uid-1', { role: 'admin', fcmTokens: ['token-admin-1'] });
-
-    H.runResilienceHealthAlertCron.mockImplementationOnce(async (deps: { notifyOps: (report: unknown) => Promise<void> }) => {
-      await deps.notifyOps({
-        overallStatus: 'critical',
-        alertFired: true,
-        reportPersisted: false,
-        subsystems: [{ id: 'firestore', status: 'critical', detail: 'down' }],
-        generatedAt: new Date().toISOString(),
-      });
-      return {
-        overallStatus: 'critical',
-        alertFired: true,
-        reportPersisted: false,
-        subsystems: [{ id: 'firestore', status: 'critical', detail: 'down' }],
-        generatedAt: new Date().toISOString(),
-      };
+    H.db!._seed("users/admin-uid-1", {
+      role: "admin",
+      fcmTokens: ["token-admin-1"],
     });
+
+    H.runResilienceHealthAlertCron.mockImplementationOnce(
+      async (deps: { notifyOps: (report: unknown) => Promise<void> }) => {
+        await deps.notifyOps({
+          overallStatus: "critical",
+          alertFired: true,
+          reportPersisted: false,
+          subsystems: [{ id: "firestore", status: "critical", detail: "down" }],
+          generatedAt: new Date().toISOString(),
+        });
+        return {
+          overallStatus: "critical",
+          alertFired: true,
+          reportPersisted: false,
+          subsystems: [{ id: "firestore", status: "critical", detail: "down" }],
+          generatedAt: new Date().toISOString(),
+        };
+      },
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(H.fcmAdapterSendToTokens).toHaveBeenCalledWith(
-      expect.arrayContaining(['token-admin-1']),
-      expect.objectContaining({ title: expect.stringContaining('crítico') }),
+      expect.arrayContaining(["token-admin-1"]),
+      expect.objectContaining({ title: expect.stringContaining("crítico") }),
     );
     expect(res.body.resilienceHealth.alertFired).toBe(true);
   });
 
-  it('200 — resilience-health critical: no admin tokens → no FCM call', async () => {
+  it("200 — resilience-health critical: no admin tokens → no FCM call", async () => {
     // No admin users seeded → snap is empty → no tokens
-    H.runResilienceHealthAlertCron.mockImplementationOnce(async (deps: { notifyOps: (report: unknown) => Promise<void> }) => {
-      await deps.notifyOps({
-        overallStatus: 'critical',
-        alertFired: false,
-        reportPersisted: false,
-        subsystems: [{ id: 'firestore', status: 'critical', detail: 'down' }],
-        generatedAt: new Date().toISOString(),
-      });
-      return {
-        overallStatus: 'critical',
-        alertFired: false,
-        reportPersisted: false,
-        subsystems: [],
-        generatedAt: new Date().toISOString(),
-      };
-    });
+    H.runResilienceHealthAlertCron.mockImplementationOnce(
+      async (deps: { notifyOps: (report: unknown) => Promise<void> }) => {
+        await deps.notifyOps({
+          overallStatus: "critical",
+          alertFired: false,
+          reportPersisted: false,
+          subsystems: [{ id: "firestore", status: "critical", detail: "down" }],
+          generatedAt: new Date().toISOString(),
+        });
+        return {
+          overallStatus: "critical",
+          alertFired: false,
+          reportPersisted: false,
+          subsystems: [],
+          generatedAt: new Date().toISOString(),
+        };
+      },
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -560,54 +641,54 @@ describe('POST /api/maintenance/check-overdue', () => {
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/run-b2d-mrr-snapshot', () => {
-  const URL = '/api/maintenance/run-b2d-mrr-snapshot';
+describe("POST /api/maintenance/run-b2d-mrr-snapshot", () => {
+  const URL = "/api/maintenance/run-b2d-mrr-snapshot";
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('401 — wrong bearer token', async () => {
+  it("401 — wrong bearer token", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', 'Bearer bad-secret')
+      .set("Authorization", "Bearer bad-secret")
       .send();
     expect(res.status).toBe(401);
   });
 
-  it('200 — happy path: response shape matches B2D snapshot fields', async () => {
+  it("200 — happy path: response shape matches B2D snapshot fields", async () => {
     H.runB2dMrrSnapshot.mockResolvedValueOnce({
-      monthKey: '2026-04',
+      monthKey: "2026-04",
       created: true,
       snapshot: { mrr: 120_000, arr: 1_440_000, customersActive: 12 },
     });
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.monthKey).toBe('2026-04');
+    expect(res.body.monthKey).toBe("2026-04");
     expect(res.body.created).toBe(true);
     expect(res.body.mrr).toBe(120_000);
     expect(res.body.arr).toBe(1_440_000);
     expect(res.body.customersActive).toBe(12);
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(typeof res.body.tookMs).toBe("number");
   });
 
-  it('200 — created:false when snapshot already exists (idempotent re-run)', async () => {
+  it("200 — created:false when snapshot already exists (idempotent re-run)", async () => {
     H.runB2dMrrSnapshot.mockResolvedValueOnce({
-      monthKey: '2026-04',
+      monthKey: "2026-04",
       created: false,
       snapshot: { mrr: 90_000, arr: 1_080_000, customersActive: 9 },
     });
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -615,18 +696,18 @@ describe('POST /api/maintenance/run-b2d-mrr-snapshot', () => {
     expect(res.body.mrr).toBe(90_000);
   });
 
-  it('500 — runB2dMrrSnapshot throws → 500 internal_error', async () => {
-    H.runB2dMrrSnapshot.mockRejectedValueOnce(new Error('snapshot failed'));
+  it("500 — runB2dMrrSnapshot throws → 500 internal_error", async () => {
+    H.runB2dMrrSnapshot.mockRejectedValueOnce(new Error("snapshot failed"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
-    expect(res.body.message).toBe('b2d-mrr-snapshot failed');
+    expect(res.body.error).toBe("internal_error");
+    expect(res.body.message).toBe("b2d-mrr-snapshot failed");
   });
 });
 
@@ -635,17 +716,17 @@ describe('POST /api/maintenance/run-b2d-mrr-snapshot', () => {
 //     Gate: verifySchedulerToken — applies real retention policy + audit report.
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/run-retention-sweep', () => {
-  const URL = '/api/maintenance/run-retention-sweep';
+describe("POST /api/maintenance/run-retention-sweep", () => {
+  const URL = "/api/maintenance/run-retention-sweep";
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('200 — runs retention sweep and returns audited counts', async () => {
+  it("200 — runs retention sweep and returns audited counts", async () => {
     H.runRetentionSweep.mockResolvedValueOnce({
-      runId: 'retention-2026-08-01',
+      runId: "retention-2026-08-01",
       totalDocs: 5,
       archived: 3,
       purged: 0,
@@ -655,34 +736,34 @@ describe('POST /api/maintenance/run-retention-sweep', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       ok: true,
-      runId: 'retention-2026-08-01',
+      runId: "retention-2026-08-01",
       totalDocs: 5,
       archived: 3,
       purged: 0,
       auditLogLeftAlone: true,
     });
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(typeof res.body.tookMs).toBe("number");
     expect(H.runRetentionSweep).toHaveBeenCalledWith({ db: H.db });
   });
 
-  it('500 — runRetentionSweep throws → 500 internal_error', async () => {
-    H.runRetentionSweep.mockRejectedValueOnce(new Error('retention failed'));
+  it("500 — runRetentionSweep throws → 500 internal_error", async () => {
+    H.runRetentionSweep.mockRejectedValueOnce(new Error("retention failed"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
-    expect(res.body.message).toBe('retention-sweep failed');
+    expect(res.body.error).toBe("internal_error");
+    expect(res.body.message).toBe("retention-sweep failed");
   });
 });
 
@@ -691,28 +772,28 @@ describe('POST /api/maintenance/run-retention-sweep', () => {
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/run-lone-worker-escalation', () => {
-  const URL = '/api/maintenance/run-lone-worker-escalation';
+describe("POST /api/maintenance/run-lone-worker-escalation", () => {
+  const URL = "/api/maintenance/run-lone-worker-escalation";
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('401 — wrong bearer token', async () => {
+  it("401 — wrong bearer token", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', 'Bearer evil-secret')
+      .set("Authorization", "Bearer evil-secret")
       .send();
     expect(res.status).toBe(401);
   });
 
-  it('200 — no projects: response shape correct with zero aggregates', async () => {
+  it("200 — no projects: response shape correct with zero aggregates", async () => {
     H.iterateAllProjects.mockImplementationOnce(async () => 0);
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -722,12 +803,16 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
     expect(res.body.escalationsEmitted).toBe(0);
     expect(res.body.errors).toBe(0);
     expect(res.body.notifications).toMatchObject({
-      attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0,
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      chunks: 0,
+      chunkErrors: 0,
     });
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(typeof res.body.tookMs).toBe("number");
   });
 
-  it('200 — one project, cron emits 1 escalation: aggregates rolled up', async () => {
+  it("200 — one project, cron emits 1 escalation: aggregates rolled up", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
@@ -735,8 +820,8 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
         onProject: (doc: unknown) => Promise<void>,
       ) => {
         const fakeDoc = {
-          id: 'proj-lw-1',
-          data: () => ({ tenantId: 'tenant-1' }),
+          id: "proj-lw-1",
+          data: () => ({ tenantId: "tenant-1" }),
         };
         await onProject(fakeDoc);
         return 1;
@@ -754,7 +839,7 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -765,23 +850,25 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
     expect(res.body.byLevel.supervisor).toBe(1);
   });
 
-  it('200 — per-project cron throws: errors counter incremented, overall 200', async () => {
+  it("200 — per-project cron throws: errors counter incremented, overall 200", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-err', data: () => ({}) };
+        const fakeDoc = { id: "proj-err", data: () => ({}) };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runLoneWorkerEscalationCron.mockRejectedValueOnce(new Error('per-project crash'));
+    H.runLoneWorkerEscalationCron.mockRejectedValueOnce(
+      new Error("per-project crash"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -789,18 +876,18 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
     expect(res.body.errors).toBe(1);
   });
 
-  it('500 — iterateAllProjects itself throws → 500 internal_error', async () => {
-    H.iterateAllProjects.mockRejectedValueOnce(new Error('iterate failed'));
+  it("500 — iterateAllProjects itself throws → 500 internal_error", async () => {
+    H.iterateAllProjects.mockRejectedValueOnce(new Error("iterate failed"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
-    expect(res.body.message).toBe('lone-worker-escalation failed');
+    expect(res.body.error).toBe("internal_error");
+    expect(res.body.message).toBe("lone-worker-escalation failed");
   });
 });
 
@@ -809,28 +896,28 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/run-man-down-escalation', () => {
-  const URL = '/api/maintenance/run-man-down-escalation';
+describe("POST /api/maintenance/run-man-down-escalation", () => {
+  const URL = "/api/maintenance/run-man-down-escalation";
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('401 — wrong bearer token', async () => {
+  it("401 — wrong bearer token", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', 'Bearer evil-secret')
+      .set("Authorization", "Bearer evil-secret")
       .send();
     expect(res.status).toBe(401);
   });
 
-  it('200 — no projects: response shape correct with zero aggregates', async () => {
+  it("200 — no projects: response shape correct with zero aggregates", async () => {
     H.iterateAllProjects.mockImplementationOnce(async () => 0);
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -840,19 +927,26 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     expect(res.body.escalationsEmitted).toBe(0);
     expect(res.body.errors).toBe(0);
     expect(res.body.notifications).toMatchObject({
-      attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0,
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      chunks: 0,
+      chunkErrors: 0,
     });
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(typeof res.body.tookMs).toBe("number");
   });
 
-  it('200 — one project, cron emits 3 escalations: aggregates rolled up', async () => {
+  it("200 — one project, cron emits 3 escalations: aggregates rolled up", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-md-1', data: () => ({ tenantId: 'tenant-1' }) };
+        const fakeDoc = {
+          id: "proj-md-1",
+          data: () => ({ tenantId: "tenant-1" }),
+        };
         await onProject(fakeDoc);
         return 1;
       },
@@ -869,7 +963,7 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -877,26 +971,32 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     expect(res.body.projectsScanned).toBe(1);
     expect(res.body.eventsScanned).toBe(2);
     expect(res.body.escalationsEmitted).toBe(3);
-    expect(res.body.byLevel).toMatchObject({ supervisor: 1, brigade: 1, emergency_services: 1 });
+    expect(res.body.byLevel).toMatchObject({
+      supervisor: 1,
+      brigade: 1,
+      emergency_services: 1,
+    });
   });
 
-  it('200 — per-project cron throws: errors counter incremented, overall 200', async () => {
+  it("200 — per-project cron throws: errors counter incremented, overall 200", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-err', data: () => ({}) };
+        const fakeDoc = { id: "proj-err", data: () => ({}) };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runManDownEscalationCron.mockRejectedValueOnce(new Error('per-project crash'));
+    H.runManDownEscalationCron.mockRejectedValueOnce(
+      new Error("per-project crash"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -904,7 +1004,7 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     expect(res.body.errors).toBe(1);
   });
 
-  it('200 — cron notify hook resolves tokens + multicasts (FCM wiring exercised)', async () => {
+  it("200 — cron notify hook resolves tokens + multicasts (FCM wiring exercised)", async () => {
     // Drive the real notify closure: iterateAllProjects invokes perProject,
     // and the cron mock calls the provided notify with a supervisor escalation.
     H.iterateAllProjects.mockImplementationOnce(
@@ -913,7 +1013,7 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-md-2', data: () => ({}) };
+        const fakeDoc = { id: "proj-md-2", data: () => ({}) };
         await onProject(fakeDoc);
         return 1;
       },
@@ -921,12 +1021,13 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     H.runManDownEscalationCron.mockImplementationOnce(
       async (deps: { notify?: (info: unknown) => Promise<void> }) => {
         await deps.notify?.({
-          eventId: 'evt-9',
-          workerId: 'w-9',
-          workerName: 'Ana',
-          level: 'supervisor',
-          triggeredAtIso: '2026-05-12T11:58:00Z',
-          message: 'Trabajador Ana caído o inmóvil — alerta supervisor (man down)',
+          eventId: "evt-9",
+          workerId: "w-9",
+          workerName: "Ana",
+          level: "supervisor",
+          triggeredAtIso: "2026-05-12T11:58:00Z",
+          message:
+            "Trabajador Ana caído o inmóvil — alerta supervisor (man down)",
           location: { lat: -33.45, lng: -70.66 },
         });
         return {
@@ -943,30 +1044,30 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(H.resolveProjectMemberTokens).toHaveBeenCalledWith(
-      'proj-md-2',
-      ['supervisor'],
+      "proj-md-2",
+      ["supervisor"],
       expect.anything(),
     );
     expect(H.sendMulticastChunked).toHaveBeenCalledOnce();
     const [, tokens, payload] = H.sendMulticastChunked.mock.calls[0];
-    expect(tokens).toEqual(['tkn-1']);
+    expect(tokens).toEqual(["tkn-1"]);
     expect(payload.data).toMatchObject({
-      kind: 'man_down_escalation',
-      eventId: 'evt-9',
-      level: 'supervisor',
-      lat: '-33.45',
-      lng: '-70.66',
+      kind: "man_down_escalation",
+      eventId: "evt-9",
+      level: "supervisor",
+      lat: "-33.45",
+      lng: "-70.66",
     });
     expect(payload.android).toEqual({
-      priority: 'high',
+      priority: "high",
       notification: {
-        channelId: 'praeventio_emergency',
-        sound: 'default',
+        channelId: "praeventio_emergency",
+        sound: "default",
       },
     });
     expect(res.body.notifications.delivered).toBe(1);
@@ -980,12 +1081,12 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     H.runManDownEscalationCron.mockImplementationOnce(
       async (deps: { notify?: (info: unknown) => Promise<void> }) => {
         await deps.notify?.({
-          eventId: 'evt-x',
-          workerId: 'w-x',
+          eventId: "evt-x",
+          workerId: "w-x",
           workerName: null,
-          level: 'emergency_services',
-          triggeredAtIso: '2026-05-12T11:00:00Z',
-          message: 'man down',
+          level: "emergency_services",
+          triggeredAtIso: "2026-05-12T11:00:00Z",
+          message: "man down",
           location: null,
         });
         return {
@@ -1000,9 +1101,13 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
       },
     );
 
-  const oneProject = (id = 'proj-md-throw') =>
+  const oneProject = (id = "proj-md-throw") =>
     H.iterateAllProjects.mockImplementationOnce(
-      async (_db: unknown, _ps: unknown, onProject: (doc: unknown) => Promise<void>) => {
+      async (
+        _db: unknown,
+        _ps: unknown,
+        onProject: (doc: unknown) => Promise<void>,
+      ) => {
         await onProject({ id, data: () => ({}) });
         return 1;
       },
@@ -1010,19 +1115,28 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
 
   it('200 — NO recipients for the level → notify throws → per-project error counted, no silent "delivered"', async () => {
     oneProject();
-    H.resolveProjectMemberTokens.mockResolvedValueOnce({ tokens: [], emails: [] });
+    H.resolveProjectMemberTokens.mockResolvedValueOnce({
+      tokens: [],
+      emails: [],
+    });
     driveNotifyOnce();
 
-    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
 
     expect(res.status).toBe(200);
     expect(res.body.errors).toBe(1); // notify threw → cron promise rejected → onError
     expect(H.sendMulticastChunked).not.toHaveBeenCalled(); // never reached FCM
   });
 
-  it('200 — FCM delivered to zero devices → notify throws → per-project error counted', async () => {
+  it("200 — FCM delivered to zero devices → notify throws → per-project error counted", async () => {
     oneProject();
-    H.resolveProjectMemberTokens.mockResolvedValueOnce({ tokens: ['tkn-1'], emails: [] });
+    H.resolveProjectMemberTokens.mockResolvedValueOnce({
+      tokens: ["tkn-1"],
+      emails: [],
+    });
     H.sendMulticastChunked.mockResolvedValueOnce({
       attempted: 1,
       successCount: 0,
@@ -1032,14 +1146,17 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
     });
     driveNotifyOnce();
 
-    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
 
     expect(res.status).toBe(200);
     expect(res.body.errors).toBe(1); // no-delivery throw propagated
   });
 
-  it('200 — cron returns soft errors (errors>0) → surfaced to the error tracker', async () => {
-    oneProject('proj-md-soft');
+  it("200 — cron returns soft errors (errors>0) → surfaced to the error tracker", async () => {
+    oneProject("proj-md-soft");
     H.runManDownEscalationCron.mockResolvedValueOnce({
       eventsScanned: 3,
       escalationsEmitted: 0,
@@ -1050,29 +1167,32 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
       errors: 2,
     });
 
-    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
 
     expect(res.status).toBe(200);
     expect(res.body.errors).toBe(2);
     expect(H.captureRouteError).toHaveBeenCalledWith(
       expect.any(Error),
-      'maintenance.man-down-escalation.softErrors',
-      expect.objectContaining({ projectId: 'proj-md-soft' }),
+      "maintenance.man-down-escalation.softErrors",
+      expect.objectContaining({ projectId: "proj-md-soft" }),
     );
   });
 
-  it('500 — iterateAllProjects itself throws → 500 internal_error', async () => {
-    H.iterateAllProjects.mockRejectedValueOnce(new Error('iterate failed'));
+  it("500 — iterateAllProjects itself throws → 500 internal_error", async () => {
+    H.iterateAllProjects.mockRejectedValueOnce(new Error("iterate failed"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
-    expect(res.body.message).toBe('man-down-escalation failed');
+    expect(res.body.error).toBe("internal_error");
+    expect(res.body.message).toBe("man-down-escalation failed");
   });
 });
 
@@ -1081,17 +1201,17 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/maintenance/run-daily-housekeeping', () => {
-  const URL = '/api/maintenance/run-daily-housekeeping';
+describe("POST /api/maintenance/run-daily-housekeeping", () => {
+  const URL = "/api/maintenance/run-daily-housekeeping";
 
   // Stub the UF rate fetch so the daily-housekeeping UF step is hermetic —
   // no real network call to mindicador.cl in tests.
   beforeEach(() => {
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn(async () => ({
         ok: true,
-        json: async () => ({ serie: [{ fecha: '2026-06-16', valor: 38500 }] }),
+        json: async () => ({ serie: [{ fecha: "2026-06-16", valor: 38500 }] }),
       })),
     );
   });
@@ -1099,41 +1219,52 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
     vi.unstubAllGlobals();
   });
 
-  it('401 — missing Authorization header', async () => {
+  it("401 — missing Authorization header", async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
   });
 
-  it('401 — wrong bearer token', async () => {
+  it("401 — wrong bearer token", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', 'Bearer bad-key')
+      .set("Authorization", "Bearer bad-key")
       .send();
     expect(res.status).toBe(401);
   });
 
-  it('200 — no projects: all counters zero, shape correct', async () => {
+  it("200 — no projects: all counters zero, shape correct", async () => {
     H.iterateAllProjects.mockImplementationOnce(async () => 0);
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.projectsScanned).toBe(0);
-    expect(res.body.exceptions).toMatchObject({ scanned: 0, expired: 0, errors: 0 });
-    expect(res.body.workPermits).toMatchObject({ scanned: 0, expired: 0, errors: 0 });
+    expect(res.body.exceptions).toMatchObject({
+      scanned: 0,
+      expired: 0,
+      errors: 0,
+    });
+    expect(res.body.workPermits).toMatchObject({
+      scanned: 0,
+      expired: 0,
+      errors: 0,
+    });
     // Global UF rate step ran (stubbed fetch) and refreshed the cached rate.
     expect(res.body.ufRate).toMatchObject({ updated: true });
     expect(res.body.legalReminders).toMatchObject({
-      scanned: 0, remindersEmitted: 0, skipped: 0, errors: 0,
+      scanned: 0,
+      remindersEmitted: 0,
+      skipped: 0,
+      errors: 0,
     });
-    expect(typeof res.body.tookMs).toBe('number');
+    expect(typeof res.body.tookMs).toBe("number");
   });
 
-  it('200 — one project processed: all three sub-jobs aggregate correctly', async () => {
+  it("200 — one project processed: all three sub-jobs aggregate correctly", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
@@ -1141,15 +1272,23 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
         onProject: (doc: unknown) => Promise<void>,
       ) => {
         const fakeDoc = {
-          id: 'proj-house-1',
-          data: () => ({ tenantId: 'tenant-hh' }),
+          id: "proj-house-1",
+          data: () => ({ tenantId: "tenant-hh" }),
         };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runExceptionAutoExpire.mockResolvedValueOnce({ scanned: 10, expired: 3, errors: 0 });
-    H.runWorkPermitAutoExpire.mockResolvedValueOnce({ scanned: 7, expired: 2, errors: 0 });
+    H.runExceptionAutoExpire.mockResolvedValueOnce({
+      scanned: 10,
+      expired: 3,
+      errors: 0,
+    });
+    H.runWorkPermitAutoExpire.mockResolvedValueOnce({
+      scanned: 7,
+      expired: 2,
+      errors: 0,
+    });
     H.runLegalCalendarReminders.mockResolvedValueOnce({
       scanned: 5,
       remindersEmitted: 2,
@@ -1160,20 +1299,31 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.projectsScanned).toBe(1);
-    expect(res.body.exceptions).toMatchObject({ scanned: 10, expired: 3, errors: 0 });
-    expect(res.body.workPermits).toMatchObject({ scanned: 7, expired: 2, errors: 0 });
-    expect(res.body.legalReminders).toMatchObject({ scanned: 5, remindersEmitted: 2 });
+    expect(res.body.exceptions).toMatchObject({
+      scanned: 10,
+      expired: 3,
+      errors: 0,
+    });
+    expect(res.body.workPermits).toMatchObject({
+      scanned: 7,
+      expired: 2,
+      errors: 0,
+    });
+    expect(res.body.legalReminders).toMatchObject({
+      scanned: 5,
+      remindersEmitted: 2,
+    });
     // skipped = skippedNotDue + skippedIdempotent = 2+1 = 3
     expect(res.body.legalReminders.skipped).toBe(3);
   });
 
-  it('200 — project with empty tenantId string falls back to projectId for work_permits path', async () => {
+  it("200 — project with empty tenantId string falls back to projectId for work_permits path", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
@@ -1181,8 +1331,8 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
         onProject: (doc: unknown) => Promise<void>,
       ) => {
         const fakeDoc = {
-          id: 'proj-no-tenant',
-          data: () => ({ tenantId: '' }),
+          id: "proj-no-tenant",
+          data: () => ({ tenantId: "" }),
         };
         await onProject(fakeDoc);
         return 1;
@@ -1191,18 +1341,19 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(H.runWorkPermitAutoExpire).toHaveBeenCalledWith(
       expect.objectContaining({
-        collectionPath: 'tenants/proj-no-tenant/projects/proj-no-tenant/work_permits',
+        collectionPath:
+          "tenants/proj-no-tenant/projects/proj-no-tenant/work_permits",
       }),
     );
   });
 
-  it('200 — project without tenantId field falls back to projectId', async () => {
+  it("200 — project without tenantId field falls back to projectId", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
@@ -1210,7 +1361,7 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
         onProject: (doc: unknown) => Promise<void>,
       ) => {
         const fakeDoc = {
-          id: 'proj-no-tid-field',
+          id: "proj-no-tid-field",
           data: () => ({}),
         };
         await onProject(fakeDoc);
@@ -1220,34 +1371,40 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(H.runWorkPermitAutoExpire).toHaveBeenCalledWith(
       expect.objectContaining({
-        collectionPath: 'tenants/proj-no-tid-field/projects/proj-no-tid-field/work_permits',
+        collectionPath:
+          "tenants/proj-no-tid-field/projects/proj-no-tid-field/work_permits",
       }),
     );
   });
 
-  it('200 — exception sub-job throws: errors incremented, other jobs still run', async () => {
+  it("200 — exception sub-job throws: errors incremented, other jobs still run", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-exc-err', data: () => ({ tenantId: 'tid' }) };
+        const fakeDoc = {
+          id: "proj-exc-err",
+          data: () => ({ tenantId: "tid" }),
+        };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runExceptionAutoExpire.mockRejectedValueOnce(new Error('exception job crashed'));
+    H.runExceptionAutoExpire.mockRejectedValueOnce(
+      new Error("exception job crashed"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -1256,23 +1413,28 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
     expect(H.runLegalCalendarReminders).toHaveBeenCalledTimes(1);
   });
 
-  it('200 — work_permit sub-job throws: errors incremented, other jobs still run', async () => {
+  it("200 — work_permit sub-job throws: errors incremented, other jobs still run", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-wp-err', data: () => ({ tenantId: 'tid' }) };
+        const fakeDoc = {
+          id: "proj-wp-err",
+          data: () => ({ tenantId: "tid" }),
+        };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runWorkPermitAutoExpire.mockRejectedValueOnce(new Error('work permit crashed'));
+    H.runWorkPermitAutoExpire.mockRejectedValueOnce(
+      new Error("work permit crashed"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -1281,23 +1443,28 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
     expect(H.runLegalCalendarReminders).toHaveBeenCalledTimes(1);
   });
 
-  it('200 — legal-reminders sub-job throws: errors incremented, other jobs still ran', async () => {
+  it("200 — legal-reminders sub-job throws: errors incremented, other jobs still ran", async () => {
     H.iterateAllProjects.mockImplementationOnce(
       async (
         _db: unknown,
         _ps: unknown,
         onProject: (doc: unknown) => Promise<void>,
       ) => {
-        const fakeDoc = { id: 'proj-lr-err', data: () => ({ tenantId: 'tid' }) };
+        const fakeDoc = {
+          id: "proj-lr-err",
+          data: () => ({ tenantId: "tid" }),
+        };
         await onProject(fakeDoc);
         return 1;
       },
     );
-    H.runLegalCalendarReminders.mockRejectedValueOnce(new Error('legal reminder crashed'));
+    H.runLegalCalendarReminders.mockRejectedValueOnce(
+      new Error("legal reminder crashed"),
+    );
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
@@ -1306,28 +1473,30 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
     expect(H.runWorkPermitAutoExpire).toHaveBeenCalledTimes(1);
   });
 
-  it('200 — legalReminders.notifications field is present in response', async () => {
+  it("200 — legalReminders.notifications field is present in response", async () => {
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(200);
     expect(res.body.legalReminders.notifications).toBeDefined();
-    expect(typeof res.body.legalReminders.notifications.attempted).toBe('number');
+    expect(typeof res.body.legalReminders.notifications.attempted).toBe(
+      "number",
+    );
   });
 
-  it('500 — iterateAllProjects throws → 500 internal_error', async () => {
-    H.iterateAllProjects.mockRejectedValueOnce(new Error('firestore down'));
+  it("500 — iterateAllProjects throws → 500 internal_error", async () => {
+    H.iterateAllProjects.mockRejectedValueOnce(new Error("firestore down"));
 
     const res = await request(buildApp())
       .post(URL)
-      .set('Authorization', AUTH)
+      .set("Authorization", AUTH)
       .send();
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
-    expect(res.body.error).toBe('internal_error');
-    expect(res.body.message).toBe('daily-housekeeping failed');
+    expect(res.body.error).toBe("internal_error");
+    expect(res.body.message).toBe("daily-housekeeping failed");
   });
 });
