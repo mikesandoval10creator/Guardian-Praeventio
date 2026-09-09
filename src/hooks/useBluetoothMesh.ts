@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { BleClient, BleDevice } from '@capacitor-community/bluetooth-le';
+import { BleClient } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
-import { saveBreadcrumb, getBreadcrumbs } from '../utils/offlineStorage';
+import { saveBreadcrumb } from '../utils/offlineStorage';
 import { logger } from '../utils/logger';
 // §16.2.1 sensorBus wiring: BLE peer visibility is correlation evidence for
 // man-down (fall + inactivity + BLE disconnected → critical). This hook has
@@ -10,6 +10,23 @@ import { logger } from '../utils/logger';
 import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
 import { humanErrorMessage } from '../lib/humanError';
 
+
+interface ScanSession {
+  cancelled: boolean;
+  native: boolean;
+  found: number;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+// BleClient has one scanner shared by hook instances. Serialize start/stop so
+// a delayed native start cannot outlive cleanup or stop a newer owner's scan.
+let nativeOwner: ScanSession | null = null;
+let nativeOperations = Promise.resolve();
+function runNativeOperation(operation: () => Promise<void>): Promise<void> {
+  const pending = nativeOperations.then(operation);
+  nativeOperations = pending.catch(() => { /* Caller handles the error; keep the queue usable. */ });
+  return pending;
+}
 
 interface BluetoothDevice {
   id: string;
@@ -30,12 +47,32 @@ export function useBluetoothMesh() {
   const [peerBreadcrumbs, setPeerBreadcrumbs] = useState<PeerBreadcrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Peers discovered during the CURRENT scan window — used to decide whether
-  // the scan ended "isolated" (zero peers → disconnection evidence).
-  const scanFoundCountRef = useRef(0);
+  const sessionRef = useRef<ScanSession | null>(null);
+  const mountedRef = useRef(false);
+
+  const stopScanning = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.cancelled = true;
+    if (session.timer !== undefined) clearTimeout(session.timer);
+    sessionRef.current = null;
+    if (mountedRef.current) setIsScanning(false);
+    if (!session.native) return;
+    try {
+      await runNativeOperation(async () => {
+        if (nativeOwner !== session) return;
+        await BleClient.stopLEScan();
+        nativeOwner = null;
+      });
+    } catch (err) {
+      // Retain the cancelled native owner: a later start retries cleanup first.
+      logger.error('BLE scan cleanup failed', err);
+      if (mountedRef.current) setError(humanErrorMessage(err));
+    }
+  }, []);
 
   // Save a breadcrumb ping for a discovered BLE peer and record locally
-  const registerPeerContact = useCallback(async (deviceId: string, deviceName: string) => {
+  const registerPeerContact = useCallback(async (deviceId: string, deviceName: string, session: ScanSession) => {
     // §16.2.1: a visible peer = BLE connectivity OK. Published synchronously
     // (before the async GPS/breadcrumb work) so the bus sees it immediately.
     publishSensorEvent({
@@ -65,7 +102,9 @@ export function useBluetoothMesh() {
         })
       : (lastKnown ?? { lat: 0, lng: 0 });
 
+    if (session.cancelled || !mountedRef.current) return;
     await saveBreadcrumb(deviceId, pos.lat, pos.lng).catch(() => {});
+    if (session.cancelled || !mountedRef.current) return;
     setPeerBreadcrumbs(prev => {
       const exists = prev.find(p => p.peerId === deviceId);
       if (exists) return prev.map(p => p.peerId === deviceId ? { ...p, timestamp: Date.now() } : p);
@@ -74,95 +113,98 @@ export function useBluetoothMesh() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
+    let disposed = false;
     const initBle = async () => {
       try {
         await BleClient.initialize();
-        setIsSupported(true);
+        if (!disposed) setIsSupported(true);
       } catch (e) {
         logger.error("BLE Initialization failed", e);
-        setIsSupported(false);
+        if (!disposed) setIsSupported(false);
       }
     };
-    initBle();
-  }, []);
+    void initBle();
+    return () => {
+      disposed = true;
+      mountedRef.current = false;
+      void stopScanning();
+    };
+  }, [stopScanning]);
 
   const startScanning = useCallback(async () => {
+    if (!mountedRef.current || sessionRef.current) return;
     if (!isSupported) {
       setError('Bluetooth LE no soportado o inicializado.');
       return;
     }
-
+    const session: ScanSession = {
+      cancelled: false, native: Capacitor.isNativePlatform(), found: 0,
+    };
+    sessionRef.current = session;
+    const isCurrent = () => !session.cancelled && mountedRef.current && sessionRef.current === session;
+    const seen = new Set<string>();
+    const recordDevice = (id: string, name: string) => {
+      if (!isCurrent()) return;
+      session.found += 1;
+      if (!seen.has(id)) {
+        seen.add(id);
+        void registerPeerContact(id, name, session);
+      }
+      setNearbyDevices(prev => prev.some(d => d.id === id)
+        ? prev.map(d => d.id === id ? { ...d, lastSeen: Date.now() } : d)
+        : [...prev, { id, name, lastSeen: Date.now() }]);
+    };
+    setIsScanning(true);
+    setError(null);
     try {
-      setIsScanning(true);
-      setError(null);
-
-      if (Capacitor.isNativePlatform()) {
-        scanFoundCountRef.current = 0;
-        await BleClient.requestLEScan({}, (result) => {
-          scanFoundCountRef.current += 1;
-          const deviceName = result.device.name || 'Dispositivo Desconocido';
-          setNearbyDevices(prev => {
-            const existing = prev.find(d => d.id === result.device.deviceId);
-            if (existing) {
-              return prev.map(d => d.id === result.device.deviceId ? { ...d, lastSeen: Date.now() } : d);
-            }
-            registerPeerContact(result.device.deviceId, deviceName);
-            return [...prev, { id: result.device.deviceId, name: deviceName, lastSeen: Date.now() }];
+      if (session.native) {
+        await runNativeOperation(async () => {
+          if (!isCurrent()) return;
+          // Retry a previously failed cleanup before issuing another start.
+          if (nativeOwner?.cancelled) {
+            await BleClient.stopLEScan();
+            nativeOwner = null;
+          }
+          if (nativeOwner) throw new Error('BLE_SCAN_BUSY');
+          nativeOwner = session;
+          // Keep ownership on rejection: partial native setup still needs cleanup.
+          await BleClient.requestLEScan({}, result => {
+            recordDevice(result.device.deviceId, result.device.name || 'Dispositivo Desconocido');
           });
         });
-        
-        setTimeout(async () => {
-          await BleClient.stopLEScan();
-          setIsScanning(false);
-          // §16.2.1: a full scan window with ZERO peers = the worker is out
-          // of BLE range of every beacon/companion — disconnection evidence
-          // for the man-down correlation. A found peer already published
-          // 'info' above, which supersedes any earlier warning on the bus.
-          if (scanFoundCountRef.current === 0) {
-            publishSensorEvent({
-              kind: 'ble_proximity',
-              severity: 'warning',
-              meta: { reason: 'scan_empty' },
-            });
+        if (!isCurrent()) return;
+        session.timer = setTimeout(() => {
+          if (!isCurrent()) return;
+          // Only a complete window is evidence of isolation, never cancellation.
+          if (session.found === 0) {
+            publishSensorEvent({ kind: 'ble_proximity', severity: 'warning', meta: { reason: 'scan_empty' } });
           }
+          void stopScanning();
         }, 10000);
       } else {
         const device = await (navigator as any).bluetooth.requestDevice({
           acceptAllDevices: true,
           optionalServices: ['battery_service']
         });
-
-        if (device) {
-          const deviceName = device.name || 'Dispositivo Desconocido';
-          registerPeerContact(device.id, deviceName);
-          setNearbyDevices(prev => {
-            const existing = prev.find(d => d.id === device.id);
-            if (existing) {
-              return prev.map(d => d.id === device.id ? { ...d, lastSeen: Date.now() } : d);
-            }
-            return [...prev, { id: device.id, name: deviceName, lastSeen: Date.now() }];
-          });
-        }
+        if (!isCurrent()) return;
+        if (device) recordDevice(device.id, device.name || 'Dispositivo Desconocido');
+        // No OS cancellation API for the web picker. Its late results are ignored.
+        sessionRef.current = null;
         setIsScanning(false);
       }
-
     } catch (err: any) {
-      if (err.name === 'NotFoundError') {
-        // User cancelled or no devices found — NOT disconnection evidence
-        // (web picker dismissal is a user gesture, not radio state).
-      } else {
+      if (!isCurrent()) return;
+      if (err.name !== 'NotFoundError') {
         setError(humanErrorMessage(err.message || 'Error al escanear dispositivos Bluetooth.'));
-        // §16.2.1: a failed scan (adapter off/unavailable) means we cannot
-        // see peers — counts as disconnection evidence on the bus.
-        publishSensorEvent({
-          kind: 'ble_proximity',
-          severity: 'warning',
-          meta: { reason: 'scan_error' },
-        });
+        // A scanner owned by another view is not evidence of radio isolation.
+        if (err.message !== 'BLE_SCAN_BUSY') {
+          publishSensorEvent({ kind: 'ble_proximity', severity: 'warning', meta: { reason: 'scan_error' } });
+        }
       }
-      setIsScanning(false);
+      await stopScanning();
     }
-  }, [isSupported]);
+  }, [isSupported, registerPeerContact, stopScanning]);
 
   return {
     isSupported,
@@ -170,6 +212,7 @@ export function useBluetoothMesh() {
     nearbyDevices,
     peerBreadcrumbs,
     error,
-    startScanning
+    startScanning,
+    stopScanning
   };
 }
