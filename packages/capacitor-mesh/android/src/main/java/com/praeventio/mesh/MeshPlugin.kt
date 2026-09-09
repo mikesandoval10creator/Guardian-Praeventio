@@ -392,10 +392,14 @@ class MeshPlugin : Plugin() {
             val decoder = rxDecoders.getOrPut(addr) { MeshWireProtocol.Decoder() }
             try {
                 for (payload in decoder.append(bytes)) {
-                    val js = JSObject(String(payload, StandardCharsets.UTF_8))
-                    mainHandler.post {
-                        packetsRelayed += 1
-                        notifyListeners("mesh:packet", js)
+                    try {
+                        val js = JSObject(String(payload, StandardCharsets.UTF_8))
+                        mainHandler.post {
+                            packetsRelayed += 1
+                            notifyListeners("mesh:packet", js)
+                        }
+                    } catch (parse: Exception) {
+                        Log.w(TAG, "Dropping framed payload that is not a JSON object from $addr", parse)
                     }
                 }
             } catch (protocol: MeshWireProtocol.ProtocolException) {
