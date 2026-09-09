@@ -1,6 +1,28 @@
 import Foundation
 import CryptoKit
 
+enum MeshWireMode: Equatable {
+    case unknown
+    case legacy
+    case prm1
+}
+
+enum MeshWireNegotiation {
+    static let magic = Data([0x50, 0x52, 0x4d, 0x31])
+    static let capabilityData = Data([0x50, 0x52, 0x4d, 0x31, 0x01])
+
+    static func detectMode(_ data: Data) -> MeshWireMode {
+        if data.count >= magic.count && data.prefix(magic.count) == magic {
+            return .prm1
+        }
+        guard let first = data.first else { return .unknown }
+        if first == 0x7b || first == 0x5b { // `{` or `[`: legacy JSON
+            return .legacy
+        }
+        return .unknown
+    }
+}
+
 /// Versioned stream framing shared with the Android mesh plugin.
 /// CoreBluetooth writes may split this stream at arbitrary boundaries; only a
 /// complete, checksum-verified logical JSON message is emitted to JavaScript.

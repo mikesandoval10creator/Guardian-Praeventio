@@ -35,6 +35,29 @@ brace counting.
 - The receiver keeps a decoder per peer and can accept multiple messages in one
   callback or one message across many callbacks.
 
+## Mixed-version negotiation
+
+The legacy release used the same service and data characteristic but sent raw JSON
+without a wire version. PRM1 peers therefore expose an additional readable
+capability characteristic:
+
+- Capability UUID: `0000ABCE-12AE-3E45-7123-456789ABCDEF`.
+- Capability value: `50 52 4d 31 01` (`PRM1`, version `1`).
+- A central that discovers this characteristic selects PRM1.
+- If the characteristic is absent, the peer is classified as legacy and the
+  sender uses raw JSON rather than sending PRM1 bytes into a legacy parser.
+- Until discovery/classification completes, `send()` returns the peer in
+  `queued`; it must not report a protocol-unknown peer as delivered.
+- New peripherals retain a legacy JSON receive accumulator so an older central
+  can still send its old stream to the new process. The first bytes are only
+  used to classify `PRM1` versus legacy; ambiguous bytes are discarded.
+
+This is a compatibility guard, not a delivery acknowledgement. Legacy iOS did
+not define a multi-write JSON stream, so large packets to an unknown legacy peer
+still require the native lab before they can be treated as interoperable. No
+mixed-version path is considered production-ready until Android↔Android and
+Android↔iOS physical tests cover that case.
+
 ## Current boundary
 
 Slice 1 proves zero-truncation framing/reassembly and checksum/tag validation.
