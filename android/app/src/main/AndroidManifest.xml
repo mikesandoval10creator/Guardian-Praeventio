@@ -10,6 +10,14 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- AdMob: MobileAdsInitProvider (injected by @capacitor-community/admob)
+             REQUIRES an application ID or the provider throws at app startup.
+             Value is Google's official TEST app id (ca-app-pub-3940256099942544~3347511713).
+             Replace with the production AdMob app id before store release. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"

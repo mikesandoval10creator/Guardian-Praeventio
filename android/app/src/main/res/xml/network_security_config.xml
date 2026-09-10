@@ -54,15 +54,22 @@
     </base-config>
 
     <!-- MASVS-NETWORK-2 — pin app.praeventio.net to its production SPKI.
-         Pin set is two-key (leaf + backup) per RFC 7469 §4.2.2. -->
+         Pin set is two-key (leaf + backup) per RFC 7469 §4.2.2.
+
+         REMOVED until the production certificate exists: Android's parser
+         decodes the pin value as base64 and REQUIRES exactly 32 bytes for
+         SHA-256. Placeholder strings crash the app at startup
+         ("digest length N does not match expected length for SHA-256 of 32"),
+         which is exactly what happened to the first local APK (2026-09-10).
+
+         Restore procedure when the prod cert is deployed:
+         1. Extract the leaf + backup SPKI digests with the openssl pipeline
+            documented in the header comment (43-char base64, no padding).
+         2. Re-add the <pin-set> block below with the real digests.
+         3. scripts/check-cert-pinning-ratchet.cjs will keep the gate honest
+            in CI: a release without pins fails the build. -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="false">app.praeventio.net</domain>
-        <pin-set expiration="2027-12-31">
-            <!-- Leaf pin: replace at first prod build (see header comment). -->
-            <pin digest="SHA-256">PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY</pin>
-            <!-- Backup pin: different SPKI, used during cert rotation. -->
-            <pin digest="SHA-256">PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY</pin>
-        </pin-set>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
