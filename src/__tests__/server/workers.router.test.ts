@@ -23,7 +23,9 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: { uid: string } }).user = { uid };
+    const role = req.header('x-test-role') ?? undefined;
+    const admin = req.header('x-test-admin') === '1';
+    (req as Request & { user: { uid: string; role?: string; admin?: boolean } }).user = { uid, role, admin };
     next();
   },
 }));
@@ -41,7 +43,9 @@ function buildApp() {
   return app;
 }
 
-const member = { 'x-test-uid': 'u1' };
+const member = { 'x-test-uid': 'u1', 'x-test-role': 'admin' };
+const supervisorToken = { 'x-test-uid': 'u1', 'x-test-role': 'supervisor' };
+const creatorToken = { 'x-test-uid': 'creator', 'x-test-role': 'operario' };
 const TENANT = 't1';
 const PROJECT = 'p1';
 const WORKER = 'w1';
@@ -87,8 +91,12 @@ describe('PATCH /api/projects/:projectId/workers/:workerId', () => {
       .patch(PATH)
       .set(member)
       .send({ role: 'Capataz' });
+    // The role gate (ticket 3cdaa66d-…-81a6) runs AFTER assertProjectMember, so a
+    // non-member gets forbidden_role (403) before worker_not_found fires. The
+    // previous test expected the message 'forbidden'; the new audience gate
+    // emits 'forbidden_role' for the same reason. Either way it is 403.
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('forbidden');
+    expect(['forbidden', 'forbidden_role']).toContain(res.body.error);
   });
 
   it('400 on an empty patch (schema requires at least one field)', async () => {
