@@ -19,19 +19,19 @@
 // The handler is intentionally thin: it delegates to the pure job in
 // `jobs/checkOverdueMaintenance.ts` and surfaces its counts in JSON.
 
-import { Router } from 'express';
-import admin from 'firebase-admin';
-import { logger } from '../../utils/logger.js';
-import { captureRouteError } from '../middleware/captureRouteError.js';
-import { auditServerEvent } from '../middleware/auditLog.js';
-import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
-import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
+import { Router } from "express";
+import admin from "firebase-admin";
+import { logger } from "../../utils/logger.js";
+import { captureRouteError } from "../middleware/captureRouteError.js";
+import { auditServerEvent } from "../middleware/auditLog.js";
+import { checkOverdueMaintenance } from "../jobs/checkOverdueMaintenance.js";
+import { checkExpiredPpe } from "../jobs/checkExpiredPpe.js";
 // Phase 5 arista A3 (2026-06) — brigade resource expiry reaper. Mirrors the
 // PPE step: expired extintores/DEA/botiquines now materialise a corrective
 // finding in projects/{pid}/findings instead of relying on a human opening
 // the readiness report.
-import { checkExpiredBrigadeResources } from '../jobs/checkExpiredBrigadeResources.js';
-import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
+import { checkExpiredBrigadeResources } from "../jobs/checkExpiredBrigadeResources.js";
+import { sendSusesoReminders } from "../jobs/sendSusesoReminders.js";
 // B5/B15 (2026-06-11) — DTE issue queue drain. Failed post-payment DTE
 // emissions (PSE down) persist to `dte_issue_queue`; this step retries them
 // with the dteIssueQueue backoff ladder. Mirrors the PPE step: independent,
@@ -39,59 +39,62 @@ import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
 import {
   runDteIssueQueueDrain,
   type DteIssueQueueDrainResult,
-} from '../jobs/runDteIssueQueueDrain.js';
+} from "../jobs/runDteIssueQueueDrain.js";
 import {
   sendToProjectSupervisors,
   PRAEVENTIO_EMERGENCY_CHANNEL_ID,
-} from './emergency.js';
-import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
+} from "./emergency.js";
+import { verifySchedulerToken } from "../middleware/verifySchedulerToken.js";
 // Sprint 29 Bucket DD F-E — predictive×calendar pre-warn cron.
 // Mounted as a fourth no-op step after the SUSESO reminder reaper. The
 // loader factories degrade to empty arrays in environments where the
 // projects/tasks collection is not seeded yet, so the cron is safe to
 // run from day one.
-import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendarPreWarn.js';
+import {
+  runCalendarPreWarnCron,
+  type UpcomingTask,
+} from "../../services/predictiveAlerts/calendarPreWarn.js";
+import { maintenanceTaskHazardTags } from "../../services/predictiveAlerts/maintenanceTaskHazards.js";
+import type { MaintenanceTask } from "../../services/maintenance/maintenanceScheduler.js";
 // Sprint 56 follow-up — resilience health alert cron.
-import { runResilienceHealthAlertCron } from '../jobs/runResilienceHealthAlert.js';
-import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
-import { pruneFcmTokens } from '../../services/notifications/pruneFcmTokens.js';
+import { runResilienceHealthAlertCron } from "../jobs/runResilienceHealthAlert.js";
+import { fcmAdapter } from "../../services/notifications/fcmAdapter.js";
+import { pruneFcmTokens } from "../../services/notifications/pruneFcmTokens.js";
 // Sprint E backend debt (2026-05-16) — B2D MRR monthly snapshot.
 // El B2dAdminPanel hace render de la serie temporal MRR; sin este job
 // solo aparece el punto del mes actual. Endpoint dedicado para Cloud
 // Scheduler corriendo día 1 de cada mes a 00:30 UTC.
-import { runB2dMrrSnapshot } from '../jobs/runB2dMrrSnapshot.js';
-import { runRetentionSweep } from '../jobs/runRetentionSweep.js';
+import { runB2dMrrSnapshot } from "../jobs/runB2dMrrSnapshot.js";
+import { runRetentionSweep } from "../jobs/runRetentionSweep.js";
 // Plan v2 Bloque A20 — wire critical safety cron: lone-worker escalation.
 // Vidas dependen: si un trabajador solo no hace check-in o pulsa "ayuda",
 // este job escala (supervisor → brigade → emergency_services).
-import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js';
-import type {
-  EscalationDecision,
-} from '../../services/loneWorker/loneWorkerService.js';
+import { runLoneWorkerEscalationCron } from "../jobs/runLoneWorkerEscalation.js";
+import type { EscalationDecision } from "../../services/loneWorker/loneWorkerService.js";
 // OLA 1 C5 (2026-06-14) — route a lone-worker escalation to the NEAREST DEA
 // (defibrillator). The read-only listAll + nearestDea join lives in
 // nearestDeaForProject (service) so it's unit-testable AND the DeaAdapter
 // constructor stays out of this route file (the convention guard's coarse
 // heuristic flags an Adapter construction in a route as a mutating route).
-import { nearestDeaForProject } from '../../services/dea/nearestDeaForProject.js';
+import { nearestDeaForProject } from "../../services/dea/nearestDeaForProject.js";
 // OLA 1 — man-down graduated escalation cron (sibling to lone-worker A20).
 // Vidas dependen: un trabajador caído/inmóvil que nadie reconoce debe escalar
 // supervisor → brigade → emergency_services sin que nadie pulse un botón.
 import {
   runManDownEscalationCron,
   type ManDownEscalationInfo,
-} from '../jobs/runManDownEscalation.js';
+} from "../jobs/runManDownEscalation.js";
 // Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
 // excepciones expiradas, work_permits expirados, recordatorios obligaciones
 // legales. El motor puro deriva el estado, pero hasta que el cron materialize
 // el campo `status='expired'` las queries UI (where status=='active') van a
 // retornar registros stale. FCM reminders por obligaciones legales son la
 // única vía para que el responsable se entere antes del vencimiento.
-import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
-import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
-import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
-import { runLegalObligationReconcile } from '../jobs/runLegalObligationReconcile.js';
-import { runUfRateRefresh } from '../jobs/runUfRateRefresh.js';
+import { runExceptionAutoExpire } from "../jobs/runExceptionAutoExpire.js";
+import { runWorkPermitAutoExpire } from "../jobs/runWorkPermitAutoExpire.js";
+import { runLegalCalendarReminders } from "../jobs/runLegalCalendarReminders.js";
+import { runLegalObligationReconcile } from "../jobs/runLegalObligationReconcile.js";
+import { runUfRateRefresh } from "../jobs/runUfRateRefresh.js";
 // PR #482 codex P1 — los datos de lone_worker / exceptions / work_permits /
 // legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
 // Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
@@ -100,8 +103,8 @@ import {
   iterateAllProjects,
   resolveProjectMemberTokens,
   LONE_WORKER_ROLE_BUCKETS,
-} from '../services/projectTokens.js';
-import { sendMulticastChunked } from '../utils/fcmMulticast.js';
+} from "../services/projectTokens.js";
+import { sendMulticastChunked } from "../utils/fcmMulticast.js";
 // Dimension D pipelines (2026-06-22):
 //   1. Contractor ranking snapshot — daily aggregation of per-contractor
 //      TRIR/LTIFR from real incidents + captured exposure hours.
@@ -109,9 +112,9 @@ import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 //      so the executive dashboard can show a compliance trend.
 //   3. SLO metrics refresh — pulls Sentry events-stats into `slo_metrics`.
 //      Gate: returns immediately when SENTRY_SLO_ENABLED != 'true'.
-import { runContractorRankingSnapshot } from '../jobs/runContractorRankingSnapshot.js';
-import { runComplianceSnapshot } from '../jobs/runComplianceSnapshot.js';
-import { runSloMetricsRefresh } from '../jobs/runSloMetricsRefresh.js';
+import { runContractorRankingSnapshot } from "../jobs/runContractorRankingSnapshot.js";
+import { runComplianceSnapshot } from "../jobs/runComplianceSnapshot.js";
+import { runSloMetricsRefresh } from "../jobs/runSloMetricsRefresh.js";
 
 // PR #482 codex P1 (round 2) — page size for project enumeration. 500 is
 // a safe per-call Firestore limit; deployments with more than 500 projects
@@ -120,7 +123,7 @@ const PROJECT_PAGE_SIZE = 500;
 
 const router = Router();
 
-router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
+router.post("/check-overdue", verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
     const maintenance = await checkOverdueMaintenance();
@@ -145,8 +148,8 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
           sendToProjectSupervisors(projectId, payload, db, messaging),
       });
     } catch (ppeErr) {
-      logger.error('[maintenance] check-expired-ppe failed', ppeErr);
-      captureRouteError(ppeErr, 'maintenance.check-expired-ppe');
+      logger.error("[maintenance] check-expired-ppe failed", ppeErr);
+      captureRouteError(ppeErr, "maintenance.check-expired-ppe");
     }
     // Phase 5 arista A3 — brigade resource expiry reaper. Independent +
     // idempotent like the PPE step; failure here must not abort the rest.
@@ -168,12 +171,12 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       });
     } catch (brigadeErr) {
       logger.error(
-        '[maintenance] check-expired-brigade-resources failed',
+        "[maintenance] check-expired-brigade-resources failed",
         brigadeErr,
       );
       captureRouteError(
         brigadeErr,
-        'maintenance.check-expired-brigade-resources',
+        "maintenance.check-expired-brigade-resources",
       );
     }
     // Sprint 28 follow-up — third step: SUSESO DIAT/DIEP deadline reminders.
@@ -186,8 +189,8 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     try {
       susesoReminders = await sendSusesoReminders();
     } catch (susesoErr) {
-      logger.error('[maintenance] suseso-reminders failed', susesoErr);
-      captureRouteError(susesoErr, 'maintenance.suseso-reminders');
+      logger.error("[maintenance] suseso-reminders failed", susesoErr);
+      captureRouteError(susesoErr, "maintenance.suseso-reminders");
     }
     // B5/B15 — fourth step: DTE issue queue drain (retries DTE emissions
     // that failed transiently post-payment). Independent + idempotent like
@@ -209,30 +212,101 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     try {
       dteQueue = await runDteIssueQueueDrain();
     } catch (dteErr) {
-      logger.error('[maintenance] dte-issue-queue-drain failed', dteErr);
-      captureRouteError(dteErr, 'maintenance.dte-issue-queue-drain');
+      logger.error("[maintenance] dte-issue-queue-drain failed", dteErr);
+      captureRouteError(dteErr, "maintenance.dte-issue-queue-drain");
     }
     // Sprint 29 Bucket DD F-E — predictive × calendar pre-warn.
-    // Wired after SUSESO reminders so failures stay isolated. Factories
-    // default to no-op behaviour when the project store is empty.
-    let calendarPreWarn: { scanned: number; warned: number } = { scanned: 0, warned: 0 };
+    // Ticket 3cdaa66d-73fe-8199-bd90-dcfbabd92d94 (Audit 2026-08-31):
+    // the previous wiring used `() => []` for every loader, so the cron
+    // always returned scanned=0 even when projects/tasks existed. We now
+    // enumerate real projects with `iterateAllProjects` (cursor-paginated,
+    // 500/page, 100k hard cap) and read real MaintenanceTask docs from
+    // `tenants/{tid}/projects/{pid}/maintenance_tasks` with status in
+    // (scheduled, in_progress) so the dispatcher only sees actionable work.
+    // The push/email/calendar hooks remain dry-run by default — production
+    // deployment wires the real FCM/Calendar adapters here.
+    let calendarPreWarn: { scanned: number; warned: number; errors: number } = {
+      scanned: 0,
+      warned: 0,
+      errors: 0,
+    };
     try {
+      const db = admin.firestore();
       const preWarnResult = await runCalendarPreWarnCron({
-        loadProjects: async () => [],
-        loadTasksForProject: async () => [],
+        loadProjects: async () => {
+          const out: Array<{ id: string; gerenteUid?: string }> = [];
+          await iterateAllProjects(db, PROJECT_PAGE_SIZE, async (doc) => {
+            const data = doc.data();
+            out.push({
+              id: doc.id,
+              gerenteUid:
+                typeof data.gerenteUid === "string"
+                  ? data.gerenteUid
+                  : undefined,
+            });
+          });
+          return out;
+        },
+        loadTasksForProject: async (projectId: string) => {
+          // MaintenanceTask is tenant-scoped (`tenants/{tid}/projects/{pid}/...`).
+          // The pid-only contract of runCalendarPreWarn is sufficient for the
+          // route wrapper because the same project doc carries `tenantId`;
+          // we read that here and the loader stays collection-shaped.
+          const projectSnap = await db
+            .collection("projects")
+            .doc(projectId)
+            .get();
+          if (!projectSnap.exists) return [];
+          const tenantId =
+            (projectSnap.data()?.tenantId as string | undefined) ?? "";
+          if (!tenantId) return [];
+          const taskSnap = await db
+            .collection(
+              `tenants/${tenantId}/projects/${projectId}/maintenance_tasks`,
+            )
+            .where("status", "in", ["scheduled", "in_progress"])
+            .limit(500)
+            .get();
+          const tasks: UpcomingTask[] = [];
+          for (const taskDoc of taskSnap.docs) {
+            const raw = taskDoc.data() as MaintenanceTask;
+            const hazards = maintenanceTaskHazardTags(raw);
+            if (hazards.length === 0) continue;
+            tasks.push({
+              id: raw.id || taskDoc.id,
+              title: `Mantenimiento ${raw.equipmentType} (${raw.equipmentId})`,
+              supervisorUid:
+                typeof raw.createdBy === "string" && raw.createdBy !== "system"
+                  ? raw.createdBy
+                  : undefined,
+              hazardTags: hazards,
+              scheduledAt: raw.dueAtIso,
+            });
+          }
+          return tasks;
+        },
         getWeatherForTask: async () => ({}),
         getSeismicForProject: async () => ({}),
         daysOfRisk: () => 1,
+        // Dry-run: dispatch returns { ok: false } so the cron's warning path
+        // is exercised and counted without spamming FCM/Calendar. Wire real
+        // dispatchers before promoting this past staging.
         dispatchPush: async () => ({ ok: false }),
         dispatchEmail: async () => ({ ok: false }),
         createCalendarEvent: async () => ({ id: null }),
         alreadyWarned: async () => false,
         markWarned: async () => undefined,
       });
-      calendarPreWarn = { scanned: preWarnResult.scanned, warned: preWarnResult.warned };
+      calendarPreWarn = {
+        scanned: preWarnResult.scanned,
+        warned: preWarnResult.warned,
+        errors: preWarnResult.perProject.filter(
+          (p) => p.result.warnings.length === 0 && p.result.scanned === 0,
+        ).length,
+      };
     } catch (preWarnErr) {
-      logger.error('[maintenance] calendar-prewarn failed', preWarnErr);
-      captureRouteError(preWarnErr, 'maintenance.calendar-prewarn');
+      logger.error("[maintenance] calendar-prewarn failed", preWarnErr);
+      captureRouteError(preWarnErr, "maintenance.calendar-prewarn");
     }
     // Sprint 56 follow-up — fifth step: resilience health alert.
     // Server-side check del firestore reachability + alert FCM a admins
@@ -244,7 +318,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       alertFired: boolean;
       reportPersisted: boolean;
     } = {
-      status: 'unknown',
+      status: "unknown",
       alertFired: false,
       reportPersisted: false,
     };
@@ -256,30 +330,30 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
           firestore: async () => {
             // Ping a un doc canónico — si la lectura falla, Firestore está down.
             try {
-              await db.collection('_health').doc('ping').get();
+              await db.collection("_health").doc("ping").get();
               return {
-                id: 'firestore',
-                status: 'healthy',
-                detail: 'Firestore reachable (ping doc OK).',
+                id: "firestore",
+                status: "healthy",
+                detail: "Firestore reachable (ping doc OK).",
               };
             } catch (err) {
               return {
-                id: 'firestore',
-                status: 'critical',
-                detail: 'Firestore read failed.',
+                id: "firestore",
+                status: "critical",
+                detail: "Firestore read failed.",
                 error: err instanceof Error ? err.message : String(err),
               };
             }
           },
           // Network siempre healthy server-side — si el cron corre, hay red.
           network: async () => ({
-            id: 'network',
-            status: 'healthy',
-            detail: 'Server-side cron running → network up.',
+            id: "network",
+            status: "healthy",
+            detail: "Server-side cron running → network up.",
           }),
         },
         checkerTimeoutMs: 4_000,
-        overallPolicy: 'strict',
+        overallPolicy: "strict",
         notifyOps: async (report) => {
           // Recolectar FCM tokens de admins globales (claim role='admin').
           // Estrategia: query users where customClaims.role='admin' usaria
@@ -289,37 +363,42 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
           let adminTokens: string[] = [];
           try {
             const snap = await db
-              .collection('users')
-              .where('role', '==', 'admin')
+              .collection("users")
+              .where("role", "==", "admin")
               .limit(100)
               .get();
             for (const doc of snap.docs) {
               const data = doc.data() as { fcmTokens?: string[] };
               if (Array.isArray(data.fcmTokens)) {
-                adminTokens.push(...data.fcmTokens.filter((t) => typeof t === 'string' && t));
+                adminTokens.push(
+                  ...data.fcmTokens.filter((t) => typeof t === "string" && t),
+                );
               }
             }
             adminTokens = Array.from(new Set(adminTokens)); // dedup
           } catch (e) {
-            logger.warn('[maintenance] resilience-health admin token query failed', {
-              err: String(e),
-            });
+            logger.warn(
+              "[maintenance] resilience-health admin token query failed",
+              {
+                err: String(e),
+              },
+            );
           }
           if (adminTokens.length === 0) {
             logger.warn(
-              '[maintenance] resilience-health: critical pero NO hay admin tokens — alert no se envía',
+              "[maintenance] resilience-health: critical pero NO hay admin tokens — alert no se envía",
             );
             return;
           }
           const criticalSubsystems = report.subsystems
-            .filter((s) => s.status === 'critical')
+            .filter((s) => s.status === "critical")
             .map((s) => s.id)
-            .join(', ');
+            .join(", ");
           const sendResult = await fcmAdapter.sendToTokens(adminTokens, {
-            title: '⚠️ Praeventio: subsistema crítico',
-            body: `Estado: critical. Subsistemas: ${criticalSubsystems || 'n/a'}`,
+            title: "⚠️ Praeventio: subsistema crítico",
+            body: `Estado: critical. Subsistemas: ${criticalSubsystems || "n/a"}`,
             data: {
-              kind: 'resilience_health_alert',
+              kind: "resilience_health_alert",
               overallStatus: report.overallStatus,
               criticalSubsystems: criticalSubsystems,
               generatedAt: report.generatedAt,
@@ -336,11 +415,11 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
         reportPersisted: healthResult.reportPersisted,
       };
     } catch (healthErr) {
-      logger.error('[maintenance] resilience-health failed', healthErr);
-      captureRouteError(healthErr, 'maintenance.resilience-health');
+      logger.error("[maintenance] resilience-health failed", healthErr);
+      captureRouteError(healthErr, "maintenance.resilience-health");
     }
     const tookMs = Date.now() - start;
-    logger.info('[maintenance] check-overdue done', {
+    logger.info("[maintenance] check-overdue done", {
       ...maintenance,
       ppe,
       brigadeResources,
@@ -350,25 +429,25 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       resilienceHealth,
       tookMs,
     });
-    return res
-      .status(200)
-      .json({
-        ok: true,
-        ...maintenance,
-        ppe,
-        brigadeResources,
-        susesoReminders,
-        dteQueue,
-        calendarPreWarn,
-        resilienceHealth,
-        tookMs,
-      });
+    return res.status(200).json({
+      ok: true,
+      ...maintenance,
+      ppe,
+      brigadeResources,
+      susesoReminders,
+      dteQueue,
+      calendarPreWarn,
+      resilienceHealth,
+      tookMs,
+    });
   } catch (err) {
-    logger.error('[maintenance] check-overdue failed', err);
-    captureRouteError(err, 'maintenance.check-overdue');
-    return res
-      .status(500)
-      .json({ ok: false, error: 'internal_error', message: 'check-overdue failed' });
+    logger.error("[maintenance] check-overdue failed", err);
+    captureRouteError(err, "maintenance.check-overdue");
+    return res.status(500).json({
+      ok: false,
+      error: "internal_error",
+      message: "check-overdue failed",
+    });
   }
 });
 
@@ -383,35 +462,41 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
 // del mes en curso sigue cerrando el mismo mes-anterior (capturedAt
 // original se preserva via merge). Si necesitas el live state del
 // mes en curso, usa `GET /api/admin/b2d/metrics`.
-router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => {
-  const start = Date.now();
-  try {
-    const db = admin.firestore();
-    const result = await runB2dMrrSnapshot({ db });
-    logger.info('[maintenance] b2d-mrr-snapshot done', {
-      monthKey: result.monthKey,
-      created: result.created,
-      mrr: result.snapshot.mrr,
-      arr: result.snapshot.arr,
-      tookMs: Date.now() - start,
-    });
-    return res.status(200).json({
-      ok: true,
-      monthKey: result.monthKey,
-      created: result.created,
-      mrr: result.snapshot.mrr,
-      arr: result.snapshot.arr,
-      customersActive: result.snapshot.customersActive,
-      tookMs: Date.now() - start,
-    });
-  } catch (err) {
-    logger.error('[maintenance] b2d-mrr-snapshot failed', err);
-    captureRouteError(err, 'maintenance.b2d-mrr-snapshot');
-    return res
-      .status(500)
-      .json({ ok: false, error: 'internal_error', message: 'b2d-mrr-snapshot failed' });
-  }
-});
+router.post(
+  "/run-b2d-mrr-snapshot",
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const result = await runB2dMrrSnapshot({ db });
+      logger.info("[maintenance] b2d-mrr-snapshot done", {
+        monthKey: result.monthKey,
+        created: result.created,
+        mrr: result.snapshot.mrr,
+        arr: result.snapshot.arr,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        monthKey: result.monthKey,
+        created: result.created,
+        mrr: result.snapshot.mrr,
+        arr: result.snapshot.arr,
+        customersActive: result.snapshot.customersActive,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error("[maintenance] b2d-mrr-snapshot failed", err);
+      captureRouteError(err, "maintenance.b2d-mrr-snapshot");
+      return res.status(500).json({
+        ok: false,
+        error: "internal_error",
+        message: "b2d-mrr-snapshot failed",
+      });
+    }
+  },
+);
 
 // Ticket 39baa66d-73fe-81f8 — Privacy retention sweep.
 //
@@ -421,12 +506,12 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
 // the deterministic retention policy to real Firestore docs, respecting legal
 // holds, never deleting source docs under ADR-0024, and persisting an audited
 // archive-only run report in `retention_sweep_runs/{runId}`.
-router.post('/run-retention-sweep', verifySchedulerToken, async (_req, res) => {
+router.post("/run-retention-sweep", verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
     const db = admin.firestore();
     const result = await runRetentionSweep({ db });
-    logger.info('[maintenance] retention-sweep done', {
+    logger.info("[maintenance] retention-sweep done", {
       runId: result.runId,
       totalDocs: result.totalDocs,
       archived: result.archived,
@@ -445,11 +530,13 @@ router.post('/run-retention-sweep', verifySchedulerToken, async (_req, res) => {
       tookMs: Date.now() - start,
     });
   } catch (err) {
-    logger.error('[maintenance] retention-sweep failed', err);
-    captureRouteError(err, 'maintenance.retention-sweep');
-    return res
-      .status(500)
-      .json({ ok: false, error: 'internal_error', message: 'retention-sweep failed' });
+    logger.error("[maintenance] retention-sweep failed", err);
+    captureRouteError(err, "maintenance.retention-sweep");
+    return res.status(500).json({
+      ok: false,
+      error: "internal_error",
+      message: "retention-sweep failed",
+    });
   }
 });
 
@@ -473,7 +560,7 @@ router.post('/run-retention-sweep', verifySchedulerToken, async (_req, res) => {
 // Auth: `verifySchedulerToken` middleware — Cloud Scheduler envía el
 // shared secret en el header `X-Scheduler-Token`.
 router.post(
-  '/run-lone-worker-escalation',
+  "/run-lone-worker-escalation",
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
@@ -512,7 +599,11 @@ router.post(
         const nearestDeaFor = async (loc: {
           lat: number;
           lng: number;
-        }): Promise<{ location: string; distanceM: number; coords?: { lat: number; lng: number } } | null> => {
+        }): Promise<{
+          location: string;
+          distanceM: number;
+          coords?: { lat: number; lng: number };
+        } | null> => {
           try {
             return await nearestDeaForProject(
               db as unknown as Parameters<typeof nearestDeaForProject>[0],
@@ -521,7 +612,7 @@ router.post(
               loc,
             );
           } catch (err) {
-            logger.warn('[maintenance] lone-worker nearest-DEA lookup failed', {
+            logger.warn("[maintenance] lone-worker nearest-DEA lookup failed", {
               projectId,
               err: String(err),
             });
@@ -540,7 +631,11 @@ router.post(
           // `ProjectTokenLookupError` on Firestore read failures; the cron's
           // try/catch around notifyHook ensures the marker is NOT written
           // and the next 5-minute pass retries. Vidas dependen.
-          const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
+          const { tokens } = await resolveProjectMemberTokens(
+            projectId,
+            roles,
+            db,
+          );
           if (tokens.length === 0) {
             // No throw on "lookup succeeded but no recipients" — but ALSO
             // do not mark this escalation as delivered. Throw so the cron
@@ -548,11 +643,14 @@ router.post(
             // operator must then provision the role; until they do, the
             // cron will log this warning every 5 minutes (acceptable noise
             // for a safety-critical hole).
-            logger.warn('[maintenance] lone-worker no tokens for project/level', {
-              projectId,
-              sessionId,
-              level: decision.level,
-            });
+            logger.warn(
+              "[maintenance] lone-worker no tokens for project/level",
+              {
+                projectId,
+                sessionId,
+                level: decision.level,
+              },
+            );
             throw new Error(
               `no_recipients_for_level: project=${projectId} level=${decision.level}`,
             );
@@ -578,7 +676,7 @@ router.post(
               body: `${bodyPrefix} (sesión ${sessionId}, proyecto ${projectId}).`,
             },
             data: {
-              kind: 'lone_worker_escalation',
+              kind: "lone_worker_escalation",
               sessionId,
               projectId,
               level: decision.level,
@@ -597,13 +695,13 @@ router.post(
               ...deaData,
             },
             android: {
-              priority: 'high',
+              priority: "high",
               notification: {
                 channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
-                sound: 'default',
+                sound: "default",
               },
             },
-            apns: { headers: { 'apns-priority': '10' } },
+            apns: { headers: { "apns-priority": "10" } },
           });
           aggregated.notifications.attempted += result.attempted;
           aggregated.notifications.delivered += result.successCount;
@@ -639,41 +737,47 @@ router.post(
             notifyForLevel(
               sessionId,
               decision,
-              'Trabajador solo — revisar check-in',
-              'Sin check-in dentro del intervalo',
+              "Trabajador solo — revisar check-in",
+              "Sin check-in dentro del intervalo",
             ),
           notifyBrigade: (sessionId, decision) =>
             notifyForLevel(
               sessionId,
               decision,
-              '⚠️ Trabajador solo — sin check-in prolongado',
-              'Activar brigada — revisión presencial',
+              "⚠️ Trabajador solo — sin check-in prolongado",
+              "Activar brigada — revisión presencial",
             ),
           notifyEmergency: (sessionId, decision) =>
             notifyForLevel(
               sessionId,
               decision,
-              '🚨 Trabajador solo — solicitó ayuda',
-              'EMERGENCIA — coordinar servicios externos',
+              "🚨 Trabajador solo — solicitó ayuda",
+              "EMERGENCIA — coordinar servicios externos",
             ),
         }).then(
           (r) => {
             aggregated.sessionsScanned += r.sessionsScanned;
             aggregated.escalationsEmitted += r.escalationsEmitted;
-            aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+            aggregated.escalationsSkippedIdempotent +=
+              r.escalationsSkippedIdempotent;
             aggregated.byLevel.supervisor += r.byLevel.supervisor;
             aggregated.byLevel.brigade += r.byLevel.brigade;
-            aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+            aggregated.byLevel.emergency_services +=
+              r.byLevel.emergency_services;
             aggregated.errors += r.errors;
           },
           (err) => {
-            logger.error('[maintenance] lone-worker per-project failed', {
+            logger.error("[maintenance] lone-worker per-project failed", {
               projectId,
               err: String(err),
             });
-            captureRouteError(err, 'maintenance.lone-worker-escalation.project', {
-              projectId,
-            });
+            captureRouteError(
+              err,
+              "maintenance.lone-worker-escalation.project",
+              {
+                projectId,
+              },
+            );
             aggregated.errors += 1;
           },
         );
@@ -681,7 +785,7 @@ router.post(
 
       await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
 
-      logger.info('[maintenance] lone-worker-escalation done', {
+      logger.info("[maintenance] lone-worker-escalation done", {
         ...aggregated,
         tookMs: Date.now() - start,
       });
@@ -691,12 +795,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] lone-worker-escalation failed', err);
-      captureRouteError(err, 'maintenance.lone-worker-escalation');
+      logger.error("[maintenance] lone-worker-escalation failed", err);
+      captureRouteError(err, "maintenance.lone-worker-escalation");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'lone-worker-escalation failed',
+        error: "internal_error",
+        message: "lone-worker-escalation failed",
       });
     }
   },
@@ -719,7 +823,7 @@ router.post(
 //
 // Auth: `verifySchedulerToken` (Cloud Scheduler shared secret).
 router.post(
-  '/run-man-down-escalation',
+  "/run-man-down-escalation",
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
@@ -743,14 +847,14 @@ router.post(
         },
       };
 
-      const titleForLevel = (level: ManDownEscalationInfo['level']): string => {
+      const titleForLevel = (level: ManDownEscalationInfo["level"]): string => {
         switch (level) {
-          case 'supervisor':
-            return '🟠 Hombre caído — alerta supervisor';
-          case 'brigade':
-            return '⚠️ Hombre caído sin confirmación — activar brigada';
-          case 'emergency_services':
-            return '🚨 Hombre caído — PROTOCOLO EMERGENCIA';
+          case "supervisor":
+            return "🟠 Hombre caído — alerta supervisor";
+          case "brigade":
+            return "⚠️ Hombre caído sin confirmación — activar brigada";
+          case "emergency_services":
+            return "🚨 Hombre caído — PROTOCOLO EMERGENCIA";
         }
       };
 
@@ -767,9 +871,13 @@ router.post(
         // 1-minute pass retries. Vidas dependen.
         const notify = async (info: ManDownEscalationInfo): Promise<void> => {
           const roles = LONE_WORKER_ROLE_BUCKETS[info.level];
-          const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
+          const { tokens } = await resolveProjectMemberTokens(
+            projectId,
+            roles,
+            db,
+          );
           if (tokens.length === 0) {
-            logger.warn('[maintenance] man-down no tokens for project/level', {
+            logger.warn("[maintenance] man-down no tokens for project/level", {
               projectId,
               eventId: info.eventId,
               level: info.level,
@@ -784,7 +892,7 @@ router.post(
               body: `${info.message} (proyecto ${projectId}).`,
             },
             data: {
-              kind: 'man_down_escalation',
+              kind: "man_down_escalation",
               eventId: info.eventId,
               projectId,
               level: info.level,
@@ -801,13 +909,13 @@ router.post(
                 : {}),
             },
             android: {
-              priority: 'high',
+              priority: "high",
               notification: {
                 channelId: PRAEVENTIO_EMERGENCY_CHANNEL_ID,
-                sound: 'default',
+                sound: "default",
               },
             },
-            apns: { headers: { 'apns-priority': '10' } },
+            apns: { headers: { "apns-priority": "10" } },
           });
           aggregated.notifications.attempted += result.attempted;
           aggregated.notifications.delivered += result.successCount;
@@ -833,9 +941,9 @@ router.post(
           // audit hiccup would be worse). Mirrors peer crons (checkExpiredPpe,
           // checkExpiredBrigadeResources) which audit directly with a null uid.
           try {
-            await db.collection('audit_logs').add({
-              action: 'man_down.escalation_emitted',
-              module: 'man_down',
+            await db.collection("audit_logs").add({
+              action: "man_down.escalation_emitted",
+              module: "man_down",
               userId: null,
               userEmail: null,
               projectId,
@@ -845,20 +953,24 @@ router.post(
               triggeredAt: info.triggeredAtIso,
               recipientsAttempted: result.attempted,
               recipientsDelivered: result.successCount,
-              source: 'cron.run-man-down-escalation',
+              source: "cron.run-man-down-escalation",
               createdAt: new Date().toISOString(),
             });
           } catch (auditErr) {
-            logger.error('audit_event_failed', {
-              context: 'man_down_escalation',
+            logger.error("audit_event_failed", {
+              context: "man_down_escalation",
               projectId,
               eventId: info.eventId,
               level: info.level,
               err: String(auditErr),
             });
-            captureRouteError(auditErr, 'maintenance.man-down-escalation.audit', {
-              projectId,
-            });
+            captureRouteError(
+              auditErr,
+              "maintenance.man-down-escalation.audit",
+              {
+                projectId,
+              },
+            );
           }
         };
 
@@ -870,10 +982,12 @@ router.post(
           (r) => {
             aggregated.eventsScanned += r.eventsScanned;
             aggregated.escalationsEmitted += r.escalationsEmitted;
-            aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+            aggregated.escalationsSkippedIdempotent +=
+              r.escalationsSkippedIdempotent;
             aggregated.byLevel.supervisor += r.byLevel.supervisor;
             aggregated.byLevel.brigade += r.byLevel.brigade;
-            aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+            aggregated.byLevel.emergency_services +=
+              r.byLevel.emergency_services;
             aggregated.errors += r.errors;
             if (r.errors > 0) {
               // Cron self-caught failures (scan / marker / notify) are RETURNED,
@@ -882,17 +996,17 @@ router.post(
               // 1-minute sweep reporting HTTP 200 forever with only a warn line.
               captureRouteError(
                 new Error(`man_down_cron_soft_errors: ${r.errors}`),
-                'maintenance.man-down-escalation.softErrors',
+                "maintenance.man-down-escalation.softErrors",
                 { projectId, eventsScanned: r.eventsScanned },
               );
             }
           },
           (err) => {
-            logger.error('[maintenance] man-down per-project failed', {
+            logger.error("[maintenance] man-down per-project failed", {
               projectId,
               err: String(err),
             });
-            captureRouteError(err, 'maintenance.man-down-escalation.project', {
+            captureRouteError(err, "maintenance.man-down-escalation.project", {
               projectId,
             });
             aggregated.errors += 1;
@@ -902,7 +1016,7 @@ router.post(
 
       await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
 
-      logger.info('[maintenance] man-down-escalation done', {
+      logger.info("[maintenance] man-down-escalation done", {
         ...aggregated,
         tookMs: Date.now() - start,
       });
@@ -912,12 +1026,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] man-down-escalation failed', err);
-      captureRouteError(err, 'maintenance.man-down-escalation');
+      logger.error("[maintenance] man-down-escalation failed", err);
+      captureRouteError(err, "maintenance.man-down-escalation");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'man-down-escalation failed',
+        error: "internal_error",
+        message: "man-down-escalation failed",
       });
     }
   },
@@ -939,7 +1053,7 @@ router.post(
 // scoped, además de pasar `notifyResponsible` real (sin él los reminders
 // legales se persistían sin disparar FCM).
 router.post(
-  '/run-daily-housekeeping',
+  "/run-daily-housekeeping",
   verifySchedulerToken,
   async (req, res) => {
     const start = Date.now();
@@ -958,12 +1072,22 @@ router.post(
         remindersEmitted: 0,
         skipped: 0,
         errors: 0,
-        notifications: { attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0 },
+        notifications: {
+          attempted: 0,
+          delivered: 0,
+          failed: 0,
+          chunks: 0,
+          chunkErrors: 0,
+        },
       };
       // Headcount-triggered legal-obligation reconcile (CPHS≥25 / Depto
       // Prevención≥100). Runs BEFORE the reminder pass below so an obligation
       // a roster change just made mandatory is reminded in the same run.
-      const legalReconcile = { projectsReconciled: 0, obligationsCreated: 0, errors: 0 };
+      const legalReconcile = {
+        projectsReconciled: 0,
+        obligationsCreated: 0,
+        errors: 0,
+      };
       let projectsScanned = 0;
       const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
 
@@ -982,8 +1106,13 @@ router.post(
           exceptions.expired += r.expired;
           exceptions.errors += r.errors;
         } catch (err) {
-          logger.error('[maintenance] exception-auto-expire failed', { projectId, err: String(err) });
-          captureRouteError(err, 'maintenance.exception-auto-expire', { projectId });
+          logger.error("[maintenance] exception-auto-expire failed", {
+            projectId,
+            err: String(err),
+          });
+          captureRouteError(err, "maintenance.exception-auto-expire", {
+            projectId,
+          });
           exceptions.errors += 1;
         }
 
@@ -1002,7 +1131,7 @@ router.post(
         const projectData = projectDoc.data() as { tenantId?: unknown };
         const rawTenantId = projectData?.tenantId;
         const tenantId =
-          typeof rawTenantId === 'string' && rawTenantId.trim().length > 0
+          typeof rawTenantId === "string" && rawTenantId.trim().length > 0
             ? rawTenantId.trim()
             : projectId;
 
@@ -1015,8 +1144,13 @@ router.post(
           workPermits.expired += r.expired;
           workPermits.errors += r.errors;
         } catch (err) {
-          logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
-          captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
+          logger.error("[maintenance] work-permit-auto-expire failed", {
+            projectId,
+            err: String(err),
+          });
+          captureRouteError(err, "maintenance.work-permit-auto-expire", {
+            projectId,
+          });
           workPermits.errors += 1;
         }
 
@@ -1032,19 +1166,39 @@ router.post(
             try {
               await auditServerEvent(
                 req,
-                'legal.obligationsReconciled',
-                'legal',
-                { projectId, created: rec.created, source: 'daily-housekeeping' },
-                { projectId, actorOverride: { uid: 'system:legal-reconcile-cron', email: null } },
+                "legal.obligationsReconciled",
+                "legal",
+                {
+                  projectId,
+                  created: rec.created,
+                  source: "daily-housekeeping",
+                },
+                {
+                  projectId,
+                  actorOverride: {
+                    uid: "system:legal-reconcile-cron",
+                    email: null,
+                  },
+                },
               );
             } catch (auditErr) {
-              logger.error('[maintenance] legal-reconcile audit failed', auditErr, { projectId });
-              captureRouteError(auditErr, 'maintenance.legal-reconcile-audit', { projectId });
+              logger.error(
+                "[maintenance] legal-reconcile audit failed",
+                auditErr,
+                { projectId },
+              );
+              captureRouteError(auditErr, "maintenance.legal-reconcile-audit", {
+                projectId,
+              });
             }
           }
         } catch (err) {
-          logger.error('[maintenance] legal-obligation-reconcile failed', err, { projectId });
-          captureRouteError(err, 'maintenance.legal-obligation-reconcile', { projectId });
+          logger.error("[maintenance] legal-obligation-reconcile failed", err, {
+            projectId,
+          });
+          captureRouteError(err, "maintenance.legal-obligation-reconcile", {
+            projectId,
+          });
           legalReconcile.errors += 1;
         }
 
@@ -1059,13 +1213,20 @@ router.post(
               // daily run retries. For legal reminders the noise floor is
               // 1×/day so a missing supervisor provisioning generates one
               // warn per obligation per day until the operator fixes it.
-              const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
+              const { tokens } = await resolveProjectMemberTokens(
+                projectId,
+                responsibleRoles,
+                db,
+              );
               if (tokens.length === 0) {
-                logger.warn('[maintenance] legal-reminder no responsible tokens', {
-                  projectId,
-                  obligationId,
-                  kind: obligation.kind,
-                });
+                logger.warn(
+                  "[maintenance] legal-reminder no responsible tokens",
+                  {
+                    projectId,
+                    obligationId,
+                    kind: obligation.kind,
+                  },
+                );
                 throw new Error(
                   `no_responsible_recipients: project=${projectId} obligation=${obligationId}`,
                 );
@@ -1076,16 +1237,16 @@ router.post(
                   body: `Vence en ${daysUntil} día(s) — ${obligation.legalCitation}`,
                 },
                 data: {
-                  kind: 'legal_obligation_reminder',
+                  kind: "legal_obligation_reminder",
                   obligationId,
                   projectId,
                   obligationKind: obligation.kind,
                   legalCitation: obligation.legalCitation,
                   daysUntil: String(daysUntil),
-                  nextDueAt: obligation.nextDueAt ?? '',
+                  nextDueAt: obligation.nextDueAt ?? "",
                 },
-                android: { priority: 'high' },
-                apns: { headers: { 'apns-priority': '10' } },
+                android: { priority: "high" },
+                apns: { headers: { "apns-priority": "10" } },
               });
               legalReminders.notifications.attempted += dispatched.attempted;
               legalReminders.notifications.delivered += dispatched.successCount;
@@ -1116,8 +1277,13 @@ router.post(
           legalReminders.skipped += r.skippedNotDue + r.skippedIdempotent;
           legalReminders.errors += r.errors;
         } catch (err) {
-          logger.error('[maintenance] legal-calendar-reminders failed', { projectId, err: String(err) });
-          captureRouteError(err, 'maintenance.legal-calendar-reminders', { projectId });
+          logger.error("[maintenance] legal-calendar-reminders failed", {
+            projectId,
+            err: String(err),
+          });
+          captureRouteError(err, "maintenance.legal-calendar-reminders", {
+            projectId,
+          });
           legalReminders.errors += 1;
         }
       };
@@ -1135,28 +1301,31 @@ router.post(
           fetchUf: async () => {
             // Bounded fetch: an upstream that stalls the body would otherwise
             // hang the housekeeping response until the Cloud Run request timeout.
-            const resp = await fetch('https://mindicador.cl/api/uf', {
+            const resp = await fetch("https://mindicador.cl/api/uf", {
               signal: AbortSignal.timeout(10_000),
             });
             if (!resp.ok) throw new Error(`mindicador HTTP ${resp.status}`);
             return resp.json();
           },
         });
-        ufRate = { updated: r.updated, ...(r.reason ? { reason: r.reason } : {}) };
+        ufRate = {
+          updated: r.updated,
+          ...(r.reason ? { reason: r.reason } : {}),
+        };
         // Fail-soft keeps the last cached value, but a PERSISTENT failure must
         // reach Sentry (not just the daily log) so a stale rate gets noticed.
         if (!r.updated && r.reason) {
           captureRouteError(
             new Error(`uf-rate-refresh: ${r.reason}`),
-            'maintenance.uf-rate-refresh',
+            "maintenance.uf-rate-refresh",
           );
         }
       } catch (err) {
-        logger.error('[maintenance] uf-rate-refresh failed', err as Error);
-        captureRouteError(err, 'maintenance.uf-rate-refresh');
+        logger.error("[maintenance] uf-rate-refresh failed", err as Error);
+        captureRouteError(err, "maintenance.uf-rate-refresh");
       }
 
-      logger.info('[maintenance] daily-housekeeping done', {
+      logger.info("[maintenance] daily-housekeeping done", {
         projectsScanned,
         exceptions,
         workPermits,
@@ -1176,12 +1345,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] daily-housekeeping failed', err);
-      captureRouteError(err, 'maintenance.daily-housekeeping');
+      logger.error("[maintenance] daily-housekeeping failed", err);
+      captureRouteError(err, "maintenance.daily-housekeeping");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'daily-housekeeping failed',
+        error: "internal_error",
+        message: "daily-housekeeping failed",
       });
     }
   },
@@ -1200,14 +1369,14 @@ router.post(
 //
 // Auth: verifySchedulerToken (Cloud Scheduler shared secret / OIDC).
 router.post(
-  '/run-contractor-ranking-snapshot',
+  "/run-contractor-ranking-snapshot",
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
     try {
       const db = admin.firestore();
       const result = await runContractorRankingSnapshot({ db });
-      logger.info('[maintenance] contractor-ranking-snapshot done', {
+      logger.info("[maintenance] contractor-ranking-snapshot done", {
         ...result,
         tookMs: Date.now() - start,
       });
@@ -1217,12 +1386,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] contractor-ranking-snapshot failed', err);
-      captureRouteError(err, 'maintenance.contractor-ranking-snapshot');
+      logger.error("[maintenance] contractor-ranking-snapshot failed", err);
+      captureRouteError(err, "maintenance.contractor-ranking-snapshot");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'contractor-ranking-snapshot failed',
+        error: "internal_error",
+        message: "contractor-ranking-snapshot failed",
       });
     }
   },
@@ -1242,14 +1411,14 @@ router.post(
 //
 // Auth: verifySchedulerToken.
 router.post(
-  '/run-compliance-snapshot',
+  "/run-compliance-snapshot",
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
     try {
       const db = admin.firestore();
       const result = await runComplianceSnapshot({ db });
-      logger.info('[maintenance] compliance-snapshot done', {
+      logger.info("[maintenance] compliance-snapshot done", {
         ...result,
         tookMs: Date.now() - start,
       });
@@ -1259,12 +1428,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] compliance-snapshot failed', err);
-      captureRouteError(err, 'maintenance.compliance-snapshot');
+      logger.error("[maintenance] compliance-snapshot failed", err);
+      captureRouteError(err, "maintenance.compliance-snapshot");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'compliance-snapshot failed',
+        error: "internal_error",
+        message: "compliance-snapshot failed",
       });
     }
   },
@@ -1289,14 +1458,14 @@ router.post(
 //
 // Auth: verifySchedulerToken.
 router.post(
-  '/run-slo-metrics-refresh',
+  "/run-slo-metrics-refresh",
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
     try {
       const db = admin.firestore();
       const result = await runSloMetricsRefresh({ db });
-      logger.info('[maintenance] slo-metrics-refresh done', {
+      logger.info("[maintenance] slo-metrics-refresh done", {
         gateClosed: result.gateClosed,
         refreshed: result.refreshed,
         failed: result.failed,
@@ -1308,12 +1477,12 @@ router.post(
         tookMs: Date.now() - start,
       });
     } catch (err) {
-      logger.error('[maintenance] slo-metrics-refresh failed', err);
-      captureRouteError(err, 'maintenance.slo-metrics-refresh');
+      logger.error("[maintenance] slo-metrics-refresh failed", err);
+      captureRouteError(err, "maintenance.slo-metrics-refresh");
       return res.status(500).json({
         ok: false,
-        error: 'internal_error',
-        message: 'slo-metrics-refresh failed',
+        error: "internal_error",
+        message: "slo-metrics-refresh failed",
       });
     }
   },
