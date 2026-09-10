@@ -41,6 +41,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
+import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -113,6 +114,41 @@ router.get(
         : null;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // PII audience gate (ticket 3cdaa66d-73fe-8153-b844-ea7f28e0f25c):
+    // medicalAptitudeStatus, fatigueLevel, incidents, trainings, EPP and signed
+    // docs belong to the worker. A worker may read their own; supervisors,
+    // admins and the project creator may read anyone in the project.
+    // Roles come from the verified Firebase token via verifyAuth — Admin SDK
+    // bypasses firestore.rules but the rule mirrors this gate on the client
+    // (read by self only).
+    const isSelf = workerUid === callerUid;
+    const callerRole = (req.user as { role?: string } | undefined)?.role;
+    const isProjectCreator = await (async () => {
+      try {
+        const proj = await admin
+          .firestore()
+          .collection('projects')
+          .doc(projectId)
+          .get();
+        return proj.exists && proj.data()?.createdBy === callerUid;
+      } catch {
+        return false;
+      }
+    })();
+    const callerHasPrivilegedRole =
+      Boolean((req.user as { admin?: boolean } | undefined)?.admin) ||
+      isAdminRole(callerRole) ||
+      isSupervisorRole(callerRole);
+    if (!isSelf && !callerHasPrivilegedRole && !isProjectCreator) {
+      logger.warn?.('workerReadiness.forbidden_audience', {
+        callerUid, projectId, workerUid, role: callerRole ?? null,
+      });
+      return res.status(403).json({
+        error: 'forbidden_audience',
+        message:
+          'Solo el propio trabajador, supervisor, admin o el creador del proyecto pueden consultar el readiness de un companero.',
+      });
+    }
     try {
       const { computeReadiness } = await import(
         '../../services/workerReadiness/readinessScore.js'
