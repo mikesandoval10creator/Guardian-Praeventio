@@ -22,7 +22,6 @@
     "excludedMutations": ["ArrayDeclaration"]
   },
   "mutate": [
-    "src/server/services/onboardingProvisioning.ts",
     "src/server/middleware/verifyAuth.ts",
     "src/server/middleware/limiters.ts",
     "src/services/slm/orchestrator.ts",
