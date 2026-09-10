@@ -15,9 +15,14 @@
 // actually calls: `firestore().collection().doc().set()/get()/update()`,
 // `firestore.FieldValue.serverTimestamp()`, and `firestore.Timestamp`.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import request from 'supertest';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
+import request from "supertest";
 
 // ─── In-memory firestore stub ────────────────────────────────────────────
 // Path-addressed store keyed by `<collection>/<docId>(/...)*`. The route
@@ -43,7 +48,10 @@ class FakeDocRef {
   collection(name: string): FakeColRef {
     return new FakeColRef(`${this.path}/${name}`, this.store);
   }
-  async set(data: Record<string, unknown>, opts?: { merge?: boolean }): Promise<void> {
+  async set(
+    data: Record<string, unknown>,
+    opts?: { merge?: boolean },
+  ): Promise<void> {
     const existing = this.store.get(this.path);
     if (opts?.merge && existing) {
       this.store.set(this.path, { ...existing, ...data });
@@ -79,9 +87,51 @@ class FakeColRef {
 const firestoreStore = new Map<string, Record<string, unknown>>();
 
 // Knobs flipped per-test to simulate failure modes.
-const failNextSet: { value: 'users' | 'project' | null } = { value: null };
+const failNextSet: { value: "users" | "project" | null } = { value: null };
 
 class FakeFirestore {
+  // Staged writes model atomic commit/rollback. Real concurrent transactions
+  // are exercised separately against the Firestore emulator, not this fake.
+  async runTransaction<T>(
+    fn: (tx: {
+      get: (ref: FakeDocRef) => Promise<DocSnap>;
+      create: (ref: FakeDocRef, data: Record<string, unknown>) => void;
+      set: (
+        ref: FakeDocRef,
+        data: Record<string, unknown>,
+        opts?: { merge?: boolean },
+      ) => void;
+    }) => Promise<T>,
+  ): Promise<T> {
+    const writes: Array<{
+      ref: FakeDocRef;
+      data: Record<string, unknown>;
+      opts?: { merge?: boolean };
+    }> = [];
+    const result = await fn({
+      get: (ref) => ref.get(),
+      create: (ref, data) => {
+        if (firestoreStore.has(ref.path)) throw new Error("already exists");
+        writes.push({ ref, data });
+      },
+      set: (ref, data, opts) => {
+        writes.push({ ref, data, opts });
+      },
+    });
+    if (
+      failNextSet.value &&
+      writes.some(({ ref }) =>
+        failNextSet.value === "users"
+          ? ref.path.startsWith("users/")
+          : ref.path.includes("/projects/"),
+      )
+    ) {
+      failNextSet.value = null;
+      throw new Error("simulated_firestore_failure");
+    }
+    for (const { ref, data, opts } of writes) await ref.set(data, opts);
+    return result;
+  }
   collection(name: string): FakeColRef {
     const col = new FakeColRef(name, firestoreStore);
     if (failNextSet.value) {
@@ -91,11 +141,11 @@ class FakeFirestore {
         const origSet = ref.set.bind(ref);
         ref.set = async (...args) => {
           if (
-            (failNextSet.value === 'users' && ref.path.startsWith('users/')) ||
-            (failNextSet.value === 'project' && ref.path.includes('/projects/'))
+            (failNextSet.value === "users" && ref.path.startsWith("users/")) ||
+            (failNextSet.value === "project" && ref.path.includes("/projects/"))
           ) {
             failNextSet.value = null;
-            throw new Error('simulated_firestore_failure');
+            throw new Error("simulated_firestore_failure");
           }
           return origSet(...args);
         };
@@ -104,11 +154,6 @@ class FakeFirestore {
     }
     return col;
   }
-  async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
-    // The route doesn't use runTransaction; idempotency middleware does,
-    // but we bypass that middleware entirely (see mock below).
-    return fn({});
-  }
 }
 
 const fakeFirestoreInstance = new FakeFirestore();
@@ -116,44 +161,45 @@ const firestoreFn = vi.fn(() => fakeFirestoreInstance);
 // firestore.FieldValue.serverTimestamp() returns a sentinel; equality
 // against any real Timestamp is irrelevant for these tests.
 (firestoreFn as unknown as Record<string, unknown>).FieldValue = {
-  serverTimestamp: () => ({ __sentinel: 'serverTimestamp' }),
+  serverTimestamp: () => ({ __sentinel: "serverTimestamp" }),
 };
 (firestoreFn as unknown as Record<string, unknown>).Timestamp = {
   fromMillis: (ms: number) => ({ __ts: ms, toMillis: () => ms }),
 };
 
-vi.mock('firebase-admin', () => ({
+vi.mock("firebase-admin", () => ({
   default: { firestore: firestoreFn },
   firestore: firestoreFn,
 }));
 
 // ─── Middleware mocks ────────────────────────────────────────────────────
 
-vi.mock('../../server/middleware/verifyAuth.js', () => ({
+vi.mock("../../server/middleware/verifyAuth.js", () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers.authorization ?? '';
-    if (!auth.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    const auth = req.headers.authorization ?? "";
+    if (!auth.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized: No token provided" });
     }
-    const token = auth.slice('Bearer '.length);
-    const [, uid, email] = token.split(':');
-    req.user = { uid: uid ?? 'uid-test', email: email || `${uid}@test.com` };
+    const token = auth.slice("Bearer ".length);
+    const [, uid, email] = token.split(":");
+    req.user = { uid: uid ?? "uid-test", email: email || `${uid}@test.com` };
     return next();
   },
 }));
 
 // idempotencyKey() is a factory; we pass-through.
-vi.mock('../../server/middleware/idempotencyKey.js', () => ({
-  idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+vi.mock("../../server/middleware/idempotencyKey.js", () => ({
+  idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) =>
+    next(),
 }));
 
 const auditServerEventMock = vi.fn(async (..._args: unknown[]) => true);
-vi.mock('../../server/middleware/auditLog.js', () => ({
+vi.mock("../../server/middleware/auditLog.js", () => ({
   auditServerEvent: auditServerEventMock,
 }));
 
 const captureRouteErrorMock = vi.fn(() => {});
-vi.mock('../../server/middleware/captureRouteError.js', () => ({
+vi.mock("../../server/middleware/captureRouteError.js", () => ({
   captureRouteError: captureRouteErrorMock,
 }));
 
@@ -163,51 +209,51 @@ const loggerMock = {
   error: vi.fn(),
   debug: vi.fn(),
 };
-vi.mock('../../utils/logger.js', () => ({ logger: loggerMock }));
+vi.mock("../../utils/logger.js", () => ({ logger: loggerMock }));
 
 // ─── EmailService + template mocks ───────────────────────────────────────
 // `EmailService.fromEnv()` returns null when RESEND_API_KEY is absent;
 // when we want to exercise step-3 we return a stub whose send() resolves
 // or rejects per test.
 
-const emailSendMock = vi.fn(async () => ({ ok: true, id: 'msg_x' }));
+const emailSendMock = vi.fn(async () => ({ ok: true, id: "msg_x" }));
 const fromEnvMock = vi.fn(() => ({ send: emailSendMock }));
-vi.mock('../../services/email/resendService.js', () => ({
+vi.mock("../../services/email/resendService.js", () => ({
   EmailService: { fromEnv: fromEnvMock },
 }));
 
-vi.mock('../../services/email/templates.js', () => ({
-  projectInvitationTemplate: vi.fn(() => '<html>invite</html>'),
+vi.mock("../../services/email/templates.js", () => ({
+  projectInvitationTemplate: vi.fn(() => "<html>invite</html>"),
 }));
 
 // ─── TIERS mock ──────────────────────────────────────────────────────────
 // We expose just enough to drive the `VALID_TIER_IDS` Set the route
 // builds at module-load — `gratis` + one paid tier `oro` are sufficient
 // to cover the free-vs-paid branch. Any other tier id must trigger 400.
-vi.mock('../../services/pricing/tiers.js', () => ({
-  TIERS: [
-    { id: 'gratis' },
-    { id: 'oro' },
-  ],
+vi.mock("../../services/pricing/tiers.js", () => ({
+  TIERS: [{ id: "gratis" }, { id: "oro" }],
 }));
 
 // ─── App builder ─────────────────────────────────────────────────────────
 
 async function buildApp(): Promise<Express> {
-  const { onboardingRouter } = await import('../../server/routes/onboarding.js');
+  const { onboardingRouter } =
+    await import("../../server/routes/onboarding.js");
   const app = express();
   app.use(express.json());
-  app.use('/api', onboardingRouter);
+  app.use("/api", onboardingRouter);
   return app;
 }
 
-function validPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function validPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
-    industry: 'mining',
-    countries: ['CL'],
-    tier: 'gratis',
+    industry: "mining",
+    countries: ["CL"],
+    tier: "gratis",
     inviteEmails: [],
-    projectName: 'Faena Norte',
+    projectName: "Faena Norte",
     workersCsv: null,
     ...overrides,
   };
@@ -219,7 +265,7 @@ beforeEach(() => {
   auditServerEventMock.mockClear();
   captureRouteErrorMock.mockClear();
   emailSendMock.mockClear();
-  emailSendMock.mockResolvedValue({ ok: true, id: 'msg_x' });
+  emailSendMock.mockResolvedValue({ ok: true, id: "msg_x" });
   fromEnvMock.mockClear();
   fromEnvMock.mockReturnValue({ send: emailSendMock });
   loggerMock.info.mockClear();
@@ -227,73 +273,73 @@ beforeEach(() => {
   loggerMock.error.mockClear();
 });
 
-describe('POST /api/onboarding/complete', () => {
-  it('returns 401 when no Authorization header is supplied', async () => {
+describe("POST /api/onboarding/complete", () => {
+  it("returns 401 when no Authorization header is supplied", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
+      .post("/api/onboarding/complete")
       .send(validPayload());
     expect(res.status).toBe(401);
     // Storage must NOT have been mutated.
     expect(firestoreStore.size).toBe(0);
   });
 
-  it('returns 400 when industry is missing', async () => {
+  it("returns 400 when industry is missing", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
       .send(validPayload({ industry: undefined }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_industry');
+    expect(res.body.error).toBe("invalid_industry");
   });
 
-  it('returns 400 when industry is not in the allow-list', async () => {
+  it("returns 400 when industry is not in the allow-list", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send(validPayload({ industry: 'galactic-mining' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
+      .send(validPayload({ industry: "galactic-mining" }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_industry');
+    expect(res.body.error).toBe("invalid_industry");
   });
 
-  it('returns 400 when country code is not in the allow-list', async () => {
+  it("returns 400 when country code is not in the allow-list", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send(validPayload({ countries: ['ZZ'] }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
+      .send(validPayload({ countries: ["ZZ"] }));
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid_country/);
   });
 
-  it('returns 400 when tier id is unknown (not in TIERS)', async () => {
+  it("returns 400 when tier id is unknown (not in TIERS)", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send(validPayload({ tier: 'galactic-emperor' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
+      .send(validPayload({ tier: "galactic-emperor" }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_tier');
+    expect(res.body.error).toBe("invalid_tier");
   });
 
-  it('returns 400 when projectName is shorter than 2 chars', async () => {
+  it("returns 400 when projectName is shorter than 2 chars", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send(validPayload({ projectName: 'x' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
+      .send(validPayload({ projectName: "x" }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_project_name');
+    expect(res.body.error).toBe("invalid_project_name");
   });
 
-  it('happy path (free tier): persists tenantConfig, creates project, marks onboarded=true', async () => {
+  it("happy path (free tier): persists tenantConfig, creates project, marks onboarded=true", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send(validPayload({ tier: 'gratis', projectName: 'Faena Norte' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-A:a@test.com")
+      .send(validPayload({ tier: "gratis", projectName: "Faena Norte" }));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -301,68 +347,80 @@ describe('POST /api/onboarding/complete', () => {
     expect(res.body.pendingPayment).toBe(false);
 
     // Step 1: users/{uid} written with tenantConfig + onboarded flag.
-    const userDoc = firestoreStore.get('users/uid-A') as Record<string, unknown>;
+    const userDoc = firestoreStore.get("users/uid-A") as Record<
+      string,
+      unknown
+    >;
     expect(userDoc).toBeDefined();
-    expect((userDoc.tenantConfig as Record<string, unknown>).industry).toBe('mining');
-    expect((userDoc.tenantConfig as Record<string, unknown>).tier).toBe('gratis');
+    expect((userDoc.tenantConfig as Record<string, unknown>).industry).toBe(
+      "mining",
+    );
+    expect((userDoc.tenantConfig as Record<string, unknown>).tier).toBe(
+      "gratis",
+    );
     expect(userDoc.onboarded).toBe(true);
     // Free tier → planId already gratis, status active (no pendingTier).
     const sub = userDoc.subscription as Record<string, unknown>;
-    expect(sub.planId).toBe('gratis');
-    expect(sub.status).toBe('active');
+    expect(sub.planId).toBe("gratis");
+    expect(sub.status).toBe("active");
     expect(sub.pendingTier).toBeUndefined();
 
     // Step 2: project doc lives under tenants/{uid}/projects/.
     const projectKey = [...firestoreStore.keys()].find((k) =>
-      k.startsWith('tenants/uid-A/projects/'),
+      k.startsWith("tenants/uid-A/projects/"),
     );
     expect(projectKey).toBeDefined();
     const project = firestoreStore.get(projectKey!) as Record<string, unknown>;
-    expect(project.name).toBe('Faena Norte');
-    expect(project.ownerUid).toBe('uid-A');
-    expect(project.source).toBe('onboarding-wizard');
+    expect(project.name).toBe("Faena Norte");
+    expect(project.ownerUid).toBe("uid-A");
+    expect(project.source).toBe("onboarding-wizard");
 
     // Step ✓: audit row emitted. A brand-new owner is also promoted to gerente
     // (emits onboarding.owner_role_promoted), so assert the completed event by
     // name, not by call index.
     expect(
-      auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.completed'),
+      auditServerEventMock.mock.calls.some(
+        (c) => c[1] === "onboarding.completed",
+      ),
     ).toBe(true);
   });
 
-  it('paid tier records pendingTier + status=pending_payment instead of activating', async () => {
+  it("paid tier records pendingTier + status=pending_payment instead of activating", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-B:b@test.com')
-      .send(validPayload({ tier: 'oro' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-B:b@test.com")
+      .send(validPayload({ tier: "oro" }));
 
     expect(res.status).toBe(200);
     expect(res.body.pendingPayment).toBe(true);
 
-    const userDoc = firestoreStore.get('users/uid-B') as Record<string, unknown>;
+    const userDoc = firestoreStore.get("users/uid-B") as Record<
+      string,
+      unknown
+    >;
     const sub = userDoc.subscription as Record<string, unknown>;
     // Critical: planId stays 'gratis' until the paid-invoice flow flips it.
     // Activating here would bypass DT-01/DT-05 (free Ilimitado attack).
-    expect(sub.planId).toBe('gratis');
-    expect(sub.pendingTier).toBe('oro');
-    expect(sub.status).toBe('pending_payment');
+    expect(sub.planId).toBe("gratis");
+    expect(sub.pendingTier).toBe("oro");
+    expect(sub.status).toBe("pending_payment");
   });
 
-  it('best-effort email: send() failure does NOT 5xx the onboarding', async () => {
+  it("best-effort email: send() failure does NOT 5xx the onboarding", async () => {
     // Resend goes down mid-wizard. The invitation row must still be
     // persisted (it's the source of truth) and the route must return
     // 200 with the project created.
-    emailSendMock.mockRejectedValueOnce(new Error('resend_unavailable'));
+    emailSendMock.mockRejectedValueOnce(new Error("resend_unavailable"));
 
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-C:c@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-C:c@test.com")
       .send(
         validPayload({
-          tier: 'gratis',
-          inviteEmails: ['teammate@test.com'],
+          tier: "gratis",
+          inviteEmails: ["teammate@test.com"],
         }),
       );
 
@@ -371,35 +429,49 @@ describe('POST /api/onboarding/complete', () => {
     // The invited email IS returned (the invitation row was persisted
     // even though the email delivery failed) — that matches the route's
     // best-effort comment.
-    expect(res.body.invitedEmails).toContain('teammate@test.com');
+    expect(res.body.invitedEmails).toContain("teammate@test.com");
 
     // The failure was logged at warn level, not error / 5xx.
     expect(loggerMock.warn).toHaveBeenCalled();
     const warnEvents = loggerMock.warn.mock.calls.map((c) => c[0]);
-    expect(warnEvents).toContain('onboarding_email_failed');
+    expect(warnEvents).toContain("onboarding_email_failed");
 
     // Invitation row was written under the project's invitations subcollection.
     const inviteKey = [...firestoreStore.keys()].find((k) =>
-      k.includes('/invitations/'),
+      k.includes("/invitations/"),
     );
     expect(inviteKey).toBeDefined();
     const invite = firestoreStore.get(inviteKey!) as Record<string, unknown>;
-    expect(invite.email).toBe('teammate@test.com');
-    expect(invite.status).toBe('pending');
+    expect(invite.email).toBe("teammate@test.com");
+    expect(invite.status).toBe("pending");
+    // Completion describes persisted records, not best-effort email delivery.
+    // A provider failure must not change the immutable replay response.
+    const replay = await request(app)
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-C:c@test.com")
+      .send(
+        validPayload({ tier: "gratis", inviteEmails: ["teammate@test.com"] }),
+      );
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual(res.body);
+    expect(emailSendMock).toHaveBeenCalledTimes(1);
   });
 
-  it('marks users/{uid}.onboarded=true so App.tsx redirect guard stops bouncing the user', async () => {
+  it("marks users/{uid}.onboarded=true so App.tsx redirect guard stops bouncing the user", async () => {
     // This is the App.tsx contract — once onboarded=true the redirect
     // guard short-circuits. We assert the flag explicitly because losing
     // it regresses straight back to an infinite loop.
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-D:d@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-D:d@test.com")
       .send(validPayload());
 
     expect(res.status).toBe(200);
-    const userDoc = firestoreStore.get('users/uid-D') as Record<string, unknown>;
+    const userDoc = firestoreStore.get("users/uid-D") as Record<
+      string,
+      unknown
+    >;
     expect(userDoc.onboarded).toBe(true);
     expect(userDoc.onboardedAt).toBeTruthy();
   });
@@ -409,81 +481,87 @@ describe('POST /api/onboarding/complete', () => {
   // (src/data/sii/actividadesEconomicas.ts) — the client-side mapping is
   // never trusted.
 
-  it('persists siiCode, the catalogue-derived sectorId and estimatedWorkers into tenantConfig', async () => {
+  it("persists siiCode, the catalogue-derived sectorId and estimatedWorkers into tenantConfig", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-E:e@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-E:e@test.com")
       .send(
         validPayload({
-          industry: 'construction',
+          industry: "construction",
           siiCode: 410010,
           estimatedWorkers: 30,
         }),
       );
 
     expect(res.status).toBe(200);
-    const userDoc = firestoreStore.get('users/uid-E') as Record<string, unknown>;
+    const userDoc = firestoreStore.get("users/uid-E") as Record<
+      string,
+      unknown
+    >;
     const cfg = userDoc.tenantConfig as Record<string, unknown>;
     expect(cfg.siiCode).toBe(410010);
-    expect(cfg.sectorId).toBe('GP-CONS-RES'); // derived from the catalogue, not the client
+    expect(cfg.sectorId).toBe("GP-CONS-RES"); // derived from the catalogue, not the client
     expect(cfg.estimatedWorkers).toBe(30);
 
     // Audit row carries the new fields. Find the completed event by name — a
     // brand-new owner also emits onboarding.owner_role_promoted.
     const completedCall = auditServerEventMock.mock.calls.find(
-      (c) => c[1] === 'onboarding.completed',
+      (c) => c[1] === "onboarding.completed",
     );
     const auditPayload = completedCall![3] as Record<string, unknown>;
     expect(auditPayload.siiCode).toBe(410010);
     expect(auditPayload.estimatedWorkers).toBe(30);
   });
 
-  it('omits siiCode/sectorId/estimatedWorkers from tenantConfig when not provided', async () => {
+  it("omits siiCode/sectorId/estimatedWorkers from tenantConfig when not provided", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-F:f@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-F:f@test.com")
       .send(validPayload());
 
     expect(res.status).toBe(200);
-    const userDoc = firestoreStore.get('users/uid-F') as Record<string, unknown>;
+    const userDoc = firestoreStore.get("users/uid-F") as Record<
+      string,
+      unknown
+    >;
     const cfg = userDoc.tenantConfig as Record<string, unknown>;
     expect(cfg.siiCode).toBeUndefined();
     expect(cfg.sectorId).toBeUndefined();
     expect(cfg.estimatedWorkers).toBeUndefined();
   });
 
-  it('returns 400 when siiCode is not in the verified SII catalogue', async () => {
+  it("returns 400 when siiCode is not in the verified SII catalogue", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-G:g@test.com')
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-G:g@test.com")
       .send(validPayload({ siiCode: 999999 }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_sii_code');
+    expect(res.body.error).toBe("invalid_sii_code");
     expect(firestoreStore.size).toBe(0);
   });
 
-  it('returns 400 when siiCode is not a number', async () => {
+  it("returns 400 when siiCode is not a number", async () => {
     const app = await buildApp();
     const res = await request(app)
-      .post('/api/onboarding/complete')
-      .set('Authorization', 'Bearer test:uid-G:g@test.com')
-      .send(validPayload({ siiCode: '410010; DROP TABLE' }));
+      .post("/api/onboarding/complete")
+      .set("Authorization", "Bearer test:uid-G:g@test.com")
+      .send(validPayload({ siiCode: "410010; DROP TABLE" }));
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_sii_code');
+    expect(res.body.error).toBe("invalid_sii_code");
   });
 
-  it('returns 400 when estimatedWorkers is not a positive integer', async () => {
+  it("returns 400 when estimatedWorkers is not a positive integer", async () => {
     const app = await buildApp();
-    for (const bad of [-5, 0, 2.5, 'treinta']) {
+    for (const bad of [-5, 0, 2.5, "treinta"]) {
       const res = await request(app)
-        .post('/api/onboarding/complete')
-        .set('Authorization', 'Bearer test:uid-H:h@test.com')
+        .post("/api/onboarding/complete")
+        .set("Authorization", "Bearer test:uid-H:h@test.com")
         .send(validPayload({ estimatedWorkers: bad }));
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe('invalid_estimated_workers');
+      expect(res.body.error).toBe("invalid_estimated_workers");
     }
     expect(firestoreStore.size).toBe(0);
   });
@@ -500,15 +578,15 @@ describe('POST /api/onboarding/complete', () => {
   //     (ProjectContext members array-contains) and firestore.rules
   //     isProjectMember/assertProjectMember actually recognize the project.
 
-  describe('slice 3 — seeds del rubro al crear proyecto', () => {
+  describe("slice 3 — seeds del rubro al crear proyecto", () => {
     async function completeOnboarding(overrides: Record<string, unknown> = {}) {
       const app = await buildApp();
       return request(app)
-        .post('/api/onboarding/complete')
-        .set('Authorization', 'Bearer test:uid-S:s@test.com')
+        .post("/api/onboarding/complete")
+        .set("Authorization", "Bearer test:uid-S:s@test.com")
         .send(
           validPayload({
-            industry: 'construction',
+            industry: "construction",
             siiCode: 410010, // GP-CONS-RES in the verified catalogue
             estimatedWorkers: 30,
             ...overrides,
@@ -516,41 +594,49 @@ describe('POST /api/onboarding/complete', () => {
         );
     }
 
-    it('creates the canonical top-level projects/{pid} doc (members array, createdBy from token)', async () => {
+    it("creates the canonical top-level projects/{pid} doc (members array, createdBy from token)", async () => {
       const res = await completeOnboarding();
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
-      const project = firestoreStore.get(`projects/${pid}`) as Record<string, unknown>;
+      const project = firestoreStore.get(`projects/${pid}`) as Record<
+        string,
+        unknown
+      >;
       expect(project).toBeDefined();
-      expect(project.name).toBe('Faena Norte');
-      expect(project.createdBy).toBe('uid-S');
-      expect(project.members).toEqual(['uid-S']);
-      expect(project.status).toBe('active');
+      expect(project.name).toBe("Faena Norte");
+      expect(project.createdBy).toBe("uid-S");
+      expect(project.members).toEqual(["uid-S"]);
+      expect(project.status).toBe("active");
       // Rubro persisted on the project (inside `metadata`, an
       // isValidProject-whitelisted key, so client updates keep passing rules).
       const meta = project.metadata as Record<string, unknown>;
       expect(meta.codigoActividadSii).toBe(410010);
-      expect(meta.sectorId).toBe('GP-CONS-RES');
+      expect(meta.sectorId).toBe("GP-CONS-RES");
     });
 
-    it('M-1: stamps tenantId = caller uid on the canonical projects/{pid} doc', async () => {
+    it("M-1: stamps tenantId = caller uid on the canonical projects/{pid} doc", async () => {
       // Founder decision 2026-07-02 (+ design doc §4): tenant == creator uid.
       // Without this stamp every tenant-guarded router 400s for wizard
       // projects (audit 2026-07-02 §2 — 61 routers).
       const res = await completeOnboarding();
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
-      const project = firestoreStore.get(`projects/${pid}`) as Record<string, unknown>;
-      expect(project.tenantId).toBe('uid-S');
+      const project = firestoreStore.get(`projects/${pid}`) as Record<
+        string,
+        unknown
+      >;
+      expect(project.tenantId).toBe("uid-S");
       expect(project.tenantId).toBe(project.createdBy); // convention: tenantId = createdBy
     });
 
-    it('seeds the rubro risks into the top-level nodes collection with deterministic ids', async () => {
+    it("seeds the rubro risks into the top-level nodes collection with deterministic ids", async () => {
       const res = await completeOnboarding();
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
 
-      const nodeKeys = [...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'));
+      const nodeKeys = [...firestoreStore.keys()].filter((k) =>
+        k.startsWith("nodes/"),
+      );
       expect(nodeKeys.length).toBeGreaterThan(0);
       // Idempotent deterministic id: re-running the flow for the same
       // project overwrites instead of duplicating.
@@ -559,17 +645,17 @@ describe('POST /api/onboarding/complete', () => {
       for (const key of nodeKeys) {
         const node = firestoreStore.get(key) as Record<string, unknown>;
         expect(node.projectId).toBe(pid);
-        expect(node.type).toBe('Riesgo');
+        expect(node.type).toBe("Riesgo");
         const meta = node.metadata as Record<string, unknown>;
-        expect(meta.origin).toBe('sii_seed');
+        expect(meta.origin).toBe("sii_seed");
         expect(meta.seedSource).toBe(410010);
         // Identity stamped from the verified token, never from the client.
-        expect(meta.authorId).toBe('uid-S');
+        expect(meta.authorId).toBe("uid-S");
       }
       expect(res.body.seededRisks).toBe(nodeKeys.length);
     });
 
-    it('seeds the dotación obligations into projects/{pid}/legal_obligations', async () => {
+    it("seeds the dotación obligations into projects/{pid}/legal_obligations", async () => {
       const res = await completeOnboarding({ estimatedWorkers: 120 });
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
@@ -579,73 +665,100 @@ describe('POST /api/onboarding/complete', () => {
       );
       expect(oblKeys.length).toBeGreaterThan(0);
       const labels = oblKeys
-        .map((k) => (firestoreStore.get(k) as Record<string, unknown>).label as string)
-        .join(' | ');
+        .map(
+          (k) =>
+            (firestoreStore.get(k) as Record<string, unknown>).label as string,
+        )
+        .join(" | ");
       // 120 workers → CPHS + Departamento de Prevención (CL pack thresholds).
       expect(labels).toMatch(/Comité Paritario/i);
       expect(labels).toMatch(/Departamento de Prevención/i);
       expect(res.body.seededObligations).toBe(oblKeys.length);
     });
 
-    it('writes ONE audit row for the seeding action with counts', async () => {
+    it("writes ONE audit row for the seeding action with counts", async () => {
       const res = await completeOnboarding();
       expect(res.status).toBe(200);
       const seedAudits = auditServerEventMock.mock.calls.filter(
-        (c) => c[1] === 'onboarding.projectSeeded',
+        (c) => c[1] === "onboarding.projectSeeded",
       );
       expect(seedAudits.length).toBe(1);
       const details = seedAudits[0][3] as Record<string, unknown>;
       expect(details.projectId).toBe(res.body.projectId);
-      expect(details.sectorId).toBe('GP-CONS-RES');
+      expect(details.sectorId).toBe("GP-CONS-RES");
       expect(details.riskSeeds).toBe(res.body.seededRisks);
       expect(details.obligationSeeds).toBe(res.body.seededObligations);
       // The onboarding.completed row still exists (separate concern).
       expect(
-        auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.completed'),
+        auditServerEventMock.mock.calls.some(
+          (c) => c[1] === "onboarding.completed",
+        ),
       ).toBe(true);
     });
 
-    it('without siiCode/estimatedWorkers: no seeds, no seeding audit, but the top-level project still exists', async () => {
-      const res = await completeOnboarding({ siiCode: undefined, estimatedWorkers: undefined });
+    it("without siiCode/estimatedWorkers: no seeds, no seeding audit, but the top-level project still exists", async () => {
+      const res = await completeOnboarding({
+        siiCode: undefined,
+        estimatedWorkers: undefined,
+      });
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
       expect(firestoreStore.get(`projects/${pid}`)).toBeDefined();
-      expect([...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'))).toEqual([]);
       expect(
-        [...firestoreStore.keys()].filter((k) => k.includes('/legal_obligations/')),
+        [...firestoreStore.keys()].filter((k) => k.startsWith("nodes/")),
       ).toEqual([]);
       expect(
-        auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.projectSeeded'),
+        [...firestoreStore.keys()].filter((k) =>
+          k.includes("/legal_obligations/"),
+        ),
+      ).toEqual([]);
+      expect(
+        auditServerEventMock.mock.calls.some(
+          (c) => c[1] === "onboarding.projectSeeded",
+        ),
       ).toBe(false);
       expect(res.body.seededRisks).toBe(0);
       expect(res.body.seededObligations).toBe(0);
     });
 
-    it('estimatedWorkers without siiCode: obligations seeded, no risk nodes', async () => {
-      const res = await completeOnboarding({ siiCode: undefined, estimatedWorkers: 24 });
+    it("estimatedWorkers without siiCode: obligations seeded, no risk nodes", async () => {
+      const res = await completeOnboarding({
+        siiCode: undefined,
+        estimatedWorkers: 24,
+      });
       expect(res.status).toBe(200);
       const pid = res.body.projectId as string;
-      expect([...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'))).toEqual([]);
+      expect(
+        [...firestoreStore.keys()].filter((k) => k.startsWith("nodes/")),
+      ).toEqual([]);
       const oblKeys = [...firestoreStore.keys()].filter((k) =>
         k.startsWith(`projects/${pid}/legal_obligations/`),
       );
       // 24 workers → delegado(a) SST (below the CPHS threshold).
       expect(oblKeys.length).toBeGreaterThan(0);
       const labels = oblKeys
-        .map((k) => (firestoreStore.get(k) as Record<string, unknown>).label as string)
-        .join(' | ');
+        .map(
+          (k) =>
+            (firestoreStore.get(k) as Record<string, unknown>).label as string,
+        )
+        .join(" | ");
       expect(labels).toMatch(/delegado/i);
     });
 
-    it('non-CL countries: dotación obligations are NOT seeded (CL-pack thresholds are Chilean law)', async () => {
-      const res = await completeOnboarding({ countries: ['PE'], estimatedWorkers: 120 });
+    it("non-CL countries: dotación obligations are NOT seeded (CL-pack thresholds are Chilean law)", async () => {
+      const res = await completeOnboarding({
+        countries: ["PE"],
+        estimatedWorkers: 120,
+      });
       expect(res.status).toBe(200);
       expect(
-        [...firestoreStore.keys()].filter((k) => k.includes('/legal_obligations/')),
+        [...firestoreStore.keys()].filter((k) =>
+          k.includes("/legal_obligations/"),
+        ),
       ).toEqual([]);
       // Risk seeds are preventive (not legal citations) — still seeded.
       expect(
-        [...firestoreStore.keys()].filter((k) => k.startsWith('nodes/')).length,
+        [...firestoreStore.keys()].filter((k) => k.startsWith("nodes/")).length,
       ).toBeGreaterThan(0);
     });
   });

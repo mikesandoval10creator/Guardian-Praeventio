@@ -16,18 +16,24 @@
 //
 // Mount point mirror: app.use('/api', onboardingRouter) in server.ts:1065
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express, { type Request, type Response, type NextFunction } from 'express';
-import request from 'supertest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import express, {
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
+import request from "supertest";
 // express-async-errors must be imported in the test process too — the real
 // router is mounted on a local express() app and the monkey-patch is per
 // process. Without it a rejecting handler HANGS instead of 500ing, and the
 // audit-failure regression case would be meaningless.
-import 'express-async-errors';
+import "express-async-errors";
 
 // ── hoisted holder ───────────────────────────────────────────────────────────
 const H = vi.hoisted(() => ({
-  db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  db: null as ReturnType<
+    typeof import("../helpers/fakeFirestore").createFakeFirestore
+  > | null,
   // When set, the auditServerEvent mock REJECTS for exactly this action.
   auditRejectAction: null as string | null,
   auditSpy: vi.fn(),
@@ -36,17 +42,17 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin mock ─────────────────────────────────────────────────────
-vi.mock('firebase-admin', async () => {
-  const { adminMock } = await import('../helpers/fakeFirestore');
+vi.mock("firebase-admin", async () => {
+  const { adminMock } = await import("../helpers/fakeFirestore");
   return adminMock(() => H.db!);
 });
 
 // ── verifyAuth: x-test-uid→user, absent→401 ─────────────────────────────────
-vi.mock('../../server/middleware/verifyAuth.js', () => ({
+vi.mock("../../server/middleware/verifyAuth.js", () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
-    const uid = req.header('x-test-uid');
+    const uid = req.header("x-test-uid");
     if (!uid) {
-      res.status(401).json({ error: 'unauthorized' });
+      res.status(401).json({ error: "unauthorized" });
       return;
     }
     (req as Request & { user: Record<string, unknown> }).user = {
@@ -58,12 +64,13 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
 }));
 
 // ── idempotencyKey: no-op in tests ───────────────────────────────────────────
-vi.mock('../../server/middleware/idempotencyKey.js', () => ({
-  idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+vi.mock("../../server/middleware/idempotencyKey.js", () => ({
+  idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) =>
+    next(),
 }));
 
 // ── auditServerEvent: controllable — resolves true, or REJECTS for one accion
-vi.mock('../../server/middleware/auditLog.js', () => ({
+vi.mock("../../server/middleware/auditLog.js", () => ({
   auditServerEvent: async (
     _req: unknown,
     action: string,
@@ -80,7 +87,7 @@ vi.mock('../../server/middleware/auditLog.js', () => ({
 }));
 
 // ── logger / captureRouteError spies ─────────────────────────────────────────
-vi.mock('../../utils/logger.js', () => ({
+vi.mock("../../utils/logger.js", () => ({
   logger: {
     error: (...args: unknown[]) => H.loggerError(...args),
     warn: vi.fn(),
@@ -88,37 +95,37 @@ vi.mock('../../utils/logger.js', () => ({
     debug: vi.fn(),
   },
 }));
-vi.mock('../../server/middleware/captureRouteError.js', () => ({
+vi.mock("../../server/middleware/captureRouteError.js", () => ({
   captureRouteError: (...args: unknown[]) => H.captureRouteError(...args),
 }));
 
 // ── EmailService: env-less (invites skip email side-effects) ────────────────
-vi.mock('../../services/email/resendService.js', () => ({
+vi.mock("../../services/email/resendService.js", () => ({
   EmailService: { fromEnv: () => null },
 }));
-vi.mock('../../services/email/templates.js', () => ({
-  projectInvitationTemplate: () => '<html>invite</html>',
+vi.mock("../../services/email/templates.js", () => ({
+  projectInvitationTemplate: () => "<html>invite</html>",
 }));
 
 // ── import the REAL router AFTER mocks are set up ───────────────────────────
-import onboardingRouter from '../../server/routes/onboarding.js';
-import { createFakeFirestore } from '../helpers/fakeFirestore';
+import onboardingRouter from "../../server/routes/onboarding.js";
+import { createFakeFirestore } from "../helpers/fakeFirestore";
 
 // ── app factory (mirror of server.ts: app.use('/api', onboardingRouter)) ────
 function buildApp() {
   const app = express();
   app.use(express.json());
-  app.use('/api', onboardingRouter);
+  app.use("/api", onboardingRouter);
   return app;
 }
 
-const COMPLETE = '/api/onboarding/complete';
+const COMPLETE = "/api/onboarding/complete";
 
 const happyPayload = {
-  industry: 'construction',
-  countries: ['CL'],
-  tier: 'gratis',
-  projectName: 'Faena Norte',
+  industry: "construction",
+  countries: ["CL"],
+  tier: "gratis",
+  projectName: "Faena Norte",
   inviteEmails: [],
   workersCsv: null,
 };
@@ -131,106 +138,252 @@ beforeEach(() => {
   H.captureRouteError.mockClear();
 });
 
-describe('POST /api/onboarding/complete (real router)', () => {
-  it('401 without token', async () => {
+describe("POST /api/onboarding/complete (real router)", () => {
+  it("writes invitations in the schema consumed by the public acceptance endpoint", async () => {
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send({ ...happyPayload, inviteEmails: ["ana@example.cl"] });
+    expect(res.status).toBe(200);
+    const invites = [...H.db!._store.entries()].filter(([path]) =>
+      path.startsWith("invitations/"),
+    );
+    expect(invites).toHaveLength(1);
+    expect(invites[0][1]).toMatchObject({
+      projectId: res.body.projectId,
+      projectName: happyPayload.projectName,
+      invitedEmail: "ana@example.cl",
+      invitedRole: "operario",
+      status: "pending",
+    });
+    expect(typeof invites[0][1].token).toBe("string");
+    expect(Date.parse(String(invites[0][1].expiresAt))).toBeGreaterThan(
+      Date.now(),
+    );
+  });
+  it("does not publish completion or any records when the transaction cannot commit", async () => {
+    vi.spyOn(H.db!, "runTransaction").mockRejectedValueOnce(
+      new Error("commit unavailable"),
+    );
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send(happyPayload);
+    expect(res.status).toBe(500);
+    expect(H.db!._store.size).toBe(0);
+    expect(H.auditSpy).not.toHaveBeenCalled();
+  });
+
+  it("replays the durable result without duplicating project, imports, invites or audit", async () => {
+    const app = buildApp();
+    const payload = {
+      ...happyPayload,
+      inviteEmails: ["ana@example.cl"],
+      workersCsv: "name\nAna",
+    };
+    const first = await request(app)
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send(payload);
+    const records = H.db!._dump();
+    const audits = H.auditSpy.mock.calls.length;
+    const second = await request(app)
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .set("Idempotency-Key", "a-new-key-after-reload")
+      .send(payload);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual(first.body);
+    expect(H.db!._dump()).toEqual(records);
+    expect(H.auditSpy.mock.calls).toHaveLength(audits);
+  });
+
+  it("rejects a different payload after completion instead of overwriting the tenant", async () => {
+    const app = buildApp();
+    await request(app)
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send(happyPayload);
+    const records = H.db!._dump();
+    const res = await request(app)
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send({ ...happyPayload, projectName: "Different company" });
+    expect(res.status).toBe(409);
+    expect(H.db!._dump()).toEqual(records);
+  });
+
+  it.each([
+    ["malformed email", { inviteEmails: ["not-an-email"] }],
+    ["non-string email", { inviteEmails: ["a@example.cl", 4] }],
+    [
+      "too many invitations",
+      {
+        inviteEmails: Array.from({ length: 51 }, (_, i) => `u${i}@example.cl`),
+      },
+    ],
+    ["long project name", { projectName: "x".repeat(201) }],
+  ])("rejects %s before provisioning", async (_name, changes) => {
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send({ ...happyPayload, ...changes });
+    expect(res.status).toBe(400);
+    expect(H.db!._store.size).toBe(0);
+  });
+
+  it("normalizes and deduplicates invitations before writing them", async () => {
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send({
+        ...happyPayload,
+        inviteEmails: [" ANA@example.cl ", "ana@example.cl"],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.invitedEmails).toEqual(["ana@example.cl"]);
+    expect(
+      [...H.db!._store.keys()].filter((p) => p.includes("/invitations/")),
+    ).toHaveLength(1);
+  });
+
+  it("never downgrades a payment-verified subscription when completing the wizard", async () => {
+    const subscription = {
+      planId: "titanio",
+      status: "active",
+      paymentId: "verified-payment",
+    };
+    H.db!._seed("users/u1", { role: "admin", subscription });
+    const res = await request(buildApp())
+      .post(COMPLETE)
+      .set("x-test-uid", "u1")
+      .send(happyPayload);
+    expect(res.status).toBe(200);
+    expect(H.db!._store.get("users/u1")?.subscription).toEqual(subscription);
+    expect(H.db!._store.get("users/u1")?.role).toBe("admin");
+  });
+
+  it("401 without token", async () => {
     const res = await request(buildApp()).post(COMPLETE).send(happyPayload);
     expect(res.status).toBe(401);
   });
 
-  it('400 on invalid payload (unknown industry)', async () => {
+  it("400 on invalid payload (unknown industry)", async () => {
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
-      .send({ ...happyPayload, industry: 'nope' });
+      .set("x-test-uid", "u1")
+      .send({ ...happyPayload, industry: "nope" });
     expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe('invalid_industry');
+    expect((res.body as Record<string, unknown>).error).toBe(
+      "invalid_industry",
+    );
   });
 
-  it('200 happy path: user flags, tenant project + canonical mirror, completion audit', async () => {
+  it("200 happy path: user flags, tenant project + canonical mirror, completion audit", async () => {
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
+      .set("x-test-uid", "u1")
       .send(happyPayload);
 
     expect(res.status).toBe(200);
     const body = res.body as Record<string, unknown>;
     expect(body.success).toBe(true);
-    expect(typeof body.projectId).toBe('string');
+    expect(typeof body.projectId).toBe("string");
     const projectId = body.projectId as string;
 
     // users/{uid}: onboarded flag + gratis subscription active
-    const user = H.db!._store.get('users/u1') as Record<string, unknown>;
+    const user = H.db!._store.get("users/u1") as Record<string, unknown>;
     expect(user).toBeDefined();
     expect(user.onboarded).toBe(true);
     const sub = user.subscription as Record<string, unknown>;
-    expect(sub.planId).toBe('gratis');
-    expect(sub.status).toBe('active');
+    expect(sub.planId).toBe("gratis");
+    expect(sub.status).toBe("active");
 
     // tenant-scoped project (tenantId = uid, single-tenant-per-user)
     const tenantProject = H.db!._store.get(
       `tenants/u1/projects/${projectId}`,
     ) as Record<string, unknown>;
     expect(tenantProject).toBeDefined();
-    expect(tenantProject.ownerUid).toBe('u1');
-    expect(tenantProject.name).toBe('Faena Norte');
+    expect(tenantProject.ownerUid).toBe("u1");
+    expect(tenantProject.name).toBe("Faena Norte");
 
     // canonical top-level mirror the SPA + rules key off
-    const mirror = H.db!._store.get(`projects/${projectId}`) as Record<string, unknown>;
+    const mirror = H.db!._store.get(`projects/${projectId}`) as Record<
+      string,
+      unknown
+    >;
     expect(mirror).toBeDefined();
-    expect(mirror.createdBy).toBe('u1');
-    expect(mirror.members).toEqual(['u1']);
+    expect(mirror.createdBy).toBe("u1");
+    expect(mirror.members).toEqual(["u1"]);
 
     // completion audit emitted with the projectId tag
     const completedCalls = H.auditSpy.mock.calls.filter(
-      (c) => c[0] === 'onboarding.completed',
+      (c) => c[0] === "onboarding.completed",
     );
     expect(completedCalls).toHaveLength(1);
-    expect((completedCalls[0][2] as Record<string, unknown>).projectId).toBe(projectId);
+    expect((completedCalls[0][2] as Record<string, unknown>).projectId).toBe(
+      projectId,
+    );
   });
 
-  it('200 promotes the creator (signup default operario) to gerente + audit row', async () => {
-    H.db!._store.set('users/u1', { uid: 'u1', role: 'operario', email: 'u1@test.com' });
+  it("200 promotes the creator (signup default operario) to gerente + audit row", async () => {
+    H.db!._store.set("users/u1", {
+      uid: "u1",
+      role: "operario",
+      email: "u1@test.com",
+    });
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
+      .set("x-test-uid", "u1")
       .send(happyPayload);
     expect(res.status).toBe(200);
-    const user = H.db!._store.get('users/u1') as Record<string, unknown>;
-    expect(user.role).toBe('gerente');
+    const user = H.db!._store.get("users/u1") as Record<string, unknown>;
+    expect(user.role).toBe("gerente");
     const promoteCalls = H.auditSpy.mock.calls.filter(
-      (c) => c[0] === 'onboarding.owner_role_promoted',
+      (c) => c[0] === "onboarding.owner_role_promoted",
     );
     expect(promoteCalls).toHaveLength(1);
   });
 
-  it('200 promotes when the users doc does not exist yet (no signup doc)', async () => {
+  it("200 promotes when the users doc does not exist yet (no signup doc)", async () => {
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
+      .set("x-test-uid", "u1")
       .send(happyPayload);
     expect(res.status).toBe(200);
-    expect((H.db!._store.get('users/u1') as Record<string, unknown>).role).toBe('gerente');
+    expect((H.db!._store.get("users/u1") as Record<string, unknown>).role).toBe(
+      "gerente",
+    );
   });
 
-  it('200 NEVER touches an existing admin role (no downgrade, no promote audit)', async () => {
-    H.db!._store.set('users/u1', { uid: 'u1', role: 'admin', email: 'u1@test.com' });
+  it("200 NEVER touches an existing admin role (no downgrade, no promote audit)", async () => {
+    H.db!._store.set("users/u1", {
+      uid: "u1",
+      role: "admin",
+      email: "u1@test.com",
+    });
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
+      .set("x-test-uid", "u1")
       .send(happyPayload);
     expect(res.status).toBe(200);
-    expect((H.db!._store.get('users/u1') as Record<string, unknown>).role).toBe('admin');
+    expect((H.db!._store.get("users/u1") as Record<string, unknown>).role).toBe(
+      "admin",
+    );
     expect(
-      H.auditSpy.mock.calls.some((c) => c[0] === 'onboarding.owner_role_promoted'),
+      H.auditSpy.mock.calls.some(
+        (c) => c[0] === "onboarding.owner_role_promoted",
+      ),
     ).toBe(false);
   });
 
-  it('200 even when the final completion audit REJECTS (rule #14 guard)', async () => {
-    H.auditRejectAction = 'onboarding.completed';
+  it("200 even when the final completion audit REJECTS (rule #14 guard)", async () => {
+    H.auditRejectAction = "onboarding.completed";
 
     const res = await request(buildApp())
       .post(COMPLETE)
-      .set('x-test-uid', 'u1')
+      .set("x-test-uid", "u1")
       .send(happyPayload);
 
     // The user finished onboarding — a compliance-trail failure is logged +
@@ -240,8 +393,8 @@ describe('POST /api/onboarding/complete (real router)', () => {
 
     // Failure is still observable: logger.error + captureRouteError fired.
     const errorEvents = H.loggerError.mock.calls.map((c) => c[0]);
-    expect(errorEvents).toContain('audit_event_failed');
+    expect(errorEvents).toContain("audit_event_failed");
     const captured = H.captureRouteError.mock.calls.map((c) => c[1]);
-    expect(captured).toContain('onboarding.completion_audit');
+    expect(captured).toContain("onboarding.completion_audit");
   });
 });
