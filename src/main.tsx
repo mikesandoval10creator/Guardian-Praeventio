@@ -50,23 +50,13 @@ installBatteryOptimizationBridge();
 // here because we're outside the React tree; the CustomEvent bridge is
 // the cleanest way across that boundary.
 // Sprint 30 Bucket LL — first-launch redirect to /demo on native platforms
-// when the user has no Firebase Auth token cached. This means a fresh
-// install Day-1 lands on the public demo instead of a blank login screen.
-// We use localStorage 'praeventio:has-launched' as the trip flag so subsequent
-// launches resume normally even before sign-in.
-if (Capacitor.isNativePlatform()) {
-  try {
-    const launched = localStorage.getItem('praeventio:has-launched');
-    if (!launched && typeof window !== 'undefined' &&
-        window.location.pathname === '/' && !window.location.search.includes('demo=true')) {
-      localStorage.setItem('praeventio:has-launched', String(Date.now()));
-      // History replace so back-button doesn't return to '/'.
-      window.history.replaceState({}, '', '/demo');
-    }
-  } catch {
-    /* swallow — first-launch redirect must never block bootstrap */
-  }
-}
+// when the user has no Firebase Auth token cached. This meant a fresh
+// install Day-1 landed on the public demo instead of the designed landing
+// page. REMOVED (2026-09-10): Daniel confirmed the first native screen
+// must be the real LandingPage (Plano Vivo design), same as web — not the
+// PublicDemo. The demo page remains reachable at /demo via URL; it is no
+// longer the Day-1 default. If a post-login default is needed later, that
+// belongs in App.tsx (hasEntered flow), not a history rewrite here.
 
 if (Capacitor.isNativePlatform()) {
   CapacitorApp.addListener('appUrlOpen', (event) => {
