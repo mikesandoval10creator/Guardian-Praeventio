@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { useProject } from '../contexts/ProjectContext';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useOnlineStatus } from './useOnlineStatus';
@@ -8,6 +9,7 @@ import { logger } from '../utils/logger';
 
 export const useSurvivalPing = () => {
   const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const lastPingRef = useRef<number>(0);
 
@@ -24,20 +26,27 @@ export const useSurvivalPing = () => {
       if (now - lastPingRef.current >= 60000) {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
-            (position) => {
+            (position) => { /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
               const { latitude, longitude } = position.coords;
               // Round to 4 decimals for lightweight payload
               const lat = Math.round(latitude * 10000) / 10000;
               const lng = Math.round(longitude * 10000) / 10000;
 
               if (isOnline) {
-                // Use setDoc with merge to keep it as a single lightweight update
+                // Stamp tenantId + projectId so firestore.rules:1239 can gate
+                // cross-tenant reads (ticket 3cdaa66d-73fe-8186). Falling back
+                // to user.tenantId when no project is selected preserves the
+                // existing offline (no-coords) branch.
+                const tenantId = (user as { tenantId?: string } | null)?.tenantId ?? null;
+                const projectId = selectedProject?.id ?? null;
                 const pingRef = doc(db, `pings/${user.uid}`);
                 setDoc(pingRef, {
                   lat,
                   lng,
                   timestamp: serverTimestamp(),
-                  status: 'alive'
+                  status: 'alive',
+                  ...(tenantId ? { tenantId } : {}),
+                  ...(projectId ? { projectId } : {}),
                 }, { merge: true }).catch(err => {
                   logger.warn("Survival ping failed (silent):", err);
                 });
