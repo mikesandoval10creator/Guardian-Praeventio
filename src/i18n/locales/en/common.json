@@ -1618,6 +1618,7 @@
       "toggle_units": "Toggle units (N ↔ kN)",
       "warning_title": "Buckling warning:",
       "warning_body": "Safety factor is below the recommended minimum of 2.0. Review dimensions, bracing, or reduce the applied load.",
+      "invalidGeometry": "Enter length, width, and height greater than zero to calculate.",
       "note": "P_cr = π²·E·I / (K·L)². Ideal elastic model (Euler 1744). Does not apply for large imperfections or inelastic regime."
     }
   },

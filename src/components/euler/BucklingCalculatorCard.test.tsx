@@ -26,9 +26,29 @@ describe('<BucklingCalculatorCard />', () => {
     expect(screen.getByTestId('buckling-pcr').textContent).not.toBe(initial);
   });
 
+  it('shows an invalid-geometry state instead of an infinite safety factor', () => {
+    render(<BucklingCalculatorCard />);
+    fireEvent.change(screen.getByTestId('buckling-length'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('buckling-width'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('buckling-height'), { target: { value: '0' } });
+
+    expect(screen.getByTestId('buckling-pcr')).toHaveTextContent('—');
+    expect(screen.getByTestId('buckling-sf')).toHaveTextContent('—');
+    expect(screen.getByTestId('buckling-invalid')).toBeInTheDocument();
+    expect(screen.queryByTestId('buckling-warning')).not.toBeInTheDocument();
+  });
+
+  it('keeps infinity only for valid geometry with zero applied load', () => {
+    render(<BucklingCalculatorCard />);
+    fireEvent.change(screen.getByTestId('buckling-applied-load'), { target: { value: '0' } });
+
+    expect(screen.getByTestId('buckling-pcr')).not.toHaveTextContent('—');
+    expect(screen.getByTestId('buckling-sf')).toHaveTextContent('∞');
+    expect(screen.queryByTestId('buckling-invalid')).not.toBeInTheDocument();
+  });
+
   it('warning si SF < 2', () => {
     render(<BucklingCalculatorCard />);
-    // Aumentar carga aplicada para forzar SF < 2 con defaults
     const load = screen.getByTestId('buckling-applied-load') as HTMLInputElement;
     fireEvent.change(load, { target: { value: '80000' } });
     expect(screen.getByTestId('buckling-warning')).toBeInTheDocument();

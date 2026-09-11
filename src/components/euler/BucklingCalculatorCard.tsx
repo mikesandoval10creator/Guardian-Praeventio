@@ -53,9 +53,12 @@ export function BucklingCalculatorCard({ onResult }: BucklingCalculatorCardProps
     return { ...r, safetyFactor: sf };
   }, [E, length, width, height, endConditions, appliedLoad, onResult]);
 
+  const criticalLoadValid = Number.isFinite(result.criticalLoad) && result.criticalLoad > 0;
   const sfTone =
-    !Number.isFinite(result.safetyFactor) || result.safetyFactor >= 2.5
-      ? 'text-emerald-500'
+    !criticalLoadValid
+      ? 'text-secondary-token'
+      : !Number.isFinite(result.safetyFactor) || result.safetyFactor >= 2.5
+        ? 'text-emerald-500'
       : result.safetyFactor >= 2
         ? 'text-amber-500'
         : 'text-rose-500';
@@ -176,8 +179,10 @@ export function BucklingCalculatorCard({ onResult }: BucklingCalculatorCardProps
             {t('buckling.pcr', 'P_cr (N)')}
           </p>
           <p className="text-lg font-black tabular-nums">
-            {Number.isFinite(result.criticalLoad)
-              ? Math.round(result.criticalLoad).toLocaleString()
+            {criticalLoadValid
+              ? Number.isFinite(result.criticalLoad)
+                ? Math.round(result.criticalLoad).toLocaleString()
+                : '—'
               : '—'}
           </p>
         </div>
@@ -189,10 +194,26 @@ export function BucklingCalculatorCard({ onResult }: BucklingCalculatorCardProps
             {t('buckling.sf', 'Factor seguridad')}
           </p>
           <p className="text-lg font-black tabular-nums">
-            {Number.isFinite(result.safetyFactor) ? result.safetyFactor.toFixed(2) : '∞'}
+            {criticalLoadValid && Number.isFinite(result.safetyFactor)
+              ? result.safetyFactor.toFixed(2)
+              : criticalLoadValid
+                ? '∞'
+                : '—'}
           </p>
         </div>
       </div>
+
+      {!criticalLoadValid && (
+        <div
+          className="bg-surface-elevated text-secondary-token p-2 rounded text-[11px]"
+          data-testid="buckling-invalid"
+        >
+          {t(
+            'structural_calc.buckling.invalidGeometry',
+            'Ingresa longitud, ancho y alto mayores que cero para calcular.',
+          )}
+        </div>
+      )}
 
       {Number.isFinite(result.safetyFactor) && result.safetyFactor < 2 && (
         <div
