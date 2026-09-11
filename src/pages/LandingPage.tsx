@@ -30,7 +30,7 @@ import { SecuritySection } from '../components/landing/SecuritySection';
 import { PricingSection } from '../components/landing/PricingSection';
 import { CierreSection } from '../components/landing/CierreSection';
 import { LandingFooter } from '../components/landing/LandingFooter';
-import { detectLandingLocale, APP_LOCALE_STORAGE_KEY, LANDING_GEO_FLAG_KEY } from '../components/landing/langDetect';
+import { detectLandingLocale, LANDING_GEO_FLAG_KEY } from '../components/landing/langDetect';
 import { loadLocale } from '../i18n';
 import { toHtmlLang } from '../i18n/rtl';
 
@@ -77,11 +77,18 @@ export function LandingPage({ onEnter }: LandingPageProps) {
      Runs ONCE per browser — after that the manual selector always wins. */
   useEffect(() => {
     try {
-      // An explicit choice (manual selector or the app's LanguageProvider)
-      // always wins over geodetection.
-      if (window.localStorage.getItem(APP_LOCALE_STORAGE_KEY)) return;
+      // One-shot flag: after the first geodetect, the visitor's manual choice
+      // (landing selector or the app's LanguageProvider) always wins.
       if (window.localStorage.getItem(LANDING_GEO_FLAG_KEY)) return;
       window.localStorage.setItem(LANDING_GEO_FLAG_KEY, '1');
+      // NOTE (2026-09-10): we intentionally do NOT stand down on
+      // APP_LOCALE_STORAGE_KEY ('praeventio_locale'). i18next's browser
+      // languagedetector writes that key at boot from navigator.language
+      // BEFORE this effect runs, so checking it here made geodetection a
+      // no-op on every fresh device (emulator en-US stayed English even
+      // with timezone America/Santiago). The geo flag is the only gate:
+      // it fires once with the country-correct locale, and any manual
+      // switch afterwards is never overridden.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
       const target = detectLandingLocale(tz, navigator.languages ?? [navigator.language]);
       if (target && target !== i18n.resolvedLanguage) {
