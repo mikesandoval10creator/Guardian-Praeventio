@@ -151,6 +151,41 @@ describe('foregroundServiceClient — lifecycle on Android', () => {
   });
 });
 
+describe('foregroundServiceClient — Capacitor proxy loading', () => {
+  beforeEach(() => {
+    __setNativeCheckerForTests(() => true);
+  });
+
+  it('deduplicates concurrent starts into one native start call', async () => {
+    const plugin = makeFakePlugin();
+    __setForegroundServicePlugin(plugin);
+
+    const results = await Promise.all([
+      startLoneWorkerFgs({ workerUid: 'w1', checkInIntervalSec: 900 }),
+      startLoneWorkerFgs({ workerUid: 'w1', checkInIntervalSec: 900 }),
+    ]);
+
+    expect(results).toEqual([
+      { applied: true, reason: 'started' },
+      { applied: true, reason: 'started' },
+    ]);
+    expect(plugin.calls.filter((call) => call.op === 'start')).toHaveLength(1);
+  });
+
+  it('does not assimilate a plugin proxy that exposes a then method', async () => {
+    const plugin = makeFakePlugin() as FakePlugin & { then: () => never };
+    plugin.then = () => {
+      throw new Error('proxy must not be awaited');
+    };
+    __setForegroundServicePlugin(plugin);
+
+    const result = await startLoneWorkerFgs({ workerUid: 'w1', checkInIntervalSec: 900 });
+
+    expect(result).toEqual({ applied: true, reason: 'started' });
+    expect(plugin.calls.map((call) => call.op)).toEqual(['createChannel', 'start']);
+  });
+});
+
 describe('foregroundServiceClient — unimplemented plugin (web fallback)', () => {
   beforeEach(() => {
     __setNativeCheckerForTests(() => true);
