@@ -37,6 +37,15 @@ import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
+export function getSafetyFeedPrompt(
+  displayName: string | null | undefined,
+  isOnline: boolean,
+): string {
+  if (!isOnline) return 'Conexión requerida para publicar';
+  const firstName = displayName?.trim().split(/\s+/)[0] || 'Guardián';
+  return `¿Qué momento de seguridad quieres compartir hoy, ${firstName}?`;
+}
+
 export function SafetyFeed() {
   const { t } = useTranslation();
   const { user } = useFirebase();
@@ -225,7 +234,7 @@ export function SafetyFeed() {
                 disabled={!isOnline}
                 className="flex-1 bg-elevated/50 border border-default-token rounded-2xl px-6 py-3 text-left text-muted-token hover:bg-elevated transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {!isOnline ? 'Conexión requerida para publicar' : `¿Qué momento de seguridad quieres compartir hoy, ${user?.displayName?.split(' ')[0]}?`}
+                {getSafetyFeedPrompt(user?.displayName, isOnline)}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-default-token">
