@@ -34,6 +34,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+import { ForegroundService as CapacitorForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
 
 // ────────────────────────────────────────────────────────────────────────
 // Plugin contract (subset — keeps the wrapper testable without the native
@@ -90,6 +91,7 @@ const DEFAULT_TITLE = 'Guardian Activo — Protegiendo tu vida';
 
 let cachedPlugin: ForegroundServicePluginLike | null = null;
 let running = false;
+let startInFlight: Promise<FgsResult> | null = null;
 let channelCreated = false;
 let nativeChecker: () => boolean = isAndroidNative;
 
@@ -107,25 +109,17 @@ export function isAndroidNative(): boolean {
   }
 }
 
-async function loadPlugin(): Promise<ForegroundServicePluginLike | null> {
+function loadPlugin(): ForegroundServicePluginLike | null {
   if (cachedPlugin) return cachedPlugin;
   if (!nativeChecker()) return null;
-  try {
-    // Lazy dynamic import — the native module is dead-code-eliminated from
-    // the web bundle because this branch never executes there.
-    const mod: unknown = await import(
-      '@capawesome-team/capacitor-android-foreground-service'
-    );
-    const plugin = (mod as { ForegroundService?: ForegroundServicePluginLike })
-      .ForegroundService;
-    if (!plugin) return null;
-    cachedPlugin = plugin;
-    return plugin;
-  } catch {
-    // Plugin failed to register on this device — bail to no-op rather than
-    // crash the host activity.
-    return null;
-  }
+  // Capacitor's registerPlugin proxy exposes a `then` method so `await` can
+  // accidentally treat the proxy itself as a Promise. The previous dynamic
+  // import path did exactly that on Android and produced:
+  // `ForegroundService.then() is not implemented on android`.
+  // Keep the proxy as a plain plugin object; the platform guard above means
+  // no native method is invoked on web/iOS.
+  cachedPlugin = CapacitorForegroundService as unknown as ForegroundServicePluginLike;
+  return cachedPlugin;
 }
 
 async function ensureChannel(plugin: ForegroundServicePluginLike): Promise<void> {
@@ -185,32 +179,40 @@ export async function startLoneWorkerFgs(
   args: StartLoneWorkerFgsArgs,
 ): Promise<FgsResult> {
   if (!nativeChecker()) return { applied: false, reason: 'not_native' };
-  const plugin = await loadPlugin();
+  const plugin = loadPlugin();
   if (!plugin) return { applied: false, reason: 'no_plugin' };
+  if (startInFlight) return startInFlight;
 
-  await ensureChannel(plugin);
+  const operation = (async (): Promise<FgsResult> => {
+    await ensureChannel(plugin);
 
-  const startArgs: StartForegroundServiceArgs = {
-    id: LONE_WORKER_NOTIFICATION_ID,
-    title: args.title ?? DEFAULT_TITLE,
-    body: buildBody(args.checkInIntervalSec),
-    smallIcon: args.smallIcon ?? DEFAULT_ICON_SM,
-    silent: false,
-    notificationChannelId: LONE_WORKER_CHANNEL_ID,
-    serviceType: 'location_health',
-  };
+    const startArgs: StartForegroundServiceArgs = {
+      id: LONE_WORKER_NOTIFICATION_ID,
+      title: args.title ?? DEFAULT_TITLE,
+      body: buildBody(args.checkInIntervalSec),
+      smallIcon: args.smallIcon ?? DEFAULT_ICON_SM,
+      silent: false,
+      notificationChannelId: LONE_WORKER_CHANNEL_ID,
+      serviceType: 'location_health',
+    };
 
-  try {
-    if (running) {
-      await plugin.updateForegroundService(startArgs);
-      return { applied: true, reason: 'updated' };
+    try {
+      if (running) {
+        await plugin.updateForegroundService(startArgs);
+        return { applied: true, reason: 'updated' };
+      }
+      await plugin.startForegroundService(startArgs);
+      running = true;
+      return { applied: true, reason: 'started' };
+    } catch (e) {
+      return { applied: false, reason: 'error', error: (e as Error).message };
     }
-    await plugin.startForegroundService(startArgs);
-    running = true;
-    return { applied: true, reason: 'started' };
-  } catch (e) {
-    return { applied: false, reason: 'error', error: (e as Error).message };
-  }
+  })();
+
+  startInFlight = operation.finally(() => {
+    startInFlight = null;
+  });
+  return startInFlight;
 }
 
 /**
@@ -219,7 +221,7 @@ export async function startLoneWorkerFgs(
  */
 export async function stopLoneWorkerFgs(): Promise<FgsResult> {
   if (!nativeChecker()) return { applied: false, reason: 'not_native' };
-  const plugin = await loadPlugin();
+  const plugin = loadPlugin();
   if (!plugin) return { applied: false, reason: 'no_plugin' };
   if (!running) return { applied: false, reason: 'stopped' };
   try {
@@ -256,6 +258,7 @@ export function __setForegroundServicePlugin(
 export function __resetForegroundServiceClient(): void {
   cachedPlugin = null;
   running = false;
+  startInFlight = null;
   channelCreated = false;
   nativeChecker = isAndroidNative;
 }

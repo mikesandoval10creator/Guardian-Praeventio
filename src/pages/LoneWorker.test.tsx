@@ -128,6 +128,34 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(screen.getByTestId('loneWorker.fgs')).toBeTruthy();
   });
 
+  it('anonymous worker does not start the native FGS', async () => {
+    mockUser = null;
+    render(<LoneWorker />);
+
+    expect(screen.getByTestId('loneWorker.fgs.message').textContent).toMatch(/Inicia sesión/);
+    expect(startLoneWorkerFgs).not.toHaveBeenCalled();
+  });
+
+  it('cleanup waits for a pending FGS start before stopping it', async () => {
+    let resolveStart:
+      | ((value: { applied: boolean; reason: string }) => void)
+      | undefined;
+    startLoneWorkerFgs.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+
+    const { unmount } = render(<LoneWorker />);
+    await waitFor(() => expect(startLoneWorkerFgs).toHaveBeenCalledOnce());
+    unmount();
+
+    expect(stopLoneWorkerFgs).not.toHaveBeenCalled();
+    resolveStart?.({ applied: true, reason: 'started' });
+    await waitFor(() => expect(stopLoneWorkerFgs).toHaveBeenCalledOnce());
+  });
+
   it('worker has an active session → renders the real check-in widget', async () => {
     mockActiveSessions = [session({ workerUid: 'worker-1', checkInIntervalMin: 30 })];
     render(<LoneWorker />);
