@@ -83,6 +83,25 @@ describe("android build wiring — life-safety plugins (B21)", () => {
   });
 });
 
+describe("Android battery optimization plugin wiring", () => {
+  const plugin = read(
+    "packages/capacitor-battery-optimization/android/src/main/java/com/praeventio/batteryoptimization/BatteryOptimizationPlugin.java",
+  );
+  const settings = read("android/capacitor.settings.gradle");
+  const buildGradle = read("android/app/capacitor.build.gradle");
+
+  it("registers the native implementation under the JS plugin name", () => {
+    expect(plugin).toContain('@CapacitorPlugin(name = "BatteryOptimization")');
+  });
+
+  it("includes the local Android plugin in the Capacitor build", () => {
+    expect(settings).toContain(":praeventio-capacitor-battery-optimization");
+    expect(buildGradle).toContain(
+      "implementation project(':praeventio-capacitor-battery-optimization')",
+    );
+  });
+});
+
 describe("AndroidManifest — permissions the plugins do not provide (B21)", () => {
   const manifest = read("android/app/src/main/AndroidManifest.xml");
 
