@@ -1618,6 +1618,7 @@
       "toggle_units": "Trocar unidades (N ↔ kN)",
       "warning_title": "Aviso de flambagem:",
       "warning_body": "O fator de segurança está abaixo do mínimo recomendado de 2,0. Revisar dimensões, travamentos ou reduzir carga.",
+      "invalidGeometry": "Informe comprimento, largura e altura maiores que zero para calcular.",
       "note": "P_cr = π²·E·I / (K·L)². Modelo elástico ideal (Euler 1744). Não se aplica a imperfeições grandes nem regime inelástico."
     }
   },
