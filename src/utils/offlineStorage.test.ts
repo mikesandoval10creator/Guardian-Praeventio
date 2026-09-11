@@ -59,7 +59,7 @@ vi.mock('@capacitor-community/sqlite', () => ({
 // ensureSqliteEncryptionSecret is only called on the native path but the
 // top-level import would fail without a stub.
 vi.mock('./sqliteEncryption', () => ({
-  ensureSqliteEncryptionSecret: vi.fn(async () => 'encryption'),
+  ensureSqliteEncryptionSecret: vi.fn(async () => 'secret'),
 }));
 
 vi.mock('./logger', () => ({
@@ -124,7 +124,7 @@ async function freshSut(): Promise<OfflineStorageModule> {
     SQLiteDBConnection: class {},
   }));
   vi.mock('./sqliteEncryption', () => ({
-    ensureSqliteEncryptionSecret: vi.fn(async () => 'encryption'),
+    ensureSqliteEncryptionSecret: vi.fn(async () => 'secret'),
   }));
   vi.mock('./logger', () => ({
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },

@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 let nativePlatform = true;
 const fakeRows: Array<Record<string, unknown>> = [];
 const isConnectionMock = vi.fn(async () => ({ result: false }));
-const createConnectionMock = vi.fn(async () => fakeDb);
+const createConnectionMock = vi.fn(async (..._args: unknown[]) => fakeDb);
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -34,8 +34,8 @@ vi.mock('@capacitor-community/sqlite', () => ({
     async retrieveConnection() {
       return fakeDb;
     }
-    async createConnection() {
-      return createConnectionMock();
+    async createConnection(...args: unknown[]) {
+      return createConnectionMock(...args);
     }
   },
   SQLiteDBConnection: class {},
@@ -72,8 +72,31 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
     expect(first).toEqual([]);
     expect(second).toEqual([]);
     expect(createConnectionMock).toHaveBeenCalledTimes(1);
+    expect(createConnectionMock).toHaveBeenCalledWith(
+      'praeventio_offline',
+      true,
+      'secret',
+      1,
+      false,
+    );
     expect(fakeDb.open).toHaveBeenCalledTimes(1);
     expect(fakeDb.execute).toHaveBeenCalled();
+  });
+
+  it('reopens the existing encrypted database with the stored secret mode', async () => {
+    await getPendingActions();
+
+    // `encryption` is the plugin migration mode: it calls SQLCipher encrypt()
+    // on the file before opening. A database created encrypted on first boot
+    // must be reopened with `secret`, otherwise the second boot can fail with
+    // "file is not a database".
+    expect(createConnectionMock).toHaveBeenCalledWith(
+      'praeventio_offline',
+      true,
+      'secret',
+      1,
+      false,
+    );
   });
 
   it('returns localUpdatedAt as an ISO string even when SQLite stores epoch ms', async () => {
