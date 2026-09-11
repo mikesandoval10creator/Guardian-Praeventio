@@ -23,6 +23,7 @@ import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
 // NOTE: isE2EMode/hasE2EUserFixture only use import.meta.env and localStorage;
 // they do NOT import services/firebase — safe to keep in this thin shell.
 import { isE2EMode, hasE2EUserFixture } from './lib/e2eAuth';
+import { shouldSkipLanding } from './routePolicy';
 
 // Anonymous-only landing: no Firebase dependency.
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
@@ -40,32 +41,7 @@ const AppRoutes = lazy(() => import('./AppRoutes'));
  * and from the render body.
  */
 function computeSkipLanding(): boolean {
-  return (
-    // [P1][VIDA] A cold notification tap opens a fresh window at the deep link
-    // (e.g. /emergencia-avanzada?...&source=push). Without this, prod boots
-    // with hasEntered=false and renders LandingPage instead of the emergency.
-    // Every push deep link carries `source=push`, so scope the bypass to that.
-    window.location.search.includes('source=push') ||
-    window.location.pathname.startsWith('/invite') ||
-    window.location.pathname.startsWith('/public') ||
-    window.location.pathname.startsWith('/curriculum/referee') ||
-    window.location.pathname.startsWith('/vault/share') ||
-    window.location.pathname.startsWith('/onboarding') ||
-    // §2.19 fix (2026-05-21) — `/login` ya no debe pasar por Landing.
-    window.location.pathname.startsWith('/login') ||
-    // UX mejora (2026-05-21) — visitantes anónimos a páginas públicas
-    // específicas saltan Landing y van directo a su destino.
-    window.location.pathname.startsWith('/pricing') ||
-    window.location.pathname.startsWith('/help') ||
-    window.location.pathname.startsWith('/privacy') ||
-    window.location.pathname.startsWith('/terms') ||
-    // Sprint 30 Bucket LL — public demo page accessible without auth.
-    window.location.pathname.startsWith('/demo') ||
-    // SUSESO QR verifier: whoever opens this scanned the QR on a printed
-    // DIAT/DIEP and is holding the document. Landing on a marketing page
-    // instead of on the verdict is a failed verification from their side.
-    window.location.pathname.startsWith('/verificar')
-  );
+  return shouldSkipLanding(window.location.pathname, window.location.search);
 }
 
 export default function App() {
