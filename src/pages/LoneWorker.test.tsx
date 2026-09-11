@@ -136,6 +136,16 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(startLoneWorkerFgs).not.toHaveBeenCalled();
   });
 
+  it('anonymous worker cannot manually start the native FGS', async () => {
+    mockUser = null;
+    render(<LoneWorker />);
+
+    const startButton = screen.getByTestId('loneWorker.fgs.start') as HTMLButtonElement;
+    expect(startButton.disabled).toBe(true);
+    fireEvent.click(startButton);
+    expect(startLoneWorkerFgs).not.toHaveBeenCalled();
+  });
+
   it('cleanup waits for a pending FGS start before stopping it', async () => {
     let resolveStart:
       | ((value: { applied: boolean; reason: string }) => void)
