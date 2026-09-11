@@ -30,6 +30,7 @@ interface PraeventioDB extends DBSchema {
 let idbPromise: Promise<IDBPDatabase<PraeventioDB>> | null = null;
 let sqliteConnection: SQLiteConnection | null = null;
 let sqliteDB: SQLiteDBConnection | null = null;
+let sqliteInitPromise: Promise<SQLiteDBConnection | null> | null = null;
 
 const initIDB = () => {
   if (!idbPromise) {
@@ -63,49 +64,60 @@ const initIDB = () => {
   return idbPromise;
 };
 
-const initSQLite = async () => {
+const initializeSQLite = async (): Promise<SQLiteDBConnection | null> => {
   if (!sqliteConnection) {
     sqliteConnection = new SQLiteConnection(CapacitorSQLite);
   }
-  if (!sqliteDB) {
-    try {
-      // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
-      // ensureSqliteEncryptionSecret coordinates the one-time secret setup
-      // through the SQLite plugin's OWN secure store (Keychain on iOS, the
-      // plugin's secret-storage on Android). We never persist the passphrase
-      // ourselves — Codex P1 3308579640 caught the earlier @capacitor/
-      // preferences approach as effectively plaintext on a rooted device.
-      // NOTE: existing dev installs with unencrypted data will NOT open
-      // and must be reinstalled. Production user base is 0 so this is fine.
-      const mode = await ensureSqliteEncryptionSecret(sqliteConnection);
+  if (sqliteDB) return sqliteDB;
 
-      const ret = await sqliteConnection.checkConnectionsConsistency();
-      const isConn = (await sqliteConnection.isConnection("praeventio_bunker", false)).result;
-      if (ret.result && isConn) {
-        sqliteDB = await sqliteConnection.retrieveConnection("praeventio_bunker", false);
-      } else {
-        // 2nd arg `encrypted: true` was the Codex P1 3308579631 fix —
-        // previously `false` silently created a plaintext DB despite the
-        // secret being set. Mode follows the helper's contract: 'secret'
-        // binds the newly-set passphrase to a fresh DB on first run,
-        // 'encryption' reuses an existing secret on subsequent runs.
-        sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", true, mode, 1, false);
-      }
-      await sqliteDB.open();
-      
-      // Create tables
-      const schema = `
-        CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
-        CREATE TABLE IF NOT EXISTS matrices (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
-        CREATE TABLE IF NOT EXISTS zettelkasten (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
-        CREATE TABLE IF NOT EXISTS offlineQueue (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT, collection TEXT, data TEXT, timestamp INTEGER);
-      `;
-      await sqliteDB.execute(schema);
-    } catch (err) {
-      logger.error("SQLite Init Error", err);
+  try {
+    // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
+    // ensureSqliteEncryptionSecret coordinates the one-time secret setup
+    // through the SQLite plugin's OWN secure store (Keychain on iOS, the
+    // plugin's secret-storage on Android). We never persist the passphrase
+    // ourselves — Codex P1 3308579640 caught the earlier @capacitor/
+    // preferences approach as effectively plaintext on a rooted device.
+    // NOTE: existing dev installs with unencrypted data will NOT open
+    // and must be reinstalled. Production user base is 0 so this is fine.
+    const mode = await ensureSqliteEncryptionSecret(sqliteConnection);
+
+    const ret = await sqliteConnection.checkConnectionsConsistency();
+    const isConn = (await sqliteConnection.isConnection("praeventio_bunker", false)).result;
+    if (ret.result && isConn) {
+      sqliteDB = await sqliteConnection.retrieveConnection("praeventio_bunker", false);
+    } else {
+      // 2nd arg `encrypted: true` was the Codex P1 3308579631 fix —
+      // previously `false` silently created a plaintext DB despite the
+      // secret being set. Mode follows the helper's contract: 'secret'
+      // binds the newly-set passphrase to a fresh DB on first run,
+      // 'encryption' reuses an existing secret on subsequent runs.
+      sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", true, mode, 1, false);
     }
+    await sqliteDB.open();
+
+    // Create tables
+    const schema = `
+      CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+      CREATE TABLE IF NOT EXISTS matrices (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+      CREATE TABLE IF NOT EXISTS zettelkasten (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+      CREATE TABLE IF NOT EXISTS offlineQueue (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT, collection TEXT, data TEXT, timestamp INTEGER);
+    `;
+    await sqliteDB.execute(schema);
+  } catch (err) {
+    logger.error("SQLite Init Error", err);
+    sqliteDB = null;
   }
   return sqliteDB;
+};
+
+const initSQLite = async (): Promise<SQLiteDBConnection | null> => {
+  if (sqliteDB) return sqliteDB;
+  const pending = sqliteInitPromise ?? (sqliteInitPromise = initializeSQLite());
+  try {
+    return await pending;
+  } finally {
+    if (sqliteInitPromise === pending) sqliteInitPromise = null;
+  }
 };
 
 export const initDB = async () => {
