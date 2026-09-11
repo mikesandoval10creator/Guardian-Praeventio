@@ -1206,3 +1206,38 @@ describe('__resetHealthConnectAvailability', () => {
     expect(healthConnectAdapter.isAvailable).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 11 — permission-denied degradation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('healthConnectAdapter — permission-denied degradation', () => {
+  afterEach(() => {
+    __resetHealthConnectAvailability(null);
+    _isNative = false;
+    _platform = 'web';
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ['heart rate', () => healthConnectAdapter.readHeartRate(RANGE)],
+    ['steps', () => healthConnectAdapter.readSteps(RANGE)],
+    ['calories', () => healthConnectAdapter.readCalories(RANGE)],
+    ['sleep', () => healthConnectAdapter.readSleep(RANGE)],
+  ])('returns an empty %s result when Health Connect rejects the read', async (_label, read) => {
+    setAndroidAvailable();
+    mockReadRecords.mockRejectedValue(new Error('READ permission denied'));
+
+    await expect(read()).resolves.toEqual([]);
+  });
+
+  it('reports all requested scopes as denied when authorization rejects', async () => {
+    setAndroidAvailable();
+    mockRequestHealthPermissions.mockRejectedValue(new Error('authorization denied'));
+
+    await expect(healthConnectAdapter.requestPermissions(['steps', 'heart-rate'])).resolves.toEqual({
+      granted: [],
+      denied: ['steps', 'heart-rate'],
+    });
+  });
+});

@@ -123,6 +123,23 @@ function buildRange(range: HealthDataRange): TimeRangeFilter {
   return { type: 'between', startTime: range.start, endTime: range.end };
 }
 
+type HealthConnectReadResult = Awaited<ReturnType<typeof HealthConnect.readRecords>>;
+
+/**
+ * Permission denial is a normal Health Connect state, not an app-fatal error.
+ * Keep the adapter boundary fail-closed so every consumer gets an empty
+ * dataset instead of an unhandled native SecurityException.
+ */
+async function readRecordsSafely(
+  request: Parameters<typeof HealthConnect.readRecords>[0],
+): Promise<HealthConnectReadResult> {
+  try {
+    return await HealthConnect.readRecords(request);
+  } catch {
+    return { records: [] };
+  }
+}
+
 /**
  * Cached availability probe. Health Connect availability does not change at
  * runtime (the system app is either installed or it isn't), so we resolve it
@@ -237,10 +254,15 @@ export const healthConnectAdapter: HealthAdapter = {
       return { granted: [], denied: scopes };
     }
 
-    const result = await HealthConnect.requestHealthPermissions({
-      read: recordTypes,
-      write: [],
-    });
+    let result: Awaited<ReturnType<typeof HealthConnect.requestHealthPermissions>>;
+    try {
+      result = await HealthConnect.requestHealthPermissions({
+        read: recordTypes,
+        write: [],
+      });
+    } catch {
+      return { granted: [], denied: scopes };
+    }
 
     // The plugin returns granted permissions as strings of the form
     // "android.permission.health.READ_<TYPE>". Extract the TYPE suffix and
@@ -276,7 +298,7 @@ export const healthConnectAdapter: HealthAdapter = {
    */
   async readHeartRate(range: HealthDataRange): Promise<HeartRateSample[]> {
     if (!isHealthConnectAvailable()) return [];
-    const result = await HealthConnect.readRecords({
+    const result = await readRecordsSafely({
       type: 'HeartRateSeries',
       timeRangeFilter: buildRange(range),
     });
@@ -301,7 +323,7 @@ export const healthConnectAdapter: HealthAdapter = {
    */
   async readSteps(range: HealthDataRange): Promise<StepsSample[]> {
     if (!isHealthConnectAvailable()) return [];
-    const result = await HealthConnect.readRecords({
+    const result = await readRecordsSafely({
       type: 'Steps',
       timeRangeFilter: buildRange(range),
     });
@@ -329,8 +351,8 @@ export const healthConnectAdapter: HealthAdapter = {
     const filter = buildRange(range);
 
     const [totalRes, activeRes] = await Promise.all([
-      HealthConnect.readRecords({ type: 'TotalCaloriesBurned', timeRangeFilter: filter }),
-      HealthConnect.readRecords({ type: 'ActiveCaloriesBurned', timeRangeFilter: filter }),
+      readRecordsSafely({ type: 'TotalCaloriesBurned', timeRangeFilter: filter }),
+      readRecordsSafely({ type: 'ActiveCaloriesBurned', timeRangeFilter: filter }),
     ]);
 
     // Bucket by start-time ISO key so total + active for the same window
@@ -365,7 +387,7 @@ export const healthConnectAdapter: HealthAdapter = {
    */
   async readSleep(range: HealthDataRange): Promise<SleepSample[]> {
     if (!isHealthConnectAvailable()) return [];
-    const result = await HealthConnect.readRecords({
+    const result = await readRecordsSafely({
       type: 'SleepSession',
       timeRangeFilter: buildRange(range),
     });
