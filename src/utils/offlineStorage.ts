@@ -88,9 +88,10 @@ const initializeSQLite = async (): Promise<SQLiteDBConnection | null> => {
     } else {
       // 2nd arg `encrypted: true` was the Codex P1 3308579631 fix —
       // previously `false` silently created a plaintext DB despite the
-      // secret being set. Mode follows the helper's contract: 'secret'
-      // binds the newly-set passphrase to a fresh DB on first run,
-      // 'encryption' reuses an existing secret on subsequent runs.
+      // secret being set. `mode: 'secret'` opens the SQLCipher database with
+      // the passphrase held by the plugin. Do not use `mode: 'encryption'`
+      // here: that is a plaintext-to-encrypted migration operation and would
+      // try to encrypt an already-encrypted file on the next launch.
       sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", true, mode, 1, false);
     }
     await sqliteDB.open();

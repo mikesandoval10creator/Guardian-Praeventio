@@ -17,11 +17,13 @@
 //   1. `isSecretStored()` — does the native secure store already have a
 //      passphrase from a previous boot?
 //   2. If NO: generate a fresh 256-bit passphrase, hand it to the plugin via
-//      `setEncryptionSecret()` (plugin writes to its secure store). The
-//      next `createConnection` MUST use mode `'secret'` so the new secret
-//      binds to a fresh DB.
-//   3. If YES: skip secret setup. The next `createConnection` uses mode
-//      `'encryption'` so the plugin retrieves the previously stored secret.
+//      `setEncryptionSecret()` (plugin writes to its secure store).
+//   3. Whether the secret was new or already stored, the next
+//      `createConnection` MUST use mode `'secret'`. In the Android plugin,
+//      mode `'encryption'` first calls SQLCipher `encrypt()` on the file; it is
+//      a migration mode for an existing plaintext database, not a reopen mode.
+//      Reusing it on an already encrypted database produces "file is not a
+//      database" on the next launch.
 //
 // IMPORTANT — migration path for existing dev installs:
 //   Pre-existing unencrypted databases CANNOT be re-opened in encryption
@@ -47,10 +49,12 @@ function generatePassphrase(): string {
 
 /**
  * Mode hint for the next `createConnection(name, true, mode, version, ro)`
- * call. `'secret'` binds a newly-set passphrase to a fresh DB; `'encryption'`
- * reuses the previously stored passphrase.
+ * call. The plugin's `secret` mode opens an encrypted database with the
+ * passphrase held in its secure store. The plugin's `encryption` mode is a
+ * one-way migration operation that calls SQLCipher `encrypt()` on an existing
+ * plaintext file; it must not be used for normal reopen.
  */
-export type SqliteOpenMode = 'secret' | 'encryption';
+export type SqliteOpenMode = 'secret';
 
 /**
  * Idempotent: ensures the SQLite plugin's native secure store has an
@@ -68,7 +72,9 @@ export async function ensureSqliteEncryptionSecret(
   // already stored is rejected by the plugin. Guard with isSecretStored().
   const stored = await sqliteConnection.isSecretStored();
   if (stored.result) {
-    return 'encryption';
+    // `encryption` would migrate a plaintext file and then open it. This
+    // database is already encrypted; reopen it with the stored secret.
+    return 'secret';
   }
   const passphrase = generatePassphrase();
   await sqliteConnection.setEncryptionSecret(passphrase);
