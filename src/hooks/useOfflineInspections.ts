@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint, type FetchState } from './_fetchUtils';
+import { readJsonResponse } from '../lib/humanError';
 import { apiAuthHeader } from '../lib/apiAuth';
 
 export type InspectionStatusAPI = 'in_progress' | 'completed';
@@ -90,15 +91,10 @@ export async function startInspection(
     },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
+  return readJsonResponse<{
     ok: true;
     inspection: InspectionRecord;
-  };
-  return json.inspection;
+  }>(res).then((json) => json.inspection);
 }
 
 export interface InspectionObservationPayload {
@@ -128,15 +124,10 @@ export async function addObservation(
       body: JSON.stringify(payload),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
+  return readJsonResponse<{
     ok: true;
     observation: InspectionObservationRecord;
-  };
-  return json.observation;
+  }>(res).then((json) => json.observation);
 }
 
 export async function completeInspection(
@@ -157,13 +148,8 @@ export async function completeInspection(
       body: JSON.stringify(completedAt ? { completedAt } : {}),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
+  return readJsonResponse<{
     ok: true;
     inspection: InspectionRecord;
-  };
-  return json.inspection;
+  }>(res).then((json) => json.inspection);
 }

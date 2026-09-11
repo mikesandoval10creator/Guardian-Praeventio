@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiAuthHeaders } from '../lib/apiAuth';
+import { readJsonResponse } from '../lib/humanError';
 
 export interface FetchState<T> {
   data: T | null;
@@ -53,11 +54,7 @@ export function useEndpoint<T>(
     (async () => {
       try {
         const res = await authedFetch(path, ctl.signal);
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `http_${res.status}`);
-        }
-        const json = (await res.json()) as T;
+        const json = await readJsonResponse<T>(res);
         if (!ctl.signal.aborted) {
           setState({ data: json, loading: false, error: null });
         }

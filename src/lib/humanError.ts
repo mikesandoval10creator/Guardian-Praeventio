@@ -16,6 +16,10 @@
 
 const GENERIC = 'No pudimos completar la acción. Revisa los datos e inténtalo nuevamente.';
 
+/** Returned when the SPA shell answers an API request with HTML instead of JSON. */
+export const BACKEND_UNAVAILABLE_MESSAGE =
+  'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo nuevamente.';
+
 /** Server machine code (or Firebase `code`) → what a person needs to read. */
 const MESSAGE_BY_CODE: Record<string, string> = {
   // ── Authorisation / identity ──────────────────────────────────────────
@@ -126,6 +130,21 @@ export async function humanErrorFromResponse(res: Response): Promise<string> {
 }
 
 /**
+ * Read a JSON API response without leaking the SPA HTML fallback or a raw
+ * parser exception to the person using the app.
+ */
+export async function readJsonResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    throw new Error(await humanErrorFromResponse(res));
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new Error(BACKEND_UNAVAILABLE_MESSAGE);
+  }
+}
+
+/**
  * Same as `humanErrorFromResponse` for callers that ALREADY consumed the body
  * (the very common `const j = await res.json().catch(() => ({}))` shape). A
  * Response body can only be read once, so those sites need this entry point.
@@ -207,7 +226,10 @@ export function humanErrorMessage(err: unknown): string {
     return MESSAGE_BY_CODE.unavailable;
   }
   if (/network ?error|network (?:is )?down|failed to fetch|load failed/i.test(text)) {
-    return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo nuevamente.';
+    return BACKEND_UNAVAILABLE_MESSAGE;
+  }
+  if (/unexpected token|not valid json|invalid json|<!doctype html|json parse/i.test(text)) {
+    return BACKEND_UNAVAILABLE_MESSAGE;
   }
 
   // A short direct string is usually a label/token, not enough guidance for
