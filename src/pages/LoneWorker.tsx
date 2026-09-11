@@ -20,7 +20,7 @@
 // the caller). Honest empty-state when the worker has no active session, with
 // a one-tap start.
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Shield, Power, PauseCircle, UserCheck, Loader2 } from 'lucide-react';
 import { LoneWorkerCheckInWidget } from '../components/loneWorker/LoneWorkerCheckInWidget';
@@ -44,6 +44,11 @@ const DEFAULT_INTERVAL_MIN = 15;
 
 export function LoneWorker() {
   const { t } = useTranslation();
+  const translationRef = useRef(t);
+  const fgsLifecycleRef = useRef(0);
+  useEffect(() => {
+    translationRef.current = t;
+  }, [t]);
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const workerUid = user?.uid ?? 'anonymous';
@@ -104,31 +109,49 @@ export function LoneWorker() {
 
   // ── Android foreground service lifecycle ──────────────────────────────────
   useEffect(() => {
+    if (!user?.uid) {
+      setFgsActive(false);
+      setFgsMessage(translationRef.current(
+        'lone_worker.fgs_requires_auth',
+        'Inicia sesión para activar Guardian Activo.',
+      ));
+      return undefined;
+    }
+
+    const generation = ++fgsLifecycleRef.current;
     let cancelled = false;
-    (async () => {
+    const startPromise = (async () => {
       const r = await startLoneWorkerFgs({
         workerUid,
         checkInIntervalSec: DEFAULT_INTERVAL_MIN * 60,
       });
       if (cancelled) return;
       setFgsActive(isRunning());
+      const currentT = translationRef.current;
       setFgsMessage(
         r.applied
           ? `FGS ${r.reason}.`
           : r.reason === 'not_native'
-            ? t('lone_worker.fgs_not_native')
+            ? currentT('lone_worker.fgs_not_native')
             : r.reason === 'no_plugin'
-              ? t('lone_worker.fgs_no_plugin')
-              : `FGS error: ${r.error ?? t('lone_worker.fgs_error_unknown')}`,
+              ? currentT('lone_worker.fgs_no_plugin')
+              : `FGS error: ${r.error ?? currentT('lone_worker.fgs_error_unknown')}`,
       );
     })();
+
     return () => {
       cancelled = true;
-      void stopLoneWorkerFgs().then(() => {
+      // Do not race stop() against start(). Android requires the service to
+      // call startForeground() promptly; stopping the component during the
+      // in-flight start leaves a pending FGS and crashes the process. Cleanup
+      // waits for the start result, then stops the service if the page left.
+      void startPromise.then(async () => {
+        if (fgsLifecycleRef.current !== generation) return;
+        await stopLoneWorkerFgs();
         setFgsActive(false);
       });
     };
-  }, [workerUid, t]);
+  }, [workerUid]);
 
   // Keep the FGS persistent-notification cadence in sync with the worker's REAL
   // session interval (the mount effect uses the default until the session loads,
