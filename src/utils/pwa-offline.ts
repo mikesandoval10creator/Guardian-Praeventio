@@ -23,6 +23,7 @@ export interface SyncAction {
 let idbPromise: Promise<IDBPDatabase> | null = null;
 let sqliteConnection: SQLiteConnection | null = null;
 let sqliteDB: SQLiteDBConnection | null = null;
+let sqliteInitPromise: Promise<SQLiteDBConnection | null> | null = null;
 
 function getIDB() {
   if (!idbPromise) {
@@ -49,67 +50,85 @@ function getIDB() {
   return idbPromise;
 }
 
-const initSQLite = async () => {
+const initializeSQLite = async (): Promise<SQLiteDBConnection | null> => {
   if (!sqliteConnection) {
     sqliteConnection = new SQLiteConnection(CapacitorSQLite);
   }
-  if (!sqliteDB) {
-    try {
-      // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
-      // ensureSqliteEncryptionSecret coordinates the one-time secret setup
-      // through the SQLite plugin's OWN secure store (Keychain on iOS, the
-      // plugin's secret-storage on Android). We never persist the passphrase
-      // ourselves — Codex P1 3308579640 caught the earlier @capacitor/
-      // preferences approach as effectively plaintext on a rooted device.
-      // NOTE: existing dev installs with unencrypted data will NOT open
-      // and must be reinstalled. Production user base is 0 so this is fine.
-      const mode = await ensureSqliteEncryptionSecret(sqliteConnection);
+  if (sqliteDB) return sqliteDB;
 
-      const ret = await sqliteConnection.checkConnectionsConsistency();
-      const isConn = (await sqliteConnection.isConnection("praeventio_offline", false)).result;
-      if (ret.result && isConn) {
-        sqliteDB = await sqliteConnection.retrieveConnection("praeventio_offline", false);
-      } else {
-        // 2nd arg `encrypted: true` was the Codex P1 3308579636 fix —
-        // previously `false` silently created a plaintext DB despite the
-        // secret being set. Mode follows the helper's contract: 'secret'
-        // binds the newly-set passphrase to a fresh DB on first run,
-        // 'encryption' reuses an existing secret on subsequent runs.
-        sqliteDB = await sqliteConnection.createConnection("praeventio_offline", true, mode, 1, false);
-      }
-      await sqliteDB.open();
-      
-      // Note: pending_sync now carries a `localUpdatedAt` column so the native
-      // (Capacitor SQLite) branch can preserve the same conflict-detection
-      // shape as the IndexedDB branch. Without this, the offline conflict
-      // banner cannot compare originalUpdatedAt and a peer's edits get
-      // silently overwritten on Android/iOS.
-      const schema = `
-        CREATE TABLE IF NOT EXISTS pending_sync (id INTEGER PRIMARY KEY AUTOINCREMENT, docId TEXT, type TEXT, collection TEXT, data TEXT, timestamp INTEGER, localUpdatedAt INTEGER);
-        CREATE TABLE IF NOT EXISTS ai_cache (key TEXT PRIMARY KEY, data TEXT, timestamp INTEGER);
-        CREATE TABLE IF NOT EXISTS bunker_knowledge (id TEXT PRIMARY KEY, data TEXT, timestamp INTEGER);
-      `;
-      await sqliteDB.execute(schema);
+  try {
+    // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
+    // ensureSqliteEncryptionSecret coordinates the one-time secret setup
+    // through the SQLite plugin's OWN secure store (Keychain on iOS, the
+    // plugin's secret-storage on Android). We never persist the passphrase
+    // ourselves — Codex P1 3308579640 caught the earlier @capacitor/
+    // preferences approach as effectively plaintext on a rooted device.
+    // NOTE: existing dev installs with unencrypted data will NOT open
+    // and must be reinstalled. Production user base is 0 so this is fine.
+    const mode = await ensureSqliteEncryptionSecret(sqliteConnection);
 
-      // Migration: existing native users have a pending_sync table without the
-      // localUpdatedAt column. ALTER TABLE will throw "duplicate column name"
-      // if the column already exists (new install or already-migrated). We
-      // swallow that specific failure — any other error is logged but does
-      // not abort init, since pending_sync still works at the basic level.
-      try {
-        await sqliteDB.execute('ALTER TABLE pending_sync ADD COLUMN localUpdatedAt INTEGER');
-      } catch (migrationErr) {
-        // Expected on subsequent launches once the column exists.
-        // Cannot reliably distinguish "duplicate column" from other ALTER
-        // failures across SQLite drivers, so we log at debug level and move on.
-        // The CREATE TABLE above guarantees the column exists for fresh installs.
-        logger.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
-      }
-    } catch (err) {
-      logger.error("SQLite Init Error", err);
+    const ret = await sqliteConnection.checkConnectionsConsistency();
+    const isConn = (await sqliteConnection.isConnection("praeventio_offline", false)).result;
+    if (ret.result && isConn) {
+      sqliteDB = await sqliteConnection.retrieveConnection("praeventio_offline", false);
+    } else {
+      // 2nd arg `encrypted: true` was the Codex P1 3308579636 fix —
+      // previously `false` silently created a plaintext DB despite the
+      // secret being set. Mode follows the helper's contract: 'secret'
+      // binds the newly-set passphrase to a fresh DB on first run,
+      // 'encryption' reuses an existing secret on subsequent runs.
+      sqliteDB = await sqliteConnection.createConnection("praeventio_offline", true, mode, 1, false);
     }
+    await sqliteDB.open();
+
+    // Note: pending_sync now carries a `localUpdatedAt` column so the native
+    // (Capacitor SQLite) branch can preserve the same conflict-detection
+    // shape as the IndexedDB branch. Without this, the offline conflict
+    // banner cannot compare originalUpdatedAt and a peer's edits get
+    // silently overwritten on Android/iOS.
+    const schema = `
+      CREATE TABLE IF NOT EXISTS pending_sync (id INTEGER PRIMARY KEY AUTOINCREMENT, docId TEXT, type TEXT, collection TEXT, data TEXT, timestamp INTEGER, localUpdatedAt INTEGER);
+      CREATE TABLE IF NOT EXISTS ai_cache (key TEXT PRIMARY KEY, data TEXT, timestamp INTEGER);
+      CREATE TABLE IF NOT EXISTS bunker_knowledge (id TEXT PRIMARY KEY, data TEXT, timestamp INTEGER);
+    `;
+    await sqliteDB.execute(schema);
+
+    // Migration: existing native users have a pending_sync table without the
+    // localUpdatedAt column. ALTER TABLE will throw "duplicate column name"
+    // if the column already exists (new install or already-migrated). We
+    // swallow that specific failure — any other error is logged but does
+    // not abort init, since pending_sync still works at the basic level.
+    try {
+      await sqliteDB.execute('ALTER TABLE pending_sync ADD COLUMN localUpdatedAt INTEGER');
+    } catch (migrationErr) {
+      // Expected on subsequent launches once the column exists.
+      // Cannot reliably distinguish "duplicate column" from other ALTER
+      // failures across SQLite drivers, so we log at debug level and move on.
+      // The CREATE TABLE above guarantees the column exists for fresh installs.
+      logger.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
+    }
+  } catch (err) {
+    logger.error("SQLite Init Error", err);
+    sqliteDB = null;
   }
   return sqliteDB;
+};
+
+const initSQLite = async (): Promise<SQLiteDBConnection | null> => {
+  if (sqliteDB) return sqliteDB;
+  const pending = sqliteInitPromise ?? (sqliteInitPromise = initializeSQLite());
+  try {
+    return await pending;
+  } finally {
+    if (sqliteInitPromise === pending) sqliteInitPromise = null;
+  }
+};
+
+/** Test-only reset for the module-level native connection singleton. */
+export const __resetPwaOfflineForTests = (): void => {
+  sqliteConnection = null;
+  sqliteDB = null;
+  sqliteInitPromise = null;
 };
 
 export const cacheAIResponse = async (key: string, data: any) => {

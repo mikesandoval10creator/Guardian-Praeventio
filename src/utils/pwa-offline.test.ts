@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // --- Mock platform check + SQLite + idb so the SUT thinks it's running native ---
 let nativePlatform = true;
 const fakeRows: Array<Record<string, unknown>> = [];
+const isConnectionMock = vi.fn(async () => ({ result: false }));
+const createConnectionMock = vi.fn(async () => fakeDb);
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -27,13 +29,13 @@ vi.mock('@capacitor-community/sqlite', () => ({
       return { result: true };
     }
     async isConnection() {
-      return { result: true };
+      return isConnectionMock();
     }
     async retrieveConnection() {
       return fakeDb;
     }
     async createConnection() {
-      return fakeDb;
+      return createConnectionMock();
     }
   },
   SQLiteDBConnection: class {},
@@ -52,13 +54,26 @@ const fakeDb = {
   query: vi.fn(async (_sql: string) => ({ values: fakeRows })),
 };
 
-const { getPendingActions } = await import('./pwa-offline');
+const { getPendingActions, __resetPwaOfflineForTests } = await import('./pwa-offline');
 
 describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () => {
   beforeEach(() => {
     nativePlatform = true;
+    __resetPwaOfflineForTests();
+    isConnectionMock.mockClear();
+    createConnectionMock.mockClear();
     fakeRows.length = 0;
     fakeDb.query.mockClear();
+  });
+
+  it('shares one native initialization across concurrent readers', async () => {
+    const [first, second] = await Promise.all([getPendingActions(), getPendingActions()]);
+
+    expect(first).toEqual([]);
+    expect(second).toEqual([]);
+    expect(createConnectionMock).toHaveBeenCalledTimes(1);
+    expect(fakeDb.open).toHaveBeenCalledTimes(1);
+    expect(fakeDb.execute).toHaveBeenCalled();
   });
 
   it('returns localUpdatedAt as an ISO string even when SQLite stores epoch ms', async () => {
