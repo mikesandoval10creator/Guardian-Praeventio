@@ -9,6 +9,7 @@ import {
   humanErrorFromResponse,
   humanErrorMessage,
   isMachineText,
+  readJsonResponse,
 } from './humanError';
 
 /** Minimal Response stand-in: only `status` + `json()` are used. */
@@ -72,6 +73,23 @@ describe('humanErrorFromResponse', () => {
       res(400, { message: 'El RUT ingresado no es válido.' }),
     );
     expect(msg).toBe('El RUT ingresado no es válido.');
+  });
+
+  it('translates an HTML/invalid-JSON API response into a human message', async () => {
+    const htmlResponse = {
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON at position 0');
+      },
+    } as unknown as Response;
+
+    await expect(readJsonResponse(htmlResponse)).rejects.toThrow(
+      /No pudimos conectar con el servidor/i,
+    );
+    expect(humanErrorMessage(new SyntaxError('Unexpected token < in JSON'))).toMatch(
+      /No pudimos conectar con el servidor/i,
+    );
   });
 
   it('never leaks a status number or a machine code', async () => {

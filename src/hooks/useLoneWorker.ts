@@ -4,6 +4,7 @@
 // `src/server/routes/loneWorker.ts`. Firebase ID-token auth, JSON-only.
 
 import { apiAuthHeaders } from "../lib/apiAuth";
+import { readJsonResponse } from "../lib/humanError";
 import type {
   LoneWorkerSession,
   LoneWorkerStatus,
@@ -25,14 +26,7 @@ async function authedFetch(
 }
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      message?: string;
-    };
-    throw new Error(body.message ?? body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as T;
+  return readJsonResponse<T>(res);
 }
 
 // ── 0. start-session (audited creation point) ──────────────────────────
