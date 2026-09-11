@@ -112,7 +112,13 @@ describe("AndroidManifest — permissions the plugins do not provide (B21)", () 
     ],
   ])("declares %s (%s)", (permission) => {
     expect(manifest).toContain(
-      `<uses-permission android:name="${permission}" />`,
+      `android:name="${permission}"`,
+    );
+  });
+
+  it("overrides the mesh plugin's API 30 cap for precise GPS on modern Android", () => {
+    expect(manifest).toMatch(
+      /ACCESS_FINE_LOCATION[\s\S]{0,160}tools:remove="android:maxSdkVersion"/,
     );
   });
 
