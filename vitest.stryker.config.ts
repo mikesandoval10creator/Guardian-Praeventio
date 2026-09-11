@@ -87,7 +87,12 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
     testTimeout: 30_000,
     teardownTimeout: 10_000,
-    detectAsyncLeaks: true,
+    // Vitest 5's built-in detector has the same post-suite hang in the
+    // Stryker dry-run when CI loads the full node-env corpus. Keep local
+    // focused diagnostics available by default, with explicit CI opt-in.
+    detectAsyncLeaks:
+      process.env.VITEST_DETECT_ASYNC_LEAKS === '1' ||
+      (process.env.CI !== 'true' && process.env.VITEST_DETECT_ASYNC_LEAKS !== '0'),
     // NOTE: no `coverage` block on purpose — Stryker brings its own
     // instrumentation; v8/lcov output here would be discarded work on
     // every one of the ~2.200 mutant runs.

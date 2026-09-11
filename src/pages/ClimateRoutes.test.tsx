@@ -222,7 +222,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     await waitFor(() => expect(screen.getByText('Ruta Intransitable')).toBeTruthy());
     // No way to reach danger without the engine having produced it.
     expect(assessRouteClimateMock).toHaveBeenCalledTimes(2);
-    expect(assessRouteClimateMock.mock.results[1]!.value).resolves.toMatchObject({
+    await expect(assessRouteClimateMock.mock.results[1]!.value).resolves.toMatchObject({
       status: 'danger',
     });
   });
