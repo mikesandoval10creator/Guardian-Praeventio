@@ -4,9 +4,9 @@
 //   1. Returns mode 'secret' on first run (no secret in plugin's secure
 //      store yet) and calls setEncryptionSecret with a 64-char hex
 //      passphrase generated via WebCrypto.
-//   2. Returns mode 'encryption' on subsequent runs without calling
-//      setEncryptionSecret again (Codex P2 3308579650 — re-setting
-//      rejects).
+//   2. Returns mode 'secret' on subsequent runs without calling
+//      setEncryptionSecret again. The plugin's 'encryption' mode is reserved
+//      for plaintext-to-encrypted migration, not normal reopen.
 //   3. Does NOT persist the passphrase via @capacitor/preferences (Codex
 //      P1 3308579640 — that surface is not a keychain on either platform).
 //      The plugin's setEncryptionSecret holds it in the native secure
@@ -50,11 +50,11 @@ describe('ensureSqliteEncryptionSecret', () => {
     expect(passphrase).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('returns mode "encryption" on subsequent runs without re-setting the secret', async () => {
+  it('returns mode "secret" on subsequent runs without re-setting the secret', async () => {
     const conn = newMockConnection(true);
 
     const mode = await ensureSqliteEncryptionSecret(conn as any);
-    expect(mode).toBe('encryption');
+    expect(mode).toBe('secret');
     expect(conn.isSecretStored).toHaveBeenCalledTimes(1);
     expect(conn.setEncryptionSecret).not.toHaveBeenCalled();
   });
