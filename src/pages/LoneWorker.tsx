@@ -174,13 +174,21 @@ export function LoneWorker() {
   }, [t]);
 
   const handleManualStart = useCallback(async () => {
+    if (!user?.uid) {
+      setFgsActive(false);
+      setFgsMessage(translationRef.current(
+        'lone_worker.fgs_requires_auth',
+        'Inicia sesión para activar Guardian Activo.',
+      ));
+      return;
+    }
     const r = await startLoneWorkerFgs({
       workerUid,
       checkInIntervalSec: DEFAULT_INTERVAL_MIN * 60,
     });
     setFgsActive(isRunning());
     setFgsMessage(r.applied ? `FGS ${r.reason}.` : `FGS no aplica (${r.reason}).`);
-  }, [workerUid]);
+  }, [user?.uid, workerUid]);
 
   // Query the OS battery-optimization exemption status on Android mount.
   // The query is fire-and-forget; on web/iOS it resolves to "unavailable"
@@ -454,7 +462,7 @@ export function LoneWorker() {
           <button
             type="button"
             onClick={handleManualStart}
-            disabled={fgsActive}
+            disabled={fgsActive || !user?.uid}
             className="rounded-md px-3 py-2 text-xs font-bold bg-teal-600 text-white disabled:bg-slate-200 disabled:text-slate-400"
             data-testid="loneWorker.fgs.start"
           >
