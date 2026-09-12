@@ -13,6 +13,7 @@ import { renderHook } from '@testing-library/react';
 const h = vi.hoisted(() => ({
   online: true,
   user: { uid: 'u1' } as { uid: string } | null,
+  project: null as { id: string; tenantId: string } | null,
 }));
 
 const saveBreadcrumb = vi.fn((..._a: unknown[]) => Promise.resolve());
@@ -31,6 +32,9 @@ vi.mock('../services/firebase', () => ({ db: {} }));
 vi.mock('./useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
 vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: h.user }),
+}));
+vi.mock('../contexts/ProjectContext', () => ({
+  useProject: () => ({ selectedProject: h.project }),
 }));
 
 import { useSurvivalPing } from './useSurvivalPing';

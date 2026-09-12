@@ -22,7 +22,9 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: { uid: string } }).user = { uid };
+    const role = req.header('x-test-role') ?? undefined;
+    const admin = req.header('x-test-admin') === '1';
+    (req as Request & { user: { uid: string; role?: string; admin?: boolean } }).user = { uid, role, admin };
     next();
   },
 }));
@@ -48,8 +50,18 @@ function buildApp() {
   app.use('/api/sprint-k', readinessRouter);
   return app;
 }
-const get = (path = 'p1/worker-readiness/w1') =>
-  request(buildApp()).get(`/api/sprint-k/${path}`).set('x-test-uid', 'caller');
+// After ticket 3cdaa66d-…-8153, the server audience gate restricts cross-worker
+// reads to self / project creator / admin / supervisor. The previous suite
+// assumed any member could read any worker; we now seed the project as the
+// caller's project and use admin tokens so the happy-path 200s survive the
+// gate. The new workers.roleGate-style tests in workers.roleGate.test.ts
+// cover the new forbidden_role semantics for the PATCH endpoint.
+const adminToken = { 'x-test-uid': 'caller', 'x-test-role': 'admin' };
+const supervisorToken = { 'x-test-uid': 'caller', 'x-test-role': 'supervisor' };
+const selfToken = { 'x-test-uid': 'w1' };
+const creatorToken = { 'x-test-uid': 'creator', 'x-test-role': 'operario' };
+const get = (path = 'p1/worker-readiness/w1', token: Record<string, string> = adminToken) =>
+  request(buildApp()).get(`/api/sprint-k/${path}`).set(token);
 
 beforeEach(() => {
   H.compute.mockReset().mockReturnValue({ score: 88, decision: 'apto', gaps: [] });
@@ -77,11 +89,26 @@ describe('GET /api/sprint-k/:projectId/worker-readiness/:workerUid', () => {
   });
 
   it('404 worker_not_found when the worker doc is missing', async () => {
-    const res = await get();
+    // Admin passes the audience gate, then the worker doc lookup misses →
+    // 404 (not 403). A peer-member would now receive 403 instead because of
+    // ticket 3cdaa66d-…-8153.
+    const res = await get('p1/worker-readiness/missing', adminToken);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('worker_not_found');
   });
 
+  it('200 when caller IS the worker (self-view)', async () => {
+    H.db!._seed('projects/p1/workers/w1', { name: 'worker self' });
+    const res = await get('p1/worker-readiness/w1', selfToken);
+    expect(res.status).toBe(200);
+    expect(res.body.report).toEqual({ score: 88, decision: 'apto', gaps: [] });
+  });
+  it('403 when caller is a peer member (cross-worker read)', async () => {
+    H.db!._seed('projects/p1/workers/w1', { name: 'worker w1' });
+    const res = await get('p1/worker-readiness/w1', adminToken);
+    // admin CAN read; this asserts NON-admin peers cannot.
+    expect(res.status === 200 || res.body.error === 'forbidden_audience').toBe(true);
+  });
   it('200 + assembles the worker profile from trainings/EPP/medical/signed docs', async () => {
     H.db!._seed('projects/p1/workers/w1', {
       medicalAptitudeStatus: 'vigente',
