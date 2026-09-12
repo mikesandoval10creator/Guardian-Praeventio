@@ -13,8 +13,15 @@ import { render, cleanup } from '@testing-library/react';
 // Mocks ────────────────────────────────────────────────────────────────────
 
 const writeNodesDebouncedMock = vi.fn();
+const firebaseContextMock = vi.hoisted(() => ({
+  useFirebase: vi.fn(),
+}));
 vi.mock('../services/zettelkasten/persistence/writeNode', () => ({
   writeNodesDebounced: (...args: unknown[]) => writeNodesDebouncedMock(...args),
+}));
+
+vi.mock('../contexts/FirebaseContext', () => ({
+  useFirebase: () => firebaseContextMock.useFirebase(),
 }));
 
 vi.mock('../contexts/ProjectContext', () => ({
@@ -28,6 +35,7 @@ import { CalculatorHub } from './CalculatorHub';
 
 beforeEach(() => {
   writeNodesDebouncedMock.mockClear();
+  firebaseContextMock.useFirebase.mockReturnValue({ user: { uid: 'u1' } });
 });
 
 afterEach(() => {
@@ -88,5 +96,15 @@ describe('CalculatorHub — scaffold wind suction calc', () => {
       .filter((c) => c[0]?.[0]?.type === 'scaffold-uplift');
     expect(calls.length).toBeGreaterThanOrEqual(1);
     expect(calls[0][1]).toEqual({ projectId: 'proj-test-1' });
+  });
+});
+
+describe('CalculatorHub — guest/demo persistence guard', () => {
+  it('keeps calculations usable without queueing Zettelkasten writes', async () => {
+    firebaseContextMock.useFirebase.mockReturnValue({ user: null });
+    render(<CalculatorHub />);
+    await Promise.resolve();
+
+    expect(writeNodesDebouncedMock).not.toHaveBeenCalled();
   });
 });
