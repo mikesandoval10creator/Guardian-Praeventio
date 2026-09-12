@@ -41,6 +41,47 @@ interface RefereePreview {
   expiresAt: string;
 }
 
+const REFEREE_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
+const REFEREE_STATUSES = new Set<RefereePreview['status']>([
+  'pending_referees',
+  'verified',
+  'rejected',
+  'expired',
+]);
+
+export function isValidRefereeToken(token: string): boolean {
+  return REFEREE_TOKEN_PATTERN.test(token);
+}
+
+export function isRefereePreview(value: unknown): value is RefereePreview {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  const requiredStrings = [
+    'claimText',
+    'workerName',
+    'workerEmail',
+    'refereeName',
+    'refereeEmail',
+    'category',
+    'expiresAt',
+  ] as const;
+
+  return (
+    requiredStrings.every(
+      (field) => typeof candidate[field] === 'string' && candidate[field].trim().length > 0,
+    ) &&
+    typeof candidate.alreadySigned === 'boolean' &&
+    typeof candidate.status === 'string' &&
+    REFEREE_STATUSES.has(candidate.status as RefereePreview['status'])
+  );
+}
+
+function responseError(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const error = (value as { error?: unknown }).error;
+  return typeof error === 'string' && error.trim().length > 0 ? error : null;
+}
+
 export function RefereeAccept() {
   const { t } = useTranslation();
   const { token = '' } = useParams<{ token: string }>();
@@ -56,15 +97,15 @@ export function RefereeAccept() {
   // brute-forced a token would still need to POST to actually sign,
   // and the server's rate limiter applies to both verbs.
   useEffect(() => {
-    if (!token) {
+    if (!isValidRefereeToken(token)) {
       setLoadError('Enlace inválido.');
       return;
     }
     fetch(`/api/curriculum/referee/${encodeURIComponent(token)}`)
       .then(async (r) => {
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          setLoadError(data?.error || 'No se pudo cargar el claim.');
+        const data: unknown = await r.json().catch(() => null);
+        if (!r.ok || !isRefereePreview(data)) {
+          setLoadError(responseError(data) || 'No se pudo cargar el claim.');
           return;
         }
         setPreview(data);
