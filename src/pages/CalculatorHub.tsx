@@ -52,6 +52,7 @@ import {
 } from "../services/zettelkasten/bernoulli";
 import { writeNodesDebounced } from "../services/zettelkasten/persistence/writeNode";
 import { useProject } from "../contexts/ProjectContext";
+import { useFirebase } from "../contexts/FirebaseContext";
 import { cite } from "../services/regulatory/registry";
 import type { RiskNodePayload } from "../services/zettelkasten/types";
 import type { JurisdictionCode } from "../services/regulatory/types";
@@ -185,11 +186,16 @@ const NumInput: React.FC<{
 // Hook utility — debounced persistence. Single node payload.
 function usePersistNode(node: RiskNodePayload | null): void {
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
+  const userUid = user?.uid;
   const projectId = selectedProject?.id;
   React.useEffect(() => {
-    if (!node || !projectId) return;
+    // Guest/demo mode can calculate safely, but must not enqueue a Firestore
+    // mutation for the read-only demo project. Authenticated users retain the
+    // existing offline-first persistence behavior.
+    if (!node || !projectId || !userUid) return;
     writeNodesDebounced([node], { projectId });
-  }, [node, projectId]);
+  }, [node, projectId, userUid]);
 }
 
 // ─── Calculators ────────────────────────────────────────────────────────────

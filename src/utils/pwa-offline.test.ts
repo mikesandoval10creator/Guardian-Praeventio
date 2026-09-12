@@ -64,6 +64,7 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
     createConnectionMock.mockClear();
     fakeRows.length = 0;
     fakeDb.query.mockClear();
+    fakeDb.execute.mockClear();
   });
 
   it('shares one native initialization across concurrent readers', async () => {
@@ -97,6 +98,22 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
       1,
       false,
     );
+  });
+
+  it('does not issue a duplicate-column ALTER when the schema is already migrated', async () => {
+    fakeDb.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('PRAGMA table_info')) {
+        return { values: [{ name: 'id' }, { name: 'localUpdatedAt' }] };
+      }
+      return { values: fakeRows };
+    });
+
+    await getPendingActions();
+
+    const alterCalls = (fakeDb.execute.mock.calls as unknown[][]).filter(([sql]) =>
+      String(sql).includes('ALTER TABLE pending_sync'),
+    );
+    expect(alterCalls).toHaveLength(0);
   });
 
   it('returns localUpdatedAt as an ISO string even when SQLite stores epoch ms', async () => {

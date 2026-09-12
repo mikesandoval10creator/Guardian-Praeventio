@@ -94,19 +94,22 @@ const initializeSQLite = async (): Promise<SQLiteDBConnection | null> => {
     `;
     await sqliteDB.execute(schema);
 
-    // Migration: existing native users have a pending_sync table without the
-    // localUpdatedAt column. ALTER TABLE will throw "duplicate column name"
-    // if the column already exists (new install or already-migrated). We
-    // swallow that specific failure — any other error is logged but does
-    // not abort init, since pending_sync still works at the basic level.
-    try {
-      await sqliteDB.execute('ALTER TABLE pending_sync ADD COLUMN localUpdatedAt INTEGER');
-    } catch (migrationErr) {
-      // Expected on subsequent launches once the column exists.
-      // Cannot reliably distinguish "duplicate column" from other ALTER
-      // failures across SQLite drivers, so we log at debug level and move on.
-      // The CREATE TABLE above guarantees the column exists for fresh installs.
-      logger.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
+    // Migration: existing native users may have a pending_sync table without
+    // the localUpdatedAt column. Inspect the schema before ALTER so subsequent
+    // launches do not emit a native duplicate-column error into logcat.
+    const tableInfo = await sqliteDB.query('PRAGMA table_info(pending_sync)');
+    const hasLocalUpdatedAt = (tableInfo.values ?? []).some((column: unknown) => {
+      if (!column || typeof column !== 'object') return false;
+      return (column as { name?: unknown }).name === 'localUpdatedAt';
+    });
+    if (!hasLocalUpdatedAt) {
+      try {
+        await sqliteDB.execute('ALTER TABLE pending_sync ADD COLUMN localUpdatedAt INTEGER');
+      } catch (migrationErr) {
+        // Keep initialization resilient on older SQLite drivers. The schema
+        // query above avoids the expected duplicate-column path.
+        logger.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
+      }
     }
   } catch (err) {
     logger.error("SQLite Init Error", err);
