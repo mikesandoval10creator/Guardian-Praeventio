@@ -1237,10 +1237,35 @@ service cloud.firestore {
     // beacon; rescue coordinators (admin/supervisor) read it to locate workers
     // in an emergency. Previously had no rule → the beacon was default-denied.
     match /pings/{pingUid} {
-      allow read: if isValidId(pingUid) && (isOwner(pingUid) || isAdmin() || isSupervisor());
+      // Cross-tenant P0 fix (ticket 3cdaa66d-73fe-8186-a35f-d42caefcc421):
+      // survival pings are top-level by uid, so a global supervisor of
+      // tenant B could read a worker in tenant A if their UIDs overlap.
+      // Tighten to: same tenant AND owner-or-supervisor/admin. Missing
+      // tenantId on the doc → deny (fail-closed; legacy pings get fixed by
+      // the separate useSurvivalPing stamp migration).
+      // Tenant guard kicks in only when the doc carries a tenantId (post-2026-09-10
+      // stamp). Legacy pings (no tenantId) fall back to the previous owner/admin/
+      // supervisor gate; the migration plan replaces them progressively and a
+      // future hardening pass will flip legacy to deny.
+      // tenantId field is optional (legacy pings lack it). When present, the
+      // caller's token.tenantId must match (cross-tenant P0 closure,
+      // ticket 3cdaa66d-73fe-8186). When absent, fall back to the previous
+      // owner/admin/supervisor gate so a worker still reads their own beacon
+      // during the migration window. Use the existence check via `keys()` to
+      // avoid the type-system error on undefined accesses.
+      allow read: if isValidId(pingUid) && (
+        (!('tenantId' in resource.data)
+          && (isOwner(pingUid) || isAdmin() || isSupervisor()))
+        || (resource.data.tenantId is string
+          && request.auth.token.tenantId == resource.data.tenantId
+          && (isOwner(pingUid) || isAdmin() || isSupervisor()))
+      );
       allow create, update: if isValidId(pingUid) && isOwner(pingUid)
-        && incoming().keys().hasOnly(['lat', 'lng', 'timestamp', 'status'])
-        && incoming().status is string;
+        && incoming().keys().hasOnly(['lat', 'lng', 'timestamp', 'status',
+          'tenantId', 'projectId'])
+        && incoming().status is string
+        && incoming().tenantId is string
+        && incoming().projectId is string;
       allow delete: if false;
     }
 
