@@ -198,6 +198,16 @@ describe('predictive-alerts ack + tasks done', () => {
     expect(res.status).toBe(200);
     expect(res.body.xpAwarded).toBe(30);
     expect((H.db!._dump()['crews/c1'] as { xp: number }).xp).toBe(30);
+    const auditRows = Object.values(H.db!._dump()).filter(
+      (row) => row.action === 'predictive_alert.acknowledged',
+    );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject({
+      module: 'organic',
+      projectId: 'p1',
+      userId: 'u1',
+      details: { projectId: 'p1', crewId: 'c1', generatorId: 'gen1', xpAwarded: 30 },
+    });
   });
 
   it('POST /tasks/:id/done marks done; 404 for missing task', async () => {
