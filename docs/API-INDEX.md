@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 748 rutas detectadas.**
+**207 routers montados · 750 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -230,6 +230,8 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/maintenance.ts` → `/api/maintenance`
 - `POST /api/maintenance/check-overdue`
+- `POST /api/maintenance/run-dte-issue-queue-drain`
+- `POST /api/maintenance/run-check-expired-brigade-resources`
 - `POST /api/maintenance/run-b2d-mrr-snapshot`
 - `POST /api/maintenance/run-retention-sweep`
 - `POST /api/maintenance/run-lone-worker-escalation`
