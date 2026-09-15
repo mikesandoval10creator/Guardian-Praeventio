@@ -404,6 +404,32 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
       // non-fatal
     }
 
+    try {
+      const audited = await auditServerEvent(
+        req,
+        'predictive_alert.acknowledged',
+        'organic',
+        { projectId, crewId, generatorId, xpAwarded },
+        { projectId },
+      );
+      if (!audited) {
+        logger.error('organic_audit_event_failed', {
+          action: 'predictive_alert.acknowledged',
+          projectId,
+          crewId,
+          generatorId,
+        });
+      }
+    } catch (auditErr) {
+      logger.error('organic_audit_event_failed', {
+        action: 'predictive_alert.acknowledged',
+        projectId,
+        crewId,
+        generatorId,
+        message: (auditErr as Error)?.message,
+      });
+    }
+
     return res.json({ success: true, xpAwarded, reason: 'evadir_riesgo_predictivo' });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {

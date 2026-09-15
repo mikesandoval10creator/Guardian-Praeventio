@@ -44,7 +44,6 @@
     "curriculum POST /claim/:id/resend": "referee resend/cooldown state update lacks a handler-owned awaited audit",
     "drivingSafety POST /:projectId/driving/drivers/:uid/journey": "the handler audits before appending the journey domain record; no awaited audit follows the final persistent write",
     "organic POST /crews/:id/members": "crew membership update lacks a handler-owned awaited audit",
-    "organic POST /predictive-alerts/ack": "crew XP, generator counters, and acknowledgement record writes lack a handler-owned awaited audit",
     "organic POST /processes/:id/close": "process closure and crew XP transaction writes lack a handler-owned awaited audit",
     "organic POST /processes/:id/tasks": "task creation lacks a handler-owned awaited audit",
     "organic POST /tasks/:id/done": "task completion update lacks a handler-owned awaited audit"
