@@ -32,12 +32,20 @@ vi.mock('../services/geminiService', () => ({ generatePredictiveForecast: vi.fn(
 vi.mock('../lib/structuralLoadProbesClient', () => ({
   fetchStructuralLoadProbes: vi.fn(async () => []),
 }));
+vi.mock('../services/firebase', () => ({ db: {} }));
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  getDocs: vi.fn(),
+  limit: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+}));
 vi.mock('../components/predictive/AlertSchedulerMount', () => ({ ackPredictiveAlert: vi.fn() }));
 vi.mock('../components/predictiveAlerts/PredictiveAlertsList', () => ({
   PredictiveAlertsList: () => null,
 }));
 vi.mock('../utils/logger', () => ({
-  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import { PredictiveGuard } from './PredictiveGuard';
