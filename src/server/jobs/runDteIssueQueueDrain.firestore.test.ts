@@ -34,6 +34,7 @@ const workerPath = fileURLToPath(
 const instances: WorkerHarness[] = [];
 const NOW = new Date('2026-06-11T13:00:00.000Z');
 const QUEUE_KEY = 'dte-queue-concurrent-1';
+const FIRESTORE_PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'praeventio-test';
 
 const decision = decideDteIssue({
   paymentId: 'manual:inv-concurrent-1',
@@ -79,8 +80,8 @@ function startInstance(instanceId: string): WorkerHarness {
       DTE_QUEUE_INSTANCE_ID: instanceId,
       DTE_QUEUE_KEY: QUEUE_KEY,
       DTE_QUEUE_NOW: NOW.toISOString(),
-      GCLOUD_PROJECT: 'praeventio-test',
-      GOOGLE_CLOUD_PROJECT: 'praeventio-test',
+      GCLOUD_PROJECT: FIRESTORE_PROJECT_ID,
+      GOOGLE_CLOUD_PROJECT: FIRESTORE_PROJECT_ID,
     },
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
   });
