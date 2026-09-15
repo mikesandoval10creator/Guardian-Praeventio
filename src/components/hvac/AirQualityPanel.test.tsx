@@ -23,6 +23,31 @@ describe('<AirQualityPanel />', () => {
     expect(screen.getByTestId('air-quality-level')).toBeInTheDocument();
   });
 
+  it('declara cuando el CO₂ es una estimación sin sensor conectado', () => {
+    render(
+      <AirQualityPanel
+        co2Zone={{ volumeM3: 100, airExchangeM3perH: 200 }}
+        co2Driver={{ occupancyCount: 10 }}
+      />,
+    );
+    expect(screen.getByTestId('air-quality-source')).toHaveTextContent(
+      /estimación del modelo.*sin lectura de sensor/i,
+    );
+  });
+
+  it('declara cuando el CO₂ proviene de una lectura de sensor', () => {
+    render(
+      <AirQualityPanel
+        co2Zone={{ volumeM3: 100, airExchangeM3perH: 200 }}
+        co2Driver={{ occupancyCount: 10 }}
+        currentPpm={650}
+      />,
+    );
+    expect(screen.getByTestId('air-quality-source')).toHaveTextContent(
+      /lectura de sensor/i,
+    );
+  });
+
   it('lista acciones cuando level=critical', () => {
     render(
       <AirQualityPanel
