@@ -768,6 +768,116 @@ describe("POST /api/maintenance/run-retention-sweep", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 2c. Dedicated scheduler endpoints for jobs provisioned in deploy.yml.
+//     Gate: verifySchedulerToken
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/maintenance/run-dte-issue-queue-drain", () => {
+  const URL = "/api/maintenance/run-dte-issue-queue-drain";
+
+  it("401 — missing scheduler token", async () => {
+    const res = await request(buildApp()).post(URL).send();
+    expect(res.status).toBe(401);
+    expect(H.runDteIssueQueueDrain).not.toHaveBeenCalled();
+  });
+
+  it("200 — runs the DTE drain and returns its counters", async () => {
+    H.runDteIssueQueueDrain.mockResolvedValueOnce({
+      gateClosed: false,
+      scanned: 2,
+      attempted: 1,
+      issued: 1,
+      retried: 0,
+      permanentFailures: 0,
+      skippedNotDue: 1,
+      skippedLeased: 0,
+      reclaimedFromStale: 0,
+      legacyStuck: 0,
+      completionLost: 0,
+      errors: 0,
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      scanned: 2,
+      attempted: 1,
+      issued: 1,
+    });
+    expect(H.runDteIssueQueueDrain).toHaveBeenCalledOnce();
+  });
+
+  it("500 — reports a drain failure instead of acknowledging it", async () => {
+    H.runDteIssueQueueDrain.mockRejectedValueOnce(new Error("dte drain boom"));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(500);
+    expect(res.body).toMatchObject({ ok: false, error: "internal_error" });
+    expect(H.captureRouteError).toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/maintenance/run-check-expired-brigade-resources", () => {
+  const URL = "/api/maintenance/run-check-expired-brigade-resources";
+
+  it("401 — missing scheduler token", async () => {
+    const res = await request(buildApp()).post(URL).send();
+    expect(res.status).toBe(401);
+    expect(H.checkExpiredBrigadeResources).not.toHaveBeenCalled();
+  });
+
+  it("200 — runs the brigade-resource reaper with the real supervisor notifier", async () => {
+    H.checkExpiredBrigadeResources.mockResolvedValueOnce({
+      scanned: 4,
+      expired: 1,
+      notified: 1,
+      findingsCreated: 1,
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      scanned: 4,
+      expired: 1,
+      notified: 1,
+      findingsCreated: 1,
+    });
+    expect(H.checkExpiredBrigadeResources).toHaveBeenCalledWith(
+      expect.objectContaining({ notifySupervisors: expect.any(Function) }),
+    );
+  });
+
+  it("500 — reports a brigade-resource failure instead of acknowledging it", async () => {
+    H.checkExpiredBrigadeResources.mockRejectedValueOnce(
+      new Error("brigade boom"),
+    );
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(500);
+    expect(res.body).toMatchObject({ ok: false, error: "internal_error" });
+    expect(H.captureRouteError).toHaveBeenCalled();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // 3. POST /api/maintenance/run-lone-worker-escalation
 //    Gate: verifySchedulerToken
 // ═════════════════════════════════════════════════════════════════════════════

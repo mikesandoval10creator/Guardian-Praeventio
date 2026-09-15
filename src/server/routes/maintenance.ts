@@ -451,6 +451,81 @@ router.post("/check-overdue", verifySchedulerToken, async (_req, res) => {
   }
 });
 
+// Dedicated DTE queue drain — provisioned by deploy.yml every 10 minutes
+// for the SII 24-hour issuance window. This must remain a separate endpoint
+// from check-overdue so the dedicated Cloud Scheduler job targets a real,
+// independently observable handler.
+router.post(
+  "/run-dte-issue-queue-drain",
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const result = await runDteIssueQueueDrain();
+      logger.info("[maintenance] dedicated dte-issue-queue-drain done", {
+        ...result,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error("[maintenance] dedicated dte-issue-queue-drain failed", err);
+      captureRouteError(err, "maintenance.dedicated-dte-issue-queue-drain");
+      return res.status(500).json({
+        ok: false,
+        error: "internal_error",
+        message: "dte-issue-queue-drain failed",
+      });
+    }
+  },
+);
+
+// Dedicated brigade-resource expiry reaper — provisioned by deploy.yml hourly.
+// The same job also runs as an isolated step inside check-overdue; this wrapper
+// gives the dedicated cron a real route without duplicating the domain logic.
+router.post(
+  "/run-check-expired-brigade-resources",
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const result = await checkExpiredBrigadeResources({
+        notifySupervisors: ({ projectId, payload, db, messaging }) =>
+          sendToProjectSupervisors(projectId, payload, db, messaging),
+      });
+      logger.info(
+        "[maintenance] dedicated check-expired-brigade-resources done",
+        {
+          ...result,
+          tookMs: Date.now() - start,
+        },
+      );
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error(
+        "[maintenance] dedicated check-expired-brigade-resources failed",
+        err,
+      );
+      captureRouteError(
+        err,
+        "maintenance.dedicated-check-expired-brigade-resources",
+      );
+      return res.status(500).json({
+        ok: false,
+        error: "internal_error",
+        message: "check-expired-brigade-resources failed",
+      });
+    }
+  },
+);
+
 // Sprint E backend debt (2026-05-16) — B2D MRR monthly snapshot.
 //
 //   POST /api/maintenance/run-b2d-mrr-snapshot
