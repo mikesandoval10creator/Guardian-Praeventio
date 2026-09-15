@@ -127,7 +127,8 @@ export async function ackPredictiveAlert(args: {
 
 export function AlertSchedulerMount({ projectId, crewId, probes, schedulerWindow, notify = defaultNotify }: AlertSchedulerMountProps) {
   // Dedupe: the same generator+leadTime within 30 minutes shouldn't fire
-  // again. Map<generatorId, lastFiredEpochMs>.
+  // again. A change in lead time is a materially different urgency and must
+  // be delivered even when the generator id is unchanged.
   const firedRef = useRef<Map<string, number>>(new Map());
   const [lastAlerts, setLastAlerts] = useState<ScheduledAlert[]>([]);
 
@@ -148,9 +149,10 @@ export function AlertSchedulerMount({ projectId, crewId, probes, schedulerWindow
       const now = Date.now();
       const out: ScheduledAlert[] = [];
       for (const a of alerts) {
-        const last = firedRef.current.get(a.generatorId) ?? 0;
+        const alertKey = `${a.generatorId}:${a.decision.leadTimeMin}`;
+        const last = firedRef.current.get(alertKey) ?? 0;
         if (now - last < 30 * 60 * 1000) continue;
-        firedRef.current.set(a.generatorId, now);
+        firedRef.current.set(alertKey, now);
         const payload = buildPushPayload(a);
         try {
           notify(payload);
