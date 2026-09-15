@@ -1,4 +1,8 @@
 {
+  "airQuality": {
+    "sourceMeasured": "Leitura do sensor",
+    "sourceEstimated": "Estimativa do modelo; nenhuma leitura de sensor conectada."
+  },
   "iso45001": {
     "aria": "Catálogo ISO 45001",
     "coverage": "cobertura",

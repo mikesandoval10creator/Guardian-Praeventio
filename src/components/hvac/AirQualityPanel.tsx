@@ -44,6 +44,7 @@ export function AirQualityPanel({
   const { t } = useTranslation();
   const ssPpm = useMemo(() => steadyStateCO2Ppm(co2Zone, co2Driver), [co2Zone, co2Driver]);
   const ppm = currentPpm ?? ssPpm;
+  const hasMeasuredPpm = typeof currentPpm === 'number' && Number.isFinite(currentPpm);
   const level = useMemo(() => classifyAirQuality(ppm), [ppm]);
   const rec = useMemo(() => recommendVentilation(ppm), [ppm]);
   const tone = LEVEL_TONE[level];
@@ -93,6 +94,18 @@ export function AirQualityPanel({
           </div>
         )}
       </div>
+
+      <p
+        className="text-[10px] text-secondary-token"
+        data-testid="air-quality-source"
+      >
+        {hasMeasuredPpm
+          ? t('airQuality.sourceMeasured', 'Lectura de sensor')
+          : t(
+              'airQuality.sourceEstimated',
+              'Estimación del modelo; sin lectura de sensor conectada.',
+            )}
+      </p>
 
       <div className="flex justify-between text-[10px] text-secondary-token">
         <span>
