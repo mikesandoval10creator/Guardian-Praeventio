@@ -119,6 +119,24 @@ describe('getForecast — happy path', () => {
     }
   });
 
+  it('forwards an optional AbortSignal to the upstream fetch', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn(async (_url: string, options?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => buildFiveDaySample(),
+      options,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { getForecast } = await import('./environmentBackend');
+
+    await getForecast(1, TEST_LOCATION, controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), {
+      signal: controller.signal,
+    });
+  });
+
   it('day aggregation: worst-case condition wins (one rainy step beats four sunny)', async () => {
     const sample = buildFiveDaySample({
       '2026-05-01': [

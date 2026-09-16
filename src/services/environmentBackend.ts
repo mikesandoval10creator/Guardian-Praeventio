@@ -391,6 +391,7 @@ export function setTenantLocationResolver(resolver?: TenantLocationResolver): vo
 export async function getForecast(
   days: number,
   location?: ForecastLocation | TenantLocationContext,
+  signal?: AbortSignal,
 ): Promise<ClimateForecastDay[]> {
   if (!Number.isFinite(days) || days <= 0) return [];
 
@@ -437,7 +438,7 @@ export async function getForecast(
 
   let res: Response;
   try {
-    res = await fetch(url);
+    res = signal ? await fetch(url, { signal }) : await fetch(url);
   } catch (err) {
     console.warn('[EnvironmentBackend] getForecast: fetch threw, returning empty forecast.', err);
     return [];

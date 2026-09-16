@@ -36,6 +36,14 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   // ── Datos / validación ────────────────────────────────────────────────
   invalid_payload:
     'Faltan datos obligatorios o alguno tiene un formato inválido. Revisa el formulario y vuelve a intentarlo.',
+  invalid_metadata:
+    'Los datos del permiso están incompletos o tienen un formato inválido. Revisa los campos e inténtalo nuevamente.',
+  permit_id_duplicate:
+    'Ese permiso ya existe. Revisa el listado antes de volver a crearlo.',
+  caller_lacks_permit_issuer_role:
+    'Tu cuenta no tiene autorización para gestionar permisos. Consulta con un supervisor o administrador.',
+  tenant_not_found:
+    'No pudimos identificar la empresa de este proyecto. Selecciona otro proyecto o avisa al administrador.',
   empty_description: 'La descripción no puede quedar vacía. Cuéntanos brevemente qué ocurrió.',
   invalid_uid: 'No pudimos identificar tu usuario. Vuelve a iniciar sesión.',
   invalid_tenant: 'No pudimos identificar tu empresa. Vuelve a iniciar sesión.',

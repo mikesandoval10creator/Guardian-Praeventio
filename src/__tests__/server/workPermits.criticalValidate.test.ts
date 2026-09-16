@@ -85,6 +85,25 @@ describe('POST /work-permits/validate-critical (wired DS 132 validators)', () =>
     expect(res.body.result.hasBlockers).toBe(false);
   });
 
+  it('200 + blocking issue for null/string numeric metadata, never a safe result', async () => {
+    const res = await request(buildApp()).post(URL).set(issuer).send({
+      kind: 'izaje_critico',
+      data: { ...cleanIzaje, loadWeightKg: null, operatingRadiusMeters: '5' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.result.hasBlockers).toBe(true);
+    expect(
+      (res.body.result.issues as { code: string }[]).filter(
+        (issue) => issue.code === 'INVALID_NUMERIC_METADATA',
+      ),
+    ).toHaveLength(2);
+    const userMessages = (res.body.result.issues as { message: string }[])
+      .map((issue) => issue.message)
+      .join(' ');
+    expect(userMessages).toContain('Revisa');
+    expect(userMessages).not.toMatch(/NaN|Infinity|INVALID_NUMERIC_METADATA/);
+  });
+
   it('200 + surfaces real DS 132 blockers for an unsafe lift (advisory, never blocks the response)', async () => {
     const unsafe = {
       ...cleanIzaje,
@@ -106,6 +125,8 @@ describe('POST /work-permits/validate-critical (wired DS 132 validators)', () =>
     const res = await request(buildApp()).post(URL).set(issuer).send({ kind: 'loto', data: {} });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_metadata');
+    expect(res.body.message).toMatch(/revisa|completa|datos/i);
+    expect(res.body.message).not.toMatch(/invalid_metadata|TypeError|undefined/i);
   });
 
   it('routes to the LOTO validator for well-formed loto metadata', async () => {

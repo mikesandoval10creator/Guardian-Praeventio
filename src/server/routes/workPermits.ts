@@ -521,25 +521,26 @@ async function readZoneGasReadings(
   }
 }
 
-/** `readZoneGasReadings` bounded by a hard deadline (weatherGate pattern). */
+/** `readZoneGasReadings` bounded by a hard deadline. */
 async function readZoneGasReadingsWithTimeout(
   db: admin.firestore.Firestore,
   projectId: string,
   zoneId: string,
   timeoutMs = GAS_TELEMETRY_LOOKUP_TIMEOUT_MS,
 ): Promise<GasTelemetryReading[] | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), timeoutMs);
+  return new Promise<GasTelemetryReading[] | null>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (value: GasTelemetryReading[] | null) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(value);
+    };
+
+    timer = setTimeout(() => finish(null), timeoutMs);
+    void readZoneGasReadings(db, projectId, zoneId).then(finish, () => finish(null));
   });
-  try {
-    return await Promise.race([
-      readZoneGasReadings(db, projectId, zoneId),
-      deadline,
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 /**
@@ -649,11 +650,11 @@ router.post(
       if (geo) {
         const serverWind = await resolveServerWindWithTimeout(
           {
-            fetchForecast: async (days, loc) => {
+            fetchForecast: async (days, loc, signal) => {
               const { getForecast } = await import(
                 '../../services/environmentBackend.js'
               );
-              return getForecast(days, loc);
+              return getForecast(days, loc, signal);
             },
           },
           geo,
@@ -700,7 +701,11 @@ router.post(
         logger.warn?.('workPermits.validateCritical.invalid_metadata', {
           kind: body.kind,
         });
-        return res.status(400).json({ error: 'invalid_metadata', kind: body.kind });
+        return res.status(400).json({
+          error: 'invalid_metadata',
+          kind: body.kind,
+          message: 'Los datos del permiso están incompletos o tienen un formato inválido. Revisa los campos e inténtalo nuevamente.',
+        });
       }
     }
 

@@ -39,6 +39,7 @@ export interface WeatherGateDeps {
   fetchForecast: (
     days: number,
     location: { lat: number; lng: number },
+    signal?: AbortSignal,
   ) => Promise<ForecastDayWind[]>;
 }
 
@@ -84,9 +85,12 @@ function round2(n: number): number {
 export async function resolveServerWind(
   deps: WeatherGateDeps,
   location: { lat: number; lng: number },
+  signal?: AbortSignal,
 ): Promise<ServerWind> {
   try {
-    const days = await deps.fetchForecast(1, location);
+    const days = signal
+      ? await deps.fetchForecast(1, location, signal)
+      : await deps.fetchForecast(1, location);
     const windKmh = Array.isArray(days) ? days[0]?.windKmh : undefined;
     if (typeof windKmh !== 'number' || !Number.isFinite(windKmh)) {
       return SERVER_UNAVAILABLE;
@@ -108,15 +112,26 @@ export async function resolveServerWindWithTimeout(
   location: { lat: number; lng: number },
   timeoutMs = 3000,
 ): Promise<ServerWind> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<ServerWind>((resolve) => {
-    timer = setTimeout(() => resolve(SERVER_UNAVAILABLE), timeoutMs);
+  const controller = new AbortController();
+  return new Promise<ServerWind>((resolve) => {
+    let settled = false;
+    const finish = (value: ServerWind) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => {
+      controller.abort();
+      finish(SERVER_UNAVAILABLE);
+    }, timeoutMs);
+
+    void resolveServerWind(deps, location, controller.signal).then(
+      finish,
+      () => finish(SERVER_UNAVAILABLE),
+    );
   });
-  try {
-    return await Promise.race([resolveServerWind(deps, location), deadline]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 /**

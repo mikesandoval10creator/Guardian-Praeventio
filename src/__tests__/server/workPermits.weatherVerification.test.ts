@@ -78,7 +78,11 @@ describe('validate-critical — server-side wind verification (izaje_critico)', 
       .send({ kind: 'izaje_critico', data: { ...cleanIzaje, windSpeedMps: 5 } });
 
     expect(res.status).toBe(200);
-    expect(H.getForecast).toHaveBeenCalledWith(1, { lat: -33.45, lng: -70.66 });
+    expect(H.getForecast).toHaveBeenCalledWith(
+      1,
+      { lat: -33.45, lng: -70.66 },
+      expect.any(AbortSignal),
+    );
     // Validation ran with effective wind 16 → ISO 12480 blocking threshold.
     expect(res.body.result.hasBlockers).toBe(true);
     const codes = (res.body.result.issues as { code: string }[]).map((i) => i.code);
