@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldAlert, 
@@ -29,6 +30,7 @@ import { PredictiveAlertsList } from '../components/predictiveAlerts/PredictiveA
 import { evaluateProbes, type ScheduledAlert } from '../services/predictiveAlerts/alertScheduler';
 import { fetchStructuralLoadProbes } from '../lib/structuralLoadProbesClient';
 import { ackPredictiveAlert } from '../components/predictive/AlertSchedulerMount';
+import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
@@ -130,8 +132,28 @@ export function PredictiveGuard() {
   const handleAcknowledge = useCallback(async (alert: ScheduledAlert) => {
     const pid = selectedProject?.id;
     if (!pid) return;
-    await ackPredictiveAlert({ projectId: pid, crewId: '', generatorId: alert.generatorId });
-    setAlerts((prev) => prev.filter((a) => a.generatorId !== alert.generatorId));
+
+    try {
+      const crews = await getDocs(
+        query(collection(db, 'crews'), where('projectId', '==', pid), limit(1)),
+      );
+      const crewId = crews.docs[0]?.id;
+      if (!crewId) {
+        logger.warn('predictive_guard.ack_without_project_crew', { projectId: pid });
+        return;
+      }
+
+      const xpAwarded = await ackPredictiveAlert({
+        projectId: pid,
+        crewId,
+        generatorId: alert.generatorId,
+      });
+      if (xpAwarded <= 0) return;
+
+      setAlerts((prev) => prev.filter((a) => a.generatorId !== alert.generatorId));
+    } catch (err) {
+      logger.error('predictive_guard.ack_failed', err);
+    }
   }, [selectedProject?.id]);
 
   const generateForecast = async () => {
