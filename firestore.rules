@@ -173,6 +173,42 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // ManDown is client-readable, but lifecycle writes must bind the actor to
+    // the authenticated uid. The affected worker can silence their own alert;
+    // only a supervisor-tier caller bound to the project's tenant can resolve
+    // an already acknowledged event.
+    function canAcknowledgeManDown(projectId) {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'acknowledgedBy',
+          'acknowledgedByName',
+          'acknowledgedAt',
+          'updatedAt',
+        ])
+        && existing().get('status', '') in ['active', 'pending']
+        && incoming().get('status', '') == 'acknowledged'
+        && incoming().get('acknowledgedBy', '') == request.auth.uid
+        && incoming().get('acknowledgedAt', null) is timestamp
+        && (
+          existing().get('workerId', '') == request.auth.uid ||
+          isSupervisorOfTenant(projectTenantId(projectId))
+        );
+    }
+
+    function canResolveManDown(projectId) {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'resolvedAt',
+          'resolvedBy',
+          'updatedAt',
+        ])
+        && existing().get('status', '') == 'acknowledged'
+        && incoming().get('status', '') == 'resolved'
+        && incoming().get('resolvedBy', '') == request.auth.uid
+        && incoming().get('resolvedAt', null) is timestamp
+        && isSupervisorOfTenant(projectTenantId(projectId));
+    }
+
     // A `nodes` doc whose metadata carries a worker's raw RUT (Chilean national
     // ID) — written by the DS 67 (INCIDENT) and DS 109 (MEDICINE) legal-form
     // modals (src/components/medicine/Ds67Modal.tsx, Ds109Modal.tsx). The RUT is
@@ -568,9 +604,11 @@ service cloud.firestore {
         allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && incoming().status in ['pending', 'active']
           && incoming().workerId == request.auth.uid;
-        // Acknowledgement: any supervisor/admin/member can ack; only ack fields mutable
+        // A worker may acknowledge only their own active/pending event; a
+        // tenant-bound supervisor/admin may acknowledge it as the responder.
+        // Resolution is supervisor/admin-only and can only follow an ACK.
         allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
-          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acknowledgedBy', 'acknowledgedByName', 'acknowledgedAt', 'resolvedAt', 'resolvedBy', 'updatedAt']);
+          && (canAcknowledgeManDown(projectId) || canResolveManDown(projectId));
         allow delete: if false;
       }
 
