@@ -106,7 +106,7 @@
 | Función | Amenaza | Mitigación actual | Gap residual |
 |---|---|---|---|
 | SOS | Botón accidental | Doble-tap required + countdown | SOSButton idempotency-key también en POST inicial (Audit-2026-08-30) |
-| ManDown | False positive | Cancelación con countdown | Serializar cancelación y expiración del countdown (Audit-2026-08-30); ManDown motor siempre 'none' (Hy3-architect-oleada-1) |
+| ManDown | False positive / actor spoofing | Countdown + Firestore `mandown_events` rule: the affected worker may ACK only their own active/pending event; a tenant-bound supervisor/admin may ACK or resolve; actor uid and monotonic lifecycle transitions are enforced (`firestore.rules:176-211,604-613`, emulator matrix `src/rules-tests/manDownEvents.rules.test.ts`). | Serializar cancelación y expiración del countdown (Audit-2026-08-30); native/physical validation and FGS coverage remain open (P0 In-progress Notion) |
 | Lone worker | Doze kills FGS | foregroundServiceType=location\|health + REQUEST_IGNORE_BATTERY_OPTIMIZATIONS | Foreground service de trabajador solitario no ejecuta protección real (P0 In-progress Notion) |
 | Mesh | Packet replay | meshKeyStore con signing keys | meshKeyStore: race condition + record IDB corrupto + provision siempre hace fetch (P1 Hy3) |
 | Health Connect | Permisos | Opt-in explícito | Sin test de revocación en mid-flight |
@@ -177,6 +177,7 @@
 
 ## 10. Change log
 
+- **2026-09-15** — Firestore `mandown_events` lifecycle writes now bind ACK/resolution actors to the authenticated uid and enforce monotonic transitions; the real-emulator adversarial matrix is 9/9.
 - **2026-09-03** — v2 inicial. Reemplaza THREAT_MODEL.md (2026-05). Daniel
   autoriza no cerrar iOS/Wear OS en v1.0.0.
 - **pendiente v2.1** — Cerrar §3.1 networking pins cuando GCP billing esté
