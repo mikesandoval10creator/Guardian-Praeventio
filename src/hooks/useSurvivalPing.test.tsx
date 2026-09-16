@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   online: true,
   user: { uid: 'u1' } as { uid: string } | null,
   project: null as { id: string; tenantId: string } | null,
+  tenant: 't1' as string | null,
 }));
 
 const saveBreadcrumb = vi.fn((..._a: unknown[]) => Promise.resolve());
@@ -30,12 +31,27 @@ vi.mock('firebase/firestore', () => ({
 
 vi.mock('../services/firebase', () => ({ db: {} }));
 vi.mock('./useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
+vi.mock('./useTenantId', () => ({
+  useTenantId: () => ({ tenantId: h.tenant, loading: false }),
+}));
 vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: h.user }),
 }));
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: h.project }),
 }));
+
+function stubGeolocationFailure() {
+  Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    value: {
+      getCurrentPosition: (
+        _success: (p: { coords: { latitude: number; longitude: number } }) => void,
+        failure: () => void,
+      ) => failure(),
+    },
+  });
+}
 
 import { useSurvivalPing } from './useSurvivalPing';
 
@@ -55,6 +71,8 @@ function stubGeolocation(
 beforeEach(() => {
   h.online = true;
   h.user = { uid: 'u1' };
+  h.project = null;
+  h.tenant = 't1';
   saveBreadcrumb.mockClear();
   setDoc.mockClear();
   vi.useFakeTimers();
@@ -78,12 +96,44 @@ describe('useSurvivalPing — offline breadcrumb (VIDA)', () => {
     expect(setDoc).not.toHaveBeenCalled();
   });
 
-  it('ONLINE: saves the local breadcrumb AND writes the ping doc', () => {
+  it('ONLINE: saves the local breadcrumb AND writes a fully stamped ping', () => {
     h.online = true;
+    h.project = { id: 'p1', tenantId: 't1' };
     renderHook(() => useSurvivalPing());
     vi.advanceTimersByTime(10_000);
     expect(saveBreadcrumb).toHaveBeenCalledWith('u1', -33.45, -70.66);
     expect(setDoc).toHaveBeenCalledTimes(1);
+    expect(setDoc.mock.calls[0]?.[1]).toMatchObject({
+      tenantId: 't1',
+      projectId: 'p1',
+      status: 'alive',
+    });
+  });
+
+  it('ONLINE without verified tenant/project context skips the rules-invalid cloud write', () => {
+    h.online = true;
+    h.project = null;
+    h.tenant = null;
+    renderHook(() => useSurvivalPing());
+    vi.advanceTimersByTime(10_000);
+    expect(saveBreadcrumb).toHaveBeenCalledWith('u1', -33.45, -70.66);
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('location failure still writes a stamped heartbeat without coordinates', () => {
+    h.online = true;
+    h.project = { id: 'p1', tenantId: 't1' };
+    stubGeolocationFailure();
+    renderHook(() => useSurvivalPing());
+    vi.advanceTimersByTime(10_000);
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    expect(setDoc.mock.calls[0]?.[1]).toMatchObject({
+      tenantId: 't1',
+      projectId: 'p1',
+      status: 'alive',
+    });
+    expect(setDoc.mock.calls[0]?.[1]).not.toHaveProperty('lat');
+    expect(setDoc.mock.calls[0]?.[1]).not.toHaveProperty('lng');
   });
 
   it('no user → the heartbeat never starts', () => {
