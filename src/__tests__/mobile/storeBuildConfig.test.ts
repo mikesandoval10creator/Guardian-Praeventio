@@ -101,7 +101,7 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
     const androidScript = packageJson.scripts?.['mobile:build:android'] ?? '';
     const iosScript = packageJson.scripts?.['mobile:build:ios'] ?? '';
 
-    expect(packageJson.devDependencies?.['cross-env']).toBe('^7.0.3');
+    expect(packageJson.devDependencies?.['cross-env']).toBe('^10.1.0');
     expect(androidScript).toContain('cross-env NODE_ENV=production npm run build');
     expect(androidScript).toContain('cross-env NODE_ENV=production npx cap sync android');
     expect(androidScript.indexOf('guard:store-build')).toBeGreaterThan(
