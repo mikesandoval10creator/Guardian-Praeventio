@@ -21,7 +21,7 @@
 // Solo cuando el supervisor invita al worker a un proyecto (futuro
 // Sprint), los turnos pueden subir a Firestore con scope project.members.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Moon, Sun, Trash2, AlertTriangle } from 'lucide-react';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
@@ -37,6 +37,32 @@ import {
 
 const STORAGE_KEY = (uid: string) => `praeventio:fatigue:sessions:${uid}`;
 const ANONYMOUS_OWNER = 'anonymous';
+
+/**
+ * IndexedDB is the primary store, but a reload can happen before an async
+ * idbSet resolves. Keep a synchronous mirror so the latest session list is
+ * durable immediately and remains available if IndexedDB is unavailable.
+ */
+function readSynchronousSessions(uid: string): WorkSession[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY(uid));
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as WorkSession[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSynchronousSessions(uid: string, sessions: WorkSession[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY(uid), JSON.stringify(sessions));
+  } catch {
+    // IndexedDB remains the primary persistence path.
+  }
+}
 
 interface ShiftButtonConfig {
   hours: number;
@@ -88,6 +114,11 @@ export function FatigueMonitor() {
   const ownerUid = user?.uid ?? ANONYMOUS_OWNER;
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Refs make rapid preset clicks append against the latest in-memory list
+  // instead of a stale render closure. The queue preserves every write order
+  // so IndexedDB cannot lose the second session during a reload race.
+  const sessionsRef = useRef<WorkSession[]>([]);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
   // Circadian alertness inputs. Sleep is NOT derivable from shift logs (a
   // rest-gap ≠ sleep), so it is worker-supplied — never fabricated. Defaults
   // are neutral (7 h / no mental-load penalty per the NIOSH model).
@@ -111,23 +142,38 @@ export function FatigueMonitor() {
   // las copiamos a su namespace. (Solo en la primera carga post-login).
   useEffect(() => {
     let cancelled = false;
+    // Never display or append to the previous owner's namespace while the new
+    // owner is resolving. Preserves privacy when auth changes in-place.
+    setLoaded(false);
+    sessionsRef.current = [];
+    setSessions([]);
     void (async () => {
       try {
-        const stored = await idbGet(STORAGE_KEY(ownerUid));
+        const synchronousStored = readSynchronousSessions(ownerUid);
+        const stored = synchronousStored ?? await idbGet(STORAGE_KEY(ownerUid));
         if (cancelled) return;
         if (Array.isArray(stored)) {
-          setSessions(stored as WorkSession[]);
+          const loadedSessions = stored as WorkSession[];
+          sessionsRef.current = loadedSessions;
+          setSessions(loadedSessions);
+          if (synchronousStored === null) {
+            writeSynchronousSessions(ownerUid, loadedSessions);
+          }
         } else if (ownerUid !== ANONYMOUS_OWNER) {
           // Soft migration: si no hay data en el namespace del user pero
           // sí hay del anonymous, las traemos.
-          const anonStored = await idbGet(STORAGE_KEY(ANONYMOUS_OWNER));
+          const synchronousAnonymous = readSynchronousSessions(ANONYMOUS_OWNER);
+          const anonStored = synchronousAnonymous ?? await idbGet(STORAGE_KEY(ANONYMOUS_OWNER));
           if (cancelled) return;
           if (Array.isArray(anonStored) && anonStored.length > 0) {
             const migrated = (anonStored as WorkSession[]).map((s) => ({
               ...s,
               workerUid: ownerUid,
             }));
+            sessionsRef.current = migrated;
             setSessions(migrated);
+            writeSynchronousSessions(ownerUid, migrated);
+            writeSynchronousSessions(ANONYMOUS_OWNER, []);
             await idbSet(STORAGE_KEY(ownerUid), migrated);
             await idbSet(STORAGE_KEY(ANONYMOUS_OWNER), []);
           }
@@ -143,6 +189,7 @@ export function FatigueMonitor() {
 
   const addShift = useCallback(
     async (hours: number, isNight: boolean) => {
+      if (!loaded) return;
       const now = new Date();
       const endedAt = now.toISOString();
       const startedAt = new Date(now.getTime() - hours * 3_600_000).toISOString();
@@ -153,12 +200,21 @@ export function FatigueMonitor() {
         isNight,
         hadCriticalTasks: false,
       };
-      const updated = [...sessions, newSession];
+      const updated = [...sessionsRef.current, newSession];
+      sessionsRef.current = updated;
       setSessions(updated);
-      await idbSet(STORAGE_KEY(ownerUid), updated);
+      writeSynchronousSessions(ownerUid, updated);
+      // Chain writes so two rapid clicks cannot both persist the same stale
+      // array. A previous failed write must not poison the queue forever.
+      persistenceQueueRef.current = persistenceQueueRef.current
+        .catch(() => undefined)
+        .then(() => idbSet(STORAGE_KEY(ownerUid), updated))
+        .catch(() => undefined);
+      await persistenceQueueRef.current;
     },
-    [ownerUid, sessions],
+    [loaded, ownerUid],
   );
+
 
   const clearShifts = useCallback(async () => {
     if (sessions.length === 0) return;
@@ -173,8 +229,14 @@ export function FatigueMonitor() {
       );
       if (!ok) return;
     }
+    sessionsRef.current = [];
     setSessions([]);
-    await idbSet(STORAGE_KEY(ownerUid), []);
+    writeSynchronousSessions(ownerUid, []);
+    persistenceQueueRef.current = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(() => idbSet(STORAGE_KEY(ownerUid), []))
+      .catch(() => undefined);
+    await persistenceQueueRef.current;
   }, [ownerUid, sessions.length, t]);
 
   return (
@@ -290,8 +352,9 @@ export function FatigueMonitor() {
               <button
                 key={`${preset.hours}-${preset.isNight}`}
                 type="button"
+                disabled={!loaded}
                 onClick={() => void addShift(preset.hours, preset.isNight)}
-                className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl border text-sm font-bold transition-all hover:scale-[1.02] active:scale-95 ${preset.toneClasses}`}
+                className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl border text-sm font-bold transition-all hover:scale-[1.02] active:scale-95 ${preset.toneClasses} ${!loaded ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Icon className="w-4 h-4" aria-hidden="true" />
                 {t(preset.labelKey, preset.fallback)}

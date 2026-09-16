@@ -33,6 +33,7 @@ test.describe('C6 — FatigueMonitor round-trip IndexedDB', () => {
     // Two real preset clicks → two WorkSession writes to idb-keyval.
     const preset = page.getByRole('button', { name: 'Nocturno 8h' });
     await expect(preset).toBeVisible({ timeout: 15_000 });
+    await expect(preset).toBeEnabled({ timeout: 15_000 });
     await preset.click();
     await preset.click();
 
