@@ -147,7 +147,7 @@ export async function verifyAndDecodeAppleSsn(
     throw new AppleSsnVerificationError('missing_notification_type');
   }
 
-  const tx = verified.transactionInfo;
+  const { transactionInfo: tx, renewalInfo: ri, verifiedChain } = verified;
   const transactionInfo: AppleTransactionInfo | undefined = tx
     ? {
         appAccountToken: tx.appAccountToken,
@@ -160,7 +160,6 @@ export async function verifyAndDecodeAppleSsn(
       }
     : undefined;
 
-  const ri = verified.renewalInfo;
   const renewalInfo: AppleRenewalInfo | undefined = ri
     ? {
         productId: ri.productId,
@@ -175,7 +174,7 @@ export async function verifyAndDecodeAppleSsn(
     : undefined;
 
   return {
-    verifiedChain: true,
+    verifiedChain,
     payload: {
       notificationUUID: outer.notificationUUID,
       notificationType: outer.notificationType,
