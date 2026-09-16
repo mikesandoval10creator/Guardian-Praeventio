@@ -62,7 +62,10 @@ jobs:
   core:
     name: Stryker mutation testing (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The scoped dry-run can take ~30 minutes and the 2,308-mutant
+    # execution needs additional headroom on a busy hosted runner.
+    # Keep the required gate intact; this is a watchdog adjustment only.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
