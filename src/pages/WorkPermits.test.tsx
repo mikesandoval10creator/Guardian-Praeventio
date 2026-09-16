@@ -17,7 +17,7 @@
 // useWorkPermits, and the mutation helpers.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WorkPermits } from './WorkPermits';
 import type { WorkPermit } from '../services/workPermits/workPermitEngine';
 
@@ -292,6 +292,40 @@ describe('<WorkPermits /> page wrapper (Fase F.15)', () => {
     expect(args[1]).toBe(permit.id);
     expect(args[2]).toBe('Trabajo finalizado conforme protocolo.');
     expect(args[3]).toBe('fulfill');
+    promptSpy.mockRestore();
+  });
+
+  it('shows a human reason when signing returns an HTTP conflict', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const permit = makePermit();
+    mockResp = { data: { permits: [permit] }, loading: false, error: null, refetch: vi.fn() };
+    mockSignWorkPermit.mockRejectedValueOnce(new Error('http_409'));
+
+    render(<WorkPermits />);
+    fireEvent.click(screen.getByTestId('permit-checklist-issue'));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId('work-permits-action-error');
+      expect(alert.textContent).toMatch(/operación se interrumpió|actualiza/i);
+      expect(alert.textContent).not.toMatch(/409|http_409|conflict/i);
+    });
+  });
+
+  it('shows a human reason when closing returns an HTTP server error', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const permit = makePermit();
+    mockResp = { data: { permits: [permit] }, loading: false, error: null, refetch: vi.fn() };
+    mockCloseWorkPermit.mockRejectedValueOnce(new Error('Error 500'));
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Cierre documentado por supervisor.');
+
+    render(<WorkPermits />);
+    fireEvent.click(screen.getByTestId(`permit-fulfill-${permit.id}`));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId('work-permits-action-error');
+      expect(alert.textContent).toMatch(/servidor tuvo un problema|intenta/i);
+      expect(alert.textContent).not.toMatch(/500|Error 500/);
+    });
     promptSpy.mockRestore();
   });
 

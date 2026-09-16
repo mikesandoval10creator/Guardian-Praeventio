@@ -84,9 +84,24 @@ describe('resolveServerWindWithTimeout', () => {
 
   it('degrades to unavailable when the fetcher hangs past the deadline (never blocks the endpoint)', async () => {
     vi.useFakeTimers();
+    let aborted = false;
     const deps: WeatherGateDeps = {
       fetchForecast: vi.fn(
-        () => new Promise<never>(() => undefined), // hangs forever
+        (
+          _days: number,
+          _location: { lat: number; lng: number },
+          signal?: AbortSignal,
+        ) =>
+          new Promise<never>((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                aborted = true;
+                reject(new Error('aborted'));
+              },
+              { once: true },
+            );
+          }),
       ),
     };
     const pending = resolveServerWindWithTimeout(deps, GEO, 3000);
@@ -95,6 +110,7 @@ describe('resolveServerWindWithTimeout', () => {
       windSpeedMps: null,
       source: 'unavailable',
     });
+    expect(aborted).toBe(true);
   });
 });
 

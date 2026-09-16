@@ -102,6 +102,39 @@ describe('validateIzajeCritico', () => {
     const r = validateIzajeCritico(baseIzaje({ craneCapacityAtRadiusKg: 0 }));
     expect(r.issues.some((i) => i.code === 'CRANE_CAPACITY_INVALID')).toBe(true);
   });
+
+  it('carga y radio negativos: blocking issues, never a safe result', () => {
+    const r = validateIzajeCritico(
+      baseIzaje({ loadWeightKg: -1, operatingRadiusMeters: -0.5 }),
+    );
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.map((i) => i.code)).toEqual(
+      expect.arrayContaining(['LOAD_INVALID', 'RADIUS_INVALID']),
+    );
+  });
+
+  it('NaN, Infinity and string numeric metadata: blocking issue', () => {
+    const r = validateIzajeCritico(
+      baseIzaje({
+        loadWeightKg: Number.NaN,
+        craneCapacityAtRadiusKg: Number.POSITIVE_INFINITY,
+        windSpeedMps: '12' as unknown as number,
+      }),
+    );
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.filter((i) => i.code === 'INVALID_NUMERIC_METADATA')).toHaveLength(3);
+    const userMessages = r.issues.map((issue) => issue.message).join(' ');
+    expect(userMessages).toContain('Revisa');
+    expect(userMessages).not.toMatch(/NaN|Infinity|INVALID_NUMERIC_METADATA/);
+  });
+
+  it('finite extreme numeric metadata is rejected by the sanity bound', () => {
+    const r = validateIzajeCritico(
+      baseIzaje({ loadWeightKg: Number.MAX_VALUE }),
+    );
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.some((i) => i.code === 'NUMERIC_METADATA_OUT_OF_RANGE')).toBe(true);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────
@@ -232,6 +265,37 @@ describe('validateExcavation', () => {
     );
     expect(r.issues.some((i) => i.code === 'RECENT_RAIN_SATURATED')).toBe(true);
   });
+
+  it('negative depth keeps the existing DEPTH_INVALID blocker', () => {
+    const r = validateExcavation(baseExc({ depthMeters: -1 }));
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.some((i) => i.code === 'DEPTH_INVALID')).toBe(true);
+  });
+
+  it('non-finite slope/atmosphere and negative rainfall are blocking', () => {
+    const r = validateExcavation(
+      baseExc({
+        slopeAngleDeg: Number.POSITIVE_INFINITY,
+        rainfallLast24hMm: -1,
+        depthMeters: 1.5,
+        atmosphereMeasurement: {
+          oxygenPct: Number.NaN,
+          lelPct: '0' as unknown as number,
+          measuredAtIso: '2026-05-14T10:00:00Z',
+        },
+      }),
+    );
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.filter((i) => i.code === 'INVALID_NUMERIC_METADATA')).toHaveLength(3);
+  });
+
+  it('slope outside its physical angle domain is rejected even with shoring', () => {
+    const r = validateExcavation(
+      baseExc({ slopeAngleDeg: 91, shoringInstalled: true }),
+    );
+    expect(r.hasBlockers).toBe(true);
+    expect(r.issues.some((i) => i.code === 'SLOPE_INVALID')).toBe(true);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────
@@ -311,6 +375,16 @@ describe('validateLoto', () => {
     // Sin sources → ningún SOURCE_NOT_LOCKED, ningún NO_LOCKS_PLACED.
     // Sí queda TRYOUT_AUTHOR_MISSING como advisory.
     expect(r.hasBlockers).toBe(false);
+  });
+
+  it('runtime LOTO shape inválido lanza un error controlable para que la ruta devuelva 400', () => {
+    expect(() =>
+      validateLoto({
+        identifiedSources: 'electrical',
+        locks: null,
+        tryoutPerformed: 'yes',
+      } as unknown as LotoMetadata),
+    ).toThrow('Invalid LOTO metadata');
   });
 });
 

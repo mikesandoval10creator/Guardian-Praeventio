@@ -62,6 +62,14 @@ describe('humanErrorFromResponse', () => {
     expectHuman(msg);
   });
 
+  it('explains invalid permit metadata without exposing the machine code', async () => {
+    const msg = await humanErrorFromResponse(res(400, { error: 'invalid_metadata' }));
+    expect(msg).toMatch(/permiso|datos/i);
+    expect(msg).toMatch(/revisa|completa|intenta/i);
+    expect(msg).not.toMatch(/invalid_metadata/i);
+    expectHuman(msg);
+  });
+
   it('falls back to the status when the code is unknown', async () => {
     expectHuman(await humanErrorFromResponse(res(403, { error: 'brand_new_code' })));
     expectHuman(await humanErrorFromResponse(res(500)));

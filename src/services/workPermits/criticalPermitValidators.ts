@@ -68,6 +68,131 @@ function summarize(
   };
 }
 
+// These are transport/domain sanity ceilings, not legal safety thresholds. They
+// stop finite but absurd values from reaching calculations and producing a
+// plausible-looking result; the normative thresholds remain the constants and
+// rules documented by each validator below.
+const NUMERIC_INPUT_SANITY_MAX = 1_000_000_000;
+
+type UnknownRecord = Record<string, unknown>;
+
+interface NumericFieldRule {
+  key: string;
+  label: string;
+  min?: number;
+  minExclusive?: boolean;
+  max?: number;
+  maxCode?: string;
+  optional?: boolean;
+  rangeCode?: string;
+}
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function invalidShapeIssue(message: string): CriticalIssue {
+  return {
+    severity: 'blocking',
+    code: 'INVALID_METADATA_SHAPE',
+    message,
+  };
+}
+
+function displayLabel(label: string): string {
+  const first = label.charAt(0);
+  return first ? first.toLowerCase() + label.slice(1) : label;
+}
+
+function numericIssueMessage(
+  rule: NumericFieldRule,
+  belowMin: boolean,
+  aboveMax: boolean,
+): string {
+  const label = displayLabel(rule.label);
+  if (aboveMax) {
+    return `Revisa ${label}: el valor es demasiado grande. Comprueba la unidad e inténtalo nuevamente.`;
+  }
+  if (belowMin && rule.minExclusive) {
+    return `Revisa ${label}: debe ser mayor que cero.`;
+  }
+  if (belowMin) {
+    return `Revisa ${label}: no puede ser negativo.`;
+  }
+  return `Revisa ${label}: ingresa un número válido para continuar.`;
+}
+
+function numericMetadataIssues(
+  value: unknown,
+  rules: readonly NumericFieldRule[],
+): CriticalIssue[] {
+  if (!isRecord(value)) {
+    return [invalidShapeIssue('Revisa los datos del permiso: deben estar completos para continuar.')];
+  }
+
+  const issues: CriticalIssue[] = [];
+  for (const rule of rules) {
+    const raw = value[rule.key];
+    if (raw === undefined && rule.optional) continue;
+    if (raw === undefined) {
+      issues.push(
+        invalidShapeIssue(`Completa ${displayLabel(rule.label)} antes de continuar.`),
+      );
+      continue;
+    }
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+      issues.push({
+        severity: 'blocking',
+        code: 'INVALID_NUMERIC_METADATA',
+        message: `Revisa ${displayLabel(rule.label)}: ingresa un número válido para continuar.`,
+        context: { field: rule.key },
+      });
+      continue;
+    }
+
+    const belowMin =
+      rule.min !== undefined &&
+      (rule.minExclusive ? raw <= rule.min : raw < rule.min);
+    const aboveMax = rule.max !== undefined && raw > rule.max;
+    if (belowMin || aboveMax) {
+      issues.push({
+        severity: 'blocking',
+        code: aboveMax
+          ? rule.maxCode ?? 'NUMERIC_METADATA_OUT_OF_RANGE'
+          : rule.rangeCode ?? 'NUMERIC_METADATA_OUT_OF_RANGE',
+        message: numericIssueMessage(rule, belowMin, aboveMax),
+        context: { field: rule.key },
+      });
+    }
+  }
+  return issues;
+}
+
+function excavationAtmosphereIssues(value: unknown): CriticalIssue[] {
+  if (value === undefined) return [];
+  if (!isRecord(value)) {
+    return [invalidShapeIssue('Revisa la medición atmosférica: completa los valores antes de continuar.')];
+  }
+  const issues = numericMetadataIssues(value, [
+    {
+      key: 'oxygenPct',
+      label: 'Oxígeno',
+      min: 0,
+      max: 100,
+    },
+    {
+      key: 'lelPct',
+      label: 'LEL',
+      min: 0,
+      max: 100,
+    },
+  ]);
+  if (typeof value.measuredAtIso !== 'string' || Number.isNaN(Date.parse(value.measuredAtIso))) {
+    issues.push(invalidShapeIssue('Revisa la fecha de la medición atmosférica antes de continuar.'));
+  }
+  return issues;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // IZAJE CRÍTICO (§341-346)
 // ────────────────────────────────────────────────────────────────────────
@@ -122,6 +247,42 @@ const IZAJE_LIFT_RATIO_OVER_CAPACITY = 1.0;
 export function validateIzajeCritico(
   m: IzajeMetadata,
 ): CriticalValidationResult {
+  const preflightIssues = numericMetadataIssues(m, [
+    {
+      key: 'loadWeightKg',
+      label: 'Carga',
+      min: 0,
+      minExclusive: true,
+      max: NUMERIC_INPUT_SANITY_MAX,
+      rangeCode: 'LOAD_INVALID',
+    },
+    {
+      key: 'operatingRadiusMeters',
+      label: 'Radio de operación',
+      min: 0,
+      minExclusive: true,
+      max: NUMERIC_INPUT_SANITY_MAX,
+      rangeCode: 'RADIUS_INVALID',
+    },
+    {
+      key: 'craneCapacityAtRadiusKg',
+      label: 'Capacidad de la grúa',
+      min: 0,
+      minExclusive: true,
+      max: NUMERIC_INPUT_SANITY_MAX,
+      rangeCode: 'CRANE_CAPACITY_INVALID',
+    },
+    {
+      key: 'windSpeedMps',
+      label: 'Velocidad del viento',
+      min: 0,
+      max: NUMERIC_INPUT_SANITY_MAX,
+      optional: true,
+      rangeCode: 'WIND_SPEED_INVALID',
+    },
+  ]);
+  if (preflightIssues.length > 0) return summarize('izaje_critico', preflightIssues);
+
   const issues: CriticalIssue[] = [];
 
   // 1. Carga vs capacidad
@@ -133,6 +294,15 @@ export function validateIzajeCritico(
     });
   } else {
     const ratio = m.loadWeightKg / m.craneCapacityAtRadiusKg;
+    if (!Number.isFinite(ratio)) {
+      return summarize('izaje_critico', [
+        {
+          severity: 'blocking',
+          code: 'NUMERIC_METADATA_OUT_OF_RANGE',
+          message: 'La relación carga/capacidad no es finita.',
+        },
+      ]);
+    }
     if (ratio > IZAJE_LIFT_RATIO_OVER_CAPACITY) {
       issues.push({
         severity: 'blocking',
@@ -267,6 +437,45 @@ const MAX_SLOPE_BY_SOIL: Record<
 export function validateExcavation(
   m: ExcavationMetadata,
 ): CriticalValidationResult {
+  const preflightIssues = numericMetadataIssues(m, [
+    {
+      key: 'depthMeters',
+      label: 'Profundidad',
+      max: NUMERIC_INPUT_SANITY_MAX,
+    },
+    {
+      key: 'slopeAngleDeg',
+      label: 'Ángulo del talud',
+      min: 0,
+      max: 90,
+      rangeCode: 'SLOPE_INVALID',
+      maxCode: 'SLOPE_INVALID',
+    },
+    {
+      key: 'rainfallLast24hMm',
+      label: 'Lluvia de las últimas 24 horas',
+      min: 0,
+      max: NUMERIC_INPUT_SANITY_MAX,
+      optional: true,
+      rangeCode: 'RAINFALL_INVALID',
+    },
+  ]);
+  if (isRecord(m)) {
+    if (typeof m.soilKind !== 'string' || !(m.soilKind in MAX_SLOPE_BY_SOIL)) {
+      preflightIssues.push(invalidShapeIssue('Revisa el tipo de suelo seleccionado antes de continuar.'));
+    }
+    if (typeof m.shoringInstalled !== 'boolean') {
+      preflightIssues.push(invalidShapeIssue('Revisa si la entibación está instalada y marca la opción correspondiente.'));
+    }
+    if (typeof m.buriedServicesMapped !== 'boolean') {
+      preflightIssues.push(invalidShapeIssue('Revisa el mapa de servicios enterrados antes de continuar.'));
+    }
+    preflightIssues.push(
+      ...excavationAtmosphereIssues(m.atmosphereMeasurement),
+    );
+  }
+  if (preflightIssues.length > 0) return summarize('excavacion', preflightIssues);
+
   const issues: CriticalIssue[] = [];
 
   if (m.depthMeters <= 0) {
@@ -377,6 +586,17 @@ export type EnergySource =
   | 'gravitational'
   | 'radiation';
 
+const ENERGY_SOURCES: readonly EnergySource[] = [
+  'electrical',
+  'mechanical',
+  'hydraulic',
+  'pneumatic',
+  'thermal',
+  'chemical',
+  'gravitational',
+  'radiation',
+];
+
 export interface LotoLock {
   /** Dueño del candado (uid trabajador). */
   ownerUid: string;
@@ -384,8 +604,8 @@ export interface LotoLock {
   source: EnergySource;
   /** ID físico del candado para auditoría. */
   lockId: string;
-  /** Timestamp de colocación. */
-  placedAtIso: string;
+  /** Timestamp de colocación, cuando el cliente lo conoce. */
+  placedAtIso?: string;
 }
 
 export interface LotoMetadata {
@@ -399,12 +619,116 @@ export interface LotoMetadata {
   tryoutByUid?: string;
 }
 
+function canonicalizeLotoMetadata(value: unknown): LotoMetadata {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.identifiedSources) ||
+    !Array.isArray(value.locks)
+  ) {
+    throw new Error('Invalid LOTO metadata');
+  }
+
+  const sources = value.identifiedSources;
+  const locks = value.locks;
+  const canonicalShape =
+    typeof value.tryoutPerformed === 'boolean' &&
+    sources.every((source) => typeof source === 'string') &&
+    locks.every(
+      (lock) =>
+        isRecord(lock) &&
+        typeof lock.ownerUid === 'string' &&
+        typeof lock.source === 'string' &&
+        typeof lock.lockId === 'string',
+    );
+  const legacyShape =
+    typeof value.tryoutCompleted === 'boolean' &&
+    sources.every(
+      (source) => isRecord(source) && typeof source.type === 'string',
+    ) &&
+    locks.every(
+      (lock) =>
+        isRecord(lock) &&
+        typeof lock.workerUid === 'string' &&
+        typeof lock.type === 'string' &&
+        typeof lock.lockId === 'string',
+    );
+
+  let metadata: LotoMetadata;
+  if (canonicalShape) {
+    metadata = value as unknown as LotoMetadata;
+  } else if (legacyShape) {
+    metadata = {
+      identifiedSources: sources.map(
+        (source) => (source as UnknownRecord).type as EnergySource,
+      ),
+      locks: locks.map((lock) => {
+        const legacy = lock as UnknownRecord;
+        const source =
+          typeof legacy.source === 'string'
+            ? legacy.source
+            : sources.length === 1
+              ? (sources[0] as UnknownRecord).type
+              : '';
+        return {
+          ownerUid: legacy.workerUid as string,
+          source: source as EnergySource,
+          lockId: legacy.lockId as string,
+          ...(typeof legacy.placedAtIso === 'string'
+            ? { placedAtIso: legacy.placedAtIso }
+            : {}),
+        };
+      }),
+      tryoutPerformed: value.tryoutCompleted as boolean,
+      ...(typeof value.tryoutByUid === 'string'
+        ? { tryoutByUid: value.tryoutByUid }
+        : {}),
+    };
+  } else {
+    throw new Error('Invalid LOTO metadata');
+  }
+
+  if (
+    !metadata.identifiedSources.every((source) =>
+      ENERGY_SOURCES.includes(source),
+    )
+  ) {
+    throw new Error('Invalid LOTO metadata');
+  }
+  if (
+    !metadata.locks.every((lock) => {
+      if (!isRecord(lock)) return false;
+      return (
+        typeof lock.ownerUid === 'string' &&
+        lock.ownerUid.length > 0 &&
+        typeof lock.source === 'string' &&
+        ENERGY_SOURCES.includes(lock.source as EnergySource) &&
+        typeof lock.lockId === 'string' &&
+        lock.lockId.length > 0 &&
+        (lock.placedAtIso === undefined ||
+          (typeof lock.placedAtIso === 'string' &&
+            !Number.isNaN(Date.parse(lock.placedAtIso))))
+      );
+    })
+  ) {
+    throw new Error('Invalid LOTO metadata');
+  }
+  if (
+    metadata.tryoutByUid !== undefined &&
+    (typeof metadata.tryoutByUid !== 'string' ||
+      metadata.tryoutByUid.length === 0)
+  ) {
+    throw new Error('Invalid LOTO metadata');
+  }
+  return metadata;
+}
+
 export function validateLoto(m: LotoMetadata): CriticalValidationResult {
+  const metadata = canonicalizeLotoMetadata(m);
   const issues: CriticalIssue[] = [];
 
   // 1. Cada fuente identificada debe tener al menos un candado
-  for (const source of m.identifiedSources) {
-    const locksForSource = m.locks.filter((l) => l.source === source);
+  for (const source of metadata.identifiedSources) {
+    const locksForSource = metadata.locks.filter((l) => l.source === source);
     if (locksForSource.length === 0) {
       issues.push({
         severity: 'blocking',
@@ -416,7 +740,7 @@ export function validateLoto(m: LotoMetadata): CriticalValidationResult {
   }
 
   // 2. Candados duplicados (mismo lockId)
-  const lockIds = m.locks.map((l) => l.lockId);
+  const lockIds = metadata.locks.map((l) => l.lockId);
   const dupIds = lockIds.filter((id, i) => lockIds.indexOf(id) !== i);
   for (const dup of new Set(dupIds)) {
     issues.push({
@@ -432,7 +756,7 @@ export function validateLoto(m: LotoMetadata): CriticalValidationResult {
   // verificamos solo que al menos UN owner aparezca, sino el try-out
   // no puede asociarse). El check completo lo hace el caller con la
   // lista de workers asignados.
-  if (m.locks.length === 0 && m.identifiedSources.length > 0) {
+  if (metadata.locks.length === 0 && metadata.identifiedSources.length > 0) {
     issues.push({
       severity: 'blocking',
       code: 'NO_LOCKS_PLACED',
@@ -441,14 +765,14 @@ export function validateLoto(m: LotoMetadata): CriticalValidationResult {
   }
 
   // 4. Try-out
-  if (!m.tryoutPerformed) {
+  if (!metadata.tryoutPerformed) {
     issues.push({
       severity: 'blocking',
       code: 'TRYOUT_NOT_PERFORMED',
       message:
         'Try-out (verificación de energía cero) no realizado. Procedimiento NFPA 70E art. 120.',
     });
-  } else if (!m.tryoutByUid) {
+  } else if (!metadata.tryoutByUid) {
     issues.push({
       severity: 'advisory',
       code: 'TRYOUT_AUTHOR_MISSING',
@@ -456,13 +780,15 @@ export function validateLoto(m: LotoMetadata): CriticalValidationResult {
     });
   } else {
     // tryoutByUid debe tener su lock propio
-    const hasLock = m.locks.some((l) => l.ownerUid === m.tryoutByUid);
+    const hasLock = metadata.locks.some(
+      (l) => l.ownerUid === metadata.tryoutByUid,
+    );
     if (!hasLock) {
       issues.push({
         severity: 'blocking',
         code: 'TRYOUT_AUTHOR_NO_LOCK',
-        message: `El verificador del try-out (${m.tryoutByUid}) debe tener su propio candado colocado.`,
-        context: { tryoutByUid: m.tryoutByUid },
+        message: `El verificador del try-out (${metadata.tryoutByUid}) debe tener su propio candado colocado.`,
+        context: { tryoutByUid: metadata.tryoutByUid },
       });
     }
   }

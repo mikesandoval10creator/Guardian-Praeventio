@@ -77,6 +77,7 @@ export function WorkPermits() {
   const [formZone, setFormZone] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   // Borrador local del checklist por permiso activo: el supervisor marca los
   // ítems antes de firmar. La atestación (labels marcados) se envía en el sign.
   const [draftChecklists, setDraftChecklists] = useState<Record<string, WorkPermitChecklist>>({});
@@ -159,12 +160,14 @@ export function WorkPermits() {
     // token; aquí solo enviamos qué ítems atestó el supervisor.
     const checklist = draftChecklists[permit.id] ?? permit.preconditions.checklist;
     const checkedLabels = checklist.items.filter((i) => i.checked).map((i) => i.label);
+    setActionError(null);
     try {
       await signWorkPermit(projectId, permit.id, { checkedLabels });
       logger.info('workPermits.signed', { id: permit.id, checked: checkedLabels.length });
       resp.refetch?.();
     } catch (err) {
       logger.error('workPermits.sign.failed', err);
+      setActionError(humanErrorMessage(err));
     }
   };
 
@@ -189,12 +192,14 @@ export function WorkPermits() {
     if (!projectId) return;
     const reason = promptCloseReason('fulfill');
     if (!reason) return;
+    setActionError(null);
     try {
       await closeWorkPermit(projectId, permit.id, reason, 'fulfill');
       logger.info('workPermits.fulfilled', { id: permit.id });
       resp.refetch?.();
     } catch (err) {
       logger.error('workPermits.fulfill.failed', err);
+      setActionError(humanErrorMessage(err));
     }
   };
 
@@ -202,12 +207,14 @@ export function WorkPermits() {
     if (!projectId) return;
     const reason = promptCloseReason('cancel');
     if (!reason) return;
+    setActionError(null);
     try {
       await closeWorkPermit(projectId, permit.id, reason, 'cancel');
       logger.info('workPermits.cancelled', { id: permit.id });
       resp.refetch?.();
     } catch (err) {
       logger.error('workPermits.cancel.failed', err);
+      setActionError(humanErrorMessage(err));
     }
   };
 
@@ -267,6 +274,17 @@ export function WorkPermits() {
           </span>
         )}
       </header>
+
+      {actionError && (
+        <div
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
+          data-testid="work-permits-action-error"
+          role="alert"
+          aria-live="polite"
+        >
+          {humanErrorMessage(actionError)}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <button

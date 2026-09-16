@@ -3,7 +3,6 @@
 // Migrados del monolito `useSprintK.ts` (2026-05-18) — directiva Sprint K
 // reformulation.
 
-import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
 import type {
   WorkPermit,
@@ -11,6 +10,7 @@ import type {
   WorkPermitStatus,
 } from '../services/workPermits/workPermitEngine';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { readJsonResponse } from '../lib/humanError';
 
 export interface WorkPermitsResponse {
   permits: WorkPermit[];
@@ -70,11 +70,7 @@ export async function createWorkPermit(
     },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { permit: WorkPermit };
+  return readJsonResponse<{ permit: WorkPermit }>(res);
 }
 
 export async function signWorkPermit(
@@ -95,11 +91,7 @@ export async function signWorkPermit(
       body: JSON.stringify(attestation ?? {}),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { permit: WorkPermit };
+  return readJsonResponse<{ permit: WorkPermit }>(res);
 }
 
 export async function closeWorkPermit(
@@ -121,9 +113,5 @@ export async function closeWorkPermit(
       body: JSON.stringify({ reason, outcome }),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { permit: WorkPermit };
+  return readJsonResponse<{ permit: WorkPermit }>(res);
 }
