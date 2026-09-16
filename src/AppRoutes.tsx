@@ -327,6 +327,12 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
 
   return (
     <AppProviders>
+      {/* SurvivalPing necesita ProjectProvider para estampar tenantId + projectId.
+          Debe vivir dentro de AppProviders; fuera de ese árbol useProject()
+          lanza y derriba el ErrorBoundary global antes de montar la ruta. */}
+      <Suspense fallback={null}>
+        <SurvivalPing />
+      </Suspense>
       {/* Play Console: la divulgación prominente de ubicación debe mostrarse
           ANTES de que GeolocationTracker (o cualquier consumidor) pida el
           permiso al sistema operativo. */}
@@ -498,7 +504,6 @@ export default function AppRoutes({ hasEntered, setHasEntered, skipLanding }: Ap
             <Suspense fallback={null}>
               <OfflineSyncManager />
               <SyncQueueIndicator />
-              <SurvivalPing />
               <PWAUpdateToast />
             </Suspense>
             <AppRoutesInner

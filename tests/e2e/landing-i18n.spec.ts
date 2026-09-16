@@ -28,6 +28,7 @@ test.describe('Landing page — English locale (full i18n)', () => {
   // (src/i18n/index.ts) resolves to English.
   test.use({
     locale: 'en-US',
+    timezoneId: 'America/New_York',
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   });
 

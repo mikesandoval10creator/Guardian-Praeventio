@@ -23,7 +23,8 @@ const OTHER = 'worker-uid-2';
 const ADMIN = 'admin-uid-1';
 const SUPER = 'supervisor-uid-1';
 
-const PING = { lat: -33.45, lng: -70.66, timestamp: '2026-06-03T00:00:00Z', status: 'alive' };
+const PING = { lat: -33.45, lng: -70.66, timestamp: '2026-06-03T00:00:00Z', status: 'alive', tenantId: 't1', projectId: 'p1' };
+const LEGACY_PING = { lat: -33.45, lng: -70.66, timestamp: '2026-06-03T00:00:00Z', status: 'alive' };
 
 let testEnv: RulesTestEnvironment | null = null;
 
@@ -47,6 +48,11 @@ beforeEach(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users', ADMIN), { uid: ADMIN, role: 'admin', email: `${ADMIN}@x.cl`, createdAt: '2026-06-01T00:00:00Z' });
     await setDoc(doc(db, 'users', SUPER), { uid: SUPER, role: 'supervisor', email: `${SUPER}@x.cl`, createdAt: '2026-06-01T00:00:00Z' });
+    await setDoc(doc(db, 'projects', 'p1'), {
+      tenantId: 't1',
+      createdBy: WORKER,
+      members: [WORKER, ADMIN, SUPER],
+    });
   });
 });
 
@@ -55,7 +61,10 @@ function pingRef(ctxDb: CtxDb, uid: string) {
   return doc(ctxDb as unknown as Parameters<typeof doc>[0], 'pings', uid);
 }
 function authed(uid: string, role = 'worker') {
-  return requireEnv().authenticatedContext(uid, verifiedToken(role)).firestore();
+  // tenantId claim is required by the post-2026-09-10 survival ping rule
+  // (firestore.rules:1239). Workers and admins live in tenant 't1' for this
+  // test suite; the ping's tenantId stamp matches it.
+  return requireEnv().authenticatedContext(uid, verifiedToken(role, 'user@example.com', { tenantId: 't1' })).firestore();
 }
 async function seedPing(uid: string) {
   await requireEnv().withSecurityRulesDisabled(async (ctx) => {
@@ -64,14 +73,75 @@ async function seedPing(uid: string) {
 }
 
 describe('pings (survival beacon) — firestore.rules (B1)', () => {
-  it('worker can emit their own beacon', async () => {
+  it('worker can emit their own beacon (post-stamp schema)', async () => {
     await assertSucceeds(setDoc(pingRef(authed(WORKER), WORKER), PING));
+  });
+
+  it('stamped ping without tenantId is REJECTED (no cross-tenant leak)', async () => {
+    const { lat, lng, timestamp, status, projectId } = PING;
+    await assertFails(setDoc(pingRef(authed(WORKER), WORKER), { lat, lng, timestamp, status, projectId }));
+  });
+
+  it('worker cannot spoof a different tenant on an otherwise real project', async () => {
+    await assertFails(
+      setDoc(pingRef(authed(WORKER), WORKER), { ...PING, tenantId: 't2' }),
+    );
+  });
+
+  it('worker cannot stamp a same-tenant project they do not belong to', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', 'p2'), {
+        tenantId: 't1',
+        createdBy: 'other-user',
+        members: ['other-user'],
+      });
+    });
+    await assertFails(
+      setDoc(
+        pingRef(authed(WORKER), WORKER),
+        { ...PING, projectId: 'p2' },
+      ),
+    );
+  });
+
+  it('worker can rotate the UID beacon to another project they belong to', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', 'p2'), {
+        tenantId: 't1',
+        createdBy: 'other-user',
+        members: [WORKER],
+      });
+    });
+    await seedPing(WORKER);
+    await assertSucceeds(
+      setDoc(
+        pingRef(authed(WORKER), WORKER),
+        { ...PING, projectId: 'p2' },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('legacy beacon (no tenantId) still readable by self/admin/supervisor', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'pings', WORKER), LEGACY_PING);
+    });
+    await assertSucceeds(getDoc(pingRef(authed(WORKER), WORKER)));
+    await assertSucceeds(getDoc(pingRef(authed(ADMIN, 'admin'), WORKER)));
+  });
+
+  it('cross-tenant read is REJECTED when the doc carries a tenantId', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'pings', WORKER), PING);
+    });
+    const crossCtx = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin', 'a@x.cl', { tenantId: 't2' }));
+    await assertFails(getDoc(doc(crossCtx.firestore() as unknown as Parameters<typeof doc>[0], 'pings', WORKER)));
   });
 
   it('worker can update their own beacon (merge)', async () => {
     await seedPing(WORKER);
     await assertSucceeds(
-      setDoc(pingRef(authed(WORKER), WORKER), { timestamp: '2026-06-03T00:01:00Z', status: 'alive' }, { merge: true }),
+      setDoc(pingRef(authed(WORKER), WORKER), { timestamp: '2026-06-03T00:01:00Z', status: 'alive', tenantId: 't1', projectId: 'p1' }, { merge: true }),
     );
   });
 

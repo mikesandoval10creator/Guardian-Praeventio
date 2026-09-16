@@ -24,6 +24,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 
 const router = Router();
 
@@ -65,7 +66,33 @@ router.patch(
       throw err;
     }
 
+    // Admin SDK bypasses firestore.rules:670 which gates workers/{wid} to
+    // admin/supervisor/creator. Replicate the gate server-side before any
+    // PII mutation (Ley 16.744). Order matters: project membership first
+    // (404 vs 403 split is preserved), then role/creator. Self-edit (a
+    // worker updating their own limited fields) is NOT allowed here —
+    // the rules and audit story treat workers.update as a privileged op.
     const db = admin.firestore();
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    if (!projectSnap.exists) {
+      return res.status(404).json({ error: 'project_not_found' });
+    }
+    const projData = projectSnap.data() ?? {};
+    const isCreator = projData.createdBy === callerUid;
+    const role = req.user?.role;
+    const allowedByRole =
+      Boolean(req.user?.admin) || isAdminRole(role) || isSupervisorRole(role);
+    if (!isCreator && !allowedByRole) {
+      logger.warn?.('workers.update.forbidden_role', {
+        callerUid, projectId, workerId, role: role ?? null,
+      });
+      return res.status(403).json({
+        error: 'forbidden_role',
+        message:
+          'Solo admin, supervisor o el creador del proyecto pueden editar fichas de trabajadores.',
+      });
+    }
+
     const ref = db
       .collection('projects')
       .doc(projectId)
