@@ -39,6 +39,8 @@ export interface VerifiedAppleNotification {
   notification: ResponseBodyV2DecodedPayload;
   transactionInfo?: JWSTransactionDecodedPayload;
   renewalInfo?: JWSRenewalInfoDecodedPayload;
+  /** True only after the configured verifier accepts the outer and nested JWS values. */
+  verifiedChain: true;
 }
 
 export class AppleSignedDataVerificationError extends Error {
@@ -147,7 +149,12 @@ export async function verifyAppleNotification(
       ? await verifier.verifyAndDecodeRenewalInfo(signedRenewalInfo)
       : undefined;
 
-    return { notification, transactionInfo, renewalInfo };
+    return {
+      notification,
+      transactionInfo,
+      renewalInfo,
+      verifiedChain: true,
+    };
   } catch (error) {
     throw new AppleSignedDataVerificationError('JWS rejected', { cause: error });
   }
