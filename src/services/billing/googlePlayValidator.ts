@@ -37,7 +37,6 @@
 //   https://developer.android.com/google/play/billing/lifecycle/subscriptions
 
 import { google, androidpublisher_v3 } from 'googleapis';
-import { GoogleAuth } from 'google-auth-library';
 
 import { logger } from '../../utils/logger.js';
 
@@ -126,7 +125,7 @@ function getClient(): androidpublisher_v3.Androidpublisher | null {
   // We do NOT pass an explicit keyFile here so the same code works in
   // both dev (env var) and Cloud Run (metadata server).
   try {
-    const auth = new GoogleAuth({
+    const auth = new google.auth.GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/androidpublisher'],
     });
     cachedClient = google.androidpublisher({ version: 'v3', auth });
