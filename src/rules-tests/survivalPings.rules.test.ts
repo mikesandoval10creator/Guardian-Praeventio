@@ -48,6 +48,11 @@ beforeEach(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users', ADMIN), { uid: ADMIN, role: 'admin', email: `${ADMIN}@x.cl`, createdAt: '2026-06-01T00:00:00Z' });
     await setDoc(doc(db, 'users', SUPER), { uid: SUPER, role: 'supervisor', email: `${SUPER}@x.cl`, createdAt: '2026-06-01T00:00:00Z' });
+    await setDoc(doc(db, 'projects', 'p1'), {
+      tenantId: 't1',
+      createdBy: WORKER,
+      members: [WORKER, ADMIN, SUPER],
+    });
   });
 });
 
@@ -75,6 +80,46 @@ describe('pings (survival beacon) — firestore.rules (B1)', () => {
   it('stamped ping without tenantId is REJECTED (no cross-tenant leak)', async () => {
     const { lat, lng, timestamp, status, projectId } = PING;
     await assertFails(setDoc(pingRef(authed(WORKER), WORKER), { lat, lng, timestamp, status, projectId }));
+  });
+
+  it('worker cannot spoof a different tenant on an otherwise real project', async () => {
+    await assertFails(
+      setDoc(pingRef(authed(WORKER), WORKER), { ...PING, tenantId: 't2' }),
+    );
+  });
+
+  it('worker cannot stamp a same-tenant project they do not belong to', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', 'p2'), {
+        tenantId: 't1',
+        createdBy: 'other-user',
+        members: ['other-user'],
+      });
+    });
+    await assertFails(
+      setDoc(
+        pingRef(authed(WORKER), WORKER),
+        { ...PING, projectId: 'p2' },
+      ),
+    );
+  });
+
+  it('worker can rotate the UID beacon to another project they belong to', async () => {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', 'p2'), {
+        tenantId: 't1',
+        createdBy: 'other-user',
+        members: [WORKER],
+      });
+    });
+    await seedPing(WORKER);
+    await assertSucceeds(
+      setDoc(
+        pingRef(authed(WORKER), WORKER),
+        { ...PING, projectId: 'p2' },
+        { merge: true },
+      ),
+    );
   });
 
   it('legacy beacon (no tenantId) still readable by self/admin/supervisor', async () => {

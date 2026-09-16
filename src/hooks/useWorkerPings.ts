@@ -1,12 +1,14 @@
 // Real worker positions for the live/evacuation map.
 //
 // Workers' devices write a survival beacon to `pings/{uid}` ({lat,lng,timestamp,
-// status}) via useSurvivalPing. Rescue coordinators (admin/supervisor) may read
-// them (firestore.rules:1012 — pings allow read for owner/admin/supervisor).
-// This hook resolves a project's members and reads their beacons so the
-// evacuation map can plot WHERE workers actually are — real GPS, never a
-// fabricated roster. Stale beacons (older than the freshness window) are
-// dropped so we never show a worker who left hours ago as "here now".
+// status,tenantId,projectId}) via useSurvivalPing. Rescue coordinators
+// (admin/supervisor) may read them when the Firestore rule binds the document to
+// their tenant. This hook resolves a project's members and reads their beacons
+// so the evacuation map can plot WHERE workers actually are — real GPS, never a
+// fabricated roster. A beacon is displayed only when its tenant/project stamps
+// exactly match the project document being viewed. Stale beacons (older than the
+// freshness window) are dropped so we never show a worker who left hours ago as
+// "here now".
 
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
@@ -30,8 +32,16 @@ interface RawPingRow {
         lng?: unknown;
         status?: unknown;
         timestamp?: { toMillis?: () => number } | number | string | null;
+        tenantId?: unknown;
+        projectId?: unknown;
       }
     | undefined;
+}
+
+/** Scope proven by the project document before any beacon is displayed. */
+export interface WorkerPingScope {
+  tenantId: string;
+  projectId: string;
 }
 
 /** Default freshness window: a beacon older than this is not shown as live. */
@@ -53,19 +63,21 @@ function pingMillis(ts: unknown): number | null {
 }
 
 /**
- * Pure projection: keep only rows with a valid lat/lng AND a fresh beacon
- * (within `maxAgeMs` of `nowMs`). A missing/unparseable timestamp is treated as
- * stale (dropped) — we never plot a position we can't date. No fabrication.
+ * Pure projection: keep only rows with a valid lat/lng, a fresh beacon and the
+ * exact tenant/project scope requested by the map. Missing or mismatched scope
+ * is dropped — a UID alone is not proof that a position belongs to this project.
  */
 export function selectFreshWorkerPings(
   rows: RawPingRow[],
   nowMs: number,
+  scope: WorkerPingScope,
   maxAgeMs: number = PING_FRESHNESS_MS,
 ): WorkerPing[] {
   const out: WorkerPing[] = [];
   for (const row of rows) {
     const d = row.data;
     if (!d) continue;
+    if (d.tenantId !== scope.tenantId || d.projectId !== scope.projectId) continue;
     const lat = typeof d.lat === 'number' ? d.lat : Number(d.lat);
     const lng = typeof d.lng === 'number' ? d.lng : Number(d.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
@@ -112,9 +124,14 @@ export function useWorkerPings(
   useEffect(() => {
     if (!projectId) {
       setWorkers([]);
+      setLoading(false);
+      setError(null);
       return undefined;
     }
     let cancelled = false;
+    // A project switch must not briefly display the previous project's workers
+    // while the new project document and scoped pings are loading.
+    setWorkers([]);
     setLoading(true);
     setError(null);
 
@@ -125,9 +142,22 @@ export function useWorkerPings(
         // server-written `members` subcollection, which the client cannot rely
         // on being populated). Reading the project doc is allowed for any member.
         const projectSnap = await getDoc(doc(db, 'projects', projectId));
-        const memberArray = projectSnap.exists()
-          ? (projectSnap.data() as { members?: unknown }).members
+        const projectData = projectSnap.exists()
+          ? (projectSnap.data() as { members?: unknown; tenantId?: unknown })
           : null;
+        const projectTenantId =
+          typeof projectData?.tenantId === 'string' && projectData.tenantId.length > 0
+            ? projectData.tenantId
+            : null;
+        if (!projectTenantId) {
+          if (cancelled) return;
+          logger.warn('useWorkerPings_scope_unavailable', { projectId });
+          setWorkers([]);
+          setError('No se pudo verificar el alcance de las ubicaciones.');
+          setLoading(false);
+          return;
+        }
+        const memberArray = projectData?.members;
         const uids = (Array.isArray(memberArray)
           ? memberArray.filter((u): u is string => typeof u === 'string')
           : []
@@ -147,7 +177,14 @@ export function useWorkerPings(
           }),
         );
         if (cancelled) return;
-        setWorkers(selectFreshWorkerPings(rows, Date.now(), maxAgeMs));
+        setWorkers(
+          selectFreshWorkerPings(
+            rows,
+            Date.now(),
+            { projectId, tenantId: projectTenantId },
+            maxAgeMs,
+          ),
+        );
         setLoading(false);
       } catch (err) {
         if (cancelled) return;

@@ -146,6 +146,20 @@ service cloud.firestore {
       return isEmailVerified() && request.auth.uid == userId;
     }
 
+    // A survival ping is top-level by UID for backward compatibility, so its
+    // tenant/project stamps are the authorization boundary. The writer must be
+    // a direct member (or creator) of the stamped project, the project must
+    // belong to that tenant, and the verified token must be bound to the tenant.
+    // This prevents a malicious client from self-writing a ping for an arbitrary
+    // tenant/project even though it owns the UID document.
+    function isValidSurvivalPingScope(data) {
+      return data.tenantId is string && data.tenantId.size() > 0
+        && data.projectId is string && isValidId(data.projectId)
+        && data.tenantId == projectTenantId(data.projectId)
+        && isMemberOfTenant(data.tenantId)
+        && isDirectProjectMember(data.projectId);
+    }
+
     // M-1 Phase 3 — tenant-scoped project access
     // (docs/security/M1-multitenant-tenant-scope-design.md). The project's
     // owning tenant is read from the doc; supervisor/admin privilege is scoped
@@ -1298,12 +1312,16 @@ service cloud.firestore {
           && request.auth.token.tenantId == resource.data.tenantId
           && (isOwner(pingUid) || isAdmin() || isSupervisor()))
       );
+      // Client writes must be bound to a real project/tenant membership. The
+      // context may rotate when a worker switches between projects (the single
+      // UID document is intentionally backward-compatible), but every new
+      // stamp is independently verified by the rule before it can be read by a
+      // rescue coordinator.
       allow create, update: if isValidId(pingUid) && isOwner(pingUid)
         && incoming().keys().hasOnly(['lat', 'lng', 'timestamp', 'status',
           'tenantId', 'projectId'])
         && incoming().status is string
-        && incoming().tenantId is string
-        && incoming().projectId is string;
+        && isValidSurvivalPingScope(incoming());
       allow delete: if false;
     }
 
