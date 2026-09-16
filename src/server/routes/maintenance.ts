@@ -637,7 +637,12 @@ router.post("/run-retention-sweep", verifySchedulerToken, async (_req, res) => {
 router.post(
   "/run-lone-worker-escalation",
   verifySchedulerToken,
-  async (_req, res) => {
+  async (req, res) => {
+    // Deploy verification must exercise the scheduler auth + Cloud Run route
+    // without paging real responders or mutating escalation markers.
+    if (req.query.schedulerProbe === "1") {
+      return res.status(200).json({ ok: true, probe: true });
+    }
     const start = Date.now();
     try {
       const db = admin.firestore();
@@ -900,7 +905,12 @@ router.post(
 router.post(
   "/run-man-down-escalation",
   verifySchedulerToken,
-  async (_req, res) => {
+  async (req, res) => {
+    // The deploy probe verifies scheduler authentication and routing without
+    // triggering a real life-safety escalation for an active event.
+    if (req.query.schedulerProbe === "1") {
+      return res.status(200).json({ ok: true, probe: true });
+    }
     const start = Date.now();
     try {
       const db = admin.firestore();

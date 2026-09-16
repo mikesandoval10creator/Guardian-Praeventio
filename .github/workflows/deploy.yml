@@ -459,6 +459,18 @@ jobs:
 
           SCHEDULER_SA="climate-scan-sa@${PROJECT_ID}.iam.gserviceaccount.com"
           SCHEDULER_LOCATION="us-central1"
+          PROBE_JOBS=()
+
+          cleanup_probe_jobs() {
+            local probe
+            for probe in "${PROBE_JOBS[@]}"; do
+              gcloud scheduler jobs delete "$probe" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --quiet >/dev/null 2>&1 || true
+            done
+          }
+          trap cleanup_probe_jobs EXIT
 
           ensure_vital_job() {
             local name="$1"
@@ -524,6 +536,66 @@ jobs:
               exit 1
             fi
             echo "✓ $name state=$job_state"
+
+            # Force a side-effect-free authenticated probe through a temporary
+            # Scheduler job. Running the real ManDown/lone-worker job here could
+            # page responders for an already-active event, so the probe targets
+            # the same route with schedulerProbe=1 and the handler short-circuits
+            # before any Firestore/FCM work.
+            local probe_name="${name}-deploy-probe-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${RANDOM}"
+            gcloud scheduler jobs delete "$probe_name" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --quiet >/dev/null 2>&1 || true
+            PROBE_JOBS+=("$probe_name")
+            gcloud scheduler jobs create http "$probe_name" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --schedule="0 0 1 1 *" \
+              --time-zone="UTC" \
+              --uri="${URL}${path}?schedulerProbe=1" \
+              --http-method=POST \
+              --oidc-service-account-email="$SCHEDULER_SA" \
+              --oidc-token-audience="$URL" \
+              --description="Ephemeral side-effect-free deploy probe for $name" \
+              --quiet
+            local previous_probe_attempt
+            previous_probe_attempt="$(gcloud scheduler jobs describe "$probe_name" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --format='value(lastAttemptTime)' 2>/dev/null || true)"
+            gcloud scheduler jobs run "$probe_name" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --quiet
+
+            local probe_deadline=$((SECONDS + 180))
+            local probe_snapshot=''
+            local probe_attempt=''
+            local status_code="0"
+            while (( SECONDS < probe_deadline )); do
+              probe_snapshot="$(gcloud scheduler jobs describe "$probe_name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --format='value(lastAttemptTime,status.code)' 2>/dev/null || true)"
+              probe_attempt="${probe_snapshot%%$'\t'*}"
+              if [[ "$probe_snapshot" == *$'\t'* ]]; then
+                status_code="${probe_snapshot#*$'\t'}"
+              else
+                status_code=''
+              fi
+              if [ -n "$probe_attempt" ] && [ "$probe_attempt" != "$previous_probe_attempt" ]; then
+                if [ "$status_code" != "0" ]; then
+                  echo "::error::Vital cron $name probe status.code=${status_code:-UNKNOWN}; expected 0 (HTTP 2xx)." >&2
+                  exit 1
+                fi
+                echo "✓ $name authenticated probe acknowledged with status.code=0 (HTTP 2xx)"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error::Timed out waiting for side-effect-free 2xx probe of vital cron $name." >&2
+            exit 1
           }
 
           # AUDIT-2026-06 B19 — lone-worker escalation (every 5 minutes). LIFE

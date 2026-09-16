@@ -31,4 +31,29 @@ if (workflow.includes('"*/5* * * *"')) {
   throw new Error('Malformed lone-worker cron expression detected');
 }
 
+// The vital step must prove a real HTTP execution, not just job existence.
+// Cloud Scheduler exposes the last attempt result as `status.code`; code 0 is
+// the gRPC representation of an HTTP 2xx acknowledgement. A fresh job is
+// allowed to have no previous attempt before the forced run below completes.
+const vitalStepStart = workflow.indexOf('Setup Cloud Scheduler — vital life-safety crons');
+const vitalStepEnd = workflow.indexOf('Discovery 2026-08-17', vitalStepStart);
+if (vitalStepStart < 0 || vitalStepEnd < 0) {
+  throw new Error('Vital Cloud Scheduler step is missing or moved');
+}
+const vitalStep = workflow.slice(vitalStepStart, vitalStepEnd);
+if (vitalStep.includes('continue-on-error: true')) {
+  throw new Error('Vital Cloud Scheduler step must fail closed');
+}
+for (const requiredFragment of [
+  'gcloud scheduler jobs run "$probe_name"',
+  "--format='value(lastAttemptTime,status.code)'",
+  'status_code="0"',
+  '--uri="${URL}${path}?schedulerProbe=1"',
+  'cleanup_probe_jobs',
+]) {
+  if (!vitalStep.includes(requiredFragment)) {
+    throw new Error(`Vital Scheduler 2xx verification is incomplete: ${requiredFragment}`);
+  }
+}
+
 console.log(`SCHEDULER_CRONS=PASS (${required.length} vital jobs validated)`);
