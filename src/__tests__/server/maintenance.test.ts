@@ -898,6 +898,19 @@ describe("POST /api/maintenance/run-lone-worker-escalation", () => {
     expect(res.status).toBe(401);
   });
 
+  it("200 — authenticated deploy probe is side-effect free", async () => {
+    const res = await request(buildApp())
+      .post(`${URL}?schedulerProbe=1`)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, probe: true });
+    expect(H.iterateAllProjects).not.toHaveBeenCalled();
+    expect(H.runLoneWorkerEscalationCron).not.toHaveBeenCalled();
+    expect(H.sendMulticastChunked).not.toHaveBeenCalled();
+  });
+
   it("200 — no projects: response shape correct with zero aggregates", async () => {
     H.iterateAllProjects.mockImplementationOnce(async () => 0);
 
@@ -1020,6 +1033,19 @@ describe("POST /api/maintenance/run-man-down-escalation", () => {
       .set("Authorization", "Bearer evil-secret")
       .send();
     expect(res.status).toBe(401);
+  });
+
+  it("200 — authenticated deploy probe is side-effect free", async () => {
+    const res = await request(buildApp())
+      .post(`${URL}?schedulerProbe=1`)
+      .set("Authorization", AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, probe: true });
+    expect(H.iterateAllProjects).not.toHaveBeenCalled();
+    expect(H.runManDownEscalationCron).not.toHaveBeenCalled();
+    expect(H.sendMulticastChunked).not.toHaveBeenCalled();
   });
 
   it("200 — no projects: response shape correct with zero aggregates", async () => {
