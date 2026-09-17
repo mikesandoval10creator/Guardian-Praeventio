@@ -712,7 +712,7 @@ router.post(
   async (req, res) => {
     const input = req.body as EmergencyDeliveryInput;
     const callerUid = req.user!.uid;
-    const rawKey = req.get('Idempotency-Key');
+    const rawKey = req.header('Idempotency-Key');
     if (!rawKey) return res.status(400).json({ error: 'idempotency_key_required' });
     if (rawKey !== input.clientEventId) {
       return res.status(400).json({ error: 'idempotency_key_mismatch' });
