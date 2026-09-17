@@ -192,6 +192,17 @@ export function WorkerReadiness() {
     );
   }, [tasks, projectId]);
 
+  const qualityLabels: Record<string, string> = {
+    worker: 'ficha del trabajador',
+    trainings: 'capacitaciones',
+    epp: 'EPP',
+    task: 'tarea',
+    process: 'proceso',
+    processes: 'procesos',
+    incidents: 'incidentes',
+    completedTasks: 'historial de tareas',
+  };
+
   const { data, loading, error } = useWorkerReadiness(
     projectId,
     selectedWorkerUid,
@@ -356,7 +367,11 @@ export function WorkerReadiness() {
       )}
 
       {selectedWorkerUid && !loading && !error && data?.report && (
-        <ReportView report={data.report} />
+        <ReportView
+          report={data.report}
+          dataQuality={data.dataQuality}
+          qualityLabels={qualityLabels}
+        />
       )}
     </div>
   );
@@ -364,12 +379,21 @@ export function WorkerReadiness() {
 
 interface ReportViewProps {
   report: ReadinessReport;
+  dataQuality?: {
+    status: 'complete' | 'degraded';
+    degradedSources: string[];
+  };
+  qualityLabels: Record<string, string>;
 }
 
-function ReportView({ report }: ReportViewProps) {
+function ReportView({ report, dataQuality, qualityLabels }: ReportViewProps) {
   const { t } = useTranslation();
-  const color = colorForScore(report.score);
-  const showAttentionBanner = report.score < 60;
+  const isDegraded = dataQuality?.status === 'degraded';
+  const color = colorForScore(isDegraded ? 60 : report.score);
+  const showAttentionBanner = isDegraded || report.score < 60;
+  const degradedLabels = (dataQuality?.degradedSources ?? [])
+    .map((source) => qualityLabels[source] ?? 'otras fuentes')
+    .join(', ');
 
   // Map 6 sub-scores → 4 bars per F.16 plan. `history` aggregates
   // medical + documents + experience (max 15 + 10 + 15 = 40). The other
@@ -389,6 +413,21 @@ function ReportView({ report }: ReportViewProps) {
 
   return (
     <div className="space-y-4" data-testid="worker-readiness-report">
+      {isDegraded && (
+        <div
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4"
+          data-testid="worker-readiness-degraded"
+          role="status"
+        >
+          <p className="text-sm font-black uppercase tracking-wide text-amber-500">
+            Datos incompletos
+          </p>
+          <p className="mt-1 text-xs text-secondary-token">
+            No se pudieron verificar: {degradedLabels || 'una o más fuentes'}. El score es parcial y no confirma la preparación del trabajador; revisa esas fuentes antes de decidir. Esta vista no bloquea la operación.
+          </p>
+        </div>
+      )}
+
       {/* Big overall score */}
       <section
         className={`rounded-2xl border ${color.border} ${color.bg} p-6 flex items-center gap-6`}
@@ -413,13 +452,15 @@ function ReportView({ report }: ReportViewProps) {
             className={`text-lg font-black ${color.text}`}
             data-testid="worker-readiness-level"
           >
-            {report.level === 'ready' &&
-              t('workerReadiness.level.ready', 'Preparado')}
-            {report.level === 'minor_gaps' &&
+            {isDegraded
+              ? 'Datos incompletos'
+              : report.level === 'ready' &&
+                t('workerReadiness.level.ready', 'Preparado')}
+            {!isDegraded && report.level === 'minor_gaps' &&
               t('workerReadiness.level.minor_gaps', 'Brechas menores')}
-            {report.level === 'major_gaps' &&
+            {!isDegraded && report.level === 'major_gaps' &&
               t('workerReadiness.level.major_gaps', 'Brechas mayores')}
-            {report.level === 'critical_gaps' &&
+            {!isDegraded && report.level === 'critical_gaps' &&
               t('workerReadiness.level.critical_gaps', 'Brechas críticas')}
           </p>
           <p className="text-xs text-secondary-token mt-1">
@@ -432,9 +473,9 @@ function ReportView({ report }: ReportViewProps) {
 
       <WorkerReadinessCard report={report} />
 
-      {/* Non-blocking attention banner — only visible when score < 60.
-          Uses text-amber-500 per the F.16 brief; NOT a blocker — the
-          page never gates any action on this. */}
+      {/* Non-blocking attention banner — visible for a low score OR incomplete
+          source data. Uses text-amber-500 per the F.16 brief; NOT a blocker —
+          the page never gates any action on this. */}
       {showAttentionBanner && (
         <div
           className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-start gap-3"
