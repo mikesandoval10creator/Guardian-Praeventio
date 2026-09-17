@@ -564,12 +564,52 @@ service cloud.firestore {
         (isSupervisorOfTenant(existing().get('tenantId', '')) && request.auth.token.role in ['admin', 'gerente'])
       );
 
-      // Master Gate for sub-collections — M-1 Phase 3: tenant-scoped read so a
-      // GLOBAL admin/supervisor of another tenant can no longer read this
-      // project's reports / mandown / medical PII (the decisive leak). Members
-      // and the creator are unaffected.
-      match /{subCollection=**}/{docId} {
-        allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+      // Master Gate for direct project subcollections — M-1 Phase 3: tenant-scoped
+      // reads for the explicitly allowlisted direct collections below. Sensitive
+      // collections can opt out with a narrower match (emergency_checkins does
+      // so for worker self-view vs supervisor headcount). Nested collections
+      // require their own explicit match; there is no recursive read grant.
+      match /{subCollection}/{docId} {
+        // emergency_checkins has a stricter worker-self/supervisor rule below;
+        // keeping the master gate to explicitly audited direct collections
+        // prevents a recursive grant from bypassing that privacy boundary.
+        allow read: if isValidId(projectId)
+          && (
+            subCollection == 'emergency_messages' || subCollection == 'attendance' ||
+            subCollection == 'reports' || subCollection == 'safety_posts' ||
+            subCollection == 'mandown_events' || subCollection == 'zone_violations' ||
+            subCollection == 'system_events' || subCollection == 'seismic_events' ||
+            subCollection == 'digital_twin_jobs' || subCollection == 'reconstruction_jobs' ||
+            subCollection == 'locations' || subCollection == 'events' ||
+            subCollection == 'emergency_protocols' || subCollection == 'epp_items' ||
+            subCollection == 'epp_assignments' || subCollection == 'controls' ||
+            subCollection == 'materials' || subCollection == 'assets' ||
+            subCollection == 'workers' || subCollection == 'emergency_events' ||
+            subCollection == 'emergency_chat' || subCollection == 'emergency_safety' ||
+            subCollection == 'emergency_plans' || subCollection == 'notifications' ||
+            subCollection == 'epp_verifications' || subCollection == 'trainings' ||
+            subCollection == 'training_capsules' || subCollection == 'calendar_events' ||
+            subCollection == 'brigade_config' || subCollection == 'iso_documents' ||
+            subCollection == 'iso_improvements' || subCollection == 'morning_checkins' ||
+            subCollection == 'stoppages' || subCollection == 'operational_changes' ||
+            subCollection == 'root_causes' || subCollection == 'root_cause_analyses' ||
+            subCollection == 'deas' || subCollection == 'clinical_alerts' ||
+            subCollection == 'documents' || subCollection == 'comite_actas' ||
+            subCollection == 'findings' || subCollection == 'placed_objects' ||
+            subCollection == 'personalized_plans' || subCollection == 'driving_incidents' ||
+            subCollection == 'read_receipts' || subCollection == 'control_validations' ||
+            subCollection == 'structural_loads' || subCollection == 'site_book' ||
+            subCollection == 'site_book_entries' || subCollection == 'lone_worker_sessions' ||
+            subCollection == 'lone_worker_events' || subCollection == 'safety_talks_given' ||
+            subCollection == 'audit_portals' || subCollection == 'documents_for_read' ||
+            subCollection == 'exceptions' || subCollection == 'legal_obligations' ||
+            subCollection == 'shifts' || subCollection == 'daily' ||
+            subCollection == 'responses' || subCollection == 'supervisor_only' ||
+            subCollection == 'emergency_alerts' || subCollection == 'suseso_forms' ||
+            subCollection == 'suseso_counters' || subCollection == 'conflict_queue' ||
+            subCollection == 'evidence_artifacts' || subCollection == 'ar_anchors'
+          )
+          && isProjectMemberTenantScoped(projectId);
       }
 
       match /emergency_messages/{messageId} {
@@ -577,7 +617,20 @@ service cloud.firestore {
       }
 
       match /emergency_checkins/{checkinId} {
-        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId) && incoming().workerId == request.auth.uid;
+        // Workers may read only their own document. A worker list query must
+        // therefore carry where('workerId', '==', request.auth.uid), while a
+        // tenant-bound supervisor/admin may read the complete headcount.
+        allow get, list: if isValidId(projectId) && (
+          isSupervisorOfTenant(projectTenantId(projectId)) ||
+          (isProjectMemberTenantScoped(projectId) && resource.data.workerId == request.auth.uid)
+        );
+        allow create, update: if isValidId(projectId)
+          && isProjectMemberTenantScoped(projectId)
+          && incoming().get('projectId', '') == projectId
+          && (
+            incoming().workerId == request.auth.uid ||
+            isSupervisorOfTenant(projectTenantId(projectId))
+          );
       }
 
       match /attendance/{attendanceId} {
@@ -735,13 +788,14 @@ service cloud.firestore {
         // via DocsModal (client SDK addDoc/onSnapshot/deleteDoc). The schema
         // carries `workerId` (the worker doc id, NOT a caller uid) → there is no
         // anti-spoof field to bind, so create/update is plain member-gated like
-        // the sibling /documents and /findings rules. Read is already granted to
-        // project members by the sub-collection Master Gate (line ~329), so only
-        // create/update/delete need rules here. Deleting a worker document
+        // the sibling /documents and /findings rules. Read is granted by the
+        // explicit nested match below, so only create/update/delete need rules
+        // here. Deleting a worker document
         // (compliance/legal trail) is restricted to admin/supervisor. Previously
         // the nested `match /workers/{workerId}` declared NO documents sub-match
         // → the worker Documentación feature was default-denied in production.
         match /documents/{documentId} {
+          allow read: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
           allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
           // F7 (2026-07-02): worker documents = legal evidence — no client
           // deletes. DocsModal archives (`archived: true`) via the member-
@@ -763,11 +817,11 @@ service cloud.firestore {
       // ── Emergency orchestration + ops sub-collections (§365 root-cause) ──
       // The seismic-orchestration dashboard (src/pages/EmergenciaAvanzada.tsx)
       // and the AI plan / EPP / training / notification writers persist to
-      // these project sub-collections. The Master Gate (line ~342) grants member
-      // READ but NO write, so every write was default-denied → the live
-      // emergency channel, the worker safety roll-call, AI emergency plans,
-      // in-app notifications, EPP verifications and training assignments all
-      // silently failed in production. Life-safety features are FREE on every
+      // these project sub-collections. The direct master gate above grants
+      // member READ only for explicitly allowlisted direct collections; writes
+      // remain denied here unless an explicit match below allows them. The
+      // worker headcount collection is intentionally excluded and has its own
+      // self-view/supervisor read policy. Life-safety features are FREE on every
       // tier (ADR 0021) → member-gated, NEVER tier-gated. These payloads carry
       // no caller-uid anti-spoof field (sender/workerId are display ids, not
       // request.auth.uid), so they follow the plain member-gate pattern of the

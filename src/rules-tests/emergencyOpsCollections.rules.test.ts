@@ -31,12 +31,14 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PID = 'proj-emerg-1';
 const TID = 'tenant-emerg-1';
 const MEMBER = 'member-uid-1';
+const OTHER = 'worker-uid-2';
+const SUPERVISOR = 'supervisor-uid-1';
 const OUTSIDER = 'outsider-uid-9';
 const ADMIN = 'admin-uid-1';
 
@@ -61,7 +63,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'projects', PID), {
-      name: 'Emergency Project', members: [MEMBER], status: 'active',
+      name: 'Emergency Project', members: [MEMBER, SUPERVISOR], tenantId: TID, status: 'active',
       createdAt: '2026-06-01T00:00:00Z', createdBy: MEMBER,
     });
     await setDoc(doc(db, 'users', ADMIN), {
@@ -95,6 +97,53 @@ async function seed(name: string, id: string, data: Record<string, unknown>) {
     await setDoc(doc(ctx.firestore(), 'projects', PID, name, id), data);
   });
 }
+
+describe('emergency_checkins — worker self-view and supervisor headcount privacy', () => {
+  const checkin = (workerId: string) => ({
+    projectId: PID,
+    workerId,
+    name: workerId === MEMBER ? 'Worker One' : 'Worker Two',
+    status: 'safe',
+    timestamp: '2026-06-08T00:00:00.000Z',
+  });
+
+  it('a worker can query their own check-in when the query is self-scoped', async () => {
+    await seed('emergency_checkins', MEMBER, checkin(MEMBER));
+    await seed('emergency_checkins', OTHER, checkin(OTHER));
+
+    await assertSucceeds(
+      getDocs(query(coll(authed(MEMBER), 'emergency_checkins'), where('workerId', '==', MEMBER))),
+    );
+  });
+
+  it('a worker cannot list the full headcount without a self constraint', async () => {
+    await seed('emergency_checkins', MEMBER, checkin(MEMBER));
+    await seed('emergency_checkins', OTHER, checkin(OTHER));
+
+    await assertFails(getDocs(coll(authed(MEMBER), 'emergency_checkins')));
+  });
+
+  it('a worker cannot read another worker check-in by document id', async () => {
+    await seed('emergency_checkins', OTHER, checkin(OTHER));
+
+    await assertFails(getDoc(ref(authed(MEMBER), 'emergency_checkins', OTHER)));
+  });
+
+  it('a tenant-bound supervisor can list the complete headcount', async () => {
+    await seed('emergency_checkins', MEMBER, checkin(MEMBER));
+    await seed('emergency_checkins', OTHER, checkin(OTHER));
+
+    await assertSucceeds(
+      getDocs(coll(tenantAuthed(SUPERVISOR, TID, 'supervisor'), 'emergency_checkins')),
+    );
+  });
+
+  it('a worker cannot spoof another workerId on create', async () => {
+    await assertFails(
+      setDoc(ref(authed(MEMBER), 'emergency_checkins', OTHER), checkin(OTHER)),
+    );
+  });
+});
 
 describe('emergency_chat — firestore.rules (§365)', () => {
   const msg = () => ({ text: 'Estado: zona despejada', sender: 'Ana', senderRole: 'Trabajador', createdAt: '2026-06-08T00:00:00.000Z' });

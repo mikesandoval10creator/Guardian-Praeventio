@@ -18,12 +18,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 const mockNavigate = vi.fn();
+const mockFirebaseState = vi.hoisted(() => ({
+  user: { uid: 'u1' },
+  userRole: 'admin',
+  isAdmin: true,
+}));
+const mockWhere = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
+vi.mock('framer-motion', async () => {
+  const React = await import('react');
+  const passthrough = ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children);
+  return { AnimatePresence: passthrough, motion: { div: passthrough } };
+});
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: { id: 'p1', name: 'Faena', country: 'CL' } }),
 }));
 vi.mock('../../contexts/FirebaseContext', () => ({
-  useFirebase: () => ({ user: { uid: 'u1' }, userRole: 'admin', isAdmin: true }),
+  useFirebase: () => mockFirebaseState,
 }));
 vi.mock('../../hooks/useBluetoothMesh', () => ({
   useBluetoothMesh: () => ({
@@ -37,7 +49,7 @@ vi.mock('../../services/firebase', () => ({
   collection: vi.fn(),
   doc: vi.fn(),
   query: vi.fn(),
-  where: vi.fn(),
+  where: mockWhere,
   onSnapshot: vi.fn(() => () => undefined),
   handleFirestoreError: vi.fn(),
   OperationType: { LIST: 'list' },
@@ -55,9 +67,28 @@ import { EmergencyDashboard } from './EmergencyDashboard';
 beforeEach(() => {
   cleanup();
   mockNavigate.mockClear();
+  mockWhere.mockClear();
+  mockFirebaseState.userRole = 'admin';
+  mockFirebaseState.isAdmin = true;
 });
 
 describe('EmergencyDashboard — controls must do what they say', () => {
+  it.each(['worker', 'operario', 'topografo'])('scopes %s headcount to the caller', (role) => {
+    mockFirebaseState.userRole = role;
+    mockFirebaseState.isAdmin = false;
+    render(<EmergencyDashboard />);
+
+    expect(mockWhere).toHaveBeenCalledWith('workerId', '==', 'u1');
+  });
+
+  it('keeps the global headcount query for a supervisor', () => {
+    mockFirebaseState.userRole = 'supervisor';
+    mockFirebaseState.isAdmin = false;
+    render(<EmergencyDashboard />);
+
+    expect(mockWhere).not.toHaveBeenCalled();
+  });
+
   it('opens the authority numbers when external support is requested', () => {
     render(<EmergencyDashboard />);
     expect(screen.queryByTestId('emergency-authority-panel')).not.toBeInTheDocument();
