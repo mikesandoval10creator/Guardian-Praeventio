@@ -73,10 +73,15 @@ interface ChatMessage {
 export function EmergenciaAvanzada() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
-  // [P1][VIDA] When reached from a push notification for another faena, select
-  // that project before the SOS/alerts listeners bind — otherwise the
-  // supervisor sees the wrong project's emergencies.
-  useDeepLinkProjectSync();
+  // [P1][VIDA] A push deep-link is not authorized merely because its
+  // realignment request was issued. Bind listeners only after membership is
+  // confirmed AND the ProjectContext has actually reached the target id.
+  const { status: deepLinkStatus, targetProjectId } = useDeepLinkProjectSync();
+  const deepLinkReady =
+    deepLinkStatus === 'idle' ||
+    (deepLinkStatus === 'aligned' &&
+      (!targetProjectId || selectedProject?.id === targetProjectId));
+  const projectForData = deepLinkReady ? selectedProject : null;
   const [searchParams] = useSearchParams();
   // The specific SOS this notification was about (deep link ?alertId=...).
   const focusedAlertId = searchParams.get('alertId');
@@ -107,8 +112,8 @@ export function EmergenciaAvanzada() {
   });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const projectLat = selectedProject?.coordinates?.lat;
-  const projectLng = selectedProject?.coordinates?.lng;
+  const projectLat = projectForData?.coordinates?.lat;
+  const projectLng = projectForData?.coordinates?.lng;
 
   // Audit 2026-07-02 §3.1 bug 10: consume the hook's loading/error signal
   // so this page can distinguish "still fetching" from "USGS is down" from
@@ -122,10 +127,10 @@ export function EmergenciaAvanzada() {
   } = useSeismicMonitor(projectLat, projectLng);
 
   const { data: emergencyEvents } = useFirestoreCollection<EmergencyEvent>(
-    selectedProject ? `projects/${selectedProject.id}/emergency_events` : null
+    projectForData ? `projects/${projectForData.id}/emergency_events` : null
   );
   const { data: workers } = useFirestoreCollection<Worker>(
-    selectedProject ? `projects/${selectedProject.id}/workers` : null
+    projectForData ? `projects/${projectForData.id}/workers` : null
   );
 
   // `status` is the source of truth when present (new docs + SOS path); fall
@@ -136,10 +141,10 @@ export function EmergenciaAvanzada() {
 
   // Real-time chat
   useEffect(() => {
-    if (!selectedProject) return undefined;
+    if (!projectForData) return undefined;
     setChatError(null);
     const q = query(
-      collection(db, `projects/${selectedProject.id}/emergency_chat`),
+      collection(db, `projects/${projectForData.id}/emergency_chat`),
       orderBy('createdAt', 'asc'),
       limit(100)
     );
@@ -151,7 +156,7 @@ export function EmergenciaAvanzada() {
       },
       err => {
         logger.error('EmergenciaAvanzada: emergency_chat onSnapshot failed', err, {
-          projectId: selectedProject.id,
+          projectId: projectForData.id,
         });
         setChatError('No se pudo cargar el canal de emergencia. Verifica tu conexión o permisos.');
       },
@@ -161,14 +166,14 @@ export function EmergenciaAvanzada() {
     // and rebuild the Firestore listener, briefly dropping the emergency channel.
     // id is the immutable identity of the faena, so the closure never goes stale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id]);
+  }, [projectForData?.id]);
 
   // Real-time worker safety statuses
   useEffect(() => {
-    if (!selectedProject) return undefined;
+    if (!projectForData) return undefined;
     setSafetyError(null);
     const safetyQuery = query(
-      collection(db, `projects/${selectedProject.id}/emergency_safety`),
+      collection(db, `projects/${projectForData.id}/emergency_safety`),
       limit(50),
     );
     return onSnapshot(
@@ -184,7 +189,7 @@ export function EmergenciaAvanzada() {
       },
       err => {
         logger.error('EmergenciaAvanzada: emergency_safety onSnapshot failed', err, {
-          projectId: selectedProject.id,
+          projectId: projectForData.id,
         });
         setSafetyError('No se pudo cargar el estado de seguridad del personal. Verifica tu conexión o permisos.');
       },
@@ -193,7 +198,7 @@ export function EmergenciaAvanzada() {
     // the immutable id, not the object identity, so the worker-safety listener
     // isn't needlessly rebuilt on unrelated context updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id]);
+  }, [projectForData?.id]);
 
   // B.3 (VIDA) — worker SOS alerts. The SOS button posts to the server,
   // which writes tenants/{tenantId}/emergency_alerts (Admin SDK) with
@@ -202,12 +207,12 @@ export function EmergenciaAvanzada() {
   // ever showed it. Filter by projectId only (equality → no composite
   // index needed) and sort client-side.
   useEffect(() => {
-    if (!selectedProject) { setSosAlerts([]); return undefined; }
+    if (!projectForData) { setSosAlerts([]); return undefined; }
     const tenantId =
-      (selectedProject as { tenantId?: string }).tenantId ?? selectedProject.id;
+      (projectForData as { tenantId?: string }).tenantId ?? projectForData.id;
     const alertsQuery = query(
       collection(db, `tenants/${tenantId}/emergency_alerts`),
-      where('projectId', '==', selectedProject.id),
+      where('projectId', '==', projectForData.id),
       limit(50),
     );
     return onSnapshot(
@@ -237,7 +242,16 @@ export function EmergenciaAvanzada() {
     // listener bound to the current faena without rebuilding it on every context
     // re-render (a rebuild could briefly miss a fresh worker SOS).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id]);
+  }, [projectForData?.id]);
+
+  useEffect(() => {
+    if (deepLinkReady) return;
+    setMessages([]);
+    setSafetyStatuses({});
+    setSosAlerts([]);
+    setChatError(null);
+    setSafetyError(null);
+  }, [deepLinkReady]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -384,6 +398,22 @@ export function EmergenciaAvanzada() {
     }
     return a.clientTimestamp ?? '—';
   };
+
+  if (!deepLinkReady) {
+    const rejected = deepLinkStatus === 'not-member';
+    return (
+      <div role="alert" className="p-6 max-w-xl mx-auto mt-10 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-100">
+        <h1 className="text-lg font-black uppercase tracking-tight">
+          {rejected ? 'Proyecto no autorizado' : 'Realineando emergencia'}
+        </h1>
+        <p className="mt-2 text-sm">
+          {rejected
+            ? 'No tienes acceso a este proyecto de emergencia.'
+            : 'Cargando el proyecto de la emergencia. No se mostrará información de otra faena hasta confirmar el acceso.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
