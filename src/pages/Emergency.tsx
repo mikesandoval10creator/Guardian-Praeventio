@@ -74,10 +74,9 @@ export function Emergency() {
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const [isContactsOpen, setIsContactsOpen] = useState(false);
   const [isDownloadingPlan, setIsDownloadingPlan] = useState(false);
-  // B1 — on a confirmed man-down, fan out the FCM push to project responders
-  // (triggerEmergency → /api/emergency/notify-brigada) AND switch to emergency
-  // mode. Previously the hook wrote mandown_events + sounded the local alarm but
-  // NEVER pushed, so a supervisor only saw it if they happened to be in the app.
+  // B1 — on a confirmed man-down, triggerEmergency enqueues the durable
+  // emergency-delivery packet; the server persists it, fans out the push and
+  // returns an explicit ACK. The local alarm still switches immediately.
   const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } =
     useManDownDetection({
       onManDownConfirmed: () => {

@@ -82,10 +82,26 @@ vi.mock('../components/shared/Tooltip', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
 vi.mock('../components/shared/ConfirmDialog', () => ({
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({
+    isOpen,
+    title,
+    onConfirm,
+  }: { isOpen: boolean; title: string; onConfirm: () => void }) =>
+    isOpen ? <button data-testid="confirm-emergency" onClick={onConfirm}>{title}</button> : null,
 }));
 vi.mock('../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
+const emergencyDeliveryState = vi.hoisted(() => ({
+  submit: vi.fn(),
+  subscribe: vi.fn(() => () => undefined),
+}));
+vi.mock('../services/emergency/emergencyDeliveryOutbox', () => ({
+  submitEmergencyDelivery: (...args: unknown[]) =>
+    (emergencyDeliveryState.submit as (...items: unknown[]) => unknown)(...args),
+  subscribeEmergencyDelivery: (...args: unknown[]) =>
+    (emergencyDeliveryState.subscribe as (...items: unknown[]) => unknown)(...args),
 }));
 
 // firebase service: capture each onSnapshot handler by its collection path.
@@ -139,6 +155,16 @@ beforeEach(() => {
   mockSearchParams = new URLSearchParams('');
   mockDeepLink.status = 'idle';
   mockDeepLink.targetProjectId = null;
+  emergencyDeliveryState.submit.mockReset();
+  emergencyDeliveryState.subscribe.mockClear();
+  emergencyDeliveryState.submit.mockResolvedValue({
+    clientEventId: 'activation-1',
+    operation: 'activation',
+    projectId: 'p1',
+    status: 'accepted',
+    queued: true,
+    ack: { accepted: true, persisted: true, delivered: true, serverEventId: 'activation-1' },
+  });
   // jsdom doesn't implement scrollIntoView; the deep-link focus effect calls it.
   Element.prototype.scrollIntoView = vi.fn();
 });
@@ -166,6 +192,35 @@ describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
     expect(screen.getByText(/cargando el proyecto de la emergencia/i)).toBeInTheDocument();
   });
 
+  it('keeps activation pending until the server ACK arrives', async () => {
+    let resolveDelivery!: (value: unknown) => void;
+    emergencyDeliveryState.submit.mockImplementation(
+      () => new Promise((resolve) => { resolveDelivery = resolve; }),
+    );
+    render(<EmergenciaAvanzada />);
+
+    await act(async () => {
+      screen.getByRole('button', { name: /Activar Emergencia/i }).click();
+    });
+    await act(async () => {
+      screen.getByTestId('confirm-emergency').click();
+    });
+    expect(screen.getByTestId('emergency-delivery-status').textContent).toMatch(/pendiente/i);
+    expect(screen.queryByText(/notificada|confirmada por servidor/i)).toBeNull();
+
+    await act(async () => {
+      resolveDelivery({
+        clientEventId: 'activation-1',
+        operation: 'activation',
+        projectId: 'p1',
+        status: 'accepted',
+        queued: true,
+        ack: { accepted: true, persisted: true, delivered: true, serverEventId: 'activation-1' },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('emergency-delivery-status').textContent).toMatch(/confirmada por servidor/i);
+  });
   it('subscribes to tenants/{project.tenantId}/emergency_alerts', () => {
     render(<EmergenciaAvanzada />);
     expect(snapshotHandlers.has('tenants/tA/emergency_alerts')).toBe(true);
