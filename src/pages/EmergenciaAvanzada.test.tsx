@@ -52,11 +52,15 @@ vi.mock('../contexts/FirebaseContext', () => ({
 // Deep-link plumbing: configurable ?query and a neutralized realignment hook
 // (its own logic is unit-tested in useDeepLinkProjectSync.test).
 let mockSearchParams = new URLSearchParams('');
+const mockDeepLink = vi.hoisted(() => ({
+  status: 'idle' as 'idle' | 'aligned' | 'resolving' | 'not-member',
+  targetProjectId: null as string | null,
+}));
 vi.mock('react-router-dom', () => ({
   useSearchParams: () => [mockSearchParams],
 }));
 vi.mock('../hooks/useDeepLinkProjectSync', () => ({
-  useDeepLinkProjectSync: () => ({ status: 'idle', targetProjectId: null }),
+  useDeepLinkProjectSync: () => mockDeepLink,
 }));
 
 vi.mock('../hooks/useAcousticSOS', () => ({
@@ -133,11 +137,35 @@ beforeEach(() => {
   snapshotHandlers.clear();
   mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA' };
   mockSearchParams = new URLSearchParams('');
+  mockDeepLink.status = 'idle';
+  mockDeepLink.targetProjectId = null;
   // jsdom doesn't implement scrollIntoView; the deep-link focus effect calls it.
   Element.prototype.scrollIntoView = vi.fn();
 });
 
 describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
+  it('blocks a rejected push project before creating any project listeners', () => {
+    mockSearchParams = new URLSearchParams('projectId=p2&source=push');
+    mockDeepLink.status = 'not-member';
+    mockDeepLink.targetProjectId = 'p2';
+
+    render(<EmergenciaAvanzada />);
+
+    expect(snapshotHandlers.size).toBe(0);
+    expect(screen.getByText(/no tienes acceso a este proyecto/i)).toBeInTheDocument();
+  });
+
+  it('blocks the old project during an in-flight realignment', () => {
+    mockSearchParams = new URLSearchParams('projectId=p2&source=push');
+    mockDeepLink.status = 'aligned';
+    mockDeepLink.targetProjectId = 'p2';
+
+    render(<EmergenciaAvanzada />);
+
+    expect(snapshotHandlers.size).toBe(0);
+    expect(screen.getByText(/cargando el proyecto de la emergencia/i)).toBeInTheDocument();
+  });
+
   it('subscribes to tenants/{project.tenantId}/emergency_alerts', () => {
     render(<EmergenciaAvanzada />);
     expect(snapshotHandlers.has('tenants/tA/emergency_alerts')).toBe(true);
