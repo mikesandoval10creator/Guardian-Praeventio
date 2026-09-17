@@ -155,4 +155,40 @@ describe('useGeofence active-zone transitions', () => {
       },
     );
   });
+
+  it('resets active state on project scope changes without emitting an exit for the old project', () => {
+    const onZonesChanged = vi.fn();
+    const scopedUseGeofence = useGeofence as unknown as (
+      zones: GeofenceZone[],
+      onChange: Parameters<typeof useGeofence>[1],
+      scopeKey?: string,
+    ) => ReturnType<typeof useGeofence>;
+    const { rerender } = renderHook(
+      ({ scopeKey, zones }) => scopedUseGeofence(zones, onZonesChanged, scopeKey),
+      { initialProps: { scopeKey: 'tenant-1:project-1', zones: [ZONE_A] } },
+    );
+
+    act(() => onPosition(position(-33.5, -70.5)));
+    rerender({ scopeKey: 'tenant-1:project-2', zones: [] });
+    act(() => onPosition(position(-33.5, -70.5)));
+
+    expect(onZonesChanged).toHaveBeenCalledTimes(2);
+    expect(onZonesChanged).toHaveBeenNthCalledWith(
+      1,
+      [ZONE_A],
+      { lat: -33.5, lng: -70.5 },
+      expect.objectContaining({ enteredZones: [ZONE_A], exitedZones: [] }),
+    );
+    expect(onZonesChanged).toHaveBeenNthCalledWith(
+      2,
+      [],
+      { lat: -33.5, lng: -70.5 },
+      expect.objectContaining({
+        previousZoneIds: new Set(),
+        currentZoneIds: new Set(),
+        enteredZones: [],
+        exitedZones: [],
+      }),
+    );
+  });
 });
