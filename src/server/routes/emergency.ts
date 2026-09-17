@@ -629,4 +629,306 @@ router.post(
   },
 );
 
+const EmergencyDeliverySchema = z.object({
+  clientEventId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/),
+  operation: z.enum(['checkin', 'triage', 'activation', 'resolution']),
+  projectId: z.string().min(1).max(128),
+  workerId: z.string().min(1).max(128).optional(),
+  status: z.enum(['safe', 'danger']).optional(),
+  triageLevel: z.enum(['verde', 'amarillo', 'rojo']).optional(),
+  emergencyType: z.string().min(1).max(128).optional(),
+  eventId: z.string().min(1).max(128).optional(),
+  magnitude: z.number().finite().optional(),
+  epicenter: z.string().max(500).optional(),
+  location: z.object({
+    lat: z.number().finite().min(-90).max(90),
+    lng: z.number().finite().min(-180).max(180),
+  }).optional(),
+  occurredAt: z.string().min(1).max(80),
+});
+
+type EmergencyDeliveryInput = z.infer<typeof EmergencyDeliverySchema>;
+
+function deliveryWorkerName(req: Request): string {
+  return (req.user?.name as string | undefined) ?? req.user?.email ?? req.user?.uid ?? 'Usuario';
+}
+
+async function deliverEmergencyFanout(
+  projectId: string,
+  input: EmergencyDeliveryInput,
+  callerUid: string,
+  callerName: string,
+  db: FirebaseFirestore.Firestore,
+): Promise<{ delivered: boolean; notified: number; failed: number; error?: string }> {
+  try {
+    const result = await sendToProjectSupervisors(
+      projectId,
+      {
+        title: input.operation === 'triage' ? '⚠️ Triage recibido' : '🚨 Emergencia registrada',
+        body:
+          input.operation === 'triage'
+            ? `Triage ${input.triageLevel ?? 'sin nivel'} de ${callerName}`
+            : `Paquete ${input.operation} recibido en proyecto ${projectId}`,
+        data: {
+          projectId,
+          clientEventId: input.clientEventId,
+          operation: input.operation,
+          uid: callerUid,
+        },
+      },
+      db,
+      admin.messaging(),
+    );
+    return {
+      delivered: result.notified > 0,
+      notified: result.notified,
+      failed: result.failed,
+    };
+  } catch (err: any) {
+    logger.error('emergency_delivery_fanout_failed', {
+      projectId,
+      clientEventId: input.clientEventId,
+      message: err?.message,
+    });
+    return {
+      delivered: false,
+      notified: 0,
+      failed: 1,
+      error: 'fanout_failed',
+    };
+  }
+}
+
+// POST /api/emergency/delivery — authoritative ACK for check-in, triage and
+// project emergency lifecycle packets. The client outbox retries this endpoint
+// with the same Idempotency-Key until the server confirms persistence. Writes
+// use deterministic document ids so the endpoint remains safe even when a
+// response is lost after the Admin SDK commit.
+router.post(
+  '/delivery',
+  verifyAuth,
+  idempotencyKey(),
+  validate(EmergencyDeliverySchema),
+  async (req, res) => {
+    const input = req.body as EmergencyDeliveryInput;
+    const callerUid = req.user!.uid;
+    const rawKey = req.get('Idempotency-Key');
+    if (!rawKey) return res.status(400).json({ error: 'idempotency_key_required' });
+    if (rawKey !== input.clientEventId) {
+      return res.status(400).json({ error: 'idempotency_key_mismatch' });
+    }
+
+    const db = admin.firestore();
+    try {
+      await assertProjectMember(callerUid, input.projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    if ((input.operation === 'checkin' || input.operation === 'triage') && input.workerId !== callerUid) {
+      return res.status(403).json({ error: 'worker_binding' });
+    }
+    if (input.operation === 'checkin' && !input.status) {
+      return res.status(400).json({ error: 'status_required' });
+    }
+    if (input.operation === 'triage' && (!input.status || !input.triageLevel)) {
+      return res.status(400).json({ error: 'triage_required' });
+    }
+    if (input.operation === 'activation' && !input.emergencyType) {
+      return res.status(400).json({ error: 'emergency_type_required' });
+    }
+    if (input.operation === 'resolution' && !input.eventId) {
+      return res.status(400).json({ error: 'event_id_required' });
+    }
+
+    try {
+      if (input.operation === 'checkin' || input.operation === 'triage') {
+        const checkin = db
+          .collection('projects')
+          .doc(input.projectId)
+          .collection('emergency_checkins')
+          .doc(callerUid);
+        await checkin.set(
+          {
+            projectId: input.projectId,
+            workerId: callerUid,
+            name: deliveryWorkerName(req),
+            status: input.status,
+            ...(input.triageLevel ? { triageLevel: input.triageLevel } : {}),
+            ...(input.location ? { location: input.location } : {}),
+            occurredAt: input.occurredAt,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            lastClientEventId: input.clientEventId,
+          },
+          { merge: true },
+        );
+      } else if (input.operation === 'activation') {
+        const batch = db.batch();
+        const eventRef = db
+          .collection('projects')
+          .doc(input.projectId)
+          .collection('emergency_events')
+          .doc(input.clientEventId);
+        batch.set(eventRef, {
+          clientEventId: input.clientEventId,
+          type: input.emergencyType,
+          magnitude: input.magnitude ?? null,
+          epicenter: input.epicenter ?? null,
+          status: 'active',
+          active: true,
+          triggeredBy: callerUid,
+          triggeredByName: deliveryWorkerName(req),
+          startedBy: deliveryWorkerName(req),
+          occurredAt: input.occurredAt,
+          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        const chatRef = db
+          .collection('projects')
+          .doc(input.projectId)
+          .collection('emergency_chat')
+          .doc(`${input.clientEventId}-activation`);
+        batch.set(chatRef, {
+          clientEventId: input.clientEventId,
+          text: `🚨 EMERGENCIA ACTIVADA: ${input.emergencyType}. Todos los trabajadores deben confirmar su estado de seguridad.`,
+          sender: 'Sistema',
+          senderRole: 'system',
+          isSystem: true,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        const workers = await db
+          .collection('projects')
+          .doc(input.projectId)
+          .collection('workers')
+          .get();
+        for (const worker of workers.docs) {
+          batch.set(
+            db
+              .collection('projects')
+              .doc(input.projectId)
+              .collection('emergency_safety')
+              .doc(worker.id),
+            {
+              workerId: worker.id,
+              status: 'unknown',
+              confirmedAt: null,
+              activationEventId: input.clientEventId,
+            },
+            { merge: true },
+          );
+        }
+        await batch.commit();
+      } else {
+        const memberSnap = await db
+          .collection('projects')
+          .doc(input.projectId)
+          .collection('members')
+          .doc(callerUid)
+          .get();
+        const role =
+          (req.user?.role as string | undefined) ??
+          (memberSnap.data() as { role?: string } | undefined)?.role;
+        if (!role || !SUPERVISOR_ROLES.has(role)) {
+          return res.status(403).json({ error: 'supervisor_required' });
+        }
+        const batch = db.batch();
+        batch.update(
+          db
+            .collection('projects')
+            .doc(input.projectId)
+            .collection('emergency_events')
+            .doc(input.eventId!),
+          {
+            status: 'resolved',
+            resolvedBy: callerUid,
+            resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        );
+        batch.set(
+          db
+            .collection('projects')
+            .doc(input.projectId)
+            .collection('emergency_chat')
+            .doc(`${input.clientEventId}-resolution`),
+          {
+            clientEventId: input.clientEventId,
+            text: '✅ Emergencia resuelta. Todos los sistemas vuelven a operación normal.',
+            sender: 'Sistema',
+            senderRole: 'system',
+            isSystem: true,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        );
+        await batch.commit();
+      }
+
+      const fanout =
+        input.operation === 'resolution'
+          ? { delivered: true, notified: 0, failed: 0 }
+          : await deliverEmergencyFanout(
+              input.projectId,
+              input,
+              callerUid,
+              deliveryWorkerName(req),
+              db,
+            );
+
+      try {
+        await db.collection('audit_logs').add({
+          action: `emergency.${input.operation}`,
+          module: 'emergency',
+          details: {
+            projectId: input.projectId,
+            clientEventId: input.clientEventId,
+            persisted: true,
+            delivered: fanout.delivered,
+            notified: fanout.notified,
+            failed: fanout.failed,
+          },
+          userId: callerUid,
+          userEmail: req.user?.email ?? null,
+          projectId: input.projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (auditErr: any) {
+        logger.error('emergency_delivery_audit_write_failed', {
+          projectId: input.projectId,
+          clientEventId: input.clientEventId,
+          message: auditErr?.message,
+        });
+        captureRouteError(auditErr, 'emergency.delivery.audit', {
+          projectId: input.projectId,
+          operation: input.operation,
+        });
+      }
+
+      return res.json({
+        accepted: true,
+        persisted: true,
+        delivered: fanout.delivered,
+        notified: fanout.notified,
+        failed: fanout.failed,
+        ...(fanout.error ? { fanoutError: fanout.error } : {}),
+        serverEventId: input.clientEventId,
+      });
+    } catch (err: any) {
+      logger.error('emergency_delivery_persist_failed', {
+        uid: callerUid,
+        projectId: input.projectId,
+        clientEventId: input.clientEventId,
+        operation: input.operation,
+        message: err?.message,
+      });
+      captureRouteError(err, 'emergency.delivery', {
+        projectId: input.projectId,
+        operation: input.operation,
+      });
+      return res.status(503).json({ error: 'emergency_delivery_unavailable' });
+    }
+  },
+);
+
 export default router;

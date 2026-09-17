@@ -939,3 +939,102 @@ describe('emergency fan-out hardening', () => {
     expect((res.body as Record<string, unknown>).delivered).toBe(true);
   });
 });
+
+describe('POST /api/emergency/delivery', () => {
+  const DELIVERY = '/api/emergency/delivery';
+  const validCheckin = {
+    clientEventId: 'delivery-checkin-1',
+    operation: 'checkin',
+    projectId: 'p1',
+    workerId: 'u1',
+    status: 'safe',
+    occurredAt: '2026-09-17T10:00:00.000Z',
+    location: { lat: -33.45, lng: -70.66 },
+  };
+
+  it('requires auth and the matching idempotency key', async () => {
+    const noAuth = await request(buildApp()).post(DELIVERY).send(validCheckin);
+    expect(noAuth.status).toBe(401);
+
+    seedProject(H.db!, 'p1', { createdBy: 'u1', members: ['u1'] });
+    const mismatch = await request(buildApp())
+      .post(DELIVERY)
+      .set('x-test-uid', 'u1')
+      .set('Idempotency-Key', 'other-key')
+      .send(validCheckin);
+    expect(mismatch.status).toBe(400);
+    expect(mismatch.body.error).toBe('idempotency_key_mismatch');
+  });
+
+  it('denies a non-member before any safety document is written', async () => {
+    seedProject(H.db!, 'p1', { createdBy: 'other', members: ['other'] });
+    const res = await request(buildApp())
+      .post(DELIVERY)
+      .set('x-test-uid', 'u1')
+      .set('Idempotency-Key', validCheckin.clientEventId)
+      .send(validCheckin);
+    expect(res.status).toBe(403);
+    expect([...H.db!._store.keys()].some((key) => key.includes('emergency_checkins'))).toBe(false);
+  });
+
+  it('persists a check-in and returns an explicit server ACK', async () => {
+    seedProject(H.db!, 'p1', { tenantId: 'tenant-1', createdBy: 'u1', members: ['u1'] });
+    const res = await request(buildApp())
+      .post(DELIVERY)
+      .set('x-test-uid', 'u1')
+      .set('Idempotency-Key', validCheckin.clientEventId)
+      .send(validCheckin);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ accepted: true, persisted: true, serverEventId: validCheckin.clientEventId });
+    expect(H.db!._store.get('projects/p1/emergency_checkins/u1')).toMatchObject({
+      projectId: 'p1', workerId: 'u1', status: 'safe',
+      location: { lat: -33.45, lng: -70.66 },
+      lastClientEventId: validCheckin.clientEventId,
+    });
+  });
+
+  it('writes activation under the clientEventId and is safe to replay', async () => {
+    seedProject(H.db!, 'p1', { tenantId: 'tenant-1', createdBy: 'u1', members: ['u1'] });
+    const activation = {
+      clientEventId: 'delivery-activation-1',
+      operation: 'activation',
+      projectId: 'p1',
+      emergencyType: 'fall',
+      occurredAt: '2026-09-17T10:00:00.000Z',
+    };
+    for (let i = 0; i < 2; i += 1) {
+      const res = await request(buildApp())
+        .post(DELIVERY)
+        .set('x-test-uid', 'u1')
+        .set('Idempotency-Key', activation.clientEventId)
+        .send(activation);
+      expect(res.status).toBe(200);
+      expect(res.body.accepted).toBe(true);
+    }
+
+    expect(H.db!._store.has('projects/p1/emergency_events/delivery-activation-1')).toBe(true);
+    expect([...H.db!._store.keys()].filter((key) => key.includes('emergency_events/'))).toHaveLength(1);
+  });
+
+  it('persists triage as the worker-scoped latest check-in state', async () => {
+    seedProject(H.db!, 'p1', { createdBy: 'u1', members: ['u1'] });
+    const triage = {
+      ...validCheckin,
+      clientEventId: 'delivery-triage-1',
+      operation: 'triage',
+      status: 'danger',
+      triageLevel: 'rojo',
+    };
+    const res = await request(buildApp())
+      .post(DELIVERY)
+      .set('x-test-uid', 'u1')
+      .set('Idempotency-Key', triage.clientEventId)
+      .send(triage);
+
+    expect(res.status).toBe(200);
+    expect(H.db!._store.get('projects/p1/emergency_checkins/u1')).toMatchObject({
+      status: 'danger', triageLevel: 'rojo', lastClientEventId: triage.clientEventId,
+    });
+  });
+});

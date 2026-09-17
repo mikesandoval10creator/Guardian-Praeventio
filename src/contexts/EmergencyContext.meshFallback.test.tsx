@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 
 // --- Mock surface --------------------------------------------------------
 
@@ -61,6 +61,17 @@ vi.mock('../services/emergency/meshFallback', () => ({
     (meshEnqueueOutboundMock as (...x: unknown[]) => unknown)(...a),
 }));
 
+const emergencyDeliveryState = vi.hoisted(() => ({
+  submit: vi.fn(),
+  subscribe: vi.fn(() => () => undefined),
+}));
+vi.mock('../services/emergency/emergencyDeliveryOutbox', () => ({
+  submitEmergencyDelivery: (...args: unknown[]) =>
+    (emergencyDeliveryState.submit as (...items: unknown[]) => unknown)(...args),
+  subscribeEmergencyDelivery: (...args: unknown[]) =>
+    (emergencyDeliveryState.subscribe as (...items: unknown[]) => unknown)(...args),
+}));
+
 // networkStatus controlable por test
 let onlineFlag = true;
 vi.mock('../utils/networkStatus', () => ({
@@ -100,6 +111,8 @@ beforeEach(() => {
   addDocMock.mockClear();
   updateDocMock.mockClear();
   meshEnqueueOutboundMock.mockReset();
+  emergencyDeliveryState.submit.mockReset();
+  emergencyDeliveryState.subscribe.mockClear();
   captureEmergencyErrorMock.mockClear();
   onlineFlag = true;
   authState.currentUser = { uid: 'u-test', getIdToken: async () => 'tok' };
@@ -107,6 +120,14 @@ beforeEach(() => {
   globalThis.fetch = vi.fn(async () =>
     new Response('{}', { status: 200 }),
   ) as unknown as typeof fetch;
+  emergencyDeliveryState.submit.mockImplementation(async (payload: { operation: string; projectId: string }) => ({
+    clientEventId: `delivery-${payload.projectId}`,
+    operation: payload.operation,
+    projectId: payload.projectId,
+    status: onlineFlag ? 'accepted' : 'pending',
+    failureKind: onlineFlag ? undefined : 'network',
+    queued: true,
+  }));
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -132,22 +153,23 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     await act(async () => {
       await handle.trigger('fall', 'proj-A');
     });
-    // 2026-05-24: el fan-out `void notifyBrigadeServer(...).then(...)` ahora
-    // hace `await import('../lib/apiAuth')` (§2.20 unified header). Ese
-    // dynamic import pasa por el module loader → microtasks alone no
-    // alcanzan. `waitFor` poll-asserta hasta que fetch sea invocado.
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-    });
-    await flushMicrotasks();
-
+    expect(emergencyDeliveryState.submit).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'activation', projectId: 'proj-A' }),
+      expect.objectContaining({ clientEventId: expect.stringMatching(/^activation-/) }),
+    );
     expect(meshEnqueueOutboundMock).not.toHaveBeenCalled();
   });
 
   it('online + server 500 → mesh NO se llama (bug del backend, no offline)', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('boom', { status: 500 }),
-    ) as unknown as typeof fetch;
+    emergencyDeliveryState.submit.mockResolvedValue({
+      clientEventId: 'delivery-server-error',
+      operation: 'activation',
+      projectId: 'proj-B',
+      status: 'pending',
+      failureKind: 'server',
+      queued: true,
+      error: 'HTTP 500',
+    });
 
     render(
       <EmergencyProvider>
@@ -199,6 +221,14 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     // call, PERO un peer con sesión puede relayarlo → debe ir al mesh, no
     // tratarse como 'ok' (audit 2026-07-02 §3.1).
     authState.currentUser = null;
+    emergencyDeliveryState.submit.mockResolvedValue({
+      clientEventId: 'delivery-noauth',
+      operation: 'activation',
+      projectId: 'proj-NOAUTH',
+      status: 'pending',
+      failureKind: 'network',
+      queued: true,
+    });
     meshEnqueueOutboundMock.mockResolvedValue({ enqueued: true, packetId: 'pkt-noauth' });
 
     render(

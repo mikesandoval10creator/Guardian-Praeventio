@@ -15,7 +15,7 @@ import { useFirebase } from "../contexts/FirebaseContext";
 import { useSeismicMonitor, Earthquake } from "../hooks/useSeismicMonitor";
 import { useFirestoreCollection } from "../hooks/useFirestoreCollection";
 import {
-  db, serverTimestamp, collection, addDoc, updateDoc,
+  db, serverTimestamp, collection, addDoc,
   doc, setDoc, onSnapshot, query, orderBy, limit, where,
 } from "../services/firebase";
 import { Worker } from "../types";
@@ -24,6 +24,11 @@ import { Tooltip } from "../components/shared/Tooltip";
 import { logger } from "../utils/logger";
 import { EmergencyAuthorityCallPanel } from "../components/emergency/EmergencyAuthorityCallPanel";
 import { humanErrorMessage } from '../lib/humanError';
+import {
+  submitEmergencyDelivery,
+  subscribeEmergencyDelivery,
+  type EmergencyDeliveryAttempt,
+} from '../services/emergency/emergencyDeliveryOutbox';
 
 
 interface EmergencyEvent {
@@ -103,6 +108,12 @@ export function EmergenciaAvanzada() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [safetyError, setSafetyError] = useState<string | null>(null);
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
+  const [activationDelivery, setActivationDelivery] = useState<EmergencyDeliveryAttempt | null>(null);
+  const activationUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    activationUnsubscribeRef.current?.();
+  }, []);
 
   const acousticSOS = useAcousticSOS({
     threshold: 75,
@@ -266,89 +277,86 @@ export function EmergenciaAvanzada() {
     focusedAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [focusedAlertId, sosAlerts]);
 
-  const triggerEmergency = async () => {
-    if (!selectedProject || !user) return;
+  const triggerEmergency = () => {
+    if (!projectForData || !user) return;
     const quake = pendingQuake;
     const type = quake ? `Sismo M${quake.magnitude.toFixed(1)}` : 'Emergencia General';
-    const pid = selectedProject.id;
-
-    // Each write is INDEPENDENT and life-safety-critical: a denied or failed
-    // write (e.g. offline, or a rule edge case) must NEVER abort the activation.
-    // The UI always advances to the personnel roll-call. `status`/`triggeredBy`
-    // match firestore.rules:emergency_events (the same shape the SOS path writes).
-    try {
-      await addDoc(collection(db, `projects/${pid}/emergency_events`), {
-        type,
-        magnitude: quake?.magnitude ?? null,
-        epicenter: quake?.place ?? null,
-        status: 'active',
-        triggeredBy: user.uid,
-        triggeredByName: user.displayName ?? user.email ?? null,
-        startedBy: user.displayName ?? user.email ?? 'Usuario',
-        startedAt: serverTimestamp(),
-        active: true,
-      });
-    } catch (err) {
-      logger.error('EmergenciaAvanzada: emergency_events create failed', { err });
-    }
-
-    try {
-      await addDoc(collection(db, `projects/${pid}/emergency_chat`), {
-        text: `🚨 EMERGENCIA ACTIVADA: ${type}.${quake ? ` Epicentro: ${quake.place}. Profundidad: ${quake.coordinates[2]}km.` : ''} Todos los trabajadores deben confirmar su estado de seguridad.`,
-        sender: 'Sistema',
-        senderRole: 'system',
-        isSystem: true,
-        createdAt: serverTimestamp(),
-      });
-    } catch (err) {
-      logger.error('EmergenciaAvanzada: emergency_chat activation message failed', { err });
-    }
-
-    for (const w of (workers ?? [])) {
-      try {
-        await setDoc(doc(db, `projects/${pid}/emergency_safety`, w.id), {
-          workerId: w.id,
-          status: 'unknown',
-          confirmedAt: null,
-        });
-      } catch (err) {
-        logger.error('EmergenciaAvanzada: emergency_safety seed failed', { workerId: w.id, err });
-      }
-    }
-
+    const pid = projectForData.id;
+    const localPending: EmergencyDeliveryAttempt = {
+      clientEventId: 'activation-local',
+      operation: 'activation',
+      projectId: pid,
+      status: 'pending',
+      queued: true,
+    };
+    setActivationDelivery(localPending);
     setShowTriggerConfirm(false);
     setPendingQuake(null);
+    // Do not hold the dashboard on the network. The outbox owns persistence,
+    // retries and the server ACK; the page advances while it is pending.
     setActiveTab('resources');
+
+    void submitEmergencyDelivery({
+      operation: 'activation',
+      projectId: pid,
+      emergencyType: type,
+      ...(quake ? { magnitude: quake.magnitude, epicenter: quake.place } : {}),
+      occurredAt: new Date().toISOString(),
+    })
+      .then((attempt) => {
+        setActivationDelivery(attempt);
+        activationUnsubscribeRef.current?.();
+        activationUnsubscribeRef.current = subscribeEmergencyDelivery(
+          attempt.clientEventId,
+          setActivationDelivery,
+        );
+      })
+      .catch((err) => {
+        setActivationDelivery({
+          ...localPending,
+          status: 'failed',
+          failureKind: 'unknown',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        logger.error('EmergenciaAvanzada: emergency delivery enqueue failed', { err });
+      });
   };
 
-  const resolveEmergency = async () => {
-    if (!selectedProject || !activeEmergency) return;
-    const pid = selectedProject.id;
-    // Resolution only mutates the rule-allowed key set
-    // (status/resolvedAt/resolvedBy/updatedAt) — flipping `active` would be
-    // rejected by firestore.rules:emergency_events. A failed write (e.g. a
-    // non-supervisor clicking resolve) must not block dismissing the dialog.
-    try {
-      await updateDoc(doc(db, `projects/${pid}/emergency_events`, activeEmergency.id), {
-        status: 'resolved',
-        resolvedBy: user?.uid ?? null,
-        resolvedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      logger.error('EmergenciaAvanzada: emergency_events resolve failed', { err });
-    }
-    try {
-      await addDoc(collection(db, `projects/${pid}/emergency_chat`), {
-        text: '✅ Emergencia resuelta. Todos los sistemas vuelven a operación normal.',
-        sender: 'Sistema',
-        senderRole: 'system',
-        isSystem: true,
-        createdAt: serverTimestamp(),
-      });
-    } catch (err) {
-      logger.error('EmergenciaAvanzada: emergency_chat resolve message failed', { err });
-    }
+  const resolveEmergency = () => {
+    if (!projectForData || !activeEmergency) return;
+    const eventId = activeEmergency.id;
+    const localPending: EmergencyDeliveryAttempt = {
+      clientEventId: `resolution-local-${eventId}`,
+      operation: 'resolution',
+      projectId: projectForData.id,
+      status: 'pending',
+      queued: true,
+    };
+    setActivationDelivery(localPending);
     setShowResolveConfirm(false);
+    void submitEmergencyDelivery({
+      operation: 'resolution',
+      projectId: projectForData.id,
+      eventId,
+      occurredAt: new Date().toISOString(),
+    }, { clientEventId: `resolution-${eventId}` })
+      .then((attempt) => {
+        setActivationDelivery(attempt);
+        activationUnsubscribeRef.current?.();
+        activationUnsubscribeRef.current = subscribeEmergencyDelivery(
+          attempt.clientEventId,
+          setActivationDelivery,
+        );
+      })
+      .catch((err) => {
+        setActivationDelivery({
+          ...localPending,
+          status: 'failed',
+          failureKind: 'unknown',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        logger.error('EmergenciaAvanzada: emergency resolution enqueue failed', { err });
+      });
   };
 
   const sendMessage = async () => {
@@ -398,6 +406,8 @@ export function EmergenciaAvanzada() {
     }
     return a.clientTimestamp ?? '—';
   };
+
+  const deliveryLabel = activationDelivery?.operation === 'resolution' ? 'Resolución' : 'Activación';
 
   if (!deepLinkReady) {
     const rejected = deepLinkStatus === 'not-member';
@@ -462,8 +472,32 @@ export function EmergenciaAvanzada() {
         </div>
       </div>
 
-      {/* [P0][VIDA] One-tap authority call numbers — high on the page so a
-          responder sees it immediately, before/alongside the SOS list. */}
+      {activationDelivery && (
+        <div
+          role="status"
+          aria-live="assertive"
+          data-testid="emergency-delivery-status"
+          className={`p-3 rounded-xl border text-xs font-black uppercase tracking-wider ${
+            activationDelivery.status === 'accepted'
+              ? activationDelivery.ack?.delivered === false
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+                : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
+              : activationDelivery.status === 'failed'
+                ? 'border-red-500/50 bg-red-500/10 text-red-300'
+                : 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+          }`}
+        >
+          {activationDelivery.status === 'accepted'
+            ? activationDelivery.ack?.delivered === false
+              ? `${deliveryLabel} aceptada por servidor; entrega a supervisor no confirmada.`
+              : `${deliveryLabel} confirmada por servidor.`
+            : activationDelivery.status === 'failed'
+              ? `${deliveryLabel} NO CONFIRMADA. ${activationDelivery.error ?? 'Revisa la cola de emergencia.'}`
+              : `${deliveryLabel} pendiente de confirmación del servidor.`}
+        </div>
+      )}
+
+
       <EmergencyAuthorityCallPanel
         regionCode={selectedProject?.country}
         coords={

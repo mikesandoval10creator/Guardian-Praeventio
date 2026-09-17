@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
+import { AlertTriangle, MapPin, ShieldAlert, Phone, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';
 import { useAppMode } from '../../contexts/AppModeContext';
 import { db, serverTimestamp } from '../../services/firebase';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
+import {
+  submitEmergencyDelivery,
+  subscribeEmergencyDelivery,
+  type EmergencyDeliveryAttempt,
+} from '../../services/emergency/emergencyDeliveryOutbox';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { logger } from '../../utils/logger';
@@ -184,8 +189,19 @@ export function EmergencyOverlay() {
   const [isSafe, setIsSafe] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
+  const [checkinDelivery, setCheckinDelivery] = useState<EmergencyDeliveryAttempt | null>(null);
+  const [triageDelivery, setTriageDelivery] = useState<EmergencyDeliveryAttempt | null>(null);
   // a11y: focus target for the primary "ESTOY A SALVO" action when the overlay appears.
   const safeButtonRef = useRef<HTMLButtonElement>(null);
+  const safeResolutionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkinSubscriptionRef = useRef<(() => void) | null>(null);
+  const triageSubscriptionRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    if (safeResolutionTimerRef.current) clearTimeout(safeResolutionTimerRef.current);
+    checkinSubscriptionRef.current?.();
+    triageSubscriptionRef.current?.();
+  }, []);
 
   // Kill-Switch de Animaciones (Modo Táctico) y Síntesis de Voz
   useEffect(() => {
@@ -257,6 +273,8 @@ export function EmergencyOverlay() {
       document.body.style.backgroundColor = '';
       setIsSafe(false);
       setTriageReported(null);
+      setCheckinDelivery(null);
+      setTriageDelivery(null);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -308,18 +326,14 @@ export function EmergencyOverlay() {
     // Reason 'company' falls through to the legacy useEmergency-driven UI.
   }
 
-  // Persist the worker's status to the canonical headcount the supervisor's
-  // evacuation dashboard reads: projects/{pid}/emergency_checkins/{uid}
-  // (mirrors EmergencyCheckIn.handleStatusUpdate; the Firestore rule requires
-  // workerId == auth.uid). Captures a best-effort live GPS fix so rescue knows
-  // WHERE the worker is. Non-blocking + offline-first: the Firestore SDK queues
-  // the write when offline, and a failure must never stall the local "estoy a
-  // salvo" feedback.
+  // Queue the worker status through the authoritative emergency delivery path.
+  // The local "safe" interaction is immediate; only the copy below may claim
+  // confirmation after the server ACK has arrived.
   const persistCheckin = async (
     status: 'safe' | 'danger',
     triageLevel?: 'verde' | 'amarillo' | 'rojo',
-  ) => {
-    if (!selectedProject?.id || !user) return;
+  ): Promise<EmergencyDeliveryAttempt | null> => {
+    if (!selectedProject?.id || !user) return null;
     let pos = location;
     if (!pos && typeof navigator !== 'undefined' && navigator.geolocation) {
       pos = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
@@ -330,52 +344,104 @@ export function EmergencyOverlay() {
         );
       });
     }
-    try {
-      await setDoc(
-        doc(db, `projects/${selectedProject.id}/emergency_checkins`, user.uid),
-        {
-          projectId: selectedProject.id,
-          workerId: user.uid,
-          name: user.displayName || 'Usuario',
-          status,
-          ...(triageLevel ? { triageLevel } : {}),
-          ...(pos ? { location: pos } : {}),
-          timestamp: serverTimestamp(),
-        },
-        { merge: true },
-      );
-    } catch (err) {
-      logger.warn('EmergencyOverlay: failed to persist emergency_checkin', { err });
-    }
+
+    return submitEmergencyDelivery({
+      operation: triageLevel ? 'triage' : 'checkin',
+      projectId: selectedProject.id,
+      workerId: user.uid,
+      status,
+      ...(triageLevel ? { triageLevel } : {}),
+      ...(pos ? { location: pos } : {}),
+      occurredAt: new Date().toISOString(),
+    });
   };
+
+  const localPendingDelivery = (
+    operation: 'checkin' | 'triage',
+  ): EmergencyDeliveryAttempt => ({
+    clientEventId: 'local-pending',
+    operation,
+    projectId: selectedProject?.id ?? 'unknown',
+    status: 'pending',
+    queued: true,
+  });
+
+  const deliveryError = (
+    operation: 'checkin' | 'triage',
+    err: unknown,
+  ): EmergencyDeliveryAttempt => ({
+    clientEventId: 'local-failed',
+    operation,
+    projectId: selectedProject?.id ?? 'unknown',
+    status: 'failed',
+    queued: true,
+    failureKind: 'unknown',
+    error: err instanceof Error ? err.message : String(err),
+  });
 
   const handleSafeClick = () => {
     setIsSafe(true);
+    setCheckinDelivery(localPendingDelivery('checkin'));
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    // Persist to the supervisor's headcount so evacuation isn't blind to who
-    // has reported safe.
-    void persistCheckin('safe');
-    setTimeout(() => {
+    // Never block the life-safety interaction on network or IDB latency.
+    void persistCheckin('safe')
+      .then((attempt) => {
+        if (!attempt) {
+          setCheckinDelivery(deliveryError('checkin', 'No hay proyecto o usuario autenticado'));
+          return;
+        }
+        setCheckinDelivery(attempt);
+        checkinSubscriptionRef.current?.();
+        checkinSubscriptionRef.current = subscribeEmergencyDelivery(
+          attempt.clientEventId,
+          setCheckinDelivery,
+        );
+      })
+      .catch((err) => setCheckinDelivery(deliveryError('checkin', err)));
+    if (safeResolutionTimerRef.current) clearTimeout(safeResolutionTimerRef.current);
+    safeResolutionTimerRef.current = setTimeout(() => {
       resolveEmergency();
+      safeResolutionTimerRef.current = null;
     }, 3000);
   };
 
   const handleTriage = (level: 'verde' | 'amarillo' | 'rojo') => {
     setTriageReported(level);
+    setTriageDelivery(localPendingDelivery('triage'));
     // verde = able to self-evacuate (safe); amarillo/rojo = needs assistance.
-    void persistCheckin(level === 'verde' ? 'safe' : 'danger', level);
+    void persistCheckin(level === 'verde' ? 'safe' : 'danger', level)
+      .then((attempt) => {
+        if (!attempt) {
+          setTriageDelivery(deliveryError('triage', 'No hay proyecto o usuario autenticado'));
+          return;
+        }
+        setTriageDelivery(attempt);
+        triageSubscriptionRef.current?.();
+        triageSubscriptionRef.current = subscribeEmergencyDelivery(
+          attempt.clientEventId,
+          setTriageDelivery,
+        );
+      })
+      .catch((err) => setTriageDelivery(deliveryError('triage', err)));
   };
 
   // Color → severity word, shared by the triage buttons and the confirmation
-  // so a screen reader (and the worker) hears "Reporte Crítico enviado", never
-  // the raw color "rojo". Single source of truth keeps the two from drifting.
+  // so a screen reader (and the worker) hears the severity label plus the
+  // authoritative delivery state, never the raw color "rojo".
   const TRIAGE_LABELS: Record<'verde' | 'amarillo' | 'rojo', string> = {
     verde: 'Leve',
     amarillo: 'Grave',
     rojo: 'Crítico',
   };
+
+  const triageDeliveryMessage =
+    triageDelivery?.status === 'accepted'
+      ? 'confirmado por servidor'
+      : triageDelivery?.status === 'failed'
+        ? 'NO CONFIRMADO'
+        : 'pendiente de confirmación';
 
   return (
     <MotionConfig reducedMotion={isEmergencyActive ? "always" : "user"}>
@@ -532,16 +598,39 @@ export function EmergencyOverlay() {
                         'bg-red-900/50 border-red-500 text-red-400'
                       }`}
                     >
-                      <CheckCircle2 className="w-6 h-6" />
-                      Reporte {triageReported ? TRIAGE_LABELS[triageReported] : ''} enviado
+                      {triageDelivery?.status === 'failed' ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+                      Reporte {triageReported ? TRIAGE_LABELS[triageReported] : ''} {triageDeliveryMessage}
+                      {triageDelivery?.error && (
+                        <span className="normal-case text-xs ml-2">({triageDelivery.error})</span>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="bg-white text-black px-12 py-6 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center justify-center gap-4">
-                <CheckCircle2 className="w-8 h-8 text-green-500" />
-                <span>ESTADO REGISTRADO. ESPERE INSTRUCCIONES.</span>
+              <div
+                role="status"
+                aria-live="assertive"
+                className={`bg-white text-black px-12 py-6 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center justify-center gap-4 ${
+                  checkinDelivery?.status === 'failed' ? 'border-4 border-red-500' : ''
+                }`}
+              >
+                {checkinDelivery?.status === 'accepted' ? (
+                  <>
+                    <CheckCircle2 className="w-8 h-8 text-green-500" />
+                    <span>ESTADO CONFIRMADO POR SERVIDOR. ESPERE INSTRUCCIONES.</span>
+                  </>
+                ) : checkinDelivery?.status === 'failed' ? (
+                  <>
+                    <AlertTriangle className="w-8 h-8 text-red-600" />
+                    <span>ESTADO NO CONFIRMADO. AVISE PRESENCIALMENTE. {checkinDelivery.error}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-8 h-8 text-amber-500" />
+                    <span>ESTADO PENDIENTE DE CONFIRMACIÓN. ESPERE INSTRUCCIONES.</span>
+                  </>
+                )}
               </div>
             )}
 

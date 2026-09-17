@@ -145,6 +145,42 @@ describe('emergency_checkins — worker self-view and supervisor headcount priva
   });
 });
 
+describe('emergency_events — lifecycle authorization', () => {
+  const event = (triggeredBy: string = MEMBER) => ({
+    clientEventId: 'activation-rules-1',
+    type: 'fall',
+    status: 'active',
+    triggeredBy,
+    projectId: PID,
+    createdAt: '2026-09-17T10:00:00.000Z',
+  });
+
+  it('a project member can create an active event for themselves', async () => {
+    await assertSucceeds(setDoc(ref(authed(MEMBER), 'emergency_events', 'activation-rules-1'), event()));
+  });
+
+  it('a worker cannot spoof triggeredBy when creating an event', async () => {
+    await assertFails(setDoc(ref(authed(MEMBER), 'emergency_events', 'activation-rules-2'), event(OTHER)));
+  });
+
+  it('a non-member cannot create an event', async () => {
+    await assertFails(setDoc(ref(authed(OUTSIDER), 'emergency_events', 'activation-rules-3'), event(OUTSIDER)));
+  });
+
+  it('only a tenant-bound supervisor can resolve an event', async () => {
+    await seed('emergency_events', 'activation-rules-4', event());
+    await assertFails(
+      updateDoc(ref(authed(MEMBER), 'emergency_events', 'activation-rules-4'), { status: 'resolved' }),
+    );
+    await assertSucceeds(
+      updateDoc(
+        ref(tenantAuthed(SUPERVISOR, TID, 'supervisor'), 'emergency_events', 'activation-rules-4'),
+        { status: 'resolved', resolvedBy: SUPERVISOR },
+      ),
+    );
+  });
+});
+
 describe('emergency_chat — firestore.rules (§365)', () => {
   const msg = () => ({ text: 'Estado: zona despejada', sender: 'Ana', senderRole: 'Trabajador', createdAt: '2026-06-08T00:00:00.000Z' });
 

@@ -146,8 +146,9 @@ export function EmergencySquadManager() {
     return () => { void stopScanning(); };
   }, [viewMode, userUid, bleSupported, startScanning, stopScanning]);
 
-  // "Llamado General" — real action: fan out the brigade emergency push
-  // (triggerEmergency → /api/emergency/notify-brigada) for the active project.
+  // "Llamado General" — real action: triggerEmergency enqueues the durable
+  // emergency-delivery packet; the server persists it and fans out the brigade
+  // push after the packet reaches the authoritative endpoint.
   const handleGeneralCall = async () => {
     if (!projectId || calling) return;
     setCalling(true);

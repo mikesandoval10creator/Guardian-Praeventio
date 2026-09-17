@@ -31,8 +31,18 @@ let firebaseMock: { user: { uid: string; displayName: string | null } | null } =
   user: { uid: 'u1', displayName: 'Juan' },
 };
 // Reassigned per test so assertions see a fresh spy (mirrors emergencyMock).
-let setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
 let addDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve({ id: 'fake' }));
+let emergencyDeliverySpy = vi.fn();
+
+vi.mock('framer-motion', () => ({
+  AnimatePresence: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  MotionConfig: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  motion: {
+    div: ({ children, initial: _i, animate: _a, exit: _e, transition: _t, ...props }: { children?: React.ReactNode } & Record<string, unknown>) => (
+      <div {...props}>{children}</div>
+    ),
+  },
+}));
 
 vi.mock('../../contexts/EmergencyContext', () => ({
   useEmergency: () => emergencyMock,
@@ -59,8 +69,11 @@ vi.mock('firebase/firestore', () => ({
   // Capture the path so tests can pin WHERE seismic telemetry is written.
   collection: vi.fn((_db: unknown, path: string) => ({ path })),
   addDoc: (...args: unknown[]) => addDocSpy(...args),
-  doc: vi.fn((_db: unknown, path: string, id: string) => ({ path, id })),
-  setDoc: (...args: unknown[]) => setDocSpy(...args),
+}));
+
+vi.mock('../../services/emergency/emergencyDeliveryOutbox', () => ({
+  submitEmergencyDelivery: (...args: unknown[]) => emergencyDeliverySpy(...args),
+  subscribeEmergencyDelivery: vi.fn(() => () => undefined),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -82,8 +95,15 @@ beforeEach(() => {
   };
   projectMock = { selectedProject: { id: 'p1', name: 'Mina X' } };
   firebaseMock = { user: { uid: 'u1', displayName: 'Juan' } };
-  setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
   addDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve({ id: 'fake' }));
+  emergencyDeliverySpy = vi.fn(async (payload: Record<string, unknown>) => ({
+    clientEventId: 'delivery-1',
+    operation: payload.operation,
+    projectId: 'p1',
+    status: 'accepted',
+    queued: true,
+    ack: { accepted: true, delivered: true, serverEventId: 'srv-1' },
+  }));
   // Stub geolocation so the check-in's best-effort GPS resolves (a no-op stub
   // would hang the persist Promise).
   Object.defineProperty(global.navigator, 'geolocation', {
@@ -140,24 +160,76 @@ describe('EmergencyOverlay', () => {
     expect(document.activeElement).toBe(safeBtn);
   });
 
-  it('triage confirmation shows the severity LABEL (not the raw color) with role=status', () => {
+  it('triage confirmation shows the severity LABEL (not the raw color) with role=status', async () => {
     emergencyMock.isEmergencyActive = true;
     render(<EmergencyOverlay />);
-    fireEvent.click(screen.getByText('Crítico')); // rojo
+    await act(async () => {
+      fireEvent.click(screen.getByText('Crítico')); // rojo
+      await Promise.resolve();
+    });
     const status = screen.getByRole('status');
     expect(status.getAttribute('aria-live')).toBe('assertive');
-    expect(status.textContent).toMatch(/Reporte Crítico enviado/);
+    expect(status.textContent).toMatch(/Reporte Crítico confirmado por servidor/);
     // The raw color must NOT leak to the user/screen reader.
     expect(screen.queryByText(/Reporte rojo enviado/i)).toBeNull();
   });
 
-  it('triage confirmation maps verde → "Leve"', () => {
+  it('triage confirmation maps verde → "Leve"', async () => {
     emergencyMock.isEmergencyActive = true;
     render(<EmergencyOverlay />);
-    fireEvent.click(screen.getByText('Leve')); // verde
-    expect(screen.getByText(/Reporte Leve enviado/i)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Leve')); // verde
+      await Promise.resolve();
+    });
+    expect(screen.getByText(/Reporte Leve confirmado por servidor/i)).toBeTruthy();
   });
 
+  it('keeps triage pending until the server ACK arrives', async () => {
+    emergencyMock.isEmergencyActive = true;
+    let resolveDelivery!: (value: unknown) => void;
+    emergencyDeliverySpy = vi.fn(
+      () => new Promise((resolve) => { resolveDelivery = resolve; }),
+    );
+    render(<EmergencyOverlay />);
+
+    fireEvent.click(screen.getByText('Crítico'));
+    expect(screen.getByRole('status').textContent).toMatch(/pendiente de confirmación/i);
+    expect(screen.queryByText(/Reporte Crítico enviado/i)).toBeNull();
+
+    await act(async () => {
+      resolveDelivery({
+        clientEventId: 'delivery-1',
+        operation: 'triage',
+        projectId: 'p1',
+        status: 'accepted',
+        queued: true,
+        ack: { accepted: true, delivered: true, serverEventId: 'srv-1' },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status').textContent).toMatch(/confirmado por servidor/i);
+  });
+
+  it('shows an honest failure when the server denies the check-in', async () => {
+    emergencyMock.isEmergencyActive = true;
+    emergencyDeliverySpy = vi.fn(async () => ({
+      clientEventId: 'delivery-denied',
+      operation: 'checkin',
+      projectId: 'p1',
+      status: 'failed',
+      failureKind: 'authorization',
+      error: 'HTTP 403',
+      queued: true,
+    }));
+    render(<EmergencyOverlay />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/ESTOY A SALVO/i));
+      await Promise.resolve();
+    });
+    expect(screen.getByText(/NO CONFIRMADO/i)).toBeTruthy();
+    expect(screen.getByText(/HTTP 403/i)).toBeTruthy();
+  });
   it('renders the seismic auto-overlay variant when reason=sismo', () => {
     appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.18 };
     render(<EmergencyOverlay />);
@@ -226,10 +298,9 @@ describe('EmergencyOverlay', () => {
     expect(screen.getByText(/ALERTA DE EMERGENCIA/i)).toBeTruthy();
   });
 
-  // Life-safety persistence (B1): the "estoy a salvo" + triage taps used to be
-  // stubs ("here we would normally update Firebase"), so the supervisor's
-  // evacuation headcount was blind. They now write the canonical
-  // projects/{pid}/emergency_checkins/{uid} doc the dashboard reads.
+  // Life-safety persistence (B1): the "estoy a salvo" + triage taps enqueue
+  // a durable packet; the server writes the canonical
+  // projects/{pid}/emergency_checkins/{uid} doc after an authenticated ACK.
   it('persists "safe" to emergency_checkins (+ GPS) when the worker taps ESTOY A SALVO', async () => {
     emergencyMock.isEmergencyActive = true;
     emergencyMock.emergencyType = 'sismo';
@@ -237,17 +308,15 @@ describe('EmergencyOverlay', () => {
     await act(async () => {
       fireEvent.click(screen.getByText(/ESTOY A SALVO/i));
     });
-    expect(setDocSpy).toHaveBeenCalledTimes(1);
-    const [ref, payload, opts] = setDocSpy.mock.calls[0] as unknown as [
-      { path: string; id: string },
-      Record<string, unknown>,
-      { merge: boolean },
-    ];
-    expect(ref.path).toBe('projects/p1/emergency_checkins');
-    expect(ref.id).toBe('u1');
-    expect(payload).toMatchObject({ projectId: 'p1', workerId: 'u1', status: 'safe' });
-    expect(payload.location).toEqual({ lat: -33.45, lng: -70.66 });
-    expect(opts).toEqual({ merge: true });
+    expect(emergencyDeliverySpy).toHaveBeenCalledTimes(1);
+    const [payload] = emergencyDeliverySpy.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).toMatchObject({
+      operation: 'checkin',
+      projectId: 'p1',
+      workerId: 'u1',
+      status: 'safe',
+      location: { lat: -33.45, lng: -70.66 },
+    });
   });
 
   it('persists a triage level (Crítico → status danger + triageLevel rojo)', async () => {
@@ -256,9 +325,14 @@ describe('EmergencyOverlay', () => {
     await act(async () => {
       fireEvent.click(screen.getByText(/Crítico/i));
     });
-    expect(setDocSpy).toHaveBeenCalledTimes(1);
-    const payload = setDocSpy.mock.calls[0]![1] as Record<string, unknown>;
-    expect(payload).toMatchObject({ workerId: 'u1', status: 'danger', triageLevel: 'rojo' });
+    expect(emergencyDeliverySpy).toHaveBeenCalledTimes(1);
+    const [payload] = emergencyDeliverySpy.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).toMatchObject({
+      operation: 'triage',
+      workerId: 'u1',
+      status: 'danger',
+      triageLevel: 'rojo',
+    });
   });
 
   // A4 follow-up (2026-06): seismic telemetry used to write
@@ -301,6 +375,6 @@ describe('EmergencyOverlay', () => {
     await act(async () => {
       fireEvent.click(screen.getByText(/ESTOY A SALVO/i));
     });
-    expect(setDocSpy).not.toHaveBeenCalled();
+    expect(emergencyDeliverySpy).not.toHaveBeenCalled();
   });
 });

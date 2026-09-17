@@ -110,6 +110,14 @@ export function RootLayout() {
     void import('../../services/incidents/incidentOutbox').then((m) => m.registerIncidentFlushOnReconnect());
   }, []);
 
+  // Emergency check-in/triage/activation packets share the same app-start +
+  // reconnect guarantee as SOS, but use their own audited endpoint/queue.
+  useEffect(() => {
+    void import('../../services/emergency/emergencyDeliveryOutbox').then((m) =>
+      m.registerEmergencyDeliveryFlushOnReconnect(),
+    );
+  }, []);
+
   // Initialize background watcher
   useAutonomousAlerts();
   useZettelkastenIntelligence();

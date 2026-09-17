@@ -232,10 +232,9 @@ export function EvacuationRoutes() {
   };
 
   // Audit 2026-07-02 §3.4 #6 — real POST to the existing supervisor
-  // fan-out endpoint (`/api/emergency/notify-brigada`, same one
-  // `EmergencyContext.notifyBrigadeServer` and `CoastalEmergencyMap` call).
-  // Not duplicating that logic in a new context/service: this page has no
-  // existing wire to EmergencyContext, and the endpoint is a plain
+  // fan-out endpoint (`/api/emergency/notify-brigada`, retained for this
+  // page's direct authority call). EmergencyContext uses the durable
+  // `/api/emergency/delivery` path for lifecycle packets.
   // authenticated POST — a direct fetch mirrors the CoastalEmergencyMap.tsx
   // pattern rather than adding a new abstraction layer.
   const notifyCrew = async () => {
