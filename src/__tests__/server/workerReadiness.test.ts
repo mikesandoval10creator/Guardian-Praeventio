@@ -97,6 +97,28 @@ describe('GET /api/sprint-k/:projectId/worker-readiness/:workerUid', () => {
     expect(res.body.error).toBe('worker_not_found');
   });
 
+  it('returns a degraded data-quality signal when a source query fails', async () => {
+    H.db!._seed('projects/p1/workers/w1', { name: 'worker self' });
+    H.db!._failReads('training_assignments');
+
+    const res = await get('p1/worker-readiness/w1', selfToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.dataQuality).toEqual({
+      status: 'degraded',
+      degradedSources: ['trainings'],
+    });
+    expect(res.body.report).toBeDefined();
+  });
+
+  it('returns unavailable instead of a healthy-looking 404 when the worker read fails', async () => {
+    H.db!._failReads('projects/p1/workers/w1');
+
+    const res = await get('p1/worker-readiness/w1', selfToken);
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('readiness_data_unavailable');
+  });
   it('200 when caller IS the worker (self-view)', async () => {
     H.db!._seed('projects/p1/workers/w1', { name: 'worker self' });
     const res = await get('p1/worker-readiness/w1', selfToken);

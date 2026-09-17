@@ -8,6 +8,10 @@ import type { ReadinessReport } from '../services/workerReadiness/readinessScore
 
 export interface WorkerReadinessResponse {
   report: ReadinessReport;
+  dataQuality: {
+    status: 'complete' | 'degraded';
+    degradedSources: string[];
+  };
 }
 
 export function useWorkerReadiness(

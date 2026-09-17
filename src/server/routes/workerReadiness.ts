@@ -154,6 +154,10 @@ router.get(
         '../../services/workerReadiness/readinessScore.js'
       );
       const db = admin.firestore();
+      const degradedSources = new Set<string>();
+      const markDegraded = (source: string): void => {
+        degradedSources.add(source);
+      };
 
       const safeRead = async <T,>(
         label: string,
@@ -163,6 +167,7 @@ router.get(
         try {
           return await fn();
         } catch (err) {
+          markDegraded(label);
           logger.warn?.(`workerReadiness.read.${label}.failed`, err);
           return fallback;
         }
@@ -205,6 +210,7 @@ router.get(
                   'workerReadiness.read.trainingAssignments.failed',
                   err,
                 );
+                markDegraded('trainings');
                 return null;
               }),
             db
@@ -218,6 +224,7 @@ router.get(
                   'workerReadiness.read.projectTrainingsByUid.failed',
                   err,
                 );
+                markDegraded('trainings');
                 return null;
               }),
             db
@@ -231,6 +238,7 @@ router.get(
                   'workerReadiness.read.projectTrainingsByWorkerId.failed',
                   err,
                 );
+                markDegraded('trainings');
                 return null;
               }),
             db
@@ -243,6 +251,7 @@ router.get(
                   'workerReadiness.read.topTrainingByUid.failed',
                   err,
                 );
+                markDegraded('trainings');
                 return null;
               }),
             db
@@ -256,6 +265,7 @@ router.get(
                   'workerReadiness.read.topTrainingByAttendees.failed',
                   err,
                 );
+                markDegraded('trainings');
                 return null;
               }),
           ]);
@@ -314,6 +324,7 @@ router.get(
                   'workerReadiness.read.eppNestedByWorkerId.failed',
                   err,
                 );
+                markDegraded('epp');
                 return null;
               }),
             db
@@ -327,6 +338,7 @@ router.get(
                   'workerReadiness.read.eppNestedByWorkerUid.failed',
                   err,
                 );
+                markDegraded('epp');
                 return null;
               }),
             db
@@ -339,6 +351,7 @@ router.get(
                   'workerReadiness.read.eppTopByUid.failed',
                   err,
                 );
+                markDegraded('epp');
                 return null;
               }),
             db
@@ -351,6 +364,7 @@ router.get(
                   'workerReadiness.read.eppTopByAssignedTo.failed',
                   err,
                 );
+                markDegraded('epp');
                 return null;
               }),
           ]);
@@ -423,6 +437,7 @@ router.get(
                   'workerReadiness.read.incidentsByWorkerUid.failed',
                   err,
                 );
+                markDegraded('incidents');
                 return null;
               }),
             baseQuery
@@ -434,6 +449,7 @@ router.get(
                   'workerReadiness.read.incidentsByAffectedWorkerUid.failed',
                   err,
                 );
+                markDegraded('incidents');
                 return null;
               }),
             baseQuery
@@ -445,6 +461,7 @@ router.get(
                   'workerReadiness.read.incidentsByInvolvedWorkers.failed',
                   err,
                 );
+                markDegraded('incidents');
                 return null;
               }),
             baseQuery
@@ -456,6 +473,7 @@ router.get(
                   'workerReadiness.read.incidentsByAffectedWorkerUids.failed',
                   err,
                 );
+                markDegraded('incidents');
                 return null;
               }),
           ]);
@@ -526,6 +544,15 @@ router.get(
         ]);
 
       if (!worker) {
+        if (degradedSources.has('worker')) {
+          return res.status(503).json({
+            error: 'readiness_data_unavailable',
+            dataQuality: {
+              status: 'degraded',
+              degradedSources: ['worker'],
+            },
+          });
+        }
         return res.status(404).json({ error: 'worker_not_found' });
       }
 
@@ -744,6 +771,7 @@ router.get(
                   }
                 }
               } catch (err) {
+                markDegraded('processes');
                 logger.warn?.(
                   'workerReadiness.read.processBatch.failed',
                   err,
@@ -929,8 +957,14 @@ router.get(
       };
 
       const report = computeReadiness(profile, task);
-
-      return res.json({ report });
+      const degradedSourceList = Array.from(degradedSources).sort();
+      return res.json({
+        report,
+        dataQuality: {
+          status: degradedSourceList.length > 0 ? 'degraded' : 'complete',
+          degradedSources: degradedSourceList,
+        },
+      });
     } catch (err) {
       logger.error?.('workerReadiness.error', err);
       captureRouteError(err, 'workerReadiness');

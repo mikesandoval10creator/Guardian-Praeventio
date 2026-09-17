@@ -20,6 +20,13 @@ import { WorkerReadiness } from './WorkerReadiness';
 import type { ReadinessReport } from '../services/workerReadiness/readinessScore';
 import type { WorkerReadinessResponse } from '../hooks/useWorkerReadiness';
 
+type ReadinessDataWithQuality = Omit<WorkerReadinessResponse, 'dataQuality'> & {
+  dataQuality?: {
+    status: 'complete' | 'degraded';
+    degradedSources: string[];
+  };
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (
@@ -51,7 +58,7 @@ let mockWorkers: Array<{
   role?: string;
 }> = [];
 let mockReadiness: {
-  data: WorkerReadinessResponse | null;
+  data: ReadinessDataWithQuality | null;
   loading: boolean;
   error: Error | null;
   refetch?: () => void;
@@ -79,7 +86,7 @@ vi.mock('../hooks/useWorkerReadiness', () => ({
     _pid: string | null,
     workerUid: string | null,
   ): {
-    data: WorkerReadinessResponse | null;
+    data: ReadinessDataWithQuality | null;
     loading: boolean;
     error: Error | null;
     refetch?: () => void;
@@ -166,6 +173,29 @@ describe('<WorkerReadiness /> page wrapper (Fase F.16)', () => {
     expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
   });
 
+  it('muestra datos incompletos cuando una fuente no pudo verificarse, aunque el score sea alto', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockWorkers = [{ id: 'w-1', name: 'Juan Pérez' }];
+    mockReadiness = {
+      data: {
+        report: makeReport({ score: 92, level: 'ready' }),
+        dataQuality: { status: 'degraded', degradedSources: ['trainings', 'incidents'] },
+      },
+      loading: false,
+      error: null,
+    };
+
+    render(<WorkerReadiness />);
+    fireEvent.change(screen.getByTestId('worker-readiness-select'), {
+      target: { value: 'w-1' },
+    });
+
+    expect(screen.getByTestId('worker-readiness-degraded')).toBeInTheDocument();
+    expect(screen.getByTestId('worker-readiness-degraded')).toHaveTextContent(/datos incompletos/i);
+    expect(screen.getByTestId('worker-readiness-degraded')).toHaveTextContent(/capacitaciones/i);
+    expect(screen.getByTestId('worker-readiness-level')).toHaveTextContent(/datos incompletos/i);
+    expect(screen.getByTestId('worker-readiness-level')).not.toHaveTextContent(/^Preparado$/i);
+  });
   it('renderiza score alto: muestra valor, nivel y barras, SIN banner de atención', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockWorkers = [{ id: 'w-1', name: 'Juan Pérez' }];
