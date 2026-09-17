@@ -713,6 +713,15 @@
       ]
     },
     {
+      "_comment": "Emergency headcount self-view: workerId equality + rolling timestamp window for worker-scoped check-in listeners.",
+      "collectionGroup": "emergency_checkins",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workerId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
       "_comment": "Wisdom capsules are queried only inside the authenticated tenant/project scope.",
       "collectionGroup": "wisdomCapsules",
       "queryScope": "COLLECTION",

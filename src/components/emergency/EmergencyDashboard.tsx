@@ -30,6 +30,7 @@ import { EmergencySquadManager } from './EmergencySquadManager';
 import { TacticalSimulation3D } from './TacticalSimulation3D';
 import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
 import { Bluetooth } from 'lucide-react';
+import { isSupervisorRole } from '../../types/roles';
 
 export function EmergencyDashboard() {
   const { selectedProject } = useProject();
@@ -57,7 +58,8 @@ export function EmergencyDashboard() {
     return () => clearInterval(id);
   }, [emergencyStartMs]);
 
-  const isWorker = userRole === 'worker' && !isAdmin;
+  const canViewGlobalHeadcount = isAdmin || isSupervisorRole(userRole);
+  const isSelfScopedHeadcount = !canViewGlobalHeadcount;
   const navigate = useNavigate();
   const [showLotoConfirm, setShowLotoConfirm] = useState(false);
   const [showAuthorityPanel, setShowAuthorityPanel] = useState(false);
@@ -80,10 +82,16 @@ export function EmergencyDashboard() {
       }
     });
 
-    let checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`));
-    if (isWorker && user) {
-      checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`), where('workerId', '==', user.uid));
+    if (isSelfScopedHeadcount && !user) {
+      return () => unsubscribeProject();
     }
+
+    const checkinsQuery = isSelfScopedHeadcount
+      ? query(
+          collection(db, `projects/${selectedProject.id}/emergency_checkins`),
+          where('workerId', '==', user?.uid ?? ''),
+        )
+      : query(collection(db, `projects/${selectedProject.id}/emergency_checkins`));
 
     const unsubscribeCheckins = onSnapshot(checkinsQuery, (snapshot) => {
       const workers = snapshot.docs.map(doc => doc.data());
@@ -101,7 +109,7 @@ export function EmergencyDashboard() {
       unsubscribeProject();
       unsubscribeCheckins();
     };
-  }, [selectedProject?.id, isWorker, user]);
+  }, [selectedProject?.id, isSelfScopedHeadcount, user]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');

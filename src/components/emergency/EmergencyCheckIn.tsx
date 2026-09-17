@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { isSupervisorRole } from '../../types/roles';
 import { db, collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, getDocs, writeBatch, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 import { Timestamp } from 'firebase/firestore';
 
@@ -24,11 +25,13 @@ interface WorkerStatus {
 }
 
 export function EmergencyCheckIn() {
-  const { user } = useFirebase();
+  const { user, userRole, isAdmin } = useFirebase();
   const { selectedProject } = useProject();
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [myStatus, setMyStatus] = useState<'safe' | 'danger' | 'unknown'>('unknown');
   const [workers, setWorkers] = useState<WorkerStatus[]>([]);
+  const canManageEmergency = isAdmin || isSupervisorRole(userRole);
+  const isSelfScopedHeadcount = !canManageEmergency;
 
   useEffect(() => {
     if (!selectedProject?.id) return undefined;
@@ -41,16 +44,28 @@ export function EmergencyCheckIn() {
       }
     });
 
-    // Listen to check-ins (last 24h, capped at 100)
-    // Note: doc creation must set timestamp=serverTimestamp() for this listener to surface it.
-    // Firestore single-field index on `timestamp` is auto-created (verificado plan v2 F9).
+    if (isSelfScopedHeadcount && !user) {
+      setWorkers([]);
+      return () => unsubscribeProject();
+    }
+
+    // Listen to check-ins (last 24h, capped at 100). Worker-class roles add
+    // an indexed self constraint; supervisors/admins retain the full headcount.
     const last24h = Date.now() - 24 * 60 * 60 * 1000;
-    const checkinsQuery = query(
-      collection(db, `projects/${selectedProject.id}/emergency_checkins`),
-      where('timestamp', '>=', Timestamp.fromDate(new Date(last24h))),
-      orderBy('timestamp', 'desc'),
-      limit(100),
-    );
+    const checkinsQuery = isSelfScopedHeadcount
+      ? query(
+          collection(db, `projects/${selectedProject.id}/emergency_checkins`),
+          where('workerId', '==', user?.uid ?? ''),
+          where('timestamp', '>=', Timestamp.fromDate(new Date(last24h))),
+          orderBy('timestamp', 'desc'),
+          limit(100),
+        )
+      : query(
+          collection(db, `projects/${selectedProject.id}/emergency_checkins`),
+          where('timestamp', '>=', Timestamp.fromDate(new Date(last24h))),
+          orderBy('timestamp', 'desc'),
+          limit(100),
+        );
     const unsubscribeCheckins = onSnapshot(checkinsQuery, (snapshot) => {
       const newWorkers = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -81,7 +96,7 @@ export function EmergencyCheckIn() {
       unsubscribeProject();
       unsubscribeCheckins();
     };
-  }, [selectedProject?.id, user?.uid]);
+  }, [selectedProject?.id, user, isSelfScopedHeadcount]);
 
   const handleStatusUpdate = async (status: 'safe' | 'danger') => {
     if (!selectedProject?.id || !user) return;
@@ -108,7 +123,7 @@ export function EmergencyCheckIn() {
   };
 
   const toggleEmergency = async () => {
-    if (!selectedProject?.id) return;
+    if (!canManageEmergency || !selectedProject?.id) return;
     try {
       const projectRef = doc(db, 'projects', selectedProject.id);
       const newStatus = !isEmergencyActive;
@@ -157,17 +172,19 @@ export function EmergencyCheckIn() {
             Estado de Emergencia: {isEmergencyActive ? 'ACTIVO' : 'INACTIVO'}
           </span>
         </div>
-        <button
-          onClick={toggleEmergency}
-          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
-          className={`min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
-            isEmergencyActive 
-              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white' 
-              : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
-          }`}
-        >
-          {isEmergencyActive ? 'Finalizar Emergencia' : 'Declarar Emergencia'}
-        </button>
+        {canManageEmergency && (
+          <button
+            onClick={toggleEmergency}
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            className={`min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+              isEmergencyActive
+                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
+            }`}
+          >
+            {isEmergencyActive ? 'Finalizar Emergencia' : 'Declarar Emergencia'}
+          </button>
+        )}
       </div>
 
       <AnimatePresence>
