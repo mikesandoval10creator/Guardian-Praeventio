@@ -422,6 +422,22 @@ describe('POST /api/admin/jobs/climate-scan', () => {
     expect(vi.mocked(runDailyClimateRiskScan)).not.toHaveBeenCalled();
   });
 
+  it('503 when the scan reports degraded FCM delivery instead of claiming success', async () => {
+    vi.mocked(runDailyClimateRiskScan).mockResolvedValueOnce({
+      projectsScanned: 1,
+      nodesWritten: 2,
+      fcmSent: 1,
+      fcmFailed: 2,
+      deliveryDegraded: true,
+    } as never);
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/climate-scan')
+      .set(asUser('admin1'));
+
+    expect(res.status).toBe(503);
+    expect((res.body as Record<string, unknown>).ok).toBe(false);
+    expect((res.body as Record<string, unknown>).error).toBe('climate_delivery_degraded');
+  });
   it('200 admin: runDailyClimateRiskScan called with wired deps', async () => {
     vi.mocked(runDailyClimateRiskScan).mockResolvedValueOnce({
       projectsScanned: 1, nodesWritten: 2, fcmSent: 0, fcmFailed: 0,

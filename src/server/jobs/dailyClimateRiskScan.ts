@@ -97,6 +97,7 @@ export interface ClimateRiskScanResult {
   nodesPersisted: number;
   notificationsSent: number;
   notificationsFailed: number;
+  deliveryDegraded: boolean;
   errors: Array<{ projectId: string; reason: string }>;
 }
 
@@ -177,6 +178,7 @@ async function runDailyClimateRiskScanInner(
     nodesPersisted: 0,
     notificationsSent: 0,
     notificationsFailed: 0,
+    deliveryDegraded: false,
     errors: [],
   };
 
@@ -234,20 +236,36 @@ async function runDailyClimateRiskScanInner(
 
       if (urgent.length > 0 && project.supervisorUids.length > 0) {
         const titles = urgent.slice(0, 3).map((n) => shortLabel(n.assessment));
-        const fcm = await deps.sendFcmMulticast({
-          uids: project.supervisorUids,
-          title: `Clima — ${urgent.length} riesgo(s) en ${project.name}`,
-          body: titles.join(' · '),
-          data: {
-            type: 'climate_risk_daily',
-            projectId: project.id,
-            tenantId: project.tenantId,
-            nodeCount: String(urgent.length),
-            topSeverity: highestSeverity(urgent),
-          },
-        });
+        let fcm: { successCount: number; failureCount: number };
+        try {
+          fcm = await deps.sendFcmMulticast({
+            uids: project.supervisorUids,
+            title: `Clima — ${urgent.length} riesgo(s) en ${project.name}`,
+            body: titles.join(' · '),
+            data: {
+              type: 'climate_risk_daily',
+              projectId: project.id,
+              tenantId: project.tenantId,
+              nodeCount: String(urgent.length),
+              topSeverity: highestSeverity(urgent),
+            },
+          });
+        } catch {
+          // The scan remains non-blocking for other projects, but it is not
+          // healthy: the caller must return a retryable non-2xx response.
+          result.deliveryDegraded = true;
+          result.errors.push({ projectId: project.id, reason: 'fcm_delivery_error' });
+          continue;
+        }
         result.notificationsSent += fcm.successCount;
         result.notificationsFailed += fcm.failureCount;
+        if (fcm.failureCount > 0) {
+          result.deliveryDegraded = true;
+          result.errors.push({
+            projectId: project.id,
+            reason: `fcm_delivery_failed:${fcm.failureCount}`,
+          });
+        }
       }
     } catch (err) {
       result.errors.push({ projectId: project.id, reason: String(err) });
@@ -269,6 +287,7 @@ function summarize(result: ClimateRiskScanResult, completedAt: number) {
     nodesPersisted: result.nodesPersisted,
     notificationsSent: result.notificationsSent,
     notificationsFailed: result.notificationsFailed,
+    deliveryStatus: result.deliveryDegraded ? 'degraded' : 'ok',
     durationMs: completedAt - result.startedAt,
     errorCount: result.errors.length,
   };
