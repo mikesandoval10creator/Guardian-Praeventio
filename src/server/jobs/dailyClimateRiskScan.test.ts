@@ -160,6 +160,27 @@ describe('runDailyClimateRiskScan', () => {
     expect(result.notificationsSent).toBe(2);
   });
 
+  it('marks partial FCM delivery as degraded and records a retryable failure', async () => {
+    const audit = vi.fn(async () => {});
+    const fcm = vi.fn(async () => ({ successCount: 1, failureCount: 2 }));
+    const result = await runDailyClimateRiskScan(
+      makeDeps({
+        listActiveProjects: async () => [makeProject()],
+        fetchForecast: async () => [STORMY_DAY],
+        sendFcmMulticast: fcm,
+        audit,
+      }),
+    );
+
+    expect(result.notificationsSent).toBe(1);
+    expect(result.notificationsFailed).toBe(2);
+    expect(result.deliveryDegraded).toBe(true);
+    expect(result.errors).toContainEqual({ projectId: 'p1', reason: 'fcm_delivery_failed:2' });
+    expect(audit).toHaveBeenCalledWith(
+      'climate.daily_scan.completed',
+      expect.objectContaining({ deliveryStatus: 'degraded' }),
+    );
+  });
   it('does NOT send FCM when project has no supervisors, even on storm', async () => {
     const fcm = vi.fn(async () => ({ successCount: 0, failureCount: 0 }));
     await runDailyClimateRiskScan(

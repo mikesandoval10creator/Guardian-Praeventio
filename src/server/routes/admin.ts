@@ -630,11 +630,18 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
     };
 
     const result = await runDailyClimateRiskScan(deps);
-    res.json({ ok: true, result });
+    if (result.deliveryDegraded) {
+      return res.status(503).json({
+        ok: false,
+        error: 'climate_delivery_degraded',
+        result,
+      });
+    }
+    return res.json({ ok: true, result });
   } catch (error) {
     logger.error('admin_climate_scan_failed', error, { callerUid });
     captureRouteError(error, 'admin.climate_scan', { callerUid });
-    res.status(500).json({ error: 'climate_scan_failed' });
+    return res.status(500).json({ error: 'climate_scan_failed' });
   }
 });
 
