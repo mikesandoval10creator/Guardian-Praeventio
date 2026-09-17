@@ -25,6 +25,7 @@ let capturedOnZonesChanged:
       transition: GeofenceTransition,
     ) => void)
   | null = null;
+let capturedScopeKey: string | undefined;
 vi.mock('./useGeofence', () => ({
   useGeofence: (
     _zones: unknown,
@@ -33,8 +34,10 @@ vi.mock('./useGeofence', () => ({
       position: Position | undefined,
       transition: GeofenceTransition,
     ) => void,
+    scopeKey?: string,
   ) => {
     capturedOnZonesChanged = onZonesChanged;
+    capturedScopeKey = scopeKey;
     return { currentLocation: null, activeZones: [], permissionState: 'granted' };
   },
 }));
@@ -77,7 +80,20 @@ function transition(
 describe('useGeofenceWithEvents — escalation emit wiring', () => {
   beforeEach(() => {
     capturedOnZonesChanged = null;
+    capturedScopeKey = undefined;
     emitMock.mockClear();
+  });
+
+  it('namespaces low-level state by tenant and project', () => {
+    const { rerender } = renderHook(
+      ({ projectId }) =>
+        useGeofenceWithEvents([], { ...OPTS, projectId }),
+      { initialProps: { projectId: 'p1' } },
+    );
+    expect(capturedScopeKey).toBe(JSON.stringify(['t1', 'p1']));
+
+    rerender({ projectId: 'p2' });
+    expect(capturedScopeKey).toBe(JSON.stringify(['t1', 'p2']));
   });
 
   it('emits geofence_crossed "enter" with real GPS + forwards the new entry', async () => {

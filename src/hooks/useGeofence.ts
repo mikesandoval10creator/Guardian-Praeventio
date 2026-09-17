@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point, polygon } from '@turf/helpers';
 import { logger } from '../utils/logger';
@@ -134,9 +134,14 @@ export function useGeofence(
     position: GeofencePosition,
     transition: GeofenceTransition,
   ) => void,
+  /** Namespace for active transition state (e.g. tenant + project). */
+  scopeKey?: string,
 ) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [activeZones, setActiveZones] = useState<GeofenceZone[]>([]);
+  const [activeZonesState, setActiveZonesState] = useState<{
+    scopeKey: string | undefined;
+    zones: GeofenceZone[];
+  }>(() => ({ scopeKey, zones: [] }));
   const [permissionState, setPermissionState] =
     useState<GeofencePermissionState>('pending');
   const onZonesChangedRef = useRef(onZonesChanged);
@@ -144,6 +149,15 @@ export function useGeofence(
   // Retain complete zone objects so exits remain auditable even when a zone is
   // removed from the current configuration before the next GPS observation.
   const insideZonesRef = useRef<GeofenceZone[]>([]);
+  const scopeRef = useRef(scopeKey);
+  // Reset before paint when a project/tenant namespace changes. This runs before
+  // the passive geolocation watcher cleanup, so even a last callback from the
+  // old watcher cannot report an old-project exit under the new context.
+  useLayoutEffect(() => {
+    if (scopeRef.current === scopeKey) return;
+    scopeRef.current = scopeKey;
+    insideZonesRef.current = [];
+  }, [scopeKey]);
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
   // even though the effect re-subscription is keyed on a hash of zone ids only.
   const zonesRef = useRef<GeofenceZone[]>(zones);
@@ -208,7 +222,7 @@ export function useGeofence(
           }
         });
 
-        setActiveZones(insideZones);
+        setActiveZonesState({ scopeKey, zones: insideZones });
 
         // Fire alarm only on zone ENTRY (transition from outside â†’ inside)
         const previousZones = insideZonesRef.current;
@@ -260,7 +274,11 @@ export function useGeofence(
       navigator.geolocation.clearWatch(watchId);
     };
 
-  }, [zonesIdHash]);
+  }, [zonesIdHash, scopeKey]);
 
-  return { currentLocation, activeZones, permissionState };
+  return {
+    currentLocation,
+    activeZones: activeZonesState.scopeKey === scopeKey ? activeZonesState.zones : [],
+    permissionState,
+  };
 }

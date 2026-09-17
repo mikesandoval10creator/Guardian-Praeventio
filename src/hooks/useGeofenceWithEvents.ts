@@ -58,7 +58,8 @@ export function useGeofenceWithEvents(
     [opts],
   );
 
-  return useGeofence(zones, wrapped);
+  const scopeKey = JSON.stringify([opts.tenantId, opts.projectId]);
+  return useGeofence(zones, wrapped, scopeKey);
 }
 
 async function emitGeofenceCrossed(

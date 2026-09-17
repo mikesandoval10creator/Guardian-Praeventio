@@ -51,7 +51,8 @@ export function GeofenceAlert() {
   // RE-EVALUATED over time — a zone scheduled to activate later in the shift, or
   // one that expires mid-shift, must cross its activeFrom/activeUntil boundary
   // during a long-running PWA session, not be frozen at fetch time.
-  const [rawZones, setRawZones] = useState<RestrictedZone[]>([]);
+  type ZoneSnapshot = { projectId: string; zones: RestrictedZone[] };
+  const [zoneSnapshot, setZoneSnapshot] = useState<ZoneSnapshot | null>(null);
   // Distinguish "loaded, genuinely no zones" from "fetch FAILED" — conflating
   // them would silently disable the geofence (a life-safety path) on a transient
   // 500/403/offline with the worker seeing a fully green UI.
@@ -62,7 +63,7 @@ export function GeofenceAlert() {
   useEffect(() => {
     const pid = selectedProject?.id;
     if (!pid) {
-      setRawZones([]);
+      setZoneSnapshot(null);
       setZoneLoadError(false);
       return undefined;
     }
@@ -71,14 +72,15 @@ export function GeofenceAlert() {
       listRestrictedZonesBySite(pid)
         .then((res) => {
           if (cancelled) return;
-          setRawZones(res.zones ?? []);
+          setZoneSnapshot({ projectId: pid, zones: res.zones ?? [] });
           setZoneLoadError(false);
         })
         .catch((err) => {
           if (cancelled) return;
           logger.warn('GeofenceAlert: restricted-zones fetch failed', { err: String(err) });
-          // Do NOT clear last-known zones on a transient failure (avoid dropping
-          // protection on a blip); flag the error so the worker is told + retry.
+          // Do NOT clear last-known zones on a transient failure for the SAME
+          // project (avoid dropping protection on a blip); the snapshot namespace
+          // prevents those zones from leaking across a project switch.
           setZoneLoadError(true);
         });
     void load();
@@ -107,15 +109,19 @@ export function GeofenceAlert() {
 
   const activeProjectZones = useMemo(() => {
     void nowTick; // re-derive active window when the minute ticks
+    const projectId = selectedProject?.id;
+    const rawZones =
+      projectId && zoneSnapshot?.projectId === projectId ? zoneSnapshot.zones : [];
     const mapped = mapActiveRestrictedZones(rawZones, new Date());
     // Prefer real configured zones; fall back to legacy project settings, then
-    // the DEV-only demo (empty in prod).
+    // the DEV-only demo (empty in prod). A snapshot from another project is
+    // intentionally treated as unavailable during the switch.
     if (mapped.length > 0) return mapped;
     if (selectedProject?.settings?.geofences && Array.isArray(selectedProject.settings.geofences)) {
       return selectedProject.settings.geofences as GeofenceZone[];
     }
     return FALLBACK_ZONES;
-  }, [rawZones, nowTick, selectedProject]);
+  }, [zoneSnapshot, nowTick, selectedProject]);
 
   const handleZoneEntry = useCallback((enteredZones: GeofenceZone[]) => {
     if (!selectedProject) return;

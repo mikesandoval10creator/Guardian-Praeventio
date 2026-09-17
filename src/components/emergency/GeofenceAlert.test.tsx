@@ -100,6 +100,16 @@ function rzone(over: Partial<RestrictedZone> = {}): RestrictedZone {
 
 const lastCall = () => H.geofenceCalls[H.geofenceCalls.length - 1];
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   H.geofenceCalls.length = 0;
@@ -160,6 +170,53 @@ describe('<GeofenceAlert /> real-zone wiring', () => {
     await Promise.resolve();
     expect(lastCall().zones.some((z) => z.id === 'zone-real')).toBe(false);
     expect(H.addNotification).not.toHaveBeenCalled(); // empty != error
+  });
+
+  it('switching projects ignores a late p1 response while p2 is still loading', async () => {
+    const p1 = deferred<{ zones: ReturnType<typeof rzone>[] }>();
+    const p2 = deferred<{ zones: ReturnType<typeof rzone>[] }>();
+    H.listRestrictedZonesBySite.mockImplementation((projectId: string) =>
+      projectId === 'proj-1' ? p1.promise : p2.promise,
+    );
+
+    const view = render(<GeofenceAlert />);
+    expect(H.listRestrictedZonesBySite).toHaveBeenCalledWith('proj-1');
+
+    mockSelectedProject = { id: 'proj-2' };
+    view.rerender(<GeofenceAlert />);
+    expect(H.listRestrictedZonesBySite).toHaveBeenCalledWith('proj-2');
+    expect(lastCall().zones.some((z) => z.id === 'p1-zone')).toBe(false);
+
+    p1.resolve({ zones: [rzone({ id: 'p1-zone' })] });
+    await Promise.resolve();
+    expect(lastCall().zones.some((z) => z.id === 'p1-zone')).toBe(false);
+
+    p2.resolve({ zones: [rzone({ id: 'p2-zone' })] });
+    await waitFor(() => {
+      expect(lastCall().zones.some((z) => z.id === 'p2-zone')).toBe(true);
+    });
+    expect(lastCall().zones.some((z) => z.id === 'p1-zone')).toBe(false);
+  });
+
+  it('project switch with p2 fetch failure never retains p1 zones', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({
+      zones: [rzone({ id: 'p1-zone' })],
+    });
+    const view = render(<GeofenceAlert />);
+    await waitFor(() => {
+      expect(lastCall().zones.some((z) => z.id === 'p1-zone')).toBe(true);
+    });
+
+    H.listRestrictedZonesBySite.mockRejectedValueOnce(new Error('http_403'));
+    mockSelectedProject = { id: 'proj-2' };
+    view.rerender(<GeofenceAlert />);
+
+    await waitFor(() =>
+      expect(H.addNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error' }),
+      ),
+    );
+    expect(lastCall().zones.some((z) => z.id === 'p1-zone')).toBe(false);
   });
 
   it('no project → no fetch', async () => {
