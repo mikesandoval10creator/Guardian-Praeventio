@@ -316,7 +316,7 @@ export function EmergenciaAvanzada() {
           ...localPending,
           status: 'failed',
           failureKind: 'unknown',
-          error: err instanceof Error ? err.message : String(err),
+          error: humanErrorMessage(err),
         });
         logger.error('EmergenciaAvanzada: emergency delivery enqueue failed', { err });
       });
@@ -353,7 +353,7 @@ export function EmergenciaAvanzada() {
           ...localPending,
           status: 'failed',
           failureKind: 'unknown',
-          error: err instanceof Error ? err.message : String(err),
+          error: humanErrorMessage(err),
         });
         logger.error('EmergenciaAvanzada: emergency resolution enqueue failed', { err });
       });
@@ -492,7 +492,7 @@ export function EmergenciaAvanzada() {
               ? `${deliveryLabel} aceptada por servidor; entrega a supervisor no confirmada.`
               : `${deliveryLabel} confirmada por servidor.`
             : activationDelivery.status === 'failed'
-              ? `${deliveryLabel} NO CONFIRMADA. ${activationDelivery.error ?? 'Revisa la cola de emergencia.'}`
+              ? `${deliveryLabel} NO CONFIRMADA. ${humanErrorMessage(activationDelivery.error)}`
               : `${deliveryLabel} pendiente de confirmación del servidor.`}
         </div>
       )}

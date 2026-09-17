@@ -13,6 +13,7 @@ import {
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { logger } from '../../utils/logger';
+import { humanErrorMessage } from '../../lib/humanError';
 
 // Sprint 14 — climate sub-type copy (Spanish UI). Centralized so future
 // sub-types (e.g., visibility, lightning) are added in one place.
@@ -601,7 +602,7 @@ export function EmergencyOverlay() {
                       {triageDelivery?.status === 'failed' ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
                       Reporte {triageReported ? TRIAGE_LABELS[triageReported] : ''} {triageDeliveryMessage}
                       {triageDelivery?.error && (
-                        <span className="normal-case text-xs ml-2">({triageDelivery.error})</span>
+                        <span className="normal-case text-xs ml-2">({humanErrorMessage(triageDelivery.error)})</span>
                       )}
                     </div>
                   )}
@@ -623,7 +624,7 @@ export function EmergencyOverlay() {
                 ) : checkinDelivery?.status === 'failed' ? (
                   <>
                     <AlertTriangle className="w-8 h-8 text-red-600" />
-                    <span>ESTADO NO CONFIRMADO. AVISE PRESENCIALMENTE. {checkinDelivery.error}</span>
+                    <span>ESTADO NO CONFIRMADO. AVISE PRESENCIALMENTE. {humanErrorMessage(checkinDelivery.error)}</span>
                   </>
                 ) : (
                   <>

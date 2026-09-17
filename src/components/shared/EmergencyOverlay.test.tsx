@@ -228,7 +228,7 @@ describe('EmergencyOverlay', () => {
       await Promise.resolve();
     });
     expect(screen.getByText(/NO CONFIRMADO/i)).toBeTruthy();
-    expect(screen.getByText(/HTTP 403/i)).toBeTruthy();
+    expect(screen.getByText(/No tienes permiso para realizar esta acción/i)).toBeTruthy();
   });
   it('renders the seismic auto-overlay variant when reason=sismo', () => {
     appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.18 };
