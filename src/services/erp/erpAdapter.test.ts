@@ -77,6 +77,24 @@ describe('selectErpAdapter', () => {
 });
 
 describe('MockErpAdapter', () => {
+  it('expone la interfaz tipada sin inventar datos ERP', async () => {
+    const adapter = new MockErpAdapter();
+
+    expect(adapter.isConfigured()).toBe(true);
+    await expect(
+      adapter.fetchEmployees({ tenantId: 't1' }),
+    ).rejects.toBeInstanceOf(ErpNotImplementedError);
+    await expect(
+      adapter.fetchOrgChart({ tenantId: 't1' }),
+    ).rejects.toBeInstanceOf(ErpNotImplementedError);
+    await expect(
+      adapter.pushWorkerStatus({ tenantId: 't1', workerExternalId: 'w1' }),
+    ).rejects.toBeInstanceOf(ErpNotImplementedError);
+    await expect(
+      adapter.pushTrainingRecord({ tenantId: 't1', workerExternalId: 'w1' }),
+    ).rejects.toBeInstanceOf(ErpNotImplementedError);
+  });
+
   it('devuelve mode:"mock" inmediatamente sin I/O', async () => {
     const adapter = new MockErpAdapter();
     const start = Date.now();
@@ -112,6 +130,37 @@ describe('MockErpAdapter', () => {
 });
 
 describe('SapAdapter (real, stub)', () => {
+  it('reporta configuración completa sin realizar I/O', () => {
+    expect(new SapAdapter({}).isConfigured()).toBe(false);
+    expect(
+      new SapAdapter({
+        baseUrl: 'https://sap.example.com',
+        clientId: 'id',
+        clientSecret: 'secret',
+      }).isConfigured(),
+    ).toBe(true);
+  });
+
+  it('despacha cada acción genérica al método tipado y falla honestamente', async () => {
+    const adapter = new SapAdapter({
+      baseUrl: 'https://sap.example.com',
+      clientId: 'id',
+      clientSecret: 'secret',
+    });
+
+    for (const action of [
+      'manual_sync',
+      'fetch_employees',
+      'fetch_org_chart',
+      'push_worker_status',
+      'push_training_record',
+    ] as const) {
+      await expect(adapter.sync({ tenantId: 't1', action })).rejects.toBeInstanceOf(
+        ErpNotImplementedError,
+      );
+    }
+  });
+
   it('tira ErpMissingCredentialsError si faltan credenciales', async () => {
     const adapter = new SapAdapter({});
     await expect(

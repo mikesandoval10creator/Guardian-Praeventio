@@ -1,4 +1,4 @@
-// Praeventio Guard — ERP Integration adapter (honest implementation).
+// Praeventio Guard — ERP Integration adapter (honest typed stub).
 //
 // El audit report (2026-05-15) flagged que `/api/erp/sync` simulaba éxito
 // con `setTimeout(1500)` + `success: true`. Esto es exactamente "falsa
@@ -9,20 +9,19 @@
 // Esta capa reemplaza la simulación con un adapter pattern HONESTO:
 //
 //   1. Si `ERP_ADAPTER` no está configurado → 503 "not_configured" con
-//      mensaje claro: "ERP integration disabled — set ERP_ADAPTER=mock
-//      for testing or sap/buk/talana for production".
+//      mensaje claro: "ERP integration disabled — configure ERP_ADAPTER".
 //
 //   2. Si `ERP_ADAPTER=mock` → devuelve respuesta determinística marcada
 //      explícitamente con `mode: 'mock'` para que el caller sepa que NO
-//      es real. Sin setTimeout. Sin pretender éxito.
+//      es real. Sin setTimeout. Sin pretender conexión ERP.
 //
-//   3. Si `ERP_ADAPTER=sap|buk|talana` → intenta la llamada real. Si
-//      faltan credenciales → 503 "missing_credentials". Si la llamada
-//      falla → propaga el error real (no oculta tras un success genérico).
+//   3. Si `ERP_ADAPTER=sap|buk|talana` → valida credenciales y expone la
+//      interfaz completa tipada. Cada método real sigue siendo stub honesto:
+//      lanza `ErpNotImplementedError` con mensaje claro. Nunca devuelve
+//      empleados, organigramas, estados o capacitaciones inventadas.
 //
-// Implementaciones reales SAP/Buk/Talana son stubs hasta que el cliente
-// provea credenciales sandbox. El stub tira `NotImplementedError` con
-// un mensaje claro — no simula éxito.
+// Implementaciones reales SAP/Buk/Talana quedan pendientes hasta que el
+// cliente provea credenciales sandbox + contratos API confirmados.
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -37,11 +36,14 @@ export type ErpAction =
   | 'push_worker_status'
   | 'push_training_record';
 
-export interface ErpSyncPayload {
+export interface ErpRequestContext {
   /** Tenant context for multi-tenant isolation. */
   tenantId: string;
   /** Optional project scope. */
   projectId?: string;
+}
+
+export interface ErpSyncPayload extends ErpRequestContext {
   /** Tipo de acción solicitada. */
   action: ErpAction;
   /** Datos arbitrarios específicos de la acción. */
@@ -51,8 +53,14 @@ export interface ErpSyncPayload {
 export interface ErpSyncResult {
   ok: boolean;
   /** Modo de ejecución para que el caller sepa qué pasó realmente. */
-  mode: 'real' | 'mock' | 'not_configured' | 'missing_credentials' | 'failed';
-  /** Identificador de la sincronización (UUID). */
+  mode:
+    | 'real'
+    | 'mock'
+    | 'not_configured'
+    | 'missing_credentials'
+    | 'not_implemented'
+    | 'failed';
+  /** Identificador de la sincronización (UUID o id local del intento). */
   syncId: string;
   /** ISO timestamp del intento. */
   timestamp: string;
@@ -75,25 +83,115 @@ export interface ErpCredentials {
   apiKey?: string;
 }
 
+type ErpCredentialKey = keyof ErpCredentials;
+type ErpAdapterMethod =
+  | 'manualSync'
+  | 'fetchEmployees'
+  | 'fetchOrgChart'
+  | 'pushWorkerStatus'
+  | 'pushTrainingRecord';
+
+export interface ErpManualSyncRequest extends ErpRequestContext {
+  data?: Record<string, unknown>;
+}
+
+export interface ErpFetchEmployeesRequest extends ErpRequestContext {
+  data?: Record<string, unknown>;
+}
+
+export interface ErpEmployeeRecord {
+  /** ERP-side immutable employee id. */
+  externalId: string;
+  /** Display name as supplied by the ERP. */
+  displayName?: string;
+  /** Work email; callers must treat as PII. */
+  email?: string;
+  /** Status normalized by a real adapter, never guessed by this stub. */
+  status?: 'active' | 'inactive' | 'unknown';
+  /** Raw ERP payload for server-side audit only; never expose to browser. */
+  raw?: unknown;
+}
+
+export interface ErpFetchOrgChartRequest extends ErpRequestContext {
+  data?: Record<string, unknown>;
+}
+
+export interface ErpOrgUnitRecord {
+  /** ERP-side immutable org-unit id. */
+  externalId: string;
+  name: string;
+  parentExternalId?: string;
+  raw?: unknown;
+}
+
+export interface ErpPushWorkerStatusRequest extends ErpRequestContext {
+  workerExternalId?: string;
+  status?: 'active' | 'inactive' | 'suspended' | 'on_leave';
+  data?: Record<string, unknown>;
+}
+
+export interface ErpPushTrainingRecordRequest extends ErpRequestContext {
+  workerExternalId?: string;
+  trainingExternalId?: string;
+  completedAt?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface ErpPushResult {
+  ok: boolean;
+  externalId?: string;
+  raw?: unknown;
+}
+
 export interface ErpAdapter {
   readonly name: ErpAdapterName;
+  isConfigured(): boolean;
   sync(payload: ErpSyncPayload): Promise<ErpSyncResult>;
+  manualSync(request: ErpManualSyncRequest): Promise<ErpSyncResult>;
+  fetchEmployees(request: ErpFetchEmployeesRequest): Promise<readonly ErpEmployeeRecord[]>;
+  fetchOrgChart(request: ErpFetchOrgChartRequest): Promise<readonly ErpOrgUnitRecord[]>;
+  pushWorkerStatus(request: ErpPushWorkerStatusRequest): Promise<ErpPushResult>;
+  pushTrainingRecord(request: ErpPushTrainingRecordRequest): Promise<ErpPushResult>;
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled ERP action: ${String(value)}`);
+}
+
+function buildRealSyncResult(
+  payload: ErpSyncPayload,
+  message: string,
+  stats: ErpSyncResult['stats'],
+): ErpSyncResult {
+  return {
+    ok: true,
+    mode: 'real',
+    syncId: `${payload.action}-${payload.tenantId}-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    message,
+    stats,
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Mock adapter — clearly labeled, NO setTimeout, NO success simulation.
+// Mock adapter — clearly labeled, NO setTimeout, NO real-data fabrication.
 // ────────────────────────────────────────────────────────────────────────
 
 /**
- * Adapter de pruebas. Devuelve respuestas determinísticas con `mode: 'mock'`
+ * Adapter de pruebas. Devuelve una respuesta determinística con `mode: 'mock'`
  * para que el front sepa que NO es una sync real.
  *
- * No usa `setTimeout` ni hace I/O. No simula éxito — declara explícitamente
- * que es un mock. El front debe mostrar un banner "Modo prueba — no sincronizó
- * con ERP real" cuando reciba `mode: 'mock'`.
+ * No usa `setTimeout` ni hace I/O. No devuelve empleados/organigramas/estados
+ * inventados. Los métodos typed que requerirían datos ERP reales lanzan
+ * `ErpNotImplementedError`; `sync()` queda para smoke/manual tests legacy y
+ * siempre se identifica explícitamente como mock.
  */
 export class MockErpAdapter implements ErpAdapter {
   readonly name = 'mock' as const;
+
+  isConfigured(): boolean {
+    return true;
+  }
 
   async sync(payload: ErpSyncPayload): Promise<ErpSyncResult> {
     const syncId = `mock-${payload.tenantId}-${Date.now()}`;
@@ -102,23 +200,47 @@ export class MockErpAdapter implements ErpAdapter {
       mode: 'mock',
       syncId,
       timestamp: new Date().toISOString(),
-      message: `[MOCK] Acción "${payload.action}" simulada — NO se conectó a ERP real`,
-      reason: 'ERP_ADAPTER=mock — adapter de pruebas, sin I/O',
+      message: `[MOCK] Acción "${payload.action}" marcada como prueba — NO se conectó a ERP real`,
+      reason: 'ERP_ADAPTER=mock — adapter de pruebas, sin I/O ni datos ERP reales',
     };
+  }
+
+  async manualSync(request: ErpManualSyncRequest): Promise<ErpSyncResult> {
+    return this.sync({
+      tenantId: request.tenantId,
+      projectId: request.projectId,
+      action: 'manual_sync',
+      data: request.data,
+    });
+  }
+
+  async fetchEmployees(_request: ErpFetchEmployeesRequest): Promise<readonly ErpEmployeeRecord[]> {
+    throw new ErpNotImplementedError(this.name, 'fetch_employees', 'fetchEmployees');
+  }
+
+  async fetchOrgChart(_request: ErpFetchOrgChartRequest): Promise<readonly ErpOrgUnitRecord[]> {
+    throw new ErpNotImplementedError(this.name, 'fetch_org_chart', 'fetchOrgChart');
+  }
+
+  async pushWorkerStatus(_request: ErpPushWorkerStatusRequest): Promise<ErpPushResult> {
+    throw new ErpNotImplementedError(this.name, 'push_worker_status', 'pushWorkerStatus');
+  }
+
+  async pushTrainingRecord(_request: ErpPushTrainingRecordRequest): Promise<ErpPushResult> {
+    throw new ErpNotImplementedError(this.name, 'push_training_record', 'pushTrainingRecord');
   }
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Real adapters — stubs hasta que el cliente provea credenciales sandbox.
-// NO simulan éxito; tiran NotImplementedError con mensaje claro.
+// Real adapters — typed stubs hasta que el cliente provea sandbox/API docs.
+// NO simulan éxito; cada método tira NotImplementedError con mensaje claro.
 // ────────────────────────────────────────────────────────────────────────
 
 export class ErpNotImplementedError extends Error {
-  constructor(adapter: ErpAdapterName, action: ErpAction) {
+  constructor(adapter: ErpAdapterName, action: ErpAction, method?: ErpAdapterMethod) {
     super(
-      `ERP adapter "${adapter}" no tiene implementada la acción "${action}". ` +
-        `Requiere credenciales sandbox del cliente para wire real. ` +
-        `Mientras tanto, usa ERP_ADAPTER=mock para pruebas.`,
+      `ERP adapter "${adapter}" method "${method ?? action}" is not implemented for action "${action}". ` +
+        `No fallback data was produced. Wire the real ${adapter.toUpperCase()} API with client sandbox credentials before calling this method.`,
     );
     this.name = 'ErpNotImplementedError';
   }
@@ -136,50 +258,113 @@ export class ErpMissingCredentialsError extends Error {
 
 abstract class StubAdapter implements ErpAdapter {
   abstract readonly name: ErpAdapterName;
-  protected abstract readonly requiredKeys: string[];
+  protected abstract readonly requiredKeys: readonly ErpCredentialKey[];
 
   constructor(protected readonly credentials: ErpCredentials) {}
 
+  private missingCredentialKeys(): string[] {
+    return this.requiredKeys.filter((key) => !this.credentials[key]);
+  }
+
+  isConfigured(): boolean {
+    return this.missingCredentialKeys().length === 0;
+  }
+
   protected validateCredentials(): void {
-    const missing: string[] = [];
-    if (this.requiredKeys.includes('baseUrl') && !this.credentials.baseUrl) {
-      missing.push('baseUrl');
-    }
-    if (this.requiredKeys.includes('clientId') && !this.credentials.clientId) {
-      missing.push('clientId');
-    }
-    if (this.requiredKeys.includes('clientSecret') && !this.credentials.clientSecret) {
-      missing.push('clientSecret');
-    }
-    if (this.requiredKeys.includes('apiKey') && !this.credentials.apiKey) {
-      missing.push('apiKey');
-    }
+    const missing = this.missingCredentialKeys();
     if (missing.length > 0) {
       throw new ErpMissingCredentialsError(this.name, missing);
     }
   }
 
-  async sync(payload: ErpSyncPayload): Promise<ErpSyncResult> {
-    // Validar credenciales primero — falla rápido si faltan
+  protected notImplemented(action: ErpAction, method: ErpAdapterMethod): never {
+    // Validar credenciales primero — falla rápido si faltan y evita esconder
+    // problemas de configuración detrás de un 501 de implementación futura.
     this.validateCredentials();
-    // El stub real tira NotImplemented. NO simula éxito.
-    throw new ErpNotImplementedError(this.name, payload.action);
+    throw new ErpNotImplementedError(this.name, action, method);
+  }
+
+  async sync(payload: ErpSyncPayload): Promise<ErpSyncResult> {
+    const context = {
+      tenantId: payload.tenantId,
+      projectId: payload.projectId,
+      data: payload.data,
+    };
+
+    switch (payload.action) {
+      case 'manual_sync':
+        return this.manualSync(context);
+      case 'fetch_employees': {
+        const employees = await this.fetchEmployees(context);
+        return buildRealSyncResult(payload, `ERP adapter "${this.name}" fetched employees.`, {
+          recordsRead: employees.length,
+          recordsWritten: 0,
+          recordsSkipped: 0,
+        });
+      }
+      case 'fetch_org_chart': {
+        const orgUnits = await this.fetchOrgChart(context);
+        return buildRealSyncResult(payload, `ERP adapter "${this.name}" fetched org chart.`, {
+          recordsRead: orgUnits.length,
+          recordsWritten: 0,
+          recordsSkipped: 0,
+        });
+      }
+      case 'push_worker_status': {
+        const result = await this.pushWorkerStatus(context);
+        return buildRealSyncResult(payload, `ERP adapter "${this.name}" pushed worker status.`, {
+          recordsRead: 0,
+          recordsWritten: result.ok ? 1 : 0,
+          recordsSkipped: result.ok ? 0 : 1,
+        });
+      }
+      case 'push_training_record': {
+        const result = await this.pushTrainingRecord(context);
+        return buildRealSyncResult(payload, `ERP adapter "${this.name}" pushed training record.`, {
+          recordsRead: 0,
+          recordsWritten: result.ok ? 1 : 0,
+          recordsSkipped: result.ok ? 0 : 1,
+        });
+      }
+      default:
+        return assertNever(payload.action);
+    }
+  }
+
+  async manualSync(_request: ErpManualSyncRequest): Promise<ErpSyncResult> {
+    return this.notImplemented('manual_sync', 'manualSync');
+  }
+
+  async fetchEmployees(_request: ErpFetchEmployeesRequest): Promise<readonly ErpEmployeeRecord[]> {
+    return this.notImplemented('fetch_employees', 'fetchEmployees');
+  }
+
+  async fetchOrgChart(_request: ErpFetchOrgChartRequest): Promise<readonly ErpOrgUnitRecord[]> {
+    return this.notImplemented('fetch_org_chart', 'fetchOrgChart');
+  }
+
+  async pushWorkerStatus(_request: ErpPushWorkerStatusRequest): Promise<ErpPushResult> {
+    return this.notImplemented('push_worker_status', 'pushWorkerStatus');
+  }
+
+  async pushTrainingRecord(_request: ErpPushTrainingRecordRequest): Promise<ErpPushResult> {
+    return this.notImplemented('push_training_record', 'pushTrainingRecord');
   }
 }
 
 export class SapAdapter extends StubAdapter {
   readonly name = 'sap' as const;
-  protected readonly requiredKeys = ['baseUrl', 'clientId', 'clientSecret'];
+  protected readonly requiredKeys: readonly ErpCredentialKey[] = ['baseUrl', 'clientId', 'clientSecret'];
 }
 
 export class BukAdapter extends StubAdapter {
   readonly name = 'buk' as const;
-  protected readonly requiredKeys = ['baseUrl', 'apiKey'];
+  protected readonly requiredKeys: readonly ErpCredentialKey[] = ['baseUrl', 'apiKey'];
 }
 
 export class TalanaAdapter extends StubAdapter {
   readonly name = 'talana' as const;
-  protected readonly requiredKeys = ['baseUrl', 'apiKey'];
+  protected readonly requiredKeys: readonly ErpCredentialKey[] = ['baseUrl', 'apiKey'];
 }
 
 // ────────────────────────────────────────────────────────────────────────
