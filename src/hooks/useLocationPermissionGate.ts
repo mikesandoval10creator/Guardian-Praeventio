@@ -18,6 +18,7 @@ import { logger } from '../utils/logger';
 import {
   isLocationDisclosureAcknowledged,
   acknowledgeLocationDisclosure,
+  notifyLocationPermissionGateSettled,
 } from '../services/location/locationPermissionRequest';
 
 export interface LocationPermissionGateState {
@@ -66,6 +67,10 @@ export function useLocationPermissionGate(): LocationPermissionGateState {
       await Geolocation.requestPermissions();
     } catch (error) {
       logger.warn('Location permission request failed:', error);
+    } finally {
+      // Consumers defer native GPS watchers until the gate-owned prompt has
+      // settled, so wake them whether the user granted or denied permission.
+      notifyLocationPermissionGateSettled();
     }
   }, []);
 
