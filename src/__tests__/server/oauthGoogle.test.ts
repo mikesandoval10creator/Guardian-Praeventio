@@ -313,3 +313,48 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(saveTokensMock).not.toHaveBeenCalled();
   });
 });
+
+// [Audit-2026-08-31] FCM token lifecycle — logout/account-switch.
+// When a user calls /oauth/unlink (logout flow), the route must purge every
+// FCM device token for that uid from users/{uid}.fcmTokens[]. Otherwise a
+// logged-out account keeps receiving pushes on whichever device still holds
+// a valid FCM registration token — a real device-disassociation gap that
+// also leaves the array unbounded across logout/login cycles.
+describe('POST /api/oauth/unlink clears fcmTokens for the caller uid', () => {
+  async function postUnlink(uid: string) {
+    const agent = request(await buildApp());
+    return agent
+      .post('/api/oauth/unlink')
+      .set('Authorization', `Bearer test:${uid}`);
+  }
+
+  it('clears every fcmToken for the caller uid on logout', async () => {
+    // Simulate two devices registered while signed in.
+    HADMIN.db!._seed('users/uid-logout', {
+      fcmTokens: ['tok-android', 'tok-web'],
+    });
+    const res = await postUnlink('uid-logout');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+
+    const after = HADMIN.db!._dump()['users/uid-logout'] as Record<string, unknown> | undefined;
+    const fcmTokens = after?.fcmTokens;
+    // Bug-reproducing probe — must throw when the array still carries
+    // stale device tokens after logout (the fix is the only path that
+    // purges them; without it, the tokens survive).
+    if (Array.isArray(fcmTokens) && fcmTokens.length > 0) {
+      throw new Error(
+        `POST /api/oauth/unlink left ${fcmTokens.length} fcmToken(s) on the user doc ` +
+          `(${JSON.stringify(fcmTokens)}). The fix must clear fcmTokens[] on logout.`,
+      );
+    }
+    expect(fcmTokens === undefined || (Array.isArray(fcmTokens) && fcmTokens.length === 0)).toBe(true);
+  });
+
+  it('is idempotent — logout of a uid without tokens still returns 200', async () => {
+    HADMIN.db!._seed('users/uid-no-tokens', { displayName: 'no-tokens' });
+    const res = await postUnlink('uid-no-tokens');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+  });
+});
