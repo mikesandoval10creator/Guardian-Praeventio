@@ -152,6 +152,54 @@ describe('POST assign-microtraining — batch skip on per-worker failure', () =>
   });
 });
 
+describe('POST complete-microtraining — worker identity binding', () => {
+  const completionBody = {
+    incidentId: 'inc1',
+    moduleId: 'mod1',
+    workerUid: 'u1',
+    completedAtIso: '2026-05-03T10:00:00.000Z',
+    score: 100,
+    passed: true,
+    certified: true,
+    assignment: {
+      assignedAtIso: '2026-05-02T10:00:00.000Z',
+      assignedByUid: 'supervisor-1',
+      derivedFromLessonId: 'lesson-1',
+    },
+  };
+
+  it('allows the authenticated worker to complete their own assignment', async () => {
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/incident-flow/training/assignment-1/complete')
+      .set(uid)
+      .send(completionBody);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ ok: true, nodeIds: ['n'], edgeIds: ['e'] });
+    const auditRows = [...H.db!._store.entries()].filter(([key]) =>
+      key.startsWith('audit_logs/'),
+    );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0][1]).toMatchObject({
+      action: 'incident_flow.training_completed',
+      userId: 'u1',
+    });
+  });
+
+  it('rejects a project member who submits completion for another worker', async () => {
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/incident-flow/training/assignment-1/complete')
+      .set(uid)
+      .send({ ...completionBody, workerUid: 'victim-worker' });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: 'worker_identity_mismatch' });
+    expect(
+      [...H.db!._store.keys()].filter((key) => key.startsWith('audit_logs/')),
+    ).toHaveLength(0);
+  });
+});
+
 describe('GET status', () => {
   it('reads chain nodes from the global zettelkasten_nodes collection + returns the PDCA reducer output', async () => {
     // serverWriteNodes persists incident-chain nodes to the GLOBAL

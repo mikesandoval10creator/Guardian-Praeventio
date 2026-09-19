@@ -642,6 +642,14 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
 
+    // Identity boundary: completion is a worker attestation. Project membership
+    // alone does not authorize a caller to create a passed/certified node for a
+    // different worker. A future supervisor-on-behalf flow must use an explicit,
+    // separately audited capability; this endpoint is self-completion only.
+    if (body.workerUid !== callerUid) {
+      return res.status(403).json({ error: 'worker_identity_mismatch' });
+    }
+
     try {
       // Reconstruct the assignment input to derive its node id.
       const assignmentInput: MicrotrainingAssignmentInput = {
