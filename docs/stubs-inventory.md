@@ -152,6 +152,15 @@ imports en vez de batch-grep.
 - **Why stub**: compatibilidad de schema (clientes pueden enviar el erpType y recibir un error honesto en vez de 400 confuso); evita simular éxito.
 - **Removal criteria**: implementar el adapter real correspondiente en `src/services/erp/` y moverlo a `SUPPORTED_ERP_ADAPTERS`.
 
+## ERP SAP/Buk/Talana — typed stubs honestos
+- **File**: `src/services/erp/erpAdapter.ts` — `SapAdapter`, `BukAdapter`, `TalanaAdapter`
+- **Owner**: B14 (integraciones ERP)
+- **Sprint target**: bloqueado hasta recibir credenciales sandbox y contratos API confirmados del cliente
+- **User-visible?**: SÍ, pero fail-closed: sin credenciales devuelve `missing_credentials`; con configuración completa, cada método aún no cableado devuelve `ErpNotImplementedError`/HTTP 501. Nunca fabrica nómina, organigrama, estado laboral ni capacitación.
+- **Why stub**: el contrato tipado (`manualSync`, `fetchEmployees`, `fetchOrgChart`, `pushWorkerStatus`, `pushTrainingRecord`) permite integrar proveedores sin fingir conectividad. `isConfigured()` sólo comprueba presencia de credenciales; no afirma handshake ni conexión real.
+- **Evidence**: `src/services/erp/erpAdapter.test.ts` y `src/__tests__/server/misc.test.ts` cubren selección, credenciales, despacho por acción, errores honestos y ruta HTTP.
+- **Removal criteria**: implementar y probar cada proveedor contra su sandbox; validar aislamiento tenant/project, paginación, idempotencia, PII y auditoría; sólo entonces habilitar `mode: real`.
+
 ## Evacuation.tsx "Estado Crítico" panel — sin fuente real de sensores de campo
 - **File**: `src/pages/Evacuation.tsx` (panel "Estado Crítico", debajo de "Rutas Disponibles")
 - **Owner**: TBD (requiere integración IoT de sensores de humo/red de incendio)
