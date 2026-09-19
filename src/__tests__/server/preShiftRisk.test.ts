@@ -627,16 +627,39 @@ describe('GET /:projectId/pre-shift-risk — error handling', () => {
     expect(res.body.error).toBe('internal_error');
   });
 
-  it('still returns 200 when assets collection query fails (safeRead wraps it)', async () => {
+  it('reports failed source names instead of presenting an all-clear panel', async () => {
     seedProject();
-    // The assets collection isn't seeded, so it just returns empty — no error.
-    // This test confirms safeRead() gracefully handles missing collections.
+    H.db!._failReads('tasks');
+
     const res = await request(buildApp())
       .get(GET_URL)
       .set('x-test-uid', CALLER_UID);
+
+    expect(res.status).toBe(200);
+    expect(res.body.dataCompleteness).toEqual({
+      complete: false,
+      failedSources: ['tasks'],
+    });
+    // The composer may still provide partial guidance, but callers can no
+    // longer mistake it for a complete pre-shift assessment.
+    expect(res.body.panel).toBeDefined();
+  });
+
+  it('still returns 200 when the legacy assets query fails and marks the source incomplete', async () => {
+    seedProject();
+    H.db!._failReads('assets');
+
+    const res = await request(buildApp())
+      .get(GET_URL)
+      .set('x-test-uid', CALLER_UID);
+
     expect(res.status).toBe(200);
     const args = vi.mocked(composeShiftRiskPanel).mock.calls[0][0];
     expect(Array.isArray(args.equipment)).toBe(true);
+    expect(res.body.dataCompleteness).toEqual({
+      complete: false,
+      failedSources: ['equipment_legacy'],
+    });
   });
 });
 
@@ -658,5 +681,9 @@ describe('GET /:projectId/pre-shift-risk — response shape', () => {
     expect(panel).toHaveProperty('factors');
     expect(panel).toHaveProperty('topRecommendations');
     expect(panel).toHaveProperty('recommendDelayShiftStart');
+    expect(res.body.dataCompleteness).toEqual({
+      complete: true,
+      failedSources: [],
+    });
   });
 });

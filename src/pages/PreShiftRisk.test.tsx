@@ -42,7 +42,13 @@ vi.mock('react-i18next', () => ({
 let mockSelectedProject: { id: string; name: string } | null = null;
 let mockIsOnline = true;
 let mockResp: {
-  data: { panel: ShiftRiskReport } | null;
+  data: {
+    panel: ShiftRiskReport;
+    dataCompleteness: {
+      complete: boolean;
+      failedSources: string[];
+    };
+  } | null;
   loading: boolean;
   error: Error | null;
 };
@@ -102,6 +108,13 @@ function makePanel(overrides: Partial<ShiftRiskReport> = {}): ShiftRiskReport {
   };
 }
 
+function completeData(panel: ShiftRiskReport = makePanel()) {
+  return {
+    panel,
+    dataCompleteness: { complete: true, failedSources: [] },
+  };
+}
+
 describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
   it('renderiza el empty-state cuando no hay proyecto seleccionado', () => {
     mockSelectedProject = null;
@@ -124,7 +137,7 @@ describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
   it('renderiza score, nivel y recomendaciones cuando llega el panel', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockResp = {
-      data: { panel: makePanel() },
+      data: completeData(),
       loading: false,
       error: null,
     };
@@ -157,13 +170,13 @@ describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
   it('muestra el banner de postergar turno cuando recommendDelayShiftStart=true', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockResp = {
-      data: {
-        panel: makePanel({
+      data: completeData(
+        makePanel({
           riskScore: 82,
           level: 'red',
           recommendDelayShiftStart: true,
         }),
-      },
+      ),
       loading: false,
       error: null,
     };
@@ -179,7 +192,7 @@ describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockIsOnline = false;
     mockResp = {
-      data: { panel: makePanel() },
+      data: completeData(),
       loading: false,
       error: null,
     };
@@ -187,6 +200,29 @@ describe('<PreShiftRisk /> page wrapper (Fase F.21)', () => {
     expect(
       screen.getByTestId('pre-shift-risk-offline-chip'),
     ).toBeInTheDocument();
+  });
+
+  it('muestra una advertencia cuando el servidor declara fuentes incompletas', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: {
+        panel: makePanel({ riskScore: 0, level: 'green', factors: [] }),
+        dataCompleteness: {
+          complete: false,
+          failedSources: ['tasks', 'environment'],
+        },
+      },
+      loading: false,
+      error: null,
+    };
+
+    render(<PreShiftRisk />);
+
+    const warning = screen.getByTestId('pre-shift-risk-incomplete-data');
+    expect(warning).toBeInTheDocument();
+    expect(warning.textContent).toMatch(/datos incompletos/i);
+    expect(warning.textContent).toContain('tasks');
+    expect(warning.textContent).toContain('environment');
   });
 
   it('muestra error con el mensaje del hook', () => {

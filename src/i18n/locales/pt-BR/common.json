@@ -4941,6 +4941,7 @@
   "preShiftRisk": {
     "page": {
       "error": "Não foi possível carregar o painel: {{msg}}",
+      "incompleteData": "Dados incompletos ({{sources}}). Não interprete o nível exibido como uma avaliação completa do turno.",
       "selectProject": "Selecione um projeto para ver o painel de risco do turno.",
       "subtitle": "{{date}} · {{count}} fatores detectados",
       "title": "Painel Pré-Turno"

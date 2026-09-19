@@ -11,6 +11,11 @@ import type {
 
 export interface PreShiftRiskResponse {
   panel: ShiftRiskReport;
+  /** Whether every source required for the assessment was read successfully. */
+  dataCompleteness: {
+    complete: boolean;
+    failedSources: string[];
+  };
 }
 
 export interface PreShiftRiskOptions {
