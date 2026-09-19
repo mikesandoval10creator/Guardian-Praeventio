@@ -115,6 +115,9 @@ import miscRouter from "./src/server/routes/misc.js";
 import organicRouter from "./src/server/routes/organic.js";
 import wisdomCapsuleRouter from "./src/server/routes/wisdomCapsule.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
+// Audit 2026-Q4 — Pilot entitlement admin endpoints (grant / list / revoke).
+// Mounted under /api/admin alongside the existing admin router.
+import adminPilotsRouter from "./src/server/routes/adminPilots.js";
 import accountRouter from "./src/server/routes/account.js";
 import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import commuteRouter from "./src/server/routes/commute.js";
@@ -1454,6 +1457,10 @@ if (process.env.NODE_ENV !== "production") {
 app.use("/api/billing", billingApiRouter);
 // Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
 app.use("/api/subscription", subscriptionRouter);
+// Audit 2026-Q4 — pilot grant / list / revoke endpoints. Same admin gate
+// (isAdminRole) as the rest of /api/admin. Mounted at /api/admin so the
+// existing verifyAuth + role middleware applies.
+app.use("/api/admin", adminPilotsRouter);
 // Cascarón soft-delete (block 3a): POST /api/account/anonymize — 2FA-gated
 // irreversible PII anonymization (Ley 21.719 / GDPR / Apple).
 app.use("/api/account", accountRouter);

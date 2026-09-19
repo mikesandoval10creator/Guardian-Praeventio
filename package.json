@@ -263,7 +263,7 @@
     "workbox-window": "^7.4.0"
   },
   "overrides": {
-    "tar": "npm:7.5.16",
-    "websocket-driver": "npm:0.7.5"
+    "tar": "7.5.16",
+    "websocket-driver": "0.7.5"
   }
 }

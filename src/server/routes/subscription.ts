@@ -34,6 +34,11 @@ import {
   resolveInvoiceCycle,
 } from "../../services/pricing/subscriptionPlan.js";
 import { normalizeSubscriptionProvider } from "../../services/pricing/subscriptionEntitlement.js";
+// Audit 2026-Q4 — Pilot Entitlement Resolver. Mounts the public effective-plan
+// reader so the client can show "you're on the ORO plan until 2026-12-01 (pilot)"
+// without having to know about grants. Same precedence contract documented in
+// src/server/services/pilotEntitlementResolver.ts.
+import { resolveEffectivePlan } from "../services/pilotEntitlementResolver.js";
 
 export const subscriptionRouter = Router();
 
@@ -287,6 +292,60 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
 
   logger.info("subscription_upgraded", { uid, planId: normalizedPlanId, tierId: paidTierId });
   return res.status(200).json({ success: true, planId: normalizedPlanId });
+});
+
+// ── GET /api/subscription/effective-plan ─────────────────────────────────
+//
+// Reads the user's active paid subscription PLUS any active pilot grants for
+// the user's organization and returns the higher of the two (per
+// pilotEntitlementResolver precedence rules). The client uses this to render
+// the current plan, the expiry window, and which path granted it.
+//
+// Auth: requires verifyAuth. The user's `req.user.uid` is the authz anchor;
+// the body supplies the organizationId because a user can belong to multiple
+// orgs and pilot grants are per-org.
+subscriptionRouter.get("/effective-plan", verifyAuth, async (req, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: "no_uid" });
+  }
+
+  const organizationId =
+    typeof req.query.organizationId === "string" ? req.query.organizationId : null;
+  if (!organizationId || organizationId.length > 200) {
+    return res.status(400).json({ error: "invalid_organizationId" });
+  }
+
+  try {
+    const result = await resolveEffectivePlan({
+      uid,
+      organizationId,
+      now: new Date(),
+    });
+
+    // Use the audit log via captureRouteError for observability, but do NOT
+    // call auditServerEvent here — every plan read would flood the trail.
+    // Resolution telemetry is collected in admin tooling via dedicated
+    // /api/admin/pilots endpoints, not on this hot path.
+    return res.status(200).json({
+      planId: result.planId,
+      reason: result.reason,
+      pilotId: result.pilotId ?? null,
+      pilotRank: result.pilotRank ?? null,
+      paidRank: result.paidRank ?? null,
+    });
+  } catch (err: any) {
+    // resolver is total, but belt-and-braces: never 500 a plan read.
+    logger.error("effective_plan_failed", err as Error, { uid, organizationId });
+    captureRouteError(err, "subscription.effective-plan", { uid, organizationId });
+    return res.status(200).json({
+      planId: "free",
+      reason: "free_fallback",
+      pilotId: null,
+      pilotRank: null,
+      paidRank: null,
+    });
+  }
 });
 
 export default subscriptionRouter;
