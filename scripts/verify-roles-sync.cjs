@@ -79,6 +79,7 @@ function parseRolesTs(source) {
     __out.SUPERVISOR_ROLES = SUPERVISOR_ROLES;
     __out.DOCTOR_ROLES = DOCTOR_ROLES;
     __out.WORKER_ROLES = WORKER_ROLES;
+    try { __out.PLATFORM_OPERATOR_ROLES = PLATFORM_OPERATOR_ROLES; } catch (e) {}
     try { __out.ALL_ROLES = ALL_ROLES; } catch (e) {}
   `;
 
@@ -90,7 +91,13 @@ function parseRolesTs(source) {
     fail(`failed to evaluate roles.ts in sandbox: ${err.message}`);
   }
 
-  for (const name of ['ADMIN_ROLES', 'SUPERVISOR_ROLES', 'DOCTOR_ROLES', 'WORKER_ROLES']) {
+  for (const name of [
+    'ADMIN_ROLES',
+    'SUPERVISOR_ROLES',
+    'DOCTOR_ROLES',
+    'WORKER_ROLES',
+    'PLATFORM_OPERATOR_ROLES',
+  ]) {
     if (!Array.isArray(sandbox.__out[name])) {
       fail(`could not extract ${name} from src/types/roles.ts (got ${typeof sandbox.__out[name]})`);
     }
@@ -193,7 +200,8 @@ function runSelfTest() {
     ] as const;
     export const DOCTOR_ROLES = ['medico_ocupacional'] as const;
     export const WORKER_ROLES = ['worker', 'pintor'] as const;
-    const _all = [...ADMIN_ROLES, ...SUPERVISOR_ROLES, ...DOCTOR_ROLES, ...WORKER_ROLES];
+    export const PLATFORM_OPERATOR_ROLES = ['platform_operator'] as const;
+    const _all = [...ADMIN_ROLES, ...PLATFORM_OPERATOR_ROLES, ...SUPERVISOR_ROLES, ...DOCTOR_ROLES, ...WORKER_ROLES];
     export const ALL_ROLES: readonly string[] = Array.from(new Set(_all));
     export type AdminRole = typeof ADMIN_ROLES[number];
     export function isAdminRole(role: unknown): role is AdminRole { return false; }
@@ -203,8 +211,10 @@ function runSelfTest() {
   assert(arrEq(parsed.SUPERVISOR_ROLES, ['supervisor', 'medico_ocupacional']), 'TS parser extracts SUPERVISOR_ROLES with comments + multiline');
   assert(arrEq(parsed.DOCTOR_ROLES, ['medico_ocupacional']), 'TS parser extracts DOCTOR_ROLES');
   assert(arrEq(parsed.WORKER_ROLES, ['worker', 'pintor']), 'TS parser extracts WORKER_ROLES');
-  assert(arrEq(parsed.ALL_ROLES, ['admin', 'gerente', 'supervisor', 'medico_ocupacional', 'worker', 'pintor']),
+  assert(arrEq(parsed.ALL_ROLES, ['admin', 'gerente', 'platform_operator', 'supervisor', 'medico_ocupacional', 'worker', 'pintor']),
     'TS parser dedupes ALL_ROLES');
+  assert(arrEq(parsed.PLATFORM_OPERATOR_ROLES, ['platform_operator']), 'TS parser extracts PLATFORM_OPERATOR_ROLES');
+  assert(parsed.ALL_ROLES.includes('platform_operator'), 'TS parser dedupes platform_operator into ALL_ROLES');
 
   // --- Rules parser tests -----------------------------------------------
   const goodRules = `
@@ -279,6 +289,7 @@ const ts = parseRolesTs(tsSource);
 // ALL_ROLES disagrees with the dedup of all four lists.
 const tsAllExpected = Array.from(new Set([
   ...ts.ADMIN_ROLES,
+  ...ts.PLATFORM_OPERATOR_ROLES,
   ...ts.SUPERVISOR_ROLES,
   ...ts.DOCTOR_ROLES,
   ...ts.WORKER_ROLES,
@@ -298,6 +309,7 @@ if (Array.isArray(ts.ALL_ROLES)) {
 let ok = true;
 ok = diff('isValidRole / ALL_ROLES', tsAllExpected, extractRulesRoles(rulesSource, 'isValidRole')) && ok;
 ok = diff('isAdmin / ADMIN_ROLES', ts.ADMIN_ROLES, extractRulesRoles(rulesSource, 'isAdmin')) && ok;
+ok = diff('isPlatformOperator / PLATFORM_OPERATOR_ROLES', ts.PLATFORM_OPERATOR_ROLES, extractRulesRoles(rulesSource, 'isPlatformOperator')) && ok;
 ok = diff('isSupervisor / SUPERVISOR_ROLES', ts.SUPERVISOR_ROLES, extractRulesRoles(rulesSource, 'isSupervisor')) && ok;
 ok = diff('isDoctor / DOCTOR_ROLES', ts.DOCTOR_ROLES, extractRulesRoles(rulesSource, 'isDoctor')) && ok;
 ok = diff('isWorkerRole / WORKER_ROLES', ts.WORKER_ROLES, extractRulesRoles(rulesSource, 'isWorkerRole')) && ok;

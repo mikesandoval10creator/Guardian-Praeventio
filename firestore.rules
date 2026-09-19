@@ -42,6 +42,17 @@ service cloud.firestore {
       );
     }
 
+    // [Audit-2026-08-31 RBAC] platform_operator: B2D keys minting, tenant-agnostic
+    // operator. Mirrors src/types/roles.ts PLATFORM_OPERATOR_ROLES. The role
+    // must also be readable via `isValidRole` so future rules can call it
+    // without a new allow-list entry.
+    function isPlatformOperator() {
+      return isEmailVerified() && (
+        request.auth.token.role == 'platform_operator' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'platform_operator'
+      );
+    }
+
     function isSupervisor() {
       return isEmailVerified() && (
         request.auth.token.role in ['supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional'] ||
@@ -241,7 +252,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidRole(role) {
-      return role in ['admin', 'gerente', 'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional', 'topografo', 'pintor', 'maquinista', 'electrico', 'soldador', 'mecanico', 'operario', 'contratista', 'worker'];
+      return role in ['admin', 'gerente', 'platform_operator', 'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional', 'topografo', 'pintor', 'maquinista', 'electrico', 'soldador', 'mecanico', 'operario', 'contratista', 'worker'];
     }
 
     function isValidUser(data) {
