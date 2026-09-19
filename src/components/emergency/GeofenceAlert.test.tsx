@@ -24,6 +24,7 @@ const H = vi.hoisted(() => ({
   geofenceCalls: [] as GeofenceCall[],
   listRestrictedZonesBySite: vi.fn(),
   addNotification: vi.fn(),
+  zoneViolationWrites: [] as Array<{ path: string; id: string | null; payload: unknown }>,
 }));
 
 // Capture the FULL hook call: zones (arg1) + escalation opts (arg2) + the entry
@@ -59,10 +60,41 @@ vi.mock('../../services/firebase', () => ({
   serverTimestamp: () => 'ts',
   auth: { currentUser: { tenantId: 'tenant-1' } },
 }));
-vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(() => ({})),
-  addDoc: vi.fn().mockResolvedValue({ id: 'x' }),
-}));
+vi.mock('firebase/firestore', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('firebase/firestore');
+  // The tests pin a deterministic, in-memory record showing the EFFECTIVE
+  // state of the `zone_violations` collection after every setDoc call.
+  // setDoc with a deterministic id and merge:true is idempotent at the
+  // Firestore level — the mock mirrors that so the duplicate-detection
+  // probes assert real observable behaviour, not just the write call count.
+  return {
+    ...actual,
+    collection: vi.fn((_db: unknown, path: string) => ({ __path: path })),
+    doc: vi.fn((_db: unknown, ...parts: string[]) => ({ __id: parts.join('/') })),
+    addDoc: vi.fn(async (_ref: { __path: string }, payload: unknown) => {
+      // addDoc is the random-id path — keep a separate audit trail for it.
+      const id = `auto-${H.zoneViolationWrites.length + 1}`;
+      H.zoneViolationWrites.push({ path: _ref.__path, id, payload });
+      return { id };
+    }),
+    setDoc: vi.fn(async (ref: { __id: string }, payload: unknown) => {
+      // Idempotent: replace any existing entry with the same id.
+      const existingIdx = H.zoneViolationWrites.findIndex(
+        (w) => w.id === ref.__id,
+      );
+      if (existingIdx >= 0) {
+        H.zoneViolationWrites[existingIdx] = {
+          path: ref.__id,
+          id: ref.__id,
+          payload,
+        };
+      } else {
+        H.zoneViolationWrites.push({ path: ref.__id, id: ref.__id, payload });
+      }
+    }),
+    serverTimestamp: () => ({ __serverTimestamp: true }),
+  };
+});
 vi.mock('../../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -113,6 +145,7 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   H.geofenceCalls.length = 0;
+  H.zoneViolationWrites.length = 0;
   mockSelectedProject = { id: 'proj-1' };
 });
 
@@ -223,5 +256,101 @@ describe('<GeofenceAlert /> real-zone wiring', () => {
     mockSelectedProject = null;
     render(<GeofenceAlert />);
     expect(H.listRestrictedZonesBySite).not.toHaveBeenCalled();
+  });
+
+  // [Hy3-audit] Idempotencia de violación Firestore — duplicate-detection
+  // probe. GPS fluctuations can trigger `onZoneEntry` multiple times for the
+  // same physical crossing (within the same 5-second bucket). Without a
+  // deterministic doc id, addDoc() generates a fresh random id per call and
+  // the audit log fills with duplicate rows. The fix MUST coalesce calls
+  // inside the same bucket into a single setDoc with a stable composite id.
+  it('coalesces repeated handleZoneEntry calls within the same 5s bucket into ONE Firestore write', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({
+      zones: [rzone({ id: 'zone-A' })],
+    });
+    render(<GeofenceAlert />);
+    await waitFor(() => expect(typeof lastCall().onZoneEntry).toBe('function'));
+
+    const entered = [
+      { id: 'zone-A', name: 'Zone A', type: 'HAZMAT' as const, coordinates: [] },
+    ];
+    // Same zone, same physical crossing, fired 3× in a row (GPS bounce).
+    await lastCall().onZoneEntry!(entered);
+    await lastCall().onZoneEntry!(entered);
+    await lastCall().onZoneEntry!(entered);
+    // Wait for the .catch()-suppressed async writes to settle.
+    await new Promise((r) => setTimeout(r, 0));
+
+    const zoneWrites = H.zoneViolationWrites.filter((w) =>
+      w.path.includes('zone_violations'),
+    );
+    if (zoneWrites.length !== 1) {
+      throw new Error(
+        `Expected exactly 1 zone_violations write for 3 repeated entry events in the same ` +
+          `5-second bucket, got ${zoneWrites.length}: ${JSON.stringify(zoneWrites)}. ` +
+          `The fix must use a deterministic composite id (workerId:zoneId:floor(ts/5000)) ` +
+          `so duplicate physical crossings collapse into a single Firestore row.`,
+      );
+    }
+    expect(zoneWrites).toHaveLength(1);
+    expect(zoneWrites[0].id).toMatch(/zone-A/);
+  });
+
+  it('emits separate writes when the bucket CHANGES (different physical crossings)', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({
+      zones: [rzone({ id: 'zone-A' })],
+    });
+    render(<GeofenceAlert />);
+    await waitFor(() => expect(typeof lastCall().onZoneEntry).toBe('function'));
+
+    const entered = [
+      { id: 'zone-A', name: 'Zone A', type: 'HAZMAT' as const, coordinates: [] },
+    ];
+    // First crossing
+    await lastCall().onZoneEntry!(entered);
+    await new Promise((r) => setTimeout(r, 0));
+    // Advance the wall clock by 6s so the next call lands in a fresh bucket.
+    const realDateNow = Date.now;
+    Date.now = () => realDateNow() + 6000;
+    try {
+      await lastCall().onZoneEntry!(entered);
+    } finally {
+      Date.now = realDateNow;
+    }
+    await new Promise((r) => setTimeout(r, 0));
+
+    const zoneWrites = H.zoneViolationWrites.filter((w) =>
+      w.path.includes('zone_violations'),
+    );
+    expect(zoneWrites).toHaveLength(2);
+  });
+
+  it('coalesces per-zone when multiple zones cross simultaneously', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({
+      zones: [
+        rzone({ id: 'zone-A' }),
+        rzone({ id: 'zone-B' }),
+      ],
+    });
+    render(<GeofenceAlert />);
+    await waitFor(() => expect(typeof lastCall().onZoneEntry).toBe('function'));
+
+    const twoZones = [
+      { id: 'zone-A', name: 'A', type: 'HAZMAT' as const, coordinates: [] },
+      { id: 'zone-B', name: 'B', type: 'RESTRICTED' as const, coordinates: [] },
+    ];
+    // Same event twice (simulating a re-emit), should still be 2 docs
+    // (one per zone), not 4.
+    await lastCall().onZoneEntry!(twoZones);
+    await lastCall().onZoneEntry!(twoZones);
+    await new Promise((r) => setTimeout(r, 0));
+
+    const zoneWrites = H.zoneViolationWrites.filter((w) =>
+      w.path.includes('zone_violations'),
+    );
+    expect(zoneWrites).toHaveLength(2);
+    const ids = zoneWrites.map((w) => w.id).sort();
+    expect(ids[0]).toMatch(/zone-A/);
+    expect(ids[1]).toMatch(/zone-B/);
   });
 });

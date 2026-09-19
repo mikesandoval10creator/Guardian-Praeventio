@@ -10,7 +10,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { db, serverTimestamp, auth } from '../../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 
 // Demo geocerca — DEV ONLY. This hardcoded HAZMAT polygon over central Santiago
@@ -125,12 +125,35 @@ export function GeofenceAlert() {
 
   const handleZoneEntry = useCallback((enteredZones: GeofenceZone[]) => {
     if (!selectedProject) return;
-    addDoc(collection(db, `projects/${selectedProject.id}/zone_violations`), {
-      workerId: user?.uid ?? null,
-      workerName: user?.displayName ?? null,
-      zones: enteredZones.map((z) => ({ id: z.id, name: z.name, type: z.type })),
-      timestamp: serverTimestamp(),
-    }).catch((err) => logger.error('GeofenceAlert: failed to log zone violation', { err }));
+    // [Hy3-audit] Idempotent zone-violation writes. A GPS bounce or a hook
+    // re-emit inside the same 5-second window would otherwise create N
+    // duplicate `zone_violations` rows for a single physical crossing,
+    // polluting the life-safety audit log. Bucket the wall clock into 5s
+    // windows and derive a deterministic doc id per (worker, zone, bucket)
+    // so repeated crossings collapse into one setDoc with id=`auto-merged`
+    // semantics. Different physical crossings (different bucket OR different
+    // zone) still each get their own doc.
+    const BUCKET_MS = 5000;
+    const tsMs = Date.now();
+    const bucket = Math.floor(tsMs / BUCKET_MS);
+    const collectionPath = `projects/${selectedProject.id}/zone_violations`;
+    for (const zone of enteredZones) {
+      const docId = `w${user?.uid ?? 'anon'}_z${zone.id}_b${bucket}`;
+      const ref = doc(db, collectionPath, docId);
+      setDoc(
+        ref,
+        {
+          workerId: user?.uid ?? null,
+          workerName: user?.displayName ?? null,
+          zone: { id: zone.id, name: zone.name, type: zone.type },
+          bucketStartMs: bucket * BUCKET_MS,
+          timestamp: serverTimestamp(),
+        },
+        { merge: true },
+      ).catch((err) =>
+        logger.error('GeofenceAlert: failed to log zone violation', { err, docId }),
+      );
+    }
   }, [selectedProject, user]);
 
   // Use the event-emitting wrapper so a zone crossing emits `geofence_crossed`
