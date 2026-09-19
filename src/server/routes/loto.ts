@@ -290,6 +290,41 @@ router.post('/:projectId/loto/:appId/release', verifyAuth, async (req, res) => {
     const app = await adapter.getById(appId);
     if (!app) return res.status(404).json({ error: 'application_not_found' });
     const now = new Date().toISOString();
+    // [Audit-2026-08-31] Safety precondition gate — never release a machine
+    // back to operation while an identified energy is still live or any
+    // lock point has not been zero-energy verified. This is the safety
+    // gate that the spec's "validateRelease" alone misses: it only checks
+    // WHO can record the release, not whether the release is physically
+    // safe. validateLotoApplication reuses the same validity rules that
+    // authorize work (allEnergiesLocked + allZeroEnergyVerified + not
+    // already fullyReleasedAt) and rejects with a 409 + structured reason.
+    const safety = validateLotoApplication(app);
+    // Pick the most specific reason first. `fullyReleasedAt` short-circuits
+    // because the validator considers it "not authorize work" — we don't
+    // want to leak safety internals on top of that.
+    let reason: 'already_released' | 'energies_unlocked' | 'zero_energy_unverified' | null = null;
+    if (app.fullyReleasedAt) {
+      reason = 'already_released';
+    } else if (app.lockPoints.length === 0) {
+      reason = 'energies_unlocked';
+    } else if (!safety.allZeroEnergyVerified) {
+      reason = 'zero_energy_unverified';
+    } else if (!safety.allEnergiesLocked) {
+      // Lock points exist and zero-energy verified, but some identified
+      // energy has no lock covering it (e.g. caller declared 'mechanical'
+      // but only locked 'electric'). Treat as the same family as the
+      // energies_unlocked case — it's the same underlying safety violation.
+      reason = 'energies_unlocked';
+    } else if (!safety.authorizesWork) {
+      // Catch-all for any future validator additions we don't anticipate.
+      reason = 'energies_unlocked';
+    }
+    if (reason !== null) {
+      return res.status(409).json({
+        error: reason,
+        safety,
+      });
+    }
     const verdict = validateRelease(app, { applicationId: appId, releaserUid: callerUid, at: now });
     if (!verdict.canRelease) {
       // Authorization / consistency gate on WHO may record the release.

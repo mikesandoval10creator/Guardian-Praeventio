@@ -193,8 +193,22 @@ describe('POST apply-lock / verify-zero-energy / release lifecycle', () => {
     const created = await createApp(['electric'], [WORKER]);
     const appId = created.body.application.id;
 
-    // Outsider is a project member? No — make them a member to pass the project
-    // guard but NOT a LOTO leader/authorized worker → release must 403.
+    // Apply a lock + verify zero-energy so the safety gate is satisfied.
+    // The fix runs validateLotoApplication BEFORE validateRelease, so a
+    // release without locks returns 409 energies_unlocked for ANY caller
+    // (including the leader). This test must complete the lifecycle first
+    // to exercise the authorization gate, then prove the outsider is 403'd.
+    await request(buildApp())
+      .post(`${base}/${appId}/apply-lock`)
+      .set(asUser(WORKER))
+      .send({ pointId: 'lp1', description: 'Seccionador', energyType: 'electric', tagId: 'RED-1' });
+    await request(buildApp())
+      .post(`${base}/${appId}/verify-zero-energy`)
+      .set(asUser(WORKER))
+      .send({ pointId: 'lp1' });
+
+    // Outsider is a project member but NOT a LOTO leader/authorized
+    // worker → release must 403 (authorization gate, runs AFTER safety).
     seedProject([LEADER, WORKER, OUTSIDER]);
     const denied = await request(buildApp())
       .post(`${base}/${appId}/release`)
@@ -222,11 +236,90 @@ describe('POST apply-lock / verify-zero-energy / release lifecycle', () => {
       expect.objectContaining({ projectId: PROJECT }),
     );
 
-    // A second release is now a no-op gate → 403 (already fully released).
+    // A second release is now a no-op gate → 409 already_released
+    // (safety gate catches it before the authorization check).
     const again = await request(buildApp())
       .post(`${base}/${appId}/release`)
       .set(asUser(LEADER))
       .send({});
-    expect(again.status).toBe(403);
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe('already_released');
+  });
+
+  // ── [Audit-2026-08-31] LOTO release precondition gate ──────────────────
+  // The current POST /release endpoint calls validateRelease() (which only
+  // checks WHO can release — leaderUid/authorizedWorkerUids) and then
+  // applyFullRelease() unconditionally. It never calls validateLotoApplication
+  // to verify that:
+  //   • all identified energies have at least one lock point,
+  //   • every lock point has zeroEnergyVerified=true,
+  //   • no lock point was previously released (releasedAt unset).
+  //
+  // These probes pin the safety contract the fix MUST satisfy: a release
+  // before zero-energy is verified (or with unlocked energies) must 409,
+  // not 200. Without this gate a malicious or buggy client could restore
+  // a machine to service with an energy still live.
+  it('RELEASE with NO lock points yet → 409 energies_unlocked', async () => {
+    const created = await createApp(['electric', 'mechanical']);
+    const appId = created.body.application.id;
+    const res = await request(buildApp())
+      .post(`${base}/${appId}/release`)
+      .set(asUser(LEADER))
+      .send({});
+    if (res.status === 200) {
+      throw new Error(
+        `POST /release accepted an application with no lock points ` +
+          `(status 200, body=${JSON.stringify({ fullyReleasedAt: res.body.application.fullyReleasedAt })}). ` +
+          `The fix must reject this with 409 energies_unlocked.`,
+      );
+    }
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'energies_unlocked' });
+  });
+
+  it('RELEASE with lock points but zero-energy unverified → 409 zero_energy_unverified', async () => {
+    const created = await createApp(['electric']);
+    const appId = created.body.application.id;
+    // Apply a lock but DO NOT verify zero-energy.
+    await request(buildApp())
+      .post(`${base}/${appId}/apply-lock`)
+      .set(asUser(WORKER))
+      .send({ pointId: 'lp1', description: 'Seccionador', energyType: 'electric', tagId: 'RED-1' });
+
+    const res = await request(buildApp())
+      .post(`${base}/${appId}/release`)
+      .set(asUser(LEADER))
+      .send({});
+    if (res.status === 200) {
+      throw new Error(
+        `POST /release accepted a lock point without zero-energy verification ` +
+          `(status 200, body=${JSON.stringify({ fullyReleasedAt: res.body.application.fullyReleasedAt })}). ` +
+          `The fix must reject this with 409 zero_energy_unverified.`,
+      );
+    }
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'zero_energy_unverified' });
+  });
+
+  it('RELEASE with full lifecycle (lock + zero-energy verified) → 200 + audit', async () => {
+    // The legitimate happy path: complete the lifecycle, then release.
+    const created = await createApp(['electric']);
+    const appId = created.body.application.id;
+    await request(buildApp())
+      .post(`${base}/${appId}/apply-lock`)
+      .set(asUser(WORKER))
+      .send({ pointId: 'lp1', description: 'Seccionador', energyType: 'electric', tagId: 'RED-1' });
+    const verify = await request(buildApp())
+      .post(`${base}/${appId}/verify-zero-energy`)
+      .set(asUser(WORKER))
+      .send({ pointId: 'lp1' });
+    expect(verify.status).toBe(200);
+
+    const released = await request(buildApp())
+      .post(`${base}/${appId}/release`)
+      .set(asUser(LEADER))
+      .send({});
+    expect(released.status).toBe(200);
+    expect(released.body.application.fullyReleasedAt).toBeTruthy();
   });
 });
