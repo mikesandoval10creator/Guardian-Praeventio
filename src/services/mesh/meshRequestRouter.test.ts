@@ -192,6 +192,82 @@ describe('MeshRequestRouter', () => {
     expect(rec.receivedChunks.size).toBe(1);
   });
 
+  // [Hy3-audit] DoS guard — peer-claimed totalChunks must be within the
+  // hard cap. A malicious peer used to be able to pin totalChunks=1e6 on
+  // the first chunk, forcing the worker to grow its receivedChunks Map
+  // unboundedly. The fix rejects oversized or non-finite totalChunks
+  // BEFORE any record mutation.
+  it('rejects file_chunk with totalChunks above the cap (1e6 → request ignored)', async () => {
+    const { router } = makeRouter({ now });
+    const { requestId } = await router.requestFile({
+      nodeId: 'node-2',
+      contentHash: null,
+      title: 'x',
+    });
+
+    await router.processIncomingPackets([
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 0,
+        totalChunks: 1_000_000,
+        data: new Uint8Array([1, 2, 3]),
+      }),
+    ]);
+
+    const [rec] = router.getActiveRequests();
+    if (rec.receivedChunks.size !== 0) {
+      throw new Error(
+        `Expected DoS chunk (totalChunks=1e6) to be rejected, but the record grew to ` +
+          `${rec.receivedChunks.size} chunks. The fix must short-circuit BEFORE mutating ` +
+          `receivedChunks.`,
+      );
+    }
+    expect(rec.receivedChunks.size).toBe(0);
+    // record.totalChunks should still be null because no valid chunk pinned it.
+    expect(rec.totalChunks).toBe(null);
+  });
+
+  it('rejects file_chunk with negative or zero totalChunks', async () => {
+    const { router } = makeRouter({ now });
+    const { requestId } = await router.requestFile({
+      nodeId: 'node-2',
+      contentHash: null,
+      title: 'x',
+    });
+    for (const bad of [0, -1, -100]) {
+      await router.processIncomingPackets([
+        makeFileChunkPacket({
+          requestId,
+          chunkIndex: 0,
+          totalChunks: bad,
+          data: new Uint8Array([1, 2, 3]),
+        }),
+      ]);
+    }
+    const [rec] = router.getActiveRequests();
+    expect(rec.receivedChunks.size).toBe(0);
+    expect(rec.totalChunks).toBe(null);
+  });
+
+  it('rejects file_chunk with chunkIndex >= totalChunks (out-of-range index)', async () => {
+    const { router } = makeRouter({ now });
+    const { requestId } = await router.requestFile({
+      nodeId: 'node-2',
+      contentHash: null,
+      title: 'x',
+    });
+    await router.processIncomingPackets([
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 5,
+        totalChunks: 2,
+        data: new Uint8Array([1, 2, 3]),
+      }),
+    ]);
+    const [rec] = router.getActiveRequests();
+    expect(rec.receivedChunks.size).toBe(0);
+  });
+
   it('5. recibir todos los chunks → reconstrucción + state=complete + callback', async () => {
     const completed: FileRequestRecord[] = [];
     const { router } = makeRouter({
