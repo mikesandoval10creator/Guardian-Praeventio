@@ -93,6 +93,20 @@ describe("showForegroundPushNotification", () => {
     expect(shown?.close).toHaveBeenCalledOnce();
   });
 
+  it("returns null when the browser Notification API is unavailable", () => {
+    // Assign explicitly so the probe remains deterministic if the runner later
+    // adds a Notification polyfill.
+    vi.stubGlobal("Notification", undefined);
+
+    const shown = showForegroundPushNotification({
+      notification: { title: "SOS activo" },
+      data: { type: "sos", alertId: "alert-1" },
+    });
+
+    expect(shown).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it("does not create a browser notification when the FCM notification block is absent", () => {
     FakeBrowserNotification.instances = [];
     const injected = deps();
