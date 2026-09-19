@@ -196,16 +196,49 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
 dteRouter.get('/sign-challenge', verifyAuth, async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return undefined;
   const callerUid = req.user?.uid as string;
+  // [Audit-2026-08-31] The WebAuthn challenge MUST be bound to the dteHash
+  // the caller is about to sign. Without this binding, an admin could call
+  // GET /sign-challenge (any challenge), then POST /generate presenting a
+  // different DTE — the verifier would accept because the challenge is
+  // dteHash-blind. The binding is the only thing that ties the WebAuthn
+  // attestation to the specific XML that ends up signed.
+  const dteHash =
+    typeof req.query.dteHash === 'string' && /^[0-9a-f]{64}$/.test(req.query.dteHash)
+      ? req.query.dteHash
+      : null;
+  if (!dteHash) {
+    return res.status(400).json({
+      error: 'dteHash_required',
+      reason: 'dteHash must be a 64-char hex string (sha256 of the XML to sign).',
+    });
+  }
   try {
-    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+    const { buildSignChallenge } = await import('../../services/sii/dteSigner.js');
+    const { storeWebAuthnChallenge } = await import(
       '../../services/auth/webauthnChallenge.js'
     );
     const { buildWebAuthnDb } = await import('./curriculum.js');
-    const { challengeId, challenge } = generateWebAuthnChallenge();
-    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+    // buildSignChallenge derives challenge bytes from dteHash so the
+    // signature the authenticator produces is bound to that exact XML.
+    const { challenge, challengeB64u } = buildSignChallenge(dteHash);
+    // Synthesize a challengeId so the existing single-use store keeps
+    // working unchanged — bind the dteHash into the metadata so the
+    // verifier can compare it on submit.
+    const challengeId = `dte_${callerUid}_${dteHash.slice(0, 16)}_${Date.now().toString(36)}`;
+    // Stash the dteHash alongside the challenge so the verifier can reject
+    // any submission whose generated XML hashes to a different value.
+    await storeWebAuthnChallenge(
+      callerUid,
+      challengeId,
+      challenge,
+      buildWebAuthnDb(),
+      { metadata: { dteHash } },
+    );
     return res.json({
       challengeId,
-      challenge: Buffer.from(challenge).toString('base64'),
+      challenge: challengeB64u,
+      challengeB64u,
+      dteHash,
       rpId: getWebauthnRpId(),
       ttlSeconds: 300,
     });
@@ -418,6 +451,17 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
         expectedRpId: getWebauthnRpId(),
         challengesDb: buildWebAuthnDb(),
         credentialsDb: buildWebAuthnCredentialsDb(),
+        // [Audit-2026-08-31] Reject any challenge whose stored dteHash does
+        // NOT match the hash of the XML we just generated. This is the
+        // server-side complement of buildSignChallenge on the issuance
+        // path: the bytes the authenticator signed were bound to that
+        // exact XML, and we refuse to embed a signature whose scope the
+        // route never confirmed.
+        challengeMetadataValidator: (metadata: unknown) => {
+          if (!metadata || typeof metadata !== 'object') return false;
+          const stored = (metadata as Record<string, unknown>).dteHash;
+          return stored === generated.hash;
+        },
       });
       if (!verdict.verified) {
         logger.warn('dte.sign webauthn verification failed', {
