@@ -165,7 +165,15 @@ async function issueChallenge(uid: string) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
-  const clientDataJSON = Buffer.from(
+  const clientDataJSON = await clientDataJSONFor(challengeB64u);
+  return { challengeId, clientDataJSON };
+}
+
+// Build a clientDataJSON from a base64url challenge that the route already
+// returned (no need to re-issue). Used by tests that go through the REAL
+// /sign-challenge endpoint so the binding is recorded server-side.
+async function clientDataJSONFor(challengeB64u: string) {
+  return Buffer.from(
     JSON.stringify({
       type: 'webauthn.get',
       challenge: challengeB64u,
@@ -173,7 +181,6 @@ async function issueChallenge(uid: string) {
     }),
     'utf8',
   ).toString('base64');
-  return { challengeId, clientDataJSON };
 }
 
 function assertionBody(over: {
@@ -266,7 +273,14 @@ describe('POST /api/dte/generate — F4 WebAuthn verification gate', () => {
       verified: true,
       authenticationInfo: { newCounter: 6 },
     });
-    const { challengeId, clientDataJSON } = await issueChallenge(ADMIN);
+    // Issue the challenge THROUGH THE REAL ROUTE so the binding is recorded.
+    const dteHash = FAKE_DTE.hash;
+    const challengeRes = await request(buildApp())
+      .get(`/api/dte/sign-challenge?dteHash=${dteHash}`)
+      .set('x-test-uid', ADMIN);
+    expect(challengeRes.status).toBe(200);
+    const challengeId = challengeRes.body.challengeId as string;
+    const clientDataJSON = await clientDataJSONFor(challengeRes.body.challenge);
     const body = assertionBody({ challengeId, clientDataJSON });
     const r1 = await request(buildApp())
       .post('/api/dte/generate')
@@ -285,7 +299,16 @@ describe('POST /api/dte/generate — F4 WebAuthn verification gate', () => {
       verified: true,
       authenticationInfo: { newCounter: 6 },
     });
-    const { challengeId, clientDataJSON } = await issueChallenge(ADMIN);
+    // Issue the challenge THROUGH THE REAL ROUTE so the dteHash binding is
+    // recorded. The fix routes every challenge through buildSignChallenge
+    // with the supplied dteHash; here we pre-compute the hash and pass it.
+    const dteHash = FAKE_DTE.hash;
+    const challengeRes = await request(buildApp())
+      .get(`/api/dte/sign-challenge?dteHash=${dteHash}`)
+      .set('x-test-uid', ADMIN);
+    expect(challengeRes.status).toBe(200);
+    const challengeId = challengeRes.body.challengeId as string;
+    const clientDataJSON = await clientDataJSONFor(challengeRes.body.challenge);
     const res = await request(buildApp())
       .post('/api/dte/generate')
       .set('x-test-uid', ADMIN)
@@ -311,16 +334,100 @@ describe('POST /api/dte/generate — F4 WebAuthn verification gate', () => {
   });
 
   it('GET /api/dte/sign-challenge → 200 issues a stored challenge (admin); 403 non-admin', async () => {
+    // The fix requires a dteHash; the route returns 200 only when the
+    // dteHash is bound to the issued challenge.
     const ok = await request(buildApp())
-      .get('/api/dte/sign-challenge')
+      .get(`/api/dte/sign-challenge?dteHash=${'a'.repeat(64)}`)
       .set('x-test-uid', ADMIN);
     expect(ok.status).toBe(200);
     expect(typeof ok.body.challengeId).toBe('string');
     expect(typeof ok.body.challenge).toBe('string');
+    expect(ok.body.dteHash).toBe('a'.repeat(64));
 
     const denied = await request(buildApp())
-      .get('/api/dte/sign-challenge')
+      .get('/api/dte/sign-challenge?dteHash=${"a".repeat(64)}')
       .set('x-test-uid', 'worker-1');
+    // Non-admin → 403 from requireAdmin BEFORE the dteHash check.
     expect(denied.status).toBe(403);
+  });
+
+  // ── Adversarial probe: the WebAuthn challenge MUST bind to the DTE hash ──
+  // The current /sign-challenge issues a generic challenge (no dteHash).
+  // A malicious admin could call GET /sign-challenge for ANYTHING, then
+  // POST /generate with that challengeId while presenting a different
+  // DTE hash — the verifier accepts because the challenge is dteHash-blind.
+  //
+  // This probe pins the contract the fix MUST satisfy:
+  //   • GET /sign-challenge must REJECT a request that does not carry a
+  //     dteHash query param (the only place the dteHash is known).
+  //   • The issued challenge bytes must be derived from that dteHash
+  //     (same input → same first-16-byte prefix, since buildSignChallenge
+  //     uses SHA-256(salt ‖ dteHash)).
+  //   • POST /generate with a challenge issued for dteHash A but
+  //     submitting generated.hash = B must 401 with reason
+  //     'challenge_dtehash_mismatch' (the binding is server-side).
+  it('GET /sign-challenge without dteHash → 400 (proves the dteHash binding exists)', async () => {
+    const res = await request(buildApp())
+      .get('/api/dte/sign-challenge')
+      .set('x-test-uid', ADMIN);
+    // Either 400 dteHash_required OR the implementation has been wired
+    // through a different mechanism (header, body). Both prove the binding
+    // exists at issuance time. The only failing mode is 200 with a generic
+    // challenge — which is the current bug and what we are detecting.
+    if (res.status === 200) {
+      throw new Error(
+        `GET /sign-challenge still issues a dteHash-blind challenge (status 200, ` +
+          `body=${JSON.stringify(res.body)}). The fix must require a dteHash ` +
+          `and derive the challenge bytes from it.`,
+      );
+    }
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /generate with mismatched challenge dteHash → 401 challenge_dtehash_mismatch', async () => {
+    // Capture the dteHash the REAL generator returns so we can pick a
+    // challenge issued for a DIFFERENT hash. The test is meaningless if
+    // we hardcode a fake hash that doesn't match FAKE_DTE.hash.
+    const FAKE_DTE_HASH = FAKE_DTE.hash;
+    const MISMATCH_HASH = 'b'.repeat(64);
+
+    // Issue a challenge against a known-mismatched dteHash.
+    // We can't call GET /sign-challenge?dteHash=… yet because the fix
+    // doesn't exist; instead we use the underlying primitive directly:
+    // generateWebAuthnChallenge gives a generic id, so the route's
+    // binding check (when implemented) MUST be the layer that detects
+    // the mismatch between issued-hash and presented-hash.
+    //
+    // For the probe we issue a challenge through the same path the fix
+    // will use: the future route will persist (challengeId → dteHash)
+    // and the verifier will compare. We register the mapping here.
+    const { challengeId, clientDataJSON } = await issueChallenge(ADMIN);
+    // Note: this challenge was issued without a dteHash binding. The
+    // server-side check (added by the fix) should detect that the
+    // challenge has no recorded dteHash and reject the request.
+    mockVerifyAuthenticationResponse.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 6 },
+    });
+    const res = await request(buildApp())
+      .post('/api/dte/generate')
+      .set('x-test-uid', ADMIN)
+      .send(assertionBody({ challengeId, clientDataJSON }));
+    // Current behavior: 200 (the bug). Fixed behavior: 401.
+    if (res.status === 200) {
+      throw new Error(
+        `POST /generate accepted a dteHash-blind challenge (status 200, ` +
+          `body=${JSON.stringify({ hasSigned: !!res.body.signedAt })}). The fix must ` +
+          `reject this with 401 challenge_dtehash_mismatch.`,
+      );
+    }
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({
+      error: 'dte_sign_failed',
+      // The verifier returns challenge_context_mismatch when the stored
+      // metadata dteHash doesn't match the one the route computed. This
+      // is the canonical name from webauthnAssertion.ts:71.
+      reason: 'challenge_context_mismatch',
+    });
   });
 });
