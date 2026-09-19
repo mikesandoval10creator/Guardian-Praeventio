@@ -96,6 +96,10 @@ export function PreShiftRisk() {
 
   const { data, loading, error } = usePreShiftRisk(projectId);
   const panel = data?.panel ?? null;
+  const incompleteSources =
+    data?.dataCompleteness && !data.dataCompleteness.complete
+      ? data.dataCompleteness.failedSources
+      : [];
 
   // Clima crudo del proyecto (mismo origen que el Dashboard) para el protocolo
   // de estrés térmico WBGT. El composer abstrae el calor a un factor; aquí
@@ -203,6 +207,23 @@ export function PreShiftRisk() {
           </span>
         )}
       </header>
+
+      {incompleteSources.length > 0 && (
+        <div
+          className="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-300"
+          data-testid="pre-shift-risk-incomplete-data"
+          role="status"
+        >
+          <AlertOctagon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          <p className="text-sm font-semibold">
+            {t(
+              'preShiftRisk.page.incompleteData',
+              'Datos incompletos ({{sources}}). No interpretes el nivel mostrado como una evaluación completa del turno.',
+              { sources: incompleteSources.join(', ') },
+            )}
+          </p>
+        </div>
+      )}
 
       {/*
         Compact summary card. The rich inline sections below already render

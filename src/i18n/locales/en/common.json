@@ -4941,6 +4941,7 @@
   "preShiftRisk": {
     "page": {
       "error": "Could not load the panel: {{msg}}",
+      "incompleteData": "Incomplete data ({{sources}}). Do not interpret the displayed level as a complete shift assessment.",
       "selectProject": "Select a project to view the shift risk panel.",
       "subtitle": "{{date}} · {{count}} factors detected",
       "title": "Pre-Shift Panel"

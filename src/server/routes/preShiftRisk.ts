@@ -99,6 +99,7 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       '../../services/incidentBundle/incidentEvidenceBundle.js'
     );
     const db = admin.firestore();
+    const failedSources: string[] = [];
 
     const safeRead = async <T,>(
       label: string,
@@ -108,6 +109,7 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         return await fn();
       } catch (err) {
         logger.warn?.(`preShiftRisk.${label}.fetch_failed`, err);
+        failedSources.push(label);
         return [];
       }
     };
@@ -319,6 +321,7 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
           )
           .catch((err) => {
             logger.warn('preShiftRisk.read.equipmentLegacy.failed', err);
+            failedSources.push('equipment_legacy');
             return [] as ReturnType<typeof mapDoc>[];
           });
 
@@ -334,6 +337,7 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
               return canonSnap.docs.map(mapDoc);
             } catch (err) {
               logger.warn('preShiftRisk.read.equipmentCanonical.failed', err);
+              failedSources.push('equipment_canonical');
               return [];
             }
           })();
@@ -446,7 +450,14 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       emergencyBrigadeReady,
     });
 
-    return res.json({ panel });
+    const uniqueFailedSources = [...new Set(failedSources)].sort();
+    return res.json({
+      panel,
+      dataCompleteness: {
+        complete: uniqueFailedSources.length === 0,
+        failedSources: uniqueFailedSources,
+      },
+    });
   } catch (err) {
     logger.error?.('preShiftRisk.error', err);
     captureRouteError(err, 'preShiftRisk');
