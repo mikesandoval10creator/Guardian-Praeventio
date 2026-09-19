@@ -41,6 +41,7 @@ import {
   getValidAccessToken,
   revokeTokens,
 } from '../../services/oauthTokenStore.js';
+import { clearUserFcmTokens } from '../../services/notifications/fcmLifecycle.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 
@@ -106,11 +107,28 @@ oauthGoogleApiRouter.post('/oauth/unlink', verifyAuth, async (req, res) => {
       revokeTokens({ uid, provider: 'google' }),
       revokeTokens({ uid, provider: 'google-drive' }),
     ]);
+    // [Audit-2026-08-31] Device disassociation on logout. Purge every FCM
+    // device token for this uid so the logged-out account stops receiving
+    // pushes on whichever device still holds a valid registration, and the
+    // fcmTokens array stays bounded across logout/login cycles. Best-effort
+    // by contract — a wipe failure must not 5xx an otherwise successful
+    // unlink. We surface the outcome on the audit row instead.
+    let fcmRemoved = 0;
+    let fcmClearError: string | null = null;
+    try {
+      const result = await clearUserFcmTokens(uid);
+      fcmRemoved = result.removed;
+    } catch (clearErr) {
+      fcmClearError = (clearErr as Error)?.message ?? 'unknown';
+      logger.warn?.('oauth_unlink_fcm_clear_failed', { uid, message: fcmClearError });
+    }
     // Round 17 R1 — audit row for revocation. Defensively wrapped so a
     // stale Firestore handle can't 5xx an otherwise successful unlink.
     try {
       await auditServerEvent(req, 'oauth.unlink', 'oauth', {
         providers: ['google', 'google-drive'],
+        fcmTokensRemoved: fcmRemoved,
+        fcmClearError,
       });
     } catch {
       /* observability never breaks request path */
