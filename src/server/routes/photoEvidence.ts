@@ -23,6 +23,10 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import {
+  isAdminRole,
+  isSupervisorRole,
+} from '../../types/roles.js';
+import {
   buildArtifact,
   PhotoEvidenceValidationError,
   type LinkedNodeKind,
@@ -167,6 +171,16 @@ router.get(
     }
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // [Audit-2026-08-31] Supervisor-only gate — firestore.rules:2535-2538 only
+    // grants `read` of `photo_evidence/{contentHash}` to isSupervisorOfTenant.
+    // Because this route uses Admin SDK directly, the rule does NOT apply;
+    // we replicate the supervisor-only check here. Project membership alone
+    // is insufficient: a worker could otherwise enumerate photo evidence
+    // for any node, which IncidentBundle.tsx exposes in its feed.
+    const callerRole = (req.user as { role?: string } | undefined)?.role ?? null;
+    if (!isSupervisorRole(callerRole) && !isAdminRole(callerRole)) {
+      return res.status(403).json({ error: 'supervisor_only' });
+    }
     try {
       const adapter = new PhotoEvidenceAdapter(
         admin.firestore(),

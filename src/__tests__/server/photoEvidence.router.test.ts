@@ -29,7 +29,14 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: { uid: string } }).user = { uid };
+    // Propagate x-test-role (and optional x-test-tenant) into req.user so
+    // the supervisor-only gate in listByNode can read the role claim
+    // without having to mock customClaims via setCustomUserClaims first.
+    const role = req.header('x-test-role');
+    (req as Request & { user: { uid: string; role?: string } }).user = {
+      uid,
+      ...(role ? { role } : {}),
+    };
     next();
   },
 }));
@@ -244,19 +251,82 @@ describe('GET /:projectId/photo-evidence/by-node/:kind/:id (list)', () => {
       linkages: [{ nodeKind: 'audit', nodeId: 'aud-9' }],
       linkageKeys: ['audit:aud-9'],
     });
+    // Caller u1 must carry the supervisor role claim; project membership
+    // alone is no longer sufficient after the supervisor-only gate.
     const res = await request(buildApp())
       .get(`/api/${PROJECT}/photo-evidence/by-node/incident/inc-1`)
-      .set(member);
+      .set({ 'x-test-uid': 'u1', 'x-test-role': 'supervisor' });
     expect(res.status).toBe(200);
     const ids = (res.body.artifacts as Array<{ id: string }>).map((a) => a.id).sort();
     expect(ids).toEqual([HASH, HASH2]);
   });
 
+  // ── [Audit-2026-08-31] PhotoEvidence GET supervisor-only ──────────────
+  // firestore.rules:2535-2538 grants `read` of `photo_evidence/{contentHash}`
+  // ONLY to isSupervisorOfTenant. Because the route uses Admin SDK
+  // directly, that rule does NOT apply — the route is its own gate and
+  // it MUST replicate the supervisor-only check, otherwise any project
+  // member (worker) can list photo evidence for any node. IncidentBundle
+  // exposes this feed to anyone who can open an incident bundle, so this
+  // is a real PII + privilege escalation surface.
+  //
+  // These probes pin the contract the fix MUST satisfy:
+  //   • Worker member of the project → 403 forbidden, never 200
+  //   • Supervisor of the tenant → 200 + artifacts
+  //   • Admin (gerente) of the tenant → 200 + artifacts
+  it('403 when caller is a project member but NOT a supervisor/admin of the tenant', async () => {
+    seedMemberProject();
+    // u1 is a project member (seeded by seedMemberProject) but has no role
+    // claim → must NOT be allowed to list photo evidence.
+    const res = await request(buildApp())
+      .get(`/api/${PROJECT}/photo-evidence/by-node/incident/inc-1`)
+      .set(member);
+    if (res.status === 200) {
+      throw new Error(
+        `GET /photo-evidence/by-node accepted a worker member without supervisor/admin ` +
+          `(status 200, body=${JSON.stringify({ count: (res.body.artifacts ?? []).length })}). ` +
+          `The fix must reject this with 403 supervisor_only.`,
+      );
+    }
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'supervisor_only' });
+  });
+
+  it('200 when caller has role=supervisor in the verified token', async () => {
+    seedMemberProject();
+    H.db!._seed(`${COL}/${HASH}`, {
+      id: HASH, mimeType: 'image/jpeg', capturedAt: '2026-06-10T08:00:00Z',
+      linkages: [{ nodeKind: 'incident', nodeId: 'inc-1' }],
+      linkageKeys: ['incident:inc-1'],
+    });
+    const res = await request(buildApp())
+      .get(`/api/${PROJECT}/photo-evidence/by-node/incident/inc-1`)
+      .set({ 'x-test-uid': 'u1', 'x-test-role': 'supervisor' });
+    expect(res.status).toBe(200);
+    expect(res.body.artifacts).toHaveLength(1);
+  });
+
+  it('200 when caller has role=gerente (admin) in the verified token', async () => {
+    seedMemberProject();
+    H.db!._seed(`${COL}/${HASH}`, {
+      id: HASH, mimeType: 'image/jpeg', capturedAt: '2026-06-10T08:00:00Z',
+      linkages: [{ nodeKind: 'incident', nodeId: 'inc-1' }],
+      linkageKeys: ['incident:inc-1'],
+    });
+    const res = await request(buildApp())
+      .get(`/api/${PROJECT}/photo-evidence/by-node/incident/inc-1`)
+      .set({ 'x-test-uid': 'u1', 'x-test-role': 'gerente' });
+    expect(res.status).toBe(200);
+    expect(res.body.artifacts).toHaveLength(1);
+  });
+
   it('200 honest empty list when nothing is linked (not fabricated)', async () => {
     seedMemberProject();
+    // Caller u1 must carry the supervisor role claim; project membership
+    // alone is no longer sufficient after the supervisor-only gate.
     const res = await request(buildApp())
       .get(`/api/${PROJECT}/photo-evidence/by-node/inspection/insp-7`)
-      .set(member);
+      .set({ 'x-test-uid': 'u1', 'x-test-role': 'supervisor' });
     expect(res.status).toBe(200);
     expect(res.body.artifacts).toEqual([]);
   });
