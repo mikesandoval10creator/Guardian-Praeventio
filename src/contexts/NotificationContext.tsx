@@ -9,6 +9,7 @@ import { db } from '../services/firebase';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
 import { dedupeNotifications } from '../utils/notificationDedup';
+import { showForegroundPushNotification } from '../services/notifications/foregroundNotification';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -17,6 +18,8 @@ interface Notification {
   title: string;
   message: string;
   type: NotificationType;
+  /** FCM data map used to resolve the click target for foreground push. */
+  data?: Record<string, string>;
   time: string;
   read: boolean;
   createdAt: number;
@@ -143,7 +146,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           addNotification({
             title: payload.notification?.title || 'Nueva Notificación',
             message: payload.notification?.body || '',
-            type: 'info'
+            type: 'info',
+            data: payload.data as Record<string, string> | undefined,
           });
         });
       } catch (error) {
@@ -219,9 +223,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // into the newest one instead of stacking a visual duplicate.
     setNotifications(prev => dedupeNotifications([newNotification, ...prev]));
 
-    // Trigger Push Notification if supported
+    // Trigger a clickable browser notification through the same deep-link
+    // resolver used by native taps. The FCM data map survives end-to-end;
+    // missing data routes to the safe notifications inbox.
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(n.title, { body: n.message });
+      showForegroundPushNotification({
+        notification: { title: n.title, body: n.message },
+        data: n.data,
+      });
     }
   }, []);
 
