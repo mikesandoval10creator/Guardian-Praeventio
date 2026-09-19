@@ -219,7 +219,7 @@ describe('MatrixSyncManager.restoreServerVersion', () => {
     unsubscribe();
   });
 
-  it('forwards the update id and partial patch unchanged during flush', async () => {
+  it('forwards the update id (in data payload) and partial patch during flush', async () => {
     const geminiService = await import('./geminiService');
     const syncBatchToNetwork = geminiService.syncBatchToNetwork as unknown as ReturnType<
       typeof vi.fn
@@ -231,8 +231,69 @@ describe('MatrixSyncManager.restoreServerVersion', () => {
     await matrixSyncManager.enqueueUpdate('doc-Z', { title: 'offline edit' });
     await matrixSyncManager.flush();
 
+    // [Hy3-audit] The fix embeds `id` inside the data payload so the server's
+    // syncNodeToNetwork (networkBackend.ts:76) does NOT generate a fresh
+    // id on replay. Without this, an update with no embedded id would
+    // create a brand-new global-scope node.
     expect(syncBatchToNetwork).toHaveBeenCalledWith([
-      { type: 'update', id: 'doc-Z', data: { title: 'offline edit' } },
+      { type: 'update', id: 'doc-Z', data: { id: 'doc-Z', title: 'offline edit' } },
     ]);
+  });
+
+  // [Hy3-audit] Adversarial probe — an update replay MUST carry the id
+  // inside its data payload. Otherwise networkBackend.ts:76 generates a
+  // fresh id and the server creates a phantom global-scope node instead
+  // of mutating the original (silent data loss across offline cycles).
+  it('enqueueUpdate embeds id inside data payload (avoids phantom global node on replay)', async () => {
+    const geminiService = await import('./geminiService');
+    const syncBatchToNetwork = geminiService.syncBatchToNetwork as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    syncBatchToNetwork.mockClear();
+    syncBatchToNetwork.mockResolvedValueOnce({ failedOps: [] });
+    Object.defineProperty(globalThis.navigator, 'onLine', { configurable: true, value: true });
+
+    await matrixSyncManager.enqueueUpdate('node-A', {
+      title: 'partial edit',
+      tags: ['x', 'y'],
+    });
+    await matrixSyncManager.flush();
+
+    const calls = syncBatchToNetwork.mock.calls as Array<[unknown[]]>;
+    const sentOps = calls[0]?.[0] as Array<{ id: string; data: Record<string, unknown> }>;
+    expect(sentOps).toHaveLength(1);
+    const op = sentOps[0];
+    if (!('id' in op.data) || op.data.id !== 'node-A') {
+      throw new Error(
+        `Enqueued update is missing embedded id in data payload (got: ${JSON.stringify(op)}). ` +
+          `Without an embedded id, networkBackend.ts:76 would generate a fresh one and ` +
+          `the server would create a phantom global-scope node on replay.`,
+      );
+    }
+    expect(op.data).toMatchObject({ id: 'node-A', title: 'partial edit' });
+  });
+
+  // [Hy3-audit] enqueueSet (full-doc upsert) must ALSO carry id so the
+  // server never generates a fresh id for a known-local node.
+  it('enqueueSet embeds id inside data payload', async () => {
+    const geminiService = await import('./geminiService');
+    const syncBatchToNetwork = geminiService.syncBatchToNetwork as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    syncBatchToNetwork.mockClear();
+    syncBatchToNetwork.mockResolvedValueOnce({ failedOps: [] });
+    Object.defineProperty(globalThis.navigator, 'onLine', { configurable: true, value: true });
+
+    await matrixSyncManager.enqueueSet({
+      id: 'node-B',
+      title: 'fresh node',
+      description: '',
+      projectId: 'proj-1',
+    } as never);
+    await matrixSyncManager.flush();
+
+    const calls = syncBatchToNetwork.mock.calls as Array<[unknown[]]>;
+    const sentOps = calls[0]?.[0] as Array<{ id: string; data: Record<string, unknown> }>;
+    expect(sentOps[0].data).toMatchObject({ id: 'node-B', title: 'fresh node' });
   });
 });

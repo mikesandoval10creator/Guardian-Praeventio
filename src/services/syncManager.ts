@@ -139,12 +139,24 @@ class MatrixSyncManager {
 
   async enqueueUpdate(id: string, updates: Partial<RiskNode>) {
     const existing = this.queue.get(id);
+    // [Hy3-audit] Embed the node id in the update payload so the server's
+    // `syncNodeToNetwork` does NOT generate a fresh id on replay
+    // (networkBackend.ts:76 `nodeData.id || db.collection('nodes').doc().id`).
+    // Without this, an update that arrives at the server with no embedded
+    // id would create a brand-new global-scope node (projectId normalises
+    // to 'global' when absent) instead of mutating the original \u2014
+    // corrupting the Digital Twin / ZK canónico across offline-then-
+    // reconnect cycles.
+    const updatesWithId: Partial<RiskNode> & { id: string } = {
+      id,
+      ...updates,
+    };
     if (existing && existing.type === 'set') {
-      this.queue.set(id, { type: 'set', id, data: { ...existing.data, ...updates } });
+      this.queue.set(id, { type: 'set', id, data: { ...existing.data, ...updatesWithId } });
     } else if (existing && existing.type === 'update') {
-      this.queue.set(id, { type: 'update', id, data: { ...existing.data, ...updates } });
+      this.queue.set(id, { type: 'update', id, data: { ...existing.data, ...updatesWithId } });
     } else {
-      this.queue.set(id, { type: 'update', id, data: updates });
+      this.queue.set(id, { type: 'update', id, data: updatesWithId });
     }
     await this.saveQueue();
     this.notifyListeners();
