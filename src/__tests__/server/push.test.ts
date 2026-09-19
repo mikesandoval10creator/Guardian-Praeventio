@@ -108,6 +108,60 @@ function buildPushApp(deps: PushTestDeps): Express {
     }
   });
 
+  // Companion endpoint to /register-token. See push.ts:unregister-token
+  // header for the P0 safety rationale (cross-tenant push leakage on
+  // logout / account-switch). Mirrors prod arrayRemove semantics: removes
+  // the token from `users/{uid}.fcmTokens` and writes an audit row that
+  // records `{ platform }` ONLY (the raw FCM token is a credential).
+  // Idempotent: removing a token that isn't in the array is a 200 no-op
+  // and does NOT write an audit row.
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
+  router.post('/unregister-token', verifyAuth, async (req, res) => {
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
+    const { token, platform } = req.body ?? {};
+
+    if (typeof token !== 'string' || token.length === 0 || token.length > 512) {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+    if (typeof platform !== 'string' || !VALID_PLATFORMS.includes(platform as any)) {
+      return res.status(400).json({ error: 'Invalid platform' });
+    }
+
+    if (deps.forceFirestoreThrow) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+
+    try {
+      const cur = deps.firestore.store.get(`users/${callerUid}`) ?? {};
+      const existing: string[] = Array.isArray(cur.fcmTokens) ? cur.fcmTokens : [];
+      if (!existing.includes(token)) {
+        // Idempotent: token wasn't registered. No audit row — keeps the
+        // log clean of spurious traffic from clients retrying unregister.
+        return res.json({ ok: true });
+      }
+      const next = existing.filter((t) => t !== token);
+      deps.firestore.store.set(`users/${callerUid}`, {
+        ...cur,
+        fcmTokens: next,
+        lastTokenUnregisteredAt: new Date().toISOString(),
+      });
+
+      await deps.firestore.collection('audit_logs').add({
+        action: 'push.token.unregistered',
+        module: 'push',
+        details: { platform },
+        userId: callerUid,
+        userEmail: callerEmail,
+        ts: new Date().toISOString(),
+      });
+
+      return res.json({ ok: true });
+    } catch {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.use('/api/push', router);
   return app;
@@ -248,6 +302,149 @@ describe('POST /api/push/register-token', () => {
     app = buildPushApp({ firestore: fs, auth: makeAuth(), forceFirestoreThrow: true });
     const res = await request(app)
       .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'fcm-token-abc', platform: 'android' });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/internal/i);
+  });
+});
+
+// ─── /api/push/unregister-token ───────────────────────────────────────────
+//
+// Companion to /register-token. Without unregister, fcmTokens[] grows
+// forever on users/{uid}: tokens for devices the user has since logged
+// out of, account-switched away from, or had wiped, all keep receiving
+// emergency fan-outs. This causes two distinct P0 safety hazards:
+//   1. Critical alerts to a previous user reach a device the new user
+//      is now signed in on (cross-tenant leakage).
+//   2. A revoked session keeps getting SOS pushes after logout, which
+//      is a privacy + compliance hazard for Ley 16.744 audit trails.
+//
+// Behavior contract (mirrors register-token):
+//   • 401 unauthed
+//   • 400 invalid token (empty, missing, >512 chars)
+//   • 400 invalid platform
+//   • 200 happy path: arrayRemove from users/{uid}.fcmTokens + audit row
+//   • 200 idempotent: removing a token not in the array is a no-op
+//   • Audit row records `{ platform }` ONLY — never the raw token.
+
+describe('POST /api/push/unregister-token', () => {
+  let fs: InMemoryFirestore;
+  let app: Express;
+
+  beforeEach(() => {
+    fs = new InMemoryFirestore();
+    app = buildPushApp({ firestore: fs, auth: makeAuth() });
+  });
+
+  it('rejects unauthenticated requests with 401', async () => {
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .send({ token: 'fcm-token-abc', platform: 'android' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/no token provided/i);
+  });
+
+  it('rejects malformed Bearer header with 401', async () => {
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer malformed')
+      .send({ token: 'fcm-token-abc', platform: 'android' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid token/i);
+  });
+
+  it('rejects empty token with 400', async () => {
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: '', platform: 'android' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/token/i);
+  });
+
+  it('rejects invalid platform with 400', async () => {
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'fcm-token-abc', platform: 'symbian' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/platform/i);
+  });
+
+  it('happy path: removes the token from users/{uid}.fcmTokens + writes audit row WITHOUT the raw token', async () => {
+    // Seed two tokens for this user.
+    await request(app)
+      .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-A', platform: 'android' });
+    await request(app)
+      .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-B', platform: 'ios' });
+    expect(fs.store.get('users/uid-worker').fcmTokens).toEqual(['tok-A', 'tok-B']);
+
+    // Now unregister tok-A.
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-A', platform: 'android' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const userDoc = fs.store.get('users/uid-worker');
+    expect(userDoc.fcmTokens).toEqual(['tok-B']);
+    expect(userDoc.lastTokenUnregisteredAt).toBeTruthy();
+
+    const audit = fs.audit.find((e) => e.action === 'push.token.unregistered');
+    expect(audit).toBeDefined();
+    expect(audit?.module).toBe('push');
+    expect(audit?.details).toEqual({ platform: 'android' });
+    expect(audit?.userId).toBe('uid-worker');
+    // Critical: the raw token MUST NOT appear in the audit row.
+    expect(JSON.stringify(audit)).not.toContain('tok-A');
+  });
+
+  it('idempotent: removing a token that was never registered is a 200 no-op', async () => {
+    const res = await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'never-registered', platform: 'web' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    // No audit row should be written for a no-op (avoids spurious traffic).
+    const audit = fs.audit.find((e) => e.action === 'push.token.unregistered');
+    expect(audit).toBeUndefined();
+  });
+
+  it('removes only the requested token, leaving the others intact', async () => {
+    await request(app)
+      .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-X', platform: 'android' });
+    await request(app)
+      .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-Y', platform: 'ios' });
+    await request(app)
+      .post('/api/push/register-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-Z', platform: 'web' });
+
+    await request(app)
+      .post('/api/push/unregister-token')
+      .set('Authorization', 'Bearer test:uid-worker:w@test.com')
+      .send({ token: 'tok-Y', platform: 'ios' });
+
+    const userDoc = fs.store.get('users/uid-worker');
+    expect(userDoc.fcmTokens).toEqual(['tok-X', 'tok-Z']);
+  });
+
+  it('returns 500 if Firestore throws', async () => {
+    app = buildPushApp({ firestore: fs, auth: makeAuth(), forceFirestoreThrow: true });
+    const res = await request(app)
+      .post('/api/push/unregister-token')
       .set('Authorization', 'Bearer test:uid-worker:w@test.com')
       .send({ token: 'fcm-token-abc', platform: 'android' });
     expect(res.status).toBe(500);
