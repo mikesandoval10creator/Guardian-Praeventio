@@ -133,6 +133,94 @@ describe('OfflineSyncStateMachine', () => {
     sm._dispose();
   });
 
+  // ── P0 #N [Audit-2026-08-31] offline state machine ─────────────────
+  // Bug: dedupeKey used (data.id || data.docId || ''), so two CREATE ops
+  // without an id collapsed onto the same key and the second replaced the
+  // first (silently losing data). Fix: assign a stable id BEFORE dedupe
+  // for CREATE operations that lack one.
+  it('keeps two idless CREATE ops as separate entries (no collision)', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => false);
+    await sm.ready();
+    const id1 = await sm.enqueue({
+      type: 'create',
+      collection: 'projects',
+      data: { name: 'A' },
+    });
+    const id2 = await sm.enqueue({
+      type: 'create',
+      collection: 'projects',
+      data: { name: 'B' },
+    });
+    expect(id1).not.toBe(id2); // Different op ids — both retained
+    const snap = sm.getState();
+    expect(snap.pendingCount).toBe(2);
+    const names = snap.operations.map((o) => o.data.name).sort();
+    expect(names).toEqual(['A', 'B']);
+    sm._dispose();
+  });
+
+  it('idless CREATE still preserves payload when persisted across hydrate', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => false);
+    await sm.ready();
+    await sm.enqueue({ type: 'create', collection: 'workers', data: { name: 'A' } });
+    await sm.enqueue({ type: 'create', collection: 'workers', data: { name: 'B' } });
+    // Force hydrate from storage by constructing a new state machine
+    // (the static QUEUE_KEY/LAST_SUCCESS_KEY are what the persistence uses).
+    const sm2 = new OfflineSyncStateMachine();
+    sm2.setOnlineGetter(() => false);
+    await sm2.ready();
+    const snap = sm2.getState();
+    expect(snap.pendingCount).toBe(2);
+    const names = snap.operations.map((o) => o.data.name).sort();
+    expect(names).toEqual(['A', 'B']);
+    sm._dispose();
+    sm2._dispose();
+  });
+
+  it('UPDATE with the same id still dedupes (last-write-wins) after the fix', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => false);
+    await sm.ready();
+    const id1 = await sm.enqueue({
+      type: 'update',
+      collection: 'docs',
+      data: { id: 'doc-1', value: 'first' },
+    });
+    const id2 = await sm.enqueue({
+      type: 'update',
+      collection: 'docs',
+      data: { id: 'doc-1', value: 'second' },
+    });
+    expect(id1).toBe(id2);
+    const snap = sm.getState();
+    expect(snap.pendingCount).toBe(1);
+    expect(snap.operations[0].data.value).toBe('second');
+    sm._dispose();
+  });
+
+  it('CREATE with explicit id still dedupes (last-write-wins)', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => false);
+    await sm.ready();
+    const id1 = await sm.enqueue({
+      type: 'create',
+      collection: 'projects',
+      data: { id: 'p-1', name: 'A' },
+    });
+    const id2 = await sm.enqueue({
+      type: 'create',
+      collection: 'projects',
+      data: { id: 'p-1', name: 'A-replaced' },
+    });
+    expect(id1).toBe(id2);
+    const snap = sm.getState();
+    expect(snap.pendingCount).toBe(1);
+    expect(snap.operations[0].data.name).toBe('A-replaced');
+    sm._dispose();
+  });
+
   it('subscribe fires synchronously on subscribe and on state change', async () => {
     const sm = new OfflineSyncStateMachine();
     sm.setOnlineGetter(() => true);

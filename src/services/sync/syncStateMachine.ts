@@ -95,12 +95,27 @@ function getBackoffMs(attempts: number): number {
   return BACKOFF_MS[attempts];
 }
 
-function dedupeKey(op: { collection: string; data: any; type: string }): string {
-  // Best-effort id: prefer explicit data.id (the document id we're touching),
-  // fall back to a hash of the JSON payload. The collection+type prefix
-  // ensures we never collapse a delete onto a create for the same docId.
-  const id = (op.data && (op.data.id || op.data.docId)) ?? '';
-  return `${op.collection}:${op.type}:${id}`;
+function dedupeKey(op: { collection: string; data: any; type: string; id?: string }): string {
+  // Best-effort doc id: prefer explicit data.id (the document id we're touching),
+  // fall back to data.docId, and finally the op's own id when neither is set.
+  //
+  // Why the op.id fallback matters (P0 [Audit-2026-08-31] sync state machine):
+  //   For CREATE operations without an explicit id, the previous logic
+  //   collapsed every idless create for the same collection onto the same
+  //   dedupe key (e.g. 'projects:create:'), so enqueue's last-write-wins
+  //   replaced the previous op and silently lost data. Including the op's
+  //   own unique id in the key guarantees distinct slots for distinct
+  //   operations — UPDATE/DELETE/SET still use the docId (last-write-wins
+  //   semantics preserved), while CREATE keeps every distinct create.
+  const explicitId =
+    op.data && (op.data.id || op.data.docId) ? String(op.data.id || op.data.docId) : '';
+  if (explicitId) return `${op.collection}:${op.type}:${explicitId}`;
+  // For CREATE without an explicit id, op.id (assigned in enqueue before this
+  // key is computed) is the stable per-op discriminator. For non-CREATE ops
+  // we still want last-write-wins to group by docId, so we only fall back
+  // here when there is no docId at all (rare for update/delete/set which
+  // almost always carry one).
+  return `${op.collection}:${op.type}:__idless__:${op.id ?? ''}`;
 }
 
 function makeOpId(): string {
@@ -285,7 +300,11 @@ export class OfflineSyncStateMachine {
     op: Omit<SyncOperation, 'id' | 'attempts' | 'createdAt'>,
   ): Promise<string> {
     await this.readyPromise;
-    const key = dedupeKey(op);
+    // Assign a candidate id up front so the dedupe key includes it for
+    // idless CREATE ops. The id is the per-op discriminator for those, so
+    // two distinct enqueues can never collide on the same dedupe key.
+    const candidateId = makeOpId();
+    const key = dedupeKey({ ...op, id: candidateId });
     let id: string | undefined;
     for (const existing of this.operations.values()) {
       if (dedupeKey(existing) === key) {
@@ -293,7 +312,7 @@ export class OfflineSyncStateMachine {
         break;
       }
     }
-    if (!id) id = makeOpId();
+    if (!id) id = candidateId;
     const next: SyncOperation = {
       id,
       type: op.type,
