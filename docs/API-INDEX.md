@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 752 rutas detectadas.**
+**207 routers montados · 753 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -276,6 +276,7 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/push.ts` → `/api/push`
 - `POST /api/push/register-token`
+- `POST /api/push/unregister-token`
 
 ### `src/server/routes/rubroBenchmarks.ts` → `/api/sii`
 - `GET /api/sii/:projectId/rubro-benchmarks`
