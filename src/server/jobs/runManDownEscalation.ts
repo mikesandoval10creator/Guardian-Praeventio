@@ -192,15 +192,42 @@ export async function runManDownEscalationCron(
           .collection('escalations')
           .doc(key);
 
-        let existing: admin.firestore.DocumentSnapshot;
+        // [Hy3-audit] Race read-then-write → double-page fix. Two concurrent
+        // cron sweeps (multi-region deployment, k8s multi-replica, lambda
+        // concurrency) used to BOTH read `exists=false` and BOTH call
+        // notify() before either wrote the marker \u2014 paging SAMU/brigada
+        // twice for the same ManDown event and desensitising responders.
+        //
+        // The fix: claim the marker atomically inside a runTransaction
+        // BEFORE calling notify(). t.create is the canonical Firestore
+        // idempotency primitive \u2014 it only succeeds when the doc is absent,
+        // so at most one of the racing sweeps proceeds to notify. A losing
+        // transaction is aborted by Firestore and the loop falls through
+        // to the existing `skippedIdempotent` branch.
+        let claimed = false;
         try {
-          existing = await markerRef.get();
+          claimed = await deps.db.runTransaction(async (t) => {
+            const snap = await t.get(markerRef);
+            if (snap.exists) return false;
+            t.create(markerRef, {
+              eventId: doc.id,
+              level,
+              message: null, // hydrated below after notify succeeds
+              triggeredAtIso,
+              workerId,
+              workerName: workerName ?? null,
+              location: location ?? null,
+              notified: false,
+              escalatedAtIso: evalNow.toISOString(),
+            });
+            return true;
+          });
         } catch (e) {
-          logger.warn?.('man_down_cron.marker_read_failed', { id: doc.id, level, err: String(e) });
+          logger.warn?.('man_down_cron.marker_claim_failed', { id: doc.id, level, err: String(e) });
           result.errors += 1;
           continue;
         }
-        if (existing.exists) {
+        if (!claimed) {
           result.escalationsSkippedIdempotent += 1;
           continue;
         }
@@ -215,30 +242,38 @@ export async function runManDownEscalationCron(
           location,
         };
 
-        // Notify FIRST. If it throws, do NOT persist the marker so the next
-        // sweep retries until someone is actually paged.
+        // Notify AFTER the marker has been atomically claimed. If this
+        // throws, the marker exists with `notified: false` so a future
+        // sweep can detect the partial state and retry \u2014 but we still
+        // avoid the double-page race that motivated the fix.
         if (deps.notify) {
           try {
             await deps.notify(info);
           } catch (e) {
             logger.warn?.('man_down_cron.notify_failed', { id: doc.id, level, err: String(e) });
             result.errors += 1;
+            // Best-effort hydrate the marker with the resolved message so
+            // the audit log still tells future ops what would have been sent.
+            try {
+              await markerRef.set(
+                { message: info.message, notified: false },
+                { merge: true },
+              );
+            } catch {
+              /* observability, never break the loop */
+            }
             continue;
           }
         }
 
         try {
-          await markerRef.set({
-            eventId: doc.id,
-            level,
-            message: info.message,
-            triggeredAtIso,
-            workerId,
-            workerName: workerName ?? null,
-            location: location ?? null,
-            notified: Boolean(deps.notify),
-            escalatedAtIso: evalNow.toISOString(),
-          });
+          await markerRef.set(
+            {
+              message: info.message,
+              notified: Boolean(deps.notify),
+            },
+            { merge: true },
+          );
         } catch (e) {
           logger.warn?.('man_down_cron.marker_write_failed', { id: doc.id, level, err: String(e) });
           result.errors += 1;
