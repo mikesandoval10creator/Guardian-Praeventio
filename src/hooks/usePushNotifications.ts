@@ -16,8 +16,8 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { resolveNotificationDeepLink } from '../services/notifications/notificationDeepLink';
-import { DEEP_LINK_EVENT_NAME } from '../components/shared/DeepLinkHandler';
+import { dispatchNotificationDeepLink } from '../services/notifications/notificationDeepLinkDispatch';
+import { showForegroundPushNotification } from '../services/notifications/foregroundNotification';
 import {
   ensureEmergencyChannel,
   getCriticalAlertStatus,
@@ -35,23 +35,7 @@ const criticalChannelDeps = {
   checkPermissions: () => PushNotifications.checkPermissions(),
 };
 
-/**
- * Turn a tapped push notification into an in-app navigation. Reuses the same
- * `praeventio:deep-link` CustomEvent bridge that native Universal/App Links
- * use, so <DeepLinkHandler> performs the authenticated React Router navigation
- * (and its project-mismatch fallback) from one place. Total + defensive: a
- * malformed payload resolves to the safe fallback rather than throwing inside
- * the native event callback.
- */
-export function dispatchNotificationDeepLink(
-  data: Record<string, string> | undefined | null,
-): void {
-  if (typeof window === 'undefined') return;
-  const { url, projectId } = resolveNotificationDeepLink(data);
-  window.dispatchEvent(
-    new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url, projectId } }),
-  );
-}
+export { dispatchNotificationDeepLink };
 
 export interface RegisterTokenDeps {
   /** Resolves the Firebase ID token for the current user, or null if unauth. */
@@ -315,27 +299,10 @@ export function usePushNotifications() {
 
       unsubscribe = onMessage(messaging, (payload) => {
         logger.debug('FCM message received', { payload });
-        // [P1][VIDA] Foreground web push: the SW's notificationclick does NOT
-        // fire for a page-level Notification, so carry `payload.data` and wire
-        // an onclick that deep-links through the same resolver. Without this a
-        // tapped foreground notification was a no-op.
-        if (payload.notification && typeof Notification !== 'undefined') {
-          const n = new Notification(payload.notification.title || 'Praeventio Guard', {
-            body: payload.notification.body,
-            icon: '/icon.svg',
-            data: payload.data,
-          });
-          n.onclick = (ev) => {
-            ev.preventDefault();
-            try {
-              window.focus();
-            } catch {
-              /* focus may throw in some browsers — navigation still proceeds */
-            }
-            dispatchNotificationDeepLink(payload.data as Record<string, string> | undefined);
-            n.close();
-          };
-        }
+        // [P1][VIDA] Preserve the FCM data map and wire the same click-to-deep-
+        // link behavior used by NotificationContext. The shared helper prevents
+        // these two foreground listeners from drifting again.
+        showForegroundPushNotification(payload);
       });
     };
 
