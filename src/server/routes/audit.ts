@@ -35,6 +35,7 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 
 const router = Router();
 
@@ -140,6 +141,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
 //   ?since=ISO_DATE — solo entradas posteriores
 router.get('/audit-log', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
+  const callerRole = req.user!.role ?? null;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
   const moduleFilter = typeof req.query.module === 'string' ? req.query.module : undefined;
   const sinceIso = typeof req.query.since === 'string' ? req.query.since : undefined;
@@ -154,6 +156,18 @@ router.get('/audit-log', verifyAuth, async (req, res) => {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
       }
       throw err;
+    }
+
+    // SECURITY: leer el trail completo de un proyecto (PII de TODOS los miembros:
+    // userEmail, IP, details) requiere rol supervisor o admin global. Un worker
+    // member sigue pudiendo leer su PROPIO trail (sin projectId) arriba.
+    // Sin este guard, cualquier worker puede enumerar actores e IPs de sus
+    // compañeros — fuga de PII cross-user (ISO 45001 §10.2 + GDPR).
+    if (!isSupervisorRole(callerRole) && !isAdminRole(callerRole)) {
+      return res.status(403).json({
+        error: 'forbidden',
+        reason: 'project_trail_requires_supervisor',
+      });
     }
   }
 
