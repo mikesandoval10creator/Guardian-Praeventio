@@ -20,6 +20,16 @@
 export const LOCATION_DISCLOSURE_STORAGE_KEY =
   'guardian.locationDisclosureAcknowledged.v1';
 
+/** Event emitted after the disclosure-owned native permission prompt settles. */
+export const LOCATION_PERMISSION_GATE_SETTLED_EVENT =
+  'guardian:location-permission-gate-settled';
+
+/** Wake consumers that deferred their GPS watcher behind the disclosure gate. */
+export function notifyLocationPermissionGateSettled(): void {
+  if (typeof window === 'undefined' || typeof Event === 'undefined') return;
+  window.dispatchEvent(new Event(LOCATION_PERMISSION_GATE_SETTLED_EVENT));
+}
+
 /**
  * Frase de divulgación prominente, adaptada del texto que Play Console
  * solicita para permisos de ubicación en background. Verificable con:

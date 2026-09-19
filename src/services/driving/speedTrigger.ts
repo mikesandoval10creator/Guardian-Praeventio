@@ -18,6 +18,12 @@
 // has no branches worth unit-testing in isolation.
 
 import { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import {
+  canRequestLocationPermission,
+  LOCATION_PERMISSION_GATE_SETTLED_EVENT,
+} from '../location/locationPermissionRequest';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -179,45 +185,73 @@ export function useSpeedMonitor(enabled: boolean = true): SpeedSample {
   // Keep the most recent timestamp in a ref so the staleness ticker
   // doesn't depend on `sample` (which would re-create the timer).
   const lastTsRef = useRef(0);
+  const [permissionGateRevision, setPermissionGateRevision] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleGateSettled = () =>
+      setPermissionGateRevision((value) => value + 1);
+    window.addEventListener(LOCATION_PERMISSION_GATE_SETTLED_EVENT, handleGateSettled);
+    return () => {
+      window.removeEventListener(LOCATION_PERMISSION_GATE_SETTLED_EVENT, handleGateSettled);
+    };
+  }, []);
 
   useEffect(() => {
     if (!enabled) return undefined;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
 
-    const id = navigator.geolocation.watchPosition(
-      (pos) => {
-        const speedMs = pos.coords.speed ?? 0;
-        const ts = pos.timestamp ?? Date.now();
-        lastTsRef.current = ts;
-        setSample({
-          speedMs: speedMs < 0 ? 0 : speedMs,
-          speedKmh: (speedMs < 0 ? 0 : speedMs) * MS_TO_KMH,
-          gpsAccuracyM: pos.coords.accuracy ?? 0,
-          timestampMs: ts,
-          isStale: false,
-        });
-      },
-      () => {
-        // Permission denied / timeout — mark stale, leave previous values.
-        setSample((s) => ({ ...s, isStale: true }));
-      },
-      { enableHighAccuracy: true, maximumAge: 1_000, timeout: 15_000 },
-    );
+    let disposed = false;
+    let watchId: number | null = null;
+    let staleTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Periodic staleness check — flips `isStale` if no fix in 10s.
-    const staleTimer = setInterval(() => {
-      if (lastTsRef.current === 0) return;
-      const age = Date.now() - lastTsRef.current;
-      if (age > STALE_AFTER_MS) {
-        setSample((s) => (s.isStale ? s : { ...s, isStale: true }));
+    const startWatcher = async () => {
+      if (Capacitor.isNativePlatform()) {
+        let alreadyGranted = false;
+        try {
+          const permissions = await Geolocation.checkPermissions();
+          alreadyGranted = permissions.location === 'granted';
+        } catch {
+          // Fail closed if native permission state cannot be read.
+        }
+        if (disposed) return;
+        if (!alreadyGranted && !canRequestLocationPermission(true)) return;
       }
-    }, 2_000);
 
-    return () => {
-      navigator.geolocation.clearWatch(id);
-      clearInterval(staleTimer);
+      if (disposed) return;
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const speedMs = pos.coords.speed ?? 0;
+          const ts = pos.timestamp ?? Date.now();
+          lastTsRef.current = ts;
+          setSample({
+            speedMs: speedMs < 0 ? 0 : speedMs,
+            speedKmh: (speedMs < 0 ? 0 : speedMs) * MS_TO_KMH,
+            gpsAccuracyM: pos.coords.accuracy ?? 0,
+            timestampMs: ts,
+            isStale: false,
+          });
+        },
+        () => setSample((sample) => ({ ...sample, isStale: true })),
+        { enableHighAccuracy: true, maximumAge: 1_000, timeout: 15_000 },
+      );
+
+      staleTimer = setInterval(() => {
+        if (lastTsRef.current === 0) return;
+        const age = Date.now() - lastTsRef.current;
+        if (age > STALE_AFTER_MS) {
+          setSample((sample) => (sample.isStale ? sample : { ...sample, isStale: true }));
+        }
+      }, 2_000);
     };
-  }, [enabled]);
+
+    void startWatcher();
+    return () => {
+      disposed = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (staleTimer !== null) clearInterval(staleTimer);
+    };
+  }, [enabled, permissionGateRevision]);
 
   return sample;
 }

@@ -1,7 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point, polygon } from '@turf/helpers';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { logger } from '../utils/logger';
+import {
+  canRequestLocationPermission,
+  LOCATION_PERMISSION_GATE_SETTLED_EVENT,
+} from '../services/location/locationPermissionRequest';
 
 export interface GeofenceZone {
   id: string;
@@ -144,6 +150,7 @@ export function useGeofence(
   }>(() => ({ scopeKey, zones: [] }));
   const [permissionState, setPermissionState] =
     useState<GeofencePermissionState>('pending');
+  const [permissionGateRevision, setPermissionGateRevision] = useState(0);
   const onZonesChangedRef = useRef(onZonesChanged);
   onZonesChangedRef.current = onZonesChanged;
   // Retain complete zone objects so exits remain auditable even when a zone is
@@ -162,6 +169,18 @@ export function useGeofence(
   // even though the effect re-subscription is keyed on a hash of zone ids only.
   const zonesRef = useRef<GeofenceZone[]>(zones);
   zonesRef.current = zones;
+
+  // A watcher blocked by the prominent-disclosure gate resumes after the
+  // gate-owned OS prompt settles, without requiring a route reload.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleGateSettled = () =>
+      setPermissionGateRevision((value) => value + 1);
+    window.addEventListener(LOCATION_PERMISSION_GATE_SETTLED_EVENT, handleGateSettled);
+    return () => {
+      window.removeEventListener(LOCATION_PERMISSION_GATE_SETTLED_EVENT, handleGateSettled);
+    };
+  }, []);
 
   // Install the user-gesture audio primer once when the hook mounts.
   useEffect(() => {
@@ -198,12 +217,32 @@ export function useGeofence(
   const zonesIdHash = useMemo(() => buildZonesGeometryHash(zones), [zones]);
 
   useEffect(() => {
-    if (!('geolocation' in navigator)) {
-      setPermissionState('unavailable');
-      return undefined;
-    }
+    let disposed = false;
+    let watchId: number | null = null;
 
-    const watchId = navigator.geolocation.watchPosition(
+    const startWatcher = async () => {
+      if (!('geolocation' in navigator)) {
+        if (!disposed) setPermissionState('unavailable');
+        return;
+      }
+
+      if (Capacitor.isNativePlatform()) {
+        let alreadyGranted = false;
+        try {
+          const permissions = await Geolocation.checkPermissions();
+          alreadyGranted = permissions.location === 'granted';
+        } catch (error) {
+          logger.warn('[useGeofence] no se pudo consultar permiso nativo', error);
+        }
+        if (disposed) return;
+        if (!alreadyGranted && !canRequestLocationPermission(true)) {
+          setPermissionState('pending');
+          return;
+        }
+      }
+
+      if (disposed) return;
+      watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         const observedPosition = { lat: latitude, lng: longitude };
@@ -270,11 +309,15 @@ export function useGeofence(
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },
     );
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
     };
 
-  }, [zonesIdHash, scopeKey]);
+    void startWatcher();
+    return () => {
+      disposed = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    };
+
+  }, [zonesIdHash, scopeKey, permissionGateRevision]);
 
   return {
     currentLocation,

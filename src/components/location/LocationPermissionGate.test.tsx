@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { LOCATION_PERMISSION_GATE_SETTLED_EVENT } from '../../services/location/locationPermissionRequest';
 
 const requestPermissionsMock = vi
   .fn()
@@ -54,7 +55,9 @@ describe('LocationPermissionGate', () => {
     expect(requestPermissionsMock).not.toHaveBeenCalled();
   });
 
-  it('aceptar la divulgación dispara el prompt del SO y persiste el consentimiento', async () => {
+  it('aceptar la divulgación dispara el prompt del SO, notifica consumidores y persiste el consentimiento', async () => {
+    const settled = vi.fn();
+    window.addEventListener(LOCATION_PERMISSION_GATE_SETTLED_EVENT, settled, { once: true });
     const { LocationPermissionGate } = await import('./LocationPermissionGate');
     render(<LocationPermissionGate />);
     await waitFor(() => {
@@ -63,6 +66,7 @@ describe('LocationPermissionGate', () => {
     await userEvent.click(screen.getByTestId('location-disclosure-accept'));
     expect(requestPermissionsMock).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('guardian.locationDisclosureAcknowledged.v1')).toBe('true');
+    await waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
     await waitFor(() => {
       expect(screen.queryByTestId('location-disclosure-modal')).not.toBeInTheDocument();
     });
