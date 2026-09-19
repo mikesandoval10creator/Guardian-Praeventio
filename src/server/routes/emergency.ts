@@ -24,7 +24,7 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -51,11 +51,13 @@ import { EmailService } from '../../services/email/resendService.js';
 import { sosBackupTemplate } from '../../services/email/templates.js';
 
 
+export const sosLimiterKey = (req: Request): string =>
+  req.user?.uid ?? '__sos_limiter_no_uid__';
+
 export const sosLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
-  keyGenerator: (req: Request) =>
-    req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: sosLimiterKey,
   // E2E harness: a full-stack spec (and its Playwright retries) legitimately
   // fires the real SOS several times, and the prod 10/min guard must not turn
   // that into a 429 that masks the actual alert write. Bypass ONLY under
