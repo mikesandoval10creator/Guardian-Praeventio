@@ -298,10 +298,21 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const firestore = overrides.firestore ?? new InMemoryFirestore();
   const auth: FakeAuth = overrides.auth ?? {
     async verifyIdToken(token: string) {
-      // Convention: token format "test:uid:email" â†’ decoded.
+      // Convention: token format "test:uid:email[:role[:admin[:tenant]]]" → decoded.
+      // The first three colon-separated parts were the original contract; the
+      // optional 4th–6th parts (role / admin flag / tenantId) let audit GET
+      // tests exercise the supervisor/admin role gate without having to mock
+      // customClaims via setCustomUserClaims first.
       if (token === 'invalid') throw new Error('invalid token');
-      const [, uid, email] = token.split(':');
-      return { uid: uid ?? 'uid-default', email: email || `${uid}@test.com` };
+      const parts = token.split(':');
+      const [, uid, email, role, adminFlag, tenantId] = parts;
+      return {
+        uid: uid ?? 'uid-default',
+        email: email || `${uid}@test.com`,
+        role: role || undefined,
+        admin: adminFlag === '1',
+        tenantId: tenantId || undefined,
+      };
     },
     async getUser(uid: string) {
       return { uid, email: `${uid}@test.com`, customClaims: {} };
@@ -471,6 +482,91 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/admin/set-role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
+  // --- GET /api/audit-log (test mirror) ---------------------------------
+  // Closes the Audit-2026-08-31 P0 gap: the production GET handler has the
+  // supervisor/admin role gate, but until this mirror existed the test suite
+  // could only exercise the POST. Without this mirror the guard could
+  // regress silently -- a refactor that drops the role-gate branch would not
+  // break any test. Mirror is intentionally near-identical to
+  // src/server/routes/audit.ts:130-225.
+  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
+  app.get('/api/audit-log', verifyAuth, async (req, res) => {
+    const callerUid = req.user!.uid;
+    const callerRole = (req.user as { role?: string | null }).role ?? null;
+    const callerAdmin = Boolean((req.user as { admin?: boolean }).admin);
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+    const moduleFilter = typeof req.query.module === 'string' ? req.query.module : undefined;
+    const sinceIso = typeof req.query.since === 'string' ? req.query.since : undefined;
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+
+    // Membership check if a projectId was supplied (mirrors src/.../audit.ts).
+    if (projectId) {
+      try {
+        await assertProjectMember(callerUid, projectId, deps.firestore as any);
+      } catch (err) {
+        if (err instanceof ProjectMembershipError) {
+          return res.status(err.httpStatus).json({ error: 'forbidden' });
+        }
+        throw err;
+      }
+
+      // SECURITY: project trail includes userEmail, IP and details for EVERY
+      // member. Without this gate, any project member could enumerate their
+      // co-workers' PII (ISO 45001 10.2 + GDPR). Admin global bypasses both
+      // the membership check above and the role check here.
+      const isSupervisor = callerRole === 'supervisor';
+      const isAdmin = callerAdmin || callerRole === 'admin';
+      if (!isSupervisor && !isAdmin) {
+        return res.status(403).json({
+          error: 'forbidden',
+          reason: 'project_trail_requires_supervisor',
+        });
+      }
+    }
+
+    try {
+      let query: any = deps.firestore.collection('audit_logs');
+      if (projectId) {
+        query = query.where('projectId', '==', projectId);
+      } else {
+        // No projectId: scope to the caller's own entries (do not leak other
+        // workers' trails even though the membership gate does not apply).
+        query = query.where('userId', '==', callerUid);
+      }
+      if (moduleFilter) {
+        query = query.where('module', '==', moduleFilter);
+      }
+      if (sinceIso) {
+        const sinceDate = new Date(sinceIso);
+        if (!Number.isNaN(sinceDate.getTime())) {
+          query = query.where('timestamp', '>=', sinceDate);
+        }
+      }
+      query = query.limit(limit);
+      const snap = await query.get();
+      const entries = snap.docs.map((doc: any) => {
+        const data = doc.data();
+        const ts = data?.timestamp?.toDate?.() ?? data?.timestamp ?? null;
+        const tsIso = ts && typeof ts.toISOString === 'function' ? ts.toISOString() : null;
+        return {
+          id: doc.id,
+          action: data.action,
+          module: data.module,
+          details: data.details ?? {},
+          userId: data.userId,
+          userEmail: data.userEmail ?? null,
+          projectId: data.projectId ?? null,
+          timestamp: tsIso,
+          ip: data.ip ?? null,
+        };
+      });
+      return res.json({ entries, count: entries.length });
+    } catch {
+      return res.status(500).json({ error: 'Audit log read failed' });
+    }
+  });
+
+
   app.post('/api/admin/set-role', verifyAuth, async (req, res) => {
     const { uid, role } = req.body ?? {};
     const callerUid = req.user!.uid;

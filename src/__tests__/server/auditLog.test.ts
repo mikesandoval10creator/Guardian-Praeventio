@@ -116,3 +116,111 @@ describe('POST /api/audit-log', () => {
     expect(entry!.projectId).toBeNull();
   });
 });
+
+// ─── GET /api/audit-log ─────────────────────────────────────────────────────
+// Codex fake fix §2.2 (Audit-2026-08-31 — Audit trail GET): el endpoint
+// expone audit_logs via Admin SDK (bypass de firestore.rules). La membresía
+// sola NO es suficiente para leer el trail completo de un proyecto —
+// devolver `userEmail, ip, details` de OTROS miembros sería fuga de PII
+// cross-user (ISO 45001 §10.2 + GDPR). El guard server-side exige rol
+// supervisor/admin global cuando se pide `?projectId=`. Sin projectId, el
+// handler scope-a los logs al propio uid (un worker solo ve su propio trail).
+
+const ROLE_TOKEN = (
+  uid: string,
+  role: string,
+  adminFlag = false,
+  email = `${uid}@x.cl`,
+  tenant = 't1',
+) => `Bearer test:${uid}:${email}:${role}:${adminFlag ? '1' : '0'}:${tenant}`;
+
+describe('GET /api/audit-log', () => {
+  it('rejects unauthenticated requests with 401', async () => {
+    const res = await request(handle.app).get('/api/audit-log');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when worker asks for a projectId trail (PII cross-user gate)', async () => {
+    fs.store.set('projects/proj-A', { name: 'Faena Norte', members: ['uid-worker'], createdBy: 'uid-sup' });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .query({ projectId: 'proj-A' })
+      .set('Authorization', ROLE_TOKEN('uid-worker', 'operario'));
+    expect(res.status).toBe(403);
+    expect(res.body.reason).toBe('project_trail_requires_supervisor');
+  });
+
+  it('returns 403 when supervisor (non-admin) asks for a project they are not member of', async () => {
+    fs.store.set('projects/proj-Z', { name: 'Other', members: ['someone-else'], createdBy: 'someone-else' });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .query({ projectId: 'proj-Z' })
+      .set('Authorization', ROLE_TOKEN('uid-sup', 'supervisor'));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('returns 200 when supervisor asks for a project they are member of', async () => {
+    fs.store.set('projects/proj-S', { name: 'Faena Sur', members: ['uid-sup'], createdBy: 'uid-sup' });
+    // Pre-seed two audit entries for that project (any author — supervisor is allowed to see all).
+    fs.store.set('audit_logs/log_1', { action: 'login.success', module: 'auth', userId: 'uid-A', projectId: 'proj-S', timestamp: new Date('2026-01-01T00:00:00Z') });
+    fs.store.set('audit_logs/log_2', { action: 'reports.export', module: 'reports', userId: 'uid-B', projectId: 'proj-S', timestamp: new Date('2026-01-02T00:00:00Z') });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .query({ projectId: 'proj-S' })
+      .set('Authorization', ROLE_TOKEN('uid-sup', 'supervisor'));
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(2);
+    expect(res.body.entries.map((e: any) => e.action).sort()).toEqual(['login.success', 'reports.export']);
+  });
+
+  it('returns 200 when admin (project member) asks for that project trail (role gate satisfied)', async () => {
+    // Admin must also be a project member (assertProjectMember runs first).
+    fs.store.set('projects/proj-X', { name: 'Other', members: ['uid-admin', 'someone-else'], createdBy: 'someone-else' });
+    fs.store.set('audit_logs/log_3', { action: 'login.success', module: 'auth', userId: 'uid-A', projectId: 'proj-X', timestamp: new Date('2026-01-01T00:00:00Z') });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .query({ projectId: 'proj-X' })
+      .set('Authorization', ROLE_TOKEN('uid-admin', 'operario', true));
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+    expect(res.body.entries[0].action).toBe('login.success');
+  });
+
+  it('returns only the caller\u2019s own audit entries when no projectId is provided (worker)', async () => {
+    // Worker MUST be able to see their own trail even without projectId — but
+    // not entries from other workers in their projects.
+    fs.store.set('audit_logs/log_4', { action: 'login.success', module: 'auth', userId: 'uid-worker', projectId: null, timestamp: new Date('2026-01-01T00:00:00Z') });
+    fs.store.set('audit_logs/log_5', { action: 'reports.export', module: 'reports', userId: 'uid-other-worker', projectId: 'proj-anything', timestamp: new Date('2026-01-02T00:00:00Z') });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .set('Authorization', ROLE_TOKEN('uid-worker', 'operario'));
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+    expect(res.body.entries[0].userId).toBe('uid-worker');
+  });
+
+  it('returns 200 with empty entries when caller has no audit rows', async () => {
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .set('Authorization', ROLE_TOKEN('uid-empty', 'operario'));
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+    expect(res.body.entries).toEqual([]);
+  });
+
+  it('does NOT expose audit rows from another projectId when supervisor filters by projectId (tenant isolation)', async () => {
+    fs.store.set('projects/proj-S', { name: 'Faena Sur', members: ['uid-sup'], createdBy: 'uid-sup' });
+    fs.store.set('projects/proj-Other', { name: 'Other', members: ['someone-else'], createdBy: 'someone-else' });
+    fs.store.set('audit_logs/log_6', { action: 'reports.export', module: 'reports', userId: 'uid-sup', projectId: 'proj-S', timestamp: new Date('2026-01-01T00:00:00Z') });
+    fs.store.set('audit_logs/log_7', { action: 'login.success', module: 'auth', userId: 'uid-A', projectId: 'proj-Other', timestamp: new Date('2026-01-02T00:00:00Z') });
+    const res = await request(handle.app)
+      .get('/api/audit-log')
+      .query({ projectId: 'proj-S' })
+      .set('Authorization', ROLE_TOKEN('uid-sup', 'supervisor'));
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+    expect(res.body.entries[0].projectId).toBe('proj-S');
+    expect(res.body.entries[0].action).toBe('reports.export');
+  });
+});
