@@ -29,7 +29,15 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
-    (req as Request & { user: { uid: string; email: string } }).user = { uid, email: `${uid}@t.cl` };
+    // Default 'worker' so the type narrows to string and we exercise the
+    // realistic case (every real caller has SOME role in their token).
+    // Individual tests override via x-test-role for supervisor/admin paths.
+    const role = req.header('x-test-role') ?? 'worker';
+    (req as Request & { user: { uid: string; email: string; role: string } }).user = {
+      uid,
+      email: `${uid}@t.cl`,
+      role,
+    };
     next();
   },
 }));
@@ -150,14 +158,36 @@ describe('GET /api/audit-log (read trail)', () => {
     expect(res.body.entries.every((e: { userId: string }) => e.userId === 'w1')).toBe(true);
   });
 
-  it('200 with a projectId (member) returns that project trail', async () => {
+  it('403 SECURITY: reading a project trail requires supervisor/admin role (no PII cross-user leak)', async () => {
     seedLog('b1', { action: 'p1-evt', module: 'm', userId: 'x', projectId: 'p1', timestamp: 1000 });
     seedLog('b2', { action: 'p2-evt', module: 'm', userId: 'y', projectId: 'p2', timestamp: 2000 });
     const res = await request(buildApp()).get(`${URL}?projectId=p1`).set('x-test-uid', 'w1');
+    // Without supervisor/admin role, member w1 MUST NOT read the project trail —
+    // that would leak userEmail/IP of every other project member (PII cross-user).
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ reason: 'project_trail_requires_supervisor' });
+  });
+
+  it('200 a supervisor CAN read the project trail (audit/compliance workflow preserved)', async () => {
+    seedLog('b1', { action: 'p1-evt', module: 'm', userId: 'x', projectId: 'p1', timestamp: 1000 });
+    seedLog('b2', { action: 'p2-evt', module: 'm', userId: 'y', projectId: 'p2', timestamp: 2000 });
+    const res = await request(buildApp())
+      .get(`${URL}?projectId=p1`)
+      .set('x-test-uid', 'sup1')
+      .set('x-test-role', 'supervisor');
     expect(res.status).toBe(200);
     const actions = (res.body.entries as Array<{ action: string }>).map((e) => e.action);
     expect(actions).toContain('p1-evt');
     expect(actions).not.toContain('p2-evt');
+  });
+
+  it('200 an admin CAN read the project trail (audit/compliance workflow preserved)', async () => {
+    seedLog('b1', { action: 'p1-evt', module: 'm', userId: 'x', projectId: 'p1', timestamp: 1000 });
+    const res = await request(buildApp())
+      .get(`${URL}?projectId=p1`)
+      .set('x-test-uid', 'admin1')
+      .set('x-test-role', 'admin');
+    expect(res.status).toBe(200);
   });
 
   it('caps limit at 100 and defaults sanely', async () => {
