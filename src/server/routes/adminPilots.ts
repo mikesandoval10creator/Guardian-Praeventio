@@ -16,6 +16,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole } from '../../types/roles.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { randomBytes } from 'node:crypto';
 import { logger } from '../../utils/logger.js';
 import {
   SUBSCRIPTION_PLANS,
@@ -80,7 +81,7 @@ adminPilotsRouter.post('/pilots', verifyAuth, async (req, res) => {
       return;
     }
 
-    const pilotId = `pilot_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const pilotId = `pilot_${Date.now()}_${randomBytes(4).toString('hex')}`;
     const grantedAt = new Date().toISOString();
 
     const payload = {

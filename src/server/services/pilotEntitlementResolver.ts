@@ -229,9 +229,9 @@ export async function resolveEffectivePlan(
       .collection('pilotEntitlements')
       .where('status', '==', 'active')
       .get();
-    pilotDocs = grantsSnap.docs.map((d: QueryDocumentSnapshot) =>
-      coercePilotDoc(d.id, d.data(), input.organizationId),
-    );
+    pilotDocs = grantsSnap.docs
+      .map((d: QueryDocumentSnapshot) => coercePilotDoc(d.id, d.data(), input.organizationId))
+      .filter((doc): doc is PilotEntitlementDoc => doc !== null);
   } catch (err: any) {
     logger.error?.('pilot_resolver.pilot_read_failed', {
       organizationId: input.organizationId,

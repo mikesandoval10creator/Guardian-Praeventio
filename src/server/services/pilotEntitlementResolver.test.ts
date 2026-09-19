@@ -12,8 +12,10 @@ import {
   pickBestPilot,
   resolveEffectivePlan,
   type PilotEntitlementDoc,
+  type PilotResolverDeps,
   type ResolveEffectivePlanResult,
 } from './pilotEntitlementResolver.js';
+import type { Firestore } from 'firebase-admin/firestore';
 import { PLAN_RANK } from '../../services/pricing/subscriptionPlan.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -234,13 +236,11 @@ type FakeDoc = {
   data: () => Record<string, unknown>;
 };
 
+// Subset of Firebase Admin's Firestore interface used by resolveEffectivePlan.
+// Loosely typed so the impl in `makeFirestore` can return different per-collection
+// shapes (users/ vs organizations/) without a strict structural mismatch.
 interface FakeFirestore {
-  collection(name: string): {
-    doc(id: string): { get(): Promise<{ get(field: string): unknown }> };
-    where(field: string, op: string, value: unknown): {
-      get(): Promise<{ docs: FakeDoc[] }>;
-    };
-  };
+  collection(name: string): unknown;
 }
 
 function makeFirestore(opts: {
@@ -251,7 +251,7 @@ function makeFirestore(opts: {
     collection(name: string) {
       if (name === 'users') {
         return {
-          doc(id: string) {
+          doc(_id: string) {
             return {
               async get() {
                 if (opts.userDoc === undefined) throw new Error('users collection unreachable');
@@ -316,7 +316,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result).toEqual({
       planId: 'oro',
@@ -338,7 +338,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('free');
     expect(result.reason).toBe('free_fallback');
@@ -364,7 +364,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('oro');
     expect(result.reason).toBe('pilot_grant');
@@ -398,7 +398,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('platino');
     expect(result.reason).toBe('paid_subscription');
@@ -431,7 +431,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('oro');
     expect(result.reason).toBe('pilot_grant');
@@ -458,7 +458,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('free');
     expect(result.reason).toBe('free_fallback');
@@ -487,7 +487,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('free');
     expect(result.reason).toBe('free_fallback');
@@ -500,7 +500,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('free');
     expect(result.reason).toBe('free_fallback');
@@ -513,7 +513,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('free');
     expect(result.reason).toBe('free_fallback');
@@ -563,7 +563,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('oro');
     expect(result.reason).toBe('pilot_grant');
@@ -596,7 +596,7 @@ describe('resolveEffectivePlan', () => {
     });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result.planId).toBe('oro');
     expect(result.reason).toBe('paid_subscription');
@@ -610,7 +610,7 @@ describe('resolveEffectivePlan result shape invariant', () => {
     const fs = makeFirestore({ userDoc: null, pilotDocs: [] });
     const result = await resolveEffectivePlan(
       { uid: 'u1', organizationId: 'o1', now: NOW },
-      { firestore: fs as unknown as Parameters<typeof resolveEffectivePlan>[1]['firestore'] },
+      { firestore: fs as unknown as Firestore } as PilotResolverDeps,
     );
     expect(result).toHaveProperty('planId');
     expect(result).toHaveProperty('reason');

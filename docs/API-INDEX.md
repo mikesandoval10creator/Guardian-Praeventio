@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**207 routers montados · 752 rutas detectadas.**
+**208 routers montados · 756 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -101,6 +101,11 @@ clave ver `docs/api-routes.md`.
 - `GET /api/admin/circuit-state`
 - `POST /api/admin/sync/clear-user-queue`
 - `GET /api/admin/sync/stats`
+
+### `src/server/routes/adminPilots.ts` → `/api/admin`
+- `POST /api/admin/pilots`
+- `GET /api/admin/pilots/:orgId`
+- `DELETE /api/admin/pilots/:pilotId`
 
 ### `src/server/routes/b2dAdmin.ts` → `/api/admin/b2d`
 - `GET /api/admin/b2d/keys`
@@ -1139,6 +1144,7 @@ clave ver `docs/api-routes.md`.
 
 ### `src/server/routes/subscription.ts` → `/api/subscription`
 - `POST /api/subscription/upgrade`
+- `GET /api/subscription/effective-plan`
 
 ### `src/server/routes/suseso.ts` → `/api/suseso`
 - `POST /api/suseso/form`
