@@ -26,6 +26,19 @@ export interface DriverProfile {
   incidents12m: number;
   /** Veces que ha excedido velocidad permitida (últimas 30 jornadas). */
   speedingEvents30d: number;
+  /**
+   * Fatigue score 0..100 (higher = more fatigued). Default 0 for drivers who
+   * do not have a recent fatigue sample (e.g. brand-new account, manual
+   * entry, or telemetry gap). Values outside the range are clamped
+   * defensively rather than throwing — a corrupt field must not crash the
+   * dispatcher, and the audit trail would flag the bad value separately.
+   *
+   * [Hy3-audit] Resolves [Audit-2026-08-31] Driver score — fatigueScore
+   * se muestra pero no participa en safetyScore/canOperate. The
+   * StoredDrivingDriver already stores fatigueScore and the ranking
+   * endpoint returns it; computeDriverScore now actually weights it.
+   */
+  fatigueScore?: number;
 }
 
 export interface CriticalRoute {
@@ -91,6 +104,27 @@ export function computeDriverScore(
   // Bonus por experiencia
   if (profile.yearsExperience >= 5) score += 10;
   else if (profile.yearsExperience < 1) score -= 15;
+
+  // [Hy3-audit] Penalización por fatiga. Resolves [Audit-2026-08-31]
+  // Driver score — fatigueScore se muestra pero no participa en
+  // safetyScore/canOperate. Linear penalty: fatigueScore 100 → -50
+  // (safety override), 80 → -40 (heavy), 50 → -25 (moderate), 0 → 0.
+  // Also: fatigueScore >= 90 → hard BLOCK (canOperate=false) regardless
+  // of the experience bonus (fatigued drivers cannot "buy back" safety
+  // with seniority). Default 0 (no fatigue sample → no penalty) keeps
+  // the contract for drivers with no telemetry.
+  const rawFatigue = profile.fatigueScore;
+  const safeFatigue =
+    typeof rawFatigue === 'number' && Number.isFinite(rawFatigue)
+      ? Math.max(0, Math.min(100, rawFatigue))
+      : 0;
+  if (safeFatigue > 0) {
+    score -= Math.round(safeFatigue * 0.5); // 0..50 point linear penalty
+  }
+  if (safeFatigue >= 90) {
+    blockers.push(`Fatiga crítica (${safeFatigue}/100). Descanso obligatorio.`);
+    score = 0; // hard override — experience bonus is wiped
+  }
 
   // Si licencia vencida o inválida, score se fuerza a 0 al final
   // (después de bonus/penalties).
