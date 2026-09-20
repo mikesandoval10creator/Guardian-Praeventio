@@ -146,7 +146,22 @@ export function detectAggressiveBrake(samples: ImuSample[]): number | null {
 
   let windowStart: number | null = null;
   for (const s of samples) {
-    const meets = Math.abs(s.longitudinalMs2) >= thresholdMs2;
+    // [Hy3-audit] Resolves [Audit-2026-08-31] Driving telemetry —
+    // aceleración positiva se clasifica como frenada agresiva.
+    //
+    // The legacy check used Math.abs(s.longitudinalMs2), which treated
+    // HARD POSITIVE acceleration (a launch / pedal-to-the-floor) as
+    // the same magnitude as HARD NEGATIVE braking. For SafeDriving mode
+    // that meant a green-light pull-away tripped the brake detector and
+    // could disable driving mode for compliant drivers.
+    //
+    // The fix: a sample qualifies ONLY when its signed value is at or
+    // beyond the negative-of-threshold (deceleration) AND its magnitude
+    // is at or beyond the threshold (intensity). Math.abs is preserved
+    // for the magnitude check so we don't accidentally widen the
+    // threshold on tiny signals, but the sign check rejects positive
+    // accelerations outright.
+    const meets = s.longitudinalMs2 <= -thresholdMs2 && Math.abs(s.longitudinalMs2) >= thresholdMs2;
     if (meets) {
       if (windowStart === null) windowStart = s.timestampMs;
       const elapsed = s.timestampMs - windowStart;
