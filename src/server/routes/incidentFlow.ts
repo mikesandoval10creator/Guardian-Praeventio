@@ -212,7 +212,7 @@ router.post(
     // two canonical audit_logs rows + two ZK nodes for what the operator
     // sees as a single report. Resolves [Audit-2026-08-31] Driving modern
     // shell — reportPersisted carece de Idempotency-Key.
-    const idempotencyKeyHeader = (req.headers['idempotency-key'] ?? req.get('Idempotency-Key')) as string | undefined;
+    const idempotencyKeyHeader = (req.headers['idempotency-key'] ?? req.header('Idempotency-Key')) as string | undefined;
     if (!idempotencyKeyHeader || idempotencyKeyHeader.trim().length === 0) {
       return res.status(400).json({
         error: 'idempotency_key_required',
