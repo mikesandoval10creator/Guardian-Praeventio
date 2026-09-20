@@ -177,10 +177,13 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     const uid = req.user?.uid;
     // Pull the audit-relevant DTE type once, with a real (non-cast) shape.
     // isValidDteCreateInput above already proved `req.body` is a record,
-    // so a narrow inline cast on `tipoDocumento` only is enough.
+    // so a narrow inline cast on `tipoDocumento` only is enough. The double
+    // cast (unknown → Record<string, unknown>) is needed because req.body
+    // is statically typed as DteCreateInput and TS rejects the single
+    // cast as a mistake (TS2352).
     const tipoDocumento =
-      typeof (req.body as Record<string, unknown>).tipoDocumento === 'string'
-        ? ((req.body as Record<string, unknown>).tipoDocumento as string)
+      typeof (req.body as unknown as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as unknown as Record<string, unknown>).tipoDocumento as string)
         : null;
     const result = await tracedAsync(
       'dte.create.handler',
@@ -225,8 +228,8 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     // [Hy3-audit] Audit even unexpected exceptions: failure paths must
     // leave a paper trail too.
     const tipoDocumento =
-      typeof (req.body as Record<string, unknown>).tipoDocumento === 'string'
-        ? ((req.body as Record<string, unknown>).tipoDocumento as string)
+      typeof (req.body as unknown as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as unknown as Record<string, unknown>).tipoDocumento as string)
         : null;
     await auditServerEvent(req, 'dte.manual_create_failed', 'dte', {
       tipoDocumento,
