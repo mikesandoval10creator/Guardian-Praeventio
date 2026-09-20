@@ -388,16 +388,52 @@ describe('GET /api/dte/:folio', () => {
     expect(res.status).toBe(401);
   });
 
-  it('503 when Bsale is not configured', async () => {
+  it('404 (anti-enumeration) when caller is NOT admin — worker token rejected without revealing folio existence', async () => {
+    // [Hy3-audit] Adversarial probe. Previously the endpoint was reachable
+    // by any authenticated user; the fix narrows it to admin-only and
+    // responds 404 (not 403) so a logged-in worker cannot probe valid
+    // folio numbers tenant-by-tenant. The body MUST be the same shape as
+    // a legitimate "not found" so a side-channel test cannot distinguish.
+    H.bsaleAdapter = {
+      createDte: vi.fn(),
+      getDte: vi.fn(async () => ({ ok: true, folio: 5001, pdfUrl: 'https://bsale.example/pdf/5001' })),
+      cancelDte: vi.fn(),
+    };
+    const res = await request(buildApp())
+      .get('/api/dte/5001')
+      .set('x-test-uid', 'worker-1');
+    expect(res.status).toBe(404);
+    expect((res.body as Record<string, unknown>).error).toBe('dte_not_found');
+    // CRITICAL: getDte MUST NOT have been called — admin gate runs before
+    // the Bsale lookup. Otherwise a non-admin caller could still trigger
+    // side effects (Bsale quota, audit row, network log).
+    expect(H.bsaleAdapter.getDte).not.toHaveBeenCalled();
+  });
+
+  it('404 (anti-enumeration) when caller is NOT admin even when Bsale would return a real folio', async () => {
+    // Reaffirms that the gate is enforced BEFORE any Bsale interaction.
+    H.bsaleAdapter = {
+      createDte: vi.fn(),
+      getDte: vi.fn(async () => ({ ok: true, folio: 5001, pdfUrl: 'https://bsale.example/pdf/5001', trackingId: 't1' })),
+      cancelDte: vi.fn(),
+    };
+    const res = await request(buildApp())
+      .get('/api/dte/secret-folio-from-other-tenant')
+      .set('x-test-uid', 'worker-2');
+    expect(res.status).toBe(404);
+    expect(H.bsaleAdapter.getDte).not.toHaveBeenCalled();
+  });
+
+  it('503 when Bsale is not configured (only reachable by admin)', async () => {
     // H.bsaleAdapter = null
     const res = await request(buildApp())
       .get('/api/dte/5001')
-      .set('x-test-uid', 'worker-1'); // any authenticated user can read
+      .set('x-test-uid', 'admin-1'); // admin token required to reach this branch
     expect(res.status).toBe(503);
     expect((res.body as Record<string, unknown>).error).toBe('dte_not_configured');
   });
 
-  it('404 when Bsale reports the folio is not found', async () => {
+  it('404 when Bsale reports the folio is not found (admin caller)', async () => {
     H.bsaleAdapter = {
       createDte: vi.fn(),
       getDte: vi.fn(async () => ({ ok: false, errorMessage: 'Folio no encontrado' })),
@@ -405,13 +441,13 @@ describe('GET /api/dte/:folio', () => {
     };
     const res = await request(buildApp())
       .get('/api/dte/9999')
-      .set('x-test-uid', 'worker-1');
+      .set('x-test-uid', 'admin-1');
     expect(res.status).toBe(404);
     expect((res.body as Record<string, unknown>).error).toBe('dte_not_found');
     expect((res.body as Record<string, unknown>).message).toBe('Folio no encontrado');
   });
 
-  it('200 happy path — returns folio status from Bsale', async () => {
+  it('200 happy path — admin fetches folio status from Bsale', async () => {
     H.bsaleAdapter = {
       createDte: vi.fn(),
       getDte: vi.fn(async () => ({
@@ -425,7 +461,7 @@ describe('GET /api/dte/:folio', () => {
     };
     const res = await request(buildApp())
       .get('/api/dte/5001')
-      .set('x-test-uid', 'worker-1');
+      .set('x-test-uid', 'admin-1');
     expect(res.status).toBe(200);
     const body = res.body as Record<string, unknown>;
     expect(body.ok).toBe(true);
@@ -434,7 +470,7 @@ describe('GET /api/dte/:folio', () => {
     expect(body.trackingId).toBe('bsale-5001');
   });
 
-  it('500 when Bsale adapter throws unexpectedly', async () => {
+  it('500 when Bsale adapter throws unexpectedly (admin caller)', async () => {
     H.bsaleAdapter = {
       createDte: vi.fn(),
       getDte: vi.fn(async () => { throw new Error('timeout'); }),
@@ -442,7 +478,7 @@ describe('GET /api/dte/:folio', () => {
     };
     const res = await request(buildApp())
       .get('/api/dte/5001')
-      .set('x-test-uid', 'worker-1');
+      .set('x-test-uid', 'admin-1');
     expect(res.status).toBe(500);
     expect((res.body as Record<string, unknown>).error).toBe('dte_lookup_failed');
   });

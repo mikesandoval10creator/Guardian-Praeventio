@@ -101,6 +101,24 @@ async function requireAdmin(req: Request, res: Response): Promise<boolean> {
   }
 }
 
+/**
+ * [Hy3-audit] Admin-only check that does NOT write to `res`. Callers
+ * decide the response shape — anti-enumeration wants a 404, not 403.
+ * Returns false on lookup failure so the caller never reveals that the
+ * underlying admin lookup is the reason for the rejection.
+ */
+async function isCallerDteAdmin(req: Request): Promise<boolean> {
+  const uid = req.user?.uid;
+  if (!uid) return false;
+  try {
+    const callerRecord = await admin.auth().getUser(uid);
+    return isAdminRole(callerRecord.customClaims?.role);
+  } catch (err) {
+    logger.error('dte.isCallerDteAdmin getUser failed', err instanceof Error ? err : new Error(String(err)));
+    return false;
+  }
+}
+
 /** Resolve the Bsale adapter, returning null + 503 when env isn't configured. */
 function resolveBsale(res: Response): BsaleAdapter | null {
   const adapter = BsaleAdapter.fromEnv();
@@ -256,12 +274,27 @@ dteRouter.get('/sign-challenge', verifyAuth, async (req: Request, res: Response)
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/dte/:folio  — fetch live status from Bsale (admin or owner).
-// ---------------------------------------------------------------------------
+// GET /api/dte/:folio  — fetch live status from Bsale (admin or supervisor).
+// ------------------------------------------------------------------
+// [Hy3-audit] DTE folio GET was reachable by any authenticated user.
+// The folio is a Bsale tax-document identifier carrying pdfUrl / xmlUrl /
+// trackingId — leaking it lets any logged-in worker pull another tenant's
+// PDF/XML URL and tracking id. Bsale's URLs themselves are bearer URLs
+// shared via headers, so exposure is a real privacy / compliance breach
+// (Ley 21.719 — PII; SII — tax-document confidentiality).
+//
+// Fix: gate behind admin (or supervisor pending a folio→tenant lookup).
+// The full owner-tenant filter requires a `folio → tenantId` index that
+// the current data model does not store; documented in the ticket as a
+// follow-up. Anti-enumeration: respond 404 (not 403) on reject so the
+// caller cannot probe for valid folio numbers.
 dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
-  // Read-only: gated by auth but not admin-only — owners may legitimately
-  // fetch their own DTE PDF. Strict ACL (matching invoice ownership) is
-  // deferred to a follow-up; for now, any authenticated user can hit this.
+  // [Hy3-audit] Anti-enumeration 404. We do NOT distinguish "no such folio"
+  // from "you are not allowed to see this folio" \u2014 both return 404 so a
+  // logged-in worker cannot probe Bsale folio numbers tenant-by-tenant.
+  if (!(await isCallerDteAdmin(req))) {
+    return res.status(404).json({ error: 'dte_not_found' });
+  }
   const folio = req.params.folio;
   if (!folio) {
     return res.status(400).json({ error: 'folio_required' });
