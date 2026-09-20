@@ -175,9 +175,16 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
   }
   try {
     const uid = req.user?.uid;
+    // Pull the audit-relevant DTE type once, with a real (non-cast) shape.
+    // isValidDteCreateInput above already proved `req.body` is a record,
+    // so a narrow inline cast on `tipoDocumento` only is enough.
+    const tipoDocumento =
+      typeof (req.body as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as Record<string, unknown>).tipoDocumento as string)
+        : null;
     const result = await tracedAsync(
       'dte.create.handler',
-      { 'praeventio.uid': uid, docType: (req.body as any)?.tipoDocumento ?? null },
+      { 'praeventio.uid': uid, docType: tipoDocumento },
       () => adapter.createDte(req.body),
     );
     if (!result.ok) {
@@ -186,7 +193,7 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
       // auditServerEvent. A regulator must see WHO tried to issue what,
       // even when Bsale refused.
       await auditServerEvent(req, 'dte.manual_create_rejected', 'dte', {
-        tipoDocumento: (req.body as any)?.tipoDocumento ?? null,
+        tipoDocumento,
         motivo: result.errorMessage ?? 'unknown',
       });
       return res.status(422).json({
@@ -199,7 +206,7 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     // and the Bsale receipt for any DTE that hit the books.
     await auditServerEvent(req, 'dte.manual_create', 'dte', {
       folio: result.folio,
-      tipoDocumento: (req.body as any)?.tipoDocumento ?? null,
+      tipoDocumento,
       trackingId: result.trackingId,
       totalClp: result.totalClp,
       ivaClp: result.ivaClp,
@@ -217,8 +224,12 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     logger.error('POST /api/dte/create failed', err instanceof Error ? err : new Error(String(err)));
     // [Hy3-audit] Audit even unexpected exceptions: failure paths must
     // leave a paper trail too.
+    const tipoDocumento =
+      typeof (req.body as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as Record<string, unknown>).tipoDocumento as string)
+        : null;
     await auditServerEvent(req, 'dte.manual_create_failed', 'dte', {
-      tipoDocumento: (req.body as any)?.tipoDocumento ?? null,
+      tipoDocumento,
       error: err instanceof Error ? err.message : String(err),
     });
     return res.status(500).json({ error: 'dte_emission_failed' });
