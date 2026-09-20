@@ -187,4 +187,26 @@ describe('anonymizeUser', () => {
     const { deps } = buildDeps();
     await expect(anonymizeUser(deps, { uid: '' })).rejects.toBeInstanceOf(TypeError);
   });
+
+  // [Hy3-audit] Resolves [Audit-2026-08-31] anonymizeUser — nombres
+  // camelCase dejan displayName/photoURL en users/{uid}. The legacy
+  // ANONYMIZATION_USERS_DOC_REDACT list uses snake_case names
+  // (display_name, photo_url). Firebase Auth is scrubbed of the camelCase
+  // aliases (displayName, photoURL — see step 1 of anonymizeUser.ts),
+  // but the Firestore users/{uid} merge set only iterates the snake_case
+  // list. If a client wrote to displayName/photoURL (the alias some
+  // surfaces use, e.g. FirebaseContext.tsx:125-136), the camelCase
+  // PII survives anonymization in the Firestore doc. The spec demands a
+  // single contract that redacts every existing alias so an anonymized
+  // account cannot leak PII through a legacy field.
+  it('redacts camelCase displayName + photoURL aliases in users/{uid}', async () => {
+    const { deps, setCalls } = buildDeps();
+    await anonymizeUser(deps, { uid: 'uid-6', now: NOW });
+
+    const userSet = setCalls.find((c) => c.coll === 'users' && c.id === 'uid-6');
+    expect(userSet, 'users doc must be scrubbed').toBeTruthy();
+    // The camelCase aliases used by some UI surfaces must be FieldValue.delete()'d.
+    expect(userSet!.data.displayName, 'displayName must be redacted').toBeDefined();
+    expect(userSet!.data.photoURL, 'photoURL must be redacted').toBeDefined();
+  });
 });
