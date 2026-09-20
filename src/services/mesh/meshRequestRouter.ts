@@ -32,6 +32,7 @@ import {
 } from './meshPacket';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { chunkBlob, reconstructBlob } from './fileChunker';
+import { logger } from '../../utils/logger';
 
 export type FileRequestState =
   | 'pending'
@@ -90,6 +91,14 @@ export interface MeshRequestRouterOptions {
 
 const DEFAULT_CHUNK_SIZE = 512;
 const DEFAULT_REQUEST_LIFETIME_MS = 24 * 60 * 60 * 1000;
+// [Hy3-audit] Hard cap on totalChunks to prevent memory-exhaustion DoS.
+// A malicious peer can claim an arbitrary totalChunks (the first chunk
+// pins it at line 315) and force the worker to pre-allocate a Map<>
+// big enough to hold every chunk index. With chunk payloads arriving at
+// up to DEFAULT_CHUNK_SIZE + envelope, MAX_CHUNKS = 1024 caps the worst
+// case at ~512KB resident per request, comfortably below the smallest
+// Hermes-imposed per-process heap.
+const MAX_CHUNKS_PER_REQUEST = 1024;
 
 export class MeshRequestRouter {
   private readonly selfUid: string;
@@ -299,6 +308,31 @@ export class MeshRequestRouter {
     packet: MeshPacket & { type: 'file_chunk'; payload: FileChunkPayload },
   ): void {
     const { requestId, chunkIndex, totalChunks, dataBase64 } = packet.payload;
+    // [Hy3-audit] DoS guard \u2014 reject totalChunks outside the safe range
+    // BEFORE any record mutation. A negative or zero value is also invalid
+    // and falls under the same reject path.
+    if (
+      !Number.isFinite(totalChunks) ||
+      totalChunks <= 0 ||
+      totalChunks > MAX_CHUNKS_PER_REQUEST
+    ) {
+      logger.warn?.('mesh.chunk.totalChunks_out_of_range', {
+        requestId,
+        totalChunks,
+        max: MAX_CHUNKS_PER_REQUEST,
+      });
+      return;
+    }
+    if (chunkIndex < 0 || chunkIndex >= totalChunks) {
+      // A chunk index outside the claimed range is also a malformed
+      // payload \u2014 reject before mutating the record.
+      logger.warn?.('mesh.chunk.index_out_of_range', {
+        requestId,
+        chunkIndex,
+        totalChunks,
+      });
+      return;
+    }
     const record = this.active.get(requestId);
     if (!record) {
       // No es un chunk para nosotros (o ya hicimos cleanup).
