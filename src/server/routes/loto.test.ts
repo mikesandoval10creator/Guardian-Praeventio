@@ -322,4 +322,51 @@ describe('POST apply-lock / verify-zero-energy / release lifecycle', () => {
     expect(released.status).toBe(200);
     expect(released.body.application.fullyReleasedAt).toBeTruthy();
   });
+
+  // [Hy3-audit] Adversarial probes — LOTO apply-lock authorization.
+  // Resolves [Audit-2026-08-31] LOTO apply-lock — cualquier miembro de
+  // proyecto puede registrar un candado. Before this fix, any project
+  // member could stamp a lock point. The release path correctly checked
+  // authorizedWorkerUids, but apply-lock did NOT — so a project member
+  // with no role in the LOTO could plant lock points that would later
+  // authorize work. For an electrical-safety LOTO workflow, that is a
+  // catastrophic spoof: a worker could mark a high-voltage point as
+  // "locked" without ever physically being at the panel, and the next
+  // worker would see `authorizesWork=true` and proceed.
+  describe('apply-lock authorization', () => {
+    const STRANGER = 'stranger-3';
+    it('REJECTS 403 when a project member NOT in authorizedWorkerUids tries to apply a lock', async () => {
+      // Project membership includes STRANGER (so guard() passes), but
+      // authorizedWorkerUids is [WORKER] only.
+      seedProject([LEADER, WORKER, STRANGER]);
+      const created = await createApp(['electric']);
+      const appId = created.body.application.id;
+      const res = await request(buildApp())
+        .post(`${base}/${appId}/apply-lock`)
+        .set(asUser(STRANGER))
+        .send({ pointId: 'lp1', description: 'spoof', energyType: 'electric', tagId: 'RED-1' });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/not_authorized|forbidden|not_in_authorized/i);
+    });
+
+    it('ALLOWS the leaderUid to apply a lock (leaders may lock their own application)', async () => {
+      const created = await createApp(['electric']);
+      const appId = created.body.application.id;
+      const res = await request(buildApp())
+        .post(`${base}/${appId}/apply-lock`)
+        .set(asUser(LEADER))
+        .send({ pointId: 'lp1', description: 'Leader lock', energyType: 'electric', tagId: 'RED-1' });
+      expect(res.status).toBe(200);
+    });
+
+    it('ALLOWS an explicitly authorized worker to apply a lock', async () => {
+      const created = await createApp(['electric']);
+      const appId = created.body.application.id;
+      const res = await request(buildApp())
+        .post(`${base}/${appId}/apply-lock`)
+        .set(asUser(WORKER))
+        .send({ pointId: 'lp1', description: 'Worker lock', energyType: 'electric', tagId: 'RED-1' });
+      expect(res.status).toBe(200);
+    });
+  });
 });

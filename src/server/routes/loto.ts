@@ -193,6 +193,20 @@ router.post('/:projectId/loto/:appId/apply-lock', verifyAuth, async (req, res) =
     const adapter = adapterFor(g.tenantId, projectId);
     const app = await adapter.getById(appId);
     if (!app) return res.status(404).json({ error: 'application_not_found' });
+    // [Hy3-audit] Authorization gate — only the leader or a worker explicitly
+    // listed in authorizedWorkerUids may stamp a lock point. Before this
+    // gate, ANY project member could mint a lock point, which the release
+    // path would then honour via validatesWork=true. For an electrical
+    // LOTO workflow that is a catastrophic spoof (anyone in the project
+    // could mark a high-voltage panel as "locked" without physically
+    // being there). The release path already used the same policy;
+    // apply-lock was the gap.
+    const isLeader = app.leaderUid === callerUid;
+    const isAuthorizedWorker = Array.isArray(app.authorizedWorkerUids)
+      && app.authorizedWorkerUids.includes(callerUid);
+    if (!isLeader && !isAuthorizedWorker) {
+      return res.status(403).json({ error: 'not_in_authorized_workers' });
+    }
     if (app.fullyReleasedAt) return res.status(409).json({ error: 'already_released' });
     if (app.lockPoints.some((lp) => lp.pointId === body.pointId)) {
       return res.status(409).json({ error: 'duplicate_lock_point' });
