@@ -125,6 +125,48 @@ describe('detectAggressiveBrake', () => {
     expect(detectAggressiveBrake([mk(HARD, 0), mk(HARD, 100)])).toBeNull();
   });
 
+  // [Hy3-audit] Sign-inversion regression probes. Resolves
+  // [Audit-2026-08-31] Driving telemetry — aceleración positiva se
+  // clasifica como frenada agresiva. Before this fix, detectAggressiveBrake
+  // used Math.abs(s.longitudinalMs2), so a HARD POSITIVE acceleration
+  // (a launch / pedal-to-the-floor) would be classified as an aggressive
+  // brake event. For SafeDriving mode that means false positives flag
+  // every green-light pull-away as an emergency brake, which can disable
+  // driving mode for compliant drivers and erode trust in the signal.
+  it('does NOT fire when the same magnitude is a HARD POSITIVE acceleration (launch)', () => {
+    // Same magnitude as HARD, but POSITIVE — that's an aggressive launch,
+    // not a brake. The detector must NOT report it as an aggressive brake.
+    const HARD_LAUNCH = +(BRAKE_THRESHOLD_MS2 + 1);
+    const start = detectAggressiveBrake([
+      mk(HARD_LAUNCH, 0),
+      mk(HARD_LAUNCH, 100),
+      mk(HARD_LAUNCH, 200),
+    ]);
+    expect(start).toBeNull();
+  });
+
+  it('does NOT fire for a mixed window that crosses zero (a HARD positive then a HARD negative that briefer than 200ms)', () => {
+    // Mixed signs: a launch then a brake. The 200ms minimum-duration
+    // check should keep the brake quiet because it never sustained.
+    const HARD_LAUNCH = +(BRAKE_THRESHOLD_MS2 + 1);
+    const start = detectAggressiveBrake([
+      mk(HARD_LAUNCH, 0),
+      mk(HARD, 100),
+      mk(HARD, 200),
+      mk(HARD, 250),
+    ]);
+    // At t=100 the window starts (first HARD negative after a positive).
+    // At t=250 the window is only 150 ms — under the 200 ms minimum, so
+    // no fire. This is the regression: with Math.abs, the positive sample
+    // at t=0 would itself qualify and start a wrong window.
+    expect(start).toBeNull();
+  });
+
+  it('still fires for a HARD NEGATIVE brake sustained ≥ 200 ms (regression of happy path)', () => {
+    const start = detectAggressiveBrake([mk(HARD, 0), mk(HARD, 100), mk(HARD, 200)]);
+    expect(start).toBe(0);
+  });
+
   it('resets the window when a sample drops below threshold', () => {
     // First window broken at t=100, a fresh qualifying window starts at t=200.
     const start = detectAggressiveBrake([
@@ -136,12 +178,19 @@ describe('detectAggressiveBrake', () => {
     expect(start).toBe(200);
   });
 
-  it('compares magnitude — a sustained hard ACCELERATION also qualifies', () => {
-    // longitudinalMs2 is signed; the detector uses |value|.
+  it('compares magnitude — a sustained HARD brake qualifies (signed: NEGATIVE = decel)', () => {
+    // longitudinalMs2 is signed: negative = deceleration. The detector
+    // compares |value|, but only on the negative side. A HARD POSITIVE
+    // (launch) of the same magnitude MUST NOT qualify.
+    // [Hy3-audit] The legacy version of this test used mk(-HARD, ...) which
+    // evaluates to a POSITIVE longitudinalMs2 — and the detector used to
+    // fire on it. That was the bug. The fix flips the comparison to
+    // |value| >= threshold AND value <= -threshold so an acceleration
+    // does not trip the brake detector.
     const start = detectAggressiveBrake([
-      mk(-HARD, 1_000),
-      mk(-HARD, 1_120),
-      mk(-HARD, 1_220),
+      mk(HARD, 1_000), // HARD is negative (decel)
+      mk(HARD, 1_120),
+      mk(HARD, 1_220),
     ]);
     expect(start).toBe(1_000);
   });
