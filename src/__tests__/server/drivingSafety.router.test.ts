@@ -136,4 +136,45 @@ describe('drivers + ranking', () => {
     expect(res.body.ranking.map((r: { workerUid: string }) => r.workerUid)).toEqual(['high', 'low']);
     expect(res.body.ranking[1]).toMatchObject({ canOperate: false, blockers: ['too_many_incidents'] });
   });
+
+  // [Hy3-audit] Adversarial probes — fail-closed read degradation.
+  // Resolves [Audit-2026-08-31] DrivingSafety — error de lectura Firestore
+  // se convierte en 200 vacío. Before this fix, a backend outage was
+  // indistinguishable from a project with no routes/drivers (UI shows
+  // "No hay rutas/conductores"). For a SAFETY feature, a silent outage
+  // that masks real drivers is worse than a 503 — the operator must know
+  // the data they are about to act on is missing because the backend is
+  // down, not because there is genuinely nothing to see.
+  describe('fail-closed on read degradation', () => {
+    it('GET ranking: 503 + Retry-After when Firestore reads fail (NOT 200 with empty list)', async () => {
+      // Scope the failure to the driving_drivers collection only — guard()
+      // must succeed so we exercise the actual handler behavior, not the
+      // membership guard's own error handling.
+      H.db!._failReads('driving_drivers');
+      const res = await request(buildApp()).get('/api/sprint-k/p1/driving/ranking').set(uid());
+      // The previous bug was 200 + ranking:[] — operator sees "no drivers"
+      // and concludes there are no safety risks. After fix: 503 with body
+      // describing the degraded state and a Retry-After hint.
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/driving\.read\.failed|degraded|unavailable/i);
+      expect(res.headers['retry-after']).toBeDefined();
+      expect(res.headers['x-praeventio-data-source']).toBe('degraded');
+    });
+
+    it('GET routes: 503 + degraded header when drivers read fails (NOT 200 + routes:[])', async () => {
+      H.db!._failReads('driving_routes');
+      const res = await request(buildApp()).get('/api/sprint-k/p1/driving/routes?status=critical').set(uid());
+      expect(res.status).toBe(503);
+      expect(res.headers['x-praeventio-data-source']).toBe('degraded');
+    });
+
+    it('happy path: 200 + empty arrays on a project with NO docs (not a read failure)', async () => {
+      // Sanity check: an EMPTY project must still return 200 with empty
+      // arrays — that's a legitimate state, not an outage.
+      const res = await request(buildApp()).get('/api/sprint-k/p1/driving/ranking').set(uid());
+      expect(res.status).toBe(200);
+      expect(res.body.ranking).toEqual([]);
+      expect(res.headers['x-praeventio-data-source']).toBeUndefined();
+    });
+  });
 });
