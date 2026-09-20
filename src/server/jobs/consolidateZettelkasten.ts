@@ -49,6 +49,19 @@ export interface ConsolidationOptions {
   db: Firestore;
   /** 'dry-run' (default, safe) or 'commit' (writes + deletes). */
   mode?: ConsolidationMode;
+  /**
+   * [Hy3-audit] Explicit confirmation flag REQUIRED for `commit` mode.
+   * Defaults to `false`. The commit branch deletes the source docs
+   * (`doc.ref.delete()`) which cannot be undone. To prevent accidental
+   * destruction when the migration is untested against downstream
+   * readers (UniversalKnowledge, RAG, ...), the caller MUST opt in
+   * with `confirmMigration: true` to proceed. A failed-downstream-
+   * reader scenario was discovered in the audit (Hy3 2026-08-31): the
+   * job was never wired into server.ts, but the export included the
+   * commit signature, so anyone with the import path could trigger the
+   * delete without confirmation. `dry-run` is unaffected.
+   */
+  confirmMigration?: boolean;
   /** Optional cap on how many docs to process this run. Default: no cap. */
   limit?: number;
   /**
@@ -71,7 +84,24 @@ export interface ConsolidationReport {
 export async function consolidateZettelkasten(
   opts: ConsolidationOptions,
 ): Promise<ConsolidationReport> {
-  const { db, mode = 'dry-run', limit, resolveTenantId } = opts;
+  const { db, mode = 'dry-run', limit, resolveTenantId, confirmMigration = false } = opts;
+
+  // [Hy3-audit] Refuse commit without explicit confirmation. The commit
+  // branch deletes source documents (`doc.ref.delete()` at the bottom of
+  // the loop). Without this guard, any import path that calls
+  // `consolidateZettelkasten({ db, mode: 'commit' })` could silently
+  // destroy source data without a human-in-the-loop checkpoint.
+  // Operators must observe the dry-run report first, confirm readers
+  // have migrated, then pass `confirmMigration: true` explicitly.
+  if (mode === 'commit' && !confirmMigration) {
+    const err = new Error(
+      'consolidateZettelkasten: refusing to commit without confirmMigration=true. ' +
+        'Run a dry-run first (`mode: "dry-run"`) and inspect the report before ' +
+        'passing `confirmMigration: true` to enable destruction.',
+    );
+    err.name = 'ConsolidationGuardError';
+    throw err;
+  }
 
   const report: ConsolidationReport = {
     mode,
