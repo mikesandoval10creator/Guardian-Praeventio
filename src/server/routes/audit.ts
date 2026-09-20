@@ -36,6 +36,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
+import { sanitizeAuditDetails } from '../middleware/auditDetailsRedactor.js';
 
 const router = Router();
 
@@ -102,10 +103,19 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
   }
 
   try {
+    // [Hy3-audit] Sanitize client-declared `details` BEFORE persistence.
+    // The audit log is append-only and exposed via GET /audit-log to
+    // supervisors / admins; any caller could previously persist FCM
+    // tokens, OAuth assertions, or PII inside `details` and that data
+    // would be retained indefinitely. The redactor strips
+    // shape-based secrets, key-name-based fields, and caps the total
+    // payload bytes. We surface the truncation flag to the operator
+    // so they know the payload was clipped.
+    const { redacted: sanitizedDetails, truncated } = sanitizeAuditDetails(details);
     await admin.firestore().collection('audit_logs').add({
       action,
       module: mod,
-      details: details ?? {},
+      details: truncated ? { ...sanitizedDetails, __truncated__: true } : sanitizedDetails,
       userId: callerUid,
       userEmail: callerEmail,
       projectId: projectId ?? null,
@@ -116,7 +126,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
-    return res.json({ success: true });
+    return res.json({ success: true, truncated });
   } catch (error: any) {
     logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
     captureRouteError(error, 'audit.log_write', { uid: callerUid, action });

@@ -133,6 +133,140 @@ describe('POST /api/audit-log (write trail)', () => {
     const stored = (all.docs[0]?.data() ?? {}) as Record<string, unknown>;
     expect(stored.source).toBe('client');
   });
+
+  // [Hy3-audit] Adversarial probes — details sanitization.
+  it('redacts fcmToken / password / secret fields before persisting', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({
+        action: 'something',
+        module: 'auth',
+        details: {
+          note: 'safe value',
+          fcmToken: 'abcd1234deadbeef',
+          password: 'hunter2',
+          apiKey: 'live_key_abc',
+          nested: { bearer: 'tok_x', other: 'ok' },
+        },
+      });
+    expect(res.status).toBe(200);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, any>;
+    expect(stored.details.note).toBe('safe value');
+    expect(stored.details.fcmToken).toBe('[REDACTED]');
+    expect(stored.details.password).toBe('[REDACTED]');
+    expect(stored.details.apiKey).toBe('[REDACTED]');
+    expect(stored.details.nested.bearer).toBe('[REDACTED]');
+    expect(stored.details.nested.other).toBe('ok');
+  });
+
+  it('redacts JWT-shaped string values (looks like a credential even without a key match)', async () => {
+    // Construct a JWT-shaped string that:
+    //   1. Triggers the redactor's JWT heuristic (`{8,}.{8,}.{8,}` of base64url)
+    //   2. Does NOT trigger gitleaks (which scans for real JWT signatures).
+    // The first and third segments are intentionally short base64url-like
+    // strings (no real cryptographic content), and the payload uses an
+    // obviously-fake `sub` (`test-fixture-only`) so a static analyzer
+    // recognizes this as a test fixture rather than a leaked token.
+    // The KEY is `payload` (no credential suffix) so redaction must come
+    // from the SHAPE heuristic, not the key-name heuristic.
+    const fakeJwt =
+      'QUFBQUFBQUFBQUE.ZGV2LW9ubHktcGF5bG9hZC1ub3QtZm9yLXByb2R1Y3Rpb24.AAAAAAAAAAAAAAAA';
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({
+        action: 'something',
+        module: 'auth',
+        details: { payload: fakeJwt },
+      });
+    expect(res.status).toBe(200);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, any>;
+    expect(stored.details.payload).toBe('[REDACTED]');
+  });
+
+  it('truncates oversized details payload at property boundary and reports truncated:true', async () => {
+    // Build ~6 KB of "benign" property names to exceed the 4 KB cap.
+    const big: Record<string, string> = {};
+    for (let i = 0; i < 200; i++) {
+      big[`benign_field_${i}`] = `value ${i} ${'x'.repeat(20)}`;
+    }
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({ action: 'something', module: 'auth', details: big });
+    expect(res.status).toBe(200);
+    expect(res.body.truncated).toBe(true);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, any>;
+    const json = JSON.stringify(stored.details);
+    // Stays under the hard cap (plus margin for __truncated__ marker).
+    expect(json.length).toBeLessThan(5 * 1024);
+    expect(stored.details.__truncated__).toBe(true);
+  });
+
+  it('does NOT redact innocuous keys (regression: false positives broke legitimate logs)', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({
+        action: 'something',
+        module: 'auth',
+        details: {
+          note: 'hello',
+          count: 7,
+          tags: ['a', 'b'],
+          // 'subject' is not an email-shaped key, but we intentionally redact
+          // fields ending in 'email' (camelCase suffix) because they often
+          // contain PII (userEmail, primaryEmail, ...). The behavior is:
+          // we redact for safety, not strict match. 'subject' alone is fine.
+          subject: 'Reset link requested',
+          // 'attempt' is not credential-shaped
+          attemptCount: 3,
+        },
+      });
+    expect(res.status).toBe(200);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, any>;
+    expect(stored.details.note).toBe('hello');
+    expect(stored.details.count).toBe(7);
+    expect(stored.details.tags).toEqual(['a', 'b']);
+    expect(stored.details.subject).toBe('Reset link requested');
+    expect(stored.details.attemptCount).toBe(3);
+  });
+
+  // [Hy3-audit] Adversarial REAL-WORLD probe (sesión 2026-09-19):
+  // The standalone `\btoken\b` regex did NOT match `fcmToken` because the
+  // preceding char `m` is a word char (no word boundary). This test pins
+  // the camelCase-suffix fix so it cannot silently regress.
+  it('redacts camelCase credential keys: fcmToken / passwordHash / apiKey / oauthToken', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'w1')
+      .send({
+        action: 'something',
+        module: 'auth',
+        details: {
+          fcmToken: 'long-fcm-device-token-value',
+          passwordHash: '$2b$10$abcdefghijklmnopqrstuv',
+          apiKey: 'live_key_xyz',
+          oauthToken: 'ya29.a0AfH6SMB...',
+          userId: 'u1', // SHOULD NOT be redacted (no suffix match)
+          deviceId: 'd1', // SHOULD NOT be redacted
+        },
+      });
+    expect(res.status).toBe(200);
+    const all = await H.db!.collection('audit_logs').get();
+    const stored = (all.docs[0]?.data() ?? {}) as Record<string, any>;
+    expect(stored.details.fcmToken).toBe('[REDACTED]');
+    expect(stored.details.passwordHash).toBe('[REDACTED]');
+    expect(stored.details.apiKey).toBe('[REDACTED]');
+    expect(stored.details.oauthToken).toBe('[REDACTED]');
+    expect(stored.details.userId).toBe('u1');
+    expect(stored.details.deviceId).toBe('d1');
+  });
 });
 
 describe('GET /api/audit-log (read trail)', () => {
