@@ -329,6 +329,16 @@ describe('POST /api/dte/create', () => {
       .send(VALID_CREATE_BODY);
     expect(res.status).toBe(422);
     expect((res.body as Record<string, unknown>).error).toBe('dte_rejected');
+    // [Hy3-audit] Even on rejection, the auditServerEvent MUST be called
+    // so a regulator can see WHO tried to issue WHICH DTE and why Bsale
+    // refused. Without this, a corrupt admin could probe Bsale and
+    // leave zero paper trail.
+    expect(vi.mocked(auditServerEvent)).toHaveBeenCalledWith(
+      expect.objectContaining({}),
+      'dte.manual_create_rejected',
+      'dte',
+      expect.objectContaining({ motivo: expect.stringMatching(/RUT inválido/i) }),
+    );
     expect((res.body as Record<string, unknown>).message).toBe('RUT inválido en SII');
   });
 
@@ -359,6 +369,17 @@ describe('POST /api/dte/create', () => {
     expect(body.trackingId).toBe('bsale-5001');
     expect(body.totalClp).toBe(119000);
     expect(body.ivaClp).toBe(19000);
+    // [Hy3-audit] Manual DTE creation MUST emit an auditServerEvent with
+    // the canonical action/module/userId/folio fields. Resolves
+    // [Audit-2026-08-31] DTE manual create/cancel — cambios tributarios
+    // no escriben auditServerEvent. (The auditLog middleware is mocked
+    // here; sibling tests in this file use the same pattern on line 733.)
+    expect(vi.mocked(auditServerEvent)).toHaveBeenCalledWith(
+      expect.objectContaining({}),
+      'dte.manual_create',
+      'dte',
+      expect.objectContaining({ folio: 5001 }),
+    );
     // DIRECTIVE: the response carries the doc artefact — no external submit
     // happened. The mock never called any SII push method.
     expect(vi.mocked(H.bsaleAdapter!.createDte)).toHaveBeenCalledTimes(1);
@@ -590,6 +611,15 @@ describe('POST /api/dte/:folio/cancel', () => {
     expect(body.trackingId).toBe('bsale-nc-9001');
     // Verify the adapter was called with the parsed folio number
     expect(vi.mocked(H.bsaleAdapter!.cancelDte)).toHaveBeenCalledWith(5001, 'Monto incorrecto en factura original');
+    // [Hy3-audit] Manual DTE cancellation (Nota de Crédito) MUST emit an
+    // auditServerEvent. Resolves [Audit-2026-08-31] DTE manual
+    // create/cancel — cambios tributarios no escriben auditServerEvent.
+    expect(vi.mocked(auditServerEvent)).toHaveBeenCalledWith(
+      expect.objectContaining({}),
+      'dte.manual_cancel',
+      'dte',
+      expect.objectContaining({ folio: 5001, reason: expect.stringMatching(/Monto incorrecto/) }),
+    );
   });
 
   it('500 when Bsale adapter throws unexpectedly', async () => {
