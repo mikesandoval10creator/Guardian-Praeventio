@@ -59,7 +59,7 @@ import {
   findByCredentialId,
   registerCredential,
   getCredentialsByUid,
-  updateCounter as updateCredentialCounter,
+  compareAndSwapCounter as updateCredentialCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
 } from '../../services/auth/webauthnCredentialStore.js';
@@ -838,7 +838,17 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       if (stored.credential.counter > 0 && newCounter <= stored.credential.counter) {
         return res.status(401).json({ verified: false, reason: 'counter_replay' });
       }
-      await updateCredentialCounter(credentialId, newCounter, credsDb);
+      try {
+        await updateCredentialCounter(credentialId, newCounter, credsDb);
+      } catch (counterErr) {
+        // Atomic CAS: a concurrent assertion may have landed a higher
+        // counter between our read and our write. Treat that exactly as
+        // a replay (same semantic — the counter regressed against us).
+        if (counterErr instanceof Error && /counter_not_monotonic/.test(counterErr.message)) {
+          return res.status(401).json({ verified: false, reason: 'counter_replay' });
+        }
+        throw counterErr;
+      }
 
       // Audit: uid + counter only. Never the assertion bytes —
       // clientDataJSON, authenticatorData, and signature are credentials

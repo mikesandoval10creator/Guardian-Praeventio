@@ -143,7 +143,9 @@ const BASE_BODY = {
 function auditActions(): string[] {
   const out: string[] = [];
   for (const [key, data] of H.db!._store.entries()) {
-    if (key.startsWith('audit_logs/')) out.push(String((data as Record<string, unknown>).action));
+    if (typeof key === 'string' && key.startsWith('audit_logs/')) {
+      out.push(String((data as Record<string, unknown>).action));
+    }
   }
   return out;
 }

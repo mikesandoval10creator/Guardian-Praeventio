@@ -21,7 +21,7 @@ import {
 } from '@simplewebauthn/server';
 import {
   findByCredentialId,
-  updateCounter,
+  compareAndSwapCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
 } from '../../services/auth/webauthnCredentialStore.js';
@@ -224,7 +224,17 @@ export async function verifyWebAuthnAssertion(
   if (stored.credential.counter > 0 && newCounter <= stored.credential.counter) {
     return { verified: false, reason: 'counter_not_monotonic' };
   }
-  await updateCounter(input.credentialId, newCounter, input.credentialsDb);
+  try {
+    await compareAndSwapCounter(input.credentialId, newCounter, input.credentialsDb);
+  } catch (err) {
+    // Atomic CAS: if a concurrent assertion landed a higher counter while we
+    // were verifying this one, the transaction's pre-condition fails. Treat
+    // that exactly as a monotonicity violation — same response reason.
+    if (err instanceof Error && /counter_not_monotonic/.test(err.message)) {
+      return { verified: false, reason: 'counter_not_monotonic' };
+    }
+    throw err;
+  }
 
   const result: WebAuthnAssertionResult = {
     verified: true,

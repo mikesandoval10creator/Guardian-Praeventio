@@ -43,6 +43,7 @@ import {
   findByCredentialId,
   deleteCredentialById,
   type MinimalCredentialsDb,
+  type TransactionHandle,
 } from '../../services/auth/webauthnCredentialStore.js';
 // 15th wave (Bucket D): real server analytics adapter — closes the 13th
 // wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
@@ -165,6 +166,28 @@ function buildCredentialsDb(): MinimalCredentialsDb {
           };
         },
       };
+    },
+    async runTransaction<T>(
+      updateFn: (tx: TransactionHandle) => Promise<T>,
+    ): Promise<T> {
+      // Real Firestore runTransaction (admin.ts): used by compareAndSwapCounter.
+      // (Admin routes do not call compareAndSwapCounter today, but the
+      // interface now requires it. We forward to Firestore so the contract
+      // is identical to webauthnFirestoreDb.)
+      return fs.runTransaction(async (tx) => updateFn({
+        async get(ref: unknown) {
+          const r = ref as admin.firestore.DocumentReference;
+          const s = await tx.get(r);
+          return {
+            exists: s.exists,
+            id: s.id,
+            data: () => (s.exists ? (s.data() as Record<string, unknown>) : undefined),
+          };
+        },
+        async update(ref: unknown, patch: Record<string, unknown>) {
+          tx.update(ref as admin.firestore.DocumentReference, patch as admin.firestore.UpdateData<admin.firestore.DocumentData>);
+        },
+      }));
     },
   };
 }

@@ -27,6 +27,7 @@ import {
   findByCredentialId,
   deleteCredentialById,
   updateCounter,
+  compareAndSwapCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
 } from './webauthnCredentialStore.js';
@@ -46,6 +47,7 @@ function makeFakeDb(now: () => number = () => Date.now()): {
       return {
         doc(id: string) {
           return {
+            __docId: id,
             async get() {
               const doc = store.get(id);
               return {
@@ -81,6 +83,39 @@ function makeFakeDb(now: () => number = () => Date.now()): {
           };
         },
       };
+    },
+    async runTransaction<T>(updateFn: (tx: any) => Promise<T>): Promise<T> {
+      // Simulated transaction: queue writes, apply atomically at the end
+      // OR roll back if the body throws. Reads are inline against the
+      // current store. This is NOT a true multi-process concurrency
+      // simulation (single-threaded JS), but it pins the contract: the
+      // CAS guard inside the txn sees a coherent pre-state.
+      const writes: Array<{ id: string; patch?: Record<string, unknown>; set?: Record<string, unknown>; del?: boolean }> = [];
+      const tx = {
+        async get(ref: any) {
+          const id = ref?.__docId;
+          if (!id) throw new Error('tx.get requires a doc ref from db.collection(...).doc(...)');
+          const doc = store.get(id);
+          return { exists: !!doc, id, data: () => doc?.data };
+        },
+        async update(ref: any, patch: Record<string, unknown>) {
+          const id = ref?.__docId;
+          if (!id) throw new Error('tx.update requires a doc ref');
+          writes.push({ id, patch });
+        },
+      };
+      const result = await updateFn(tx);
+      // Commit atomically.
+      for (const w of writes) {
+        if (w.del) { store.delete(w.id); continue; }
+        if (w.set) { store.set(w.id, { data: { ...w.set } }); continue; }
+        if (w.patch) {
+          const cur = store.get(w.id);
+          if (!cur) throw new Error('document does not exist');
+          store.set(w.id, { data: { ...cur.data, ...w.patch } });
+        }
+      }
+      return result;
     },
     now,
   };
@@ -355,6 +390,94 @@ describe('updateCounter', () => {
   it('rejects negative counter', async () => {
     const { db } = makeFakeDb();
     await expect(updateCounter('cred-X', -1, db)).rejects.toThrow(/[Cc]ounter/);
+  });
+
+  // [Hy3-audit] Adversarial: compareAndSwapCounter — atomic monotony guard.
+  // Resolves [Audit-2026-08-31] WebAuthn \u2014 counter read-then-write is not
+  // atomic under concurrency. Without this guard, two simultaneous valid
+  // assertions can both observe stored=N, both validate newCounter=N+1>N,
+  // and both write N+1 \u2014 leaving the counter regressing when the order
+  // is reversed. We split updateCounter into a non-atomic helper (legacy)
+  // and a strict compareAndSwapCounter that enforces monotonicity inside
+  // a single transaction.
+  describe('compareAndSwapCounter', () => {
+    it('allows update when stored counter is 0 (authenticator without counter)', async () => {
+      const { db, store } = makeFakeDb();
+      await registerCredential(
+        'uid-cas',
+        { credentialId: 'cred-cas', publicKey: new Uint8Array([1]), counter: 0 },
+        db,
+      );
+      // stored=0 \u2192 any newCounter allowed (current policy; mirrors
+      // curriculum.ts:838 and webauthnAssertion.ts:224).
+      await compareAndSwapCounter('cred-cas', 0, db);
+      expect(store.get('cred-cas')!.data.counter).toBe(0);
+      await compareAndSwapCounter('cred-cas', 5, db);
+      expect(store.get('cred-cas')!.data.counter).toBe(5);
+    });
+
+    it('updates when newCounter > stored counter (normal happy path)', async () => {
+      const { db, store } = makeFakeDb(() => 1_900_000_000_000);
+      await registerCredential(
+        'uid-cas-happy',
+        { credentialId: 'cred-cas-happy', publicKey: new Uint8Array([1]), counter: 7 },
+        db,
+      );
+      await compareAndSwapCounter('cred-cas-happy', 8, db);
+      const doc = store.get('cred-cas-happy');
+      expect(doc!.data.counter).toBe(8);
+      expect(doc!.data.lastUsedAt).toBe(1_900_000_000_000);
+    });
+
+    it('THROWS counter_not_monotonic when newCounter <= stored (replay/cloning detected)', async () => {
+      const { db } = makeFakeDb();
+      await registerCredential(
+        'uid-cas-replay',
+        { credentialId: 'cred-cas-replay', publicKey: new Uint8Array([1]), counter: 10 },
+        db,
+      );
+      await expect(
+        compareAndSwapCounter('cred-cas-replay', 10, db),
+      ).rejects.toThrow(/counter_not_monotonic/);
+      await expect(
+        compareAndSwapCounter('cred-cas-replay', 9, db),
+      ).rejects.toThrow(/counter_not_monotonic/);
+      await expect(
+        compareAndSwapCounter('cred-cas-replay', 0, db),
+      ).rejects.toThrow(/counter_not_monotonic/);
+    });
+
+    it('serializes two updates so the LATER (higher) counter always wins', async () => {
+      // This test pins the SEQUENTIAL behavior the fakeDb enforces. The
+      // real concurrency guarantee is exercised against the Firestore
+      // emulator in the integration test suite (TODO: add when emulator
+      // harness is wired for this module).
+      const { db, store } = makeFakeDb();
+      await registerCredential(
+        'uid-cas-seq',
+        { credentialId: 'cred-cas-seq', publicKey: new Uint8Array([1]), counter: 5 },
+        db,
+      );
+      await compareAndSwapCounter('cred-cas-seq', 6, db);
+      await compareAndSwapCounter('cred-cas-seq', 7, db);
+      expect(store.get('cred-cas-seq')!.data.counter).toBe(7);
+      // A REPLAY attempt after a higher value has landed must be rejected.
+      await expect(
+        compareAndSwapCounter('cred-cas-seq', 6, db),
+      ).rejects.toThrow(/counter_not_monotonic/);
+    });
+
+    it('rejects negative counter (parity with updateCounter contract)', async () => {
+      const { db } = makeFakeDb();
+      await registerCredential(
+        'uid-cas-neg',
+        { credentialId: 'cred-cas-neg', publicKey: new Uint8Array([1]), counter: 0 },
+        db,
+      );
+      await expect(
+        compareAndSwapCounter('cred-cas-neg', -1, db),
+      ).rejects.toThrow(/non-negative/);
+    });
   });
 });
 

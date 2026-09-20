@@ -60,6 +60,20 @@ function buildFakeCredsDb(): MinimalCredentialsDb {
         },
       };
     },
+    async runTransaction<T>(
+      updateFn: (tx: import('../../services/auth/webauthnCredentialStore.js').TransactionHandle) => Promise<T>,
+    ): Promise<T> {
+      // Not exercised by dteSigner tests, but required by the new
+      // MinimalCredentialsDb interface.
+      return updateFn({
+        async get() {
+          return { exists: false, id: '', data: () => undefined };
+        },
+        async update() {
+          // no-op
+        },
+      });
+    },
   };
 }
 

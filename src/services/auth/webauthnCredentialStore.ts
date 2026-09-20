@@ -75,8 +75,50 @@ export interface MinimalCredentialsDb {
       }>;
     };
   };
+  /**
+   * Atomic transaction. The `updateFn` receives a transactional view of the
+   * database: reads inside the transaction see the snapshot taken at start,
+   * writes are committed atomically when `updateFn` resolves.
+   *
+   * The fakeDb adapter enforces single-threaded semantics by serializing
+   * updateFn execution (no real concurrency, but no race within the same
+   * call). The Firestore adapter uses `admin.firestore().runTransaction`.
+   *
+   * If the transaction body throws, the transaction is aborted.
+   */
+  runTransaction<T>(updateFn: (tx: TransactionHandle) => Promise<T>): Promise<T>;
   /** Injected clock — defaults to Date.now in production. */
   now: () => number;
+}
+
+/**
+ * Transactional view exposed inside `db.runTransaction(updateFn)`.
+ *
+ * We accept the SAME `DocRef` type the outer db returns from
+ * `db.collection(name).doc(id)`. The implementations (fakeDb and the real
+ * Firestore adapter) read the doc id from a runtime-known property so we
+ * don't expose internal layout in the type signature.
+ */
+export type DocRef = {
+  __docId?: string;
+  collection?: (name: string) => { doc: (id: string) => unknown };
+  get?: () => Promise<{
+    exists: boolean;
+    id: string;
+    data: () => Record<string, unknown> | undefined;
+  }>;
+  set?: (data: Record<string, unknown>) => Promise<void>;
+  update?: (patch: Record<string, unknown>) => Promise<void>;
+  delete?: () => Promise<void>;
+};
+
+export interface TransactionHandle {
+  get(ref: DocRef): Promise<{
+    exists: boolean;
+    id: string;
+    data: () => Record<string, unknown> | undefined;
+  }>;
+  update(ref: DocRef, patch: Record<string, unknown>): Promise<void>;
 }
 
 export interface RegisterCredentialInput {
@@ -201,6 +243,59 @@ export async function updateCounter(
   await db.collection(COLLECTION).doc(credentialId).update({
     counter: newCounter,
     lastUsedAt: db.now(),
+  });
+}
+
+/**
+ * Atomic compare-and-swap counter update. Enforces monotonicity inside a
+ * single Firestore transaction so two concurrent assertions cannot both
+ * observe the same stored counter, both validate `newCounter > stored`,
+ * and both write — letting the lower-numbered one overwrite the higher.
+ *
+ * Policy (mirrors `curriculum.ts:838` and `webauthnAssertion.ts:224`):
+ *   - `stored === 0` ⇒ any `newCounter` is accepted (authenticators
+ *     without a counter keep it at 0; we don't want to break those).
+ *   - `stored > 0` and `newCounter <= stored` ⇒ throws
+ *     `counter_not_monotonic` (clone/replay detected). The caller MUST
+ *     translate that into a 401 response.
+ *   - `stored > 0` and `newCounter > stored` ⇒ updates atomically.
+ *
+ * The atomicity guarantee comes from Firestore's
+ * `db.runTransaction(updateFn)` semantics: the read of `stored.counter`
+ * and the conditional `update({counter: newCounter, ...})` happen in
+ * a single transaction. The fakeDb adapter enforces the same semantics
+ * serially via read-then-conditional-update.
+ */
+export async function compareAndSwapCounter(
+  credentialId: string,
+  newCounter: number,
+  db: MinimalCredentialsDb,
+): Promise<void> {
+  if (typeof credentialId !== 'string' || credentialId.length === 0) {
+    throw new Error('credentialId is required');
+  }
+  if (!Number.isFinite(newCounter) || newCounter < 0) {
+    throw new Error('newCounter must be a non-negative number');
+  }
+  await db.runTransaction(async (tx) => {
+    const ref = db.collection(COLLECTION).doc(credentialId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new Error('credential not found');
+    }
+    const stored = Number(snap.data()?.counter ?? 0);
+    if (!Number.isFinite(stored)) {
+      throw new Error('stored counter is not a finite number');
+    }
+    if (stored > 0 && newCounter <= stored) {
+      throw new Error(
+        `counter_not_monotonic: stored=${stored}, newCounter=${newCounter}`,
+      );
+    }
+    await tx.update(ref, {
+      counter: newCounter,
+      lastUsedAt: db.now(),
+    });
   });
 }
 
