@@ -40,6 +40,12 @@ import { nodeIdFor } from '../../services/zettelkasten/persistence/writeNode.js'
 import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
 import { createEdge as createZkEdge } from '../../services/zettelkasten/edges.js';
 import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
+// [Hy3-audit] Resolves [Audit-2026-08-31] IncidentFlow lesson publish —
+// no se materializa en LessonsAdapter/KnowledgeBase. The publishLesson
+// route now writes the canonical lesson row to
+// `tenants/{tid}/lessons/{lessonId}` via LessonsAdapter so the F.12
+// library surfaces it.
+import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAdapter.js';
 import {
   createIncidentReportedNode,
   createInvestigationOpenedNode,
@@ -553,6 +559,32 @@ router.post(
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
+      // [Hy3-audit] Resolves [Audit-2026-08-31] IncidentFlow lesson
+      // publish — no se materializa en LessonsAdapter/KnowledgeBase.
+      //
+      // After the PDCA flow succeeds, write the canonical Lesson row
+      // to `tenants/{tid}/lessons/{lessonId}` so the LessonsLearned
+      // library surfaces the closure in the F.12 / KB. We derive the
+      // prevention action from the first element of
+      // `conclusion.preventiveActions` (the Library schema requires
+      // exactly one). If the array is empty, we fall back to a
+      // deterministic placeholder so the canonical row still exists.
+      const lessonsAdapter = new LessonsAdapter(
+        admin.firestore(),
+        g.tenantId,
+      );
+      await lessonsAdapter.save({
+        id: body.lessonId,
+        summary: body.summary,
+        preventiveAction:
+          body.conclusion.preventiveActions[0] ?? body.summary,
+        riskCategories: body.riskCategories,
+        tags: body.tags,
+        scope: 'industry',
+        publishedAt: body.publishedAtIso,
+        adoptionCount: 0,
+        derivedFromIncidentId: incidentId,
+      });
       await writeAudit(
         g.tenantId,
         projectId,
