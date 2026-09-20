@@ -175,17 +175,45 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
   }
   try {
     const uid = req.user?.uid;
+    // Pull the audit-relevant DTE type once, with a real (non-cast) shape.
+    // isValidDteCreateInput above already proved `req.body` is a record,
+    // so a narrow inline cast on `tipoDocumento` only is enough. The double
+    // cast (unknown → Record<string, unknown>) is needed because req.body
+    // is statically typed as DteCreateInput and TS rejects the single
+    // cast as a mistake (TS2352).
+    const tipoDocumento =
+      typeof (req.body as unknown as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as unknown as Record<string, unknown>).tipoDocumento as string)
+        : null;
     const result = await tracedAsync(
       'dte.create.handler',
-      { 'praeventio.uid': uid, docType: (req.body as any)?.tipoDocumento ?? null },
+      { 'praeventio.uid': uid, docType: tipoDocumento },
       () => adapter.createDte(req.body),
     );
     if (!result.ok) {
+      // [Hy3-audit] Audit the REJECTED attempt. Resolves [Audit-2026-08-31]
+      // DTE manual create/cancel — cambios tributarios no escriben
+      // auditServerEvent. A regulator must see WHO tried to issue what,
+      // even when Bsale refused.
+      await auditServerEvent(req, 'dte.manual_create_rejected', 'dte', {
+        tipoDocumento,
+        motivo: result.errorMessage ?? 'unknown',
+      });
       return res.status(422).json({
         error: 'dte_rejected',
         message: result.errorMessage,
       });
     }
+    // [Hy3-audit] Audit the SUCCESS path: actor + folio + tipodoc + tracking
+    // id so a SII/Hacienda audit can reconstruct the operator, the moment,
+    // and the Bsale receipt for any DTE that hit the books.
+    await auditServerEvent(req, 'dte.manual_create', 'dte', {
+      folio: result.folio,
+      tipoDocumento,
+      trackingId: result.trackingId,
+      totalClp: result.totalClp,
+      ivaClp: result.ivaClp,
+    });
     return res.json({
       ok: true,
       folio: result.folio,
@@ -197,6 +225,16 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     });
   } catch (err) {
     logger.error('POST /api/dte/create failed', err instanceof Error ? err : new Error(String(err)));
+    // [Hy3-audit] Audit even unexpected exceptions: failure paths must
+    // leave a paper trail too.
+    const tipoDocumento =
+      typeof (req.body as unknown as Record<string, unknown>).tipoDocumento === 'string'
+        ? ((req.body as unknown as Record<string, unknown>).tipoDocumento as string)
+        : null;
+    await auditServerEvent(req, 'dte.manual_create_failed', 'dte', {
+      tipoDocumento,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return res.status(500).json({ error: 'dte_emission_failed' });
   }
 });
@@ -345,14 +383,33 @@ dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Reque
   try {
     const result = await adapter.cancelDte(folio, reason);
     if (!result.ok) {
+      // [Hy3-audit] Audit the REJECTED cancellation attempt. Resolves
+      // [Audit-2026-08-31] DTE manual create/cancel — cambios tributarios
+      // no escriben auditServerEvent.
+      await auditServerEvent(req, 'dte.manual_cancel_rejected', 'dte', {
+        folio,
+        reason,
+        motivo: result.errorMessage ?? 'unknown',
+      });
       return res.status(422).json({
         error: 'cancel_failed',
         message: result.errorMessage,
       });
     }
+    // [Hy3-audit] Audit the SUCCESS cancellation (Nota de Crédito emitted).
+    await auditServerEvent(req, 'dte.manual_cancel', 'dte', {
+      folio,
+      reason,
+      trackingId: result.trackingId,
+    });
     return res.json({ ok: true, trackingId: result.trackingId });
   } catch (err) {
     logger.error('POST /api/dte/:folio/cancel failed', err instanceof Error ? err : new Error(String(err)));
+    // [Hy3-audit] Audit even unexpected exceptions.
+    await auditServerEvent(req, 'dte.manual_cancel_failed', 'dte', {
+      folio,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return res.status(500).json({ error: 'dte_cancel_failed' });
   }
 });
