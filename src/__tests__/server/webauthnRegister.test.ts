@@ -110,6 +110,32 @@ function buildTestChallengesDb(
               fs.store.set(key, { ...(cur ?? {}), ...patch });
               return true;
             },
+            // Added in the webauthn-anonymize-orphans round so this
+            // mock matches the extended MinimalChallengesDb
+            // interface (which now exposes `delete` for the
+            // anonymize sweep). The InMemoryFirestore drops the key.
+            async delete() {
+              fs.store.delete(key);
+            },
+          };
+        },
+        // Equality-only where(). Mirrors the fake in
+        // webauthnChallenge.test.ts::makeFakeDb: filter the
+        // in-memory store by (field, value) and return matching
+        // docs.
+        where(field: string, _op: '==', value: unknown) {
+          return {
+            async get() {
+              const docs: Array<{ id: string; data: () => Record<string, unknown> }> = [];
+              for (const [k, v] of fs.store.entries()) {
+                if (!k.startsWith(`${name}/`)) continue;
+                if ((v as Record<string, unknown>)[field] === value) {
+                  const id = k.slice(`${name}/`.length);
+                  docs.push({ id, data: () => v as Record<string, unknown> });
+                }
+              }
+              return { empty: docs.length === 0, docs };
+            },
           };
         },
       };
