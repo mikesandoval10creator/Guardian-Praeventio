@@ -29,6 +29,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -202,7 +203,24 @@ router.post(
   '/:projectId/incident-flow/report',
   verifyAuth,
   validate(reportSchema),
+  idempotencyKey({ scope: 'uid' }),
   async (req, res) => {
+    // [Hy3-audit] The modern Driving shell creates a fresh incidentId per
+    // tap (`projectId + Date.now()`), so the only defense against
+    // double-taps and client retries is a client-supplied Idempotency-Key.
+    // Without the header, two POSTs would each dispatch the flow and write
+    // two canonical audit_logs rows + two ZK nodes for what the operator
+    // sees as a single report. Resolves [Audit-2026-08-31] Driving modern
+    // shell — reportPersisted carece de Idempotency-Key.
+    const idempotencyKeyHeader = (req.headers['idempotency-key'] ?? req.header('Idempotency-Key')) as string | undefined;
+    if (!idempotencyKeyHeader || idempotencyKeyHeader.trim().length === 0) {
+      return res.status(400).json({
+        error: 'idempotency_key_required',
+        message:
+          'POST /:projectId/incident-flow/report requires an Idempotency-Key header ' +
+          'because the client cannot supply a stable incidentId across retries.',
+      });
+    }
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof reportSchema>;
