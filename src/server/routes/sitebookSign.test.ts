@@ -71,6 +71,21 @@ function makeChallengesDb() {
           store.set(id, { ...(cur ?? {}), ...patch });
           return true;
         },
+        // Added in the webauthn-anonymize-orphans round so this mock
+        // matches the extended MinimalChallengesDb interface. Not
+        // exercised by sitebookSign tests, but TS requires the hook.
+        async delete() {
+          store.delete(id);
+        },
+      }),
+      // Equality-only where(). Added for the same reason — the
+      // anonymize sweep calls .where('uid', '==', uid).get() on
+      // this DB. sitebookSign doesn't trigger that path, but the
+      // interface now demands the method.
+      where: (_field: string, _op: '==', _value: unknown) => ({
+        async get() {
+          return { empty: true, docs: [] };
+        },
       }),
     }),
     now,

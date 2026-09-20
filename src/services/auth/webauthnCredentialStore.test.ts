@@ -26,6 +26,7 @@ import {
   getCredentialsByUid,
   findByCredentialId,
   deleteCredentialById,
+  deleteCredentialsByUid,
   updateCounter,
   compareAndSwapCounter,
   decodePublicKey,
@@ -490,3 +491,73 @@ describe('decodePublicKey', () => {
     expect(Array.from(decoded)).toEqual(Array.from(original));
   });
 });
+
+describe('deleteCredentialsByUid (anonymization cleanup)', () => {
+  // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn lifecycle —
+  // anonymization deja credentials y challenges huérfanos. Without
+  // this helper, the anonymizeUser.ts workflow can disable a Firebase
+  // Auth account but leave every registered public-key credential
+  // untouched in `webauthn_credentials/{credentialId}` — those rows
+  // include the original uid, the public key, the counter, and the
+  // lastUsedAt timestamp, so they would outlive the anonymized
+  // account indefinitely and let a new tenant who recycled the uid
+  // inherit the credentials.
+  it('removes every credential whose uid matches, regardless of credentialId', async () => {
+    const { db, store } = makeFakeDb();
+    await registerCredential(...reg('uid-orphan', 'cred-A', db));
+    await registerCredential(...reg('uid-orphan', 'cred-B', db));
+    await registerCredential(...reg('uid-other', 'cred-9', db));
+
+    const deleted = await deleteCredentialsByUid('uid-orphan', db);
+    expect(deleted).toBe(2);
+
+    expect(store.has('cred-A')).toBe(false);
+    expect(store.has('cred-B')).toBe(false);
+    expect(store.has('cred-9')).toBe(true);
+  });
+
+  it('returns 0 when the uid has no credentials', async () => {
+    const { db } = makeFakeDb();
+    await registerCredential(...reg('uid-real', 'cred-A', db));
+    const deleted = await deleteCredentialsByUid('uid-nobody', db);
+    expect(deleted).toBe(0);
+  });
+
+  it('rejects an empty uid', async () => {
+    const { db } = makeFakeDb();
+    await expect(deleteCredentialsByUid('', db)).rejects.toThrow(/uid is required/i);
+  });
+
+  it('is idempotent: a second call after the first is a no-op', async () => {
+    const { db } = makeFakeDb();
+    await registerCredential(...reg('uid-x', 'cred-A', db));
+    const first = await deleteCredentialsByUid('uid-x', db);
+    const second = await deleteCredentialsByUid('uid-x', db);
+    expect(first).toBe(1);
+    expect(second).toBe(0);
+  });
+});
+
+// (uid, credential, db) tuple-shape that matches registerCredential's
+// positional signature. Spreading a credential object would not satisfy
+// the type and would fail with "uid is required" because the first
+// positional argument is the uid string, not the credential record.
+//
+// The transports array is intentionally mutable (`['usb']` rather than
+// `['usb'] as const`) so it matches the `RegisterCredentialInput.transports`
+// type — the legacy contract pins `string[]`, not `readonly ["usb"]`.
+function reg(uid: string, credentialId: string, db: MinimalCredentialsDb) {
+  return [
+    uid,
+    {
+      credentialId,
+      // publicKey must be a Uint8Array (the contract pins bytes, not
+      // base64). The legacy tests use a plain new Uint8Array([...])
+      // and we mirror that shape.
+      publicKey: new Uint8Array([1, 2, 3, 4, 5]),
+      counter: 0,
+      transports: ['usb'] as string[],
+    },
+    db,
+  ] as [string, { credentialId: string; publicKey: Uint8Array; counter: number; transports: string[]; }, MinimalCredentialsDb];
+}

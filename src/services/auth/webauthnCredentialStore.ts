@@ -350,3 +350,34 @@ function rowToRegistered(data: Record<string, unknown>): RegisteredCredential {
 export function decodePublicKey(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
+
+/**
+ * Hard-delete every credential in `webauthn_credentials` whose stored
+ * `uid` matches the supplied value. Used by anonymizeUser.ts so a
+ * disabled / anonymized Firebase Auth account leaves no public-key
+ * credentials behind (those rows would otherwise outlive the account
+ * indefinitely, and a tenant who recycled the uid could inherit the
+ * credentials).
+ *
+ * Returns the count of credentials actually deleted. A second call
+ * with the same uid is a no-op (returns 0). Throws on empty uid.
+ *
+ * Resolves [Audit-2026-08-31] WebAuthn lifecycle — anonymization deja
+ * credentials y challenges huérfanos.
+ */
+export async function deleteCredentialsByUid(
+  uid: string,
+  db: MinimalCredentialsDb,
+): Promise<number> {
+  if (typeof uid !== 'string' || uid.length === 0) {
+    throw new Error('uid is required and must be a non-empty string');
+  }
+  const credentials = await getCredentialsByUid(uid, db);
+  if (credentials.length === 0) return 0;
+  await Promise.all(
+    credentials.map((c) =>
+      db.collection(COLLECTION).doc(c.credentialId).delete(),
+    ),
+  );
+  return credentials.length;
+}

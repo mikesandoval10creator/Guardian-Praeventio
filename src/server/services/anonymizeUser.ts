@@ -35,23 +35,19 @@
 // BEFORE calling this so intent survives a mid-scrub failure.
 
 import admin from 'firebase-admin';
+import { deleteCredentialsByUid } from '../../services/auth/webauthnCredentialStore.js';
+import { deleteChallengesByUid } from '../../services/auth/webauthnChallenge.js';
 
 /**
  * `users/{uid}` PII fields removed on anonymization (the doc keeps its
  * functional fields — role, tenantConfig, subscription, onboarded — so the
  * shell stays valid against firestore.rules `isValidUser`).
- */
-/**
- * Per-user PII aliases scrubbed from `users/{uid}` on anonymization.
  *
- * History: the original list used snake_case names (`display_name`,
- * `photo_url`). FirebaseContext.tsx:125-136 writes the camelCase aliases
- * (`displayName`, `photoURL`) into the same Firestore doc. The legacy
- * scrub loop only iterated the snake_case names, so a users/{uid} that
- * carried a `displayName` field survived anonymization. To close that
- * PII-leak [Audit-2026-08-31] anonymizeUser — nombres camelCase dejan
- * displayName/photoURL en users/{uid}, both camelCase and snake_case
- * aliases are listed here so the merge set deletes every variant.
+ * Both snake_case and camelCase aliases are listed so the merge set
+ * deletes every variant. (Historical note: FirebaseContext.tsx:125-136
+ * writes the camelCase aliases (`displayName`, `photoURL`); the
+ * snake_case names were the original contract. Resolved by the
+ * camelCase-aliase fix in PR #1724.)
  *
  * FieldValue.delete() is used per-field so the merge keeps unrelated
  * functional fields (role, projectMemberships, etc.) intact.
@@ -103,6 +99,18 @@ export interface AnonymizeUserResult {
   subcollectionsScrubbed: Record<string, number>;
   /** Count of community posts whose author identity was redacted (cross-project). */
   safetyPostsRedacted: number;
+  /**
+   * WebAuthn orphan sweep (top-level collections). Each value is the count
+   * of rows hard-deleted by the anonymization step. 0 means the uid had
+   * no outstanding rows in that collection (the common case for an account
+   * that never registered a biometric or whose challenges had already
+   * expired by the time the anonymization ran).
+   *
+   * [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn lifecycle —
+   * anonymization deja credentials y challenges huérfanos.
+   */
+  webauthnCredentialsDeleted: number;
+  webauthnChallengesDeleted: number;
   applied: true;
 }
 
@@ -234,6 +242,31 @@ export async function anonymizeUser(
   // history stays intact while the person is de-identified.
   const safetyPostsRedacted = await scrubAuthoredSafetyPosts(db, uid);
 
+  // 5c. Sweep WebAuthn orphans so the disabled / anonymized account leaves
+  // no public-key credentials or pending challenges behind. Both live in
+  // top-level collections (not subcollections of users/{uid}) so they
+  // cannot be reached by the subcollection purge above.
+  //
+  // We adapt the Admin Firestore handle to the `MinimalCredentialsDb` /
+  // `MinimalChallengesDb` interfaces the helpers expect. The adapter is
+  // intentionally inline (5 lines per surface) rather than imported so
+  // this PR doesn't churn `webauthnFirestoreDb.ts` and keeps the surface
+  // narrow. The adapters there remain the canonical path for other
+  // call-sites (admin recovery, etc.).
+  //
+  // Resolves [Audit-2026-08-31] WebAuthn lifecycle — anonymization deja
+  // credentials y challenges huérfanos.
+  const credentialsDb = wrapFirestoreAsCredentialsDb(db);
+  const challengesDb = wrapFirestoreAsChallengesDb(db);
+  const webauthnCredentialsDeleted = await deleteCredentialsByUid(
+    uid,
+    credentialsDb,
+  );
+  const webauthnChallengesDeleted = await deleteChallengesByUid(
+    uid,
+    challengesDb,
+  );
+
   const fieldsRedacted = [
     'email',
     'displayName',
@@ -253,6 +286,12 @@ export async function anonymizeUser(
     fieldsRedacted,
     subcollectionsScrubbed,
     safetyPostsRedacted,
+    // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn lifecycle —
+    // anonymization deja credentials y challenges huérfanos. The
+    // orphan-sweep counters go on the proof so a regulator can see
+    // exactly how many rows the anonymization removed.
+    webauthnCredentialsDeleted,
+    webauthnChallengesDeleted,
     authDisabled: true,
     createdAt: anonymizedAt,
   });
@@ -263,6 +302,213 @@ export async function anonymizeUser(
     fieldsRedacted,
     subcollectionsScrubbed,
     safetyPostsRedacted,
+    webauthnCredentialsDeleted,
+    webauthnChallengesDeleted,
     applied: true,
+  };
+}
+
+/**
+ * Inline Adapter: Admin Firestore handle → MinimalCredentialsDb.
+ *
+ * The `db` injected into `anonymizeUser` is the full Admin SDK handle;
+ * the WebAuthn helpers (`deleteCredentialsByUid`) take a
+ * `MinimalCredentialsDb` injection so they can be unit-tested with a
+ * plain Map. Rather than reach for a second `admin.firestore()` handle
+ * via `createWebAuthnCredentialsFirestoreDb()`, we adapt the same handle
+ * the rest of the workflow uses — keeps the surface narrow and avoids
+ * any divergence between the two handles.
+ */
+function wrapFirestoreAsCredentialsDb(
+  db: admin.firestore.Firestore,
+): import('../../services/auth/webauthnCredentialStore.js').MinimalCredentialsDb {
+  const firestore = db;
+  return {
+    now: () => Date.now(),
+    collection(name: string) {
+      // Capture `name` and `collection` in the closure scope so the
+      // runTransaction body below can rebuild Transaction refs without
+      // rescoping (the inner async (transaction) => ... closure
+      // doesn't inherit the outer `collection` binding).
+      const collRef = firestore.collection(name);
+      const collName = name;
+      return {
+        doc(id: string) {
+          const ref = collRef.doc(id);
+          const docId = id;
+          return {
+            async get() {
+              const snap = await ref.get();
+              return {
+                exists: snap.exists,
+                id: snap.id,
+                data: () =>
+                  snap.exists
+                    ? (snap.data() as Record<string, unknown>)
+                    : undefined,
+              };
+            },
+            async set(data: Record<string, unknown>) {
+              await ref.set(data as FirebaseFirestore.WithFieldValue<FirebaseFirestore.DocumentData>);
+            },
+            async update(patch: Record<string, unknown>) {
+              await ref.update(patch as FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>);
+            },
+            async delete() {
+              await ref.delete();
+            },
+          };
+        },
+        where(field: string, op: '==', value: unknown) {
+          const query = collRef.where(field, op, value);
+          return {
+            async get() {
+              const snap = await query.get();
+              return {
+                empty: snap.empty,
+                docs: snap.docs.map((d) => ({
+                  id: d.id,
+                  data: () => d.data() as Record<string, unknown>,
+                })),
+              };
+            },
+          };
+        },
+      };
+    },
+    // MinimalCredentialsDb requires runTransaction (used by
+    // compareAndSwapCounter for atomic counter bumps). deleteCredentialsByUid
+    // doesn't take the transactional path, but the interface demands the
+    // hook be present. Delegate to firestore.runTransaction — the same
+    // logic the canonical adapter in webauthnFirestoreDb.ts uses.
+    async runTransaction<T>(
+      updateFn: (
+        tx: import('../../services/auth/webauthnCredentialStore.js').TransactionHandle,
+      ) => Promise<T>,
+    ): Promise<T> {
+      return firestore.runTransaction(async (transaction) => {
+        return updateFn({
+          get: async (docRef: import('../../services/auth/webauthnCredentialStore.js').DocRef) => {
+            // The ref's `__docId` and `__collection` (set above by
+            // the production adapter — see webauthnFirestoreDb.ts)
+            // let us rebuild the underlying Transaction.get ref
+            // without bypassing the transaction.
+            const collName = (docRef as Record<string, unknown>).__collection as
+              | string
+              | undefined;
+            const id = (docRef.__docId as string) ?? '';
+            const ref = firestore
+              .collection(collName ?? 'webauthn_credentials')
+              .doc(id);
+            const snap = await transaction.get(ref);
+            return {
+              exists: snap.exists,
+              id: snap.id,
+              data: () =>
+                snap.exists
+                  ? (snap.data() as Record<string, unknown>)
+                  : undefined,
+            };
+          },
+          update: async (
+            docRef: import('../../services/auth/webauthnCredentialStore.js').DocRef,
+            patch: Record<string, unknown>,
+          ) => {
+            const collName = (docRef as Record<string, unknown>).__collection as
+              | string
+              | undefined;
+            const id = (docRef.__docId as string) ?? '';
+            const ref = firestore
+              .collection(collName ?? 'webauthn_credentials')
+              .doc(id);
+            transaction.update(
+              ref,
+              patch as FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
+            );
+          },
+          // TransactionHandle intentionally has no `delete` (only get
+          // + update). The orphan sweep uses the non-transactional
+          // doc().delete() path, so this branch is unreachable.
+        });
+      });
+    },
+  };
+}
+
+/**
+ * Inline Adapter: Admin Firestore handle → MinimalChallengesDb.
+ * Mirrors `wrapFirestoreAsCredentialsDb` but for the challenges
+ * collection (which has `where`, `delete`, and `updateIf` instead of
+ * `update`).
+ */
+function wrapFirestoreAsChallengesDb(
+  db: admin.firestore.Firestore,
+): import('../../services/auth/webauthnChallenge.js').MinimalChallengesDb {
+  // Capture `db` in a local `const` so the `updateIf` closure below
+  // sees it (TS would otherwise infer it as the returned adapter
+  // object, which doesn't have `runTransaction` and would fail the
+  // property check on `MinimalChallengesDb`).
+  const firestore = db;
+  return {
+    now: () => Date.now(),
+    collection(name: string) {
+      const collection = firestore.collection(name);
+      return {
+        doc(id: string) {
+          const ref = collection.doc(id);
+          return {
+            async get() {
+              const snap = await ref.get();
+              return {
+                exists: snap.exists,
+                id: snap.id,
+                data: () =>
+                  snap.exists
+                    ? (snap.data() as Record<string, unknown>)
+                    : undefined,
+              };
+            },
+            async set(data: Record<string, unknown>) {
+              await ref.set(data as FirebaseFirestore.WithFieldValue<FirebaseFirestore.DocumentData>);
+            },
+            async updateIf(
+              precondition: (current: Record<string, unknown> | undefined) => boolean,
+              patch: Record<string, unknown>,
+            ): Promise<boolean> {
+              return firestore.runTransaction(async (transaction) => {
+                const snap = await transaction.get(ref);
+                const current = snap.exists
+                  ? (snap.data() as Record<string, unknown>)
+                  : undefined;
+                if (!precondition(current)) return false;
+                transaction.update(
+                  ref,
+                  patch as FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
+                );
+                return true;
+              });
+            },
+            async delete() {
+              await ref.delete();
+            },
+          };
+        },
+        where(field: string, op: '==', value: unknown) {
+          const query = collection.where(field, op, value);
+          return {
+            async get() {
+              const snap = await query.get();
+              return {
+                empty: snap.empty,
+                docs: snap.docs.map((d) => ({
+                  id: d.id,
+                  data: () => d.data() as Record<string, unknown>,
+                })),
+              };
+            },
+          };
+        },
+      };
+    },
   };
 }

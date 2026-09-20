@@ -45,6 +45,28 @@ export function createWebAuthnChallengesFirestoreDb(): MinimalChallengesDb {
                 return true;
               });
             },
+            async delete() {
+              await ref.delete();
+            },
+          };
+        },
+        // Equality-only where(). Forwards to Firestore's native query
+        // API; the production read is index-bound on (uid, __name__)
+        // so the anonymize sweep stays a single round-trip and avoids
+        // a collection scan.
+        where(field: string, op: '==', value: unknown) {
+          const query = collection.where(field, op, value);
+          return {
+            async get() {
+              const snapshot = await query.get();
+              return {
+                empty: snapshot.empty,
+                docs: snapshot.docs.map((d) => ({
+                  id: d.id,
+                  data: () => d.data() as Record<string, unknown>,
+                })),
+              };
+            },
           };
         },
       };

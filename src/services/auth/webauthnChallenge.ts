@@ -67,6 +67,29 @@ export interface MinimalChallengesDb {
         precondition: (current: Record<string, unknown> | undefined) => boolean,
         patch: Record<string, unknown>,
       ): Promise<boolean>;
+      /**
+       * Hard-delete this doc. Required so anonymizeUser.ts can sweep
+       * every challenge whose uid matches an anonymized account; the
+       * challenge cache has no soft-delete concept (single-use, TTL-
+       * bound; once consumed or expired it's just noise).
+       */
+      delete(): Promise<void>;
+    };
+    /**
+     * Equality-only query. Added in the webauthn-anonymize-orphans
+     * round so anonymizeUser.ts can sweep every challenge whose uid
+     * matches an anonymized account. The production adapter forwards
+     * to Firestore's `where(field, op, value).get()`; the in-memory
+     * fake iterates its Map and filters by equality.
+     */
+    where(field: string, op: '==', value: unknown): {
+      get(): Promise<{
+        empty: boolean;
+        docs: Array<{
+          id: string;
+          data: () => Record<string, unknown>;
+        }>;
+      }>;
     };
   };
   /** Injected clock — defaults to Date.now in production. Tests fake it. */
@@ -298,4 +321,33 @@ export async function consumeWebAuthnChallenge<TMetadata = unknown>(
   return metadata === undefined
     ? { valid: true }
     : { valid: true, metadata: metadata as TMetadata };
+}
+
+/**
+ * Hard-delete every challenge in `webauthn_challenges` whose stored `uid`
+ * matches the supplied value. Used by anonymizeUser.ts so an anonymized
+ * account leaves no outstanding, single-use challenges behind (the docId
+ * format is `${uid}_${challengeId}` but the field-level `uid` is the
+ * authoritative key for the sweep).
+ *
+ * Returns the count of challenges actually deleted. A second call with
+ * the same uid is a no-op (returns 0). Throws on empty uid so a typo
+ * doesn't silently wipe the whole collection.
+ *
+ * Resolves [Audit-2026-08-31] WebAuthn lifecycle — anonymization deja
+ * credentials y challenges huérfanos.
+ */
+export async function deleteChallengesByUid(
+  uid: string,
+  db: MinimalChallengesDb,
+): Promise<number> {
+  if (typeof uid !== 'string' || uid.length === 0) {
+    throw new Error('uid is required and must be a non-empty string');
+  }
+  const snap = await db.collection(COLLECTION).where('uid', '==', uid).get();
+  if (snap.empty) return 0;
+  await Promise.all(
+    snap.docs.map((d) => db.collection(COLLECTION).doc(d.id).delete()),
+  );
+  return snap.docs.length;
 }

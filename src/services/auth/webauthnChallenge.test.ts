@@ -34,6 +34,7 @@ import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
   consumeWebAuthnChallenge,
+  deleteChallengesByUid,
   healthProfessionalChallengeMetadata,
   matchesHealthProfessionalChallenge,
   type MinimalChallengesDb,
@@ -77,6 +78,27 @@ function makeFakeDb(now: () => number = () => Date.now()): {
               store.set(id, { data: { ...(cur ?? {}), ...patch } });
               return true;
             },
+            // Hard-delete. Used by deleteChallengesByUid; mirrors the
+            // Firestore `DocumentReference.delete()` adapter added in
+            // the webauthn-anonymize-orphans round.
+            async delete(): Promise<void> {
+              store.delete(id);
+            },
+          };
+        },
+        // Equality-only where(). The real adapter forwards to
+        // Firestore's `where(field, op, value).get()`. The fake filters
+        // the in-memory Map by the supplied field/value and returns
+        // matching docs.
+        where(field: string, op: '==', value: unknown) {
+          expect(op).toBe('==');
+          return {
+            async get() {
+              const docs = [...store.entries()]
+                .filter(([, v]) => v.data?.[field] === value)
+                .map(([id, v]) => ({ id, data: () => v.data }));
+              return { empty: docs.length === 0, docs };
+            },
           };
         },
       };
@@ -100,6 +122,52 @@ describe('generateWebAuthnChallenge', () => {
       ids.add(generateWebAuthnChallenge().challengeId);
     }
     expect(ids.size).toBe(1000);
+  });
+
+  // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn lifecycle —
+  // anonymization deja credentials y challenges huérfanos. Without
+  // this helper, an anonymized account's outstanding challenges
+  // (created during a login ceremony but never consumed) survive in
+  // the top-level `webauthn_challenges` collection until their TTL
+  // expires. That delays the right-to-be-forgotten and lets an
+  // attacker who learns the docId = `${uid}_${challengeId}` pattern
+  // enumerate valid challenge payloads for any past uid.
+  describe('deleteChallengesByUid (anonymization cleanup)', () => {
+    it('removes every challenge whose uid matches, regardless of challengeId', async () => {
+      const { db, store } = makeFakeDb();
+      await storeWebAuthnChallenge('uid-orphan', 'ch-1', new Uint8Array([1]), db);
+      await storeWebAuthnChallenge('uid-orphan', 'ch-2', new Uint8Array([2]), db);
+      await storeWebAuthnChallenge('uid-other', 'ch-9', new Uint8Array([9]), db);
+
+      const deleted = await deleteChallengesByUid('uid-orphan', db);
+      expect(deleted).toBe(2);
+
+      // Only the other user's challenge survives.
+      const remaining = [...store.keys()].sort();
+      expect(remaining).toEqual(['uid-other_ch-9']);
+    });
+
+    it('returns 0 when the uid has no challenges', async () => {
+      const { db, store } = makeFakeDb();
+      await storeWebAuthnChallenge('uid-real', 'ch-1', new Uint8Array([1]), db);
+      const deleted = await deleteChallengesByUid('uid-nobody', db);
+      expect(deleted).toBe(0);
+      expect([...store.keys()]).toEqual(['uid-real_ch-1']);
+    });
+
+    it('rejects an empty uid', async () => {
+      const { db } = makeFakeDb();
+      await expect(deleteChallengesByUid('', db)).rejects.toThrow(/uid is required/i);
+    });
+
+    it('is idempotent: a second call after the first is a no-op', async () => {
+      const { db } = makeFakeDb();
+      await storeWebAuthnChallenge('uid-x', 'ch-1', new Uint8Array([1]), db);
+      const first = await deleteChallengesByUid('uid-x', db);
+      const second = await deleteChallengesByUid('uid-x', db);
+      expect(first).toBe(1);
+      expect(second).toBe(0);
+    });
   });
 });
 
@@ -310,6 +378,16 @@ describe('consumeWebAuthnChallenge', () => {
               }),
               set: vi.fn(),
               updateIf: vi.fn(async () => false),
+              delete: vi.fn(async () => undefined),
+            };
+          },
+          // The minimal broken-db mock also implements `where` so it
+          // matches the post-webauthn-anonymize-orphans interface
+          // (the `where` clause isn't exercised by this test; the
+          // brokenDb is constructed to drive `consume` to throw).
+          where() {
+            return {
+              get: vi.fn(async () => ({ empty: true, docs: [] })),
             };
           },
         };
