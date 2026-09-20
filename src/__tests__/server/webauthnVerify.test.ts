@@ -489,6 +489,19 @@ function buildTestCredentialsDb(
         },
       };
     },
+    async runTransaction<T>(
+      updateFn: (tx: import('../../services/auth/webauthnCredentialStore.js').TransactionHandle) => Promise<T>,
+    ): Promise<T> {
+      // In-memory transaction stub for tests that don't reach compareAndSwapCounter.
+      return updateFn({
+        async get() {
+          return { exists: false, id: '', data: () => undefined };
+        },
+        async update() {
+          // no-op
+        },
+      });
+    },
   };
 }
 

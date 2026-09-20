@@ -50,12 +50,24 @@ function mockChallengesDb() {
   return {
     collection: () => ({
       doc: () => ({
+        __docId: 'mock',
         get: async () => ({ exists: false, data: () => undefined }),
         set: async () => undefined,
         update: async () => undefined,
         delete: async () => undefined,
       }),
     }),
+    // Minimal CAS shim for tests that pass through compareAndSwapCounter's
+    // transaction body. The Layer-0/1 tests below never reach the CAS path;
+    // they short-circuit before Layer 5. The CAS-specific tests live in
+    // webauthnCredentialStore.test.ts (which has a richer fakeDb with
+    // transactional semantics). This shim exists so the type-checks the new
+    // MinimalCredentialsDb interface pass without altering these tests'
+    // intent (they assert validation behavior, not transaction semantics).
+    runTransaction: async <T>(_updateFn: (tx: unknown) => Promise<T>): Promise<T> => {
+      throw new Error('runTransaction not exercised by this test path');
+    },
+    now: () => Date.now(),
   } as any;
 }
 
@@ -232,6 +244,7 @@ function credentialsDbWithCounter(storedCounter: number) {
     now: () => 1000,
     collection: () => ({
       doc: () => ({
+        __docId: 'cred-abc',
         get: async () => ({
           exists: true,
           id: 'cred-abc',
@@ -250,6 +263,26 @@ function credentialsDbWithCounter(storedCounter: number) {
         delete: async () => undefined,
       }),
     }),
+    // Inline runTransaction: executes the body against the same fake store,
+    // but only supports reads + a single no-op write. The Layer-5 tests
+    // here only exercise the pre-update read (counter check); they do not
+    // need atomic write semantics because they short-circuit on monotonicity
+    // violations before the write would land. The CAS-specific tests live
+    // in webauthnCredentialStore.test.ts.
+    runTransaction: async <T>(updateFn: (tx: unknown) => Promise<T>): Promise<T> => {
+      const tx = {
+        get: async (_ref: unknown) => ({
+          exists: true,
+          id: 'cred-abc',
+          data: () => ({ counter: storedCounter }),
+        }),
+        update: async (_ref: unknown, _patch: Record<string, unknown>) => {
+          // no-op: the assertion tests above already pass or fail before
+          // reaching this point in the verify pipeline.
+        },
+      };
+      return updateFn(tx);
+    },
   } as any;
 }
 

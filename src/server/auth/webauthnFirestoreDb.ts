@@ -63,6 +63,14 @@ export function createWebAuthnCredentialsFirestoreDb(): MinimalCredentialsDb {
         doc(id: string) {
           const ref = collection.doc(id);
           return {
+            // [Hy3-audit] Expose the canonical doc path + __docId so consumers
+            // that pass this ref through to transactional helpers
+            // (e.g. `tx.update(ref)`) can recover the absolute path without
+            // re-running the lookup. Required by MinimalCredentialsDb
+            // .runTransaction adapters that only know about the ref's path
+            // (e.g. the fakeFirestore global in __tests__/helpers).
+            path: ref.path,
+            __docId: id,
             async get() {
               const snapshot = await ref.get();
               return {
@@ -101,6 +109,40 @@ export function createWebAuthnCredentialsFirestoreDb(): MinimalCredentialsDb {
           };
         },
       };
+    },
+    // Real Firestore runTransaction: gives compareAndSwapCounter genuine
+    // atomic CAS semantics. Reads inside the txn see a coherent snapshot;
+    // writes are committed atomically. If the body throws, the txn aborts.
+    async runTransaction<T>(
+      updateFn: (tx: {
+        get: (ref: unknown) => Promise<{
+          exists: boolean;
+          id: string;
+          data: () => Record<string, unknown> | undefined;
+        }>;
+        update: (ref: unknown, patch: Record<string, unknown>) => Promise<void>;
+      }) => Promise<T>,
+    ): Promise<T> {
+      return firestore.runTransaction(async (transaction) => {
+        return updateFn({
+          async get(ref: unknown) {
+            const docRef = ref as admin.firestore.DocumentReference;
+            const snap = await transaction.get(docRef);
+            return {
+              exists: snap.exists,
+              id: snap.id,
+              data: () =>
+                snap.exists
+                  ? (snap.data() as Record<string, unknown>)
+                  : undefined,
+            };
+          },
+          async update(ref: unknown, patch: Record<string, unknown>) {
+            const docRef = ref as admin.firestore.DocumentReference;
+            transaction.update(docRef, patch as admin.firestore.UpdateData<admin.firestore.DocumentData>);
+          },
+        });
+      });
     },
   };
 }
