@@ -21,4 +21,35 @@ describe('generateScaffoldUpliftNode (NCh 432 / OSHA 1926.451)', () => {
     );
     expect(node).toBeNull();
   });
+
+  // [Hy3-audit] Adversarial probes — non-finite inputs.
+  it('rejects NaN scaffold area', () => {
+    expect(() =>
+      generateScaffoldUpliftNode(
+        { id: 'sc-X', areaM2: NaN, pressureCoefficient: -1.5 },
+        { windKmh: 90 },
+        { ratedCapacityN: 1000, anchorCount: 4 },
+      ),
+    ).toThrow(/areaM2/);
+  });
+
+  it('rejects +Infinity wind speed', () => {
+    expect(() =>
+      generateScaffoldUpliftNode(
+        { id: 'sc-Y', areaM2: 50, pressureCoefficient: -1.5 },
+        { windKmh: Infinity },
+        { ratedCapacityN: 1000, anchorCount: 4 },
+      ),
+    ).toThrow(/windKmh/);
+  });
+
+  it('rejects NaN anchor rated capacity', () => {
+    expect(() =>
+      generateScaffoldUpliftNode(
+        { id: 'sc-Z', areaM2: 50, pressureCoefficient: -1.5 },
+        { windKmh: 90 },
+        { ratedCapacityN: NaN, anchorCount: 4 },
+      ),
+    ).toThrow(/ratedCapacityN/);
+  });
 });

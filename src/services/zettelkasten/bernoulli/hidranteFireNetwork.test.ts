@@ -21,4 +21,35 @@ describe('generateHidrantePressureNode (NCh 1646 / NFPA 14)', () => {
     );
     expect(node).toBeNull();
   });
+
+  // [Hy3-audit] Adversarial probes — non-finite inputs.
+  it('rejects NaN network pressure', () => {
+    expect(() =>
+      generateHidrantePressureNode(
+        { id: 'red-X', networkPressurePa: NaN, nozzleDiameterM: 0.038, dischargeCoefficient: 0.95 },
+        { id: 't-1', reachHeightM: 5, jetAngleRad: Math.PI / 2 },
+        { ambientPressurePa: 101_325 },
+      ),
+    ).toThrow(/networkPressurePa/);
+  });
+
+  it('rejects +Infinity ambient pressure', () => {
+    expect(() =>
+      generateHidrantePressureNode(
+        { id: 'red-Y', networkPressurePa: 500_000, nozzleDiameterM: 0.038, dischargeCoefficient: 0.95 },
+        { id: 't-1', reachHeightM: 5, jetAngleRad: Math.PI / 2 },
+        { ambientPressurePa: Infinity },
+      ),
+    ).toThrow(/ambientPressurePa/);
+  });
+
+  it('rejects NaN jet angle', () => {
+    expect(() =>
+      generateHidrantePressureNode(
+        { id: 'red-Z', networkPressurePa: 500_000, nozzleDiameterM: 0.038, dischargeCoefficient: 0.95 },
+        { id: 't-1', reachHeightM: 5, jetAngleRad: NaN },
+        { ambientPressurePa: 101_325 },
+      ),
+    ).toThrow(/jetAngleRad/);
+  });
 });

@@ -3,6 +3,7 @@
 
 import type { RiskNodePayload, RiskNodeSeverity } from '../types';
 import { dynamicPressure, windSpeedKmhToMs } from '../../physics/bernoulliEngine';
+import { assertFinite } from './finiteGuards.js';
 
 // Constants per NCh 1646 Of.98 (hidrantes) y NFPA 14 (standpipe).
 const WATER_DENSITY_KG_M3 = 1000; // NIST water at 20°C
@@ -44,6 +45,15 @@ export function generateHidrantePressureNode(
   target: HidranteTarget,
   atmospheric: AtmosphericContext,
 ): RiskNodePayload | null {
+  // [Hy3-audit] Reject non-finite inputs BEFORE the legacy `<= 0` checks.
+  // NaN slips past `<= 0` (IEEE 754), `+Infinity` slips past it too.
+  assertFinite(network.nozzleDiameterM, 'network.nozzleDiameterM');
+  assertFinite(network.dischargeCoefficient, 'network.dischargeCoefficient');
+  assertFinite(network.networkPressurePa, 'network.networkPressurePa');
+  assertFinite(atmospheric.ambientPressurePa, 'atmospheric.ambientPressurePa');
+  assertFinite(target.reachHeightM, 'target.reachHeightM');
+  assertFinite(target.jetAngleRad, 'target.jetAngleRad');
+
   if (network.nozzleDiameterM <= 0 || network.dischargeCoefficient <= 0) return null;
   if (target.reachHeightM <= 0) return null;
 

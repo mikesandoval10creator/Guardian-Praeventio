@@ -22,6 +22,8 @@ export interface NChLimit {
   maxForceN: number;
 }
 
+import { assertFinite } from './finiteGuards.js';
+
 /**
  * Genera nodo cuando `F = Cp·½ρv²·A` supera el límite NCh 432 declarado.
  */
@@ -30,6 +32,14 @@ export function generateStructuralWindNode(
   weather: StructWeather,
   nchLimit: NChLimit,
 ): RiskNodePayload | null {
+  // [Hy3-audit] Reject non-finite inputs BEFORE the legacy `<= 0` checks.
+  // NaN slips past `<= 0` (IEEE 754), `+Infinity` slips past it too. A
+  // node published with `forceN: NaN` is a fake prevention signal — worse
+  // than no node because it teaches the supervisor to ignore alerts.
+  assertFinite(structure.areaM2, 'structure.areaM2');
+  assertFinite(structure.pressureCoefficient, 'structure.pressureCoefficient');
+  assertFinite(weather.windKmh, 'weather.windKmh');
+  assertFinite(nchLimit.maxForceN, 'nchLimit.maxForceN');
   if (structure.areaM2 <= 0 || nchLimit.maxForceN <= 0) return null;
   if (weather.windKmh <= 0) return null;
 
