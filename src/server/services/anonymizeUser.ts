@@ -41,9 +41,26 @@ import admin from 'firebase-admin';
  * functional fields — role, tenantConfig, subscription, onboarded — so the
  * shell stays valid against firestore.rules `isValidUser`).
  */
+/**
+ * Per-user PII aliases scrubbed from `users/{uid}` on anonymization.
+ *
+ * History: the original list used snake_case names (`display_name`,
+ * `photo_url`). FirebaseContext.tsx:125-136 writes the camelCase aliases
+ * (`displayName`, `photoURL`) into the same Firestore doc. The legacy
+ * scrub loop only iterated the snake_case names, so a users/{uid} that
+ * carried a `displayName` field survived anonymization. To close that
+ * PII-leak [Audit-2026-08-31] anonymizeUser — nombres camelCase dejan
+ * displayName/photoURL en users/{uid}, both camelCase and snake_case
+ * aliases are listed here so the merge set deletes every variant.
+ *
+ * FieldValue.delete() is used per-field so the merge keeps unrelated
+ * functional fields (role, projectMemberships, etc.) intact.
+ */
 export const ANONYMIZATION_USERS_DOC_REDACT = [
   'display_name',
   'photo_url',
+  'displayName',
+  'photoURL',
   'notificationPreferences',
 ] as const;
 
