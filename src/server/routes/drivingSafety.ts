@@ -248,8 +248,24 @@ router.get(
         try {
           return await fn();
         } catch (err) {
-          logger.warn?.(`drivingSafety.read.${label}.failed`, err);
-          return [];
+          // [Hy3-audit] Log the failure but DO NOT swallow the error.
+          // Resolves [Audit-2026-08-31] DrivingSafety — error de lectura
+          // Firestore se convierte en 200 vacío. The previous behavior
+          // returned `[]` here, which the endpoint then serialized as
+          // 200 OK with empty arrays — indistinguishable from a project
+          // that genuinely has no data. For a SAFETY feature, that is
+          // worse than a 503: an operator looking at "no routes" might
+          // conclude "no risks" when in reality the backend is down and
+          // the data is missing. Re-throw (wrapped) so the outer route
+          // handler can surface a fail-closed response with a degraded
+          // header. The wrapper preserves the original `cause` for
+          // logging and Sentry breadcrumbs.
+          logger.error?.(`drivingSafety.read.${label}.failed`, err);
+          const wrapped = new Error(`drivingSafety.read.${label}.failed`) as Error & {
+            cause?: unknown;
+          };
+          wrapped.cause = err;
+          throw wrapped;
         }
       };
 
@@ -281,6 +297,20 @@ router.get(
 
       return res.json({ routes });
     } catch (err) {
+      // Fail-closed: distinguish read-degradation (503, degraded header) from
+      // unexpected internal errors (500). Operators MUST be able to tell the
+      // difference between "this project has no routes" (200 + empty) and
+      // "we couldn't read the routes" (503 + Retry-After).
+      if (err instanceof Error && /drivingSafety\.[a-z.]+\.failed$/.test(err.message)) {
+        logger.error?.('drivingSafety.routes.list.read_degraded', err);
+        res.setHeader('x-praeventio-data-source', 'degraded');
+        res.setHeader('Retry-After', '5');
+        return res.status(503).json({
+          error: 'driving.read.failed',
+          degraded: true,
+          message: 'Firestore read failed; data is unavailable. Retry after a few seconds.',
+        });
+      }
       logger.error?.('drivingSafety.routes.list.error', err);
       captureRouteError(err, 'drivingSafety.routes.list');
       return res.status(500).json({ error: 'internal_error' });
@@ -452,8 +482,14 @@ router.get(
         try {
           return await fn();
         } catch (err) {
-          logger.warn?.(`drivingSafety.drivers.${label}.failed`, err);
-          return [];
+          // See routes endpoint for the full rationale (fail-closed on
+          // read degradation).
+          logger.error?.(`drivingSafety.drivers.${label}.failed`, err);
+          const wrapped = new Error(`drivingSafety.drivers.${label}.failed`) as Error & {
+            cause?: unknown;
+          };
+          wrapped.cause = err;
+          throw wrapped;
         }
       };
       const drivers = await safeRead<StoredDrivingDriver>(
@@ -476,6 +512,16 @@ router.get(
       );
       return res.json({ drivers });
     } catch (err) {
+      if (err instanceof Error && /drivingSafety\.[a-z.]+\.failed$/.test(err.message)) {
+        logger.error?.('drivingSafety.drivers.list.read_degraded', err);
+        res.setHeader('x-praeventio-data-source', 'degraded');
+        res.setHeader('Retry-After', '5');
+        return res.status(503).json({
+          error: 'driving.read.failed',
+          degraded: true,
+          message: 'Firestore read failed; data is unavailable. Retry after a few seconds.',
+        });
+      }
       logger.error?.('drivingSafety.drivers.list.error', err);
       captureRouteError(err, 'drivingSafety.drivers.list');
       return res.status(500).json({ error: 'internal_error' });
@@ -591,8 +637,14 @@ router.get(
         try {
           return await fn();
         } catch (err) {
-          logger.warn?.(`drivingSafety.ranking.read.${label}.failed`, err);
-          return [];
+          // See routes endpoint for the full rationale (fail-closed on
+          // read degradation).
+          logger.error?.(`drivingSafety.ranking.read.${label}.failed`, err);
+          const wrapped = new Error(`drivingSafety.ranking.read.${label}.failed`) as Error & {
+            cause?: unknown;
+          };
+          wrapped.cause = err;
+          throw wrapped;
         }
       };
       const drivers = await safeRead<StoredDrivingDriver>(
@@ -637,6 +689,16 @@ router.get(
         .sort((a, b) => b.safetyScore - a.safetyScore);
       return res.json({ ranking });
     } catch (err) {
+      if (err instanceof Error && /drivingSafety\.[a-z.]+\.failed$/.test(err.message)) {
+        logger.error?.('drivingSafety.ranking.read_degraded', err);
+        res.setHeader('x-praeventio-data-source', 'degraded');
+        res.setHeader('Retry-After', '5');
+        return res.status(503).json({
+          error: 'driving.read.failed',
+          degraded: true,
+          message: 'Firestore read failed; data is unavailable. Retry after a few seconds.',
+        });
+      }
       logger.error?.('drivingSafety.ranking.error', err);
       captureRouteError(err, 'drivingSafety.ranking');
       return res.status(500).json({ error: 'internal_error' });
