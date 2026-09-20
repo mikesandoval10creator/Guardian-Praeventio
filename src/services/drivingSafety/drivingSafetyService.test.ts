@@ -123,4 +123,51 @@ describe('canAssignDriverToRoute', () => {
     });
     expect(canAssignDriverToRoute(driverR, routeR).allowed).toBe(false);
   });
+
+  // [Hy3-audit] Adversarial probes — driver scoring with corrupt inputs.
+  it('license expiry of INVALID STRING → score=0, blockers include "inválida", canOperate=false', () => {
+    const r = computeDriverScore(
+      driver({ workerUid: 'd1', licenseExpiresAt: 'not-a-date' }),
+      '2026-05-11T00:00:00Z',
+    );
+    expect(r.safetyScore).toBe(0);
+    expect(r.level).toBe('critical');
+    expect(r.canOperate).toBe(false);
+    expect(r.blockers.some((b) => /inválida|ausente/i.test(b))).toBe(true);
+  });
+
+  it('license expiry of EMPTY STRING → score=0, blocker present', () => {
+    const r = computeDriverScore(
+      driver({ workerUid: 'd1', licenseExpiresAt: '' }),
+      '2026-05-11T00:00:00Z',
+    );
+    expect(r.safetyScore).toBe(0);
+    expect(r.canOperate).toBe(false);
+  });
+
+  it('route with UNKNOWN hazard code → level=extreme (not low), riskScore=100', () => {
+    // The legacy code indexed HAZARD_WEIGHT[h] for every h. An unknown
+    // hazard returned undefined, made riskScore NaN, and the route fell
+    // through to level='low'. The fix forces level=extreme.
+    const r = scoreRouteRisk({
+      id: 'r-unknown',
+      name: 'R-Unknown',
+      distanceKm: 5,
+      hazards: ['lava_flow' as never], // not in HAZARD_WEIGHT
+      recommendedMaxSpeedKmh: 30,
+    });
+    expect(r.level).toBe('extreme');
+    expect(r.riskScore).toBe(100);
+  });
+
+  it('route with KNOWN + UNKNOWN hazards → still extreme (unknown dominates)', () => {
+    const r = scoreRouteRisk({
+      id: 'r-mixed',
+      name: 'R-Mixed',
+      distanceKm: 5,
+      hazards: ['wildlife', 'lava_flow' as never],
+      recommendedMaxSpeedKmh: 30,
+    });
+    expect(r.level).toBe('extreme');
+  });
 });

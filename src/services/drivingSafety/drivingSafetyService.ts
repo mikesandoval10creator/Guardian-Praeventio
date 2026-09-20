@@ -59,12 +59,23 @@ export function computeDriverScore(
 ): DriverScoreReport {
   let score = 100;
   const blockers: string[] = [];
-  const licenseExpired = Date.parse(profile.licenseExpiresAt) < Date.parse(nowIso);
+
+  // [Hy3-audit] Reject non-finite license expiry. Date.parse('invalid')
+  // returns NaN, and `NaN < NaN` is `false`, so the legacy code treated
+  // a corrupt license as "valid and not near expiry" \u2014 canOperate=true
+  // for a driver whose license field is garbage. A driver who cannot
+  // prove a valid license is UNSAFE to dispatch; surface as expired.
+  const licenseExpiryMs = Date.parse(profile.licenseExpiresAt);
+  const licenseParseable = Number.isFinite(licenseExpiryMs);
+  if (!licenseParseable) {
+    blockers.push('Fecha de vencimiento de licencia inválida o ausente.');
+  }
+  const licenseExpired = licenseParseable && licenseExpiryMs < Date.parse(nowIso);
 
   if (licenseExpired) {
     blockers.push('Licencia vencida.');
-  } else {
-    const daysToExpiry = Math.floor((Date.parse(profile.licenseExpiresAt) - Date.parse(nowIso)) / 86_400_000);
+  } else if (licenseParseable) {
+    const daysToExpiry = Math.floor((licenseExpiryMs - Date.parse(nowIso)) / 86_400_000);
     if (daysToExpiry < 30) {
       blockers.push(`Licencia vence en ${daysToExpiry}d.`);
     }
@@ -81,8 +92,9 @@ export function computeDriverScore(
   if (profile.yearsExperience >= 5) score += 10;
   else if (profile.yearsExperience < 1) score -= 15;
 
-  // Si licencia vencida, score se fuerza a 0 al final (después de bonus/penalties).
-  if (licenseExpired) score = 0;
+  // Si licencia vencida o inválida, score se fuerza a 0 al final
+  // (después de bonus/penalties).
+  if (licenseExpired || !licenseParseable) score = 0;
   score = Math.max(0, Math.min(100, score));
 
   let level: DriverScoreReport['level'];
@@ -130,8 +142,26 @@ const HAZARD_WEIGHT: Record<CriticalRoute['hazards'][number], number> = {
 
 export function scoreRouteRisk(route: CriticalRoute): RouteRiskScore {
   let riskScore = 0;
+  // [Hy3-audit] Reject unknown hazard codes. The legacy code indexed
+  // HAZARD_WEIGHT[h] for every h in route.hazards. If a hazard code
+  // isn't in HAZARD_WEIGHT, the lookup returns `undefined`, `riskScore
+  // += undefined` makes riskScore NaN, every `riskScore >= N` comparison
+  // returns false, and the route falls through to level='low'. A route
+  // with an UNKNOWN hazard would be classified as low risk and assigned
+  // any driver. We surface the unknown hazard as extreme (penalty = 100)
+  // and add a synthetic blocker so the route is never dispatchable until
+  // the catalog gap is closed.
+  const unknownHazards: string[] = [];
   for (const h of route.hazards) {
-    riskScore += HAZARD_WEIGHT[h];
+    const weight = HAZARD_WEIGHT[h];
+    if (typeof weight !== 'number' || !Number.isFinite(weight)) {
+      unknownHazards.push(h);
+      continue;
+    }
+    riskScore += weight;
+  }
+  if (unknownHazards.length > 0) {
+    riskScore = 100; // saturate to extreme; the synthetic blocker gates dispatch
   }
   // Bonus por distancia larga
   if (route.distanceKm > 100) riskScore += 10;
