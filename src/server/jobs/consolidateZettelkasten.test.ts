@@ -62,7 +62,7 @@ describe('consolidateZettelkasten', () => {
       legacyNodes: [makeFakeDoc('n1', { tenantId: 'tA', idempotencyKey: 'k1', title: 'X' })],
       topLevel: [],
     });
-    const report = await consolidateZettelkasten({ db, mode: 'commit' });
+    const report = await consolidateZettelkasten({ db, mode: 'commit', confirmMigration: true });
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(report.consolidated).toBe(1);
     expect(targetRef.set).toHaveBeenCalled();
@@ -73,7 +73,7 @@ describe('consolidateZettelkasten', () => {
       legacyNodes: [makeFakeDoc('n1', { idempotencyKey: 'k1', title: 'X' })],
       topLevel: [],
     });
-    const report = await consolidateZettelkasten({ db, mode: 'commit' });
+    const report = await consolidateZettelkasten({ db, mode: 'commit', confirmMigration: true });
     expect(report.skippedNoTenant).toBe(1);
     expect(report.consolidated).toBe(0);
   });
@@ -84,7 +84,7 @@ describe('consolidateZettelkasten', () => {
       legacyNodes: [makeFakeDoc('n1', { idempotencyKey: 'k1', title: 'X' })],
       topLevel: [],
     });
-    const report = await consolidateZettelkasten({ db, mode: 'commit', resolveTenantId: resolver });
+    const report = await consolidateZettelkasten({ db, mode: 'commit', confirmMigration: true, resolveTenantId: resolver });
     expect(resolver).toHaveBeenCalled();
     expect(setSpy).toHaveBeenCalled();
     expect(report.consolidated).toBe(1);
@@ -95,9 +95,55 @@ describe('consolidateZettelkasten', () => {
     fail.ref.delete = vi.fn().mockRejectedValue(new Error('boom'));
     const ok = makeFakeDoc('good', { tenantId: 'tA', idempotencyKey: 'k2', title: 'Y' });
     const { db } = makeFakeDb({ legacyNodes: [fail, ok], topLevel: [] });
-    const report = await consolidateZettelkasten({ db, mode: 'commit' });
+    const report = await consolidateZettelkasten({ db, mode: 'commit', confirmMigration: true });
     expect(report.errors.length).toBeGreaterThanOrEqual(1);
     // The "good" doc still consolidates.
     expect(report.consolidated).toBeGreaterThanOrEqual(1);
+  });
+
+  // [Hy3-audit] Adversarial probes — confirmMigration safety net.
+  it('rejects commit mode without confirmMigration (throws ConsolidationGuardError, no deletion)', async () => {
+    const { db, targetRef, setSpy } = makeFakeDb({
+      legacyNodes: [makeFakeDoc('n1', { tenantId: 'tA', idempotencyKey: 'k1', title: 'X' })],
+      topLevel: [],
+    });
+    await expect(
+      consolidateZettelkasten({ db, mode: 'commit' }),
+    ).rejects.toThrow(/confirmMigration=true/);
+    // CRITICAL: NO write and NO delete must happen when the guard fires.
+    expect(setSpy).not.toHaveBeenCalled();
+    expect(targetRef.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects commit mode when confirmMigration is explicitly false', async () => {
+    const { db } = makeFakeDb({
+      legacyNodes: [makeFakeDoc('n1', { tenantId: 'tA', idempotencyKey: 'k1', title: 'X' })],
+      topLevel: [],
+    });
+    await expect(
+      consolidateZettelkasten({ db, mode: 'commit', confirmMigration: false }),
+    ).rejects.toThrow(/confirmMigration=true/);
+  });
+
+  it('dry-run mode NEVER requires confirmMigration (safe to call freely)', async () => {
+    const { db, setSpy } = makeFakeDb({
+      legacyNodes: [makeFakeDoc('n1', { tenantId: 'tA', idempotencyKey: 'k1', title: 'X' })],
+      topLevel: [],
+    });
+    // No confirmMigration flag, mode dry-run (default). Should NOT throw.
+    const report = await consolidateZettelkasten({ db });
+    expect(report.mode).toBe('dry-run');
+    expect(setSpy).not.toHaveBeenCalled(); // dry-run never writes
+  });
+
+  it('commit WITH confirmMigration=true proceeds (legacy happy path)', async () => {
+    const { db, setSpy, targetRef } = makeFakeDb({
+      legacyNodes: [makeFakeDoc('n1', { tenantId: 'tA', idempotencyKey: 'k1', title: 'X' })],
+      topLevel: [],
+    });
+    const report = await consolidateZettelkasten({ db, mode: 'commit', confirmMigration: true });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(targetRef.set).toHaveBeenCalled();
+    expect(report.consolidated).toBe(1);
   });
 });
