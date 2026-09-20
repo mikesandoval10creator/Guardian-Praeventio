@@ -3,6 +3,7 @@
 
 import type { RiskNodePayload, RiskNodeSeverity } from '../types';
 import { windLoadOnSurface, windSpeedKmhToMs } from '../../physics/bernoulliEngine';
+import { assertFinite } from './finiteGuards.js';
 
 const AIR_DENSITY_KG_M3 = 1.225; // NIST sea-level air, 15°C
 
@@ -36,6 +37,14 @@ export function generateScaffoldUpliftNode(
   weather: ScaffoldWeather,
   anchorage: ScaffoldAnchorage,
 ): RiskNodePayload | null {
+  // [Hy3-audit] Reject non-finite inputs BEFORE the legacy `<= 0` checks.
+  // NaN slips past `<= 0` (IEEE 754), `+Infinity` slips past it too.
+  assertFinite(scaffold.areaM2, 'scaffold.areaM2');
+  assertFinite(scaffold.pressureCoefficient, 'scaffold.pressureCoefficient');
+  assertFinite(weather.windKmh, 'weather.windKmh');
+  assertFinite(anchorage.anchorCount, 'anchorage.anchorCount');
+  assertFinite(anchorage.ratedCapacityN, 'anchorage.ratedCapacityN');
+
   if (scaffold.areaM2 <= 0) return null;
   if (anchorage.anchorCount <= 0 || anchorage.ratedCapacityN <= 0) return null;
   if (weather.windKmh <= 0) return null;
