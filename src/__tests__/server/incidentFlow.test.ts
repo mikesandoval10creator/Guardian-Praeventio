@@ -91,15 +91,15 @@ beforeEach(() => {
 
 describe('POST report', () => {
   it('401 / 403 / 404 gates', async () => {
-    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').send(reportBody)).status).toBe(401);
+    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set('Idempotency-Key', 't1').send(reportBody)).status).toBe(401);
     vi.mocked(assertProjectMember).mockRejectedValueOnce(new ProjectMembershipError('nope'));
-    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody)).status).toBe(403);
+    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).set('Idempotency-Key', 't2').send(reportBody)).status).toBe(403);
     H.db!._seed('projects/p1', { name: 'no-tenant' });
-    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody)).status).toBe(404);
+    expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).set('Idempotency-Key', 't3').send(reportBody)).status).toBe(404);
   });
 
   it('201 dispatches the flow + writes a canonical audit_logs row', async () => {
-    const res = await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody);
+    const res = await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).set('Idempotency-Key', 't4').send(reportBody);
     expect(res.status).toBe(201);
     expect(res.body.nodeIds).toEqual(['n1']);
     expect(H.onReported).toHaveBeenCalledTimes(1);
@@ -118,9 +118,54 @@ describe('POST report', () => {
     expect(row.actorUid).toBeUndefined();
   });
 
+  // [Hy3-audit] Idempotency-Key enforcement — the modern Driving shell
+  // creates a fresh incidentId per tap (projectId+Date.now()), so the only
+  // defense against double-taps and client retries is a client-supplied
+  // Idempotency-Key. Without the header, two POSTs with the SAME incidentId
+  // would each dispatch the flow and write two canonical audit_logs rows
+  // (and two ZK nodes) for what the operator sees as a single report.
+  // Resolves [Audit-2026-08-31] Driving modern shell — reportPersisted
+  // carece de Idempotency-Key.
+  it('400 missing Idempotency-Key header on the modern shell endpoint', async () => {
+    // The legacy `POST /:projectId/driving/incidents` route is opt-in for
+    // idempotency. The modern shell route (`/incident-flow/report`) MUST
+    // require the header because the client cannot supply a stable
+    // incidentId across retries.
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/incident-flow/report')
+      .set(uid)
+      .send(reportBody);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('idempotency_key_required');
+  });
+
+  it('two POSTs with the SAME Idempotency-Key return the SAME nodeIds (dedup)', async () => {
+    const key = 'driving-shell-2026-09-19-incident-42';
+    const res1 = await request(buildApp())
+      .post('/api/sprint-k/p1/incident-flow/report')
+      .set(uid)
+      .set('Idempotency-Key', key)
+      .send(reportBody);
+    expect(res1.status).toBe(201);
+    expect(res1.body.nodeIds).toEqual(['n1']);
+    expect(H.onReported).toHaveBeenCalledTimes(1);
+
+    const res2 = await request(buildApp())
+      .post('/api/sprint-k/p1/incident-flow/report')
+      .set(uid)
+      .set('Idempotency-Key', key)
+      .send(reportBody);
+    // Either 201 with cached body, OR 409 conflict, OR a specific 2xx
+    // dedup indicator. The contract we care about is: ZERO additional
+    // dispatches of the flow engine.
+    expect(res2.status).toBeGreaterThanOrEqual(200);
+    expect(res2.status).toBeLessThan(500);
+    expect(H.onReported).toHaveBeenCalledTimes(1); // CRITICAL: no re-dispatch
+  });
+
   it('500 when the flow engine returns ok:false', async () => {
     H.onReported.mockResolvedValue({ ok: false, error: 'edge_write_failed' });
-    const res = await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody);
+    const res = await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).set('Idempotency-Key', 't5').send(reportBody);
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('edge_write_failed');
   });
