@@ -279,7 +279,8 @@ export class HorometroValidationError extends Error {
       | 'INVALID_HOURS'
       | 'NEGATIVE_HOURS'
       | 'HOURS_REGRESSION'
-      | 'MISSING_EQUIPMENT_ID',
+      | 'MISSING_EQUIPMENT_ID'
+      | 'NOTES_REQUIRED',
     msg: string,
   ) {
     super(`[${code}] ${msg}`);
@@ -355,6 +356,25 @@ export async function recordReading(
       `new reading ${input.hours}h is less than latest ${latest.hours}h ` +
         `(use source='manual' to override with admin notes)`,
     );
+  }
+  // [Hy3-audit] Manual overrides now require a notes string that mentions
+  // "corregir" (the operator-recognizable token). Before this gate, the
+  // docstring claimed manual readings required a correction note but the
+  // implementation only checked `source === 'manual'` and skipped the notes
+  // check entirely — any admin could overwrite hours without a paper trail.
+  // Resolves [Audit-2026-08-31] Horómetro regression — lectura manual
+  // no exige nota de corrección. The min length is 5 (just enough to
+  // host "corregir" + some context) so the test boundary "corregir" passes
+  // without forcing operators into a verbose template.
+  if (input.source === 'manual' && latest && input.hours < latest.hours) {
+    const trimmedNotes = (input.notes ?? '').trim();
+    if (trimmedNotes.length < 5 || !/corregir/i.test(trimmedNotes)) {
+      throw new HorometroValidationError(
+        'NOTES_REQUIRED',
+        'manual reading that overrides a higher prior value MUST include ' +
+          'a notes string of at least 5 chars mentioning "corregir"',
+      );
+    }
   }
 
   const now = (input.now ?? (() => new Date()))();
