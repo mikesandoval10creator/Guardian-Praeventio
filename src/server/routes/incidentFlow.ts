@@ -147,6 +147,54 @@ async function guard(
   return { tenantId };
 }
 
+// [Hy3-audit] Resolves [Audit-2026-08-31] IncidentFlow lesson audience —
+// UIDs y publisher no se validan contra token/membresía.
+//
+// The spec flagged two related gaps: (a) publishedByUid was sourced from
+// body.lesson, which would have allowed spoofing — but the route already
+// sources it from callerUid (verified token), so that sub-claim is moot.
+// (b) audienceUids (publishLesson) and workerUids (assignMicrotraining)
+// iterate the lists without checking that each UID is a member of the
+// project, which lets a project member target UIDs from outside — a
+// cross-tenant signal that pollutes the PDCA / lesson-audience graph and
+// can leak closures to non-members.
+//
+// This helper rejects the request with 403 if ANY uid in the list is not
+// a project member (per `assertProjectMember`). It returns the offending
+// UIDs in the response details so the client can surface them and the
+// admin can audit. We fail-closed: a single outsider blocks the whole
+// publish, which is the safe default for a life-safety flow. The
+// `errorCode` argument lets each caller pick its own semantic (e.g.
+// "audience_not_member" vs "worker_not_member") so the audit trail and
+// the client UI can tell them apart.
+async function assertAllProjectMembers(
+  uids: string[],
+  projectId: string,
+  res: import('express').Response,
+  errorCode: 'audience_not_member' | 'worker_not_member',
+): Promise<boolean> {
+  const offending: string[] = [];
+  for (const uid of uids) {
+    try {
+      await assertProjectMember(uid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        offending.push(uid);
+        continue;
+      }
+      throw err;
+    }
+  }
+  if (offending.length > 0) {
+    res.status(403).json({
+      error: errorCode,
+      details: { offendingUids: offending },
+    });
+    return false;
+  }
+  return true;
+}
+
 // B4 (Fase 5): emit the CANONICAL audit_logs shape so incident-flow events are
 // queryable by the standard audit tooling. The prior hand-rolled row used
 // `kind`/`actorUid`/`createdAt`, which the audit readers (which filter on
@@ -458,6 +506,18 @@ router.post(
     if (!g) return undefined;
 
     try {
+      // [Hy3-audit] Server-side membership check on the audience BEFORE
+      // any write to the lesson graph. Without this, a project member
+      // could pass UIDs of users outside the project and the PDCA lesson
+      // would persist cross-tenant references.
+      const ok = await assertAllProjectMembers(
+        body.audienceUids,
+        projectId,
+        res,
+        'audience_not_member',
+      );
+      if (!ok) return undefined;
+
       const conclusionInput: InvestigationConclusionInput = {
         incidentId,
         projectId,
@@ -549,6 +609,20 @@ router.post(
     if (!g) return undefined;
 
     try {
+      // [Hy3-audit] Server-side membership check on the workerUids BEFORE
+      // any microtraining assignment. The lesson's own audienceUids are
+      // validated separately (publishLesson). Here we enforce that every
+      // assigned worker is a member of THIS project. Cross-tenant worker
+      // assignment would otherwise let a project member silently onboard
+      // an outsider into the project's training queue.
+      const ok = await assertAllProjectMembers(
+        body.workerUids,
+        projectId,
+        res,
+        'worker_not_member',
+      );
+      if (!ok) return undefined;
+
       const lessonInput: LessonPublicationInput = {
         incidentId,
         projectId,
