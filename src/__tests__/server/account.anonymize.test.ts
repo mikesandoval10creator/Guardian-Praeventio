@@ -55,6 +55,31 @@ vi.mock('../../server/services/anonymizeUser.js', () => ({
   anonymizeUser: (...args: unknown[]) => mockAnonymizeUser(...args),
 }));
 
+// [Hy3-audit] Disable the per-uid rate limiter (5 verify attempts per
+// minute) for the duration of this test. The suite makes 7 verify
+// calls in quick succession (3 legacy + 4 new purpose-binding cases);
+// without this mock the new tests trip the limiter after the legacy
+// happy path consumes its budget and the suite ends with a 429 instead
+// of a real assertion. Production keeps the limiter (it's mounted in
+// account.ts); this mock only affects the test module graph.
+//
+// We use vi.importActual to keep every other limiter export (15+ of
+// them — refereeLimiter, geminiLimiter, etc., referenced from other
+// routes that this file imports transitively) intact. Replacing
+// just `webauthnVerifyLimiter` keeps the surface minimal and prevents
+// the "No \"refereeLimiter\" export is defined" failure vitest raises
+// when a downstream route imports an export the mock forgot.
+vi.mock('../../server/middleware/limiters.js', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>(
+    '../../server/middleware/limiters.js',
+  );
+  const noOp = (_req: unknown, _res: unknown, next: () => void) => next();
+  return {
+    ...actual,
+    webauthnVerifyLimiter: noOp,
+  };
+});
+
 // ── REAL services to seed + the REAL router ─────────────────────────────────
 import {
   generateWebAuthnChallenge,
@@ -83,9 +108,20 @@ function auditActions(): string[] {
   return out;
 }
 
-async function issueChallenge(uid: string) {
+async function issueChallenge(
+  uid: string,
+  options?: { purpose?: string },
+) {
   const { challengeId, challenge } = generateWebAuthnChallenge();
-  await storeWebAuthnChallenge(uid, challengeId, challenge, buildWebAuthnDb());
+  // [Hy3-audit] Pass through the optional metadata so the test can
+  // simulate a clickjacked (wrong-purpose) vs. legitimate (right-
+  // purpose) challenge. When `options.purpose` is undefined we omit
+  // metadata entirely — this matches the legacy `curriculum.ts`
+  // path (see the cross-purpose replay test).
+  const storeOptions = options?.purpose
+    ? { metadata: { purpose: options.purpose } }
+    : {};
+  await storeWebAuthnChallenge(uid, challengeId, challenge, buildWebAuthnDb(), storeOptions);
   const challengeB64u = Buffer.from(challenge)
     .toString('base64')
     .replace(/\+/g, '-')
@@ -174,7 +210,13 @@ describe('POST /api/account/anonymize — 2FA-gated cascarón soft-delete', () =
       verified: true,
       authenticationInfo: { newCounter: 6 },
     });
-    const { challengeId, clientDataJSON } = await issueChallenge(UID);
+    // [Hy3-audit] The legacy happy path now requires a
+    // purpose-bound challenge. Without this metadata, the
+    // purpose validator rejects the challenge before the
+    // destructive path runs.
+    const { challengeId, clientDataJSON } = await issueChallenge(UID, {
+      purpose: 'account_anonymize',
+    });
     const res = await request(buildApp())
       .post('/api/account/anonymize')
       .set('x-test-uid', UID)
@@ -196,5 +238,70 @@ describe('POST /api/account/anonymize — 2FA-gated cascarón soft-delete', () =
     // Intent audited BEFORE + completion AFTER.
     expect(auditActions()).toContain('account.anonymization_initiated');
     expect(auditActions()).toContain('account.anonymization_completed');
+  });
+
+  // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn generic challenge —
+  // no se liga a propósito/acción de alto impacto. The legacy code
+  // stored challenges without metadata and the /anonymize route
+  // accepted ANY challenge that the caller could satisfy the
+  // cryptographic signature on. That allowed a clickjacking attack:
+  // an attacker could trick the user into approving a benign
+  // challenge (e.g. one issued for a future login), then replay the
+  // signed assertion against /anonymize and the route would happily
+  // authorise the irreversible deletion. After the fix, every
+  // challenge issued for /anonymize MUST carry the metadata
+  // `{purpose: 'account_anonymize'}`; the route installs a
+  // fail-closed validator that rejects anything else.
+  describe('POST /api/account/anonymize — purpose-bound challenge (resolves [Audit-2026-08-31])', () => {
+    it('401 + audit when the challenge carries a different purpose (cross-purpose replay)', async () => {
+      mockVerifyAuthenticationResponse.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 6 },
+      });
+      // Issue a challenge tagged for a different purpose — e.g. a
+      // future login. The /anonymize route must NOT accept it.
+      const wrong = await issueChallenge(UID, { purpose: 'webauthn_login' });
+      const res = await request(buildApp())
+        .post('/api/account/anonymize')
+        .set('x-test-uid', UID)
+        .send(biometricBody({ challengeId: wrong.challengeId, clientDataJSON: wrong.clientDataJSON }));
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('webauthn_verification_failed');
+      // The destructive path is NOT triggered.
+      expect(mockAnonymizeUser).not.toHaveBeenCalled();
+    });
+
+    it('401 when the challenge has NO metadata at all (legacy un-tagged challenge)', async () => {
+      mockVerifyAuthenticationResponse.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 6 },
+      });
+      // `issueChallenge` defaults to omitting metadata. A
+      // clickjacked attack would replay a challenge the user
+      // approved for the future biometric login — same code path,
+      // no metadata, gets rejected.
+      const legacy = await issueChallenge(UID);
+      const res = await request(buildApp())
+        .post('/api/account/anonymize')
+        .set('x-test-uid', UID)
+        .send(biometricBody({ challengeId: legacy.challengeId, clientDataJSON: legacy.clientDataJSON }));
+      expect(res.status).toBe(401);
+      expect(mockAnonymizeUser).not.toHaveBeenCalled();
+    });
+
+    it('200 when the challenge carries purpose: account_anonymize (happy path with binding)', async () => {
+      mockVerifyAuthenticationResponse.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 6 },
+      });
+      const correct = await issueChallenge(UID, { purpose: 'account_anonymize' });
+      const res = await request(buildApp())
+        .post('/api/account/anonymize')
+        .set('x-test-uid', UID)
+        .send(biometricBody({ challengeId: correct.challengeId, clientDataJSON: correct.clientDataJSON }));
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockAnonymizeUser).toHaveBeenCalledTimes(1);
+    });
   });
 });

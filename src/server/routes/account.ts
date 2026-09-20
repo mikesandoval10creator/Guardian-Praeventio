@@ -84,6 +84,23 @@ accountRouter.post('/anonymize', verifyAuth, webauthnVerifyLimiter, async (req, 
       expectedRpId: getWebauthnRpId(),
       challengesDb: buildWebAuthnDb(),
       credentialsDb: buildWebAuthnCredentialsDb(),
+      // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn generic
+      // challenge — no se liga a propósito/acción de alto impacto.
+      // Reject every challenge whose stored metadata is missing or
+      // whose purpose is not 'account_anonymize'. This closes the
+      // clickjacking path where an attacker tricks the user into
+      // approving a benign challenge (e.g. one issued for a future
+      // login) and replays the signed assertion against /anonymize.
+      // The validator is fail-closed: undefined metadata or any
+      // purpose other than 'account_anonymize' → 401, no info leak
+      // about WHY (the response stays at the generic
+      // `webauthn_verification_failed` so the attacker cannot probe
+      // valid purposes).
+      challengeMetadataValidator: (metadata: unknown): boolean => {
+        if (!metadata || typeof metadata !== 'object') return false;
+        const candidate = metadata as Record<string, unknown>;
+        return candidate.purpose === 'account_anonymize';
+      },
     });
     if (!verdict.verified) {
       logger.warn('account.anonymize webauthn verification failed', { uid, reason: verdict.reason });
