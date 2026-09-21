@@ -141,10 +141,25 @@ export function buildStructuralLoadProbe(
   const cpMagnitude = Math.abs(pressureCoefficient);
   if (cpMagnitude <= 0) return null;
 
-  const usableForecast = forecastWindKmh.filter(
-    (w) => Number.isFinite(w) && w >= 0,
-  );
-  if (usableForecast.length === 0) return null;
+  // [Hy3-audit] Resolves [Audit-2026-08-31] StructuralLoadProbe —
+  // forecast inválido comprime el horizonte temporal. The legacy
+  // `forecastWindKmh.filter(Number.isFinite)` silently removed
+  // invalid samples and reindexed the remaining ones — so
+  // `[30, NaN, 110]` became `[30, 110]` and the scheduler treated
+  // the +180min prediction as if it were the +120min prediction,
+  // reporting a lead time 60min shorter than reality. We now
+  // reject the forecast ENTIRELY if ANY sample is non-finite or
+  // negative — the scheduler gets an honest no-probe rather than
+  // a compressed-horizon probe that could fire late. Empty
+  // forecasts are also rejected (no usable samples = no probe).
+  if (forecastWindKmh.length === 0) return null;
+  if (
+    !forecastWindKmh.every(
+      (w) => Number.isFinite(w) && w >= 0,
+    )
+  ) {
+    return null;
+  }
 
   // Wind FORCE (N) for a given wind speed (km/h), via the Bernoulli engine.
   const forceForWindKmh = (windKmh: number): number => {
@@ -157,7 +172,7 @@ export function buildStructuralLoadProbe(
       ? forceForWindKmh(currentWindKmh)
       : 0;
 
-  const forceForecast = usableForecast.map(forceForWindKmh);
+  const forceForecast = forecastWindKmh.map(forceForWindKmh);
 
   return {
     // Reuse the canonical generator id so analytics + RECOMMENDED_ACTIONS_ES

@@ -74,6 +74,30 @@ describe('buildStructuralLoadProbe (real Bernoulli)', () => {
     expect(buildStructuralLoadProbe(base, 60, [NaN, -5])).toBeNull();
   });
 
+  // [Hy3-audit] Resolves [Audit-2026-08-31] StructuralLoadProbe —
+  // forecast inválido comprime el horizonte temporal. The legacy
+  // `forecastWindKmh.filter(Number.isFinite)` silently removed
+  // invalid samples and reindexed the remaining ones — so
+  // `[30, NaN, 110]` became `[30, 110]` and the scheduler treated
+  // the +180min prediction as if it were the +120min prediction,
+  // reporting a lead time 60min shorter than reality. The fix
+  // rejects the forecast ENTIRELY if ANY sample is non-finite or
+  // negative — the scheduler gets an honest no-probe rather than
+  // a compressed-horizon probe that could fire late.
+  it('rechaza forecast con muestras intermedias inválidas (NaN) — NO comprime horizonte', () => {
+    // The classical bug case: a valid sample at +60min, NaN at +120min,
+    // and a valid sample at +180min. The legacy filter kept indices
+    // [0, 2] and reindexed to [0, 1], reporting the +180min wind
+    // value as the +120min prediction.
+    const probe = buildStructuralLoadProbe(base, 60, [30, NaN, 110]);
+    expect(probe).toBeNull();
+    // Mixed invalid + valid (negative wind is invalid; treat the whole
+    // forecast as untrustworthy).
+    expect(buildStructuralLoadProbe(base, 60, [30, -1, 110])).toBeNull();
+    // Infinity counts as invalid too.
+    expect(buildStructuralLoadProbe(base, 60, [30, Infinity, 110])).toBeNull();
+  });
+
   it('buildStructuralLoadProbes drops invalid records, keeps real ones', () => {
     const recs: StructuralLoadInputs[] = [
       base,
