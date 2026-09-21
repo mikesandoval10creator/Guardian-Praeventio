@@ -32,7 +32,7 @@ const H = vi.hoisted(() => ({
   >,
 }));
 
-// Mock the firebase-admin module: incidentFlow.ts uses admin.firestore()
+// Mock the firebase-admin module: incidentFlow.ts uses getFirestore()
 // directly (it's a server route). Without this mock the test would try to
 // reach a real Firebase Admin instance. Pattern from
 // zettelkasten.getEdges.test.ts:26-29.
@@ -71,6 +71,7 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
 
 import incidentFlowRouter from './incidentFlow.js';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore.js';
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,

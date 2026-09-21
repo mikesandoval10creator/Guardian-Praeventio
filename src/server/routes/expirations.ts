@@ -16,11 +16,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -42,7 +43,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -174,7 +175,7 @@ router.get('/:projectId/expirations/list', verifyAuth, async (req, res) => {
   if (!(await guard(callerUid, projectId, res))) return undefined;
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const eppSnap = await db
       .collection('projects')
       .doc(projectId)

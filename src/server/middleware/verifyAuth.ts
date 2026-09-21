@@ -25,10 +25,11 @@
 //   are set — that combination is a configuration error and we refuse to boot.
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { safeSecretEqual } from './safeSecretEqual.js';
+
+import { getAuth } from 'firebase-admin/auth';
 
 function sentryCapture(
   err: unknown,
@@ -128,11 +129,11 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
   try {
     // Sprint 39 Fase B.2: checkRevoked=true valida `tokensValidAfterTime`
     // en cada request. Cuando un usuario se desactiva via deactivateUser()
-    // → admin.auth().revokeRefreshTokens(uid), todos los tokens emitidos
+    // → getAuth().revokeRefreshTokens(uid), todos los tokens emitidos
     // antes del revoke quedan inmediatamente inválidos sin esperar la
     // expiración natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
     // activo: ex-empleados con acceso por hasta 1h post-desactivación).
-    const decodedToken = await admin.auth().verifyIdToken(token, true);
+    const decodedToken = await getAuth().verifyIdToken(token, true);
 
     // TODO.md §12.2.9 — Session expiration absoluta (8h). El check
     // built-in de Firebase solo valida que el TOKEN no esté expirado

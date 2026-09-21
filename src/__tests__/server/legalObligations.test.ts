@@ -66,13 +66,14 @@ vi.mock('../../utils/logger.js', () => ({
 
 // assertProjectMember is a real function but we mock the Firestore under it via
 // fakeFirestore — so we let the real code run against H.db (no module-level mock).
-// The guard helper inside the route calls assertProjectMember(uid, projectId, admin.firestore())
+// The guard helper inside the route calls assertProjectMember(uid, projectId, getFirestore())
 // which resolves to H.db. We seed `projects/<id>` in each test that needs access.
 
 import legalObligationsRouter from '../../server/routes/legalObligations.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import type { LegalObligation } from '../../services/legalCalendar/legalObligationsCalendar.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // Mount prefix matches the comment at the top of legalObligations.ts: /api/sprint-k
 const PREFIX = '/api/sprint-k';
 

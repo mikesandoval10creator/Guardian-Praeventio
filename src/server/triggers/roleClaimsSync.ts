@@ -40,11 +40,14 @@
 //     promotion (users doc create rule only self-assigns worker roles);
 //     after that, every role change flows through here automatically.
 
-import type admin from 'firebase-admin';
 import { ADMIN_ROLES, SUPERVISOR_ROLES, WORKER_ROLES, ALL_ROLES } from '../../types/roles.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { serializeByKey } from './backgroundTriggers.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Auth } from 'firebase-admin/auth';
 
 // Lifecycle claim roles minted by userLifecycle.deactivateUser() and
 // anonymizeUser(). Never overwritten by the sync (see header).
@@ -60,14 +63,14 @@ function rank(role: unknown): number {
 }
 
 export interface RoleClaimsSyncDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Firebase Admin Auth — only the three members the sync needs. */
   auth: Pick<
-    admin.auth.Auth,
+    Auth,
     'getUser' | 'setCustomUserClaims' | 'revokeRefreshTokens'
   >;
-  /** Firestore admin namespace — for FieldValue.serverTimestamp(). */
-  firestoreNamespace: typeof admin.firestore;
+  /** Firestore FieldValue namespace — for serverTimestamp() in writes. */
+  fieldValue: typeof FieldValue;
 }
 
 export interface RoleClaimsSyncHandle {
@@ -91,6 +94,7 @@ export async function syncUserRoleClaim(
   uid: string,
   data: Record<string, unknown>,
 ): Promise<void> {
+  const { fieldValue } = deps;
   const docRole = data.role;
   if (typeof docRole !== 'string' || !ALL_ROLES.includes(docRole)) {
     // Not a role-bearing user doc (or garbage) — nothing to mirror.
@@ -124,7 +128,7 @@ export async function syncUserRoleClaim(
       {
         claimsSync: {
           role: docRole,
-          at: deps.firestoreNamespace.FieldValue.serverTimestamp(),
+          at: fieldValue.serverTimestamp(),
         },
       },
       { merge: true },
@@ -164,7 +168,7 @@ export async function syncUserRoleClaim(
       userId: 'system:roleClaimsSync',
       userEmail: null,
       projectId: null,
-      timestamp: deps.firestoreNamespace.FieldValue.serverTimestamp(),
+      timestamp: fieldValue.serverTimestamp(),
       ip: null,
       userAgent: null,
     });

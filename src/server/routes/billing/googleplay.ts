@@ -12,7 +12,6 @@
 // the monolith and shares its pattern with the App Store one).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
 import { google } from 'googleapis';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
@@ -28,6 +27,8 @@ import {
   type BillingCycle,
 } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Google Play Developer API client.
@@ -96,7 +97,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
       }
 
       const data = verificationResult.data;
-      const db = admin.firestore();
+      const db = getFirestore();
 
       // Log transaction — v2 schema: orderId vive en lineItems[0].
       const v2OrderId =
@@ -113,7 +114,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         type: type || 'subscription',
         status: 'verified',
         rawResponse: data,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'), NOT a
@@ -166,7 +167,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.purchaseToken': purchaseToken,
           'subscription.orderId': lineItem?.latestSuccessfulOrderId ?? null,
           'subscription.cycle': cycle,
-          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          'subscription.updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
         // One-time purchase: `productId` is used as a Firestore field-path key
@@ -186,7 +187,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         }
         await db.collection('users').doc(uid).update({
           [`purchased_products.${productId}`]: true,
-          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+          'subscription.updatedAt': FieldValue.serverTimestamp(),
         });
       }
 
@@ -249,7 +250,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
     // dedupe key we can't safely persist a lock and we don't want to wedge
     // the subscription on a malformed delivery.
     const messageId: string | undefined = message.messageId || message.message_id;
-    const db = admin.firestore();
+    const db = getFirestore();
 
     if (!messageId) {
       logger.warn('rtdn_missing_message_id');
@@ -323,7 +324,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
                 'subscription.gracePeriodEnd': null,
                 ...(rtdnPlan ? { 'subscription.planId': rtdnPlan } : {}),
                 'subscription.cycle': cycleFromProductId(subscriptionId),
-                'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+                'subscription.updatedAt': FieldValue.serverTimestamp(),
               });
             }
           }

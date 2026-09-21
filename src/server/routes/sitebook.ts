@@ -10,7 +10,6 @@
 // router orchestrates auth + tenantId resolution + serialization.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -26,6 +25,10 @@ import {
 import { SiteBookAdapter } from '../../services/siteBook/siteBookFirestoreAdapter.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 const router = Router();
 
@@ -60,9 +63,9 @@ const createEntrySchema = z.object({
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
-  const claims = (await admin.auth().getUser(callerUid)).customClaims ?? {};
+  const claims = (await getAuth().getUser(callerUid)).customClaims ?? {};
   if (typeof claims.tenantId === 'string' && claims.tenantId.length > 0) {
     return claims.tenantId;
   }
@@ -83,7 +86,7 @@ router.get('/:projectId/entries', verifyAuth, async (req, res) => {
   }
 
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -91,10 +94,10 @@ router.get('/:projectId/entries', verifyAuth, async (req, res) => {
     throw err;
   }
 
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
 
-  const adapter = new SiteBookAdapter({ db: admin.firestore() as any, tenantId, projectId });
+  const adapter = new SiteBookAdapter({ db: getFirestore() as any, tenantId, projectId });
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const entries = await adapter.listByYear(year, { limit });
   return res.json({ entries, year, count: entries.length });
@@ -105,7 +108,7 @@ router.get('/:projectId/entry/:folio', verifyAuth, async (req, res) => {
   const { projectId, folio } = req.params;
 
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -113,10 +116,10 @@ router.get('/:projectId/entry/:folio', verifyAuth, async (req, res) => {
     throw err;
   }
 
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
 
-  const adapter = new SiteBookAdapter({ db: admin.firestore() as any, tenantId, projectId });
+  const adapter = new SiteBookAdapter({ db: getFirestore() as any, tenantId, projectId });
   const entry = await adapter.getByFolio(folio);
   if (!entry) return res.status(404).json({ error: 'not_found' });
   return res.json(entry);
@@ -133,7 +136,7 @@ router.post(
     const body = req.body as z.infer<typeof createEntrySchema>;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -141,10 +144,10 @@ router.post(
       throw err;
     }
 
-    const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+    const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
     if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
 
-    const adapter = new SiteBookAdapter({ db: admin.firestore() as any, tenantId, projectId });
+    const adapter = new SiteBookAdapter({ db: getFirestore() as any, tenantId, projectId });
     const year = new Date(body.occurredAt).getUTCFullYear();
 
     try {

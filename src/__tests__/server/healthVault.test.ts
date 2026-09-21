@@ -43,7 +43,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin mock — collectionGroup + storage bolted on ────────────────
-// The route uses admin.firestore().collectionGroup('health_vault_shares') to
+// The route uses getFirestore().collectionGroup('health_vault_shares') to
 // locate workerUid+id from a public /view request, and admin.storage().bucket()
 // to stream a record's file. FakeFirestore supports neither, so we extend the
 // firestore() return value (collectionGroup, mirroring externalAuditPortal.test)
@@ -192,6 +192,7 @@ import { createFakeFirestore } from '../helpers/fakeFirestore';
 import type { VaultShareToken } from '../../services/health/vaultShare.js';
 import type { HealthRecord } from '../../services/health/vaultRecord.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 function buildApp() {
   const app = express();
   app.use(express.json());

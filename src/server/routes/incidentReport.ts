@@ -16,7 +16,6 @@
 
 import { Router } from 'express';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -25,6 +24,9 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -58,7 +60,7 @@ interface CanonicalIncident {
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -69,7 +71,7 @@ async function resolveTenantId(
 async function loadCanonicalIncident(
   incidentId: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<CanonicalIncident | null> {
   const snap = await db.collection('incidents').doc(incidentId).get();
   if (!snap.exists) return null;
@@ -151,7 +153,7 @@ router.post(
       return res.status(400).json({ error: 'invalid_params' });
     }
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -161,7 +163,7 @@ router.post(
     let incident: CanonicalIncident | null = null;
     let sha256 = '';
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const tenantId = await resolveTenantId(projectId, db);
       if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
       const loaded = await loadCanonicalIncident(incidentId, projectId, db);

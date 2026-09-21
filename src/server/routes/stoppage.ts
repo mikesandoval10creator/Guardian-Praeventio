@@ -39,7 +39,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { randomId } from '../../utils/randomId.js';
@@ -68,6 +67,9 @@ import { awardPoints } from '../../services/gamificationBackend.js';
 import { POINT_VALUES } from '../../services/gamification/pointValues.js';
 import { PositiveObservationsAdapter } from '../../services/positiveObservations/positiveObservationsFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guard(
@@ -76,7 +78,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -327,7 +329,7 @@ router.post(
       return res.status(400).json({ error: 'signature_required' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const stoppageRef = db
       .collection('projects')
       .doc(projectId)
@@ -495,7 +497,7 @@ router.post(
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -539,7 +541,7 @@ router.post(
       return res.status(403).json({ error: 'forbidden' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const stoppageRef = db
       .collection('projects')
       .doc(projectId)

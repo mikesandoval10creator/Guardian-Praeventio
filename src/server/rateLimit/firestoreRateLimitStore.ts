@@ -289,7 +289,7 @@ export class FirestoreRateLimitStore implements Store {
  *   const limiter = rateLimit({
  *     windowMs: 15 * 60 * 1000,
  *     max: 100,
- *     store: makeFirestoreRateLimitStore(admin.firestore(), { prefix: 'api:' }),
+ *     store: makeFirestoreRateLimitStore(getFirestore(), { prefix: 'api:' }),
  *   });
  *
  * Si Firebase Admin NO está inicializado (dev sin credenciales), el caller
@@ -310,12 +310,12 @@ export function makeFirestoreRateLimitStore(
  * al evaluar el módulo. Los routers que los importan (gemini, b2d) son imports
  * estáticos en `server.ts`, así que su árbol de módulos se evalúa ANTES del
  * cuerpo top-level de `server.ts` —donde vive `admin.initializeApp()`. Pasar
- * `admin.firestore()` eager ahí devolvería un handle inválido (o `apps.length`
+ * `getFirestore()` eager ahí devolvería un handle inválido (o `apps.length`
  * todavía 0). Este factory difiere la resolución del handle al primer
  * `increment()` (per-request), cuando Admin ya está inicializado.
  *
  *   const store = makeLazyFirestoreRateLimitStore(
- *     () => admin.firestore(),
+ *     () => getFirestore(),
  *     { prefix: 'gemini:' },
  *   );
  *   export const geminiLimiter = rateLimit({ ..., store });

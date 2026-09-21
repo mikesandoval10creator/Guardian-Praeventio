@@ -8,7 +8,6 @@
 // `./iapReceipts.ts` (Sprint 21 Bucket T pair with the Google Play one).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 
 // Sprint 28 Bucket B3 — transversal Zod validation factory. See
@@ -26,6 +25,8 @@ import {
   AppleSsnVerificationError,
 } from '../../../services/billing/appleSsn.js';
 import { sentryCapture } from './shared.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /api/billing/webhook/apple — App Store Server Notifications v2.
@@ -80,7 +81,7 @@ export function registerAppleSsnRoutes(billingApiRouter: Router): void {
       return res.status(500).json({ error: 'verify_failed' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     try {
       const outcome = await withIdempotency(

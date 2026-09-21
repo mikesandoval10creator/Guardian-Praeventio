@@ -23,7 +23,7 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  // verifyAuth calls admin.auth().verifyIdToken(token, true): map the Bearer
+  // verifyAuth calls getAuth().verifyIdToken(token, true): map the Bearer
   // token straight to a uid so the real verifyAuth path is exercised (401 when
   // absent, decoded uid attached when present).
   const authImpl = {
@@ -45,6 +45,7 @@ vi.mock('../../services/observability/index.js', () => ({
 import reportsRouter from '../../server/routes/reports.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getAuth } from 'firebase-admin/auth';
 function buildApp() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));

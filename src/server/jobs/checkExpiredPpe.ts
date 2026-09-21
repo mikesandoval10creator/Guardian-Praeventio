@@ -22,8 +22,8 @@
 // Mirrors the shape of `checkOverdueMaintenance.ts` (Bucket K.3) so the
 // HTTP handler can call both back-to-back and consolidate counts.
 
-import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -34,7 +34,7 @@ import {
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
-type MessagingFactory = () => adminMessaging.Messaging;
+type MessagingFactory = () => Messaging;
 
 /**
  * Per-project supervisor notifier. Decoupled from
@@ -45,7 +45,7 @@ export type SupervisorNotifier = (args: {
   projectId: string;
   payload: { title: string; body: string; data?: Record<string, string> };
   db: Firestore;
-  messaging: adminMessaging.Messaging;
+  messaging: Messaging;
 }) => Promise<{ notified: number; failed: number; supervisorEmails: string[] }>;
 
 export interface CheckExpiredPpeOptions {
@@ -100,10 +100,10 @@ async function checkExpiredPpeInner(
 ): Promise<CheckExpiredPpeResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
   const messaging = opts.getMessaging
     ? opts.getMessaging()
-    : (await import('firebase-admin')).default.messaging();
+    : getMessaging();
   const notifySupervisors: SupervisorNotifier =
     opts.notifySupervisors ??
     (async () => ({ notified: 0, failed: 0, supervisorEmails: [] }));

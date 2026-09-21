@@ -17,7 +17,6 @@
 // respective domain routes (sitebook.ts, etc.).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { requireTier } from '../middleware/requireTier.js';
 import { tierGateEnforced } from '../middleware/tierRouteTable.js';
@@ -56,6 +55,9 @@ import {
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guardProjectAccess(
@@ -64,7 +66,7 @@ async function guardProjectAccess(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
     return true;
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
@@ -79,7 +81,7 @@ async function guardProjectAccess(
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -110,7 +112,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, requireTier('platino', { enfo
   const topN = Math.min(Math.max(Number(req.query.topN) || 5, 1), 20);
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const [riskSnap, controlSnap] = await Promise.all([
       db.collection('risks').where('projectId', '==', projectId).limit(200).get(),
       db.collection('controls').where('projectId', '==', projectId).limit(200).get(),
@@ -150,7 +152,7 @@ router.get('/:projectId/top-risks', verifyAuth, requireTier('platino', { enforce
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
-  const db = admin.firestore();
+  const db = getFirestore();
   const tenantId = await resolveTenantId(callerUid, projectId, db);
   if (!tenantId) {
     return res.status(404).json({ error: 'tenant_not_found' });
@@ -211,7 +213,7 @@ router.get('/:projectId/weak-controls', verifyAuth, requireTier('platino', { enf
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
   const topN = Math.min(Math.max(Number(req.query.topN) || 10, 1), 50);
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const snap = await db
       .collection('projects')
       .doc(projectId)
@@ -274,7 +276,7 @@ router.get('/:projectId/risk-timeseries', verifyAuth, requireTier('platino', { e
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
-  const db = admin.firestore();
+  const db = getFirestore();
   const tenantId = await resolveTenantId(callerUid, projectId, db);
   if (!tenantId) {
     return res.status(404).json({ error: 'tenant_not_found' });
@@ -321,7 +323,7 @@ router.get('/:projectId/safety-talks', verifyAuth, requireTier('platino', { enfo
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const [incidentSnap, riskSnap, taskSnap, findingSnap] = await Promise.all([
       db
@@ -400,7 +402,7 @@ router.get('/:projectId/role-view', verifyAuth, requireTier('platino', { enforce
     : 'worker';
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const today = new Date().toISOString().slice(0, 10);
     const thirtyDaysFromNow = new Date(Date.now() + 30 * 86_400_000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();

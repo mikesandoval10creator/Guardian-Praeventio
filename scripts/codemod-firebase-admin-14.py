@@ -91,12 +91,15 @@ ALIAS_CALL_RE = re.compile(
 _value_keys_alt = "|".join(re.escape(k) for k in VALUE_CALL_MAP)
 VALUE_CALL_RE = re.compile(r"\badmin\.(?P<name>" + _value_keys_alt + r")\s*\(")
 
-# `admin.<key>` followed by NO `(` and NOT followed by `.identifier` (to avoid admin.firestoreField)
-# We match the bare form, with optional whitespace before `(` if user wrote `admin.apps(...)`.
+# `admin.<key>` — bare reference.
+# We match the bare form (NO `(` after to avoid admin.initializeApp).
+# For `admin.apps.length` we WANT to match — getApps().length is valid.
+# For `admin.app(name)` we still want it (caller will handle separately).
 def make_bare_ref_re(keys: list[str]) -> re.Pattern[str]:
     alt = "|".join(re.escape(k) for k in keys)
-    # `\badmin\.apps\b(?!\s*[\(\.])` — NOT followed by ( or .
-    return re.compile(r"\badmin\.(?P<name>" + alt + r")\b(?!\s*[\(\.])")
+    # Match `admin.<key>` followed by NOT a `(` (which would be a value call).
+    # `.length` is fine to match — getApps().length is valid.
+    return re.compile(r"\badmin\.(?P<name>" + alt + r")\b(?!\s*\()")
 
 
 # `admin.<qualifier>.<TypeName>` — qualifier access for types/values
@@ -115,6 +118,29 @@ QUALIFIER_VALUE_RE = re.compile(
     + "|".join(re.escape(k) for k in QUALIFIER_SUBPATH)
     + r")\.(?P<name>[a-z][A-Za-z0-9_]*)"
 )
+
+# `typeof admin.<qualifier>` — used to type function signatures in some files.
+# We rewrite to `typeof getX` since getX has the same type as the namespace.
+TYPEOF_QUALIFIER_RE = re.compile(
+    r"\btypeof\s+admin\.(?P<qual>"
+    + "|".join(re.escape(k) for k in QUALIFIER_SUBPATH)
+    + r")\b"
+)
+
+# `admin.<qualifier>` used as a value (rare; e.g. `admin.firestore` passed to a
+# function expecting the namespace itself). We rewrite to `getFirestore` (the
+# function returns the namespace instance, which is compatible).
+BARE_QUALIFIER_RE = re.compile(
+    r"\badmin\.(?P<qual>"
+    + "|".join(re.escape(k) for k in QUALIFIER_SUBPATH)
+    + r")\b(?!\s*[\(\.])"
+)
+
+# Names that are VALUE exports even though they start with an uppercase letter.
+# (FieldValue is a runtime value with methods like .serverTimestamp().)
+VALUE_TYPE_NAMES: set[str] = {
+    "FieldValue",
+}
 
 # Import detection
 LEGACY_IMPORT_RE = re.compile(
@@ -254,18 +280,53 @@ def migrate_file(path: Path) -> tuple[bool, str]:
         name = m.group("name")
         subpath, export, _, takes_arg = BARE_REF_MAP[name]
         value_imports.setdefault(subpath, set()).add(export)
-        return export
+        # Always emit as a call (getApps(), getApp()). The trailing .length, [0],
+        # etc. that originally followed `admin.apps` still work on the result.
+        return f"{export}()"
     content = make_bare_ref_re(list(BARE_REF_MAP.keys())).sub(bare_ref_repl, content)
 
     # 4. Replace QUALIFIER for TYPE names: admin.firestore.Timestamp -> Timestamp
     # We import as TYPE (safer) — Timestamp/Auth/etc are interfaces.
+    # EXCEPTION: VALUE_TYPE_NAMES like 'FieldValue' are runtime values.
     def qual_type_repl(m: re.Match[str]) -> str:
         qual = m.group("qual")
         type_name = m.group("type")
+        if type_name in VALUE_TYPE_NAMES:
+            subpath = QUALIFIER_SUBPATH[qual]
+            value_imports.setdefault(subpath, set()).add(type_name)
+            return type_name
         subpath = QUALIFIER_SUBPATH[qual]
         type_imports.setdefault(subpath, set()).add(type_name)
         return type_name
     content = QUALIFIER_RE.sub(qual_type_repl, content)
+
+    # 4b. Re-classify VALUE_TYPE_NAMES that may have been added to type_imports.
+    for subpath in list(type_imports.keys()):
+        overlap = type_imports[subpath] & VALUE_TYPE_NAMES
+        if overlap:
+            value_imports.setdefault(subpath, set()).update(overlap)
+            type_imports[subpath] -= overlap
+            if not type_imports[subpath]:
+                del type_imports[subpath]
+
+    # 4c. Replace `typeof admin.<qualifier>` -> `typeof getX`.
+    # This is used in some files as a type alias for function signatures.
+    def typeof_qual_repl(m: re.Match[str]) -> str:
+        qual = m.group("qual")
+        subpath, export = VALUE_CALL_MAP[qual]
+        value_imports.setdefault(subpath, set()).add(export)
+        return f"typeof {export}"
+    content = TYPEOF_QUALIFIER_RE.sub(typeof_qual_repl, content)
+
+    # 4d. Replace bare `admin.<qualifier>` used as a value
+    # (e.g. `admin.firestore` passed to a function expecting the namespace).
+    # We rewrite to `getFirestore()` (compatible — returns the namespace).
+    def bare_qual_repl(m: re.Match[str]) -> str:
+        qual = m.group("qual")
+        subpath, export = VALUE_CALL_MAP[qual]
+        value_imports.setdefault(subpath, set()).add(export)
+        return f"{export}()"
+    content = BARE_QUALIFIER_RE.sub(bare_qual_repl, content)
 
     # 5. Replace QUALIFIER for VALUE names: admin.firestore.FieldValue -> FieldValue
     # FieldValue is used at runtime (.serverTimestamp()) so it's a value import.

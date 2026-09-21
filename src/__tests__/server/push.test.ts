@@ -23,9 +23,10 @@ import request from 'supertest';
 import { Router } from 'express';
 import { InMemoryFirestore, type FakeAuth } from './test-server.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Test harness — mirror real prod wiring. We can't import the real
-// router because it touches `admin.firestore()` which would require
+// router because it touches `getFirestore()` which would require
 // Firebase Admin init. Instead we build a parallel express app whose
 // handler is a verbatim copy of the production handler (R3 owns both).
 // Drift is mitigated the same way admin.test.ts mitigates it: handler

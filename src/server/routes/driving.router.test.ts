@@ -1,6 +1,6 @@
 // Praeventio Guard — Driving telemetry router: real-router supertest (CLAUDE.md
 // #22 behavioral-coverage ratchet). Boots the REAL `driving` router with
-// admin.firestore() backed by the in-memory FakeFirestore, mocks ONLY
+// getFirestore() backed by the in-memory FakeFirestore, mocks ONLY
 // infrastructure (firebase-admin, verifyAuth, captureRouteError, logger), and
 // drives the three endpoints through their full lifecycle:
 //   POST /:projectId/driving/haversine-meters
@@ -49,6 +49,7 @@ vi.mock('../../utils/logger.js', () => ({
 
 import drivingRouter from './driving';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   haversineMeters,
   accumulateTripMileage,

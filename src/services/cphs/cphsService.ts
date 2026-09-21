@@ -8,7 +8,7 @@
 //   • Pure DI (`MinimalCphsDb`) — mismo patrón que
 //     `services/curriculum/claims.ts` y `services/auth/projectMembership.ts`.
 //     Los tests inyectan un fake in-memory; producción wirea
-//     `admin.firestore()` desde server.ts.
+//     `getFirestore()` desde server.ts.
 //   • Subcolecciones: `cphs_committees/{id}/meetings/{id}`. La lookup de
 //     meetings es por id-de-doc plano (segundo collection) más el
 //     `committeeId` embebido en cada meeting — esto permite un fake
@@ -36,12 +36,13 @@ import {
 } from './types.js';
 import { awardXp } from '../gamification/positiveXp.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ───────────────────────────────────────────────────────────────────────
 // Firestore-shape DI
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * Subset de la API Firestore que usamos. `admin.firestore()` es
+ * Subset de la API Firestore que usamos. `getFirestore()` es
  * estructuralmente compatible.
  */
 export interface MinimalCphsDb {

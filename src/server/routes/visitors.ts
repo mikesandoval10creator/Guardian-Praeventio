@@ -27,7 +27,6 @@
 // thin Express adapter responsible for the I/O.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -36,6 +35,8 @@ import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -80,7 +81,7 @@ const listQuerySchema = z.object({
 
 /** Resolve tenantId from `projects/{projectId}.tenantId`. Null if missing. */
 async function tenantIdFor(projectId: string): Promise<string | null> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) return null;
   const data = snap.data() ?? {};
@@ -101,7 +102,7 @@ async function assertMemberAndResolveTenant(
   projectId: string,
 ): Promise<string | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -121,8 +122,7 @@ function visitorsCollection(
   tenantId: string,
   projectId: string,
 ): FirebaseFirestore.CollectionReference {
-  return admin
-    .firestore()
+  return getFirestore()
     .collection('tenants')
     .doc(tenantId)
     .collection('projects')
@@ -229,7 +229,7 @@ router.post(
       | { kind: 'ok'; checkOutAt: string };
     let result: R;
     try {
-      result = await admin.firestore().runTransaction<R>(async (txn) => {
+      result = await getFirestore().runTransaction<R>(async (txn) => {
         const snap = await txn.get(ref);
         if (!snap.exists) return { kind: 'not_found' };
         let event;
@@ -296,7 +296,7 @@ router.post(
       | { kind: 'ok'; inductionVersionId: string; inductedAt: string };
     let result: R;
     try {
-      result = await admin.firestore().runTransaction<R>(async (txn) => {
+      result = await getFirestore().runTransaction<R>(async (txn) => {
         const snap = await txn.get(ref);
         if (!snap.exists) return { kind: 'not_found' };
         let event;

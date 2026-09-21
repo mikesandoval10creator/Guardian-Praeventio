@@ -27,7 +27,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -39,6 +38,9 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 // ── Guard helpers ─────────────────────────────────────────────────────
@@ -46,7 +48,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -71,7 +73,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -82,7 +84,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -99,7 +101,7 @@ router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const adapter = new LessonsAdapter(admin.firestore(), g.tenantId);
+    const adapter = new LessonsAdapter(getFirestore(), g.tenantId);
     const scope = typeof req.query.scope === 'string' ? req.query.scope : null;
     const riskCategory =
       typeof req.query.riskCategory === 'string'
@@ -157,7 +159,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const adapter = new LessonsAdapter(admin.firestore(), g.tenantId);
+      const adapter = new LessonsAdapter(getFirestore(), g.tenantId);
       // adoptionCount is server-owned — a new lesson always starts at 0.
       await adapter.save({ ...body, adoptionCount: 0 });
       // Audit: canonical top-level `audit_logs` (actor stamped from the

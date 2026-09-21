@@ -4,7 +4,7 @@
 // Exercises the ACTUAL production router (verifyAuth mocked to read x-test-uid,
 // validate middleware kept real for 400 paths, fakeFirestore for Firestore).
 // The `guard()` helper calls assertProjectMember + resolveTenantId both via
-// admin.firestore(), which the fakeFirestore mock intercepts.
+// getFirestore(), which the fakeFirestore mock intercepts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -16,8 +16,8 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  // No custom authImpl needed: the route never calls admin.auth().getUser();
-  // it only reads admin.firestore() for guard / workerIsProjectMember.
+  // No custom authImpl needed: the route never calls getAuth().getUser();
+  // it only reads getFirestore() for guard / workerIsProjectMember.
   return adminMock(() => H.db!);
 });
 
@@ -56,6 +56,8 @@ vi.mock('../../services/observability/index.js', () => ({
 import emergencyBrigadeRouter from '../../server/routes/emergencyBrigade.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 // Mount prefix matches server.ts: app.use('/api/sprint-k', emergencyBrigadeRouter)
 const PREFIX = '/api/sprint-k';
 

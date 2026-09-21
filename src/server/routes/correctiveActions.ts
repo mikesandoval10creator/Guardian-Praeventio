@@ -16,7 +16,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -28,12 +27,15 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -47,7 +49,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -55,7 +57,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -73,7 +75,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new CorrectiveActionsAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -127,8 +129,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      await admin
-        .firestore()
+      await getFirestore()
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/corrective_actions`,
         )
@@ -188,7 +189,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new CorrectiveActionsAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );

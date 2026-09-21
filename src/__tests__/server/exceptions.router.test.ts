@@ -1,6 +1,6 @@
 // Real-router supertest for exceptions endpoints (Sprint 39 G.2).
 // Six pure-compute endpoints — no Firestore writes in the route itself, but
-// assertProjectMember reads projects/{id} via admin.firestore().
+// assertProjectMember reads projects/{id} via getFirestore().
 // Pattern mirrors admin.router.test.ts (vi.hoisted + adminMock).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -36,6 +36,7 @@ vi.mock('../../utils/logger.js', () => ({
 import exceptionsRouter from '../../server/routes/exceptions.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 function buildApp() {
   const app = express();
   app.use(express.json());

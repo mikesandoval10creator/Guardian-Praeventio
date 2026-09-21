@@ -1,6 +1,6 @@
 // Praeventio Guard — Critical Roles router: REAL-router behavioral supertest
 // (CLAUDE.md #22 router-test ratchet). Boots the actual `criticalRoles` router
-// with admin.firestore() backed by the in-memory FakeFirestore, runs the REAL
+// with getFirestore() backed by the in-memory FakeFirestore, runs the REAL
 // engine in `src/services/criticalRoles/criticalRolesMap.ts`, and exercises the
 // four stateless POST endpoints over HTTP via supertest.
 //
@@ -50,6 +50,7 @@ vi.mock('../../utils/logger.js', () => ({
 import criticalRolesRouter from './criticalRoles';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-k';
 const TENANT = 't1';
 const PROJECT = 'p1';

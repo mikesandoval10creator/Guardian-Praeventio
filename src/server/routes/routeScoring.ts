@@ -13,7 +13,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -28,6 +27,8 @@ import {
 } from '../../services/routeScoring/criticalRouteScoring.js';
 import { evaluateDriverRoute } from '../../services/routeScoring/driverRouteMatcher.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guard(
@@ -36,7 +37,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });

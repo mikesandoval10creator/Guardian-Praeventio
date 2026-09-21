@@ -60,6 +60,7 @@ vi.mock('../../server/middleware/captureRouteError.js', () => ({
 // ─── import REAL router AFTER mocks ──────────────────────────────────────────
 import aiFeedbackRouter from '../../server/routes/aiFeedback.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function buildApp() {
   const app = express();

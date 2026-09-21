@@ -25,13 +25,15 @@
 
 import { Router } from 'express';
 import express from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { logger } from '../../utils/logger.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore, QuerySnapshot } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -121,7 +123,7 @@ function summarizeIssues(
 }
 
 async function loadExistingKeys(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string | undefined,
   kind: ImportEntityKind,
@@ -133,7 +135,7 @@ async function loadExistingKeys(
     // Lectura best-effort, paginada. Si la colección es enorme, sólo
     // miramos las primeras 1000 — la UI deja claro que la dedupe contra
     // base no es exhaustiva más allá de eso (issue conocido del Sprint).
-    let snap: admin.firestore.QuerySnapshot;
+    let snap: QuerySnapshot;
     if (projectId) {
       snap = await db
         .collection('tenants')
@@ -246,7 +248,7 @@ router.post(
     if (options?.checkExisting) {
       try {
         existingKeys = await loadExistingKeys(
-          admin.firestore(),
+          getFirestore(),
           uid,
           options.projectId,
           kind,
@@ -338,7 +340,7 @@ router.post(
     }
     const { kind, records, projectId } = parsed.data;
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // B17 (Fase 5): conectar la verificación de membresía que faltaba — antes,
     // cualquier usuario autenticado podía COMMITear registros a cualquier
@@ -375,7 +377,7 @@ router.post(
           const docRef = colRef.doc();
           batch.set(docRef, {
             ...rec,
-            _importedAt: admin.firestore.FieldValue.serverTimestamp(),
+            _importedAt: FieldValue.serverTimestamp(),
             _importedBy: uid,
             _importSource: 'excel-importer',
           });

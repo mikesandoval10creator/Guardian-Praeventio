@@ -20,7 +20,6 @@
 //   would leak the project secret to a member's browser. Rotation = bump keyId.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -29,6 +28,8 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember } from '../../services/auth/projectMembership.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { logger } from '../../utils/logger.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const QuerySchema = z.object({
   projectId: z.string().min(1).max(128),
@@ -39,7 +40,7 @@ const router = Router();
 router.get('/key', verifyAuth, validate(QuerySchema, 'query'), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.validated as z.infer<typeof QuerySchema>;
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // Only project members may obtain the project mesh key. (We pass no decoded
   // token: assertProjectMember resolves membership from Firestore projects/{id},
@@ -65,7 +66,7 @@ router.get('/key', verifyAuth, validate(QuerySchema, 'query'), async (req, res) 
         projectId,
         keyId,
         key,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         createdBy: callerUid,
       });
       return { keyId, key };

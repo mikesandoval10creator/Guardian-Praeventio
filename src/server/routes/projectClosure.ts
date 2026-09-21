@@ -24,7 +24,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -37,12 +36,15 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -67,7 +69,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -78,7 +80,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -121,7 +123,7 @@ interface StoredCriticalDecision {
 }
 
 async function readClosureState(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
 ): Promise<ClosureState> {
@@ -149,7 +151,7 @@ async function readClosureState(
 }
 
 async function writeClosureState(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
   state: ClosureState,
@@ -161,7 +163,7 @@ async function writeClosureState(
 }
 
 async function readPendingCounts(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
 ): Promise<{
@@ -259,7 +261,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const [state, pending] = await Promise.all([
         readClosureState(db, g.tenantId, projectId),
         readPendingCounts(db, g.tenantId, projectId),
@@ -323,7 +325,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const current = await readClosureState(db, g.tenantId, projectId);
       if (current.status === 'finalized') {
         return res
@@ -370,7 +372,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const state = await readClosureState(db, g.tenantId, projectId);
       if (state.status === 'finalized') {
         return res
@@ -383,7 +385,7 @@ router.post(
 
       // Publish to global library F.12 with scope='industry'.
       const adapter = new LessonsAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
       );
       const publishedLessonId = `proj_${projectId}_${lessonId}`;
@@ -454,7 +456,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const state = await readClosureState(db, g.tenantId, projectId);
       if (state.status === 'finalized') {
         return res
@@ -501,7 +503,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const current = await readClosureState(db, g.tenantId, projectId);
       if (current.status === 'finalized') {
         return res
@@ -583,7 +585,7 @@ router.get(
         typeof req.query.role === 'string' ? req.query.role : 'operations';
       const audience = roleToAudience(role);
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const safeCount = async (
         label: string,
         fn: () => Promise<number>,

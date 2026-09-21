@@ -19,7 +19,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -32,6 +31,8 @@ import {
 import { shouldFireWindowed } from '../../services/predictiveAlerts/windowedTrigger.js';
 import { evaluateProbes } from '../../services/predictiveAlerts/alertScheduler.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guard(
@@ -40,7 +41,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -200,8 +201,7 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const nowIso = new Date().toISOString();
-      const ref = await admin
-        .firestore()
+      const ref = await getFirestore()
         .collection('projects')
         .doc(projectId)
         .collection('notifications')

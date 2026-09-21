@@ -23,7 +23,6 @@
 // Mounted in server.ts at `/api/dte`. Final paths preserved verbatim.
 
 import { Router, type Request, type Response } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { getWebauthnRpId } from '../auth/rpId.js';
@@ -64,6 +63,8 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
+import { getAuth } from 'firebase-admin/auth';
+
 function dteSentryCapture(
   err: unknown,
   context: { endpoint: string; tags?: Record<string, string | number | boolean | null | undefined> },
@@ -88,7 +89,7 @@ async function requireAdmin(req: Request, res: Response): Promise<boolean> {
     return false;
   }
   try {
-    const callerRecord = await admin.auth().getUser(uid);
+    const callerRecord = await getAuth().getUser(uid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       res.status(403).json({ error: 'admin_required' });
       return false;
@@ -111,7 +112,7 @@ async function isCallerDteAdmin(req: Request): Promise<boolean> {
   const uid = req.user?.uid;
   if (!uid) return false;
   try {
-    const callerRecord = await admin.auth().getUser(uid);
+    const callerRecord = await getAuth().getUser(uid);
     return isAdminRole(callerRecord.customClaims?.role);
   } catch (err) {
     logger.error('dte.isCallerDteAdmin getUser failed', err instanceof Error ? err : new Error(String(err)));

@@ -31,12 +31,14 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore, QueryDocumentSnapshot, QuerySnapshot } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -49,7 +51,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -74,7 +76,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -85,7 +87,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -274,7 +276,7 @@ router.get(
         '../../services/culturePulse/safetyCulturePulse.js'
       );
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
       );
@@ -294,7 +296,7 @@ router.get(
       const fetchSurveyOrdered = async (
         statusFilter: 'open' | 'closed',
         orderField: 'openAt' | 'closeAt',
-      ): Promise<admin.firestore.QueryDocumentSnapshot[] | null> => {
+      ): Promise<QueryDocumentSnapshot[] | null> => {
         try {
           const snap = await baseRef
             .where('status', '==', statusFilter)
@@ -333,7 +335,7 @@ router.get(
       };
 
       const nowIso = new Date().toISOString();
-      let surveyDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+      let surveyDoc: QueryDocumentSnapshot | null = null;
 
       const openDocs = await fetchSurveyOrdered('open', 'openAt');
       if (openDocs && openDocs.length > 0) {
@@ -403,7 +405,7 @@ router.get(
           : 'closed';
 
       const responsesSnap = await safeRead<
-        admin.firestore.QuerySnapshot | null
+        QuerySnapshot | null
       >(
         () => baseRef.doc(surveyId).collection('responses').get(),
         null,
@@ -536,7 +538,7 @@ router.post(
       });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
@@ -617,7 +619,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const surveyRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
@@ -731,7 +733,7 @@ router.get(
         '../../services/culturePulse/safetyCulturePulse.js'
       );
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
       );
@@ -749,7 +751,7 @@ router.get(
       };
 
       const fetchHistoryOrdered = async (): Promise<
-        admin.firestore.QueryDocumentSnapshot[]
+        QueryDocumentSnapshot[]
       > => {
         try {
           const snap = await baseRef
@@ -790,7 +792,7 @@ router.get(
       for (const surveyDoc of surveyDocs) {
         const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
         const responsesSnap = await safeRead<
-          admin.firestore.QuerySnapshot | null
+          QuerySnapshot | null
         >(() => surveyDoc.ref.collection('responses').get(), null);
         const responses =
           responsesSnap?.docs.map(

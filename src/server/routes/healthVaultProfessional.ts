@@ -3,7 +3,6 @@ import type { Readable } from 'node:stream';
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -51,6 +50,9 @@ import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/
 import { bucketHealthAccessDuration } from '../../services/analytics/healthPrivacy.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 type VerifiedAssertion = { verified: boolean; credentialId?: string; reason?: string };
 type FilePayload = {
@@ -874,7 +876,7 @@ export async function activateVaultSessionAtomically(input: {
 
 function defaultDependencies(): HealthVaultProfessionalRouterDeps {
   if (cachedDefaultDependencies) return cachedDefaultDependencies;
-  const db = admin.firestore();
+  const db = getFirestore();
   const grants = db.collectionGroup('health_vault_shares');
   const sessions = db.collection('health_vault_access_sessions');
   const professionals = db.collection('health_professional_identities');
@@ -1069,7 +1071,7 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
     },
     async readFile(fileUri) {
       const objectPath = fileUri.replace(/^gs:\/\/[^/]+\//, '');
-      const file = admin.storage().bucket().file(objectPath);
+      const file = getStorage().bucket().file(objectPath);
       const [exists] = await file.exists();
       if (!exists) return null;
       const [metadata] = await file.getMetadata();

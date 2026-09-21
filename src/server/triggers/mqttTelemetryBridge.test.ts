@@ -20,16 +20,18 @@ const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../../__tests__/helpers/fakeFirestore').createFakeFirestore> | null,
 }));
 
-vi.mock('firebase-admin', () => ({
-  default: {
-    firestore: {
-      FieldValue: {
-        // ISO string so the gas gate's Date.parse(timestamp) path works.
-        serverTimestamp: () => new Date().toISOString(),
-      },
+vi.mock('firebase-admin/firestore', async () => {
+  const actual = await vi.importActual<typeof import('firebase-admin/firestore')>(
+    'firebase-admin/firestore',
+  );
+  return {
+    ...actual,
+    FieldValue: {
+      // ISO string so the gas gate's Date.parse(timestamp) path works.
+      serverTimestamp: () => new Date().toISOString(),
     },
-  },
-}));
+  };
+});
 
 vi.mock('../routes/emergency.js', () => ({
   sendToProjectSupervisors: vi.fn(async () => ({

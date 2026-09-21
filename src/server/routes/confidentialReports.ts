@@ -17,7 +17,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -30,6 +29,10 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { sendMulticastChunked } from '../utils/fcmMulticast.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 
 const router = Router();
 
@@ -112,7 +115,7 @@ const CONFIDENTIAL_ADVERSE_ACTIONS_PATH = (tenantId: string) =>
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -126,7 +129,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -134,7 +137,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -158,7 +161,7 @@ async function resolveRequesterRole(
     return { role: claimRole, roles: claimRoles, isAdmin: claimAdmin };
   }
   try {
-    const userDoc = await admin.firestore().collection('users').doc(callerUid).get();
+    const userDoc = await getFirestore().collection('users').doc(callerUid).get();
     if (!userDoc.exists) return { role: '', roles: [], isAdmin: false };
     const data = userDoc.data() as Record<string, unknown>;
     const role = typeof data.role === 'string' ? data.role : '';
@@ -200,7 +203,7 @@ function hashReporterAnon(callerUid: string, tenantId: string): string {
  */
 async function notifyProjectLeadOfReport(projectId: string, reportId: string): Promise<void> {
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const projSnap = await db.collection('projects').doc(projectId).get();
     const leadUid = projSnap.exists
       ? (projSnap.data() as { createdBy?: unknown } | undefined)?.createdBy
@@ -214,7 +217,7 @@ async function notifyProjectLeadOfReport(projectId: string, reportId: string): P
       ? raw.filter((t): t is string => typeof t === 'string' && t.length > 0)
       : [];
     if (tokens.length === 0) return;
-    await sendMulticastChunked(admin.messaging(), tokens, {
+    await sendMulticastChunked(getMessaging(), tokens, {
       notification: {
         title: 'Nueva denuncia confidencial',
         body: 'Se registró una denuncia (Ley Karín 21.643). Ábrela en Reportes Confidenciales.',
@@ -256,7 +259,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       // Ley 21.643 + ISO 45001 §5.4 — denuncia receipt IDs must be
       // unpredictable so anonymous reporters cannot be enumerated by an
@@ -329,7 +332,7 @@ router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   try {
     const callerRoleInfo = await resolveRequesterRole(callerUid, req.user as { role?: string; roles?: string[]; admin?: boolean });
     const isHandler = isHandlerRole(callerRoleInfo);
-    const db = admin.firestore();
+    const db = getFirestore();
     const snap = await db
       .collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId))
       .where('projectId', '==', projectId)
@@ -374,7 +377,7 @@ router.post(
       if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized_to_respond' });
       }
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db.collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId)).doc(id);
       const snap = await docRef.get();
       if (!snap.exists) return res.status(404).json({ error: 'report_not_found' });
@@ -444,7 +447,7 @@ router.post(
       if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized_to_close' });
       }
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db.collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId)).doc(id);
       const snap = await docRef.get();
       if (!snap.exists) return res.status(404).json({ error: 'report_not_found' });
@@ -508,7 +511,7 @@ router.get(
       if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized' });
       }
-      const db = admin.firestore();
+      const db = getFirestore();
       const safeRead = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => {
         try {
           return await fn();

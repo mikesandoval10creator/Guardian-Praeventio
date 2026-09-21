@@ -25,7 +25,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -36,6 +35,8 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { moderatePostContent } from '../../utils/contentModeration.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.post(
 
     // 1. Assert project membership
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -91,7 +92,7 @@ router.post(
     let userName = 'Usuario';
     let userPhoto = '';
     try {
-      const userDoc = await admin.firestore().collection('users').doc(callerUid).get();
+      const userDoc = await getFirestore().collection('users').doc(callerUid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
         userName = userData?.displayName || userData?.email || 'Usuario';
@@ -105,7 +106,7 @@ router.post(
     // 4. Write to Firestore via Admin SDK
     const postsPath = `projects/${projectId}/safety_posts`;
     try {
-      const docRef = await admin.firestore().collection(postsPath).add({
+      const docRef = await getFirestore().collection(postsPath).add({
         userId: callerUid,
         userName,
         userPhoto,
@@ -114,7 +115,7 @@ router.post(
         imageUrl: body.imageUrl || null,
         likes: [],
         comments: [],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         projectId,
       });
 

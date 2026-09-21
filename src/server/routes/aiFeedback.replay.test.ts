@@ -18,7 +18,7 @@ import express from 'express';
 import request from 'supertest';
 
 // In-memory firestore con soporte para `runTransaction` — el handler usa
-// admin.firestore().runTransaction, así que el shim debe exponerlo.
+// getFirestore().runTransaction, así que el shim debe exponerlo.
 const mocks = vi.hoisted(() => {
   const store = new Map<string, any>();
   const audit: any[] = [];
@@ -117,6 +117,7 @@ vi.mock('../middleware/limiters.js', async (importOriginal) => {
 
 import aiFeedbackRouter from './aiFeedback.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 function buildApp() {
   const app = express();
   app.use(express.json());

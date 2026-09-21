@@ -37,13 +37,15 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -74,7 +76,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -96,7 +98,7 @@ async function guard(
  * field. Returns false + sends 403 on a cross-project hit.
  */
 async function assertObligationInProject(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   obligationId: string,
   projectId: string,
   res: import('express').Response,
@@ -125,8 +127,7 @@ async function assertObligationInProject(
 async function loadProjectObligations(
   projectId: string,
 ): Promise<Array<{ id: string; obligation: LegalObligation }>> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collection(COLLECTION_OBLIGATIONS)
     .where('projectId', '==', projectId)
     .get();
@@ -273,7 +274,7 @@ router.post(
     const { projectId } = req.params;
     const body = req.validated as z.infer<typeof acknowledgeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
-    const db = admin.firestore();
+    const db = getFirestore();
     if (!(await assertObligationInProject(db, body.obligation.id, projectId, res)))
       return undefined;
     try {
@@ -342,7 +343,7 @@ router.post(
     const { projectId } = req.params;
     const body = req.validated as z.infer<typeof snoozeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
-    const db = admin.firestore();
+    const db = getFirestore();
     if (!(await assertObligationInProject(db, body.obligation.id, projectId, res)))
       return undefined;
     try {
@@ -428,7 +429,7 @@ router.get(
     const { projectId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const snap = await db
         .collection(COLLECTION_OBLIGATIONS)
         .where('projectId', '==', projectId)

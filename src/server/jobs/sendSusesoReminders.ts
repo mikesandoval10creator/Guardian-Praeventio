@@ -19,8 +19,8 @@
 //     surface them; the empresa knows it's overdue).
 //   • Per-form failures NEVER abort the scan (mirrors checkExpiredPpe).
 
-import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { Messaging, getMessaging } from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -33,7 +33,7 @@ import {
 } from '../../services/suseso/reminders.js';
 
 type FirestoreFactory = () => Firestore;
-type MessagingFactory = () => adminMessaging.Messaging;
+type MessagingFactory = () => Messaging;
 
 /**
  * Per-recipient delivery callback. Decoupled from a concrete FCM impl so
@@ -154,7 +154,7 @@ async function sendSusesoRemindersInner(
 ): Promise<SendSusesoRemindersResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
   const dispatcher: ReminderDispatcher =
     opts.dispatcher ??
     (async () => ({ pushSent: false, emailSent: false }));

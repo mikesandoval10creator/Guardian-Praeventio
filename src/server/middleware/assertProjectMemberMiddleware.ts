@@ -26,7 +26,8 @@
 // further server.ts churn.
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -53,7 +54,7 @@ export function assertProjectMemberFromBody() {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
       return next();
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
@@ -83,7 +84,7 @@ export function assertProjectMemberFromParam(paramName: string = 'id') {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
       return next();
     } catch (err) {
       if (err instanceof ProjectMembershipError) {

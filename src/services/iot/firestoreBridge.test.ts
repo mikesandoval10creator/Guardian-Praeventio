@@ -42,6 +42,7 @@ vi.mock('../../server/routes/emergency.js', () => ({
 import { bridgeMqttToFirestore, kindToIngestType } from './firestoreBridge.js';
 import { sendToProjectSupervisors } from '../../server/routes/emergency.js';
 import type { TelemetrySample } from './types.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 interface MemDoc {
   collection: (n: string) => MemCollection;

@@ -27,12 +27,15 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -97,7 +100,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -122,7 +125,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -133,7 +136,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -204,7 +207,7 @@ router.get('/:projectId/work-permits', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const adapter = new WorkPermitAdapter({
-      db: admin.firestore() as any,
+      db: getFirestore() as any,
       tenantId: g.tenantId,
       projectId,
     });
@@ -339,7 +342,7 @@ router.post(
     // the issuer can self-issue when the schema permits it.
     if (workerUid !== callerUid) {
       try {
-        await assertProjectMember(workerUid, projectId, admin.firestore());
+        await assertProjectMember(workerUid, projectId, getFirestore());
       } catch (err) {
         if (err instanceof ProjectMembershipError) {
           try {
@@ -384,7 +387,7 @@ router.post(
         durationHours: body.durationHours,
       });
       const adapter = new WorkPermitAdapter({
-        db: admin.firestore() as any,
+        db: getFirestore() as any,
         tenantId: g.tenantId,
         projectId,
       });
@@ -438,7 +441,7 @@ const WIND_LOOKUP_TIMEOUT_MS = 3000;
 /** Read `projects/{projectId}.geo` when it carries finite lat/lng. */
 async function readProjectGeo(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<{ lat: number; lng: number } | null> {
   try {
     const snap = await db.collection('projects').doc(projectId).get();
@@ -543,7 +546,7 @@ function toGasTelemetryReading(
  * (firestore.indexes.json).
  */
 async function readZoneGasReadings(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string,
 ): Promise<GasTelemetryReading[] | null> {
@@ -566,7 +569,7 @@ async function readZoneGasReadings(
 
 /** `readZoneGasReadings` bounded by a hard deadline. */
 async function readZoneGasReadingsWithTimeout(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string,
   timeoutMs = GAS_TELEMETRY_LOOKUP_TIMEOUT_MS,
@@ -592,7 +595,7 @@ async function readZoneGasReadingsWithTimeout(
  * absence of data must never stop work (weatherGate unavailability policy).
  */
 async function resolveGasVerification(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   zoneId: string | null | undefined,
 ): Promise<GasVerification> {
@@ -657,8 +660,8 @@ async function notifyGasBlockAlert(
           source: 'work_permits.gas_gate',
         },
       },
-      admin.firestore(),
-      admin.messaging(),
+      getFirestore(),
+      getMessaging(),
     );
   } catch (err) {
     // Alert is best-effort; the 409/200 + audit trail are the hard guarantees.
@@ -689,7 +692,7 @@ router.post(
     let weatherVerification: WeatherVerification | null = null;
     let merged: WindMergeResult | null = null;
     if (KINDS_WITH_WIND.has(body.kind)) {
-      const geo = await readProjectGeo(projectId, admin.firestore());
+      const geo = await readProjectGeo(projectId, getFirestore());
       if (geo) {
         const serverWind = await resolveServerWindWithTimeout(
           {
@@ -779,7 +782,7 @@ router.post(
     let gasVerification: GasVerification | null = null;
     if (GAS_SENSITIVE_KINDS.has(body.kind as WorkPermitKind)) {
       gasVerification = await resolveGasVerification(
-        admin.firestore(),
+        getFirestore(),
         projectId,
         body.zoneId ?? null,
       );
@@ -848,7 +851,7 @@ router.post(
     }
     try {
       const adapter = new WorkPermitAdapter({
-        db: admin.firestore() as any,
+        db: getFirestore() as any,
         tenantId: g.tenantId,
         projectId,
       });
@@ -870,7 +873,7 @@ router.post(
       } | null = null;
       if (GAS_SENSITIVE_KINDS.has(permit.kind)) {
         gasVerification = await resolveGasVerification(
-          admin.firestore(),
+          getFirestore(),
           projectId,
           permit.zoneId ?? null,
         );
@@ -1006,7 +1009,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new WorkPermitAdapter({
-        db: admin.firestore() as any,
+        db: getFirestore() as any,
         tenantId: g.tenantId,
         projectId,
       });

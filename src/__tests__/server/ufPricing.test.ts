@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type adminNs from 'firebase-admin';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   readCachedUfValueClp,
   resolveBillingTierUf,
@@ -7,7 +7,7 @@ import {
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 const asFs = (db: ReturnType<typeof createFakeFirestore>) =>
-  db as unknown as adminNs.firestore.Firestore;
+  db as unknown as Firestore;
 
 describe('readCachedUfValueClp', () => {
   it('returns the cached UF value', async () => {

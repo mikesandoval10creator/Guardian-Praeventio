@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { Router } from "express";
-import admin from "firebase-admin";
 import { z } from "zod";
 
 import { verifyAuth } from "../middleware/verifyAuth.js";
@@ -17,6 +16,8 @@ import {
   type TierId,
 } from "../../services/pricing/tiers.js";
 import { logger } from "../../utils/logger.js";
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const targetSchema = z
   .object({
@@ -137,8 +138,7 @@ async function buildDowngradePlan(
   }
 
   const target = getTierById(targetTier);
-  const activeProjects = await admin
-    .firestore()
+  const activeProjects = await getFirestore()
     .collection("projects")
     .where("tenantId", "==", uid)
     .where("status", "==", "active")
@@ -322,7 +322,7 @@ tierDowngradeRouter.post("/archive", verifyAuth, async (req, res) => {
           path: `projects/${worker.projectId}/workers/${worker.workerId}`,
           data: {
             archived: true,
-            archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            archivedAt: FieldValue.serverTimestamp(),
             archivedBy: uid,
           },
         });
@@ -341,7 +341,7 @@ tierDowngradeRouter.post("/archive", verifyAuth, async (req, res) => {
           path: `projects/${project.projectId}`,
           data: {
             status: "archived",
-            archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            archivedAt: FieldValue.serverTimestamp(),
             archivedBy: uid,
           },
         });
@@ -351,10 +351,10 @@ tierDowngradeRouter.post("/archive", verifyAuth, async (req, res) => {
     // Firestore batches accept at most 500 writes. Keep headroom so future
     // audit/receipt writes can be added without silently crossing the limit.
     for (let offset = 0; offset < mutations.length; offset += 450) {
-      const batch = admin.firestore().batch();
+      const batch = getFirestore().batch();
       for (const mutation of mutations.slice(offset, offset + 450)) {
         batch.update(
-          admin.firestore().doc(mutation.path),
+          getFirestore().doc(mutation.path),
           mutation.data as FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
         );
       }

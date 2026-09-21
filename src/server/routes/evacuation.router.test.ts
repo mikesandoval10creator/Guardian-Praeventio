@@ -1,5 +1,5 @@
 // Praeventio Guard — evacuation router: real-router behavioral supertest (CLAUDE.md
-// #22). Boots the REAL evacuation router with admin.firestore() backed by the
+// #22). Boots the REAL evacuation router with getFirestore() backed by the
 // in-memory FakeFirestore, runs the REAL evacuationHeadcount engine
 // (computeStatus / recordScan / endDrill / buildPostmortem), and asserts the
 // full HTTP lifecycle of all four endpoints:
@@ -56,6 +56,7 @@ vi.mock('../../utils/logger.js', () => ({
 import evacuationRouter from './evacuation';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-g';
 const PROJECT = 'p1';
 const LEADER = 'leader-1';

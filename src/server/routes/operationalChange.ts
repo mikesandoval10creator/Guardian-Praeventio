@@ -33,7 +33,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -61,6 +60,9 @@ import {
 } from '../../services/changeMgmt/operationalChangeService.js';
 import { OperationalChangeAdapter } from '../../services/changeMgmt/operationalChangeFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 const KINDS: readonly ChangeKind[] = [
@@ -78,7 +80,7 @@ const IMPACTS: readonly ChangeImpact[] = ['low', 'medium', 'high'];
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -92,7 +94,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -100,7 +102,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(projectId, admin.firestore());
+  const tenantId = await resolveTenantId(projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -145,7 +147,7 @@ router.post(
         declaredByUid: callerUid,
       });
       const adapter = new OperationalChangeAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -190,7 +192,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -235,7 +237,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -291,7 +293,7 @@ async function loadChange(
   mocId: string,
   res: import('express').Response,
 ): Promise<{ adapter: OperationalChangeAdapter; change: OperationalChange } | null> {
-  const adapter = new OperationalChangeAdapter(admin.firestore(), g.tenantId, projectId);
+  const adapter = new OperationalChangeAdapter(getFirestore(), g.tenantId, projectId);
   const change = await adapter.getById(mocId);
   if (!change) {
     res.status(404).json({ error: 'moc_not_found' });
@@ -501,7 +503,7 @@ router.get(
           ? limitParam
           : 50;
       const adapter = new OperationalChangeAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -542,7 +544,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -565,8 +567,7 @@ router.post(
         });
       }
       const closedAt = new Date().toISOString();
-      await admin
-        .firestore()
+      await getFirestore()
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/operational_changes`,
         )

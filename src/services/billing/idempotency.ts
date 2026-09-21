@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // Praeventio Guard — withIdempotency() lock-then-complete helper.
 //
 // Background: two billing endpoints (Google Play RTDN webhook,
@@ -90,7 +91,7 @@ export const IDEMPOTENCY_DEFAULT_STALE_MS = 5 * 60 * 1000;
  * with `.collection(name).doc(key).get()/.set()/.update()` so callers can
  * pass either:
  *
- *   • the real `admin.firestore()` instance, or
+ *   • the real `getFirestore()` instance, or
  *   • a vitest mock (see idempotency.test.ts).
  *
  * We intentionally do NOT import `firebase-admin` at module load — that

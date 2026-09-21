@@ -10,7 +10,6 @@
 //     missing half: adapter + webhook existed but nothing CREATED payments.
 
 import express, { type Router } from 'express';
-import admin from 'firebase-admin';
 import { randomUUID } from 'node:crypto';
 
 import { logger } from '../../../utils/logger.js';
@@ -45,6 +44,8 @@ import {
 } from '../../../services/dte/dteIssueQueueStore.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
 import { sentryCapture } from './shared.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 export function registerKhipuRoutes(billingApiRouter: Router): void {
   // ──────────────────────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         return res.status(200).json({ received: true });
       }
 
-      const db = admin.firestore();
+      const db = getFirestore();
 
       try {
         const outcome = await withIdempotency(
@@ -149,7 +150,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
               await invoiceRef.set(
                 {
                   status: 'paid',
-                  paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                  paidAt: FieldValue.serverTimestamp(),
                   paymentSource: 'khipu',
                   khipuPaymentId: paymentId,
                 },
@@ -180,7 +181,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 userId: null,
                 userEmail: null,
                 projectId: null,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                timestamp: FieldValue.serverTimestamp(),
                 ip: req.ip ?? null,
                 userAgent: req.header('user-agent') ?? null,
               });
@@ -207,7 +208,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         planId,
                         tierId,
                         status: 'active',
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                         lastInvoiceId: invoiceId,
                         paymentMethod: 'khipu',
                         provider: 'khipu',
@@ -350,7 +351,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 userId: null,
                 userEmail: null,
                 projectId: null,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                timestamp: FieldValue.serverTimestamp(),
                 ip: req.ip ?? null,
                 userAgent: req.header('user-agent') ?? null,
               });
@@ -440,7 +441,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
       const cycle: 'monthly' | 'annual' = body.cycle;
       // Canonical plan check: the tier must exist in the pricing table AND
       // normalize to a subscription plan id (src/services/pricing/).
-      const tier = await resolveBillingTierUf(body.planId, admin.firestore());
+      const tier = await resolveBillingTierUf(body.planId, getFirestore());
       const planId = normalizeSubscriptionPlanId(body.planId);
       if (!tier || !planId) {
         return res.status(400).json({ error: 'Unknown planId' });
@@ -502,7 +503,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
 
       // Pending invoice the IPN webhook correlates via buyOrder === invoiceId.
       // Same collection/shape as the Webpay + MP pending records.
-      const db = admin.firestore();
+      const db = getFirestore();
       await db.collection('invoices').doc(invoiceId).set({
         id: invoiceId,
         status: 'pending-payment',
@@ -518,7 +519,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         issuedAt: new Date().toISOString(),
         createdBy: callerUid,
         createdByEmail: callerEmail,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Audit row — identity stamped from the verified token, mirroring
@@ -538,7 +539,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         userId: callerUid,
         userEmail: callerEmail,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });

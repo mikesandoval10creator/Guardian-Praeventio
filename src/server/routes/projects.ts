@@ -29,7 +29,6 @@
 //   • Invitation accept: the caller's email must match the invited email.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 
@@ -66,6 +65,9 @@ import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 import type { ComplianceArchiveAttestation } from '../../services/compliance/complianceSignature.js';
 import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 function sentryCapture(
   err: unknown,
@@ -367,8 +369,7 @@ projectsRouter.post('/', verifyAuth, async (req, res) => {
     // (tiers.ts proyectosMax). Same staged rollout as the invite seat gate.
     try {
       const plan = await readSubscriptionPlanId(callerUid);
-      const active = await admin
-        .firestore()
+      const active = await getFirestore()
         .collection('projects')
         .where('tenantId', '==', callerUid)
         .where('status', '==', 'active')
@@ -421,8 +422,7 @@ projectsRouter.post('/', verifyAuth, async (req, res) => {
       });
     }
 
-    const docRef = await admin
-      .firestore()
+    const docRef = await getFirestore()
       .collection('projects')
       .add({
         ...projectFields,
@@ -478,7 +478,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
   }
 
   try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    const projectDoc = await getFirestore().collection('projects').doc(projectId).get();
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
@@ -491,7 +491,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     // Check if user is already a member
     const existingMembers: string[] = projectData.members || [];
     try {
-      const invitedUser = await admin.auth().getUserByEmail(invitedEmail);
+      const invitedUser = await getAuth().getUserByEmail(invitedEmail);
       if (existingMembers.includes(invitedUser.uid)) {
         return res.status(409).json({ error: 'User is already a member of this project' });
       }
@@ -500,8 +500,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     }
 
     // Check for existing pending invitation
-    const existingInvite = await admin
-      .firestore()
+    const existingInvite = await getFirestore()
       .collection('invitations')
       .where('projectId', '==', projectId)
       .where('invitedEmail', '==', invitedEmail)
@@ -583,7 +582,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const inviteRef = await admin.firestore().collection('invitations').add({
+    const inviteRef = await getFirestore().collection('invitations').add({
       projectId,
       projectName: projectData.name || '',
       invitedEmail,
@@ -608,7 +607,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     // Falls back to the legacy inline path if `RESEND_API_KEY` is unset
     // (e.g. local dev) so the route still returns a token.
     try {
-      const callerRecord = await admin.auth().getUser(callerUid);
+      const callerRecord = await getAuth().getUser(callerUid);
       const inviterName = callerRecord.displayName || callerRecord.email || 'Tu equipo';
       const emailService = EmailService.fromEnv();
       const subject = `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`;
@@ -678,7 +677,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
 
   try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    const projectDoc = await getFirestore().collection('projects').doc(projectId).get();
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
@@ -692,7 +691,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
     const memberDetails = await Promise.all(
       memberUids.map(async (uid) => {
         try {
-          const userRecord = await admin.auth().getUser(uid);
+          const userRecord = await getAuth().getUser(uid);
           return {
             uid,
             displayName: userRecord.displayName || userRecord.email || uid,
@@ -715,8 +714,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
     );
 
     // Include pending invitations
-    const pendingInvites = await admin
-      .firestore()
+    const pendingInvites = await getFirestore()
       .collection('invitations')
       .where('projectId', '==', projectId)
       .where('status', '==', 'pending')
@@ -756,7 +754,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
   const callerUid = req.user!.uid;
 
   try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    const projectDoc = await getFirestore().collection('projects').doc(projectId).get();
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     if (!callerCanManageProject(callerUid, projectDoc.data()!)) {
@@ -765,8 +763,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
       });
     }
 
-    const workerRef = admin
-      .firestore()
+    const workerRef = getFirestore()
       .collection('projects')
       .doc(projectId)
       .collection('workers')
@@ -778,7 +775,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
     // client-supplied archived/archivedBy in the body is ignored.
     await workerRef.update({
       archived: true,
-      archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      archivedAt: FieldValue.serverTimestamp(),
       archivedBy: callerUid,
     });
 
@@ -820,7 +817,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
 projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, res) => {
   const { id: projectId, workerId } = req.params;
   const callerUid = req.user!.uid;
-  const db = admin.firestore();
+  const db = getFirestore();
   const workerRef = db.collection('projects').doc(projectId).collection('workers').doc(workerId);
 
   try {
@@ -836,7 +833,7 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
 
     let targetUid: string;
     try {
-      targetUid = (await admin.auth().getUserByEmail(workerEmail)).uid;
+      targetUid = (await getAuth().getUserByEmail(workerEmail)).uid;
     } catch {
       return res.status(409).json({ error: 'offboarding_worker_account_unlinked' });
     }
@@ -886,12 +883,12 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
       tx.create(passportRef, passport);
       tx.update(workerSnap.ref, {
         archived: true,
-        archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        archivedAt: FieldValue.serverTimestamp(),
         archivedBy: callerUid,
-        offboardedAt: admin.firestore.FieldValue.serverTimestamp(),
+        offboardedAt: FieldValue.serverTimestamp(),
       });
       tx.update(projectSnap.ref, {
-        members: admin.firestore.FieldValue.arrayRemove(targetUid),
+        members: FieldValue.arrayRemove(targetUid),
         memberRoles: memberRolesWithout(projectData.memberRoles, targetUid),
       });
       tx.set(db.collection('audit_logs').doc(), {
@@ -907,7 +904,7 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
         userEmail: req.user?.email ?? null,
         projectId,
         source: 'server',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
@@ -919,7 +916,7 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
       // tokens here too so the former worker cannot retain an old ID token until
       // the listener catches up. A roster-only record may not map to Auth.
       try {
-        await admin.auth().revokeRefreshTokens(targetUid);
+        await getAuth().revokeRefreshTokens(targetUid);
         tokenRevocation = 'revoked';
       } catch (authError) {
         tokenRevocation = 'failed';
@@ -969,7 +966,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
 
   try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    const projectDoc = await getFirestore().collection('projects').doc(projectId).get();
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
@@ -985,9 +982,9 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
       return res.status(400).json({ error: 'Cannot remove the project creator' });
     }
 
-    await admin.firestore().collection('projects').doc(projectId).update({
-      members: admin.firestore.FieldValue.arrayRemove(targetUid),
-      [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
+    await getFirestore().collection('projects').doc(projectId).update({
+      members: FieldValue.arrayRemove(targetUid),
+      [`memberRoles.${targetUid}`]: FieldValue.delete(),
     });
 
     await auditServerEvent(req, 'projects.memberRemove', 'projects', {
@@ -1034,7 +1031,7 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
   }
 
   try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    const projectDoc = await getFirestore().collection('projects').doc(projectId).get();
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
@@ -1044,7 +1041,7 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
         .json({ error: 'Forbidden: Only the project creator or a gerente/admin member can cancel invitations' });
     }
 
-    const inviteDoc = await admin.firestore().collection('invitations').doc(inviteId).get();
+    const inviteDoc = await getFirestore().collection('invitations').doc(inviteId).get();
     if (!inviteDoc.exists) return res.status(404).json({ error: 'Invitation not found' });
     if (inviteDoc.data()!.projectId !== projectId) {
       return res.status(403).json({ error: 'Invitation does not belong to this project' });
@@ -1082,8 +1079,7 @@ export const invitationsRouter = Router();
 invitationsRouter.get('/info/:token', async (req, res) => {
   const { token } = req.params;
   try {
-    const snapshot = await admin
-      .firestore()
+    const snapshot = await getFirestore()
       .collection('invitations')
       .where('token', '==', token)
       .where('status', '==', 'pending')
@@ -1119,8 +1115,7 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
     typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
 
   try {
-    const snapshot = await admin
-      .firestore()
+    const snapshot = await getFirestore()
       .collection('invitations')
       .where('token', '==', token)
       .where('status', '==', 'pending')
@@ -1158,13 +1153,13 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
         .json({ error: 'Invitation projectId does not match request projectId' });
     }
 
-    const projectRef = admin.firestore().collection('projects').doc(invite.projectId);
+    const projectRef = getFirestore().collection('projects').doc(invite.projectId);
 
     // Run validate-and-write in a transaction so the project-existence check
     // and the arrayUnion mutation are atomic. Without this, a project could
     // be deleted between the read and write, or a stale read could be used
     // to write to a non-existent project.
-    await admin.firestore().runTransaction(async (tx) => {
+    await getFirestore().runTransaction(async (tx) => {
       const projectSnap = await tx.get(projectRef);
       if (!projectSnap.exists) {
         const err: any = new Error('Project not found');
@@ -1185,7 +1180,7 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
         throw err;
       }
       tx.update(projectRef, {
-        members: admin.firestore.FieldValue.arrayUnion(callerUid),
+        members: FieldValue.arrayUnion(callerUid),
         [`memberRoles.${callerUid}`]: invite.invitedRole,
       });
       tx.update(inviteDoc.ref, {

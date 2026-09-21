@@ -23,7 +23,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -34,6 +33,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { fetchOpenMeteoHourlyWind } from '../../services/b2d/externalClimate.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   buildStructuralLoadProbes,
   deriveSchedulerWindow,
@@ -49,7 +51,7 @@ const FORECAST_HOURS = 6;
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -74,7 +76,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -82,7 +84,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -136,7 +138,7 @@ router.get('/:projectId/structural-loads', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     // B2 (Fase 5): surface read failures — never mask a failed read of a
     // safety input as an empty list. Rethrow → outer catch → 500.
     const snap = await db
@@ -169,7 +171,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const payload: StoredStructuralLoad = {
         id: body.id,
@@ -224,7 +226,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const snap = await db
         .collection(colPath(g.tenantId, projectId))
         .limit(500)

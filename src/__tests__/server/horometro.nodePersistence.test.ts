@@ -5,7 +5,7 @@
 // `serverZkNodeWriter.test.ts` exercises the writer in ISOLATION. Neither proves
 // that booting the REAL horometro route end-to-end actually persists ZK nodes.
 //
-// This test boots the real `horometroRouter` with `admin.firestore()` mocked by
+// This test boots the real `horometroRouter` with `getFirestore()` mocked by
 // the in-memory FakeFirestore, lets the REAL flow (`onHorometroReading`) and the
 // REAL Admin-SDK writer (`serverWriteNodes`) run, and asserts the node docs
 // actually land in the canonical `zettelkasten_nodes` collection — closing the
@@ -25,7 +25,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin → in-memory FakeFirestore (the REAL serverWriteNodes calls
-//    admin.firestore() directly, so this captures its writes) ─────────────────
+//    getFirestore() directly, so this captures its writes) ─────────────────
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
@@ -97,6 +97,7 @@ vi.mock('../../services/zettelkasten/edgeStoreFirestore.js', () => ({
 import horometroRouter from '../../server/routes/horometro.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-k';
 const UID = 'uid-1';
 const PROJECT_ID = 'proj-1';

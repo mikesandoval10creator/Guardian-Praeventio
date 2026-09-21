@@ -28,7 +28,7 @@
 // for the next tick instead of waiting for TTL to expire).
 
 import { randomBytes } from 'crypto';
-import type { Firestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getErrorTracker } from '../observability/index.js';
 
 export interface AcquireResult {
@@ -77,8 +77,7 @@ function defaultNonce(): string {
 }
 
 async function getDefaultDb(): Promise<Firestore> {
-  const admin = (await import('firebase-admin')).default;
-  return admin.firestore();
+  return getFirestore();
 }
 
 function leaseRef(db: Firestore, jobName: string) {

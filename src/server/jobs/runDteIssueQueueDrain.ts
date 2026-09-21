@@ -29,7 +29,7 @@
 //     where it stopped.
 
 import { randomUUID } from 'node:crypto';
-import type { Firestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 import {
   DTE_ISSUE_CLAIMS_COLLECTION,
@@ -120,7 +120,7 @@ export async function runDteIssueQueueDrain(
     return result;
   }
 
-  const db = opts.db ?? (await import('firebase-admin')).default.firestore();
+  const db = opts.db ?? getFirestore();
   const now = opts.now ?? (() => new Date());
   const limit = opts.limit ?? 50;
   const issueDte =

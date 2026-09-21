@@ -51,12 +51,13 @@
 // clients retrying).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { __clearUserTokenCache } from './emergency.js';
 import { __clearProjectTokenCache } from '../services/projectTokens.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const VALID_PLATFORMS = new Set<string>(['ios', 'android', 'web']);
 
@@ -75,27 +76,26 @@ router.post('/register-token', verifyAuth, async (req, res) => {
   }
 
   try {
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('users')
       .doc(callerUid)
       .set(
         {
-          fcmTokens: admin.firestore.FieldValue.arrayUnion(token),
-          lastTokenRegisteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          fcmTokens: FieldValue.arrayUnion(token),
+          lastTokenRegisteredAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
 
     // Audit trail — see audit_logs schema notes in server.ts. We deliberately
     // log `{ platform }` and NOT the token (see header comment).
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       action: 'push.token.registered',
       module: 'push',
       details: { platform },
       userId: callerUid,
       userEmail: callerEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
@@ -132,7 +132,7 @@ router.post('/unregister-token', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid platform' });
   }
 
-  const userRef = admin.firestore().collection('users').doc(callerUid);
+  const userRef = getFirestore().collection('users').doc(callerUid);
 
   try {
     // Read-then-write vs arrayRemove: we want idempotency (no audit row
@@ -154,21 +154,21 @@ router.post('/unregister-token', verifyAuth, async (req, res) => {
 
     await userRef.set(
       {
-        fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
-        lastTokenUnregisteredAt: admin.firestore.FieldValue.serverTimestamp(),
+        fcmTokens: FieldValue.arrayRemove(token),
+        lastTokenUnregisteredAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
 
     // Audit row — same security rule as register-token: `{ platform }` only,
     // NEVER the raw FCM token (see header comment).
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       action: 'push.token.unregistered',
       module: 'push',
       details: { platform },
       userId: callerUid,
       userEmail: callerEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });

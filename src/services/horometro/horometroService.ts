@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // Praeventio Guard — Bloque 4.1: Horometro -> Mantenimiento Preventivo flow.
 //
 // Cierra: "Plan Bloque 4.1 — primera demostracion del poder ZK" (founder).
@@ -19,7 +20,7 @@
 //     `checkThresholdsCrossed(...)` — sin IO. Tests deterministas.
 //   - `recordReading(...)` y `getCurrentHours(...)` SI persisten via la
 //     interfaz minimal `HorometroStore` que el caller inyecta. En
-//     produccion: `admin.firestore()` envuelto en un adapter. En tests:
+//     produccion: `getFirestore()` envuelto en un adapter. En tests:
 //     fake map-backed store.
 //
 // ADR 0019: usa Firestore (Google) via inyeccion. No introduce backend
@@ -234,7 +235,7 @@ export function checkThresholdsCrossed(
 
 /**
  * Minimal Firestore-ish surface this service needs. Tests inject a
- * map-backed fake. Production code wraps `admin.firestore()`.
+ * map-backed fake. Production code wraps `getFirestore()`.
  *
  * Schema:
  *   tenants/{tid}/projects/{pid}/equipment/{eqId}/horometro_readings/{rid}

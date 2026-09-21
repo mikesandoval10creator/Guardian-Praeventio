@@ -3,7 +3,7 @@
 // Strategy: dependency-injected Firestore-shaped fake (mirrors the pattern
 // used by `src/services/auth/projectMembership.ts`). The service exports
 // pure functions that take a `MinimalClaimsDb` parameter, so tests inject
-// an in-memory store; production wires it to `admin.firestore()` at the
+// an in-memory store; production wires it to `getFirestore()` at the
 // call site in server.ts.
 //
 // We also inject the audit-log writer as a callback so the service stays
@@ -22,6 +22,7 @@ import {
 } from './claims.js';
 import { hashToken } from './refereeTokens.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // --- Test doubles --------------------------------------------------------
 
 /** In-memory Firestore-shape: collection('curriculum_claims').doc(id).{get,set,update}. */

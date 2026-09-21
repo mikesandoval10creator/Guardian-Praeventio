@@ -8,7 +8,7 @@
 // Approach: a focused unit test on the loader path. We seed the fake
 // database directly through the public `db` parameter the route would
 // use, then exercise the route with `vi.mock` of `firebase-admin` so
-// `admin.firestore()` returns our fake. We seed:
+// `getFirestore()` returns our fake. We seed:
 //   - 2 projects (p1, p2) with tenantId
 //   - 3 maintenance_tasks (crane @ p1, transformer @ p1, tank @ p2)
 // The crane + transformer + tank all have hazards, so scanned=3.
@@ -240,6 +240,7 @@ vi.mock("../../services/dea/nearestDeaForProject.js", () => ({
 
 import maintenanceRouter from "../../server/routes/maintenance.js";
 
+import { getFirestore } from 'firebase-admin/firestore';
 function docsInPath(seed: Map<string, any>, path: string) {
   return [...seed.entries()].filter(
     ([k]) => k === path || k.startsWith(path + "/"),

@@ -30,8 +30,9 @@
 // `idempotencyKey`. When omitted, the tracker only ensures atomic
 // increments — caller is responsible for at-most-once semantics.
 
-import * as admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────
 // Types
@@ -163,7 +164,7 @@ export async function trackGeminiUsage(
   const date = options.date ?? todayUtc();
   const requests = options.requests ?? 1;
   const docId = quotaDocId(tenantId, date);
-  const db = admin.firestore();
+  const db = getFirestore();
   const docRef = db.collection(COLLECTION).doc(docId);
 
   const result = await db.runTransaction(async (tx) => {
@@ -184,7 +185,7 @@ export async function trackGeminiUsage(
       }
       // Mark idempotency key consumed BEFORE incrementing.
       tx.set(idemRef, {
-        consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        consumedAt: FieldValue.serverTimestamp(),
         tokens,
         costUsd,
         requests,
@@ -207,13 +208,13 @@ export async function trackGeminiUsage(
         geminiTokens: next.geminiTokens,
         geminiRequests: next.geminiRequests,
         geminiCostUsd: next.geminiCostUsd,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     } else {
       tx.set(docRef, {
         ...next,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
@@ -251,7 +252,7 @@ export async function checkQuotaLimit(
   const normalizedTier = normalizeTier(tier);
   const ceiling = TIER_CEILINGS[normalizedTier];
 
-  const docRef = admin.firestore().collection(COLLECTION).doc(quotaDocId(tenantId, date));
+  const docRef = getFirestore().collection(COLLECTION).doc(quotaDocId(tenantId, date));
   const snap = await docRef.get();
   const usage: QuotaUsage = snap.exists
     ? {
@@ -299,7 +300,7 @@ export async function resetQuota(tenantId: string, date: string): Promise<void> 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new RangeError('quotaTracker.resetQuota: date must be YYYY-MM-DD');
   }
-  const docRef = admin.firestore().collection(COLLECTION).doc(quotaDocId(tenantId, date));
+  const docRef = getFirestore().collection(COLLECTION).doc(quotaDocId(tenantId, date));
   await docRef.delete();
   logger.warn('[quota.reset] tenant quota manually reset', { tenantId, date });
 }
@@ -310,7 +311,7 @@ export async function resetQuota(tenantId: string, date: string): Promise<void> 
  */
 export async function getUsage(tenantId: string, date?: string): Promise<QuotaUsage> {
   const day = date ?? todayUtc();
-  const docRef = admin.firestore().collection(COLLECTION).doc(quotaDocId(tenantId, day));
+  const docRef = getFirestore().collection(COLLECTION).doc(quotaDocId(tenantId, day));
   const snap = await docRef.get();
   if (!snap.exists) return emptyUsage(tenantId, day);
   const data = snap.data() as Partial<QuotaUsage>;
@@ -335,8 +336,7 @@ export async function topTenantsByUsage(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new RangeError('quotaTracker.topTenantsByUsage: date must be YYYY-MM-DD');
   }
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collection(COLLECTION)
     .where('date', '==', date)
     .orderBy('geminiCostUsd', 'desc')

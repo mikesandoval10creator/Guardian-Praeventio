@@ -23,13 +23,15 @@
 // API from here.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 function sentryCapture(
   err: unknown,
@@ -119,14 +121,14 @@ normativesRouter.post('/seed', verifyAuth, async (req, res) => {
   try {
     // Mirror firestore.rules `isAdmin()` write gate — the role comes from the
     // verified token's custom claims, never the request body.
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       return res
         .status(403)
         .json({ error: 'Forbidden: Requires admin role to seed normatives' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const nowIso = new Date().toISOString();
     const createdCodes: string[] = [];
 

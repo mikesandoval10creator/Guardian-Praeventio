@@ -15,7 +15,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -25,6 +24,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   buildDispatchPlan,
   analyzeCoverage,
@@ -53,7 +55,7 @@ const POSITION_MAX_STALE_SECONDS = 1800; // 30 min
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -78,7 +80,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -232,7 +234,7 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 async function readLastKnownPosition(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   uid: string,
   nowMs: number,
@@ -302,7 +304,7 @@ router.get(
     const { projectId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const tenantId = await resolveTenantId(callerUid, projectId, db);
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });

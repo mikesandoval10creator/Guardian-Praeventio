@@ -38,11 +38,13 @@
 //     baseline + fuzzy resolve ONE-WAY (owned contiene req)
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -55,7 +57,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -80,7 +82,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -91,7 +93,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -125,8 +127,7 @@ router.get(
     const callerRole = (req.user as { role?: string } | undefined)?.role;
     const isProjectCreator = await (async () => {
       try {
-        const proj = await admin
-          .firestore()
+        const proj = await getFirestore()
           .collection('projects')
           .doc(projectId)
           .get();
@@ -153,7 +154,7 @@ router.get(
       const { computeReadiness } = await import(
         '../../services/workerReadiness/readinessScore.js'
       );
-      const db = admin.firestore();
+      const db = getFirestore();
       const degradedSources = new Set<string>();
       const markDegraded = (source: string): void => {
         degradedSources.add(source);

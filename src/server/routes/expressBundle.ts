@@ -31,7 +31,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -56,6 +55,9 @@ import type {
 } from '../../services/compliance/trafficLightEngine.js';
 import type { LegalRequirement } from '../../services/legal/legalRuleEngine.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guard(
@@ -64,7 +66,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -108,7 +110,7 @@ interface FirestoreBundleData {
 }
 
 async function reconstructFromFirestore(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   options: { workerRut?: string },
 ): Promise<FirestoreBundleData> {
@@ -365,7 +367,7 @@ router.post(
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const data = await reconstructFromFirestore(db, projectId, {
         workerRut: body.workerRut,
       });

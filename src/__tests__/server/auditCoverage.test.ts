@@ -29,10 +29,11 @@ import request from 'supertest';
 import crypto from 'crypto';
 import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.js';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Mirror of `auditServerEvent` (src/server/middleware/auditLog.ts).
 // Identical contract; differs only in that we accept the in-memory
-// firestore directly rather than reaching for `admin.firestore()`.
+// firestore directly rather than reaching for `getFirestore()`.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AuditOpts {

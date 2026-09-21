@@ -1,6 +1,6 @@
 // Praeventio Guard — Expirations router: real-router behavioral supertest
 // (Fase 5, B.9 — vida/legal). Boots the REAL expirations router with
-// admin.firestore() backed by the in-memory FakeFirestore and drives both
+// getFirestore() backed by the in-memory FakeFirestore and drives both
 // stateless compute endpoints over HTTP via supertest. The router itself does
 // NO Firestore writes (pure compute over scanForExpirations /
 // buildExpirationFindingPayload), so it asserts: the 401 gate, the 403
@@ -48,6 +48,7 @@ vi.mock('../../utils/logger.js', () => ({
 import expirationsRouter from './expirations';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-k';
 const TENANT = 't1';
 const PROJECT = 'p1';

@@ -14,10 +14,11 @@
 //
 // Storage: Firestore collection `b2d_api_keys/{id}`.
 
-import * as admin from 'firebase-admin';
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { ApiTierId } from '../pricing/aiTier.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 /** Logical scope a key can carry. */
 export type B2dScope =
@@ -151,7 +152,7 @@ export async function createApiKey(opts: {
       : {}),
   };
 
-  await admin.firestore().collection(COLLECTION).doc(id).set(record);
+  await getFirestore().collection(COLLECTION).doc(id).set(record);
   return { key: rawKey, record };
 }
 
@@ -167,8 +168,7 @@ export async function verifyApiKey(rawKey: string): Promise<B2dApiKey | null> {
   if (typeof rawKey !== 'string' || !rawKey.startsWith('pk_')) return null;
 
   const hash = hashApiKey(rawKey);
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collection(COLLECTION)
     .where('keyHash', '==', hash)
     .limit(1)
@@ -201,8 +201,7 @@ export async function verifyApiKey(rawKey: string): Promise<B2dApiKey | null> {
 /** List all keys belonging to a customer (active + revoked + expired). */
 export async function listApiKeys(customerId: string): Promise<B2dApiKey[]> {
   if (!customerId) return [];
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collection(COLLECTION)
     .where('customerId', '==', customerId)
     .get();
@@ -213,8 +212,7 @@ export async function listApiKeys(customerId: string): Promise<B2dApiKey[]> {
 export async function revokeApiKey(id: string, revokedBy: string): Promise<void> {
   if (!id) throw new TypeError('revokeApiKey: id required');
   if (!revokedBy) throw new TypeError('revokeApiKey: revokedBy required');
-  await admin
-    .firestore()
+  await getFirestore()
     .collection(COLLECTION)
     .doc(id)
     .update({

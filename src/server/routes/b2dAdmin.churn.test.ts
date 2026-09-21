@@ -13,7 +13,7 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../../__tests__/helpers/fakeFirestore');
-  // assertAdmin usa admin.auth().getUser(uid).customClaims.role — devolvemos
+  // assertAdmin usa getAuth().getUser(uid).customClaims.role — devolvemos
   // 'admin' solo para 'admin-1' (mismo patrón que b2dAdmin.test.ts existente;
   // uid hardcodeado dentro del factory por hoisting de vi.mock).
   return adminMock(() => H.db!, {
@@ -49,6 +49,7 @@ vi.mock('../../utils/logger.js', () => ({
 import b2dAdminRouter from './b2dAdmin';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getAuth } from 'firebase-admin/auth';
 const PREFIX = '/api/admin/b2d';
 const ADMIN = 'admin-1';
 

@@ -25,6 +25,7 @@ import { logger } from '../../utils/logger.js';
 import { cycleFromProductId, planFromIapProductId } from '../pricing/subscriptionPlan.js';
 import { verifyAppleNotification } from './appleSignedDataVerifier.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ───────────────────────────────────────────────────────────────────────────
 // Apple notification types we care about.
 //
@@ -205,7 +206,7 @@ export async function verifyAndDecodeAppleSsn(
 
 export interface ApplyAppleEntitlementInput {
   payload: AppleSsnPayload;
-  /** Firestore handle — accepts admin.firestore() or InMemoryFirestore. */
+  /** Firestore handle — accepts getFirestore() or InMemoryFirestore. */
   db: MinimalAppleSsnFirestore;
   now?: () => Date;
 }

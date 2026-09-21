@@ -17,6 +17,7 @@ import request from 'supertest';
 import crypto from 'crypto';
 import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const ENV_SECRET = 'env-fallback-secret';
 

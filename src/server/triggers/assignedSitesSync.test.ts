@@ -18,7 +18,7 @@ function makeDeps(customClaims: Record<string, unknown> | undefined, opts: { noU
     // only audit_logs.add is exercised
     db: { collection: () => ({ add: auditAdd }) } as never,
     auth: { getUser, setCustomUserClaims, revokeRefreshTokens } as never,
-    firestoreNamespace: { FieldValue: { serverTimestamp: () => 'ts' } } as never,
+    fieldValue: { serverTimestamp: () => 'ts' } as never,
   };
   return { deps, getUser, setCustomUserClaims, revokeRefreshTokens, auditAdd };
 }

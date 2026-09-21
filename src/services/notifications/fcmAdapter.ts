@@ -14,7 +14,7 @@
 //   • Throws `FcmAdapterError` on infrastructure failures, distinguishable
 //     from validation errors via `instanceof`.
 //
-// Why a separate adapter (vs calling `admin.messaging()` directly)? The
+// Why a separate adapter (vs calling `getMessaging()` directly)? The
 // existing background trigger in server.ts already inlines that logic; as
 // we add MORE FCM-emitting endpoints (incident-alert, training reminders,
 // curriculum co-sign nudges), inlining will scatter retry / dedupe /

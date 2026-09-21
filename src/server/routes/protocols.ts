@@ -33,12 +33,13 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -68,7 +69,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -318,8 +319,7 @@ async function persistAssessment({
       signedAt: null,
     },
   };
-  const ref = await admin
-    .firestore()
+  const ref = await getFirestore()
     .collection(ASSESSMENTS_COLLECTION)
     .add(docBody);
 
@@ -481,8 +481,7 @@ router.get('/:projectId/protocols/assessments', verifyAuth, async (req, res) => 
   }
 
   try {
-    let query = admin
-      .firestore()
+    let query = getFirestore()
       .collection(ASSESSMENTS_COLLECTION)
       .where('projectId', '==', projectId);
     if (protocol) query = query.where('protocol', '==', protocol);

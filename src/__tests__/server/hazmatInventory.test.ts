@@ -30,7 +30,7 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  // No auth claims needed by the route (it only calls admin.firestore() inside
+  // No auth claims needed by the route (it only calls getFirestore() inside
   // assertProjectMember; auth is handled by our verifyAuth mock below).
   return adminMock(() => H.db!);
 });
@@ -74,6 +74,7 @@ vi.mock('../../services/observability/index.js', () => ({
 import hazmatInventoryRouter from '../../server/routes/hazmatInventory.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ── App factory ─────────────────────────────────────────────────────────────
 
 function buildApp() {

@@ -10,7 +10,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -22,12 +21,15 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { SIFAdapter } from '../../services/sif/sifFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -41,7 +43,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -49,7 +51,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -67,7 +69,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new SIFAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -103,7 +105,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new SIFAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -139,7 +141,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const adapter = new SIFAdapter(admin.firestore(), g.tenantId, projectId);
+      const adapter = new SIFAdapter(getFirestore(), g.tenantId, projectId);
       // notifier = authenticated caller; notifiedAt = server clock.
       await adapter.recordMandanteNotification(id, callerUid, new Date().toISOString());
       await auditServerEvent(req, 'sif.notify-mandante', 'sif', { projectId, precursorId: id }, { projectId });

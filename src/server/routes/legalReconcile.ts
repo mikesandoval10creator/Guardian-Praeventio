@@ -22,7 +22,6 @@
 //     automáticamente.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
@@ -37,6 +36,8 @@ import {
   reconcileObligationSeeds,
 } from '../../services/sii/projectSeeds.js';
 import { CL_PACK } from '../../data/normativa/cl.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.post('/:projectId/reconcile-obligations', verifyAuth, idempotencyKey(), a
 
   // Project-membership gate (same contract as the legal-calendar router).
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -77,7 +78,7 @@ router.post('/:projectId/reconcile-obligations', verifyAuth, idempotencyKey(), a
   }
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const projectSnap = await db.collection('projects').doc(projectId).get();
     if (!projectSnap.exists) {
       return res.status(404).json({ error: 'project_not_found' });

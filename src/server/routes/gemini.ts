@@ -638,7 +638,7 @@ ${incidentBlock}
 
 // Persistence RPCs that must run for REAL under E2E_MODE (never the mock) so
 // offline-sync specs actually write to the Firestore emulator. They are Firestore
-// writes via networkBackend — no Gemini quota, only admin.firestore() +
+// writes via networkBackend — no Gemini quota, only getFirestore() +
 // assertProjectMember (the caller's uid is identity-stamped above). See the
 // E2E mock branch in the handler below.
 const E2E_REAL_ACTIONS = new Set(['syncNodeToNetwork', 'syncBatchToNetwork']);
@@ -657,7 +657,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   // specs green-but-hollow: the outbox flush would 200 without ever writing, so
   // a finding created offline never surfaced in the feed after reconnect
   // (offline-resilience.spec). These must hit the real Firestore emulator in
-  // E2E — they need no Gemini quota, only admin.firestore() + assertProjectMember.
+  // E2E — they need no Gemini quota, only getFirestore() + assertProjectMember.
   if (
     process.env.E2E_MODE === '1' &&
     process.env.NODE_ENV !== 'production' &&

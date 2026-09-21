@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import type adminNs from 'firebase-admin';
+import type { Firestore } from 'firebase-admin/firestore';
 import { runUfRateRefresh } from './runUfRateRefresh.js';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
 const NOW = () => new Date('2026-06-16T05:00:00Z');
 const asFirestore = (db: ReturnType<typeof createFakeFirestore>) =>
-  db as unknown as adminNs.firestore.Firestore;
+  db as unknown as Firestore;
 
 const validPayload = { serie: [{ fecha: '2026-06-16T04:00:00.000Z', valor: 38500 }] };
 

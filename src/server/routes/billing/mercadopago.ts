@@ -7,7 +7,6 @@
 //   • POST /api/billing/webhook/mercadopago   (IPN, Round 18/19, OIDC+HMAC).
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
 import { randomUUID } from 'node:crypto';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
@@ -43,6 +42,8 @@ import {
   type LatamCurrency,
 } from '../../../services/billing/currency.js';
 import { sentryCapture } from './shared.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Round 15 — MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
@@ -139,7 +140,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
       // but with a `paymentMethod: 'mercadopago'` tag and the local-
       // currency totals. Round 16 will refactor `buildInvoice` to be
       // multi-currency aware.
-      const db = admin.firestore();
+      const db = getFirestore();
       const invoiceId = `inv_mp_${Date.now()}_${randomUUID()}`;
 
       const baseUrl = process.env.APP_BASE_URL ?? '';
@@ -208,7 +209,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         issuedAt: new Date().toISOString(),
         createdBy: callerUid,
         createdByEmail: callerEmail,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Audit log — mirror the /api/billing/checkout pattern but with the
@@ -229,7 +230,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         userId: callerUid,
         userEmail: callerEmail,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
@@ -362,8 +363,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         // Mismo patrón que webpay/return — fail-soft, no bloquea ack del IPN.
         if (result.outcome === 'paid' && result.invoiceId) {
           try {
-            const invoiceSnap = await admin
-              .firestore()
+            const invoiceSnap = await getFirestore()
               .collection('invoices')
               .doc(result.invoiceId)
               .get();
@@ -428,7 +428,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                   });
                   if (shouldQueueDteRetry(issueResult)) {
                     const queued = await enqueueDteIssueJob(
-                      admin.firestore(),
+                      getFirestore(),
                       decision,
                       invoicePayload,
                       'mercadopago-ipn',
@@ -452,7 +452,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
                   // same whitelisted payload so the maintenance drain retries.
                   try {
                     const queued = await enqueueDteIssueJob(
-                      admin.firestore(),
+                      getFirestore(),
                       decision,
                       invoicePayload,
                       'mercadopago-ipn',

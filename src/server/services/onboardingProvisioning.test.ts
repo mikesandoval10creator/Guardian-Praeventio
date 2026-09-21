@@ -4,16 +4,11 @@
 // emulator. Stryker coverage of provisioning depends on THIS file because
 // vitest.stryker.config.ts excludes *.firestore.test.ts.
 import { createHash } from 'node:crypto';
-import admin from 'firebase-admin';
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('firebase-admin', () => ({
-  default: {
-    firestore: {
-      FieldValue: { serverTimestamp: () => '<ts>', delete: () => '<del>' },
-    },
-  },
+vi.mock('firebase-admin/firestore', () => ({
+  FieldValue: { serverTimestamp: () => '<ts>', delete: () => '<del>' },
+  getFirestore: vi.fn(),
 }));
-const _admin: any = admin;
 import {
   OnboardingConflict,
   provisionOnboarding,

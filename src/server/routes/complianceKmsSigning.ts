@@ -1,6 +1,5 @@
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { validate } from '../middleware/validate.js';
 import { verifyPinnedComplianceKmsServiceAccount } from '../middleware/verifyPinnedServiceAccount.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -36,6 +35,8 @@ import {
   type MinimalDs76FormStore,
 } from '../../services/compliance/ds76/ds76Service.js';
 import type { Ds76Form, Ds76Signature } from '../../services/compliance/ds76/types.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   attachComplianceSignatureAtomically,
   persistComplianceDigestAtomically,
@@ -51,7 +52,7 @@ function collectionName(kind: KmsDocumentKind): string {
 }
 
 function documentRef(kind: KmsDocumentKind, tenantId: string, formId: string) {
-  return admin.firestore()
+  return getFirestore()
     .collection('tenants').doc(tenantId)
     .collection(collectionName(kind)).doc(formId);
 }
@@ -74,7 +75,7 @@ function buildDocuments(
     },
     async persistLegacyDigest(payloadHashHex, payloadRendererVersion) {
       await persistComplianceDigestAtomically(
-        admin.firestore(),
+        getFirestore(),
         ref,
         payloadHashHex,
         payloadRendererVersion,
@@ -84,7 +85,7 @@ function buildDocuments(
 }
 
 function buildAtomicStore(kind: KmsDocumentKind) {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   return {
     async saveForm(tenantId: string, formId: string, form: SignedDocument) {
       await documentRef(kind, tenantId, formId).set(form);

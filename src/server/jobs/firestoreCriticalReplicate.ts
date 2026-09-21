@@ -34,7 +34,9 @@
 //   sub-dependency of firebase-admin); we do NOT add a new top-level
 //   dependency. See the test file for the mocked surface contract.
 
-import type { Firestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { FieldValue, getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
 const ONE_HOUR_MS = 3_600_000;
@@ -121,10 +123,8 @@ async function defaultUploader(
   path: string,
   contents: string,
 ): Promise<void> {
-  const admin = (await import('firebase-admin')).default;
-  if (!admin.apps.length) admin.initializeApp();
-  await admin
-    .storage()
+  if (!getApps().length) initializeApp();
+  await getStorage()
     .bucket(bucket)
     .file(path)
     .save(contents, {
@@ -161,7 +161,7 @@ async function replicateCriticalDataInner(
 
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
 
   const results: PerCollectionResult[] = [];
 
@@ -187,7 +187,7 @@ async function replicateCriticalDataInner(
       }
 
       const lines = snap.docs
-        .map((d) => JSON.stringify({ id: d.id, ...d.data() }))
+        .map((d: { id: string; data(): Record<string, unknown> }) => JSON.stringify({ id: d.id, ...d.data() }))
         .join('\n');
       const path = `${coll}/${hourSlug(now)}.jsonl`;
 

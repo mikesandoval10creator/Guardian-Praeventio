@@ -28,7 +28,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ────────────────────────────────────────────────────────────────────────
-// firebase-admin mock — route reads only admin.firestore() (no auth claims
+// firebase-admin mock — route reads only getFirestore() (no auth claims
 // read by the route itself; verifyAuth is mocked out separately).
 // ────────────────────────────────────────────────────────────────────────
 
@@ -106,6 +106,7 @@ vi.mock('../../services/observability/index.js', () => ({
 
 import qrSignatureRouter from '../../server/routes/qrSignature.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   buildChallenge,
   type QrSignatureChallenge,

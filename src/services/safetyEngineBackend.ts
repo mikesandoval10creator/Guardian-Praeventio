@@ -1,14 +1,15 @@
-import admin from "firebase-admin";
 import { parseGeminiJson } from './gemini/parsing';
 import { GoogleGenAI, Type } from "@google/genai";
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
 import { logger } from '../utils/logger';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+
 const API_KEY = process.env.GEMINI_API_KEY;
 
 export const performProjectSafetyHealthCheck = async (projectId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     
     // 1. Fetch project data
     const projectRef = db.collection('projects').doc(projectId);
@@ -57,7 +58,7 @@ export const performProjectSafetyHealthCheck = async (projectId: string) => {
     const result = {
         ...auditResult,
         compliance: complianceSummary,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp()
     };
     
     await healthCheckRef.set(result);

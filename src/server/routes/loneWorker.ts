@@ -32,7 +32,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
-import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { validate } from "../middleware/validate.js";
 import { idempotencyKey } from "../middleware/idempotencyKey.js";
@@ -48,10 +47,10 @@ import { randomId } from "../../utils/randomId.js";
 // Helper para evitar duplicación del DocumentReference de sesión.
 // Si el esquema de colección cambia, este es el único punto a editar.
 function sessionDocRef(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   sessionId: string,
-): admin.firestore.DocumentReference {
+): DocumentReference {
   return db
     .collection("projects")
     .doc(projectId)
@@ -70,6 +69,10 @@ import {
 } from "../../services/loneWorker/loneWorkerService.js";
 import { isAdminRole, isSupervisorRole } from "../../types/roles.js";
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
+
 const router = Router();
 
 async function guard(
@@ -78,7 +81,7 @@ async function guard(
   res: import("express").Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: "forbidden" });
@@ -372,7 +375,7 @@ router.post(
     const { projectId, sessionId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const sessionRef = sessionDocRef(db, projectId, sessionId);
     const capability = crypto.randomBytes(32).toString("base64url");
     const expiresAt = new Date(
@@ -392,7 +395,7 @@ router.post(
           nativeManDownCapabilityHash: capabilityHash(capability),
           nativeManDownCapabilityExpiresAt: expiresAt,
           nativeManDownCapabilityIssuedAt:
-            admin.firestore.FieldValue.serverTimestamp(),
+            FieldValue.serverTimestamp(),
         });
       });
     } catch (err) {
@@ -457,7 +460,7 @@ router.post(
         .json({ error: "native_mandown_invalid_timestamp" });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const sessionRef = sessionDocRef(db, projectId, sessionId);
     // clientEventId is a stable UUID persisted by Android before network I/O.
     // Deterministic document identity makes offline retries idempotent without
@@ -522,7 +525,7 @@ router.post(
           source: "android_foreground_service",
           clientEventId: body.clientEventId,
           trigger: body.kind,
-          triggeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          triggeredAt: FieldValue.serverTimestamp(),
           occurredAt: body.occurredAt,
           ...(body.accelerationMps2 !== undefined
             ? { accelerationMps2: body.accelerationMps2 }
@@ -546,7 +549,7 @@ router.post(
           },
           userId: workerUid,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         });
       });
     } catch (err) {
@@ -587,7 +590,7 @@ router.post(
           },
         },
         db,
-        admin.messaging(),
+        getMessaging(),
       );
     } catch (notifyErr) {
       logger.warn?.("loneWorker.nativeManDown.fanout_failed", notifyErr);
@@ -714,7 +717,7 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const transition = await db.runTransaction(async (tx) => {
         const sessionRef = sessionDocRef(db, projectId, body.sessionId);
         const persisted = await tx.get(sessionRef);
@@ -755,11 +758,11 @@ router.post(
           status: "ended",
           endedAt,
           endedBy: callerUid,
-          nativeManDownCapabilityHash: admin.firestore.FieldValue.delete(),
+          nativeManDownCapabilityHash: FieldValue.delete(),
           nativeManDownCapabilityExpiresAt:
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           nativeManDownCapabilityIssuedAt:
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
         });
         return { session, wasReplay: false };
       });

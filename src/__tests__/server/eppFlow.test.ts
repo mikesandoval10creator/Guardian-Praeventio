@@ -36,7 +36,7 @@ const H = vi.hoisted(() => ({
 
 // ────────────────────────────────────────────────────────────────────────
 // firebase-admin mock (no auth.getUser needed — route uses assertProjectMember
-// which only reads Firestore, not custom claims via admin.auth()).
+// which only reads Firestore, not custom claims via getAuth()).
 // ────────────────────────────────────────────────────────────────────────
 
 vi.mock('firebase-admin', async () => {
@@ -175,7 +175,7 @@ vi.mock('../../services/financialAnalytics/purchaseOrderSuggester.js', () => ({
 // module but seed `projects/{projectId}` in fakeFirestore so the route's
 // guard() call reads from our in-memory store. That way we exercise the
 // real guard() code path (including the instanceof check).
-// The real assertProjectMember calls admin.firestore() which returns H.db.
+// The real assertProjectMember calls getFirestore() which returns H.db.
 // ────────────────────────────────────────────────────────────────────────
 
 // No mock for projectMembership — the real code runs against the fake db.
@@ -189,6 +189,8 @@ import eppFlowRouter, {
 } from '../../server/routes/eppFlow.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 // ────────────────────────────────────────────────────────────────────────
 // App factory
 // ────────────────────────────────────────────────────────────────────────

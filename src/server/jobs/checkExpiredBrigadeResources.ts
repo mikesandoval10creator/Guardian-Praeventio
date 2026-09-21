@@ -29,8 +29,8 @@
 // Invoked from POST /api/maintenance/check-overdue alongside the other
 // hourly reapers — see `routes/maintenance.ts`.
 
-import type { Firestore } from 'firebase-admin/firestore';
-import type { messaging as adminMessaging } from 'firebase-admin';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
 import type { SupervisorNotifier } from './checkExpiredPpe.js';
@@ -42,7 +42,7 @@ import {
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
-type MessagingFactory = () => adminMessaging.Messaging;
+type MessagingFactory = () => Messaging;
 
 export interface CheckExpiredBrigadeResourcesOptions {
   /** Firestore handle factory. Default reads from firebase-admin. */
@@ -112,10 +112,10 @@ async function checkExpiredBrigadeResourcesInner(
 ): Promise<CheckExpiredBrigadeResourcesResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
   const messaging = opts.getMessaging
     ? opts.getMessaging()
-    : (await import('firebase-admin')).default.messaging();
+    : getMessaging();
   const notifySupervisors: SupervisorNotifier =
     opts.notifySupervisors ??
     (async () => ({ notified: 0, failed: 0, supervisorEmails: [] }));

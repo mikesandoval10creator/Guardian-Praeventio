@@ -18,7 +18,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -28,6 +27,8 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { assessSla } from '../../services/escalation/escalationSlaEngine.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   incidentDocsToWorkflowItems,
   type RawIncidentDoc,
@@ -41,7 +42,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -55,7 +56,7 @@ async function guard(
 /** Resolve tenantId from the project doc (incidents may be nested under it). */
 async function resolveTenantId(projectId: string): Promise<string | null> {
   try {
-    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    const snap = await getFirestore().collection('projects').doc(projectId).get();
     const data = snap.exists ? snap.data() : null;
     if (data && typeof data.tenantId === 'string' && data.tenantId.length > 0) {
       return data.tenantId;
@@ -71,7 +72,7 @@ async function readProjectIncidents(
   projectId: string,
   tenantId: string | null,
 ): Promise<Array<Record<string, unknown>>> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const safeRead = async (
     label: string,
     fn: () => Promise<Array<Record<string, unknown>>>,

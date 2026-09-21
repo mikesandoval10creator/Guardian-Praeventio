@@ -26,7 +26,6 @@
 // (oauth/gemini) deferred to Round 17/18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import {
@@ -37,6 +36,8 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { sanitizeAuditDetails } from '../middleware/auditDetailsRedactor.js';
+
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -93,7 +94,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
   // is the project's createdBy.
   if (typeof projectId === 'string' && projectId.length > 0) {
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -112,7 +113,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
     // payload bytes. We surface the truncation flag to the operator
     // so they know the payload was clipped.
     const { redacted: sanitizedDetails, truncated } = sanitizeAuditDetails(details);
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       action,
       module: mod,
       details: truncated ? { ...sanitizedDetails, __truncated__: true } : sanitizedDetails,
@@ -122,7 +123,7 @@ router.post('/audit-log', verifyAuth, idempotencyKey(), async (req, res) => {
       // Trust level: this endpoint only ever records client-declared telemetry.
       // Authoritative consumers filter on source:'server'.
       source: 'client',
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
@@ -160,7 +161,7 @@ router.get('/audit-log', verifyAuth, async (req, res) => {
   // Membership check si se pidió un projectId específico
   if (projectId) {
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -182,8 +183,7 @@ router.get('/audit-log', verifyAuth, async (req, res) => {
   }
 
   try {
-    let query = admin
-      .firestore()
+    let query = getFirestore()
       .collection('audit_logs')
       .orderBy('timestamp', 'desc')
       .limit(limit);
@@ -205,7 +205,7 @@ router.get('/audit-log', verifyAuth, async (req, res) => {
         query = query.where(
           'timestamp',
           '>=',
-          admin.firestore.Timestamp.fromDate(sinceDate),
+          Timestamp.fromDate(sinceDate),
         ) as typeof query;
       }
     }

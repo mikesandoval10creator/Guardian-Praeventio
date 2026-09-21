@@ -36,11 +36,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -84,7 +85,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -252,7 +253,7 @@ const exposureCaptureSchema = z.object({
 /** Resolve tenantId from the project doc (incidents may be nested under it). */
 async function resolveTenantId(projectId: string): Promise<string | null> {
   try {
-    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    const snap = await getFirestore().collection('projects').doc(projectId).get();
     const data = snap.exists ? snap.data() : null;
     if (data && typeof data.tenantId === 'string' && data.tenantId.length > 0) {
       return data.tenantId;
@@ -280,7 +281,7 @@ router.post(
       return res.status(403).json({ error: 'insufficient_role' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const docId = `${projectId}_${body.period}`;
     try {
       // Server stamps recordedBy/recordedAt — client-supplied values are
@@ -291,7 +292,7 @@ router.post(
           period: body.period,
           totalHoursWorked: body.totalHoursWorked,
           recordedBy: callerUid,
-          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recordedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -308,7 +309,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -372,7 +373,7 @@ async function readProjectIncidents(
   projectId: string,
   tenantId: string | null,
 ): Promise<Array<Record<string, unknown>>> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const safeRead = async (
     label: string,
     fn: () => Promise<Array<Record<string, unknown>>>,
@@ -415,8 +416,7 @@ async function readProjectIncidents(
 /** Read the captured man-hours for a single period (0 if never captured). */
 async function readExposureHours(projectId: string, period: string): Promise<number> {
   try {
-    const exSnap = await admin
-      .firestore()
+    const exSnap = await getFirestore()
       .collection('exposure_hours')
       .doc(`${projectId}_${period}`)
       .get();
@@ -601,7 +601,7 @@ router.get(
     const { projectId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
       const snap = await db
         .collection('iper_assessments')

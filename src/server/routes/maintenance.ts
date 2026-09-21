@@ -20,7 +20,6 @@
 // `jobs/checkOverdueMaintenance.ts` and surfaces its counts in JSON.
 
 import { Router } from "express";
-import admin from "firebase-admin";
 import { logger } from "../../utils/logger.js";
 import { captureRouteError } from "../middleware/captureRouteError.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
@@ -115,6 +114,25 @@ import { sendMulticastChunked } from "../utils/fcmMulticast.js";
 import { runContractorRankingSnapshot } from "../jobs/runContractorRankingSnapshot.js";
 import { runComplianceSnapshot } from "../jobs/runComplianceSnapshot.js";
 import { runSloMetricsRefresh } from "../jobs/runSloMetricsRefresh.js";
+
+import { getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
+import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
+
+// Legacy `admin` namespace shim — firebase-admin v14 removed the default export.
+// This shim mirrors the legacy namespace shape used in pre-v14 code so that the existing
+// call sites (`admin.messaging()`, `admin.storage()`, ...) keep working. The shim is
+// intentionally a thin facade and never tries to recreate removed behavior like
+// `admin.credential` or `admin.initializeApp` — for those, use the subpath imports directly.
+const admin = {
+  get apps() { return getApps(); },
+  messaging: (...args: Parameters<typeof getMessaging>) => getMessaging(...args),
+  storage: (...args: Parameters<typeof getStorage>) => getStorage(...args),
+  firestore: (...args: Parameters<typeof getFirestore>) => getFirestore(...args),
+  auth: (...args: Parameters<typeof getAuth>) => getAuth(...args),
+};
 
 // PR #482 codex P1 (round 2) — page size for project enumeration. 500 is
 // a safe per-call Firestore limit; deployments with more than 500 projects
@@ -231,7 +249,7 @@ router.post("/check-overdue", verifySchedulerToken, async (_req, res) => {
       errors: 0,
     };
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const preWarnResult = await runCalendarPreWarnCron({
         loadProjects: async () => {
           const out: Array<{ id: string; gerenteUid?: string }> = [];
@@ -323,7 +341,7 @@ router.post("/check-overdue", verifySchedulerToken, async (_req, res) => {
       reportPersisted: false,
     };
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const healthResult = await runResilienceHealthAlertCron({
         db,
         checkers: {
@@ -406,7 +424,7 @@ router.post("/check-overdue", verifySchedulerToken, async (_req, res) => {
           });
           // Prune tokens FCM reported as permanently dead so the admin
           // fcmTokens[] arrays don't grow unbounded. Best-effort.
-          await pruneFcmTokens(admin.firestore(), sendResult.invalidTokens);
+          await pruneFcmTokens(getFirestore(), sendResult.invalidTokens);
         },
       });
       resilienceHealth = {
@@ -543,7 +561,7 @@ router.post(
   async (_req, res) => {
     const start = Date.now();
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const result = await runB2dMrrSnapshot({ db });
       logger.info("[maintenance] b2d-mrr-snapshot done", {
         monthKey: result.monthKey,
@@ -584,7 +602,7 @@ router.post(
 router.post("/run-retention-sweep", verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const result = await runRetentionSweep({ db });
     logger.info("[maintenance] retention-sweep done", {
       runId: result.runId,
@@ -645,8 +663,8 @@ router.post(
     }
     const start = Date.now();
     try {
-      const db = admin.firestore();
-      const messaging = admin.messaging();
+      const db = getFirestore();
+      const messaging = getMessaging();
 
       const aggregated = {
         projectsScanned: 0,
@@ -913,8 +931,8 @@ router.post(
     }
     const start = Date.now();
     try {
-      const db = admin.firestore();
-      const messaging = admin.messaging();
+      const db = getFirestore();
+      const messaging = getMessaging();
 
       const aggregated = {
         projectsScanned: 0,
@@ -1147,8 +1165,8 @@ router.post(
     // per-project, dejando una unhandled rejection y al scheduler sin
     // respuesta estructurada para reintentar.
     try {
-      const db = admin.firestore();
-      const messaging = admin.messaging();
+      const db = getFirestore();
+      const messaging = getMessaging();
 
       const exceptions = { scanned: 0, expired: 0, errors: 0 };
       const workPermits = { scanned: 0, expired: 0, errors: 0 };
@@ -1459,7 +1477,7 @@ router.post(
   async (_req, res) => {
     const start = Date.now();
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const result = await runContractorRankingSnapshot({ db });
       logger.info("[maintenance] contractor-ranking-snapshot done", {
         ...result,
@@ -1501,7 +1519,7 @@ router.post(
   async (_req, res) => {
     const start = Date.now();
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const result = await runComplianceSnapshot({ db });
       logger.info("[maintenance] compliance-snapshot done", {
         ...result,
@@ -1548,7 +1566,7 @@ router.post(
   async (_req, res) => {
     const start = Date.now();
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const result = await runSloMetricsRefresh({ db });
       logger.info("[maintenance] slo-metrics-refresh done", {
         gateClosed: result.gateClosed,

@@ -10,7 +10,7 @@
 // HOW THE SIGNING/CHALLENGE DEPS ARE HANDLED
 //   - firebase-admin is faked (adminMock → createFakeFirestore). The route's
 //     `buildWebAuthnDb()` / `buildWebAuthnCredentialsDb()` (imported from
-//     curriculum.ts) wrap `admin.firestore()`, so they transparently operate
+//     curriculum.ts) wrap `getFirestore()`, so they transparently operate
 //     on the same in-memory store. The REAL `storeWebAuthnChallenge` runs and
 //     writes a `webauthn_challenges/{uid}_{challengeId}` doc — we assert it.
 //   - `loadSiteBookEntry` / `saveSignedSiteBookEntry` read/write
@@ -71,6 +71,7 @@ import {
 } from '../../services/siteBook/siteBookSigning';
 import type { SiteBookEntry } from '../../services/siteBook/siteBookService';
 
+import { getFirestore } from 'firebase-admin/firestore';
 function buildApp() {
   const app = express();
   app.use(express.json());

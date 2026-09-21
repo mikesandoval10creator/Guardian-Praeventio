@@ -56,6 +56,7 @@ vi.mock('../../utils/logger.js', () => ({
 import pushRouter from '../../server/routes/push.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { captureRouteError } from '../../server/middleware/captureRouteError.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function buildApp() {
   const app = express();

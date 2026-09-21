@@ -14,7 +14,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -58,12 +57,14 @@ import { getComplianceKmsPublicKey } from '../../services/compliance/cloudKmsCom
 import { verifyPersistedComplianceSignature } from '../services/complianceSignatureVerification.js';
 import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
-// â”€â”€â”€ Adapters wrapping admin.firestore() into our minimal contracts â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€ Adapters wrapping getFirestore() into our minimal contracts â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildFolioStore(): MinimalFolioStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   return {
     async runTransaction(fn) {
       return fs.runTransaction(async (tx) => {
@@ -85,7 +86,7 @@ function buildFolioStore(): MinimalFolioStore {
 }
 
 function buildFormStore(): MinimalFormStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formsPath = (tid: string) => fs.collection('tenants').doc(tid).collection('suseso_forms');
   return {
     async saveForm(tenantId, formId, form) {
@@ -122,7 +123,7 @@ function buildFormStore(): MinimalFormStore {
 }
 
 function buildSigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formStore = buildFormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
@@ -138,7 +139,7 @@ function buildSigningDocuments(tenantId: string, formId: string): ComplianceSign
 async function resolveRouteSigner(uid: string) {
   return resolveHumanComplianceSigner(uid, {
     async loadSignerProfile(profileUid) {
-      const snap = await admin.firestore().collection('users').doc(profileUid).get();
+      const snap = await getFirestore().collection('users').doc(profileUid).get();
       return snap.exists ? (snap.data() as Record<string, unknown>) : null;
     },
   });
@@ -439,7 +440,7 @@ router.post(
       return res.status(403).json({ error: 'forbidden_role' });
     }
     try {
-      const fs = admin.firestore();
+      const fs = getFirestore();
       const ref = fs
         .collection('tenants')
         .doc(tenantId)

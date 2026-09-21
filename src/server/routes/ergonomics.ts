@@ -16,7 +16,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -41,6 +40,8 @@ import {
 } from '../../services/safety/ergonomicLegalTrigger.js';
 import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 // Admin-SDK folioStore for the DS-594 art. 110 legal trigger. The DIEP
@@ -49,7 +50,7 @@ const router = Router();
 // therefore CANNOT allocate a folio with the client SDK — it must round-trip
 // through this route. Mirrors `buildFolioStore` in routes/suseso.ts.
 function buildFolioStore(): MinimalFolioStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   return {
     async runTransaction(fn) {
       return fs.runTransaction(async (tx) => {
@@ -76,7 +77,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });

@@ -23,7 +23,6 @@ import { Router } from 'express';
 import { createHash } from 'node:crypto';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   createShareToken,
@@ -45,6 +44,9 @@ import {
 } from '../../services/health/vaultRecord.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 function sentryCapture(
   err: unknown,
@@ -91,8 +93,7 @@ async function loadShareDoc(
   workerUid: string,
   tokenId: string,
 ): Promise<VaultShareToken | null> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collection('users')
     .doc(workerUid)
     .collection('health_vault_shares')
@@ -109,8 +110,7 @@ async function loadShareDoc(
  * igualdad sobre IDs simples cuando lo registramos en firestore.indexes.json.
  */
 async function findShareById(tokenId: string): Promise<VaultShareToken | null> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore()
     .collectionGroup('health_vault_shares')
     .where('id', '==', tokenId)
     .limit(1)
@@ -158,15 +158,14 @@ router.post('/share', verifyAuth, async (req, res) => {
       ttlHours,
     });
 
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('users')
       .doc(callerUid)
       .collection('health_vault_shares')
       .doc(record.id)
       .set(record);
 
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       ...buildAuditEntry('health_vault.share.created', record),
       userId: callerUid,
     });
@@ -220,8 +219,7 @@ router.get(
         return res.status(404).json({ error: 'invalid' });
       }
 
-      const shareRef = admin
-        .firestore()
+      const shareRef = getFirestore()
         .collection('users')
         .doc(record.workerUid)
         .collection('health_vault_shares')
@@ -235,7 +233,7 @@ router.get(
       // view limit on the last allowed view (TOCTOU).
       let result;
       try {
-        result = await admin.firestore().runTransaction(async (txn) => {
+        result = await getFirestore().runTransaction(async (txn) => {
           const snap = await txn.get(shareRef);
           if (!snap.exists) {
             throw new VaultShareError('Token not found', 'invalid_token');
@@ -260,7 +258,7 @@ router.get(
       }
 
       const updated: VaultShareToken = { ...record, ...result.patch };
-      await admin.firestore().collection('audit_logs').add({
+      await getFirestore().collection('audit_logs').add({
         ...buildAuditEntry('health_vault.share.consumed', updated, {
           ipHash: hashIp(req.ip),
         }),
@@ -285,8 +283,7 @@ router.get(
       // Cargar nombre del trabajador (sin exponer email / claims)
       let workerName = 'Trabajador';
       try {
-        const userDoc = await admin
-          .firestore()
+        const userDoc = await getFirestore()
           .collection('users')
           .doc(record.workerUid)
           .get();
@@ -368,8 +365,7 @@ router.get(
         return res.status(404).json({ error: 'invalid' });
       }
 
-      const shareRef = admin
-        .firestore()
+      const shareRef = getFirestore()
         .collection('users')
         .doc(located.workerUid)
         .collection('health_vault_shares')
@@ -381,7 +377,7 @@ router.get(
       // consume vista; sólo necesitamos una lectura consistente.
       let fresh: VaultShareToken;
       try {
-        fresh = await admin.firestore().runTransaction(async (txn) => {
+        fresh = await getFirestore().runTransaction(async (txn) => {
           const snap = await txn.get(shareRef);
           if (!snap.exists) {
             throw new VaultShareError('Token not found', 'invalid_token');
@@ -418,7 +414,7 @@ router.get(
       // Audit ANTES de servir, para que un acceso que pasó la validación
       // deje siempre rastro (CLAUDE.md #14: awaited, no bloqueante si falla).
       try {
-        await admin.firestore().collection('audit_logs').add({
+        await getFirestore().collection('audit_logs').add({
           ...buildAuditEntry('health_vault.share.file_accessed', fresh, {
             recordId,
             ipHash: hashIp(req.ip),
@@ -437,7 +433,7 @@ router.get(
       // Stream del blob server-side. record.fileUri es el path del objeto en
       // Storage (admin SDK bypassa storage.rules por diseño — la validación
       // del share de arriba ES el control de acceso).
-      const bucket = admin.storage().bucket();
+      const bucket = getStorage().bucket();
       const objectPath = record.fileUri.replace(/^gs:\/\/[^/]+\//, '');
       const fileHandle = bucket.file(objectPath);
       const [exists] = await fileHandle.exists();
@@ -491,8 +487,7 @@ router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
 
     const { patch } = revokeShareToken(record, callerUid);
 
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('users')
       .doc(callerUid)
       .collection('health_vault_shares')
@@ -500,7 +495,7 @@ router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
       .update(patch);
 
     const updated: VaultShareToken = { ...record, ...patch };
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       ...buildAuditEntry('health_vault.share.revoked', updated),
       userId: callerUid,
     });

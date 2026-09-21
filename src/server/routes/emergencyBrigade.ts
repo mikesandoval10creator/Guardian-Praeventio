@@ -27,12 +27,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -52,7 +54,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -77,7 +79,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -88,7 +90,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -174,7 +176,7 @@ async function workerIsProjectMember(
   workerUid: string,
   projectId: string,
 ): Promise<boolean> {
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     const snap = await db.collection('projects').doc(projectId).get();
     if (snap.exists) {
@@ -220,7 +222,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
       );
@@ -341,7 +343,7 @@ router.post(
       return res.status(422).json({ error: 'worker_not_in_project' });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
       );
@@ -407,7 +409,7 @@ router.post(
       });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
       );
@@ -463,7 +465,7 @@ router.post(
       });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
       );

@@ -19,8 +19,10 @@
 // a "user not found" error). Best-effort, but propagates failures so the
 // logout audit row reflects the outcome.
 
-import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export interface ClearUserFcmTokensResult {
   /** Number of tokens removed. */
@@ -43,7 +45,7 @@ export interface ClearUserFcmTokensResult {
  */
 export async function clearUserFcmTokens(
   uid: string,
-  db: admin.firestore.Firestore = admin.firestore(),
+  db: Firestore = getFirestore(),
 ): Promise<ClearUserFcmTokensResult> {
   if (typeof uid !== 'string' || uid.length === 0) {
     throw new Error('clearUserFcmTokens requires a non-empty uid');
@@ -63,8 +65,8 @@ export async function clearUserFcmTokens(
     return { removed: 0 };
   }
   await userRef.update({
-    fcmTokens: admin.firestore.FieldValue.delete(),
-    lastTokenUnregisteredAt: admin.firestore.FieldValue.serverTimestamp(),
+    fcmTokens: FieldValue.delete(),
+    lastTokenUnregisteredAt: FieldValue.serverTimestamp(),
   });
   logger.info?.('fcm.cleared_for_user', { uid, removed: tokens.length });
   return { removed: tokens.length };

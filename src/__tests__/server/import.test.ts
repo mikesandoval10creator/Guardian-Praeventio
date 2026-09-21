@@ -2,7 +2,7 @@
 //
 // Covers the two endpoints in the Excel importer router. The route file
 // itself depends on `verifyAuth`, `idempotencyKey`, audit logging, the
-// `excelImporter` service barrel, and `admin.firestore()`. All of those
+// `excelImporter` service barrel, and `getFirestore()`. All of those
 // are mocked here so the tests are deterministic and never touch real
 // Firestore. The mocking pattern mirrors oauthGoogle.test.ts.
 
@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 // ─── Module mocks (must be hoisted via vi.mock before route import) ────
 
 const verifyAuthMock = vi.fn();
@@ -85,7 +86,7 @@ vi.mock('../../services/excelImporter/index.js', () => ({
   },
 }));
 
-// firebase-admin is referenced by the route for admin.firestore() and
+// firebase-admin is referenced by the route for getFirestore() and
 // admin.firestore.FieldValue.serverTimestamp(). The default export is the
 // `admin` namespace object. We stub the surface the route actually uses.
 const batchSetMock = vi.fn((_ref: unknown, _data: unknown): void => {});

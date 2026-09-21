@@ -27,7 +27,7 @@ const H = vi.hoisted(() => ({
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  // Route only calls admin.firestore() inside assertProjectMember; auth is
+  // Route only calls getFirestore() inside assertProjectMember; auth is
   // handled by the verifyAuth mock below.
   return adminMock(() => H.db!);
 });
@@ -66,6 +66,7 @@ vi.mock('../../services/observability/index.js', () => ({
 import privacyRetentionRouter from '../../server/routes/privacyRetention.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ── App factory ──────────────────────────────────────────────────────────────
 
 function buildApp() {

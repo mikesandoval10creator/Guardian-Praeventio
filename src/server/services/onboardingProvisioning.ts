@@ -2,10 +2,12 @@
 // One durable completion per authenticated owner. Firestore retries serialize
 // competitors; NO external side effect is allowed inside the transaction.
 import { createHash, randomUUID } from "node:crypto";
-import admin from "firebase-admin";
 import { WORKER_ROLES } from "../../types/roles.js";
 import { buildProjectSeeds } from "../../services/sii/projectSeeds.js";
 import { CL_PACK } from "../../data/normativa/cl.js";
+
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export interface OnboardingPayload {
   industry: string;
@@ -36,7 +38,7 @@ export class OnboardingConflict extends Error {
 }
 
 export async function provisionOnboarding(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   uid: string,
   payload: OnboardingPayload,
 ) {
@@ -118,7 +120,7 @@ export async function provisionOnboarding(
             now,
           })
         : { riskSeeds: [], obligationSeeds: [] };
-    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const timestamp = FieldValue.serverTimestamp();
 
     tx.set(projectRef, {
       name: payload.projectName,
@@ -238,7 +240,7 @@ export async function provisionOnboarding(
                 ...(isPaidTier
                   ? { pendingTier: payload.tier }
                   : subscription?.pendingTier != null
-                    ? { pendingTier: admin.firestore.FieldValue.delete() }
+                    ? { pendingTier: FieldValue.delete() }
                     : {}),
                 updatedAt: timestamp,
               },

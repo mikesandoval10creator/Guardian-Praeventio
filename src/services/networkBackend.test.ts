@@ -14,11 +14,12 @@
 // The tests stub firebase-admin, @google/genai, and ./geminiBackend so
 // nothing touches the network. We import the SUT dynamically AFTER the
 // mocks are registered (the module reads `process.env.GEMINI_API_KEY`
-// and constructs `admin.firestore()` calls eagerly at function-call time
+// and constructs `getFirestore()` calls eagerly at function-call time
 // — so module load is fine, but every method must be mocked).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
 // firebase-admin: a minimal fake firestore with the chained surface that

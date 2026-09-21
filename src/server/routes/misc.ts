@@ -26,13 +26,15 @@
 // path suffix so the final on-the-wire URLs are byte-identical.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { erpSyncLimiter } from '../middleware/limiters.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -108,7 +110,7 @@ router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res)
     return res.status(400).json({ error: 'project_id_required', forecast: [] });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     await assertProjectMember(req.user!.uid, projectId, db);
     const projectSnap = await db.collection('projects').doc(projectId).get();
@@ -223,7 +225,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   // avoid persisting unauthenticated PII-shaped payloads.
   let callerRecord: { uid: string; customClaims?: { role?: unknown } } | null;
   try {
-    callerRecord = await admin.auth().getUser(uid);
+    callerRecord = await getAuth().getUser(uid);
   } catch (lookupErr) {
     // Fail-CLOSED: if we can't verify the caller, refuse. Otherwise a
     // transient Firebase Auth blip would let an unverified caller through.
@@ -250,7 +252,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   // intentos antes de devolver respuesta — incluye los modos de falla
   // (missing_creds, not_implemented) para audit trail completo. Si el write
   // a Firestore falla, NO bloqueamos la respuesta (try-catch interno).
-  const db = admin.firestore();
+  const db = getFirestore();
   const logAttempt = async (
     mode: string,
     extraStatus: string,
@@ -266,7 +268,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
         status: extraStatus,
         mode,
         message: extraMsg ?? null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
     } catch (logErr) {
       // No bloquear la respuesta si el log falla.
@@ -367,7 +369,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
 // Seed Glossary Endpoint (gerente-only — prevents public abuse)
 router.post('/seed-glossary', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser(req.user!.uid);
+    const callerRecord = await getAuth().getUser(req.user!.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }
@@ -392,7 +394,7 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
 // Seed Data Endpoint (gerente-only — prevents public abuse)
 router.post('/seed-data', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser(req.user!.uid);
+    const callerRecord = await getAuth().getUser(req.user!.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }

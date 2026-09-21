@@ -200,8 +200,8 @@ function makeFakeResend() {
   } as any;
 }
 
-const fakeFirestoreNamespace = {
-  FieldValue: { serverTimestamp: () => '__SERVER_TS__' },
+const fakeFieldValue = {
+  serverTimestamp: () => '__SERVER_TS__',
 } as any;
 
 beforeEach(() => {
@@ -215,7 +215,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     expect(captured).toHaveLength(4);
@@ -234,7 +234,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
     handle.unsubscribe();
     for (const c of captured) {
@@ -252,7 +252,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
@@ -308,7 +308,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
@@ -352,7 +352,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
@@ -419,7 +419,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging,
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
     const ref = {
       get: vi.fn().mockResolvedValue({ data: () => ({}) }),
@@ -457,7 +457,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging,
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       resendApiKey: 'test-key',
     });
     const ref = {
@@ -487,7 +487,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
     const ref = {
       get: vi.fn().mockResolvedValue({ data: () => ({}) }),
@@ -514,7 +514,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       resendApiKey: 'test-key',
     });
     const ref = {
@@ -561,7 +561,7 @@ describe('setupBackgroundTriggers', () => {
       db,
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
@@ -607,7 +607,7 @@ describe('setupBackgroundTriggers', () => {
       }),
       messaging,
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
     });
 
     const incidents = captured.find((c) => c.type === 'incidents')!;
@@ -643,7 +643,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       generateEmbeddingsBatch,
     });
 
@@ -690,7 +690,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       generateEmbeddingsBatch,
     });
 
@@ -723,7 +723,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       generateEmbeddingsBatch,
     });
 
@@ -764,7 +764,7 @@ describe('setupBackgroundTriggers', () => {
       db: makeFakeDb(captured),
       messaging: makeFakeMessaging(),
       resend: makeFakeResend(),
-      firestoreNamespace: fakeFirestoreNamespace,
+      fieldValue: fakeFieldValue,
       generateEmbeddingsBatch: vi.fn(async () => [[0.2, 0.4]]),
     });
 

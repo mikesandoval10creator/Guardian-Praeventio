@@ -27,7 +27,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin mock ───────────────────────────────────────────────────────
-// `assertAdmin` in the route calls admin.auth().getUser(uid) to check
+// `assertAdmin` in the route calls getAuth().getUser(uid) to check
 // customClaims.role. We return 'admin' only for uid 'admin-user' and 'gerente'
 // only for uid 'gerente-user' so a single mock drives all auth scenarios.
 
@@ -74,7 +74,7 @@ vi.mock('../../utils/logger.js', () => ({
 // ── domain-service mocks ──────────────────────────────────────────────────────
 // computeB2dMetrics and readRecentB2dMrrSnapshots are network-heavy; stub them.
 // createApiKey and revokeApiKey call through to the REAL service code (which
-// itself uses admin.firestore() — our fake handles that).
+// itself uses getFirestore() — our fake handles that).
 
 vi.mock('../../services/analytics/b2dMetrics.js', () => ({
   computeB2dMetrics: vi.fn(async () => ({
@@ -102,6 +102,8 @@ import b2dAdminRouter from '../../server/routes/b2dAdmin.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { hashApiKey } from '../../services/b2d/apiKeyService.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 // ── test app builder ──────────────────────────────────────────────────────────
 // Mounted at the same prefix as server.ts: /api/admin/b2d
 

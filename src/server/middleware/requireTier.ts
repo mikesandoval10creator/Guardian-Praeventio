@@ -30,7 +30,6 @@
 //     plan. A missing/unknown plan resolves to the free tier (rank 0).
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
 import {
   planMeetsMinimum,
   type SubscriptionPlan,
@@ -42,13 +41,15 @@ import {
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from './captureRouteError.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 /**
  * Read the caller's complete authoritative subscription record. The shared
  * entitlement evaluator validates its plan, status, provider, expiry, and
  * grace period. The legacy top-level plan mirror is not authoritative.
  */
 async function readCallerSubscription(uid: string): Promise<unknown> {
-  const snap = await admin.firestore().collection('users').doc(uid).get();
+  const snap = await getFirestore().collection('users').doc(uid).get();
   if (!snap.exists) return undefined;
   const data = snap.data() ?? {};
   return data.subscription;

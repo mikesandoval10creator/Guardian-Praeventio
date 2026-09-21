@@ -2,7 +2,6 @@
 // durable receipt. Only email delivery and audit sinks remain best-effort.
 
 import { Router } from "express";
-import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import {
   provisionOnboarding,
@@ -17,6 +16,8 @@ import { projectInvitationTemplate } from "../../services/email/templates.js";
 import { TIERS } from "../../services/pricing/tiers.js";
 
 import { SII_ACTIVIDADES_ECONOMICAS } from "../../data/sii/actividadesEconomicas.js";
+
+import { getFirestore } from 'firebase-admin/firestore';
 export const onboardingRouter = Router();
 
 const VALID_INDUSTRIES = new Set([
@@ -145,7 +146,7 @@ onboardingRouter.post("/onboarding/complete", verifyAuth, async (req, res) => {
 
   let provisioned;
   try {
-    provisioned = await provisionOnboarding(admin.firestore(), uid, payload);
+    provisioned = await provisionOnboarding(getFirestore(), uid, payload);
   } catch (err) {
     if (err instanceof OnboardingConflict)
       return res.status(409).json({ error: err.reason });

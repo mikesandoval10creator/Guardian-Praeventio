@@ -31,7 +31,6 @@
  *   restores the pre-envelope plaintext-write behavior.
  */
 
-import admin from 'firebase-admin';
 import {
   envelopeEncrypt,
   envelopeDecrypt,
@@ -40,6 +39,8 @@ import {
 } from './security/kmsEnvelope.ts';
 import { getKmsAdapter } from './security/kmsAdapter.ts';
 import { logger } from '../utils/logger.ts';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const COLLECTION = 'oauth_tokens';
 
@@ -71,7 +72,7 @@ interface StoredTokens {
   expiry_date: number;
   scope?: string;
   token_type?: string;
-  updatedAt: admin.firestore.FieldValue;
+  updatedAt: FieldValue;
 }
 
 function docId({ uid, provider }: TokenIdentity): string {
@@ -164,21 +165,21 @@ export async function saveTokens(id: TokenIdentity, tokens: RawTokenResponse): P
     expiry_date,
     scope: tokens.scope,
     token_type: tokens.token_type,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
   if (tokens.refresh_token) {
     data.refresh_token = await maybeWrapRefreshToken(tokens.refresh_token);
   }
-  await admin.firestore().collection(COLLECTION).doc(docId(id)).set(data, { merge: true });
+  await getFirestore().collection(COLLECTION).doc(docId(id)).set(data, { merge: true });
 }
 
 export async function hasTokens(id: TokenIdentity): Promise<boolean> {
-  const snap = await admin.firestore().collection(COLLECTION).doc(docId(id)).get();
+  const snap = await getFirestore().collection(COLLECTION).doc(docId(id)).get();
   return snap.exists;
 }
 
 export async function revokeTokens(id: TokenIdentity): Promise<void> {
-  await admin.firestore().collection(COLLECTION).doc(docId(id)).delete();
+  await getFirestore().collection(COLLECTION).doc(docId(id)).delete();
 }
 
 /**
@@ -195,7 +196,7 @@ export async function getValidAccessToken(
   clientId: string,
   clientSecret: string,
 ): Promise<string | null> {
-  const docRef = admin.firestore().collection(COLLECTION).doc(docId(id));
+  const docRef = getFirestore().collection(COLLECTION).doc(docId(id));
   const snap = await docRef.get();
   if (!snap.exists) return null;
 
@@ -240,7 +241,7 @@ export async function getValidAccessToken(
   await docRef.update({
     access_token: refreshed.access_token,
     expiry_date: Date.now() + ((refreshed.expires_in ?? 3600) * 1000),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   return refreshed.access_token;

@@ -22,7 +22,6 @@
 // create/revoke and reads the persisted docs for the list endpoint.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole, isPlatformOperatorRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
@@ -31,6 +30,9 @@ import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
 import { readRecentB2dMrrSnapshots } from '../jobs/runB2dMrrSnapshot.js';
 import { buildTenantSnapshots } from '../../services/adoption/buildTenantSnapshots.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 // Bucket BB shipped — we depend on the canonical key service directly.
 import {
   createApiKey,
@@ -74,7 +76,7 @@ async function assertAdmin(req: any, res: any): Promise<boolean> {
     return false;
   }
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       res.status(403).json({ error: 'Forbidden: Requires admin role' });
       return false;
@@ -102,7 +104,7 @@ async function assertGlobalScopeCaller(req: any, res: any): Promise<boolean> {
     return false;
   }
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isPlatformOperatorRole(callerRecord.customClaims?.role)) {
       res.status(403).json({ error: 'Forbidden: suite.all requires platform_operator' });
       return false;
@@ -126,7 +128,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid customerId' });
   }
   try {
-    let q: FirebaseFirestore.Query = admin.firestore().collection('b2d_api_keys');
+    let q: FirebaseFirestore.Query = getFirestore().collection('b2d_api_keys');
     if (customerId) q = q.where('customerId', '==', customerId);
     const snap = await q.get();
     const keys: any[] = [];
@@ -216,17 +218,17 @@ router.post('/keys', verifyAuth, async (req, res) => {
     const maskedKey = `${record.keyPrefix}â€¦`;
 
     // Audit log + event log (the admin panel reads `b2d_events`).
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       actor: callerUid,
       action: 'b2d_key_created',
       target: id,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       tier,
       customerId,
     });
-    await admin.firestore().collection('b2d_events').add({
+    await getFirestore().collection('b2d_events').add({
       kind: 'key_created',
       keyId: id,
       customerId,
@@ -257,15 +259,15 @@ router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
   try {
     await revokeApiKey(id, callerUid);
 
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       actor: callerUid,
       action: 'b2d_key_revoked',
       target: id,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
-    await admin.firestore().collection('b2d_events').add({
+    await getFirestore().collection('b2d_events').add({
       kind: 'key_revoked',
       keyId: id,
       actor: callerUid,
@@ -313,7 +315,7 @@ router.get('/mrr-history', verifyAuth, async (req, res) => {
   // Tope absoluto: 36 meses (3 años). Default: 12 meses (1 año).
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 36) : 12;
   try {
-    const snapshots = await readRecentB2dMrrSnapshots(admin.firestore(), limit);
+    const snapshots = await readRecentB2dMrrSnapshots(getFirestore(), limit);
     // Devolvemos en orden ascendente para que el chart no tenga que
     // reverse() — el caller pinta de izquierda (más antiguo) a derecha
     // (más reciente).
@@ -341,7 +343,7 @@ router.get('/events', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'from must be <= to' });
   }
   try {
-    const snap = await admin.firestore()
+    const snap = await getFirestore()
       .collection('b2d_events')
       .where('ts', '>=', from)
       .where('ts', '<=', to)
@@ -382,7 +384,7 @@ router.get('/events', verifyAuth, async (req, res) => {
 router.get('/churn-snapshots', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return undefined;
   try {
-    const snapshots = await buildTenantSnapshots(admin.firestore(), { limit: 500 });
+    const snapshots = await buildTenantSnapshots(getFirestore(), { limit: 500 });
     return res.json({ ok: true, snapshots });
   } catch (error) {
     logger.error('b2d_admin_churn_snapshots_failed', error);

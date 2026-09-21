@@ -26,7 +26,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -50,6 +49,9 @@ import {
   MicrotrainingAdapter,
 } from '../../services/microtraining/microtrainingFirestoreAdapter.js';
 import type { RiskCategory } from '../../services/microtraining/lightningTrainingService.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   createIncidentReportedNode,
   createInvestigationOpenedNode,
@@ -110,7 +112,7 @@ function flowDepsFor(req: import('express').Request): FlowDeps {
   // disconnected on the server (ISO 45001 §10.2 traceability broken). Wire the
   // real Firestore edge store (same adapter horometro.ts uses) so the chain is
   // actually materialized.
-  const edgeStore = buildEdgeStore(admin.firestore());
+  const edgeStore = buildEdgeStore(getFirestore());
   return {
     writeNodes: makeServerWriteNodes({
       createdBy: req.user!.uid,
@@ -127,7 +129,7 @@ function flowDepsFor(req: import('express').Request): FlowDeps {
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -141,7 +143,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -149,7 +151,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -186,7 +188,7 @@ async function assertAllProjectMembers(
   const offending: string[] = [];
   for (const uid of uids) {
     try {
-      await assertProjectMember(uid, projectId, admin.firestore());
+      await assertProjectMember(uid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         offending.push(uid);
@@ -221,8 +223,7 @@ async function writeAudit(
   details: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('audit_logs')
       .add({
         action,
@@ -231,7 +232,7 @@ async function writeAudit(
         userEmail: null,
         projectId,
         details: { ...details, tenantId },
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: null,
         userAgent: null,
       });
@@ -574,7 +575,7 @@ router.post(
       // exactly one). If the array is empty, we fall back to a
       // deterministic placeholder so the canonical row still exists.
       const lessonsAdapter = new LessonsAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
       );
       await lessonsAdapter.save({
@@ -830,7 +831,7 @@ router.post(
       // stays (for forensics and PDCA), but the canonical
       // session/cert writes are now performed on success.
       const microtrainingAdapter = new MicrotrainingAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -959,7 +960,7 @@ router.get(
     if (!g) return undefined;
 
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const snap = await db
         .collection('zettelkasten_nodes')
         .where('metadata.incidentId', '==', incidentId)

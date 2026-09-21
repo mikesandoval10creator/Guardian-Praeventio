@@ -39,8 +39,9 @@
  * and any caching they want.
  */
 
-import admin from 'firebase-admin';
 import { API_TIERS, type ApiTierId, getApiTier } from '../pricing/aiTier.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 /**
  * Bucket-BB compatible shape for an API key document. Defined locally
@@ -103,7 +104,7 @@ function safeTierPrice(id: ApiTierId): number {
  */
 async function readApiKeys(): Promise<B2dApiKeyDoc[]> {
   try {
-    const snap = await admin.firestore().collection('b2d_api_keys').get();
+    const snap = await getFirestore().collection('b2d_api_keys').get();
     const out: B2dApiKeyDoc[] = [];
     snap.forEach((doc) => {
       const d = doc.data() as Partial<B2dApiKeyDoc> | undefined;

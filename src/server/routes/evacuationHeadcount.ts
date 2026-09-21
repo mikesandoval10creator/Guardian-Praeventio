@@ -38,7 +38,6 @@
 // (`GET /status` reusa `computeStatus` del engine sobre el drill cargado).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -60,6 +59,8 @@ import {
 } from '../../services/evacuation/evacuationHeadcount.js';
 import { EvacuationAdapter } from '../../services/evacuation/evacuationFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 // ────────────────────────────────────────────────────────────────────────
@@ -68,7 +69,7 @@ const router = Router();
 
 /** Resolve tenantId from `projects/{projectId}.tenantId`. Null if missing. */
 async function tenantIdFor(projectId: string): Promise<string | null> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) return null;
   const data = snap.data() ?? {};
@@ -82,7 +83,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -226,7 +227,7 @@ router.post(
 
     try {
       const adapter = new EvacuationAdapter(
-        admin.firestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
+        getFirestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
         tenantId,
         body.projectId,
       );
@@ -293,7 +294,7 @@ router.post(
 
     try {
       const adapter = new EvacuationAdapter(
-        admin.firestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
+        getFirestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
         tenantId,
         body.projectId,
       );
@@ -371,7 +372,7 @@ router.get(
 
     try {
       const adapter = new EvacuationAdapter(
-        admin.firestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
+        getFirestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
         tenantId,
         projectId,
       );
@@ -414,7 +415,7 @@ router.post(
 
     try {
       const adapter = new EvacuationAdapter(
-        admin.firestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
+        getFirestore() as unknown as import('../../services/evacuation/evacuationFirestoreAdapter.js').EvacuationFirestoreDb,
         tenantId,
         body.projectId,
       );

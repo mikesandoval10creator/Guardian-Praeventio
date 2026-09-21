@@ -33,6 +33,7 @@ import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.
 // handler so it continues to mirror reality. The handler stub below and
 // the test signers both call `canonicalize`.
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const ENV_SECRET = 'env-fallback-secret';
 

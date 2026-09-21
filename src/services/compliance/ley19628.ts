@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // Praeventio Guard — Sprint 23 Bucket FF.
 //
 // Compliance service for **Ley 19.628 sobre Protección de la Vida Privada**
@@ -13,7 +14,7 @@
 // Architectural note — Firestore is injected through `MinimalComplianceDb`
 // (the same pattern used by `assertProjectMember`). This keeps the unit
 // tests deterministic and free of `firebase-admin` coupling. The production
-// caller (`src/server/routes/compliance.ts`) injects `admin.firestore()`.
+// caller (`src/server/routes/compliance.ts`) injects `getFirestore()`.
 //
 // Retention nuance — eraseUserData(uid, { keepLegalRecords: true }) preserves
 // `audit_logs/*` and any `incidents/*` row referencing the uid because Ley

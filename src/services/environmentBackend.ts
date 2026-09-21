@@ -1,6 +1,7 @@
-import admin from "firebase-admin";
 import { logger } from '../utils/logger';
 import type { ClimateForecastDay } from './zettelkasten/climateRiskCoupling';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 // Re-export ClimateForecastDay for callers that already import it via this
 // module (server.ts dynamic import + future API consumers). Authoritative
@@ -17,7 +18,7 @@ const GLOBAL_REFERENCE_LAT = -33.4489;
 const GLOBAL_REFERENCE_LON = -70.6693;
 
 export const updateGlobalEnvironmentalContext = async () => {
-  const db = admin.firestore();
+  const db = getFirestore();
   const contextRef = db.collection('global_context').doc('environment');
 
   try {
@@ -84,7 +85,7 @@ export const updateGlobalEnvironmentalContext = async () => {
     await contextRef.set({
       weather: weatherData,
       seismic: seismicData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     logger.debug("[EnvironmentBackend] Global environmental context updated.");
@@ -326,7 +327,7 @@ export async function resolveTenantLocation(
 ): Promise<ForecastLocation | null> {
   if (!tenantId || typeof tenantId !== 'string') return null;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const snap = await db.collection('tenants').doc(tenantId).get();
     if (!snap.exists) return null;
     const data = snap.data() as

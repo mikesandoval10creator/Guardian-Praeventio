@@ -25,7 +25,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin mock — collectionGroup added inline ───────────────────────
-// The route uses admin.firestore().collectionGroup('audit_portals') for the
+// The route uses getFirestore().collectionGroup('audit_portals') for the
 // public token lookup. FakeFirestore does not expose collectionGroup, so we
 // bolt it on via the factory wrapper here.
 
@@ -124,7 +124,7 @@ vi.mock('firebase-admin', async () => {
   );
 
   // B17: the admin endpoints now assert an admin role via
-  // admin.auth().getUser(uid).customClaims.role. This suite exercises the
+  // getAuth().getUser(uid).customClaims.role. This suite exercises the
   // admin endpoints' DOWNSTREAM behavior (tenant resolution, validation,
   // portal logic) assuming an authorized admin caller, so make getUser report
   // an admin role for every caller. The role gate itself (403 for non-admins)
@@ -184,6 +184,8 @@ import externalAuditPortalRouter from '../../server/routes/externalAuditPortal.j
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { hashAccessToken } from '../../services/auditPortal/auditPortalFirestoreAdapter.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 // ── test app builder ──────────────────────────────────────────────────────────
 
 function buildApp() {

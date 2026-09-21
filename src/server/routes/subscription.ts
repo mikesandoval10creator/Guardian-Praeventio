@@ -21,7 +21,6 @@
 // `/api/billing/invoice/:id/mark-paid`.
 
 import { Router } from "express";
-import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
 import { captureRouteError } from "../middleware/captureRouteError.js";
@@ -39,6 +38,8 @@ import { normalizeSubscriptionProvider } from "../../services/pricing/subscripti
 // without having to know about grants. Same precedence contract documented in
 // src/server/services/pilotEntitlementResolver.ts.
 import { resolveEffectivePlan } from "../services/pilotEntitlementResolver.js";
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 export const subscriptionRouter = Router();
 
@@ -97,7 +98,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
     return res.status(400).json({ error: "invalid_plan", validPlans: SUBSCRIPTION_PLANS });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // Verify there's a paid invoice for this user with this tierId.
   // We do a broad query on (createdBy, status) and walk lineItems[].tierId
@@ -230,7 +231,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
         throw new InvoiceExpiredInTxError();
       }
       await tx.update(paidInvoiceRef!, {
-        consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        consumedAt: FieldValue.serverTimestamp(),
       });
       await tx.set(
         db.collection("users").doc(uid),
@@ -244,7 +245,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
             provider: paymentMethod,
             expiryDate: null,
             gracePeriodEnd: null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             cycle,
           },
         },

@@ -5,7 +5,7 @@
 //   app.use('/api/sprint-k', retaliationProtectionRouter)
 //
 // Two stateless POST endpoints — no Firestore writes from the engine —
-// but projectMembership calls admin.firestore() so we still need the
+// but projectMembership calls getFirestore() so we still need the
 // fakeFirestore to satisfy assertProjectMember.
 //
 // Sensitive-domain contract:
@@ -62,6 +62,7 @@ vi.mock('../../services/observability/index.js', () => ({
 import retaliationProtectionRouter from '../../server/routes/retaliationProtection.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // The route is mounted at /api/sprint-k in server.ts (line 1013).
 function buildApp() {
   const app = express();

@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // Praeventio Guard — server-side project membership enforcement.
 //
 // Round 14 (A5 audit) — Several Express routes accepted a `projectId` from
@@ -10,9 +11,9 @@
 // Design:
 //
 //   • Pure dependency injection: takes a `MinimalProjectsDb` rather than
-//     reaching for `admin.firestore()` itself. Keeps the helper unit-testable
+//     reaching for `getFirestore()` itself. Keeps the helper unit-testable
 //     without needing a global firebase-admin mock and lets server.ts pass
-//     `admin.firestore()` at the call site.
+//     `getFirestore()` at the call site.
 //
 //   • Throws a domain-specific `ProjectMembershipError` with `httpStatus =
 //     403`. Routes can `instanceof`-check and return the exact status,
@@ -26,7 +27,7 @@
 //     code initializes `members` lazily in some flows — A5 documented this).
 
 /**
- * The minimal Firestore-shaped read API we need. `admin.firestore()` is
+ * The minimal Firestore-shaped read API we need. `getFirestore()` is
  * structurally compatible; tests inject an in-memory fake.
  */
 export interface MinimalProjectsDb {

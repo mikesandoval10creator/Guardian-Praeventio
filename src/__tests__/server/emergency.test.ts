@@ -10,7 +10,7 @@
 //   • fan out FCM to supervisor/gerente/prevencionista members
 //
 // We use the same parallel-app pattern as push.test.ts because the real
-// router calls `admin.firestore()` which we can't init in tests.
+// router calls `getFirestore()` which we can't init in tests.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express, type Request } from 'express';
@@ -18,6 +18,7 @@ import request from 'supertest';
 import { InMemoryFirestore, type FakeAuth } from './test-server.js';
 import { buildEmergencyMulticastMessage } from '../../server/routes/emergency.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 interface SosTestDeps {
   firestore: InMemoryFirestore;
   auth: FakeAuth;

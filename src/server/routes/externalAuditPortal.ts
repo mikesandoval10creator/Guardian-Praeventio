@@ -48,7 +48,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -57,6 +56,10 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole } from '../../types/roles.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import {
   createPortal,
   derivePortalStatus,
@@ -111,7 +114,7 @@ const AFFILIATIONS: readonly AuditorAffiliation[] = [
 async function resolveTenantIdForAdmin(
   callerUid: string,
   callerTenantId: string | undefined,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   if (typeof callerTenantId === 'string' && callerTenantId.length > 0) {
     return callerTenantId;
@@ -141,7 +144,7 @@ async function assertAdminCaller(
     res.status(401).json({ error: 'unauthorized' });
     return false;
   }
-  const callerRecord = await admin.auth().getUser(callerUid);
+  const callerRecord = await getAuth().getUser(callerUid);
   if (!isAdminRole(callerRecord.customClaims?.role)) {
     res.status(403).json({ error: 'forbidden_requires_admin' });
     return false;
@@ -158,8 +161,8 @@ async function assertAdminCaller(
  */
 async function findPortalByPublicToken(
   token: string,
-  db: admin.firestore.Firestore,
-): Promise<{ stored: StoredAuditPortal; tenantId: string; portalRef: admin.firestore.DocumentReference } | null> {
+  db: Firestore,
+): Promise<{ stored: StoredAuditPortal; tenantId: string; portalRef: DocumentReference } | null> {
   const tokenHash = hashAccessToken(token);
   const snap = await db
     .collectionGroup('audit_portals')
@@ -273,7 +276,7 @@ router.post(
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
         callerTenantId,
-        admin.firestore(),
+        getFirestore(),
       );
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
@@ -281,7 +284,7 @@ router.post(
 
       for (const pid of body.scopeProjectIds) {
         try {
-          await assertProjectMember(callerUid, pid, admin.firestore());
+          await assertProjectMember(callerUid, pid, getFirestore());
         } catch (err) {
           if (err instanceof ProjectMembershipError) {
             await auditServerEvent(req, 'externalAuditPortal.scope_denied', 'externalAuditPortal', { projectId: pid });
@@ -302,7 +305,7 @@ router.post(
         ttlDays: body.ttlDays,
         internalNotes: body.internalNotes,
       });
-      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
+      const adapter = new AuditPortalAdapter(getFirestore(), tenantId);
       await adapter.save(portal);
       await auditServerEvent(req, 'externalAuditPortal.create', 'externalAuditPortal', {
         portalId: portal.id,
@@ -358,12 +361,12 @@ router.get(
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
         callerTenantId,
-        admin.firestore(),
+        getFirestore(),
       );
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
+      const adapter = new AuditPortalAdapter(getFirestore(), tenantId);
       const now = new Date();
       let portals: StoredAuditPortal[];
       if (q.affiliation) {
@@ -372,8 +375,7 @@ router.get(
         // No affiliation filter — query the raw collection ordered by createdAt
         // desc. We use the adapter's listByAffiliation pattern but consume the
         // raw collection ref directly to skip the filter.
-        const snap = await admin
-          .firestore()
+        const snap = await getFirestore()
           .collection(`tenants/${tenantId}/audit_portals`)
           .orderBy('createdAt', 'desc')
           .limit(q.limit ?? 50)
@@ -410,12 +412,12 @@ router.post(
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
         callerTenantId,
-        admin.firestore(),
+        getFirestore(),
       );
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
+      const adapter = new AuditPortalAdapter(getFirestore(), tenantId);
       const stored = await adapter.getById(portalId);
       if (!stored) {
         return res.status(404).json({ error: 'portal_not_found' });
@@ -483,12 +485,12 @@ router.get(
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
         callerTenantId,
-        admin.firestore(),
+        getFirestore(),
       );
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
+      const adapter = new AuditPortalAdapter(getFirestore(), tenantId);
       // Confirm the portal exists in THIS tenant — defends against tenant id
       // forgery via the URL param (verifyAuth gives us uid, but the path's
       // :portalId is attacker-controlled).
@@ -538,7 +540,7 @@ router.get(
       q.download === true || q.download === 'true' ? true : false;
 
     try {
-      const found = await findPortalByPublicToken(token, admin.firestore());
+      const found = await findPortalByPublicToken(token, getFirestore());
       if (!found) {
         return res.status(403).json({ error: 'forbidden' });
       }
@@ -561,7 +563,7 @@ router.get(
         // expired / revoked / out-of-scope portals.
         try {
           const adapter = new AuditPortalAdapter(
-            admin.firestore(),
+            getFirestore(),
             tenantId,
           );
           // Best-effort log; never block the response.
@@ -589,7 +591,7 @@ router.get(
       // the auditor saw module X at time Y).
       try {
         const adapter = new AuditPortalAdapter(
-          admin.firestore(),
+          getFirestore(),
           tenantId,
         );
         await adapter.appendAccessLog({
