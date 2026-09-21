@@ -36,7 +36,15 @@ const RUT_ISSUER_BAD_DV = '12345678-9';
 const RUT_RECEIVER_BAD_DV = '11111111-9';
 
 const baseEnv: NodeJS.ProcessEnv = {
-  BSALE_API_TOKEN: 'bsale-test-token',
+  // [Hy3-audit] Use the CANONICAL env-var names that the adapter actually
+  // consumes (BsaleAdapter.readConfigFromEnv() reads BSALE_ACCESS_TOKEN +
+  // BSALE_OFFICE_ID; libredteAdapter reads LIBREDTE_TOKEN). The preflight
+  // must mirror those names — otherwise an operator who configures the
+  // env correctly per the adapter docs sees the preflight fail (or worse,
+  // the preflight returns OK on a misconfigured env because it reads a
+  // different env var the operator never set).
+  BSALE_ACCESS_TOKEN: 'bsale-test-token',
+  BSALE_OFFICE_ID: 'bsale-test-office',
   SII_RUT_EMPRESA: RUT_ISSUER_OK,
   SII_AMBIENTE: 'certificacion',
 };
@@ -75,7 +83,7 @@ describe('runSiiPreflight — happy path', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('accepts PSE_API_TOKEN as fallback when BSALE_API_TOKEN missing', () => {
+  it('accepts PSE_API_TOKEN as fallback when BSALE_ACCESS_TOKEN missing', () => {
     const env = {
       SII_RUT_EMPRESA: RUT_ISSUER_OK,
       SII_AMBIENTE: 'certificacion',
@@ -114,7 +122,7 @@ describe('runSiiPreflight — blocking failures', () => {
     const env = {
       SII_RUT_EMPRESA: RUT_ISSUER_OK,
       SII_AMBIENTE: 'certificacion',
-      BSALE_API_TOKEN: '   ',
+      BSALE_ACCESS_TOKEN: '   ',
     };
     const result = runSiiPreflight(makeInput({ env }));
     expect(result.ok).toBe(false);
@@ -122,7 +130,7 @@ describe('runSiiPreflight — blocking failures', () => {
   });
 
   it('SII_RUT_EMPRESA missing → blocking', () => {
-    const env = { BSALE_API_TOKEN: 'tok', SII_AMBIENTE: 'certificacion' };
+    const env = { BSALE_ACCESS_TOKEN: 'tok', SII_AMBIENTE: 'certificacion' };
     const result = runSiiPreflight(makeInput({ env }));
     expect(result.ok).toBe(false);
     expect(result.blockingFailures.map((f) => f.code)).toContain('SII_RUT_EMPRESA_MISSING');
@@ -130,7 +138,7 @@ describe('runSiiPreflight — blocking failures', () => {
 
   it('SII_RUT_EMPRESA mismatch with issuerTaxId → ISSUER_RUT_MISMATCH (anti-tampering)', () => {
     const env = {
-      BSALE_API_TOKEN: 'tok',
+      BSALE_ACCESS_TOKEN: 'tok',
       SII_AMBIENTE: 'certificacion',
       SII_RUT_EMPRESA: RUT_PRAEVENTIO,
     };
@@ -143,7 +151,7 @@ describe('runSiiPreflight — blocking failures', () => {
 
   it('SII_RUT_EMPRESA matches issuer even with dots in env value', () => {
     const env = {
-      BSALE_API_TOKEN: 'tok',
+      BSALE_ACCESS_TOKEN: 'tok',
       SII_AMBIENTE: 'certificacion',
       // Same RUT as RUT_ISSUER_OK but formatted with dots.
       SII_RUT_EMPRESA: '12.345.678-5',
@@ -155,7 +163,7 @@ describe('runSiiPreflight — blocking failures', () => {
   });
 
   it('SII_AMBIENTE missing → blocking SII_AMBIENTE_MISSING', () => {
-    const env = { BSALE_API_TOKEN: 'tok', SII_RUT_EMPRESA: RUT_ISSUER_OK };
+    const env = { BSALE_ACCESS_TOKEN: 'tok', SII_RUT_EMPRESA: RUT_ISSUER_OK };
     const result = runSiiPreflight(makeInput({ env }));
     expect(result.ok).toBe(false);
     expect(result.blockingFailures.map((f) => f.code)).toContain('SII_AMBIENTE_MISSING');
@@ -356,6 +364,70 @@ describe('runSiiPreflight — multi-failure accumulation', () => {
     const result = runSiiPreflight(
       makeInput({ documentKind: 'guia_despacho', receiverTaxId: RUT_RECEIVER_OK_2 }),
     );
+    expect(result.ok).toBe(true);
+  });
+});
+
+// [Hy3-audit] Resolves [Audit-2026-08-31] SII preflight — nombres de
+// credenciales Bsale/LibreDTE no coinciden con adapters. The legacy
+// preflight checked `BSALE_API_TOKEN` but the BsaleAdapter consumes
+// `BSALE_ACCESS_TOKEN` + `BSALE_OFFICE_ID`. So a perfectly configured
+// operator (who reads the adapter docs) saw the preflight reject their
+// env, and a misconfigured operator (who guessed `BSALE_API_TOKEN`)
+// saw the preflight return OK while the adapter would fail in production.
+//
+// These tests pin the contract: the preflight env-var names MUST
+// match the adapter env-var names exactly. If a future PR renames the
+// adapter vars without updating the preflight, these tests will go RED
+// — that's the signal the contract drifted.
+describe('runSiiPreflight — env-var-name contract with adapters', () => {
+  it('OK when BSALE_ACCESS_TOKEN + BSALE_OFFICE_ID are set (canonical Bsale env)', () => {
+    const env: NodeJS.ProcessEnv = {
+      BSALE_ACCESS_TOKEN: 'real-token',
+      BSALE_OFFICE_ID: '12345',
+      SII_RUT_EMPRESA: RUT_ISSUER_OK,
+      SII_AMBIENTE: 'certificacion',
+    };
+    const result = runSiiPreflight(makeInput({ env }));
+    expect(result.blockingFailures.map((f) => f.code)).not.toContain('PSE_TOKEN_MISSING');
+    expect(result.ok).toBe(true);
+  });
+
+  it('OK when BSALE_ACCESS_TOKEN is set but BSALE_OFFICE_ID is missing (Bsale needs both)', () => {
+    const env: NodeJS.ProcessEnv = {
+      BSALE_ACCESS_TOKEN: 'real-token',
+      SII_RUT_EMPRESA: RUT_ISSUER_OK,
+      SII_AMBIENTE: 'certificacion',
+    };
+    const result = runSiiPreflight(makeInput({ env }));
+    // Without BSALE_OFFICE_ID the Bsale adapter cannot target a CAF
+    // range. Preflight must report the missing companion env.
+    expect(result.blockingFailures.map((f) => f.code)).toContain('PSE_TOKEN_MISSING');
+  });
+
+  it('REJECTS the legacy BSALE_API_TOKEN name (no longer honored)', () => {
+    // Drift detection: the preflight used to read BSALE_API_TOKEN,
+    // but the BsaleAdapter consumes BSALE_ACCESS_TOKEN. A config that
+    // only sets BSALE_API_TOKEN is broken — the adapter will fail in
+    // production. The preflight MUST surface that.
+    const env: NodeJS.ProcessEnv = {
+      BSALE_API_TOKEN: 'legacy-name-set',
+      BSALE_OFFICE_ID: '12345',
+      SII_RUT_EMPRESA: RUT_ISSUER_OK,
+      SII_AMBIENTE: 'certificacion',
+    };
+    const result = runSiiPreflight(makeInput({ env }));
+    expect(result.blockingFailures.map((f) => f.code)).toContain('PSE_TOKEN_MISSING');
+  });
+
+  it('OK when LIBREDTE_TOKEN is set (canonical LibreDTE env)', () => {
+    const env: NodeJS.ProcessEnv = {
+      LIBREDTE_TOKEN: 'libredte-real-token',
+      SII_RUT_EMPRESA: RUT_ISSUER_OK,
+      SII_AMBIENTE: 'certificacion',
+    };
+    const result = runSiiPreflight(makeInput({ env }));
+    expect(result.blockingFailures.map((f) => f.code)).not.toContain('PSE_TOKEN_MISSING');
     expect(result.ok).toBe(true);
   });
 });
