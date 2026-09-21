@@ -111,9 +111,13 @@ let sut: OfflineStorageModule;
 
 async function freshSut(): Promise<OfflineStorageModule> {
   vi.resetModules();
-  // Re-register mocks after resetModules so they survive the fresh module graph.
-  vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
-  vi.mock('@capacitor-community/sqlite', () => ({
+  // Re-register dynamic mocks after resetModules so they survive the fresh
+  // module graph. We use `vi.doMock` here — vitest 5 forbids `vi.mock`
+  // outside the file's top-level scope, so the static mocks at the top
+  // of this file are the hoisted ones and these dynamic ones use doMock
+  // (which is allowed at runtime).
+  vi.doMock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
+  vi.doMock('@capacitor-community/sqlite', () => ({
     CapacitorSQLite: {},
     SQLiteConnection: class {
       async checkConnectionsConsistency() { return { result: false }; }
@@ -123,10 +127,10 @@ async function freshSut(): Promise<OfflineStorageModule> {
     },
     SQLiteDBConnection: class {},
   }));
-  vi.mock('./sqliteEncryption', () => ({
+  vi.doMock('./sqliteEncryption', () => ({
     ensureSqliteEncryptionSecret: vi.fn(async () => 'secret'),
   }));
-  vi.mock('./logger', () => ({
+  vi.doMock('./logger', () => ({
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
   }));
   return import('./offlineStorage') as Promise<OfflineStorageModule>;
