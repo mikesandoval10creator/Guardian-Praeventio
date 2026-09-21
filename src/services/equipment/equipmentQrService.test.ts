@@ -93,6 +93,46 @@ describe('runPreUseValidation', () => {
     ).toThrow(/CHECKLIST_INCOMPLETE/);
   });
 
+  // [Hy3-audit] Resolves [Audit-2026-08-31] Equipment pre-use —
+  // IDs extra/duplicados y signatureHashHex no se validan. The
+  // legacy set-based check accepted responses for items not in
+  // the expected checklist (extras) AND silently collapsed
+  // duplicate itemIds via Set. A malicious worker could spoof
+  // responses for non-existent items. The fix rejects any
+  // response whose itemId is not in the expected set, AND any
+  // duplicate itemIds (the same item reported twice). Both
+  // checks are explicit (no set deduplication) so the failure
+  // mode is auditable.
+  it('rechaza respuestas con itemIds que NO están en el checklist', () => {
+    const extras = [
+      ...makeOkResponses('gruahorquilla'),
+      { itemId: 'inventado_extra', result: 'passed' as const },
+    ];
+    expect(() =>
+      runPreUseValidation({
+        id: 'v1',
+        equipment: equipment(),
+        workerUid: 'w1',
+        responses: extras,
+        now: NOW,
+      }),
+    ).toThrow(/UNEXPECTED_RESPONSE_ITEM|CHECKLIST_EXTRA/);
+  });
+
+  it('rechaza respuestas con itemIds duplicados', () => {
+    const ok = makeOkResponses('gruahorquilla');
+    const dupes = [...ok, ok[0]!];
+    expect(() =>
+      runPreUseValidation({
+        id: 'v1',
+        equipment: equipment(),
+        workerUid: 'w1',
+        responses: dupes,
+        now: NOW,
+      }),
+    ).toThrow(/DUPLICATE_RESPONSE_ITEM|DUPLICATE_ITEM/);
+  });
+
   it('no exige checklist si requiresPreUseChecklist=false', () => {
     const v = runPreUseValidation({
       id: 'v1',
