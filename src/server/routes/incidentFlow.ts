@@ -830,8 +830,7 @@ router.post(
       // stays (for forensics and PDCA), but the canonical
       // session/cert writes are now performed on success.
       const microtrainingAdapter = new MicrotrainingAdapter(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
