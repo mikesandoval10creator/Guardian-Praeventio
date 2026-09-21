@@ -219,7 +219,10 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     assessRouteClimateMock.mockResolvedValueOnce(makeAssessment('danger'));
     await clickCalcular();
 
-    await waitFor(() => expect(screen.getByText('Ruta Intransitable')).toBeTruthy());
+    // findByText retries internally (was `waitFor + getByText` pre-vitest-5;
+    // the sync `getByText` inside `waitFor` raced the loading→danger swap on
+    // slow runners and caused shard-4 flake under vitest 5's tighter timing).
+    expect(await screen.findByText('Ruta Intransitable')).toBeTruthy();
     // No way to reach danger without the engine having produced it.
     expect(assessRouteClimateMock).toHaveBeenCalledTimes(2);
     expect(assessRouteClimateMock.mock.results[1]!.value).resolves.toMatchObject({
