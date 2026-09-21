@@ -50,6 +50,99 @@ function canonicalJson(value: unknown): string {
   );
 }
 
+/**
+ * Field names whose values must NEVER appear in a Ley 21.719 portability
+ * export. Matched by case-insensitive suffix against any key in the
+ * users/{uid} document, at any depth.
+ *
+ * Why suffix-match and not exact? Production has multiple schemas in
+ * flight (snake_case + camelCase) and downstream integrations may add
+ * fields like `stripeCustomerId`, `legacyApiKey`, etc. A suffix list
+ * catches the foreseeable variants without coupling the export
+ * redactor to a specific schema version.
+ *
+ * [Hy3-audit] Resolves [Audit-2026-08-31] Account anonymization —
+ * exporta y conserva credenciales en users/{uid}. The list is
+ * deliberately broad: anything that looks like a JWT-shaped string,
+ * a vendor API key, or a stored payment instrument is a credential
+ * leak waiting to happen if it ends up in the downloaded archive.
+ */
+const EXPORT_CREDENTIAL_FIELD_SUFFIXES: readonly string[] = [
+  // FCM / push tokens (single-string + array-of-strings variants).
+  'fcmToken',
+  'fcmTokens',
+  'pushToken',
+  'pushTokens',
+  'apnsToken',
+  'apnsTokens',
+  // IAP / billing tokens. Covered at any depth (subscription.*,
+  // subscription.iap.*, billing.iap.*).
+  'purchaseToken',
+  'refreshToken',
+  'subscriptionId', // Safe to expose in some contexts, but IAP verifiers
+                   // accept it as proof — strip defensively.
+  'stripeCustomerId',
+  'paypalCustomerId',
+  // App Store / Play Store receipts (binary blobs that the
+  // vendor SDK treats as proof of subscription ownership).
+  'appleReceipt',
+  'googlePlayReceipt',
+  'appStoreReceipt',
+  'playStoreReceipt',
+  // Generic API keys.
+  'apiKey',
+  'api_key',
+  'secret',
+  'token',
+  'privateKey',
+];
+
+/**
+ * Recursively strip every field whose name matches one of
+ * EXPORT_CREDENTIAL_FIELD_SUFFIXES (case-insensitive). Returns a NEW
+ * object — the input is not mutated. Arrays are walked and their
+ * element objects redacted; primitive array elements (e.g. an array of
+ * push tokens as strings) are passed through; an array of objects is
+ * mapped element-by-element. Whitelist-FAIL-CLOSED semantics: unknown
+ * keys are kept, but any field that *looks* like a credential is
+ * stripped before the export reaches the wire.
+ */
+export function redactCredentials(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {};
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (matchesCredentialSuffix(k)) continue;
+    out[k] = redactValue(v);
+  }
+  return out;
+}
+
+function matchesCredentialSuffix(key: string): boolean {
+  const lower = key.toLowerCase();
+  return EXPORT_CREDENTIAL_FIELD_SUFFIXES.some((suffix) =>
+    lower.endsWith(suffix.toLowerCase()),
+  );
+}
+
+function redactValue(v: unknown): unknown {
+  if (v === null || v === undefined) return v;
+  if (Array.isArray(v)) {
+    return v.map((item) =>
+      item && typeof item === 'object' && !Array.isArray(item)
+        ? redactCredentials(item as Record<string, unknown>)
+        : item,
+    );
+  }
+  if (typeof v === 'object') {
+    return redactCredentials(v as Record<string, unknown>);
+  }
+  return v;
+}
+
 function internalError(err: unknown): string {
   return process.env.NODE_ENV === 'production'
     ? 'Internal server error'
@@ -129,11 +222,21 @@ accountRouter.post('/anonymize', verifyAuth, webauthnVerifyLimiter, async (req, 
   let dataExportChecksum: string;
   try {
     const snap = await db.collection('users').doc(uid).get();
+    const rawUser = snap.exists ? snap.data() ?? {} : {};
     const exportObj = {
       schemaVersion: '1.0.0',
       uid,
       exportedAt: new Date().toISOString(),
-      user: snap.exists ? snap.data() ?? {} : {},
+      // [Hy3-audit] Resolves [Audit-2026-08-31] Account anonymization
+      // — exporta y conserva credenciales en users/{uid}. The legacy
+      // export inlined the entire users/{uid} document, including
+      // bearer credentials (FCM push tokens, billing purchase
+      // tokens, API keys, custom fields that downstream integrations
+      // may have written). A portability export that ships a JWT
+      // is a credential leak on its own. Strip every credential-
+      // shaped field recursively — both at the top level and at any
+      // arbitrary depth (subscription.purchaseToken, etc.).
+      user: redactCredentials(rawUser),
     };
     dataExport = canonicalJson(exportObj);
     dataExportChecksum = crypto.createHash('sha256').update(dataExport, 'utf8').digest('hex');

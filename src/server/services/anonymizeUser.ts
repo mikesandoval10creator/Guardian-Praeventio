@@ -58,6 +58,24 @@ export const ANONYMIZATION_USERS_DOC_REDACT = [
   'displayName',
   'photoURL',
   'notificationPreferences',
+  // [Hy3-audit] Resolves [Audit-2026-08-31] Account anonymization —
+  // exporta y conserva credenciales en users/{uid}. The legacy
+  // redact list left bearer credentials (FCM push tokens, IAP
+  // purchase tokens, legacy array of push tokens, API keys) on
+  // the post-scrub Firestore doc, where a backup-export or any
+  // tenant-side read could lift them and replay against Google FCM
+  // or Google Play / Apple IAP verifiers. Add the credential-shaped
+  // fields to the redact list so the merge-set deletes them
+  // unconditionally.
+  'fcmToken',
+  'fcmTokens',
+  'apiKey',
+  'subscription.purchaseToken',
+  // Stripe / PayPal customer IDs are also bearer-shaped: a leaked
+  // customer_id can drive refunds, plan changes, and live-mode
+  // subscription reads on the merchant side. Same fix.
+  'subscription.customerId',
+  'subscription.stripeCustomerId',
 ] as const;
 
 /**
