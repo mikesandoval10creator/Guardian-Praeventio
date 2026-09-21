@@ -168,25 +168,34 @@ export function runSiiPreflight(input: SiiPreflightInput): SiiPreflightResult {
   const warnings: SiiPreflightFinding[] = [];
 
   // ── 1. PSE token presence ────────────────────────────────────────────────
-  // Accept any of the supported PSE-specific tokens, OR a generic
-  // PSE_API_TOKEN fallback. The pre-flight does not care WHICH PSE is
-  // configured — that's `getSiiAdapter()`'s job — only that at least one
-  // credential string is set, so we know the call won't fail with a 401.
-  const bsaleToken = getEnvVar(input.env, 'BSALE_API_TOKEN');
+  // Mirror the canonical env-var names the adapters consume — see
+  // BsaleAdapter.readConfigFromEnv() (BSALE_ACCESS_TOKEN +
+  // BSALE_OFFICE_ID) and libredteAdapter.ts (LIBREDTE_TOKEN). The
+  // pre-flight is a smoke-test of the live adapter contract, so the
+  // env-var names MUST match exactly; an operator who reads the
+  // adapter docs and configures the env per those names deserves an
+  // accurate preflight. The legacy BSALE_API_TOKEN name was a
+  // drift; the canonical name is BSALE_ACCESS_TOKEN.
+  const bsaleToken = getEnvVar(input.env, 'BSALE_ACCESS_TOKEN');
+  const bsaleOfficeId = getEnvVar(input.env, 'BSALE_OFFICE_ID');
+  const libredteToken = getEnvVar(input.env, 'LIBREDTE_TOKEN');
   const pseToken = getEnvVar(input.env, 'PSE_API_TOKEN');
   const openfacturaKey = getEnvVar(input.env, 'OPENFACTURA_API_KEY');
   const simpleApiKey = getEnvVar(input.env, 'SIMPLEAPI_API_KEY');
-  const libredteToken = getEnvVar(input.env, 'LIBREDTE_API_TOKEN');
+  // Bsale requires BOTH the access token and the office id; without
+  // the office id the adapter cannot target a CAF range and the
+  // preflight would otherwise green-light a misconfigured deploy.
+  const hasBsale = Boolean(bsaleToken) && Boolean(bsaleOfficeId);
   const hasAnyPseCredential = Boolean(
-    bsaleToken || pseToken || openfacturaKey || simpleApiKey || libredteToken,
+    hasBsale || libredteToken || pseToken || openfacturaKey || simpleApiKey,
   );
   if (!hasAnyPseCredential) {
     blockingFailures.push({
       code: 'PSE_TOKEN_MISSING',
       detail:
-        'No PSE credential is set. Configure one of BSALE_API_TOKEN, ' +
-        'PSE_API_TOKEN, OPENFACTURA_API_KEY, SIMPLEAPI_API_KEY, or ' +
-        'LIBREDTE_API_TOKEN before emitting a DTE.',
+        'No PSE credential is set. Configure BSALE_ACCESS_TOKEN + BSALE_OFFICE_ID, ' +
+        'LIBREDTE_TOKEN, OPENFACTURA_API_KEY, SIMPLEAPI_API_KEY, or ' +
+        'PSE_API_TOKEN before emitting a DTE.',
     });
   }
 
