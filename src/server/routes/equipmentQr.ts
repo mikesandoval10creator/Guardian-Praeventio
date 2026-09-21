@@ -305,9 +305,20 @@ router.get(
 
 const preUseSchema = z.object({
   responses: z.array(preUseResponseSchema).min(0).max(200),
-  // Optional — workers can attach the digital "I read it" hash so the
-  // audit trail carries an integrity check beyond the Firestore doc id.
-  signatureHashHex: z.string().min(8).max(200).optional(),
+  // [Hy3-audit] Resolves [Audit-2026-08-31] Equipment pre-use —
+  // IDs extra/duplicados y signatureHashHex no se validan. The
+  // legacy schema accepted any string 8-200 chars without
+  // verifying the cryptographic format. A SHA-256 hex digest
+  // is exactly 64 lowercase hex chars; we constrain the schema
+  // to that format when the field is supplied. (Cryptographic
+  // verification of the signature against a stored public key
+  // is future work — this PR narrows the schema so malformed
+  // values are rejected at the boundary instead of being
+  // silently accepted.)
+  signatureHashHex: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, 'signatureHashHex must be a 64-char lowercase SHA-256 hex digest')
+    .optional(),
 });
 
 interface PreUseRecommendation {

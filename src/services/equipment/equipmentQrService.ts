@@ -133,6 +133,34 @@ export function runPreUseValidation(input: RunPreUseInput): PreUseValidation {
         `no pre-use checklist defined for type '${input.equipment.type}'`,
       );
     }
+    // [Hy3-audit] Resolves [Audit-2026-08-31] Equipment pre-use —
+    // IDs extra/duplicados y signatureHashHex no se validan. We
+    // do TWO checks the legacy code skipped:
+    //   (1) every response.itemId MUST be in expectedItems (no
+    //       extras) — prevents spoofing responses for items that
+    //       aren't on the checklist.
+    //   (2) no duplicate itemIds — prevents the same item being
+    //       answered twice (which could mask a failed answer
+    //       behind a passing answer, etc.).
+    // The legacy code did `new Set(responses.map(r => r.itemId))`
+    // which silently collapsed duplicates and never caught extras.
+    const expectedIdSet = new Set(expectedItems.map((i) => i.id));
+    const seen = new Set<string>();
+    for (const r of input.responses) {
+      if (!expectedIdSet.has(r.itemId)) {
+        throw new EquipmentValidationError(
+          'CHECKLIST_EXTRA',
+          `unexpected response itemId '${r.itemId}' is not part of the equipment checklist`,
+        );
+      }
+      if (seen.has(r.itemId)) {
+        throw new EquipmentValidationError(
+          'DUPLICATE_ITEM',
+          `duplicate response for itemId '${r.itemId}'; each checklist item must be answered exactly once`,
+        );
+      }
+      seen.add(r.itemId);
+    }
     const responseIds = new Set(input.responses.map((r) => r.itemId));
     const missing = expectedItems.filter((i) => !responseIds.has(i.id));
     if (missing.length > 0) {
