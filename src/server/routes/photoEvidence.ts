@@ -32,7 +32,7 @@ import {
   EvidenceArtifactNotFoundError,
   type LinkedNodeKind,
 } from '../../services/photoEvidence/photoEvidenceEngine.js';
-import { PhotoEvidenceAdapter } from '../../services/photoEvidence/photoEvidenceFirestoreAdapter.js';
+import { PhotoEvidenceAdapter, type PhotoEvidenceFirestoreDb } from '../../services/photoEvidence/photoEvidenceFirestoreAdapter.js';
 
 const router = Router();
 
@@ -123,7 +123,12 @@ router.post(
         linkages: body.linkages,
       });
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore(),
+        // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+        // merge read-then-set puede perder linkages concurrentes. The
+        // adapter now uses `runTransaction` for atomic appendLinkage; the
+        // Firestore Admin SDK exposes the full PhotoEvidenceFirestoreDb
+        // surface (collection/doc/where/orderBy/limit/get/runTransaction).
+        admin.firestore() as unknown as PhotoEvidenceFirestoreDb,
         g.tenantId,
         projectId,
       );
@@ -184,7 +189,12 @@ router.get(
     }
     try {
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore(),
+        // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+        // merge read-then-set puede perder linkages concurrentes. The
+        // adapter now uses `runTransaction` for atomic appendLinkage; the
+        // Firestore Admin SDK exposes the full PhotoEvidenceFirestoreDb
+        // surface (collection/doc/where/orderBy/limit/get/runTransaction).
+        admin.firestore() as unknown as PhotoEvidenceFirestoreDb,
         g.tenantId,
         projectId,
       );
@@ -213,7 +223,12 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore(),
+        // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+        // merge read-then-set puede perder linkages concurrentes. The
+        // adapter now uses `runTransaction` for atomic appendLinkage; the
+        // Firestore Admin SDK exposes the full PhotoEvidenceFirestoreDb
+        // surface (collection/doc/where/orderBy/limit/get/runTransaction).
+        admin.firestore() as unknown as PhotoEvidenceFirestoreDb,
         g.tenantId,
         projectId,
       );
