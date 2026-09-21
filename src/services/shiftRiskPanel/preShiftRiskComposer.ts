@@ -220,16 +220,41 @@ function newWorkersFactor(workers: ShiftRiskInputs['workers']): ShiftRiskFactor 
   };
 }
 
-function criticalTasksFactor(tasks: ShiftRiskInputs['plannedTasks']): ShiftRiskFactor | null {
+function criticalTasksFactor(
+  tasks: ShiftRiskInputs['plannedTasks'],
+  activePermitsCount: number,
+): ShiftRiskFactor | null {
   const criticals = tasks.filter((t) => t.isCriticalTask);
   if (criticals.length === 0) return null;
-  const noPermit = criticals.filter((t) => t.requiresPermit && !t.requiresPermit);
-  void noPermit;
+  // [Hy3-audit] Resolves [Audit-2026-08-31] PreShiftRisk —
+  // activePermitsCount y requiresPermit no afectan el score. The
+  // legacy code did `tasks.filter(t => t.requiresPermit &&
+  // !t.requiresPermit)` — an impossible condition that always
+  // yielded empty, dropped with `void`, and returned a base
+  // weight that ignored whether permits were actually active. We
+  // now count the gap: critical tasks that require permits
+  // minus active permits. If the gap > 0, the unmitigated risk
+  // bumps the weight; if permits ≥ required, the gap is zero
+  // and the base behavior (per-task critical count) is preserved.
+  const permitsRequired = criticals.filter((t) => t.requiresPermit).length;
+  const unmitigated = Math.max(0, permitsRequired - activePermitsCount);
+  const baseWeight = Math.min(20, criticals.length * 4);
+  // Each unmitigated critical-with-permit task adds extra weight
+  // (capped at 30). The cap protects against the factor
+  // overwhelming the overall score when many permits are
+  // missing, while still making the gap unmissable.
+  const gapPenalty = Math.min(30, unmitigated * 6);
   return {
     id: 'critical-tasks',
-    label: `${criticals.length} tarea(s) crítica(s) planificada(s)`,
-    weight: Math.min(20, criticals.length * 4),
-    recommendation: 'Verificar permisos activos + checklist pre-tarea + supervisor competente.',
+    label:
+      unmitigated > 0
+        ? `${criticals.length} tarea(s) crítica(s) — ${unmitigated} sin permiso activo`
+        : `${criticals.length} tarea(s) crítica(s) planificada(s)`,
+    weight: baseWeight + gapPenalty,
+    recommendation:
+      unmitigated > 0
+        ? `${unmitigated} tarea(s) requieren permiso pero no hay permisos activos. Verificar permisos antes del turno + supervisor competente.`
+        : 'Verificar permisos activos + checklist pre-tarea + supervisor competente.',
   };
 }
 
@@ -297,7 +322,7 @@ export function composeShiftRiskPanel(inputs: ShiftRiskInputs): ShiftRiskReport 
   const newF = newWorkersFactor(inputs.workers);
   if (newF) factors.push(newF);
 
-  const critF = criticalTasksFactor(inputs.plannedTasks);
+  const critF = criticalTasksFactor(inputs.plannedTasks, inputs.activePermitsCount);
   if (critF) factors.push(critF);
 
   const eqF = equipmentMaintenanceFactor(inputs.equipment);
