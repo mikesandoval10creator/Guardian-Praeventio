@@ -179,18 +179,20 @@ jobs:
 
       # Each shard runs 1/4 of the test files. vitest's --shard flag splits
       # the file list deterministically by index, so coverage is complete
-      # across the 4 shards. The 10-min watchdog is generous for a ~3-4 min
-      # shard; a real freeze (not slow runtime) still fails fast.
+      # across the 4 shards. The watchdog budget is generous for a normally
+      # fast shard; a real freeze (not slow runtime) still fails fast.
+      # Vitest 5 initial-runtime is heavier than 4.x, so the budget grows
+      # from 10m (4.x) to 25m (5.x) — see PR #1738 follow-up.
       - name: Run vitest shard ${{ matrix.shard }}/4
         run: |
           set +e
-          timeout 10m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
+          timeout 25m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
             --test-timeout=30000 \
             --shard=${{ matrix.shard }}/4
           rc=$?
           if [ $rc -eq 124 ]; then
-            echo "::warning::vitest shard ${{ matrix.shard }}/4 pool hang detected (>10m) — retrying once"
-            timeout 10m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
+            echo "::warning::vitest shard ${{ matrix.shard }}/4 pool hang detected (>25m) — retrying once"
+            timeout 25m node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run \
               --test-timeout=30000 \
               --shard=${{ matrix.shard }}/4
             rc=$?
