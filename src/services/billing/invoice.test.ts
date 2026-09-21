@@ -365,4 +365,63 @@ describe('tryAutoIssueDte production fail-closed (sii-noop-guard)', () => {
     // In dev/test with no Bsale creds it stops at no-adapter, NOT not-configured.
     expect(result.skipped).toBe('no-adapter');
   });
+
+  // [Hy3-audit] Resolves [Audit-2026-08-31] DTE auto-issue —
+  // tryAutoIssueDte ignora el selector SII_PSE. When SII_PSE names
+  // a non-Bsale PSE (openfactura / libredte / simpleapi), the legacy
+  // code still lazily imports `BsaleAdapter` and emits through it,
+  // which silently DIVERTS the DTE to the wrong provider — a tax-
+  // compliance hazard (the SII expects DTEs to land at the PSE
+  // named in the env, and the operator's CAF / signature envelope
+  // may not match the wrong provider).
+  describe('tryAutoIssueDte rejects non-Bsale SII_PSE (sii-pse-adapter-mismatch)', () => {
+    afterEach(() => {
+      restore('NODE_ENV', originalNodeEnv);
+      restore('SII_PSE', originalPse);
+      restore('BSALE_ACCESS_TOKEN', originalBsaleToken);
+      restore('BSALE_OFFICE_ID', originalBsaleOffice);
+    });
+
+    it.each(['openfactura', 'libredte', 'simpleapi'])(
+      'skips with adapter-mismatch in prod when SII_PSE=%s (BsaleAdapter would route to wrong PSE)',
+      async (pse) => {
+        process.env.NODE_ENV = 'production';
+        process.env.SII_PSE = pse;
+        // Bsale creds ARE present — legacy code would silently issue.
+        process.env.BSALE_ACCESS_TOKEN = 'fake-but-set';
+        process.env.BSALE_OFFICE_ID = '999';
+        const result = await tryAutoIssueDte(paidClpInvoice, { autoIssueEnabled: true });
+        // Fail closed: skip honestly with a typed reason. The spec
+        // requires a unique adapter resolution per SII_PSE; Bsale
+        // emits DTE on the Bsale CAF, which is NOT the same provider
+        // as the named SII_PSE.
+        expect(result.ok).toBe(false);
+        expect(result.skipped).toBe('adapter-mismatch');
+        // Crucially never reports a fake success.
+        expect(result.result).toBeUndefined();
+      },
+    );
+
+    it('still emits when SII_PSE=bsale and creds are set (positive control)', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.SII_PSE = 'bsale';
+      process.env.BSALE_ACCESS_TOKEN = 'fake-but-set';
+      process.env.BSALE_OFFICE_ID = '999';
+      // Inject a deterministic adapter so we don't hit the network.
+      const createDte = vi.fn(async (_input: Record<string, unknown>) => ({
+        ok: true,
+        folio: 5001,
+      }));
+      const result = await tryAutoIssueDte(paidClpInvoice, {
+        autoIssueEnabled: true,
+        adapter: { createDte },
+      });
+      // The adapter IS called. We don't assert on the exact shape of
+      // `result` here because BsaleAdapter.fromEnv() needs a live
+      // env (the test injects the adapter directly via `options.adapter`).
+      expect(createDte).toHaveBeenCalledTimes(1);
+      // The result is whatever the adapter returned.
+      expect(result.result?.folio).toBe(5001);
+    });
+  });
 });

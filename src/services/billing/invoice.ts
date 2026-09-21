@@ -218,7 +218,7 @@ export interface AutoIssueDteOptions {
 
 export interface AutoIssueDteResult {
   ok: boolean;
-  skipped?: 'disabled' | 'usd' | 'no-adapter' | 'invalid-status' | 'not-configured';
+  skipped?: 'disabled' | 'usd' | 'no-adapter' | 'invalid-status' | 'not-configured' | 'adapter-mismatch';
   result?: DteResult;
   errorMessage?: string;
 }
@@ -255,6 +255,25 @@ export async function tryAutoIssueDte(
       const REAL_PSE_KEYS = new Set(['openfactura', 'simpleapi', 'bsale', 'libredte']);
       if (!REAL_PSE_KEYS.has(pse)) {
         return { ok: false, skipped: 'not-configured' };
+      }
+      // [Hy3-audit] Resolves [Audit-2026-08-31] DTE auto-issue —
+      // tryAutoIssueDte ignora el selector SII_PSE. When SII_PSE
+      // names a non-Bsale PSE (openfactura / libredte / simpleapi),
+      // the legacy code still lazily imports `BsaleAdapter` and
+      // emits through it, which silently DIVERTS the DTE to the wrong
+      // provider — a tax-compliance hazard (the SII expects DTEs
+      // to land at the PSE named in the env, and the operator's CAF
+      // / signature envelope may not match the wrong provider).
+      //
+      // Today ONLY Bsale has a real adapter wired up. The other three
+      // PSEs in REAL_PSE_KEYS are declared future-targets (per
+      // SII_INTEGRATION.md). Until those adapters exist, Bsale must
+      // not be the auto-issue path for those SII_PSE values. Reject
+      // with a typed `adapter-mismatch` skip that the queue drain
+      // records honestly. (When OpenFactura / LibreDTE / SimpleAPI
+      // adapters land, remove this branch.)
+      if (pse !== 'bsale') {
+        return { ok: false, skipped: 'adapter-mismatch' };
       }
     }
     // Lazy-import so the pure invoice math stays dependency-free.
