@@ -323,6 +323,49 @@ router.post(
       typeof body.workerUid === 'string' && body.workerUid.length > 0
         ? body.workerUid
         : callerUid;
+    // [Hy3-audit] Resolves [Audit-2026-08-31] WorkPermits API —
+    // workerUid del permiso no se valida contra proyecto/tenant.
+    // Previously the handler accepted any `body.workerUid` from a
+    // caller with permit-issuer role and persisted it as the
+    // permit's workerUid. That meant a permit-issuer from project
+    // A could spawn a permit assigned to ANY uid — including uids
+    // in completely different tenants (cross-tenant forgery),
+    // uids in the same tenant but a different project (cross-
+    // project), or uids that don't exist at all. The fix is to
+    // verify the target worker is a current member of THIS project
+    // (which transitively implies tenant membership — project
+    // membership is the strictest check in this codebase). Self-
+    // assignment (`workerUid === callerUid`) is still allowed so
+    // the issuer can self-issue when the schema permits it.
+    if (workerUid !== callerUid) {
+      try {
+        await assertProjectMember(workerUid, projectId, admin.firestore());
+      } catch (err) {
+        if (err instanceof ProjectMembershipError) {
+          try {
+            await auditServerEvent(
+              req,
+              'work_permits.create.invalid_worker_target',
+              'work_permits',
+              {
+                actorUid: callerUid,
+                targetWorkerUid: workerUid,
+                projectId,
+                reason: 'target_not_project_member',
+              },
+              { projectId },
+            );
+          } catch (auditErr) {
+            logger.warn?.('work_permits.create.audit_failed', auditErr);
+          }
+          return res.status(403).json({
+            error: 'invalid_worker_target',
+            reason: 'target_not_project_member',
+          });
+        }
+        throw err;
+      }
+    }
     try {
       const permit = createPendingPermit({
         id: body.id,
