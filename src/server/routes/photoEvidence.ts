@@ -29,6 +29,7 @@ import {
 import {
   buildArtifact,
   PhotoEvidenceValidationError,
+  EvidenceArtifactNotFoundError,
   type LinkedNodeKind,
 } from '../../services/photoEvidence/photoEvidenceEngine.js';
 import { PhotoEvidenceAdapter } from '../../services/photoEvidence/photoEvidenceFirestoreAdapter.js';
@@ -226,6 +227,14 @@ router.post(
       );
       return res.status(204).end();
     } catch (err) {
+      // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidence linkage —
+      // artifact inexistente devuelve 204. The adapter now throws
+      // EvidenceArtifactNotFoundError when the artifact does not
+      // exist; we map it to HTTP 404 so the client gets a real signal
+      // instead of a misleading 204.
+      if (err instanceof EvidenceArtifactNotFoundError) {
+        return res.status(404).json({ error: 'artifact_not_found' });
+      }
       logger.error?.('photoEvidence.appendLinkage.error', err);
       captureRouteError(err, 'photoEvidence.appendLinkage');
       return res.status(500).json({ error: 'internal_error' });

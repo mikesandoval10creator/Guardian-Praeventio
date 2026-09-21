@@ -101,6 +101,26 @@ export class PhotoEvidenceValidationError extends Error {
   }
 }
 
+/**
+ * [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidence linkage —
+ * artifact inexistente devuelve 204. Thrown when a caller tries to
+ * append a linkage to an artifact that doesn't exist under
+ * `tenants/{tid}/projects/{pid}/photo_evidence/{sha256}`. The plain
+ * "silent return" left the route returning HTTP 204, which the
+ * client interpreted as success — but the linkage was never
+ * persisted. The handler now maps this error to HTTP 404 so the
+ * client surfaces the problem instead of silently dropping the
+ * write.
+ */
+export class EvidenceArtifactNotFoundError extends Error {
+  constructor(public readonly artifactId: string) {
+    super(
+      `[artifact_not_found] photo-evidence artifact ${artifactId} does not exist; cannot append linkage`,
+    );
+    this.name = 'EvidenceArtifactNotFoundError';
+  }
+}
+
 export interface ValidationOptions {
   /** Override now para tests. */
   now?: Date;

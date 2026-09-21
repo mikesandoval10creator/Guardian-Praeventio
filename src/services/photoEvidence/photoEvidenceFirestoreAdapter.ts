@@ -18,6 +18,7 @@ import type {
   EvidenceLinkage,
   LinkedNodeKind,
 } from './photoEvidenceEngine.js';
+import { EvidenceArtifactNotFoundError } from './photoEvidenceEngine.js';
 
 export interface PhotoEvidenceFirestoreDb {
   collection(path: string): any;
@@ -103,13 +104,22 @@ export class PhotoEvidenceAdapter {
    * Atomically add a linkage to an existing artifact. The adapter writes
    * the merged linkages array — the engine's `addLinkage` is the pure
    * helper that callers should use to compute the new state.
+   *
+   * [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidence linkage —
+   * artifact inexistente devuelve 204. Previously this method
+   * silently returned when the artifact did not exist; the route
+   * then returned HTTP 204, which the client interpreted as
+   * success. Now it throws `EvidenceArtifactNotFoundError` so the
+   * handler can map it to HTTP 404.
    */
   async appendLinkage(id: string, link: EvidenceLinkage): Promise<void> {
     const ref = this.db
       .collection(COLLECTION_PATH(this.tenantId, this.projectId))
       .doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return;
+    if (!snap.exists) {
+      throw new EvidenceArtifactNotFoundError(id);
+    }
     const data = snap.data() as EvidenceArtifact;
     const mergedLinkages = mergeLinkages(data.linkages, [link]);
     await ref.set(
