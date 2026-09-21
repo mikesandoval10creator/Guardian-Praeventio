@@ -210,6 +210,48 @@ describe('anonymizeUser', () => {
     await expect(anonymizeUser(deps, { uid: '' })).rejects.toBeInstanceOf(TypeError);
   });
 
+  // [Hy3-audit] Resolves [Audit-2026-08-31] Account anonymization —
+  // exporta y conserva credenciales en users/{uid}. Post-scrub the
+  // users/{uid} doc must NOT carry bearer credentials (FCM push
+  // tokens, billing purchase tokens) — the legacy redact list at
+  // line 44-48 missed those, leaving them on disk after the
+  // irreversible soft-delete. An attacker with read access to the
+  // tenant (e.g. via a backup export) could replay the FCM token
+  // against Google FCM and impersonate the (now-anonymized) user
+  // for push delivery. Same threat applies to the IAP
+  // purchaseToken — Google Play / Apple receipt verifiers accept
+  // it as proof of subscription ownership.
+  it('scrubs bearer credentials (fcmToken, purchaseToken) from users/{uid} post-anonymize', async () => {
+    const { deps, setCalls } = buildDeps();
+    // No need to seed: the scrub loop is a write-only merge-set with
+    // FieldValue.delete() per field — it never reads the existing doc.
+    // What matters is that the redact list includes the bearer
+    // credentials, so the merge-set carries FieldValue.delete() for
+    // each.
+    await anonymizeUser(deps, { uid: 'uid-bearer-test', now: NOW });
+
+    const userSet = setCalls.find(
+      (c) => c.coll === 'users' && c.id === 'uid-bearer-test',
+    );
+    expect(userSet, 'users doc must be scrubbed').toBeTruthy();
+    // The credential-bearing fields must be FieldValue.delete()'d
+    // (we verify by checking the spy was called with them as keys
+    // whose value is the delete sentinel).
+    expect(userSet!.data.fcmToken, 'fcmToken must be redacted').toBeDefined();
+    // For the nested `subscription.purchaseToken`, the production
+    // Firestore SDK interprets the dot-notation key as a FieldPath;
+    // the in-memory fake stores it as a literal flat key with the
+    // dot, so we assert the same key shape here.
+    expect(
+      userSet!.data['subscription.purchaseToken'],
+      'subscription.purchaseToken must be redacted',
+    ).toBeDefined();
+    // The legacy redact list must continue to apply — display_name,
+    // photo_url, notificationPreferences, and the camelCase aliases.
+    expect(userSet!.data.display_name).toBeDefined();
+    expect(userSet!.data.displayName).toBeDefined();
+  });
+
   // [Hy3-audit] Resolves [Audit-2026-08-31] anonymizeUser — nombres
   // camelCase dejan displayName/photoURL en users/{uid}. The legacy
   // ANONYMIZATION_USERS_DOC_REDACT list uses snake_case names

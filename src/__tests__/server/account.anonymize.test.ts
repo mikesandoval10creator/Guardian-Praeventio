@@ -240,6 +240,73 @@ describe('POST /api/account/anonymize — 2FA-gated cascarón soft-delete', () =
     expect(auditActions()).toContain('account.anonymization_completed');
   });
 
+  // [Hy3-audit] Resolves [Audit-2026-08-31] Account anonymization —
+  // exporta y conserva credenciales en users/{uid}. The legacy
+  // export inlined the entire users/{uid} document, including
+  // bearer credentials (FCM push tokens, billing purchase tokens,
+  // API keys). The downloaded archive would carry every credential
+  // to the user's machine, defeating any post-scrub redaction. The
+  // fix pipes the raw user doc through a recursive redactor that
+  // strips every credential-shaped field at any depth.
+  describe('POST /api/account/anonymize — export redactor strips credential-shaped fields', () => {
+    it('the response body (dataExport) does NOT contain fcmToken / purchaseToken / apiKey', async () => {
+      mockVerifyAuthenticationResponse.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 6 },
+      });
+      // Seed the user doc via the same in-memory store the legacy
+      // happy path uses.
+      H.db!._store.set(`users/${UID}`, {
+        email: 'real@x.com',
+        display_name: 'Real Name',
+        fcmToken: 'fcm-secret-DELETEME-on-export',
+        fcmTokens: ['legacy-array-DELETEME'],
+        notificationPreferences: { push: true },
+        subscription: {
+          plan: 'pro',
+          purchaseToken: 'iap-purchase-DELETEME',
+          subscriptionId: 'sub_123',
+          iap: {
+            appleReceipt: 'receipt-data-DELETEME',
+          },
+        },
+        apiKey: 'sk-DELETEME',
+        deeplyNested: {
+          integrations: {
+            slack: {
+              apiKey: 'xoxb-DELETEME',
+              botToken: 'bot-DELETEME',
+            },
+          },
+        },
+      });
+
+      const { challengeId, clientDataJSON } = await issueChallenge(UID, {
+        purpose: 'account_anonymize',
+      });
+      const res = await request(buildApp())
+        .post('/api/account/anonymize')
+        .set('x-test-uid', UID)
+        .send(biometricBody({ challengeId, clientDataJSON }));
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const exportText: string = res.body.dataExport;
+      expect(exportText, 'export must not contain fcmToken').not.toContain('fcm-secret-DELETEME-on-export');
+      expect(exportText, 'export must not contain legacy fcmTokens array').not.toContain('legacy-array-DELETEME');
+      expect(exportText, 'export must not contain iap purchaseToken').not.toContain('iap-purchase-DELETEME');
+      expect(exportText, 'export must not contain Apple receipt').not.toContain('receipt-data-DELETEME');
+      expect(exportText, 'export must not contain apiKey').not.toContain('sk-DELETEME');
+      expect(exportText, 'export must not contain slack apiKey').not.toContain('xoxb-DELETEME');
+      expect(exportText, 'export must not contain deeply nested botToken').not.toContain('bot-DELETEME');
+
+      // Non-credential fields DO appear in the export.
+      expect(exportText, 'export must include email').toContain('real@x.com');
+      expect(exportText, 'export must include display_name').toContain('Real Name');
+      expect(exportText, 'export must include subscription.plan').toContain('pro');
+    });
+  });
+
   // [Hy3-audit] Resolves [Audit-2026-08-31] WebAuthn generic challenge —
   // no se liga a propósito/acción de alto impacto. The legacy code
   // stored challenges without metadata and the /anonymize route
