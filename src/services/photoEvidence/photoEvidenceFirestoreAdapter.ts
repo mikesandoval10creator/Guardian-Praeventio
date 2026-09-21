@@ -60,8 +60,15 @@ export interface PhotoEvidenceFirestoreCollection {
   runTransaction?<T>(fn: (txn: PhotoEvidenceFirestoreTxn) => Promise<T>): Promise<T>;
 }
 
-export interface PhotoEvidenceFirestoreQuery
-  extends PhotoEvidenceFirestoreCollection {}
+// A query builder chains the same surface as a Collection; aliasing
+// it lets call-sites express intent (`PhotoEvidenceFirestoreQuery`
+// signals "this is a `where/orderBy/limit` chain" vs `PhotoEvidenceFirestoreCollection`
+// signals "raw collection entry-point"). The shape is identical —
+// re-exporting from Collection would be cleaner but TypeScript's
+// interface-merge semantics don't allow narrowing without members,
+// and the empty-body lint rule prefers the type alias over the empty
+// `extends {}` form.
+export type PhotoEvidenceFirestoreQuery = PhotoEvidenceFirestoreCollection;
 
 export interface PhotoEvidenceFirestoreDoc {
   get(): Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
