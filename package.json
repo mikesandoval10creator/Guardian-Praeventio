@@ -221,7 +221,7 @@
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.63.0",
     "@react-three/test-renderer": "^9.1.1",
-    "@size-limit/preset-app": "^13.0.3",
+    "@size-limit/preset-app": "^14.0.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
     "@testing-library/dom": "^10.4.0",
