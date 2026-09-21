@@ -37,6 +37,10 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { serverWriteNodes } from '../services/serverZkNodeWriter.js';
 import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
 import {
+  isAdminRole,
+  isSupervisorRole,
+} from '../../types/roles.js';
+import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
@@ -541,6 +545,47 @@ router.post(
     const body = req.body as z.infer<typeof drivingJourneySchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // [Hy3-audit] Resolves [Audit-2026-08-31] DrivingSafety journey —
+    // cualquier miembro puede mutar el perfil de otro uid. The
+    // previous handler accepted any project member as caller and any
+    // :uid as target, so worker A could mutate worker B's profile
+    // (hoursThisWeek, lastJourneyAt, fatigueScore, etc.). Authorization
+    // is now enforced: caller MUST equal :uid (self-service) OR have
+    // supervisor/admin role. The legacy `guard()` above only verified
+    // caller's project membership — it never checked the relationship
+    // between caller and target uid.
+    const callerRole =
+      (req.user as { role?: string } | undefined)?.role ?? null;
+    const isSelfService = uid === callerUid;
+    const isAuthorized =
+      isSelfService ||
+      isSupervisorRole(callerRole) ||
+      isAdminRole(callerRole);
+    if (!isAuthorized) {
+      // 403, not 404: the resource exists; the caller simply lacks
+      // cross-member write authority. Audit log captures both actor
+      // and target for forensics (which caller tried to mutate which
+      // uid, and was blocked).
+      try {
+        await auditServerEvent(
+          req,
+          'drivingSafety.journey.unauthorized_cross_member',
+          'drivingSafety',
+          {
+            actorUid: callerUid,
+            targetUid: uid,
+            actorRole: callerRole,
+            action: body.action,
+          },
+          { projectId },
+        );
+      } catch (auditErr) {
+        logger.warn?.('drivingSafety.journey.audit_failed', auditErr);
+      }
+      return res
+        .status(403)
+        .json({ error: 'cross_member_write_not_permitted' });
+    }
     try {
       const db = admin.firestore();
       const docRef = db

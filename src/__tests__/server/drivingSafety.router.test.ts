@@ -115,12 +115,43 @@ describe('drivers + ranking', () => {
     H.db!._seed(`${DRIVERS}/w1`, { hoursThisWeek: 5, licenseClass: 'B' });
     const res = await request(buildApp())
       .post('/api/sprint-k/p1/driving/drivers/w1/journey')
-      .set(uid())
+      // [Hy3-audit] Resolves [Audit-2026-08-31] DrivingSafety journey —
+      // cualquier miembro puede mutar el perfil de otro uid. The
+      // previous test used uid() (default 'u1') to hit the journey
+      // endpoint for target 'w1', which was the bug in production
+      // form: a different uid could mutate w1's profile. The fix
+      // requires caller === target (self-service) OR supervisor/
+      // admin role. The test was enshrining the cross-member bug;
+      // updated to use self-service (caller=w1) so the happy path
+      // exercises the contract.
+      .set(uid('w1'))
       .send({ action: 'end', journeyId: 'j1', hours: 3 });
     expect(res.status).toBe(200);
     expect(res.body.driver.hoursThisWeek).toBe(8);
     const journeyKeys = [...H.db!._store.keys()].filter((k) => k.startsWith(`${DRIVERS}/w1/journeys/`));
     expect(journeyKeys.length).toBe(1);
+  });
+
+  // [Hy3-audit] Adversarial: caller !== target and caller has no
+  // supervisor/admin role MUST be rejected with 403. Resolves
+  // [Audit-2026-08-31] DrivingSafety journey — cualquier miembro
+  // puede mutar el perfil de otro uid.
+  it('POST journey with caller !== target and non-supervisor role returns 403', async () => {
+    H.db!._seed(`${DRIVERS}/w1`, { hoursThisWeek: 5, licenseClass: 'B' });
+    // caller = u1 (default), target = w1 — different uids, caller has
+    // no special role.
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/driving/drivers/w1/journey')
+      .set(uid())
+      .send({ action: 'end', journeyId: 'j1', hours: 3 });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('cross_member_write_not_permitted');
+    // hoursThisWeek MUST NOT have changed — the write is rejected
+    // before reaching the Firestore adapter. _seed spreads the
+    // object directly into the store, so `_store.get(path)`
+    // returns the doc shape (no `.data` wrapper).
+    const driverAfter = H.db!._store.get(`${DRIVERS}/w1`);
+    expect(driverAfter?.hoursThisWeek).toBe(5);
   });
 
   it('GET ranking scores drivers and sorts by safetyScore desc (recommend, not block)', async () => {
