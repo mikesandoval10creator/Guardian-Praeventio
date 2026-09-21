@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { PhotoEvidenceAdapter } from './photoEvidenceFirestoreAdapter.js';
-import { buildArtifact } from './photoEvidenceEngine.js';
+import { buildArtifact, EvidenceArtifactNotFoundError } from './photoEvidenceEngine.js';
 import type {
   EvidenceArtifact,
   EvidenceLinkage,
@@ -194,7 +194,14 @@ describe('PhotoEvidenceAdapter.appendLinkage', () => {
     ]);
   });
 
-  it('does nothing when artifact does not exist (no throw)', async () => {
+  // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidence linkage —
+  // artifact inexistente devuelve 204. Previously this method
+  // silently returned when the artifact did not exist (the legacy
+  // "does nothing (no throw)" semantics); the route then returned
+  // HTTP 204 and the client interpreted success. Now the adapter
+  // throws EvidenceArtifactNotFoundError so the handler can map to
+  // HTTP 404 — a misleading silent success is worse than a 404.
+  it('throws EvidenceArtifactNotFoundError when artifact does not exist', async () => {
     const db = makeDb();
     const adapter = new PhotoEvidenceAdapter(db, TENANT, PROJECT);
     await expect(
@@ -202,7 +209,11 @@ describe('PhotoEvidenceAdapter.appendLinkage', () => {
         nodeKind: 'audit',
         nodeId: 'aud_1',
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toBeInstanceOf(EvidenceArtifactNotFoundError);
+    // The artifact must NOT have been created as a side effect of the
+    // throw — the throw happens before any write.
+    const fetched = await adapter.getById('nonexistent');
+    expect(fetched).toBeNull();
   });
 
   it('updates linkageKeys array-contains projection', async () => {

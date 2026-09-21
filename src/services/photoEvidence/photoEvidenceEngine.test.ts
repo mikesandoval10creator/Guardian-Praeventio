@@ -7,6 +7,7 @@ import {
   buildStoragePath,
   validateBatch,
   PhotoEvidenceValidationError,
+  EvidenceArtifactNotFoundError,
   type PhotoEvidencePayload,
 } from './photoEvidenceEngine.js';
 
@@ -238,5 +239,20 @@ describe('validateBatch', () => {
     expect(r.valid).toHaveLength(2);
     expect(r.invalid).toHaveLength(1);
     expect(r.invalid[0].reason).toMatch(/invalid_mime/);
+  });
+});
+
+describe('EvidenceArtifactNotFoundError', () => {
+  // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidence linkage —
+  // artifact inexistente devuelve 204. The error class carries the
+  // artifactId so the handler can include it in audit logs / 404
+  // response bodies without re-reading the URL params.
+  it('extends Error and carries the artifactId', () => {
+    const err = new EvidenceArtifactNotFoundError('abc123');
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('EvidenceArtifactNotFoundError');
+    expect(err.artifactId).toBe('abc123');
+    expect(err.message).toMatch(/artifact_not_found/);
+    expect(err.message).toMatch(/abc123/);
   });
 });
