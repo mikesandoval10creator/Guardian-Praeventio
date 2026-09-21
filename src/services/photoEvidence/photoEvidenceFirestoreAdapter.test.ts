@@ -3,7 +3,10 @@
 // In-memory Firestore stub so the suite stays hermetic.
 
 import { describe, it, expect } from 'vitest';
-import { PhotoEvidenceAdapter } from './photoEvidenceFirestoreAdapter.js';
+import {
+  PhotoEvidenceAdapter,
+  type PhotoEvidenceFirestoreDb,
+} from './photoEvidenceFirestoreAdapter.js';
 import { buildArtifact, EvidenceArtifactNotFoundError } from './photoEvidenceEngine.js';
 import type {
   EvidenceArtifact,
@@ -119,11 +122,51 @@ function makeDb() {
             },
           };
         },
+        // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+        // merge read-then-set puede perder linkages concurrentes.
+        // Exposes a single-call runTransaction that mirrors the
+        // contract the adapter now relies on. The body runs
+        // synchronously inside the transaction; the fake is
+        // single-threaded so the read+update sequence is atomic
+        // from the caller's perspective. Production goes through
+        // Firestore's actual runTransaction (snapshot-isolated).
+        async runTransaction<T>(fn: (txn: {
+          get: (ref: {
+            get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
+          }) => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
+          update: (ref: {
+            set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
+          }, data: Record<string, unknown>) => Promise<void>;
+        }) => Promise<T>): Promise<T> {
+          // Delegate txn.get / txn.update to the doc ref's existing
+          // get / set methods. The fake serializes the body (JS is
+          // single-threaded), so read+update appears atomic from
+          // the caller's perspective. Production runs inside
+          // Firestore's real runTransaction with snapshot
+          // isolation.
+          return fn({
+            async get(ref) {
+              return ref.get();
+            },
+            async update(ref, data) {
+              await ref.set(data, { merge: true });
+            },
+          });
+        },
         ...makeQuery(path, []),
       };
     },
     __store: store,
-  };
+  // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+  // merge read-then-set puede perder linkages concurrentes. The test
+  // fake intentionally satisfies the contract surface that the adapter
+  // uses (doc + runTransaction + the legacy read-modify-write path);
+  // the cast documents the boundary between the typed contract and
+  // the duck-typed implementation. The fake in-memory runTransaction
+  // is a single-call delegate that body-runs synchronously; the
+  // production Firestore Admin SDK implements runTransaction with
+  // snapshot isolation (true OCC).
+  } as unknown as PhotoEvidenceFirestoreDb;
 }
 
 const TENANT = 'tenant_acme';
@@ -234,6 +277,82 @@ describe('PhotoEvidenceAdapter.appendLinkage', () => {
     const fetched = await adapter.listForNode('audit', 'aud_42');
     expect(fetched).toHaveLength(1);
     expect(fetched[0]?.id).toBe(VALID_HASH);
+  });
+
+  // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
+  // merge read-then-set puede perder linkages concurrentes. The legacy
+  // adapter used `ref.get` then `ref.set({merge:true})` outside any
+  // transaction, so two concurrent appendLinkage calls could each
+  // read the same snapshot and the second write would clobber the
+  // first's linkage. After the fix, `appendLinkage` goes through
+  // `runTransaction`, which the production Firestore Admin SDK
+  // implements with snapshot isolation.
+  //
+  // This test is a structural pin: it verifies the adapter uses
+  // `runTransaction` rather than a raw read-modify-write. A future
+  // regression to the legacy path would either fail to use
+  // runTransaction (this test catches it via the spy) or
+  // re-introduce the lost-update risk on production.
+  it('uses runTransaction for atomic appendLinkage (no lost-update race)', async () => {
+    let txnInvoked = 0;
+    const db = makeDb();
+    const dbWithSpy = {
+      collection(path: string) {
+        const original = db.collection(path);
+        // CRITICAL: spread BEFORE defining runTransaction. If we
+        // defined runTransaction BEFORE the spread, the spread of
+        // `original.runTransaction` would OVERWRITE the spy and the
+        // counter would never increment. Defining the spy AFTER the
+        // spread keeps the spy sticky.
+        return {
+          // Pass-through everything the adapter uses for collection()
+          // callers (doc, get-by-path, the makeQuery surface). The
+          // adapter ONLY needs `doc` and `runTransaction` from this
+          // collection; the other keys are forward-compatibility for
+          // future tests.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(original as any),
+          doc: original.doc.bind(original),
+          // Spy-decorated runTransaction: increments the counter on
+          // every entry so the test can assert "appendLinkage went
+          // through the atomic path". The body delegates to the
+          // real fake-Db transaction implementation so the
+          // read-modify-update logic still runs.
+          async runTransaction<T>(fn: (txn: unknown) => Promise<T>): Promise<T> {
+            txnInvoked++;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (original as any).runTransaction(fn);
+          },
+        };
+      },
+    };
+    const adapter = new PhotoEvidenceAdapter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      dbWithSpy as any,
+      TENANT,
+      PROJECT,
+    );
+    await adapter.save(
+      makeArtifact({
+        id: VALID_HASH,
+        linkages: [],
+      }),
+    );
+    // Two sequential appends — each must go through runTransaction.
+    await adapter.appendLinkage(VALID_HASH, {
+      nodeKind: 'incident',
+      nodeId: 'inc_A',
+    });
+    await adapter.appendLinkage(VALID_HASH, {
+      nodeKind: 'inspection',
+      nodeId: 'insp_B',
+    });
+    expect(txnInvoked).toBe(2);
+    const fetched = await adapter.getById(VALID_HASH);
+    expect(fetched?.linkages.map((l) => l.nodeId).sort()).toEqual([
+      'inc_A',
+      'insp_B',
+    ]);
   });
 });
 
