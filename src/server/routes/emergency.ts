@@ -23,7 +23,6 @@
 // this caps a compromised token / runaway script from filling Firestore.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import rateLimit from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -49,6 +48,10 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 // silently skip the email step.
 import { EmailService } from '../../services/email/resendService.js';
 import { sosBackupTemplate } from '../../services/email/templates.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
+import type { Messaging, MulticastMessage } from 'firebase-admin/messaging';
 
 
 export const sosLimiterKey = (req: Request): string =>
@@ -188,7 +191,7 @@ export const PRAEVENTIO_EMERGENCY_CHANNEL_ID = 'praeventio_emergency';
 export function buildEmergencyMulticastMessage(
   tokens: string[],
   payload: EmergencyPushPayload,
-): admin.messaging.MulticastMessage {
+): MulticastMessage {
   return {
     tokens,
     notification: { title: payload.title, body: payload.body },
@@ -220,7 +223,7 @@ export async function sendToProjectSupervisors(
   projectId: string,
   payload: EmergencyPushPayload,
   db: FirebaseFirestore.Firestore,
-  messaging: admin.messaging.Messaging,
+  messaging: Messaging,
 ): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
   const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
   const tokenSet = new Set<string>();
@@ -320,7 +323,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
     return res.status(400).json({ error: 'invalid_geo' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     await assertProjectMember(callerUid, projectId, db);
   } catch (err) {
@@ -346,7 +349,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
         projectId,
         geo: validatedGeo,
         clientTimestamp: timestamp ?? null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     // Directive #14: audit failure is SEVERE but non-blocking. A Firestore
     // outage on this write must NOT abort the fan-out — the worker's SOS still
@@ -359,7 +362,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
         userId: callerUid,
         userEmail: callerEmail,
         projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
@@ -393,7 +396,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
             },
           },
           db,
-          admin.messaging(),
+          getMessaging(),
         ),
       );
       notified = result.notified;
@@ -486,6 +489,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
       uid: callerUid,
       projectId,
       message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 8).join('\n'),
     });
     captureRouteError(error, 'emergency.sos', { projectId });
     return res.status(500).json({
@@ -542,7 +546,7 @@ router.post(
     >;
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    const db = admin.firestore();
+    const db = getFirestore();
 
     try {
       // Membership gate: caller must belong to the project. Prevents a
@@ -571,7 +575,7 @@ router.post(
             },
           },
           db,
-          admin.messaging(),
+          getMessaging(),
         ),
       );
 
@@ -592,7 +596,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -679,7 +683,7 @@ async function deliverEmergencyFanout(
         },
       },
       db,
-      admin.messaging(),
+      getMessaging(),
     );
     return {
       delivered: result.notified > 0,
@@ -720,7 +724,7 @@ router.post(
       return res.status(400).json({ error: 'idempotency_key_mismatch' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
       await assertProjectMember(callerUid, input.projectId, db);
     } catch (err) {
@@ -762,7 +766,7 @@ router.post(
             ...(input.triageLevel ? { triageLevel: input.triageLevel } : {}),
             ...(input.location ? { location: input.location } : {}),
             occurredAt: input.occurredAt,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             lastClientEventId: input.clientEventId,
           },
           { merge: true },
@@ -785,8 +789,8 @@ router.post(
           triggeredByName: deliveryWorkerName(req),
           startedBy: deliveryWorkerName(req),
           occurredAt: input.occurredAt,
-          startedAt: admin.firestore.FieldValue.serverTimestamp(),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          startedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         const chatRef = db
           .collection('projects')
@@ -799,7 +803,7 @@ router.post(
           sender: 'Sistema',
           senderRole: 'system',
           isSystem: true,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         const workers = await db
           .collection('projects')
@@ -846,7 +850,7 @@ router.post(
           {
             status: 'resolved',
             resolvedBy: callerUid,
-            resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            resolvedAt: FieldValue.serverTimestamp(),
           },
         );
         batch.set(
@@ -861,7 +865,7 @@ router.post(
             sender: 'Sistema',
             senderRole: 'system',
             isSystem: true,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         );
         await batch.commit();
@@ -893,7 +897,7 @@ router.post(
           userId: callerUid,
           userEmail: req.user?.email ?? null,
           projectId: input.projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         });
       } catch (auditErr: any) {
         logger.error('emergency_delivery_audit_write_failed', {

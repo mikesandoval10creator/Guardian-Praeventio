@@ -26,15 +26,28 @@
  *   `rules-tests` job that installs `firebase-tools` and runs these tests
  *   against a real emulator instance.
  */
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getFirestore as adminGetFirestore } from 'firebase-admin/firestore';
 import {
   assertFails,
   assertSucceeds,
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
+
+// `getFirestore` from firebase-admin/firestore is mocked so it returns the
+// rules-unit-testing environment's own client. The mock is rewired in
+// `beforeAll` once `testEnv` is initialized.
+const getFirestore = vi.fn(() => adminGetFirestore());
+vi.mock('firebase-admin/firestore', async () => {
+  const actual = await vi.importActual<typeof import('firebase-admin/firestore')>('firebase-admin/firestore');
+  return {
+    ...actual,
+    getFirestore: () => getFirestore(),
+  };
+});
 import {
   doc,
   getDoc,
@@ -75,6 +88,16 @@ beforeAll(async () => {
         rules: readFileSync(RULES_PATH, 'utf8'),
       },
     });
+    // Point the mocked getFirestore at the rules-test environment's client so
+    // tests can use the rules-test firestore instance transparently. The
+    // rules-unit-testing Firestore has additional properties (databaseId, etc.)
+    // that firebase-admin's `getFirestore` return type doesn't capture — we
+    // intentionally widen here because the call sites use the SDK surface
+    // (`collection`/`doc`/`getDoc`/`setDoc`) that both implementations share.
+    getFirestore.mockImplementation(
+      () =>
+        testEnv!.unauthenticatedContext().firestore() as unknown as ReturnType<typeof adminGetFirestore>,
+    );
   } catch (err) {
     skipReason = `Firestore emulator not reachable: ${(err as Error).message}`;
     testEnv = null;

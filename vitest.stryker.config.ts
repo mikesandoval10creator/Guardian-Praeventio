@@ -78,7 +78,15 @@ export default defineConfig({
       'coverage/**',
       '.stryker-tmp/**',
     ],
-    setupFiles: ['./src/test/setup.ts'],
+    // setup.ts first (path aliases + global stubs), then the firebase-admin v14
+    // sub-module mock delegation (PR #1744): the ~50 files that import
+    // 'firebase-admin/{app,firestore,messaging,auth}' bypass root-only
+    // vi.mock factories, so `beforeAll → buildApp()` hits the REAL v14 SDK
+    // and its missing `@google-cloud/firestore` optional dependency. Without
+    // the delegate the Stryker dry-run dies with "There were failed tests in
+    // the initial test run" (ConfigError) — the soft signals' "Test timed out
+    // in 30000ms" is the same root cause. Mirrors vitest.config.ts exactly.
+    setupFiles: ['./src/test/setup.ts', './src/test/setupFirebaseAdminMocks.ts'],
     globals: false,
     // Same stability rationale as vitest.config.ts (supertest TCP handles
     // destabilize sibling forks) — Stryker runs 4 of these runners in

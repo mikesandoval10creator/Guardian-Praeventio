@@ -33,7 +33,6 @@
 // lives under `src/server/services/` and is mounted from the server-only
 // subscription router and the admin router.
 
-import admin from 'firebase-admin';
 import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import {
   PLAN_RANK,
@@ -41,6 +40,8 @@ import {
   normalizeSubscriptionPlanId,
 } from '../../services/pricing/subscriptionPlan.js';
 import { logger } from '../../utils/logger.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 // ── Collection shape ────────────────────────────────────────────────────
 // Persisted under: organizations/{organizationId}/pilotEntitlements/{pilotId}
@@ -179,7 +180,7 @@ export function choosePlanByPrecedence(
 // ── Server-side resolver (firebase-admin) ───────────────────────────────
 
 export interface PilotResolverDeps {
-  /** Injectable for tests; defaults to `admin.firestore()`. */
+  /** Injectable for tests; defaults to `getFirestore()`. */
   firestore?: Firestore;
 }
 
@@ -196,7 +197,7 @@ export async function resolveEffectivePlan(
   input: ResolveEffectivePlanInput,
   deps: PilotResolverDeps = {},
 ): Promise<ResolveEffectivePlanResult> {
-  const fs = deps.firestore ?? admin.firestore();
+  const fs = deps.firestore ?? getFirestore();
 
   // ── Step 1: read the user's subscription doc ────────────────────────
   let paidPlan: SubscriptionPlan | null = null;

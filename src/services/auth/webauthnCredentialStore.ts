@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // Praeventio Guard — Round 19 (R19 A5 agent): WebAuthn credential store.
 //
 // Closes the M1 gap left by Round 18: the /api/auth/webauthn/verify
@@ -29,7 +30,7 @@
 // We use a `MinimalCredentialsDb` injection rather than firebase-admin
 // directly so the unit suite can swap in an in-memory fake — same pattern
 // the webauthnChallenge service already uses. Production wires
-// admin.firestore() through a thin adapter.
+// getFirestore() through a thin adapter.
 //
 // REGISTRATION (TODO Round 20+):
 //   This store assumes credentials are already registered. The matching
@@ -82,7 +83,7 @@ export interface MinimalCredentialsDb {
    *
    * The fakeDb adapter enforces single-threaded semantics by serializing
    * updateFn execution (no real concurrency, but no race within the same
-   * call). The Firestore adapter uses `admin.firestore().runTransaction`.
+   * call). The Firestore adapter uses `getFirestore().runTransaction`.
    *
    * If the transaction body throws, the transaction is aborted.
    */

@@ -28,7 +28,6 @@
 // through R18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import crypto from 'crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
@@ -37,6 +36,9 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { autoValidateTelemetry } from '../../services/safetyEngineBackend.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 // Aligned with the frontend type union in src/pages/Telemetry.tsx +
 // Evacuation.tsx ('wearable' | 'machinery'). 'iot', 'environmental',
@@ -57,7 +59,7 @@ const IOT_TYPE_ALLOWLIST = new Set([
  */
 async function lookupTenantIotSecret(tenantId: string): Promise<string | null> {
   try {
-    const snap = await admin.firestore().collection('tenants').doc(tenantId).get();
+    const snap = await getFirestore().collection('tenants').doc(tenantId).get();
     if (!snap.exists) return null;
     const data = snap.data() ?? {};
     const secret = data.iotSecret;
@@ -82,7 +84,7 @@ async function projectBelongsToTenant(
   tenantId: string,
 ): Promise<boolean> {
   try {
-    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    const snap = await getFirestore().collection('projects').doc(projectId).get();
     if (!snap.exists) return false;
     return snap.data()?.tenantId === tenantId;
   } catch (err: any) {
@@ -242,7 +244,7 @@ router.post('/telemetry/ingest', async (req, res) => {
   }
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // Auto-validate with AI backend
     const validation = await autoValidateTelemetry({ type, source, metric, value, unit, status });
@@ -264,7 +266,7 @@ router.post('/telemetry/ingest', async (req, res) => {
       tenantId: tenantId ?? null,
       zoneId,
       deviceTimestamp,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     return res.json({
@@ -296,15 +298,15 @@ router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid tenantId' });
   }
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       return res.status(403).json({ error: 'Forbidden: Requires admin role' });
     }
     const newSecret = crypto.randomBytes(32).toString('hex');
-    await admin.firestore().collection('tenants').doc(tenantId).set(
+    await getFirestore().collection('tenants').doc(tenantId).set(
       {
         iotSecret: newSecret,
-        iotSecretRotatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        iotSecretRotatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );

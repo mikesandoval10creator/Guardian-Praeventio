@@ -25,8 +25,10 @@
 // longer logs the `ERR_ERL_KEY_GEN_IPV6` warning.
 import rateLimit, { ipKeyGenerator, type Store } from 'express-rate-limit';
 import type { Request } from 'express';
-import admin from 'firebase-admin';
 import { makeLazyFirestoreRateLimitStore } from '../rateLimit/firestoreRateLimitStore.js';
+
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Multi-replica IA spend cap (audit: ia-limiters-store).
@@ -45,15 +47,15 @@ import { makeLazyFirestoreRateLimitStore } from '../rateLimit/firestoreRateLimit
 // Diferencia clave vs. `server.ts`: estos singletons se construyen al EVALUAR
 // el módulo (import time), y los routers que los importan (gemini, b2d) son
 // imports estáticos de `server.ts`, así que este módulo corre ANTES de
-// `admin.initializeApp()`. Por eso usamos `makeLazyFirestoreRateLimitStore`,
-// que difiere `admin.firestore()` al primer request (cuando Admin ya existe).
+// `initializeApp()`. Por eso usamos `makeLazyFirestoreRateLimitStore`,
+// que difiere `getFirestore()` al primer request (cuando Admin ya existe).
 //
 // Fallback dev: en dev single-process Admin no se inicializa (sin
 // credenciales), y un store Firestore perezoso fallaría-soft en CADA request
 // (totalHits:1 siempre → el limiter NUNCA dispara). Eso es PEOR que el
 // MemoryStore default, que al menos cuenta dentro del único proceso. Por eso
 // solo adjuntamos el store Firestore cuando esperamos Admin: en producción
-// `server.ts` GARANTIZA `admin.initializeApp()` (si falla, `process.exit(1)`).
+// `server.ts` GARANTIZA `initializeApp()` (si falla, `process.exit(1)`).
 // En no-producción devolvemos `undefined` → MemoryStore (correcto single-proc).
 //
 // Test override: PRAEVENTIO_FORCE_IA_FS_STORE=1 fuerza el store Firestore para
@@ -70,13 +72,13 @@ export function makeIaRateLimitStore(prefix: string): Store | undefined {
   return makeLazyFirestoreRateLimitStore(
     () => {
       // Resuelto per-request (no en import time): para entonces `server.ts`
-      // ya corrió `admin.initializeApp()`. Si por algún motivo no está listo,
+      // ya corrió `initializeApp()`. Si por algún motivo no está listo,
       // lanzamos y el store lo atrapa fail-soft (deja pasar el request — mejor
       // que tumbar la app si Firestore parpadea).
-      if (admin.apps.length === 0) {
+      if (getApps().length === 0) {
         throw new Error('firebase-admin not initialized — IA limiter store unavailable');
       }
-      return admin.firestore();
+      return getFirestore();
     },
     { prefix },
   );

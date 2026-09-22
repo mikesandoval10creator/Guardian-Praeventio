@@ -11,7 +11,7 @@
 // aggregates `successCount`/`failureCount`. Errors raised by a single
 // chunk are recorded in `errorCount` and do not abort subsequent chunks.
 
-import type { messaging as adminMessaging } from 'firebase-admin';
+import { type Messaging, type MulticastMessage, getMessaging } from 'firebase-admin/messaging';
 import { logger } from '../../utils/logger.js';
 
 /** Firebase Admin SDK limit per multicast call. */
@@ -30,14 +30,14 @@ export interface MulticastChunkedResult {
   chunkCount: number;
 }
 
-export type MulticastPayload = Omit<adminMessaging.MulticastMessage, 'tokens'>;
+export type MulticastPayload = Omit<MulticastMessage, 'tokens'>;
 
 /**
  * Send `payload` to `tokens` in batches of `FCM_MULTICAST_MAX_TOKENS`.
  * Returns aggregated counts; never throws on a per-chunk failure.
  */
 export async function sendMulticastChunked(
-  messaging: adminMessaging.Messaging,
+  messaging: Messaging,
   tokens: readonly string[],
   payload: MulticastPayload,
 ): Promise<MulticastChunkedResult> {

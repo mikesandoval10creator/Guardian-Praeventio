@@ -63,11 +63,15 @@ export default defineConfig({
     exclude: [
       'src/rules-tests/**',
       'src/**/*.firestore.test.ts',
+      // Integración que exige emulator real (rules-unit-testing + firestore.rules
+      // reales): corre en `vitest.rules.config.ts` bajo `firebase emulators:exec`
+      // (job "Firestore rules tests"). Acá revienta en beforeAll sin emulator.
+      'src/__tests__/integration/healthVault.handler.integration.test.ts',
       'node_modules/**',
       'dist/**',
       'coverage/**',
     ],
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./src/test/setup.ts', './src/test/setupFirebaseAdminMocks.ts'],
     globals: false,
     // Local full-suite stability fix (alpha/03-ci-01). The default `forks`
     // pool can crash sibling workers ("Worker exited unexpectedly") on Windows

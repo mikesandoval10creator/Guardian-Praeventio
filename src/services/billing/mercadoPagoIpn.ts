@@ -37,7 +37,6 @@
 // y verifica el correcto — no requiere cambio de config del caller.
 
 import crypto from 'crypto';
-import admin from 'firebase-admin';
 import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
 import {
   normalizeSubscriptionPlanId,
@@ -50,6 +49,8 @@ import { withIdempotency } from './idempotency.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../observability/index.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   getJwks,
   type JsonWebKey as MpJsonWebKey,
@@ -637,7 +638,7 @@ export async function processMercadoPagoIpn(
     throw new Error('mp_ipn_missing_payment_id');
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // Idempotency: if we've processed this paymentId before, replay the
   // captured outcome. This protects against MP retrying after a transient
@@ -669,7 +670,7 @@ export async function processMercadoPagoIpn(
         await invoiceRef.set(
           {
             status: 'paid',
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidAt: FieldValue.serverTimestamp(),
             paymentSource: 'mercadopago',
             mercadoPagoPaymentId: paymentId,
             mercadoPagoStatusDetail: payment.status_detail ?? null,
@@ -701,7 +702,7 @@ export async function processMercadoPagoIpn(
                   planId,
                   tierId,
                   status: 'active',
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'mercadopago',
                   provider: 'mercadopago',
@@ -753,7 +754,7 @@ export async function processMercadoPagoIpn(
         userId: null,
         userEmail: null,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
 
       return { outcome, invoiceId };

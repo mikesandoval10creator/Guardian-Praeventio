@@ -45,6 +45,7 @@
 
 import { generateRefereeToken, hashToken } from './refereeTokens.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // --- Public types --------------------------------------------------------
 
 export type ClaimCategory =
@@ -125,7 +126,7 @@ export interface ClaimCreatePayload {
 }
 
 /**
- * The slice of Firestore we actually call. `admin.firestore()` is
+ * The slice of Firestore we actually call. `getFirestore()` is
  * structurally compatible with this; the test fake implements the same
  * shape with an in-memory Map.
  */

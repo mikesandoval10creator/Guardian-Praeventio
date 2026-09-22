@@ -29,12 +29,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -54,7 +56,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -81,7 +83,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -89,7 +91,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -165,8 +167,7 @@ router.post(
       // The engine already stamped observerUid/tenantId/observedAt; the doc id
       // is the caller-supplied observationId (idempotent overwrite of the same
       // record). merge:false would clobber unrelated fields — there are none.
-      await admin
-        .firestore()
+      await getFirestore()
         .collection(observationsPath(g.tenantId, projectId))
         .doc(observation.observationId)
         .set({ ...observation, projectId });
@@ -280,8 +281,7 @@ router.get(
       // Read the project's REAL persisted observations within the window.
       // Honest empty-state: a project with none returns a zeroed profile (the
       // engine produces safePercentage:0, empty categories) — no fabrication.
-      const snap = await admin
-        .firestore()
+      const snap = await getFirestore()
         .collection(observationsPath(g.tenantId, projectId))
         .where('observedAt', '>=', windowStart.toISOString())
         .get();

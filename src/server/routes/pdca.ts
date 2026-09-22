@@ -21,12 +21,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -39,7 +41,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -64,7 +66,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -75,7 +77,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -139,7 +141,7 @@ router.get('/:projectId/pdca/cycles', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const path = `tenants/${g.tenantId}/projects/${projectId}/pdca_cycles`;
     const cycles = await pdcaSafeRead('cycles', async () => {
       const snap = await db.collection(path).get();
@@ -166,7 +168,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const nowIso = body.startedAt ?? new Date().toISOString();
       const project = {
         id: body.id,
@@ -247,7 +249,7 @@ router.post(
         createdAt?: string;
         createdByUid?: string;
       }
-      const db = admin.firestore();
+      const db = getFirestore();
       const ref = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/pdca_cycles`,
@@ -353,7 +355,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const path = `tenants/${g.tenantId}/projects/${projectId}/non_conformities`;
       const ncs = await pdcaSafeRead('non_conformities', async () => {
         const snap = await db.collection(path).get();
@@ -381,7 +383,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const nc = {
         id: body.id,
         category: body.category,
@@ -431,7 +433,7 @@ router.get('/:projectId/pdca/summary', verifyAuth, async (req, res) => {
       stages?: Array<{ kind: PdcaStage; completedAt?: string }>;
       cycleNumber?: number;
     }
-    const db = admin.firestore();
+    const db = getFirestore();
     const cyclesPath = `tenants/${g.tenantId}/projects/${projectId}/pdca_cycles`;
     const cycles = await pdcaSafeRead<StoredCycleRow>(
       'cycles',

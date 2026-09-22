@@ -42,7 +42,6 @@
 //     site until it refreshes. The client forces getIdToken(true) after
 //     create/join so uploads work immediately (ProjectContext).
 
-import type admin from 'firebase-admin';
 import {
   buildClaimsWithAssignedSites,
   readAssignedSites,
@@ -52,13 +51,18 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { serializeByKey } from './backgroundTriggers.js';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Auth } from 'firebase-admin/auth';
+
 export interface AssignedSitesSyncDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   auth: Pick<
-    admin.auth.Auth,
+    Auth,
     'getUser' | 'setCustomUserClaims' | 'revokeRefreshTokens'
   >;
-  firestoreNamespace: typeof admin.firestore;
+  /** Firestore FieldValue namespace — for serverTimestamp() in writes. */
+  fieldValue: typeof FieldValue;
 }
 
 export interface AssignedSitesSyncHandle {
@@ -172,7 +176,7 @@ export async function syncUserAssignedSites(
       userId: 'system:assignedSitesSync',
       userEmail: null,
       projectId: null,
-      timestamp: deps.firestoreNamespace.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: null,
       userAgent: null,
     });

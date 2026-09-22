@@ -1,5 +1,5 @@
 // Praeventio Guard — Mountain Refuges router: real-router supertest (B-Fase5,
-// CLAUDE.md #22). Boots the REAL refuges router with admin.firestore() backed by
+// CLAUDE.md #22). Boots the REAL refuges router with getFirestore() backed by
 // the in-memory FakeFirestore and drives the three stateless endpoints over HTTP
 // via supertest. This is a LIFE-CRITICAL surface (offline mountain emergency
 // catalog), so the assertions exercise the REAL handler + REAL pure engine
@@ -47,6 +47,7 @@ vi.mock('../../utils/logger.js', () => ({
 
 import refugesRouter from './refuges';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
+import { getFirestore } from 'firebase-admin/firestore';
 // Import the REAL catalog/engine so expected values are derived from the same
 // source the router uses — no hard-coded magic numbers that could drift.
 import {

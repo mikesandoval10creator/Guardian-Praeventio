@@ -25,13 +25,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { Timestamp, getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -57,7 +58,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -159,7 +160,7 @@ interface UsedScanRecord {
   projectId: string;
   signedAt: string;
   /** Firestore TTL field (7 days after sign). */
-  ttlAt: admin.firestore.Timestamp;
+  ttlAt: Timestamp;
 }
 
 const USED_SCANS_COLLECTION = 'qr_ack_used_scans';
@@ -179,7 +180,7 @@ router.post(
       return res.status(503).json({ error: 'qr_ack_not_configured' });
     }
     const verifier = buildVerifier(secret);
-    const firestore = admin.firestore();
+    const firestore = getFirestore();
 
     const scanRequest: AckScanRequest = {
       qrPayload: body.qrPayload,
@@ -219,7 +220,7 @@ router.post(
         if (!txResult.ok) {
           return txResult;
         }
-        const ttlAt = admin.firestore.Timestamp.fromMillis(
+        const ttlAt = Timestamp.fromMillis(
           Date.now() + 7 * 24 * 3_600_000,
         );
         const record: UsedScanRecord = {

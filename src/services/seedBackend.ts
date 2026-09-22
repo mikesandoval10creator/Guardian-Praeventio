@@ -1,9 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
-import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateEmbedding } from "./ragService.js";
 import { logger } from '../utils/logger';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
+
+import { getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -65,7 +67,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
   // ${industry}"), NOT worker free-text — distinct from the runtime AI-answer
   // cache, which lives in the SERVER-ONLY `community_knowledge_cache` and never
   // stores the worker prompt (see ragService.queryCommunityKnowledge).
-  const db = admin.firestore();
+  const db = getFirestore();
   const glossaryCollection = db.collection('community_glossary');
 
   logger.debug(`Generating embeddings and saving to Firestore (${industry})...`);
@@ -94,12 +96,12 @@ const generateInitialDataForIndustry = async (industry: string) => {
 };
 
 export const cleanupUserApiKeys = async () => {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     logger.error("Firebase Admin not initialized. Cannot run cleanup.");
     return;
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const usersCollection = db.collection('users');
   
   try {
@@ -130,7 +132,7 @@ export const cleanupUserApiKeys = async () => {
 };
 
 export const runSeed = async () => {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     logger.error("Firebase Admin not initialized. Cannot run seed.");
     return;
   }

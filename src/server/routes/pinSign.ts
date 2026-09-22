@@ -27,13 +27,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { randomBytes } from 'crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -58,7 +59,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -94,8 +95,7 @@ function pinCredentialDocId(projectId: string, workerUid: string): string {
 }
 
 function pinCredentialRef(projectId: string, workerUid: string) {
-  return admin
-    .firestore()
+  return getFirestore()
     .collection('pin_credentials')
     .doc(pinCredentialDocId(projectId, workerUid));
 }
@@ -142,7 +142,7 @@ async function verifyAndPersist(
   pin: string,
 ): Promise<ReturnType<typeof verifyPin> | null> {
   const ref = pinCredentialRef(projectId, workerUid);
-  return admin.firestore().runTransaction(async (tx) => {
+  return getFirestore().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
     const credential = docToCredential(snap.data() as Record<string, unknown>);

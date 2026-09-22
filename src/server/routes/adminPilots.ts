@@ -11,7 +11,6 @@
 // to traverse nested collections.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole } from '../../types/roles.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -26,6 +25,7 @@ import {
 } from '../../services/pricing/subscriptionPlan.js';
 import { coercePilotDoc } from '../services/pilotEntitlementResolver.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 export const adminPilotsRouter = Router();
 
 // ── Zod-light input validation (kept inline; no runtime dep on zod) ────
@@ -98,8 +98,7 @@ adminPilotsRouter.post('/pilots', verifyAuth, async (req, res) => {
       status: 'active' as const,
     };
 
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('organizations')
       .doc(organizationId)
       .collection('pilotEntitlements')
@@ -140,8 +139,7 @@ adminPilotsRouter.get('/pilots/:orgId', verifyAuth, async (req, res) => {
       return;
     }
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore()
       .collection('organizations')
       .doc(orgId)
       .collection('pilotEntitlements')
@@ -188,8 +186,7 @@ adminPilotsRouter.delete('/pilots/:pilotId', verifyAuth, async (req, res) => {
     const reason =
       typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 500) : 'unspecified';
 
-    const ref = admin
-      .firestore()
+    const ref = getFirestore()
       .collection('organizations')
       .doc(organizationId)
       .collection('pilotEntitlements')

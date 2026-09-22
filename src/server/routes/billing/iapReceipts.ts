@@ -13,7 +13,6 @@
 
 import type { Router } from 'express';
 import crypto from 'node:crypto';
-import admin from 'firebase-admin';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
 import { logger } from '../../../utils/logger.js';
@@ -35,6 +34,8 @@ import {
   planFromIapProductId,
 } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sprint 21 Ola 6 Bucket T — IAP receipt validation stubs.
@@ -86,7 +87,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
       // material and would broaden the blast radius of a Firestore breach.
       const recordAttempt = async (outcome: string, reason?: string) => {
         try {
-          const db = admin.firestore();
+          const db = getFirestore();
           await db.collection('iap_receipt_attempts').add({
             provider: 'google-play',
             userId: uid ?? null,
@@ -95,7 +96,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             ip: req.ip ?? null,
             userAgent: req.header('user-agent') ?? null,
           });
@@ -205,8 +206,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
         }
         const resolvedCycle = cycleFromProductId(productId);
 
-        await admin
-          .firestore()
+        await getFirestore()
           .collection('users')
           .doc(uid)
           .update({
@@ -219,7 +219,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             'subscription.purchaseToken': receiptId,
             'subscription.orderId': null,
             'subscription.cycle': resolvedCycle,
-            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.updatedAt': FieldValue.serverTimestamp(),
           });
 
         await recordAttempt('granted');
@@ -280,7 +280,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
 
       const recordAttempt = async (outcome: string, reason?: string) => {
         try {
-          const db = admin.firestore();
+          const db = getFirestore();
           await db.collection('iap_receipt_attempts').add({
             provider: 'app-store',
             userId: uid ?? null,
@@ -289,7 +289,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             receiptIdHash: hashReceiptId(receiptId),
             outcome,
             reason: reason ?? null,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             ip: req.ip ?? null,
             userAgent: req.header('user-agent') ?? null,
           });
@@ -391,8 +391,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
         }
         const resolvedCycle = cycleFromProductId(productId);
 
-        await admin
-          .firestore()
+        await getFirestore()
           .collection('users')
           .doc(uid)
           .update({
@@ -406,7 +405,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
               success.payload?.appAccountToken ?? null,
             'subscription.appleOriginalTransactionId': success.originalTransactionId,
             'subscription.cycle': resolvedCycle,
-            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.updatedAt': FieldValue.serverTimestamp(),
           });
 
         await recordAttempt('granted');

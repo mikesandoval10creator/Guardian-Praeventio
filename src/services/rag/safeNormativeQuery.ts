@@ -21,9 +21,12 @@
 // que por debajo de eso el embedding no es semánticamente preciso para
 // material legal. Conservador: mejor decir "no sé" que arriesgar mal.
 
-import admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from '../../utils/logger.js';
+
+import { getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 export type SafeNormativeQueryReason =
   | 'no_verified_match'
@@ -63,7 +66,7 @@ const PREVIEW_CHARS = 240;
  * y al adapter Gemini existente.
  */
 export interface SafeNormativeDeps {
-  firestore?: () => admin.firestore.Firestore;
+  firestore?: () => Firestore;
   generateEmbedding?: (query: string) => Promise<number[]>;
   isRagInitialized?: () => boolean;
 }
@@ -113,7 +116,7 @@ export async function safeNormativeQuery(
   const embedFn = _depsOverride.generateEmbedding;
   const initFn = _depsOverride.isRagInitialized;
 
-  const ragReady = initFn ? initFn() : admin.apps.length > 0;
+  const ragReady = initFn ? initFn() : getApps().length > 0;
   if (!ragReady) {
     return {
       ok: false,
@@ -143,7 +146,7 @@ export async function safeNormativeQuery(
   }
 
   try {
-    const db = fsFn ? fsFn() : admin.firestore();
+    const db = fsFn ? fsFn() : getFirestore();
     const vectorCollection = db.collection('vector_store');
     // Nota: en la versión Admin actual, `findNearest` retorna distancia
     // implícita; algunos snapshots la exponen como `_distance` o

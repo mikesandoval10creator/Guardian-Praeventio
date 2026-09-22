@@ -1,5 +1,5 @@
 // Praeventio Guard — LOTO Digital router: real-router supertest for the write-path
-// (B8, Fase 5). Boots the real router with admin.firestore() backed by the
+// (B8, Fase 5). Boots the real router with getFirestore() backed by the
 // in-memory FakeFirestore, runs the REAL LotoAdapter + engine, and asserts the
 // full create → apply-lock → verify-zero-energy → release lifecycle persists,
 // audits (legal subcollection + global audit_logs), and gates release by actor.
@@ -45,6 +45,7 @@ vi.mock('../middleware/auditLog.js', () => ({
 import lotoRouter from './loto';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-k';
 const TENANT = 't1';
 const PROJECT = 'p1';

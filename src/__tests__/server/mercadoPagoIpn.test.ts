@@ -29,6 +29,7 @@ import {
   _setJwksFetcherForTests,
 } from '../../services/billing/mpJwksCache.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const IPN_SECRET = 'mp-ipn-secret-supertest';
 

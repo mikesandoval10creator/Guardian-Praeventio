@@ -36,7 +36,6 @@
 //   tenants/{tenantId}/projects/{projectId}/zone_entry_events/{eventId}
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -45,6 +44,8 @@ import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -155,7 +156,7 @@ const entryPermissionsSchema = z.object({
 // ────────────────────────────────────────────────────────────────────────
 
 async function tenantIdFor(projectId: string): Promise<string | null> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) return null;
   const data = snap.data() ?? {};
@@ -164,8 +165,7 @@ async function tenantIdFor(projectId: string): Promise<string | null> {
 }
 
 function zonesCollection(tenantId: string, projectId: string) {
-  return admin
-    .firestore()
+  return getFirestore()
     .collection('tenants')
     .doc(tenantId)
     .collection('projects')
@@ -174,8 +174,7 @@ function zonesCollection(tenantId: string, projectId: string) {
 }
 
 function entryEventsCollection(tenantId: string, projectId: string) {
-  return admin
-    .firestore()
+  return getFirestore()
     .collection('tenants')
     .doc(tenantId)
     .collection('projects')
@@ -189,7 +188,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
     return true;
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
@@ -273,7 +272,7 @@ router.post(
         {
           ...body.zone,
           createdBy: callerUid,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -418,7 +417,7 @@ router.post(
     }
 
     const eventId = newEventId();
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     const finalEvaluation = serverEvaluation ?? body.evaluation;
 
@@ -444,7 +443,7 @@ router.post(
 
       // Audit log mirror — module='restricted_zones'.
       try {
-        await admin.firestore().collection('audit_logs').add({
+        await getFirestore().collection('audit_logs').add({
           action: 'zone.entry_declared',
           module: 'restricted_zones',
           details: {

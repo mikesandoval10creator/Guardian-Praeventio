@@ -27,7 +27,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -48,6 +47,9 @@ import {
   type ConflictQueueStatus,
 } from '../../services/sync/conflictQueue.js';
 import type { Conflict } from '../../services/sync/conflictResolver.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { DocumentSnapshot, Firestore, Query } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -75,7 +77,7 @@ function stableEnqueuedAt(conflict: Conflict): Date {
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -100,7 +102,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(403).json({ error: 'forbidden' });
@@ -108,7 +110,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -121,13 +123,12 @@ function isApprover(role: string | undefined): boolean {
 }
 
 function queueRef(tenantId: string, queueId: string) {
-  return admin
-    .firestore()
+  return getFirestore()
     .collection(`tenants/${tenantId}/conflict_queue`)
     .doc(queueId);
 }
 
-function toEntry(snap: admin.firestore.DocumentSnapshot): ConflictQueueEntry {
+function toEntry(snap: DocumentSnapshot): ConflictQueueEntry {
   return snap.data() as ConflictQueueEntry;
 }
 
@@ -297,7 +298,7 @@ router.get('/:projectId/conflict-queue', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const rawStatus =
       typeof req.query.status === 'string' ? req.query.status : 'all';
     const statusFilter: ConflictQueueStatus | 'all' = (
@@ -305,7 +306,7 @@ router.get('/:projectId/conflict-queue', verifyAuth, async (req, res) => {
     ).includes(rawStatus)
       ? (rawStatus as ConflictQueueStatus | 'all')
       : 'all';
-    let q: admin.firestore.Query = db
+    let q: Query = db
       .collection(`tenants/${g.tenantId}/conflict_queue`)
       .where('projectId', '==', projectId);
     if (statusFilter !== 'all') q = q.where('status', '==', statusFilter);
@@ -337,7 +338,7 @@ router.post(
     if (!g) return undefined;
     try {
       const ref = queueRef(g.tenantId, queueId);
-      const outcome = await admin.firestore().runTransaction(async (tx) => {
+      const outcome = await getFirestore().runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists) return { kind: 'not_found' as const };
         try {
@@ -399,7 +400,7 @@ router.post(
     if (!g) return undefined;
     try {
       const ref = queueRef(g.tenantId, queueId);
-      const db = admin.firestore();
+      const db = getFirestore();
       const outcome = await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists) return { kind: 'not_found' as const };
@@ -457,7 +458,7 @@ router.post(
         } else if (Object.keys(canonical.patch).length > 0) {
           tx.update(targetRef, {
             ...canonical.patch,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
         }
         tx.set(ref, { ...next, tenantId: g.tenantId });
@@ -502,7 +503,7 @@ router.post(
     if (!g) return undefined;
     try {
       const ref = queueRef(g.tenantId, queueId);
-      const outcome = await admin.firestore().runTransaction(async (tx) => {
+      const outcome = await getFirestore().runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists) return { kind: 'not_found' as const };
         try {

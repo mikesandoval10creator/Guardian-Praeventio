@@ -15,7 +15,6 @@
 // the aggregator sees them.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -33,6 +32,10 @@ import {
 } from '../../services/telemetry/aggregator.js';
 import { collectEvents } from '../../services/telemetry/eventCollector.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+
 const router = Router();
 
 const VALID_WINDOWS: ReadonlySet<AggregationWindow> = new Set([
@@ -44,7 +47,7 @@ const VALID_WINDOWS: ReadonlySet<AggregationWindow> = new Set([
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -58,7 +61,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -66,7 +69,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -97,7 +100,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const events = await collectEvents(admin.firestore(), {
+      const events = await collectEvents(getFirestore(), {
         projectId,
         tenantId: g.tenantId,
         lookbackDays: WINDOW_DAYS_MAP[window],
@@ -135,12 +138,12 @@ router.get(
       return res.status(400).json({ error: 'projects_query_required' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // Tenant-rollup is admin-only. The header comment claimed this but nothing
     // enforced it — any project member could call it. Fetch fresh custom claims
     // (the ID token could be stale) and require an admin role.
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       return res.status(403).json({ error: 'forbidden_admin_only' });
     }

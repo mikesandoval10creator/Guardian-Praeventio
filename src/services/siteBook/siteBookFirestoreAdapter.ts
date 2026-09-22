@@ -23,6 +23,7 @@ import type {
   SiteBookEntryKind,
 } from './siteBookService.js';
 import { createEntry, signEntry } from './siteBookService.js';
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   crdtToEntry,
   mergeCrdtEntries,
@@ -30,7 +31,7 @@ import {
 } from './siteBookCrdt.js';
 
 // ────────────────────────────────────────────────────────────────────────
-// Firestore-shape DI (subset de admin.firestore())
+// Firestore-shape DI (subset de getFirestore())
 // ────────────────────────────────────────────────────────────────────────
 
 export interface SiteBookFirestoreDb {

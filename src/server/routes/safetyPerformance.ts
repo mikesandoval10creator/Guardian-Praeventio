@@ -38,11 +38,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -91,7 +92,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -212,7 +213,7 @@ router.post(
       return res.status(403).json({ error: 'insufficient_role' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const docId = `${projectId}_${body.period}`;
     try {
       // Server stamps recordedBy/recordedAt — client-supplied values are
@@ -225,7 +226,7 @@ router.post(
           plannedDailyTalks: body.plannedDailyTalks,
           plannedTrainings: body.plannedTrainings,
           recordedBy: callerUid,
-          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recordedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -244,7 +245,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -279,7 +280,7 @@ const spiReportQuerySchema = z.object({
 /** Resolve tenantId from the project doc (incidents may be nested under it). */
 async function resolveTenantId(projectId: string): Promise<string | null> {
   try {
-    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    const snap = await getFirestore().collection('projects').doc(projectId).get();
     const data = snap.exists ? snap.data() : null;
     if (data && typeof data.tenantId === 'string' && data.tenantId.length > 0) {
       return data.tenantId;
@@ -347,7 +348,7 @@ async function readExecutedCounts(
   projectId: string,
   period: string,
 ): Promise<ExecutedCounts> {
-  const db = admin.firestore();
+  const db = getFirestore();
 
   const [executedInspections, executedDailyTalks, executedTrainings, nearMissReports] =
     await Promise.all([
@@ -428,8 +429,7 @@ async function readPlannedCounts(
   period: string,
 ): Promise<PlannedCounts | null> {
   try {
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore()
       .collection('safety_plan_periods')
       .doc(`${projectId}_${period}`)
       .get();
@@ -452,7 +452,7 @@ async function readIncidentCounts(
   period: string,
   tenantId: string | null,
 ): Promise<ReturnType<typeof classifyIncidents>> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const safeRead = async (
     label: string,
     fn: () => Promise<Array<Record<string, unknown>>>,
@@ -504,7 +504,7 @@ router.get(
     const { period } = req.validated as z.infer<typeof spiReportQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
       const tenantId = await resolveTenantId(projectId);
 

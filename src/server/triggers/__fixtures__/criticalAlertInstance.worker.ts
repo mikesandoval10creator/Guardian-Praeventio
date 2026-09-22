@@ -2,9 +2,9 @@
 // Child-process fixture: one isolated Cloud Run-style background-trigger instance.
 
 import { randomUUID } from 'node:crypto';
-import type admin from 'firebase-admin';
 import { deleteApp, initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, type Firestore } from 'firebase-admin/firestore';
+import type { MulticastMessage } from 'firebase-admin/messaging';
 import {
   setupBackgroundTriggers,
   type BackgroundTriggersDeps,
@@ -73,10 +73,10 @@ const triggerDb = {
     }
     return result;
   },
-} as unknown as admin.firestore.Firestore;
+} as unknown as Firestore;
 
 const messaging = {
-  sendEachForMulticast: async (message: admin.messaging.MulticastMessage) => {
+  sendEachForMulticast: async (message: MulticastMessage) => {
     send({ type: 'sent', instanceId, tokens: [...message.tokens] });
     return { successCount: 1, failureCount: 0, responses: [] };
   },
@@ -86,16 +86,14 @@ const resend = {
   emails: { send: async () => ({ id: 'unused' }) },
 } as unknown as BackgroundTriggersDeps['resend'];
 
-const firestoreNamespace = {
-  FieldValue,
-} as unknown as BackgroundTriggersDeps['firestoreNamespace'];
+const fieldValue: BackgroundTriggersDeps['fieldValue'] = FieldValue;
 
 const handle = setupBackgroundTriggers({
   db: triggerDb,
   messaging,
   resend,
   resendApiKey: '',
-  firestoreNamespace,
+  fieldValue,
   createClaimToken: () => {
     const token = `${instanceId}-${claimSequence++}`;
     send({ type: 'claim-token', instanceId, token });

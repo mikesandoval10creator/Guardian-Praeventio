@@ -1,11 +1,13 @@
-import admin from 'firebase-admin';
 
 import type { MinimalChallengesDb } from '../../services/auth/webauthnChallenge.js';
 import type { MinimalCredentialsDb } from '../../services/auth/webauthnCredentialStore.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import type { DocumentData, DocumentReference, UpdateData } from 'firebase-admin/firestore';
+
 /** Firestore adapter for atomic, single-use WebAuthn challenges. */
 export function createWebAuthnChallengesFirestoreDb(): MinimalChallengesDb {
-  const firestore = admin.firestore();
+  const firestore = getFirestore();
   return {
     now: () => Date.now(),
     collection(name: string) {
@@ -76,7 +78,7 @@ export function createWebAuthnChallengesFirestoreDb(): MinimalChallengesDb {
 
 /** Firestore adapter for registered public WebAuthn credentials. */
 export function createWebAuthnCredentialsFirestoreDb(): MinimalCredentialsDb {
-  const firestore = admin.firestore();
+  const firestore = getFirestore();
   return {
     now: () => Date.now(),
     collection(name: string) {
@@ -148,7 +150,7 @@ export function createWebAuthnCredentialsFirestoreDb(): MinimalCredentialsDb {
       return firestore.runTransaction(async (transaction) => {
         return updateFn({
           async get(ref: unknown) {
-            const docRef = ref as admin.firestore.DocumentReference;
+            const docRef = ref as DocumentReference;
             const snap = await transaction.get(docRef);
             return {
               exists: snap.exists,
@@ -160,8 +162,8 @@ export function createWebAuthnCredentialsFirestoreDb(): MinimalCredentialsDb {
             };
           },
           async update(ref: unknown, patch: Record<string, unknown>) {
-            const docRef = ref as admin.firestore.DocumentReference;
-            transaction.update(docRef, patch as admin.firestore.UpdateData<admin.firestore.DocumentData>);
+            const docRef = ref as DocumentReference;
+            transaction.update(docRef, patch as UpdateData<DocumentData>);
           },
         });
       });

@@ -14,12 +14,13 @@
 //
 // Producción jamás usa estos archivos: viven bajo `tests/e2e/`.
 
-import admin from 'firebase-admin';
+import { getApp, initializeApp, type App } from 'firebase-admin/app';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 let initialized = false;
 
-function ensureAdmin(): admin.app.App {
-  if (initialized) return admin.app();
+function ensureAdmin(): App {
+  if (initialized) return getApp();
   if (!process.env.FIRESTORE_EMULATOR_HOST) {
     throw new Error(
       'seed.ts: FIRESTORE_EMULATOR_HOST is not set. Start the emulator and export it before seeding.',
@@ -30,9 +31,9 @@ function ensureAdmin(): admin.app.App {
   if (!process.env.GOOGLE_CLOUD_PROJECT) {
     process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
   }
-  admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+  initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   initialized = true;
-  return admin.app();
+  return getApp();
 }
 
 export interface SeedProjectOptions {
@@ -81,7 +82,7 @@ export async function seedProject(
   options: SeedProjectOptions = {},
 ): Promise<SeededProject> {
   ensureAdmin();
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // §2.19 fix (2026-05-21) — `members: [supervisorUid]` requerido por
   // `ProjectContext.tsx:247` que filtra `where('members','array-contains',
@@ -101,7 +102,7 @@ export async function seedProject(
     createdBy: supervisorUid,
     members: [supervisorUid],
     location: options.location ?? null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     isEmergencyActive: options.emergencyActive ?? false,
     ...(options.phone !== undefined ? { phone: options.phone } : {}),
   });
@@ -123,7 +124,7 @@ export async function seedProject(
     daysWithoutIncident: 0,
     totalProcessesCompleted: 0,
     workerCount: 0,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   const cleanup = async (): Promise<void> => {
@@ -140,7 +141,7 @@ export async function seedProject(
  */
 export async function clearAllProjects(): Promise<void> {
   ensureAdmin();
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').get();
   await Promise.all(snap.docs.map((doc) => doc.ref.delete()));
 }
@@ -174,7 +175,7 @@ export async function seedRestrictedZone(
   } = {},
 ): Promise<SeededZone> {
   ensureAdmin();
-  const db = admin.firestore();
+  const db = getFirestore();
   const tenantId = options.tenantId ?? 'e2e-tenant';
   const zoneId = options.zoneId ?? 'e2e-hot-zone';
   const zoneRef = db

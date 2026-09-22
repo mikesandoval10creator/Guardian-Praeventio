@@ -27,13 +27,14 @@
 //
 // We use a `MinimalChallengesDb` injection rather than firebase-admin
 // directly so the unit suite can swap in an in-memory fake. Production
-// (server.ts) wires admin.firestore() through a thin adapter that
+// (server.ts) wires getFirestore() through a thin adapter that
 // implements the same surface — including the conditional-update
 // primitive (`updateIf`) which we model on transactional Firestore
 // updates with a precondition check.
 
 import crypto from 'node:crypto';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const COLLECTION = 'webauthn_challenges';
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const CHALLENGE_BYTES = 32;

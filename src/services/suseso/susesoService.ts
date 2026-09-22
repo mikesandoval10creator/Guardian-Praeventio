@@ -45,10 +45,11 @@ import type {
 } from '../compliance/complianceSignature.js';
 import type { ComplianceSigningContext } from '../auth/complianceSigningIntent.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 /**
  * Tiny Firestore-shaped contract used by this service. Tests pass an
  * in-memory implementation; production passes a thin wrapper over
- * `admin.firestore()`.
+ * `getFirestore()`.
  */
 export interface MinimalFormStore {
   /** Save the form record. Idempotent on (tenantId, formId). */

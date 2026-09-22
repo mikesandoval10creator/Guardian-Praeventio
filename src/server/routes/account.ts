@@ -23,7 +23,6 @@
 // Identity ALWAYS from the token; nothing here trusts a client-supplied uid.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -33,6 +32,9 @@ import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { anonymizeUser } from '../services/anonymizeUser.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 export const accountRouter = Router();
 
@@ -215,7 +217,7 @@ accountRouter.post('/anonymize', verifyAuth, webauthnVerifyLimiter, async (req, 
     return res.status(401).json({ error: 'webauthn_verification_failed' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // ── 2. Export-before-delete (Ley 21.719 portability) + checksum proof ──────
   let dataExport: string;
@@ -257,7 +259,7 @@ accountRouter.post('/anonymize', verifyAuth, webauthnVerifyLimiter, async (req, 
   // ── 4. The irreversible scrub ─────────────────────────────────────────────
   let result: Awaited<ReturnType<typeof anonymizeUser>>;
   try {
-    result = await anonymizeUser({ authAdmin: admin.auth, db }, { uid, dataExportChecksum });
+    result = await anonymizeUser({ authAdmin: getAuth, db }, { uid, dataExportChecksum });
   } catch (scrubErr) {
     logger.error('account.anonymize scrub failed', scrubErr as Error, { uid });
     captureRouteError(scrubErr, 'account.anonymize.scrub', { uid });

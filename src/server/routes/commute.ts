@@ -20,7 +20,6 @@
 // client cannot redirect writes into a different tenant.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -31,6 +30,8 @@ import {
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ export const commuteLimiter = rateLimit({
 
 /** Returns the tenantId that owns a project, or null if missing. */
 async function tenantIdFor(projectId: string): Promise<string | null> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) return null;
   const data = snap.data() ?? {};
@@ -71,7 +72,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid type' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     await assertProjectMember(callerUid, projectId, db);
   } catch (err) {
@@ -99,7 +100,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
         projectId,
         type,
         startedBy: callerUid,
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
         endedAt: null,
         samples: [],
       });
@@ -110,7 +111,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
       userId: callerUid,
       userEmail: callerEmail,
       projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
@@ -154,7 +155,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid timestamp' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   // Look up session to validate ownership. The session lives under
   // `tenants/{tenantId}/commute_sessions/{id}`, but the body doesn't
   // carry tenantId — we resolve it via the session's `projectId` field.
@@ -189,7 +190,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
 
   try {
     await sessionDoc.ref.update({
-      samples: admin.firestore.FieldValue.arrayUnion({
+      samples: FieldValue.arrayUnion({
         lat,
         lng,
         speedKmh,
@@ -214,7 +215,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid sessionId' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   let sessionDoc: FirebaseFirestore.DocumentSnapshot | null = null;
   try {
     const groupSnap = await db
@@ -238,7 +239,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
 
   try {
     await sessionDoc.ref.update({
-      endedAt: admin.firestore.FieldValue.serverTimestamp(),
+      endedAt: FieldValue.serverTimestamp(),
     });
     await db.collection('audit_logs').add({
       action: 'commute.end',
@@ -247,7 +248,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
       userId: callerUid,
       userEmail: callerEmail,
       projectId: session.projectId ?? null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });

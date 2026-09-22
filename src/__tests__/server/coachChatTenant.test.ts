@@ -21,6 +21,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function makeAuth(): FakeAuth {
   return {

@@ -15,7 +15,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
@@ -25,6 +24,8 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ router.patch(
     const patchIn = req.validated as z.infer<typeof updateSchema>;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -72,7 +73,7 @@ router.patch(
     // (404 vs 403 split is preserved), then role/creator. Self-edit (a
     // worker updating their own limited fields) is NOT allowed here —
     // the rules and audit story treat workers.update as a privileged op.
-    const db = admin.firestore();
+    const db = getFirestore();
     const projectSnap = await db.collection('projects').doc(projectId).get();
     if (!projectSnap.exists) {
       return res.status(404).json({ error: 'project_not_found' });
@@ -121,7 +122,7 @@ router.patch(
           userId: reqUser?.uid ?? callerUid,
           userEmail: reqUser?.email ?? null,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

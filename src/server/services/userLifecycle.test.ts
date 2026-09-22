@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { deactivateUser } from './userLifecycle.js';
 
+import { getAuth } from 'firebase-admin/auth';
 function buildAuthAdmin(opts: {
   revokeImpl?: (uid: string) => Promise<void>;
   setClaimsImpl?: (uid: string, claims: any) => Promise<void>;
@@ -11,7 +12,7 @@ function buildAuthAdmin(opts: {
     revokeRefreshTokens: revoke,
     setCustomUserClaims: setClaims,
   };
-  // The helper accepts `typeof admin.auth` — a function that returns the
+  // The helper accepts `typeof getAuth` — a function that returns the
   // Auth instance. We mock that shape with a thunk.
   const adminAuth = () => inner as any;
   return { adminAuth: adminAuth as any, revoke, setClaims };

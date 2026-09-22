@@ -27,7 +27,6 @@
 // and fall back to `projectId` itself for legacy installs.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -37,6 +36,9 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -79,7 +81,7 @@ router.post(
     >;
 
     try {
-      const callerRecord = await admin.auth().getUser(callerUid);
+      const callerRecord = await getAuth().getUser(callerUid);
       const role = callerRecord.customClaims?.role;
       if (!isAdminRole(role) && !isSupervisorRole(role)) {
         return res
@@ -94,7 +96,7 @@ router.post(
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // Cross-tenant guard (#700/#707/#708): the admin/supervisor role check above
     // is GLOBAL — it does not bind the caller to `projectId`. Without this, a
@@ -143,7 +145,7 @@ router.post(
               projectId,
               type,
               registeredBy: callerUid,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
               status: 'active',
               // claude/mqtt-wire (2026-06): the schema always accepted an
               // optional per-device secret but the handler silently dropped

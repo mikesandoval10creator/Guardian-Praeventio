@@ -32,7 +32,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -49,6 +48,8 @@ import {
 } from '../../services/protocols/cealSm.js';
 import { CEAL_ANONYMITY_THRESHOLD } from '../../services/protocols/cealSmDefinition.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 const CAMPAIGNS_COLLECTION = 'ceal_sm_campaigns';
@@ -61,7 +62,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -197,8 +198,7 @@ router.post(
         createdAt: now,
         createdBy: callerUid,
       };
-      const ref = await admin
-        .firestore()
+      const ref = await getFirestore()
         .collection(CAMPAIGNS_COLLECTION)
         .add(payload);
       // CLAUDE.md #3/#14: state-changing write → awaited audit row.
@@ -231,7 +231,7 @@ router.get('/:projectId/ceal-sm/campaigns', verifyAuth, async (req, res) => {
   const { projectId } = req.params;
   if (!(await guard(callerUid, projectId, res))) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const snap = await db
       .collection(CAMPAIGNS_COLLECTION)
       .where('projectId', '==', projectId)
@@ -306,7 +306,7 @@ router.post(
         throw err;
       }
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const campaignRef = db.collection(CAMPAIGNS_COLLECTION).doc(campaignId);
       const campaignSnap = await campaignRef.get();
       if (!campaignSnap.exists) {
@@ -368,7 +368,7 @@ router.get(
     const { projectId, id: campaignId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const campaignRef = db.collection(CAMPAIGNS_COLLECTION).doc(campaignId);
       const campaignSnap = await campaignRef.get();
       if (!campaignSnap.exists) {

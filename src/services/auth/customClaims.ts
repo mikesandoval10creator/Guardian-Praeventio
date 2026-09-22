@@ -78,7 +78,7 @@ export function resolveAssignedSitesCheck(
 }
 
 /**
- * Construye el payload de claims para `admin.auth().setCustomUserClaims`.
+ * Construye el payload de claims para `getAuth().setCustomUserClaims`.
  * `existingClaims` debe venir de `getUser(uid).customClaims` para
  * preservar otros claims (role, tier, etc.).
  *

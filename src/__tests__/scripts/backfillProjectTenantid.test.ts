@@ -12,6 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const require_ = createRequire(import.meta.url);
 const { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfillDb } = require_(
   '../../../scripts/backfill-project-tenantid.cjs',
@@ -102,7 +103,7 @@ describe('planTenantDataMoves', () => {
 describe('resolveBackfillDb (named-database targeting — the silent-wrong-target guard)', () => {
   // Production Firestore lives in the NAMED database from
   // firebase-applet-config.json (`firestoreDatabaseId`), same rule server.ts
-  // applies at boot. A bare `admin.firestore()` scans the empty "(default)"
+  // applies at boot. A bare `getFirestore()` scans the empty "(default)"
   // DB and the whole backfill reports "nothing to do" — these tests pin that
   // the script can never regress into that failure mode.
   const cfgNamed = { firestoreDatabaseId: 'ai-studio-test-db' };

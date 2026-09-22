@@ -21,7 +21,6 @@
 // (oauth/gemini) deferred to Round 17/18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { verifySchedulerOrFallback } from '../middleware/verifySchedulerToken.js';
 import {
@@ -77,6 +76,11 @@ import {
 import { geminiCircuit } from '../middleware/geminiCircuit.js';
 import { getAiProviderStats } from '../../services/ai/providerRouter.js';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { DocumentData, DocumentReference, UpdateData } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getMessaging } from 'firebase-admin/messaging';
+
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -122,7 +126,7 @@ const router = Router();
 // module (and its boot-time origin guard). Only the methods the recovery
 // flow needs are wired: doc().get()/delete() and where().get().
 function buildCredentialsDb(): MinimalCredentialsDb {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   return {
     now: () => Date.now(),
     collection(name: string) {
@@ -176,7 +180,7 @@ function buildCredentialsDb(): MinimalCredentialsDb {
       // is identical to webauthnFirestoreDb.)
       return fs.runTransaction(async (tx) => updateFn({
         async get(ref: unknown) {
-          const r = ref as admin.firestore.DocumentReference;
+          const r = ref as DocumentReference;
           const s = await tx.get(r);
           return {
             exists: s.exists,
@@ -185,7 +189,7 @@ function buildCredentialsDb(): MinimalCredentialsDb {
           };
         },
         async update(ref: unknown, patch: Record<string, unknown>) {
-          tx.update(ref as admin.firestore.DocumentReference, patch as admin.firestore.UpdateData<admin.firestore.DocumentData>);
+          tx.update(ref as DocumentReference, patch as UpdateData<DocumentData>);
         },
       }));
     },
@@ -194,7 +198,7 @@ function buildCredentialsDb(): MinimalCredentialsDb {
 
 async function safeAudit(entry: Record<string, unknown>): Promise<void> {
   try {
-    await admin.firestore().collection('audit_logs').add(entry);
+    await getFirestore().collection('audit_logs').add(entry);
   } catch (err) {
     logger.error('admin_audit_event_failed', err, { action: entry.action });
     captureRouteError(err, 'admin.audit', {
@@ -213,7 +217,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
   }
 
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       return res.status(403).json({ error: 'Forbidden: Requires admin role to revoke access' });
     }
@@ -223,12 +227,12 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
     if (!(await assertTargetInCallerTenant(res, callerUid, targetUid))) return undefined;
 
     // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
-    await admin.auth().revokeRefreshTokens(targetUid);
+    await getAuth().revokeRefreshTokens(targetUid);
 
     // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
-    await admin.firestore().collection('user_sessions').doc(targetUid).set(
+    await getFirestore().collection('user_sessions').doc(targetUid).set(
       {
-        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+        revokedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -238,7 +242,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'revoke_access',
       target: targetUid,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -332,7 +336,7 @@ router.post('/webauthn/revoke', verifyAuth, async (req, res) => {
     }
 
     // Drop any session riding the compromised device.
-    await admin.auth().revokeRefreshTokens(targetUid);
+    await getAuth().revokeRefreshTokens(targetUid);
 
     await safeAudit({
       actor: callerUid,
@@ -340,7 +344,7 @@ router.post('/webauthn/revoke', verifyAuth, async (req, res) => {
       target: targetUid,
       // credentialIds are public identifiers (not secrets) — safe to audit.
       details: { count: revokedIds.length, credentialIds: revokedIds },
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -364,7 +368,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
 
   try {
     // Verify caller is admin/gerente (matches firestore.rules' isAdmin())
-    const callerRecord = await admin.auth().getUser(callerUid);
+    const callerRecord = await getAuth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
       return res.status(403).json({ error: 'Forbidden: Requires admin role' });
     }
@@ -384,18 +388,18 @@ router.post('/set-role', verifyAuth, async (req, res) => {
     let oldRole: string | null = null;
     let existingClaims: Record<string, unknown> = {};
     try {
-      const targetRecord = await admin.auth().getUser(uid);
+      const targetRecord = await getAuth().getUser(uid);
       existingClaims = targetRecord.customClaims ?? {};
       oldRole = (existingClaims.role as string | undefined) ?? null;
     } catch {
       // Target may not exist yet; setCustomUserClaims will surface the error.
     }
 
-    await admin.auth().setCustomUserClaims(uid, { ...existingClaims, role });
+    await getAuth().setCustomUserClaims(uid, { ...existingClaims, role });
 
     // Force re-auth so the client picks up the new claim immediately rather
     // than continuing with a stale ID token until natural expiry.
-    await admin.auth().revokeRefreshTokens(uid);
+    await getAuth().revokeRefreshTokens(uid);
 
     // Audit trail — see audit_logs schema notes at the top of server.ts.
     await safeAudit({
@@ -404,7 +408,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       target: uid,
       oldRole,
       newRole: role,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -463,7 +467,7 @@ router.post('/replicate-critical', verifySchedulerOrFallback(verifyAuth), async 
     await safeAudit({
       actor: callerUid,
       action: 'replicate_critical',
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       result,
@@ -494,7 +498,7 @@ router.post('/jobs/weekly-digest', verifySchedulerOrFallback(verifyAuth), async 
     await safeAudit({
       actor: callerUid,
       action: 'weekly_digest_run',
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
       result: {
@@ -524,8 +528,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
   try {
     const deps: ClimateRiskScanDeps = {
       listActiveProjects: async () => {
-        const snap = await admin
-          .firestore()
+        const snap = await getFirestore()
           .collectionGroup('projects')
           .where('status', '==', 'active')
           .where('outdoor', '==', true)
@@ -568,7 +571,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
           '../../services/zettelkasten/persistence/writeNode.js'
         );
         const ids: string[] = [];
-        const fs = admin.firestore();
+        const fs = getFirestore();
         const batch = fs.batch();
         for (const a of assessments) {
           // The pure climateRiskCoupling output uses ClimateRiskNodePayload
@@ -602,7 +605,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
               ...proxy,
               projectId,
               source: 'daily-climate-scan',
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
             },
             { merge: true },
           );
@@ -617,7 +620,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
         // Look up FCM tokens — Firestore `in` is capped at 30 values, so we
         // chunk the supervisor UID list.
         const tokens: string[] = [];
-        const fs = admin.firestore();
+        const fs = getFirestore();
         const CHUNK = 30;
         for (let i = 0; i < opts.uids.length; i += CHUNK) {
           const chunk = opts.uids.slice(i, i + CHUNK);
@@ -633,7 +636,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
         if (tokens.length === 0) {
           return { successCount: 0, failureCount: 0 };
         }
-        const out = await admin.messaging().sendEachForMulticast({
+        const out = await getMessaging().sendEachForMulticast({
           tokens,
           notification: { title: opts.title, body: opts.body },
           data: opts.data,
@@ -644,7 +647,7 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
         await safeAudit({
           actor: callerUid,
           action,
-          ts: admin.firestore.FieldValue.serverTimestamp(),
+          ts: FieldValue.serverTimestamp(),
           ip: req.ip,
           ua: req.header('user-agent') || null,
           details,
@@ -687,7 +690,7 @@ async function assertAdminCaller(req: any, res: any): Promise<boolean> {
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
-  const callerRecord = await admin.auth().getUser(callerUid);
+  const callerRecord = await getAuth().getUser(callerUid);
   if (!isAdminRole(callerRecord.customClaims?.role)) {
     res.status(403).json({ error: 'Forbidden: Requires admin role' });
     return false;
@@ -714,7 +717,7 @@ async function resolveCronActor(req: any, res: any): Promise<string | null> {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
-  const callerRecord = await admin.auth().getUser(callerUid);
+  const callerRecord = await getAuth().getUser(callerUid);
   if (!isAdminRole(callerRecord.customClaims?.role)) {
     res.status(403).json({ error: 'Forbidden: Requires admin role' });
     return null;
@@ -791,7 +794,7 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
       action: 'quota_reset',
       target: tenantId,
       date,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -856,15 +859,14 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid targetUid' });
   }
   try {
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('user_sync_state')
       .doc(targetUid)
       .set(
         {
           clearRequested: true,
           clearRequestedBy: callerUid,
-          clearRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+          clearRequestedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -872,7 +874,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
       actor: callerUid,
       action: 'sync_clear_user_queue',
       target: targetUid,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
@@ -890,7 +892,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
 router.get('/sync/stats', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
   try {
-    const snap = await admin.firestore().collection('user_sync_state').get();
+    const snap = await getFirestore().collection('user_sync_state').get();
     let totalPending = 0;
     let usersWithPending = 0;
     let usersFailed = 0;

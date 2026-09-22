@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 
 import {
@@ -23,6 +22,8 @@ import { logger } from '../../utils/logger.js';
 import { getCredentialsByUid } from '../../services/auth/webauthnCredentialStore.js';
 import { createWebAuthnCredentialsFirestoreDb } from '../auth/webauthnFirestoreDb.js';
 import { serverAnalytics, type ServerAnalytics } from '../../services/analytics/serverAdapter.js';
+
+import { FieldPath, getFirestore } from 'firebase-admin/firestore';
 import {
   StubProfessionalRegistryProvider,
   type ProfessionalRegistryVerification,
@@ -242,7 +243,7 @@ export function createFirestoreProfessionalIdentityRepository(
     },
     async listForLookupReindex(afterUid, limit) {
       let query: FirebaseFirestore.Query = identities.orderBy(
-        admin.firestore.FieldPath.documentId(),
+        FieldPath.documentId(),
       );
       if (afterUid) query = query.startAfter(afterUid);
       const snapshot = await query.limit(limit).get();
@@ -297,7 +298,7 @@ export function createFirestoreProfessionalIdentityRepository(
 
 function defaultStore(): ProfessionalStore {
   return createHealthProfessionalIdentityStore({
-    repository: createFirestoreProfessionalIdentityRepository(admin.firestore()),
+    repository: createFirestoreProfessionalIdentityRepository(getFirestore()),
     kmsAdapter: getKmsAdapter(),
     lookupKeys: parseProfessionalLookupKeys(
       process.env.HEALTH_PROFESSIONAL_LOOKUP_KEYS,

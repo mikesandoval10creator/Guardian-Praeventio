@@ -1,5 +1,4 @@
 import type { Response, Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -15,6 +14,8 @@ import {
 } from '../../services/migration/registry.js';
 import { logger } from '../../utils/logger.js';
 import { NodeType } from '../../types/index.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 const GRAPH_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -59,7 +60,7 @@ async function requireProjectMember(
   uid: string,
   projectId: string,
 ): Promise<void> {
-  await assertProjectMember(uid, projectId, admin.firestore());
+  await assertProjectMember(uid, projectId, getFirestore());
 }
 
 async function auditGraphMutation(
@@ -108,7 +109,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
       }
 
       try {
-        const db = admin.firestore();
+        const db = getFirestore();
         const ref = db.collection('nodes').doc(nodeId);
         const now = new Date().toISOString();
         const created = await db.runTransaction(async (txn) => {
@@ -173,7 +174,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
       }
 
       try {
-        const db = admin.firestore();
+        const db = getFirestore();
         const migrated = await db.runTransaction(async (txn) => {
           const refs = uniqueIds.map((id) => db.collection('nodes').doc(id));
           const snapshots = [];
@@ -244,7 +245,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
       }
 
       try {
-        const db = admin.firestore();
+        const db = getFirestore();
         const changed = await db.runTransaction(async (txn) => {
           const fromRef = db.collection('nodes').doc(fromId);
           const toRef = db.collection('nodes').doc(toId);

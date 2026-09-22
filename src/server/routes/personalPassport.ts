@@ -7,7 +7,6 @@
 
 import crypto from "node:crypto";
 import { Router } from "express";
-import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
 import { logger } from "../../utils/logger.js";
@@ -15,6 +14,7 @@ import { captureRouteError } from "../middleware/captureRouteError.js";
 import { verifyComplianceEvidenceAttestation } from "../services/complianceEvidenceAttestation.js";
 import type { ComplianceArchiveAttestation } from "../../services/compliance/complianceSignature.js";
 
+import { getFirestore } from 'firebase-admin/firestore';
 export const personalPassportRouter = Router();
 
 const SHAREABLE_FIELDS = [
@@ -173,8 +173,7 @@ async function loadOwnedPassport(
   ref: FirebaseFirestore.DocumentReference;
   snapshot: PassportSnapshot;
 } | null> {
-  const ref = admin
-    .firestore()
+  const ref = getFirestore()
     .collection("users")
     .doc(ownerUid)
     .collection("personal_passports")
@@ -256,8 +255,7 @@ personalPassportRouter.post(
           .status(403)
           .json({ error: "source_project_cannot_receive_passport" });
       }
-      const targetProject = await admin
-        .firestore()
+      const targetProject = await getFirestore()
         .collection("projects")
         .doc(targetProjectId)
         .get();
@@ -301,8 +299,7 @@ personalPassportRouter.post(
         revokedAt: null,
         createdAt: Date.now(),
       };
-      await admin
-        .firestore()
+      await getFirestore()
         .collection("users")
         .doc(ownerUid)
         .collection("personal_passport_shares")
@@ -345,8 +342,7 @@ personalPassportRouter.post(
     const recipientUid = authenticatedUid(req);
     if (!recipientUid) return res.status(401).json({ error: "unauthorized" });
     try {
-      const shareRef = admin
-        .firestore()
+      const shareRef = getFirestore()
         .collection("users")
         .doc(ownerUid)
         .collection("personal_passport_shares")
@@ -365,8 +361,7 @@ personalPassportRouter.post(
       ) {
         return res.status(403).json({ error: "share_access_denied" });
       }
-      const targetProject = await admin
-        .firestore()
+      const targetProject = await getFirestore()
         .collection("projects")
         .doc(share.targetProjectId)
         .get();
@@ -413,8 +408,7 @@ personalPassportRouter.post(
     if (!ownerUid) return res.status(401).json({ error: "unauthorized" });
     const { passportId, shareId } = req.params;
     try {
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .collection("users")
         .doc(ownerUid)
         .collection("personal_passport_shares")

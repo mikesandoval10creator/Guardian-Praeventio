@@ -7,7 +7,7 @@
 //   POST /api/commute/sample  — validation / session lookup / ownership / 200
 //   POST /api/commute/end     — validation / session lookup / ownership / 200 + audit
 //
-// The route calls admin.firestore().collectionGroup('commute_sessions') for
+// The route calls getFirestore().collectionGroup('commute_sessions') for
 // /sample and /end. FakeFirestore has no collectionGroup, so we bolt it on
 // here using the same inline pattern established in externalAuditPortal.test.ts.
 
@@ -152,6 +152,7 @@ vi.mock('../../server/middleware/captureRouteError.js', () => ({
 import commuteRouter from '../../server/routes/commute.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ── app factory ───────────────────────────────────────────────────────────────
 function buildApp() {
   const app = express();

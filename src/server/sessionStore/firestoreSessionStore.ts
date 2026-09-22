@@ -19,7 +19,7 @@
 // purga periódica del `runMaintenance.ts` cron limpian a mano.
 //
 // Diseño:
-//   - Pure adapter sobre admin.firestore() — no asume Capacitor ni
+//   - Pure adapter sobre getFirestore() — no asume Capacitor ni
 //     browser globals. Server-only.
 //   - Compatible con la interfaz Store de express-session@1
 //   - Fail-soft: si Firestore tira error en get/set, NO crashea el
@@ -267,7 +267,7 @@ export class FirestoreSessionStore extends Store {
  *   import { makeFirestoreSessionStore } from './sessionStore/firestoreSessionStore';
  *
  *   app.use(session({
- *     store: makeFirestoreSessionStore(admin.firestore()),
+ *     store: makeFirestoreSessionStore(getFirestore()),
  *     ...
  *   }));
  *

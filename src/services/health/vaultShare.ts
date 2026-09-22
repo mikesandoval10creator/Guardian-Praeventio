@@ -127,8 +127,11 @@ export function createShareToken(opts: {
     id,
     workerUid: opts.workerUid,
     scope: opts.scope,
-    topic: opts.topic,
-    recordIds: opts.recordIds,
+    // Firestore rejects `undefined` fields (unlike the JS client SDK, which
+    // drops them silently). Only include `topic` when the caller provided
+    // one — otherwise leave the field absent entirely.
+    ...(opts.topic !== undefined ? { topic: opts.topic } : {}),
+    ...(opts.recordIds !== undefined ? { recordIds: opts.recordIds } : {}),
     tokenHash: hash,
     tokenPrefix: prefix,
     createdAt: now,
@@ -206,7 +209,12 @@ export function consumeShareToken(
   return {
     patch,
     recordIdsToReveal: record.scope === 'full' ? 'all' : record.recordIds ?? [],
-    topicHint: record.topic,
+    // Firestore rejects `undefined` fields. Only emit `topic`/`topicHint`
+    // when the record actually carries one.
+    ...(record.topic !== undefined
+      ? { topicHint: record.topic }
+      : {}),
+    // Audit-friendly scope: avoid `topic: undefined` entries.
   };
 }
 
@@ -319,7 +327,7 @@ export function buildAuditEntry(
       tokenId: record.id,
       workerUid: record.workerUid,
       scope: record.scope,
-      topic: record.topic,
+      ...(record.topic !== undefined ? { topic: record.topic } : {}),
       tokenPrefix: record.tokenPrefix, // safe to log
       consumeCount: record.consumeCount,
       ...extra,

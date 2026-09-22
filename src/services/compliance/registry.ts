@@ -24,6 +24,7 @@
 
 import { z } from 'zod';
 
+import { getFirestore } from 'firebase-admin/firestore';
 // ─── Tipos públicos ─────────────────────────────────────────────────────────
 //
 // CountryCode local al adapter system. Intencionalmente DISTINTO de
@@ -322,10 +323,9 @@ function clOccupationalInjuryAdapter(): EmissionAdapter {
       // Build the minimal Firestore adapters. In unit tests these deps
       // are provided by the test via payload injection or the route mocks
       // firebase-admin before calling this module.
-      const adminModule = await import('firebase-admin');
-      const adminFirestore = adminModule.default.firestore();
+      const adminFirestore = getFirestore();
 
-      // MinimalFolioStore adapter wrapping admin.firestore()
+      // MinimalFolioStore adapter wrapping getFirestore()
       const folioStore: import('./../../services/suseso/folioGenerator.js').MinimalFolioStore = {
         async runTransaction(fn) {
           return adminFirestore.runTransaction(async (tx) => {

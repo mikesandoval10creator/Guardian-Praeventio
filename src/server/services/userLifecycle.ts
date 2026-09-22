@@ -1,9 +1,10 @@
+import { getAuth } from 'firebase-admin/auth';
 // Praeventio Guard — Sprint 39 Fase B.2.
 //
 // User lifecycle helpers. Currently exposes a single helper:
 // `deactivateUser(uid)` which:
 //
-//   1. Revokes all current refresh tokens via `admin.auth().revokeRefreshTokens`.
+//   1. Revokes all current refresh tokens via `getAuth().revokeRefreshTokens`.
 //      This bumps `tokensValidAfterTime` on the user record. Combined with
 //      the `verifyIdToken(token, true)` call in `verifyAuth.ts`, every
 //      previously-issued ID token is rejected on its next API request
@@ -26,7 +27,6 @@
 //   - Testable in isolation: the helper takes the admin module as a DI
 //     param so unit tests can inject a fake.
 
-import type admin from 'firebase-admin';
 
 export interface DeactivateUserResult {
   uid: string;
@@ -53,7 +53,7 @@ export interface DeactivateUserOptions {
  * code path can replicate (token-level revocation).
  */
 export async function deactivateUser(
-  authAdmin: typeof admin.auth,
+  authAdmin: typeof getAuth,
   uid: string,
   _opts: DeactivateUserOptions = {},
 ): Promise<DeactivateUserResult> {

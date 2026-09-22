@@ -58,7 +58,6 @@
 // on its own. The HTTP ingest rail is untouched either way.
 
 import crypto from 'node:crypto';
-import admin from 'firebase-admin';
 import {
   connectMqttBroker,
   InMemoryAdapter,
@@ -77,6 +76,9 @@ import {
 import { canonicalize } from '../middleware/canonicalBody.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
 import { logger } from '../../utils/logger.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Messaging } from 'firebase-admin/messaging';
 
 // ────────────────────────────────────────────────────────────────────────
 // Config resolution (pure)
@@ -400,7 +402,7 @@ export function makeDeviceGate(opts: DeviceGateOptions): DeviceGate {
 
 export interface MessageHandlerDeps {
   db: FirebaseFirestore.Firestore;
-  messaging?: admin.messaging.Messaging;
+  messaging?: Messaging;
   gate: DeviceGate;
   nowMs?: () => number;
   /**
@@ -522,9 +524,9 @@ export interface MqttBridgeHandle {
 
 export interface StartMqttBridgeDeps {
   env: Record<string, string | undefined>;
-  /** Defaults to admin.firestore() — tests inject the fake. */
+  /** Defaults to getFirestore() — tests inject the fake. */
   db?: FirebaseFirestore.Firestore;
-  messaging?: admin.messaging.Messaging;
+  messaging?: Messaging;
   /** Test seam forwarded to createBrokerAdapter. */
   mqttModule?: MqttConnectModule;
   gate?: DeviceGate;
@@ -552,7 +554,7 @@ export async function startMqttTelemetryBridge(
   }
 
   try {
-    const db = deps.db ?? admin.firestore();
+    const db = deps.db ?? getFirestore();
     const adapter: MqttAdapter =
       config.mode === 'memory'
         ? new InMemoryAdapter()

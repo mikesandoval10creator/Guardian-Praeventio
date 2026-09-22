@@ -1,3 +1,4 @@
+import { getFirestore } from 'firebase-admin/firestore';
 // SPDX-License-Identifier: MIT
 //
 // Sprint 29 Bucket DD F-D — "Días sin incidentes" gamification axis.
@@ -5,7 +6,7 @@
 // Computes the running counter of consecutive days without an incident
 // report and awards positive milestone medals (100 / 365 días) on the
 // `gamification_scores` collection. Pure DI — the tests inject an in-memory
-// Firestore fake; production wires `admin.firestore()` from server.ts.
+// Firestore fake; production wires `getFirestore()` from server.ts.
 //
 // Idempotency: each milestone for a project is awarded at most once. The
 // idempotency key is `days_milestone_${projectId}_${days}` and lives as

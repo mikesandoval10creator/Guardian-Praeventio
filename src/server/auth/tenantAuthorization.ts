@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 
 export interface TenantAuthorizationResponse {
   status(code: number): { json(body: unknown): unknown };
@@ -20,8 +20,8 @@ export async function assertTargetInCallerTenant(
   let targetTenantId: unknown;
   try {
     const [callerRecord, targetRecord] = await Promise.all([
-      admin.auth().getUser(callerUid),
-      admin.auth().getUser(targetUid),
+      getAuth().getUser(callerUid),
+      getAuth().getUser(targetUid),
     ]);
     callerTenantId = callerRecord.customClaims?.tenantId;
     targetTenantId = targetRecord.customClaims?.tenantId;

@@ -20,7 +20,6 @@
 // and tier pricing constants live in `./pricing.ts`.
 
 import type { Router } from 'express';
-import admin from 'firebase-admin';
 
 import { verifyAuth } from '../../middleware/verifyAuth.js';
 import { invoiceStatusLimiter } from '../../middleware/limiters.js';
@@ -40,6 +39,9 @@ import {
 import type { Invoice } from '../../../services/billing/types.js';
 import { sentryCapture } from './shared.js';
 
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+
 export function registerInvoiceRoutes(billingApiRouter: Router): void {
   // POST /api/billing/invoice/:id/mark-paid — admin manual fallback for
   // transferencia bancaria. 403 unless caller has admin role; writes a
@@ -54,12 +56,12 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
     }
 
     try {
-      const callerRecord = await admin.auth().getUser(callerUid);
+      const callerRecord = await getAuth().getUser(callerUid);
       if (!isAdminRole(callerRecord.customClaims?.role)) {
         return res.status(403).json({ error: 'Forbidden: admin role required' });
       }
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const ref = db.collection('invoices').doc(invoiceId);
       const snap = await ref.get();
       if (!snap.exists) {
@@ -85,7 +87,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
           const paidAtIso = new Date().toISOString();
           await ref.update({
             status: 'paid',
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidAt: FieldValue.serverTimestamp(),
             paidBy: callerUid,
             paidByEmail: callerEmail,
             paymentSource: 'manual',
@@ -113,7 +115,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                     planId,
                     tierId,
                     status: 'active',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: FieldValue.serverTimestamp(),
                     lastInvoiceId: invoiceId,
                     paymentMethod: 'manual',
                     provider: 'manual',
@@ -250,7 +252,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
               userId: callerUid,
               userEmail: callerEmail,
               projectId: null,
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              timestamp: FieldValue.serverTimestamp(),
               ip: req.ip ?? null,
               userAgent: req.header('user-agent') ?? null,
             });
@@ -309,7 +311,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
     }
 
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const snap = await db.collection('invoices').doc(invoiceId).get();
       if (!snap.exists) {
         return res.status(404).json({ error: 'Invoice not found' });

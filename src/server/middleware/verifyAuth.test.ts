@@ -25,6 +25,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
+import { getAuth } from 'firebase-admin/auth';
 describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () => {
   const ORIGINAL_ENV = { ...process.env };
 
@@ -175,7 +176,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
   const verifyIdTokenMock = vi.fn();
 
   // Hoisted mock for firebase-admin. The middleware calls
-  // `admin.auth().verifyIdToken(token)`; we route that through
+  // `getAuth().verifyIdToken(token)`; we route that through
   // `verifyIdTokenMock` so the Bearer-positive-path tests can pin the
   // resolved value (or rejection) without booting the real SDK.
   vi.doMock('firebase-admin', () => ({

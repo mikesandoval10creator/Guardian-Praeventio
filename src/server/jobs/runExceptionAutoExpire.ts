@@ -9,11 +9,12 @@
 // Importante para que las queries de UI puedan filtrar
 // WHERE status == 'active' sin re-derivar siempre.
 
-import type admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 
+import type { Firestore, QuerySnapshot } from 'firebase-admin/firestore';
+
 export interface ExceptionAutoExpireDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Override clock para tests. */
   now?: () => Date;
   /** Required tenant/project-scoped collection path. */
@@ -49,7 +50,7 @@ export async function runExceptionAutoExpire(
   }
   const nowIso = now().toISOString();
 
-  let snap: admin.firestore.QuerySnapshot;
+  let snap: QuerySnapshot;
   try {
     snap = await deps.db
       .collection(collection)

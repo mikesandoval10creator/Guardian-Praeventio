@@ -21,12 +21,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore, Query } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -39,7 +41,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -64,7 +66,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -75,7 +77,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -145,7 +147,7 @@ router.get('/:projectId/drills', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const status =
       typeof req.query.status === 'string' &&
       (DRILL_STATUSES as readonly string[]).includes(req.query.status)
@@ -171,7 +173,7 @@ router.get('/:projectId/drills', verifyAuth, async (req, res) => {
     );
 
     const drills = await safeRead<StoredDrill>(async () => {
-      let q: admin.firestore.Query = baseRef;
+      let q: Query = baseRef;
       if (status) q = q.where('status', '==', status);
       if (kind) q = q.where('kind', '==', kind);
       const snap = await q.orderBy('createdAt', 'desc').limit(200).get();
@@ -199,7 +201,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
         .doc(drillId);
@@ -244,7 +246,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const payload: StoredDrill = {
         id: body.id,
@@ -308,7 +310,7 @@ router.post(
       const { evaluateDrillResult } = await import(
         '../../services/drillsManager/drillsManager.js'
       );
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
         .doc(drillId);

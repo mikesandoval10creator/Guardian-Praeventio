@@ -26,7 +26,6 @@
 // token claiming `admin` cannot process or erase another subject's data.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 // Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
@@ -77,6 +76,9 @@ import {
   type ComplianceCategory,
 } from '../../services/compliance/trafficLightEngine.js';
 import { applyCoverage } from '../../services/compliance/trafficLightCoverage.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -100,10 +102,10 @@ const VALID_LEGAL_BASES: LegalBasis[] = [
 ];
 
 function getDb(): MinimalComplianceDb {
-  // The `admin.firestore()` shape is wider than `MinimalComplianceDb` but
+  // The `getFirestore()` shape is wider than `MinimalComplianceDb` but
   // structurally compatible at the call sites we use. The cast is the same
-  // pattern as `assertProjectMember(uid, projectId, admin.firestore())`.
-  return admin.firestore() as unknown as MinimalComplianceDb;
+  // pattern as `assertProjectMember(uid, projectId, getFirestore())`.
+  return getFirestore() as unknown as MinimalComplianceDb;
 }
 
 const router = Router();
@@ -492,7 +494,7 @@ async function assertAdminCaller(
     res.status(401).json({ error: 'unauthorized' });
     return false;
   }
-  const callerRecord = await admin.auth().getUser(callerUid);
+  const callerRecord = await getAuth().getUser(callerUid);
   if (!isAdminRole(callerRecord.customClaims?.role)) {
     res.status(403).json({ error: 'forbidden_requires_admin' });
     return false;
@@ -602,7 +604,7 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
     // This closes the gap where 'Mis datos' left a fully active Firebase
     // account after reporting 'completed'.
     const anonymizeResult = await anonymizeUser(
-      { authAdmin: admin.auth, db: admin.firestore() },
+      { authAdmin: getAuth, db: getFirestore() },
       { uid: existing.uid },
     );
     const result = await eraseUserData(getDb(), existing.uid, { keepLegalRecords: true });
@@ -692,7 +694,7 @@ router.get('/:projectId/traffic-light', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'project_id_required' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     await assertProjectMember(callerUid, projectId, db);
   } catch (err) {

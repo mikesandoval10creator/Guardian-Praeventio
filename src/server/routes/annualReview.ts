@@ -15,12 +15,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -33,7 +35,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -58,7 +60,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -69,7 +71,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -209,8 +211,7 @@ router.get(
         yearParam <= 2100
           ? yearParam
           : new Date().getUTCFullYear();
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .doc(annualReviewPath(g.tenantId, projectId, year));
       const safeRead = async <T,>(
         label: string,
@@ -250,14 +251,13 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
       // CLAUDE.md #19: get + set(merge:false) on the same annual-review doc is a
       // read-modify-write — two concurrent objective posts would both read the
       // same snapshot and clobber each other. Run it in a transaction.
       type R = { kind: 'concluded' } | { kind: 'ok'; next: AnnualReviewSnapshot };
-      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+      const result = await getFirestore().runTransaction<R>(async (txn) => {
         const snap = await txn.get(ref);
         const existing = snap.exists
           ? (snap.data() as AnnualReviewSnapshot)
@@ -323,8 +323,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
       // CLAUDE.md #19: read-modify-write on the same doc → transaction.
       type R =
@@ -332,7 +331,7 @@ router.post(
         | { kind: 'concluded' }
         | { kind: 'objective_not_found' }
         | { kind: 'ok'; next: AnnualReviewSnapshot };
-      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+      const result = await getFirestore().runTransaction<R>(async (txn) => {
         const snap = await txn.get(ref);
         if (!snap.exists) return { kind: 'not_found' };
         const existing = snap.data() as AnnualReviewSnapshot;
@@ -410,8 +409,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
       // CLAUDE.md #19: read-modify-write on the same doc → transaction. The
       // isConcluded check + the write must be atomic so two concurrent
@@ -420,7 +418,7 @@ router.post(
         | { kind: 'not_found' }
         | { kind: 'concluded' }
         | { kind: 'ok'; next: AnnualReviewSnapshot };
-      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+      const result = await getFirestore().runTransaction<R>(async (txn) => {
         const snap = await txn.get(ref);
         if (!snap.exists) return { kind: 'not_found' };
         const existing = snap.data() as AnnualReviewSnapshot;

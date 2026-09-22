@@ -38,7 +38,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
 }));
 
 // assertProjectMember: pass-through (project membership is seeded in Firestore).
-// The route calls assertProjectMember(callerUid, projectId, admin.firestore()),
+// The route calls assertProjectMember(callerUid, projectId, getFirestore()),
 // which reads db.collection('projects').doc(projectId). We seed the project doc
 // so the real implementation resolves. For the 403 path we DON'T seed the doc —
 // real impl throws ProjectMembershipError (project not found).
@@ -84,6 +84,7 @@ import preShiftRiskRouter from '../../server/routes/preShiftRisk.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { composeShiftRiskPanel } from '../../services/shiftRiskPanel/preShiftRiskComposer.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PROJECT_ID = 'p1';
 const CALLER_UID = 'worker-1';
 const TENANT_ID = 't1';

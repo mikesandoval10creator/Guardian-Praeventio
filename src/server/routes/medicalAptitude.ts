@@ -18,7 +18,6 @@
 // Sentry capture per stage so a generator/signer regression surfaces fast.
 
 import { Router, type Request, type Response } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -37,6 +36,9 @@ import {
 import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+
 export const medicalAptitudeRouter = Router();
 
 function captureStage(err: unknown, stage: string, req: Request): void {
@@ -52,7 +54,7 @@ function captureStage(err: unknown, stage: string, req: Request): void {
 
 async function resolveCallerRole(uid: string): Promise<string | undefined> {
   try {
-    const rec = await admin.auth().getUser(uid);
+    const rec = await getAuth().getUser(uid);
     const role = rec.customClaims?.role;
     return typeof role === 'string' ? role : undefined;
   } catch (err) {
@@ -74,7 +76,7 @@ function isAllowedSignerRole(role: string | undefined): boolean {
 async function assertWorkerInProjectRoster(
   workerUid: string,
   projectId: string,
-  db: ReturnType<typeof admin.firestore>,
+  db: ReturnType<typeof getFirestore>,
 ): Promise<void> {
   const projectRef = db.collection('projects').doc(projectId);
   const projectSnap = await projectRef.get();
@@ -134,7 +136,7 @@ medicalAptitudeRouter.post(
     }
 
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       await assertProjectMember(callerUid, parsed.data.projectId, db);
       await assertWorkerInProjectRoster(parsed.data.workerUid, parsed.data.projectId, db);
 
@@ -266,7 +268,7 @@ medicalAptitudeRouter.post(
     const signedAt = new Date().toISOString();
 
     try {
-      await assertProjectMember(callerUid, cert.employer.projectId, admin.firestore());
+      await assertProjectMember(callerUid, cert.employer.projectId, getFirestore());
 
       const signed = await verifyAndSignCert(
         cert as unknown as AptitudeCertJson,

@@ -34,7 +34,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ─── firebase-admin — fakeFirestore + uid-keyed getUser for the rotate path ──
-// rotate-secret calls admin.auth().getUser(callerUid) and checks
+// rotate-secret calls getAuth().getUser(callerUid) and checks
 // isAdminRole(customClaims.role). uid 'admin-1' → admin; 'gerente-1' → gerente
 // (both ADMIN_ROLES); everything else → 'worker' (→ 403). This drives every
 // rotate-secret authz scenario from a single mock.
@@ -90,6 +90,8 @@ import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
 import { autoValidateTelemetry } from '../../services/safetyEngineBackend.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 function buildApp() {
   const app = express();
   app.use(express.json());
@@ -164,7 +166,7 @@ describe('POST /api/telemetry/ingest — per-tenant HMAC (x-iot-signature)', () 
     expect((res.body as { success: boolean }).success).toBe(true);
     expect((res.body as { message: string }).message).toMatch(/ingested/i);
 
-    // Real route wrote a telemetry_events row via admin.firestore().add(...).
+    // Real route wrote a telemetry_events row via getFirestore().add(...).
     const rows = eventRows();
     expect(rows).toHaveLength(1);
     const stored = rows[0][1];
@@ -693,7 +695,7 @@ describe('POST /api/admin/iot/rotate-secret', () => {
   });
 
   it('500 (generic) when the role lookup throws — error body never leaks internals', async () => {
-    // uid 'throws-1' makes admin.auth().getUser reject inside the try-block →
+    // uid 'throws-1' makes getAuth().getUser reject inside the try-block →
     // catch → 500 with the generic message (no internal detail leaked).
     const res = await request(buildApp())
       .post('/api/admin/iot/rotate-secret')

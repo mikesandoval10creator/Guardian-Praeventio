@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import admin from "firebase-admin";
+import { getFirestore } from 'firebase-admin/firestore';
 import { createHash } from "node:crypto";
 import {
   loginAsTestUser,
@@ -26,7 +26,7 @@ test.describe("onboarding completion full-stack", () => {
       tenantId: uid,
       projectIds: [],
     });
-    const db = admin.firestore();
+    const db = getFirestore();
     // This fixture deliberately starts BEFORE onboarding, unlike returning-user specs.
     await db
       .collection("users")

@@ -50,23 +50,19 @@ vi.mock('@google/genai', () => {
   return { GoogleGenAI };
 });
 
-vi.mock('firebase-admin', () => {
-  const firestoreInstanceSpy = {
-    collection: firestoreCollectionSpy,
-    doc: firestoreDocSpy,
-  };
-  const adminMock = {
-    apps: ['app-stub'] as unknown[],
-    firestore: vi.fn(() => firestoreInstanceSpy),
-  };
-  return { default: adminMock };
-});
-
 vi.mock('firebase-admin/firestore', () => ({
   FieldValue: {
     serverTimestamp: vi.fn(() => ({ _type: 'SERVER_TIMESTAMP' })),
     vector: vi.fn((arr: number[]) => arr),
   },
+  getFirestore: vi.fn(() => ({
+    collection: firestoreCollectionSpy,
+    doc: firestoreDocSpy,
+  })),
+}));
+
+vi.mock('firebase-admin/app', () => ({
+  getApps: vi.fn(() => ['app-stub']),
 }));
 
 vi.mock('./bcnService.js', () => ({
@@ -96,8 +92,9 @@ vi.stubGlobal(
 
 // ─── Import module under test ─────────────────────────────────────────────────
 import * as ragService from './ragService.js';
-import admin from 'firebase-admin';
 import { fetchLawFromBCN } from './bcnService.js';
+
+import { getApps } from 'firebase-admin/app';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -554,7 +551,7 @@ describe('queryCommunityKnowledge', () => {
     vi.clearAllMocks();
     // generateEmbedding is called internally; mock via the @google/genai spy.
     embedContentSpy.mockResolvedValue({ embeddings: [{ values: CANNED_EMBEDDING }] });
-    (admin as { apps: unknown[] }).apps = ['app-stub'];
+    vi.mocked(getApps).mockReturnValue([{ name: 'app-stub' } as never]);
   });
 
   afterEach(() => {
@@ -687,8 +684,8 @@ describe('queryCommunityKnowledge', () => {
     expect(geminiFallback).toHaveBeenCalledOnce();
   });
 
-  it('calls geminiFallback directly when admin.apps is empty', async () => {
-    (admin as { apps: unknown[] }).apps = [];
+  it('calls geminiFallback directly when getApps() is empty', async () => {
+    vi.mocked(getApps).mockReturnValue([]); 
 
     const geminiAnswer = 'Respuesta sin Firebase.';
     const geminiFallback = vi.fn().mockResolvedValue(geminiAnswer);

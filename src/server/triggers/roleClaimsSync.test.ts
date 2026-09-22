@@ -50,14 +50,14 @@ function makeFakes(opts?: {
     revokeRefreshTokens: vi.fn(async () => undefined),
   };
 
-  const firestoreNamespace = {
-    FieldValue: { serverTimestamp: () => 'SERVER_TS' },
-  } as unknown as RoleClaimsSyncDeps['firestoreNamespace'];
+  const fieldValue = {
+    serverTimestamp: () => ({ __isServerTimestamp: true }),
+  } as unknown as RoleClaimsSyncDeps['fieldValue'];
 
   const deps: RoleClaimsSyncDeps = {
     db: db as unknown as RoleClaimsSyncDeps['db'],
     auth: auth as unknown as RoleClaimsSyncDeps['auth'],
-    firestoreNamespace,
+    fieldValue,
   };
 
   const emit = (changes: Array<{ type: string; id: string; data: Record<string, unknown> }>) => {
@@ -103,8 +103,16 @@ describe('syncUserRoleClaim', () => {
       targetUid: 'u1', oldRole: null, newRole: 'prevencionista', revoked: false,
     });
     // Mirror stamp — enables the steady-state zero-I/O short-circuit.
+    // `fieldValue.serverTimestamp()` returns the firestore sentinel; the
+    // FakeFieldValue stub in the test exposes a `__isServerTimestamp` flag
+    // so we can assert against it without coupling to the SDK internals.
     expect(userDocSet).toHaveBeenCalledExactlyOnceWith(
-      { claimsSync: { role: 'prevencionista', at: 'SERVER_TS' } },
+      {
+        claimsSync: {
+          role: 'prevencionista',
+          at: expect.objectContaining({ __isServerTimestamp: true }),
+        },
+      },
       { merge: true },
     );
   });

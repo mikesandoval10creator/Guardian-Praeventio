@@ -14,13 +14,15 @@
 import { randomBytes } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -80,7 +82,7 @@ interface StoredExposure {
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -94,7 +96,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -102,7 +104,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -119,7 +121,7 @@ router.get('/:projectId/apprentices', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const snap = await db
       .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
       .limit(500)
@@ -157,7 +159,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const apprenticeRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
@@ -243,7 +245,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const apprenticeRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
         .doc(uid);
@@ -381,7 +383,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const apprenticeRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
@@ -449,7 +451,7 @@ router.get('/:projectId/mentors/availability', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     // Do NOT swallow this read with `.catch(() => null)`: fabricating an
     // empty list would report every mentor as "available, load 0" on a
     // Firestore error and invite assignments that exceed the cap. Let it

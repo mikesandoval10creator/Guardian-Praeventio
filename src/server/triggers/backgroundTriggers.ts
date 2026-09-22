@@ -22,7 +22,6 @@
 // IMPORTANT: this module MUST NOT do work at import time. The only
 // top-level exports are types and the `setupBackgroundTriggers` function.
 
-import type admin from 'firebase-admin';
 import type { Resend } from 'resend';
 import { randomUUID } from 'node:crypto';
 import { getErrorTracker } from '../../services/observability/index.js';
@@ -42,6 +41,10 @@ import { createCriticalAlertOutbox } from './criticalAlertOutbox.js';
 import { deliverOutboxItem, type OutboxDeliveryDeps } from './criticalAlertOutboxWorker.js';
 import { EmailService, incidentAlertTemplate } from '../../services/email/index.js';
 import { EMERGENCY_CHANNEL_ID } from '../../services/notifications/criticalNotificationChannel.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { Messaging } from 'firebase-admin/messaging';
 
 const TRIGGER_LEASE_MS = 2 * 60 * 1000;
 
@@ -132,11 +135,11 @@ function sentryCapture(
 }
 
 export interface BackgroundTriggersDeps {
-  db: admin.firestore.Firestore;
-  messaging: admin.messaging.Messaging;
+  db: Firestore;
+  messaging: Messaging;
   resend: Resend;
-  /** Firestore admin namespace — needed for FieldValue.serverTimestamp(). */
-  firestoreNamespace: typeof admin.firestore;
+  /** Firestore FieldValue namespace — needed for serverTimestamp() in writes. */
+  fieldValue: typeof FieldValue;
   /** Optional override for `process.env.RESEND_API_KEY` lookup at trigger time. */
   resendApiKey?: string;
   /** Optional override for `process.env.GEMINI_API_KEY` lookup at trigger time. */
@@ -184,7 +187,7 @@ export function setupBackgroundTriggers(
   const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   try {
-    const { db, messaging, firestoreNamespace } = deps;
+    const { db, messaging, fieldValue } = deps;
     // `resend` queda en BackgroundTriggersDeps por compatibilidad; el envío de
     // email CPHS ahora lo hace el worker de outbox vía sendCphsEmail().
     void deps.resend;
@@ -244,7 +247,7 @@ export function setupBackgroundTriggers(
                 scheduleRetry(`incident:${change.doc.id}`, claim.retryAfterMs, () => {
                   void change.doc.ref.update({
                     _criticalAlertRetryRequestedAt:
-                      firestoreNamespace.FieldValue.serverTimestamp(),
+                      fieldValue.serverTimestamp(),
                   });
                 });
                 return;
@@ -318,7 +321,7 @@ export function setupBackgroundTriggers(
                   claimRef,
                   completionPatch: {
                     _criticalAlertOutboxProvisionedAt:
-                      firestoreNamespace.FieldValue.serverTimestamp(),
+                      fieldValue.serverTimestamp(),
                   },
                 });
                 return;
@@ -372,7 +375,7 @@ export function setupBackgroundTriggers(
                 claimRef,
                 completionPatch: {
                   _criticalAlertOutboxProvisionedAt:
-                    firestoreNamespace.FieldValue.serverTimestamp(),
+                    fieldValue.serverTimestamp(),
                 },
               });
             } catch (err) {
@@ -460,7 +463,7 @@ export function setupBackgroundTriggers(
                 scheduleRetry(`rag:${change.doc.id}`, claim.retryAfterMs, () => {
                   void change.doc.ref.update({
                     _ragRetryRequestedAt:
-                      firestoreNamespace.FieldValue.serverTimestamp(),
+                      fieldValue.serverTimestamp(),
                   });
                 });
                 return;
@@ -478,7 +481,7 @@ export function setupBackgroundTriggers(
                   completionPatch: {
                     _ragProcessingStatus: 'skipped_too_short',
                     _ragProcessedAt:
-                      firestoreNamespace.FieldValue.serverTimestamp(),
+                      fieldValue.serverTimestamp(),
                   },
                 });
                 return;
@@ -499,7 +502,7 @@ export function setupBackgroundTriggers(
                     embedding,
                     _ragProcessingStatus: 'completed',
                     _ragProcessedAt:
-                      firestoreNamespace.FieldValue.serverTimestamp(),
+                      fieldValue.serverTimestamp(),
                   },
                 });
                 logger.info('rag_pipeline_embedding_saved', { docId: change.doc.id });
@@ -579,7 +582,7 @@ export function setupBackgroundTriggers(
               scheduleRetry(`incidentClose:${change.doc.id}`, claim.retryAfterMs, () => {
                 void change.doc.ref.update({
                   _postmortemRetryRequestedAt:
-                    firestoreNamespace.FieldValue.serverTimestamp(),
+                    fieldValue.serverTimestamp(),
                 });
               });
               return;
@@ -599,7 +602,7 @@ export function setupBackgroundTriggers(
                 token,
                 completionPatch: {
                   _postmortemWrittenAt:
-                    firestoreNamespace.FieldValue.serverTimestamp(),
+                    fieldValue.serverTimestamp(),
                   _postmortemNodeId: deterministicNodeId,
                 },
               });
@@ -640,7 +643,7 @@ export function setupBackgroundTriggers(
               token,
               completionPatch: {
                 _postmortemWrittenAt:
-                  firestoreNamespace.FieldValue.serverTimestamp(),
+                  fieldValue.serverTimestamp(),
                 _postmortemNodeId: result.nodeId,
               },
             });
@@ -765,7 +768,7 @@ export function setupBackgroundTriggers(
                       const nodeRef = db.collection('nodes').doc(nodeId);
                       try {
                         await nodeRef.update({
-                          _criticalAlertSentAt: firestoreNamespace.FieldValue.serverTimestamp(),
+                          _criticalAlertSentAt: fieldValue.serverTimestamp(),
                         });
                       } catch (error) {
                         logger.warn('outbox_mirror_node_update_failed', { nodeId, error });

@@ -24,12 +24,11 @@
 //     failed checklist. A failed validation is data, not an error.
 //
 // ADR 0019 (Google ecosystem foundation):
-//   Persistence uses `admin.firestore()` (Google Cloud Firestore) via the
+//   Persistence uses `getFirestore()` (Google Cloud Firestore) via the
 //   existing `EquipmentAdapter`. No second backend is introduced.
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { randomUUID, createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -42,6 +41,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   runPreUseValidation,
   deriveEquipmentStatusAfterPreUse,
@@ -60,7 +62,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -85,7 +87,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -96,7 +98,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -202,7 +204,7 @@ router.post(
         requiresPreUseChecklist: body.requiresPreUseChecklist,
       };
       const adapter = new EquipmentAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -254,7 +256,7 @@ router.get(
     }
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -283,7 +285,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -343,7 +345,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );
@@ -467,7 +469,7 @@ router.get(
     const limitN = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 200)) : 50;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore(),
+        getFirestore(),
         g.tenantId,
         projectId,
       );

@@ -1,3 +1,4 @@
+import type { Firestore } from 'firebase-admin/firestore';
 // SPDX-License-Identifier: MIT
 //
 // runRetentionSweep — evalúa la política y archiva sin eliminar datos fuente.
@@ -18,7 +19,6 @@
 // retención diga `purge`, el job lo degrada a `archive_immutable`/keep-source
 // conforme al ADR-0024, preservando datos de prevención y trazabilidad.
 
-import type admin from "firebase-admin";
 import {
   decideRetention,
   type DataCategory,
@@ -166,7 +166,7 @@ async function archiveImmutable(
 }
 
 export async function runRetentionSweep(
-  dbOrDeps: RetentionSweepDb | { db: admin.firestore.Firestore },
+  dbOrDeps: RetentionSweepDb | { db: Firestore },
   options: RetentionSweepOptions = {},
 ): Promise<RetentionSweepReport> {
   const db =

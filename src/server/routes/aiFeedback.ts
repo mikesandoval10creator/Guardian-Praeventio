@@ -31,6 +31,7 @@ import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import {
   resolveFeedbackTenantId,
   isFeedbackReader,
@@ -218,7 +219,6 @@ router.post(
     const force = String(req.query.force ?? '') === 'true';
     try {
       const { getFirestore } = await import('firebase-admin/firestore');
-      const admin = (await import('firebase-admin')).default;
       const db = getFirestore();
       const redaction = redactPII(body.response);
       const rationaleRedaction = body.rationale ? redactPII(body.rationale) : null;
@@ -298,7 +298,7 @@ router.post(
           },
           userId: tenantId,
           userEmail: callerEmail,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

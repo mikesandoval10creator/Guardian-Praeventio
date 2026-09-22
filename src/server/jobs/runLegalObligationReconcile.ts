@@ -16,7 +16,6 @@
 // system actorOverride. NEVER deletes (reconcileObligationSeeds has no negative
 // diff) and NEVER pushes to an external organism.
 
-import type admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import {
   buildProjectSeeds,
@@ -24,10 +23,12 @@ import {
 } from '../../services/sii/projectSeeds.js';
 import { CL_PACK } from '../../data/normativa/cl.js';
 
+import type { Firestore } from 'firebase-admin/firestore';
+
 const SUBCOLLECTION = 'legal_obligations';
 
 export interface LegalObligationReconcileDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Project to reconcile. The caller enumerates projects (like the reminder cron). */
   projectId: string;
   /** Explicit clock for deterministic nextDueAt. Defaults to wall clock. */

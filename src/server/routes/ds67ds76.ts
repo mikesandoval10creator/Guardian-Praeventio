@@ -11,13 +11,12 @@
 //   GET  /ds76/:formId/pdf           — fetch binary PDF (auth)
 //   POST /ds76/:formId/sign          — attach WebAuthn signature (auth)
 //
-// Adapters wrap admin.firestore() into the MinimalFolioStore /
+// Adapters wrap getFirestore() into the MinimalFolioStore /
 // MinimalDsXXFormStore contracts so the service stays
 // framework-agnostic and unit-testable without firebase-admin.
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -57,6 +56,8 @@ import {
   resolveHumanComplianceSigner,
 } from '../services/complianceSignerIdentity.js';
 import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   generateWebAuthnChallenge,
   storeWebAuthnChallenge,
@@ -68,10 +69,10 @@ import {
 
 const router = Router();
 
-// ─── Adapters wrapping admin.firestore() ────────────────────────────────────
+// ─── Adapters wrapping getFirestore() ────────────────────────────────────
 
 function buildFolioStore(): MinimalFolioStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   return {
     async runTransaction(fn) {
       return fs.runTransaction(async (tx) => {
@@ -93,7 +94,7 @@ function buildFolioStore(): MinimalFolioStore {
 }
 
 function buildDs67FormStore(): MinimalDs67FormStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formsPath = (tid: string) =>
     fs.collection('tenants').doc(tid).collection('ds67_forms');
   return {
@@ -120,7 +121,7 @@ function buildDs67FormStore(): MinimalDs67FormStore {
 }
 
 function buildDs76FormStore(): MinimalDs76FormStore {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formsPath = (tid: string) =>
     fs.collection('tenants').doc(tid).collection('ds76_forms');
   return {
@@ -147,7 +148,7 @@ function buildDs76FormStore(): MinimalDs76FormStore {
 }
 
 function buildDs67SigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formStore = buildDs67FormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
@@ -160,7 +161,7 @@ function buildDs67SigningDocuments(tenantId: string, formId: string): Compliance
 }
 
 function buildDs76SigningDocuments(tenantId: string, formId: string): ComplianceSigningDocuments {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const formStore = buildDs76FormStore();
   return {
     loadForm: () => formStore.loadForm(tenantId, formId),
@@ -175,7 +176,7 @@ function buildDs76SigningDocuments(tenantId: string, formId: string): Compliance
 async function resolveRouteSigner(uid: string) {
   return resolveHumanComplianceSigner(uid, {
     async loadSignerProfile(profileUid) {
-      const snap = await admin.firestore().collection('users').doc(profileUid).get();
+      const snap = await getFirestore().collection('users').doc(profileUid).get();
       return snap.exists ? (snap.data() as Record<string, unknown>) : null;
     },
   });

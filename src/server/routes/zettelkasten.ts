@@ -26,7 +26,6 @@
 // duplican filas.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { z } from 'zod';
 import { VALID_ZK_NODE_TYPES } from './zettelkastenNodeTypes.js';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -89,6 +88,8 @@ import {
   type QueryableNode,
 } from '../../services/zettelkasten/structuredQuery.js';
 import { registerZettelkastenGraphMutationRoutes } from './zettelkastenGraphMutations.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 registerZettelkastenGraphMutationRoutes(router);
@@ -198,7 +199,7 @@ router.post(
     }
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -207,7 +208,7 @@ router.post(
     }
 
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       // §2.15: resolver tenantId del proyecto una sola vez para el batch
       // entero. Si el proyecto doc no tiene tenantId (legacy), el
       // materializer cae al path sin tenant prefix (nodes/{projectId}_{id}).
@@ -247,7 +248,7 @@ router.post(
             projectId,
             createdBy: callerUid,
             createdByEmail: callerEmail,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             idempotencyKey: node.idempotencyKey,
           },
           { merge: true },
@@ -304,7 +305,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -351,7 +352,7 @@ router.post(
     const { query, projectId, topK } = req.body as z.infer<typeof nlQuerySchema>;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -365,7 +366,7 @@ router.post(
     // tenantId — NOT the projectId. Resolve it the same way the /backlinks
     // handler does. Without this the search read `incident_vectors/{projectId}`,
     // a path never written, so EVERY NL incident query silently returned [].
-    const db = admin.firestore();
+    const db = getFirestore();
     let tenantId: string | null = null;
     try {
       const snap = await db.collection('projects').doc(projectId).get();
@@ -384,7 +385,7 @@ router.post(
       const deps: IncidentRagDeps = {
         db: db as unknown as IncidentRagDeps['db'],
         embed: generateIncidentEmbedding,
-        toVector: (vec) => admin.firestore.FieldValue.vector(vec),
+        toVector: (vec) => FieldValue.vector(vec),
       };
       const result = await searchIncidents(
         tenantId,
@@ -447,7 +448,7 @@ router.post(
       req.body as z.infer<typeof riskControlsSuggestSchema>;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -493,7 +494,7 @@ router.post(
     >;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -502,7 +503,7 @@ router.post(
     }
 
     // Edges are tenant-scoped; resolve the logical tenant from the project doc.
-    const db = admin.firestore();
+    const db = getFirestore();
     let tenantId: string | null = null;
     try {
       const snap = await db.collection('projects').doc(projectId).get();
@@ -574,7 +575,7 @@ router.post(
     >;
 
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -593,7 +594,7 @@ router.post(
     }
 
     // Edges are tenant-scoped; resolve the logical tenant from the project doc.
-    const db = admin.firestore();
+    const db = getFirestore();
     let tenantId: string | null = null;
     try {
       const snap = await db.collection('projects').doc(projectId).get();
@@ -684,7 +685,7 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
   const { projectId } = req.body as z.infer<typeof edgesSchema>;
-  const db = admin.firestore();
+  const db = getFirestore();
 
   try {
     await assertProjectMember(callerUid, projectId, db);
@@ -803,7 +804,7 @@ router.post(
       typeof getEdgesSchema
     >;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     logger.info?.('zettelkasten_get_edges_requested', {
       callerUid,
       projectId,

@@ -24,7 +24,6 @@
 // this file is intentional — see PortableCurriculum cosign flow.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -36,6 +35,9 @@ import {
 } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 import {
   createClaim as curriculumCreateClaim,
@@ -159,14 +161,14 @@ export function buildCurriculumAuditor(
 ): CurriculumAuditLogger {
   return async (action, details) => {
     try {
-      await admin.firestore().collection('audit_logs').add({
+      await getFirestore().collection('audit_logs').add({
         action,
         module: 'curriculum',
         details: details ?? {},
         userId: callerUid ?? 'system',
         userEmail: callerEmail ?? null,
         projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ip: ipMaybe ?? null,
         userAgent: uaMaybe ?? null,
       });
@@ -257,7 +259,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
 
   try {
     const audit = buildCurriculumAuditor(callerUid, callerEmail, ipMaybe, uaMaybe);
-    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const callerRecord = await getAuth().getUser(callerUid).catch(() => null);
     const workerName = callerRecord?.displayName || callerEmail || 'Trabajador Praeventio';
     const result = await curriculumCreateClaim(
       {
@@ -268,7 +270,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
         signedByWorker: signedByWorker ?? {},
         referees,
       },
-      admin.firestore() as any,
+      getFirestore() as any,
       audit,
     );
 
@@ -325,7 +327,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
 router.get('/claims', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
   try {
-    const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
+    const claims = await curriculumGetByWorker(callerUid, getFirestore() as any);
     return res.json({ success: true, claims });
   } catch (error: any) {
     logger.error('curriculum_claims_list_failed', { uid: callerUid, message: error?.message });
@@ -344,7 +346,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'refereeIndex must be 0 or 1' });
   }
   try {
-    const snap = await admin.firestore().collection('curriculum_claims').doc(claimId).get();
+    const snap = await getFirestore().collection('curriculum_claims').doc(claimId).get();
     if (!snap.exists) return res.status(404).json({ error: 'claim not found' });
     const claim = snap.data() as CurriculumClaim;
     if (claim.workerId !== callerUid) return res.status(403).json({ error: 'not your claim' });
@@ -371,7 +373,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
     );
     await snap.ref.update({ referees: updatedReferees });
 
-    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const callerRecord = await getAuth().getUser(callerUid).catch(() => null);
     const workerName = callerRecord?.displayName || callerRecord?.email || 'Trabajador Praeventio';
     const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
     const magicLink = `${appUrl}/curriculum/referee/${newRaw}`;
@@ -415,8 +417,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
     // inside the `referees` array — we filter client-side after fetching
     // by status. A scoped indexed approach (referees_index sub-collection)
     // would scale better; this is fine for MVP volumes.
-    const all = await admin
-      .firestore()
+    const all = await getFirestore()
       .collection('curriculum_claims')
       .where('status', 'in', ['pending_referees', 'verified', 'expired'])
       .get();
@@ -437,8 +438,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
       matchedClaim.status === 'pending_referees'
     ) {
       // Lazy expire on read.
-      await admin
-        .firestore()
+      await getFirestore()
         .collection('curriculum_claims')
         .doc(matchedClaim.id)
         .update({ status: 'expired' });
@@ -447,7 +447,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
     const slot = matchedClaim.referees[matchedIdx];
     let workerName = matchedClaim.workerEmail || 'Trabajador Praeventio';
     try {
-      const wr = await admin.auth().getUser(matchedClaim.workerId);
+      const wr = await getAuth().getUser(matchedClaim.workerId);
       workerName = wr.displayName || wr.email || workerName;
     } catch {
       /* worker may have been deleted; fall back to email */
@@ -491,8 +491,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
   try {
     // Locate the claim id by scanning (same as preview).
     const tokenHash = curriculumHashToken(rawToken);
-    const all = await admin
-      .firestore()
+    const all = await getFirestore()
       .collection('curriculum_claims')
       .where('status', '==', 'pending_referees')
       .get();
@@ -509,7 +508,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
 
     if (action === 'decline') {
       // Decline path: mark slot.declined = true and flip claim to rejected.
-      const ref = admin.firestore().collection('curriculum_claims').doc(claimId);
+      const ref = getFirestore().collection('curriculum_claims').doc(claimId);
       const snap = await ref.get();
       const data = snap.data() as CurriculumClaim;
       const idx = data.referees.findIndex((r: any) => r.tokenHash === tokenHash);
@@ -563,7 +562,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
       claimId,
       rawToken,
       { signature, method: resolvedMethod, webauthnVerified: false },
-      admin.firestore() as any,
+      getFirestore() as any,
       audit,
     );
     return res.json({ success: true, verified: result.verified, method: resolvedMethod });

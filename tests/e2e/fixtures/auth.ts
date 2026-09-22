@@ -1,5 +1,9 @@
 import type { Page } from '@playwright/test';
 
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+
 /**
  * Auth fixtures para los specs E2E (Sprint 19+, evolved Sprint K §2.24).
  *
@@ -199,18 +203,13 @@ async function withEmulatorReady<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
-  // §2.24 fix (2026-05-22, post-CI #461) — dynamic ESM import. Playwright
-  // tests corren bajo ESM (`type: module` via tsx loader), entonces
-  // `require()` NO está definido. `import()` resuelve a la default export
-  // de firebase-admin con CJS-interop.
-  const adminModule = await import('firebase-admin');
-  // firebase-admin exporta default O namespace (depende de cómo Node lo
-  // resuelve). Soportamos ambos shapes.
-
-  const admin: any =
-    (adminModule as unknown as { default?: unknown }).default ?? adminModule;
-  if (!admin.apps?.length) {
-    admin.initializeApp({
+  // firebase-admin v14 (PR #1744): el namespace legacy (`admin.app()` /
+  // `admin.auth()`) fue eliminado del root — solo exports modulares
+  // (verificado: `typeof require('firebase-admin').app === 'undefined'`).
+  // Los imports estáticos de arriba (firebase-admin/{app,auth,firestore})
+  // reemplazan el dance §2.24 de dynamic import + CJS-interop.
+  if (!getApps().length) {
+    initializeApp({
       projectId: process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-test',
     });
   }
@@ -223,11 +222,11 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
   // on the first spec) is retried rather than failing the whole sign-in.
   await withEmulatorReady(async () => {
     try {
-      await admin.auth().updateUser(user.uid, { emailVerified: true, email: user.email });
+      await getAuth().updateUser(user.uid, { emailVerified: true, email: user.email });
     } catch (err: any) {
       if (err?.code === 'auth/user-not-found') {
         try {
-          await admin.auth().createUser({
+          await getAuth().createUser({
             uid: user.uid,
             email: user.email,
             emailVerified: true,
@@ -243,7 +242,7 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
             createErr?.code === 'auth/uid-already-exists' ||
             createErr?.code === 'auth/email-already-exists'
           ) {
-            await admin.auth().updateUser(user.uid, { emailVerified: true, email: user.email });
+            await getAuth().updateUser(user.uid, { emailVerified: true, email: user.email });
           } else {
             throw createErr;
           }
@@ -259,7 +258,7 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
   // block the spec from reaching its target route).
   // ponytail: merge so fields from prior seeds are preserved.
   if (process.env.FIRESTORE_EMULATOR_HOST) {
-    await admin.firestore().collection('users').doc(user.uid).set(
+    await getFirestore().collection('users').doc(user.uid).set(
       {
         uid: user.uid,
         email: user.email,
@@ -273,7 +272,7 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
     );
   }
 
-  return admin.auth().createCustomToken(user.uid, {
+  return getAuth().createCustomToken(user.uid, {
     email: user.email,
     displayName: user.displayName,
     role: user.roles[0] ?? 'supervisor',

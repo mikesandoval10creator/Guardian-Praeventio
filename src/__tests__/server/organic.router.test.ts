@@ -49,6 +49,7 @@ vi.mock('../../services/observability/sentryAdapter.js', () => ({
 import organicRouter from '../../server/routes/organic.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 function buildApp() {
   const app = express();

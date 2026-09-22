@@ -18,7 +18,6 @@
 //   • POST /api/tasks/:id/done
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';
@@ -35,6 +34,8 @@ import type { ProcessType, ProcessStatus } from '../../types/organic.js';
 import { sentryAdapter } from '../../services/observability/sentryAdapter.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(),
     return res.status(400).json({ error: 'memberUids must be string[]' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = await db.collection('crews').add({
       projectId,
       name: name.trim(),
@@ -110,7 +111,7 @@ router.post('/crews/:id/members', verifyAuth, organicLimiter, async (req, res) =
     return res.status(400).json({ error: 'memberUid required' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const ref = db.collection('crews').doc(crewId);
     const snap = await ref.get();
     if (!snap.exists) return res.status(404).json({ error: 'crew not found' });
@@ -143,7 +144,7 @@ router.post('/processes', verifyAuth, organicLimiter, assertProjectMemberFromBod
     return res.status(400).json({ error: 'name required' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = await db.collection('processes').add({
       crewId,
       projectId,
@@ -193,7 +194,7 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
     return res.status(400).json({ error: 'complianceScore must be a number' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const procRef = db.collection('processes').doc(processId);
     const procSnap = await procRef.get();
     if (!procSnap.exists) return res.status(404).json({ error: 'process not found' });
@@ -244,7 +245,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
     return res.status(400).json({ error: 'status must be active|paused' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const ref = db.collection('processes').doc(processId);
     const snap = await ref.get();
     if (!snap.exists) return res.status(404).json({ error: 'process not found' });
@@ -273,7 +274,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
         details: { processId, from: proc.status, to: status },
         userId: uid,
         projectId: proc.projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
     } catch {
       /* non-fatal */
@@ -310,7 +311,7 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const procSnap = await db.collection('processes').doc(processId).get();
     if (!procSnap.exists) return res.status(404).json({ error: 'process not found' });
     const proc = procSnap.data() as { projectId: string; crewId: string };
@@ -356,7 +357,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
     return res.status(400).json({ error: 'generatorId required' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
 
     const crewRef = db.collection('crews').doc(crewId);
@@ -382,7 +383,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
       if (!procs.empty) {
         const ref = procs.docs[0].ref;
         await ref.update({
-          alertsResponded: admin.firestore.FieldValue.increment(1),
+          alertsResponded: FieldValue.increment(1),
         });
       }
     } catch {
@@ -397,7 +398,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
         crewId,
         generatorId,
         ackedBy: uid,
-        ackedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ackedAt: FieldValue.serverTimestamp(),
         xpAwarded,
       });
     } catch {
@@ -443,7 +444,7 @@ router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
   const taskId = req.params.id;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const ref = db.collection('tasks').doc(taskId);
     const snap = await ref.get();
     if (!snap.exists) return res.status(404).json({ error: 'task not found' });
@@ -471,7 +472,7 @@ router.get('/processes', verifyAuth, organicLimiter, async (req, res) => {
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
     const snap = await db
       .collection('processes')
@@ -518,7 +519,7 @@ router.get('/projects/:projectId/roster', verifyAuth, organicLimiter, async (req
   const projectId = req.params.projectId;
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
     const crewsSnap = await db.collection('crews').where('projectId', '==', projectId).get();
     const memberUids = [

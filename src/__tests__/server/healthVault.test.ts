@@ -43,7 +43,7 @@ const H = vi.hoisted(() => ({
 }));
 
 // ── firebase-admin mock — collectionGroup + storage bolted on ────────────────
-// The route uses admin.firestore().collectionGroup('health_vault_shares') to
+// The route uses getFirestore().collectionGroup('health_vault_shares') to
 // locate workerUid+id from a public /view request, and admin.storage().bucket()
 // to stream a record's file. FakeFirestore supports neither, so we extend the
 // firestore() return value (collectionGroup, mirroring externalAuditPortal.test)
@@ -165,6 +165,38 @@ vi.mock('firebase-admin', async () => {
   return patched;
 });
 
+// Mock the v14 modular sub-modules so handlers that import
+// `from 'firebase-admin/firestore'` (which the `firebase-admin` umbrella mock
+// does NOT cover — Vitest mocks modules, not namespaces) resolve to the same
+// FakeFirestore-backed surface. Without this, getFirestore() in the handler
+// hits the real SDK and throws "The default Firebase app does not exist",
+// making every route 500.
+vi.mock('firebase-admin/app', async () => {
+  const base = (await import('../helpers/fakeFirestore')).adminMock(() => H.db!);
+  return {
+    initializeApp: base.default.initializeApp,
+    applicationDefault: base.default.credential.applicationDefault,
+    cert: base.default.credential.cert,
+    getApps: () => base.default.apps as unknown[],
+    getApp: base.default.app,
+    deleteApp: async () => undefined,
+  };
+});
+vi.mock('firebase-admin/firestore', async () => {
+  const base = (await import('../helpers/fakeFirestore')).adminMock(() => H.db!);
+  const firestoreFn = base.default.firestore;
+  // The handler does `import { getFirestore, FieldValue, Timestamp } from
+  // 'firebase-admin/firestore'` (named imports) — so the mock MUST expose
+  // them as named properties, not as the default-export function itself.
+  return {
+    getFirestore: firestoreFn,
+    FieldValue: firestoreFn.FieldValue,
+    Timestamp: firestoreFn.Timestamp,
+    FieldPath: firestoreFn.FieldPath,
+    default: firestoreFn,
+  };
+});
+
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
@@ -192,6 +224,7 @@ import { createFakeFirestore } from '../helpers/fakeFirestore';
 import type { VaultShareToken } from '../../services/health/vaultShare.js';
 import type { HealthRecord } from '../../services/health/vaultRecord.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 function buildApp() {
   const app = express();
   app.use(express.json());

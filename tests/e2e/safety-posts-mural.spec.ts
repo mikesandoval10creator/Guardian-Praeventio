@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken, buildE2EAuthHeader } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -22,17 +23,17 @@ const USER = {
   displayName: 'Safety Posts E2E',
 };
 
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error(
         'safety-posts-mural.spec: FIRESTORE_EMULATOR_HOST is not set. Run via `npm run test:e2e:full`.',
       );
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('Safety Posts — mural audited write', () => {

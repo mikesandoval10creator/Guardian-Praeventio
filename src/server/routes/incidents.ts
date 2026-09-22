@@ -26,7 +26,6 @@
 // `incident_vectors/{tenantId}/items/{id}` para RAG (best-effort).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -46,6 +45,8 @@ import {
 } from '../../services/incidents/incidentRagService.js';
 import { awardXp } from '../../services/gamification/positiveXp.js';
 import { generateIncidentEmbedding } from '../../services/ragService.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -76,7 +77,7 @@ const reportIncidentSchema = z.object({
 
 /** Resuelve tenantId desde el project doc. Null si no existe o falta el campo. */
 async function tenantIdFor(projectId: string): Promise<string | null> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) return null;
   const data = snap.data() ?? {};
@@ -95,7 +96,7 @@ router.post(
     const callerEmail: string | null = req.user!.email ?? null;
     const payload = req.validated as z.infer<typeof reportIncidentSchema>;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
       await assertProjectMember(callerUid, payload.projectId, db);
     } catch (err) {
@@ -125,8 +126,8 @@ router.post(
       const deps: ReportIncidentDeps = {
         db: db as unknown as ReportIncidentDeps['db'],
         embed: generateIncidentEmbedding,
-        toVector: (vec) => admin.firestore.FieldValue.vector(vec),
-        now: () => admin.firestore.FieldValue.serverTimestamp(),
+        toVector: (vec) => FieldValue.vector(vec),
+        now: () => FieldValue.serverTimestamp(),
         awardXp,
       };
       const result = await reportIncident(callerUid, input, deps);
@@ -154,7 +155,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId: payload.projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });

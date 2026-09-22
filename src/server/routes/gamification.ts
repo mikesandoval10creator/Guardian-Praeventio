@@ -19,11 +19,12 @@
 // wire paths stay byte-identical with what server.ts shipped through R18.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   awardPoints,
   getLeaderboard,
@@ -133,7 +134,7 @@ router.post(
     }
     try {
       const { getSafetyCoachResponse } = await import('../../services/coachBackend.js');
-      const db = admin.firestore();
+      const db = getFirestore();
       const userStats =
         (await db.collection('user_stats').doc(uid).get()).data() || {
           points: 0,

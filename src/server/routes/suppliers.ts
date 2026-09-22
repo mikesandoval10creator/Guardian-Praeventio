@@ -17,12 +17,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -42,7 +44,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -67,7 +69,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -78,7 +80,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -250,7 +252,7 @@ function toView(s: StoredSupplier): SupplierView {
 }
 
 async function readSuppliers(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
 ): Promise<StoredSupplier[]> {
@@ -326,7 +328,7 @@ router.get('/:projectId/suppliers', verifyAuth, async (req, res) => {
       }
     };
     const stored = await safeRead('suppliers', () =>
-      readSuppliers(admin.firestore(), g.tenantId, projectId),
+      readSuppliers(getFirestore(), g.tenantId, projectId),
     );
     const views = stored.map(toView);
     const filtered =
@@ -363,7 +365,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const collection = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/suppliers`,
       );
@@ -413,7 +415,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/suppliers`,
@@ -473,7 +475,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/suppliers`,
@@ -534,7 +536,7 @@ router.get(
         }
       };
       const stored = await safeRead('suppliers_ranking', () =>
-        readSuppliers(admin.firestore(), g.tenantId, projectId),
+        readSuppliers(getFirestore(), g.tenantId, projectId),
       );
       if (stored.length === 0) {
         return res.json({ ranking: [], total: 0 });

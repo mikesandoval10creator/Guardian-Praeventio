@@ -1,6 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
 import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
-import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
 import {
@@ -10,6 +9,10 @@ import {
 } from '../config/aiModels.js';
 import { MIN_SIMILARITY } from './rag/safeNormativeQuery.js';
 import * as Sentry from '@sentry/core';
+
+import { getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import type { CollectionReference, Firestore } from 'firebase-admin/firestore';
 
 interface VectorDocument {
   id: string;
@@ -27,12 +30,12 @@ const METADATA_PATH = '_metadata/rag_status';
 /**
  * Checks if the RAG system is already initialized for a specific collection or global context.
  */
-const getRagStatus = async (db: admin.firestore.Firestore, normativeId: string = 'global') => {
+const getRagStatus = async (db: Firestore, normativeId: string = 'global') => {
   const doc = await db.doc(`_metadata/rag_status_${normativeId}`).get();
   return doc.exists ? doc.data() : null;
 };
 
-const setRagStatus = async (db: admin.firestore.Firestore, normativeId: string = 'global', data: any) => {
+const setRagStatus = async (db: Firestore, normativeId: string = 'global', data: any) => {
   await db.doc(`_metadata/rag_status_${normativeId}`).set({
     ...data,
     updatedAt: FieldValue.serverTimestamp()
@@ -102,7 +105,7 @@ export const generateIncidentEmbedding = async (text: string): Promise<number[]>
 /**
  * Indexes a law into the vector store.
  */
-export const indexLaw = async (law: any, vectorCollection: admin.firestore.CollectionReference) => {
+export const indexLaw = async (law: any, vectorCollection: CollectionReference) => {
   logger.debug(`Indexing law: ${law.titulo || law.idNorma}...`);
   if (!law.texto) return;
 
@@ -142,8 +145,8 @@ export const indexLaw = async (law: any, vectorCollection: admin.firestore.Colle
  * Enforces a 6-month update rule.
  */
 export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => {
-  if (!admin.apps.length) return undefined;
-  const db = admin.firestore();
+  if (!getApps().length) return undefined;
+  const db = getFirestore();
   const vectorCollection = db.collection('vector_store');
 
   const status = await getRagStatus(db, normativeId);
@@ -174,7 +177,7 @@ export const downloadSpecificNormative = async (normativeId: string, force: bool
  */
 export const initializeRAG = async () => {
   if (isInitialized) return;
-  if (!admin.apps.length) return;
+  if (!getApps().length) return;
   // Sprint 28 (CI fix) — without GEMINI_API_KEY embedding throws; in CI
   // smoke we don't have the secret. Skip cleanly so logs stay readable.
   if (!process.env.GEMINI_API_KEY) {
@@ -182,7 +185,7 @@ export const initializeRAG = async () => {
     return;
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const vectorCollection = db.collection('vector_store');
 
   try {
@@ -272,11 +275,11 @@ export const queryCommunityKnowledge = async (
   industry: string,
   geminiFallback: () => Promise<string>,
 ): Promise<string> => {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     return await geminiFallback();
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const cacheCollection = db.collection(COMMUNITY_CACHE_COLLECTION);
 
   try {

@@ -12,6 +12,7 @@
 // the adapter's `new Options(...)` calls succeed.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const createMock = vi.fn();
 const commitMock = vi.fn();

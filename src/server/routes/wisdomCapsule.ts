@@ -23,13 +23,14 @@
 // porque ya estamos server-side y autenticados).
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { AI_MODEL_LITE } from '../../config/aiModels.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -174,7 +175,7 @@ async function emitSafetyLearningNode(args: {
       references: args.sourceFindings,
       projectId: args.projectId,
       createdBy: args.callerUid,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       idempotencyKey: id,
     },
     { merge: true }
@@ -267,7 +268,7 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'dateFrom must be <= dateTo' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
 
     const cacheKey = `${projectId}|${dateFrom}|${dateTo}`;
@@ -331,7 +332,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
 
     // 1) Cache lookup.
@@ -412,7 +413,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
         date,
         capsule,
         ackedBy: [],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
@@ -457,7 +458,7 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   }
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     await assertProjectMember(uid, projectId, db);
     const ref = db.collection('wisdom_capsules').doc(`${projectId}_${date}`);
     let awarded = false;
@@ -475,7 +476,7 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
           projectId,
           date,
           ackedBy: [...acks, uid],
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );

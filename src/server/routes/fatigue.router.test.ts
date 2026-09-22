@@ -1,5 +1,5 @@
 // Praeventio Guard — Fatigue Monitor router: real-router supertest (CLAUDE.md #22).
-// Boots the REAL fatigue router with admin.firestore() backed by the in-memory
+// Boots the REAL fatigue router with getFirestore() backed by the in-memory
 // FakeFirestore, runs the REAL assessFatigue engine + projectMembership guard,
 // and asserts the assess endpoint over HTTP: 401 (no token), 403 (non-member),
 // 400 (invalid body), and a deterministic happy-path 200 whose body reflects the
@@ -47,6 +47,7 @@ vi.mock('../../utils/logger.js', () => ({
 import fatigueRouter from './fatigue';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
+import { getFirestore } from 'firebase-admin/firestore';
 const PREFIX = '/api/sprint-i';
 const PROJECT = 'p1';
 const SUPERVISOR = 'supervisor-1';

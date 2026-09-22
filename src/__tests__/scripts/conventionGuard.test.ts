@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { getAuth } from 'firebase-admin/auth';
 const require = createRequire(import.meta.url);
 const guard = require("../../../scripts/check-convention-guard.cjs") as {
   scan: () => { rule3: string[]; rule19Tracked: string[] };
@@ -76,7 +77,7 @@ describe("convention-guard (CLAUDE.md #3/#19 ratchet)", () => {
   it("detects compound Firebase Auth mutator methods", () => {
     const source = `
       router.post('/claims', async (_req, res) => {
-        await admin.auth().setCustomUserClaims('uid-1', { role: 'admin' });
+        await getAuth().setCustomUserClaims('uid-1', { role: 'admin' });
         res.sendStatus(204);
       });
     `;

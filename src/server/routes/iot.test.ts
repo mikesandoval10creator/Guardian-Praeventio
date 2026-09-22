@@ -3,7 +3,7 @@
 // Sprint 32 Bucket TT — coverage for POST /api/iot/devices/register.
 //
 // Mirrors the parallel-app pattern from src/__tests__/server/emergency.test.ts:
-// the real router calls `admin.firestore()` + `admin.auth()` which we cannot
+// the real router calls `getFirestore()` + `getAuth()` which we cannot
 // initialize in tests. We rebuild a minimal Express app with the same
 // status codes and JSON envelopes, exercising the contract we care about:
 //
@@ -21,6 +21,8 @@ import {
 } from './iot.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 interface FakeUser {
   uid: string;
   customClaims?: { role?: string };

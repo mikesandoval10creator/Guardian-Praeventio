@@ -23,7 +23,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -52,6 +51,8 @@ import {
   makeServerWriteNodes,
 } from '../services/serverZkNodeWriter.js';
 import type { EdgeStore, ZkEdge } from '../../services/zettelkasten/edges.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   suggestPurchaseOrder,
   type InventoryItem,
@@ -71,7 +72,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -125,7 +126,7 @@ function callerCanSignEpp(req: import('express').Request): boolean {
 // ────────────────────────────────────────────────────────────────────────
 
 function buildFirestoreEdgeStore(): EdgeStore {
-  const db = admin.firestore();
+  const db = getFirestore();
   function col(tenantId: string) {
     return db.collection(`tenants/${tenantId}/zettelkasten_edges`);
   }
@@ -315,8 +316,7 @@ async function persistSuggestedOrderDraft(
   rec: Pick<PendingOrderRecord, 'orderId' | 'tenantId' | 'inspectionId' | 'draft' | 'suggestedAt'>,
 ): Promise<void> {
   try {
-    await admin
-      .firestore()
+    await getFirestore()
       .collection('zettelkasten_nodes')
       .doc(suggestedNodeId)
       .set(
@@ -367,7 +367,7 @@ interface SuggestedNodeDoc {
 async function readPersistedPendingOrders(
   projectId: string,
 ): Promise<PendingOrderRecord[]> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const col = db.collection('zettelkasten_nodes');
 
   const [suggestedSnap, signedSnap] = await Promise.all([
@@ -430,7 +430,7 @@ async function readPersistedSignedOrder(
   projectId: string,
   orderId: string,
 ): Promise<PendingOrderRecord | undefined> {
-  const col = admin.firestore().collection('zettelkasten_nodes');
+  const col = getFirestore().collection('zettelkasten_nodes');
   const [suggestedSnap, signedSnap] = await Promise.all([
     col
       .where('projectId', '==', projectId)
@@ -479,7 +479,7 @@ async function readSignerIdentity(
   uid: string,
 ): Promise<{ signerRut?: string; signerName?: string }> {
   try {
-    const snap = await admin.firestore().collection('users').doc(uid).get();
+    const snap = await getFirestore().collection('users').doc(uid).get();
     if (!snap.exists) return {};
     const data = snap.data() as Record<string, unknown> | undefined;
     const rut = typeof data?.rut === 'string' ? data.rut.trim() : '';
@@ -550,7 +550,7 @@ async function claimEppOrderForSigning(
   challengeId: string,
   signerUid: string,
 ): Promise<EppSigningClaimResult> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
   const signedQuery = db
     .collection('zettelkasten_nodes')
@@ -593,7 +593,7 @@ async function releaseEppSigningClaim(
   suggestedNodeId: string,
   challengeId: string,
 ): Promise<void> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -602,7 +602,7 @@ async function releaseEppSigningClaim(
     const activeClaim = readEppSigningClaim(data?.metadata ?? {});
     if (activeClaim?.challengeId !== challengeId) return;
     tx.update(ref, {
-      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+      'metadata.eppSigningClaim': FieldValue.delete(),
     });
   });
 }
@@ -614,7 +614,7 @@ async function markEppOrderSigned(
   signedAt: string,
   signerUid: string,
 ): Promise<void> {
-  const db = admin.firestore();
+  const db = getFirestore();
   const ref = db.collection('zettelkasten_nodes').doc(suggestedNodeId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -628,7 +628,7 @@ async function markEppOrderSigned(
       'metadata.eppSignedNodeId': signedNodeId,
       'metadata.eppSignedAt': signedAt,
       'metadata.eppSignerUid': signerUid,
-      'metadata.eppSigningClaim': admin.firestore.FieldValue.delete(),
+      'metadata.eppSigningClaim': FieldValue.delete(),
     });
   });
 }

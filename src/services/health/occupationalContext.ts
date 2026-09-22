@@ -53,6 +53,9 @@ import { createHash } from 'node:crypto';
 import { envelopeEncrypt, type EnvelopeCiphertext } from '../security/kmsEnvelope.ts';
 import { getKmsAdapter, type KmsAdapter } from '../security/kmsAdapter.ts';
 
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 /**
  * Adjunto firmado que viaja dentro del ZIP junto al JSON del bundle.
  * Caller es responsable de garantizar que `bytes` no contenga PII
@@ -357,9 +360,8 @@ async function defaultUploader(args: {
   signedUrlTtlMs: number;
   bucket: string;
 }): Promise<{ url: string }> {
-  const admin = (await import('firebase-admin')).default;
-  if (!admin.apps.length) admin.initializeApp();
-  const file = admin.storage().bucket(args.bucket).file(args.path);
+  if (!getApps().length) initializeApp();
+  const file = getStorage().bucket(args.bucket).file(args.path);
   await file.save(Buffer.from(args.bytes), {
     contentType: args.contentType,
     metadata: { cacheControl: 'private, max-age=0, no-store' },
@@ -375,9 +377,8 @@ async function defaultSink(args: {
   path: string;
   record: OccupationalVaultRecord;
 }): Promise<void> {
-  const admin = (await import('firebase-admin')).default;
-  if (!admin.apps.length) admin.initializeApp();
-  await admin.firestore().doc(args.path).set(args.record);
+  if (!getApps().length) initializeApp();
+  await getFirestore().doc(args.path).set(args.record);
 }
 
 // ─────────────────────────────────────────────────────────────────────

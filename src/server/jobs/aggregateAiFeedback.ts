@@ -14,7 +14,7 @@
 // (`aggregateFeedbackItems`) so this job and the route share the same
 // shape contract.
 
-import type { Firestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import {
   aggregateFeedbackItems,
   isoWeek,
@@ -61,7 +61,7 @@ async function aggregateAiFeedbackInner(
 ): Promise<AggregateResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
   const now = (opts.now ?? (() => new Date()))();
   const lookbackDays = opts.lookbackDays ?? 7;
   const cutoffMs = now.getTime() - lookbackDays * 24 * 60 * 60 * 1000;

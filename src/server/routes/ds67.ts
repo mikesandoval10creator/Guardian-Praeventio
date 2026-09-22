@@ -34,11 +34,13 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -60,7 +62,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -73,7 +75,7 @@ async function guard(
 
 async function resolveTenantId(
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   try {
     const proj = await db.collection('projects').doc(projectId).get();
@@ -117,7 +119,7 @@ export interface Ds67PeriodAggregate {
 }
 
 async function aggregateIncidentsByWindow(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   tenantId: string | null,
   windows: Ds67AnnualPeriodWindow[],
@@ -216,7 +218,7 @@ router.get('/:projectId/ds67/simulator/prefill', verifyAuth, async (req, res) =>
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   if (!(await guard(callerUid, projectId, res))) return undefined;
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const windows = evaluationPeriodWindows(new Date(), 3);
     const tenantId = await resolveTenantId(projectId, db);
     const aggregates = await aggregateIncidentsByWindow(db, projectId, tenantId, windows);
@@ -274,7 +276,7 @@ router.post(
     const body = req.validated as z.infer<typeof simulateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const windows = evaluationPeriodWindows(new Date(), body.periods.length as 2 | 3);
 
       // Only hit Firestore when at least one period needs pre-filling.

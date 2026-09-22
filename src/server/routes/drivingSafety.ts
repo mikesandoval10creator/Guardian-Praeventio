@@ -26,7 +26,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
@@ -36,6 +35,9 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { serverWriteNodes } from '../services/serverZkNodeWriter.js';
 import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   isAdminRole,
   isSupervisorRole,
@@ -50,7 +52,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -75,7 +77,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -86,7 +88,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -234,7 +236,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const statusParam =
         typeof req.query.status === 'string' ? req.query.status : 'all';
       const status: 'active' | 'critical' | 'all' = [
@@ -335,7 +337,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const id =
         body.id ??
@@ -389,7 +391,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/driving_routes`,
@@ -478,7 +480,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const safeRead = async <T,>(
         label: string,
         fn: () => Promise<T[]>,
@@ -587,7 +589,7 @@ router.post(
         .json({ error: 'cross_member_write_not_permitted' });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const docRef = db
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/driving_drivers`,
@@ -674,7 +676,7 @@ router.get(
       const { computeDriverScore } = await import(
         '../../services/drivingSafety/drivingSafetyService.js'
       );
-      const db = admin.firestore();
+      const db = getFirestore();
       const safeRead = async <T,>(
         label: string,
         fn: () => Promise<T[]>,
@@ -791,7 +793,7 @@ router.post(
     // stripped — a body-supplied `reportedByUid` never reaches the handler.
     const body = req.validated as z.infer<typeof drivingIncidentSchema>;
     try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
+      await assertProjectMember(callerUid, projectId, getFirestore());
     } catch (err) {
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -799,7 +801,7 @@ router.post(
       throw err;
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const location = body.location ?? 'Ubicación no disponible';
       // Identity fields are server-stamped from the verified token.
@@ -818,7 +820,7 @@ router.post(
         .collection(`projects/${projectId}/driving_incidents`)
         .add({
           ...incident,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
 
       // RiskNetwork node — ports the old client `addNode({ type:

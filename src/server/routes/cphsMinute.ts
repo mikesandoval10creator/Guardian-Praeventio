@@ -29,7 +29,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -41,6 +40,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -56,7 +58,7 @@ function clampScore(n: number): number {
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -81,7 +83,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -92,7 +94,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -110,7 +112,7 @@ async function assertMember(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
     return true;
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
@@ -133,7 +135,7 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
       '../../services/cphs/cphsMinuteAutogenerator.js'
     );
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const now = new Date();
     const monthStart = new Date(
@@ -698,7 +700,7 @@ router.post(
     const body = req.body as z.infer<typeof createActaSchema>;
     if (!(await assertMember(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const ref = await db.collection(`projects/${projectId}/comite_actas`).add({
         fecha: body.fecha,
         tipo: body.tipo,
@@ -749,7 +751,7 @@ router.post(
     const body = req.body as z.infer<typeof addAcuerdoSchema>;
     if (!(await assertMember(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const actaRef = db.collection(`projects/${projectId}/comite_actas`).doc(actaId);
       const acuerdo = {
         id: randomId(),
@@ -763,7 +765,7 @@ router.post(
       const appended = await db.runTransaction(async (tx) => {
         const snap = await tx.get(actaRef);
         if (!snap.exists) return false;
-        tx.update(actaRef, { acuerdos: admin.firestore.FieldValue.arrayUnion(acuerdo) });
+        tx.update(actaRef, { acuerdos: FieldValue.arrayUnion(acuerdo) });
         return true;
       });
       if (!appended) return res.status(404).json({ error: 'acta_not_found' });
@@ -807,7 +809,7 @@ router.patch(
     const body = req.body as z.infer<typeof updateAcuerdoSchema>;
     if (!(await assertMember(callerUid, projectId, res))) return undefined;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const actaRef = db.collection(`projects/${projectId}/comite_actas`).doc(actaId);
       // Read-modify-write on the acuerdos array → transaction (CLAUDE.md #19).
       const result = await db.runTransaction(async (tx) => {

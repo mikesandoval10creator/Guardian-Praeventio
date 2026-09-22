@@ -31,7 +31,6 @@
 
 import { Router } from "express";
 import { z } from "zod";
-import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { validate } from "../middleware/validate.js";
 import { logger } from "../../utils/logger.js";
@@ -55,6 +54,8 @@ import {
 import { computeHandoverQuality } from "../../services/shiftHandover/shiftHandoverInsights.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 const router = Router();
 
 async function guard(
@@ -63,7 +64,7 @@ async function guard(
   res: import("express").Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: "forbidden" });
@@ -351,8 +352,7 @@ router.get(
     const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
 
     try {
-      const shiftsCol = admin
-        .firestore()
+      const shiftsCol = getFirestore()
         .collection(`projects/${projectId}/shifts`);
       const snap = await shiftsCol
         .orderBy("startedAt", "desc")
@@ -397,7 +397,7 @@ router.post(
 
     const body = req.body as z.infer<typeof discrepancySchema>;
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const shiftRef = db.doc(`projects/${projectId}/shifts/${shiftId}`);
       const shiftSnap = await shiftRef.get();
       if (!shiftSnap.exists) {

@@ -16,7 +16,6 @@
 // real se delega a `verifyWebAuthnAssertion` de webauthnAssertion.ts.
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   buildWebAuthnDb,
@@ -37,6 +36,8 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 
 /**
  * P0 security fix: previously this file read `process.env.WEBAUTHN_RPID`
@@ -94,7 +95,7 @@ async function loadSiteBookEntry(
   projectId: string,
   entryId: string,
 ): Promise<SiteBookEntry | null> {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const ref = fs.collection('projects').doc(projectId).collection(SITE_BOOK_COLLECTION).doc(entryId);
   const snap = await ref.get();
   if (!snap.exists) return null;
@@ -105,7 +106,7 @@ async function saveSignedSiteBookEntry(
   projectId: string,
   entry: SiteBookEntry,
 ): Promise<void> {
-  const fs = admin.firestore();
+  const fs = getFirestore();
   const ref = fs
     .collection('projects')
     .doc(projectId)
@@ -132,7 +133,7 @@ sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: R
   // strips assignedSiteIds from req.user, so the Firestore project doc is the
   // authoritative membership source for the signing surface.)
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       // Audit the blocked cross-tenant probe — highest-sensitivity legal
@@ -186,7 +187,7 @@ sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Re
   // Without this, a worker from another tenant could apply their own
   // biometric signature to (and lock) this tenant's legal site-book entry.
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       await auditServerEvent(req, 'sitebookSign.idor_blocked', 'sitebookSign', { projectId, entryId }, { projectId });

@@ -119,7 +119,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: github.event_name == 'pull_request'
         with:
-          node-version: '20'
+          node-version: "22"
           cache: 'npm'
       - name: Install JS deps (PR only)
         if: github.event_name == 'pull_request'

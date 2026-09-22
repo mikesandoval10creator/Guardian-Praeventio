@@ -23,6 +23,7 @@ import express, {
   type NextFunction,
 } from "express";
 import request from "supertest";
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ─── In-memory firestore stub ────────────────────────────────────────────
 // Path-addressed store keyed by `<collection>/<docId>(/...)*`. The route

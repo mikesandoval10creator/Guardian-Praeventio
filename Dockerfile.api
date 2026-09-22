@@ -11,7 +11,7 @@
 # entrypoint can execute `server.ts` directly.
 
 # ── Stage 1: deterministic prod dependency install ────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 # Build tools for native modules (e.g. better-sqlite3 transitives).
@@ -27,7 +27,7 @@ RUN npm ci --omit=dev --legacy-peer-deps \
  && npm cache clean --force
 
 # ── Stage 2: full deps + typecheck + frontend build ──────────────────────────
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 
 RUN apk add --no-cache python3 make g++ libc6-compat
@@ -46,7 +46,7 @@ COPY . .
 RUN npm run build
 
 # ── Stage 3: minimal runtime image ───────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -75,7 +75,7 @@ COPY --from=build /app/package.json ./package.json
 # Secret Manager" note was doc-drift — the real admin secret never lives here.)
 COPY --from=build /app/firebase-applet-config.json ./firebase-applet-config.json
 
-# Drop privileges. The official node:20-alpine image ships a `node` user.
+# Drop privileges. The official node:22-alpine image ships a `node` user.
 RUN chown -R node:node /app
 USER node
 

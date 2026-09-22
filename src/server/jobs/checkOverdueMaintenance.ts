@@ -24,7 +24,7 @@
 // photogrammetry types — the lifecycle states we care about are just
 // strings. The unit tests pin them down.
 
-import type { Firestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
  * Lifecycles for which an overdue calendar event should bump the
@@ -70,7 +70,7 @@ export async function checkOverdueMaintenance(
 ): Promise<CheckOverdueResult> {
   const db = opts.getDb
     ? opts.getDb()
-    : (await import('firebase-admin')).default.firestore();
+    : getFirestore();
   const now = (opts.now ?? (() => new Date()))();
   const pageSize = opts.limit ?? 100;
 

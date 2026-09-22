@@ -15,12 +15,14 @@
 import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -68,7 +70,7 @@ export const PORTABLE_HISTORY_DISCLAIMER =
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -82,7 +84,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -90,7 +92,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -122,7 +124,7 @@ async function auditRejectedConsentAttempt(
 // ── Bundle builder ────────────────────────────────────────────────────
 
 async function buildPortableHistoryBundle(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   tenantId: string,
   projectId: string,
   workerUid: string,
@@ -340,7 +342,7 @@ router.get(
       return res.status(403).json({ error: 'forbidden_not_owner_or_admin' });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid, callerUid === workerUid);
       if (!bundle) return res.status(404).json({ error: 'worker_not_found' });
       return res.json({ bundle });
@@ -375,7 +377,7 @@ router.post(
       return res.status(403).json({ error: 'consent_owner_required' });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const now = new Date().toISOString();
       const consent: PortableHistoryConsent = {
         allowsPortableExport: body.allowsPortableExport,
@@ -426,7 +428,7 @@ router.get(
       return res.status(403).json({ error: 'forbidden_not_owner_or_admin' });
     }
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid, callerUid === workerUid);
       if (!bundle) return res.status(404).json({ error: 'worker_not_found' });
       // Hard gate: Ley 19.628 art. 4° — consent explícito para finalidad

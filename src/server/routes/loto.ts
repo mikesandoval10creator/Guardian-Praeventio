@@ -22,7 +22,6 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -33,6 +32,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { LotoAdapter } from '../../services/loto/lotoFirestoreAdapter.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   validateLotoApplication,
   validateRelease,
@@ -46,7 +48,7 @@ const router = Router();
 async function resolveTenantId(
   _callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -60,7 +62,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -68,7 +70,7 @@ async function guard(
     }
     throw err;
   }
-  const tenantId = await resolveTenantId(callerUid, projectId, admin.firestore());
+  const tenantId = await resolveTenantId(callerUid, projectId, getFirestore());
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
     return null;
@@ -77,7 +79,7 @@ async function guard(
 }
 
 function adapterFor(tenantId: string, projectId: string): LotoAdapter {
-  return new LotoAdapter(admin.firestore(), tenantId, projectId);
+  return new LotoAdapter(getFirestore(), tenantId, projectId);
 }
 
 // ── Schemas ──────────────────────────────────────────────────────────

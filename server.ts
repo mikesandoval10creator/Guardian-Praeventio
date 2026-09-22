@@ -480,7 +480,37 @@ import {
   startMqttTelemetryBridge,
   type MqttBridgeHandle,
 } from "./src/server/triggers/mqttTelemetryBridge.js";
-import admin from "firebase-admin";
+// firebase-admin v14 removed the legacy namespace API (`admin.firestore()`, `admin.auth()`, ...).
+// To preserve call sites that used `admin.firestore()`, `admin.apps`, etc. without a sweeping
+// rewrite, build a small `admin` facade that re-exports the modular API under the legacy names.
+// This is a transitional shim: new code should import directly from the subpaths.
+import { getApps, initializeApp, applicationDefault, getApp } from "firebase-admin/app";
+import { getFirestore as _getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { getAuth as _getAuth } from "firebase-admin/auth";
+import { getMessaging as _getMessaging } from "firebase-admin/messaging";
+import { getStorage as _getStorage } from "firebase-admin/storage";
+
+const admin = {
+  apps: getApps(),
+  initializeApp,
+  credential: { applicationDefault },
+  app: getApp,
+  firestore: (app?: unknown, databaseId?: string) =>
+    databaseId ? _getFirestore(app as never, databaseId) : _getFirestore(app as never),
+  auth: _getAuth,
+  messaging: _getMessaging,
+  storage: (app?: unknown) => _getStorage(app as never),
+  FieldValue,
+  Timestamp,
+};
+// Make `admin.apps` track live apps (getApps() returns a snapshot, so any
+// initializeApp() call AFTER this shim is built wouldn't be reflected here).
+// We patch apps into a getter that re-reads getApps() each access.
+Object.defineProperty(admin, 'apps', {
+  get() { return getApps(); },
+  configurable: true,
+});
+
 import fs from 'fs';
 // [P0] Secret redaction for error-handler URLs (health-vault share legacy
 // path form + generic token-in-path segments).
@@ -1653,7 +1683,7 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       db: admin.firestore(),
       messaging: admin.messaging(),
       resend,
-      firestoreNamespace: admin.firestore,
+      fieldValue: FieldValue,
     });
 
     // Canonical Zettelkasten projection. The default is ON so every server
@@ -1687,7 +1717,7 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       // promised: one idempotent audit_logs row per system event. Without
       // it the listener validated + deduped and then did NOTHING.
       onEvent: makeSystemEventAuditor(admin.firestore(), () =>
-        admin.firestore.FieldValue.serverTimestamp(),
+        FieldValue.serverTimestamp(),
       ),
     });
 
@@ -1700,7 +1730,7 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
     roleClaimsSyncHandle = setupRoleClaimsSync({
       db: admin.firestore(),
       auth: admin.auth(),
-      firestoreNamespace: admin.firestore,
+      fieldValue: FieldValue,
     });
 
     // M-1 Fase 4 (cierre total de storage) — mirror projects/{pid}.members
@@ -1713,7 +1743,7 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
     assignedSitesSyncHandle = setupAssignedSitesSync({
       db: admin.firestore(),
       auth: admin.auth(),
-      firestoreNamespace: admin.firestore,
+      fieldValue: FieldValue,
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).

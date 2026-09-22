@@ -22,13 +22,14 @@
 // delivery is the worst case. Each level is independent: a supervisor FCM
 // failure never blocks the emergency_services page.
 
-import type admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import {
   manDownLevelsForElapsed,
   type ManDownEscalationLevel,
 } from '../../services/loneWorker/manDownEscalationStage.js';
 import { DEFAULT_MAN_DOWN_CONFIG, type ManDownConfig } from '../../services/loneWorker/manDownTimer.js';
+
+import type { Firestore, QuerySnapshot } from 'firebase-admin/firestore';
 
 /** Context handed to the notify hook for a single (event, level) escalation. */
 export interface ManDownEscalationInfo {
@@ -45,7 +46,7 @@ export interface ManDownEscalationInfo {
 }
 
 export interface ManDownCronDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Override clock for tests. */
   now?: () => Date;
   /**
@@ -144,7 +145,7 @@ export async function runManDownEscalationCron(
     errors: 0,
   };
 
-  let snap: admin.firestore.QuerySnapshot;
+  let snap: QuerySnapshot;
   try {
     snap = await deps.db.collection(collectionPath).where('status', '==', 'active').get();
   } catch (e) {

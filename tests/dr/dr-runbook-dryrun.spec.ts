@@ -40,7 +40,8 @@
 // NEVER runs against real Firestore.
 
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const seedModule = require('./seed-dr-dataset.cjs') as {
   seed: () => Promise<{
@@ -78,10 +79,10 @@ function ensureEnv(): void {
 }
 
 function getDb(): FirebaseFirestore.Firestore {
-  if (admin.apps.length === 0) {
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+  if (getApps().length === 0) {
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 async function countCollection(name: string): Promise<number> {

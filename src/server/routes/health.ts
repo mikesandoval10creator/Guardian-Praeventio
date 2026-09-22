@@ -21,9 +21,11 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
 import net from 'node:net';
-import admin from 'firebase-admin';
 import { healthDeepLimiter } from '../middleware/limiters.js';
 import { buildCapabilityRegistry } from '../capabilities/registry.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 
 const router = Router();
 
@@ -43,7 +45,7 @@ router.get('/health', async (_req, res) => {
     checks.firestore = 'skipped';
   } else {
     try {
-      await admin.firestore().listCollections(); // cheap admin op
+      await getFirestore().listCollections(); // cheap admin op
       checks.firestore = 'ok';
     } catch {
       checks.firestore = 'fail';
@@ -142,7 +144,7 @@ async function runCheck(fn: () => Promise<unknown>): Promise<CheckResult> {
 export async function checkFirestore(): Promise<void> {
   // Read a single doc — same shape as a real query, exercises auth +
   // network. The doc need not exist; the .get() call is the probe.
-  await admin.firestore().collection('_health').doc('ping').get();
+  await getFirestore().collection('_health').doc('ping').get();
 }
 
 export async function checkKms(): Promise<void> {
@@ -296,7 +298,7 @@ function isProduction(): boolean {
  *  En dev sin credenciales reales se reporta skipped. */
 export async function checkFcmCapability(): Promise<ProbeResult> {
   try {
-    await admin.messaging().send({
+    await getMessaging().send({
       token: 'health-probe-invalid-token',
       notification: { title: 'health', body: 'probe' },
     });
@@ -375,7 +377,7 @@ export function tcpPing(host: string, port: number): Promise<void> {
  *  superficie server del mesh (claves por proyecto); consultable valida
  *  que Firestore y el contrato del relay siguen operativos. */
 export async function checkMeshCapability(): Promise<void> {
-  await admin.firestore().collection('mesh_keys').limit(1).get();
+  await getFirestore().collection('mesh_keys').limit(1).get();
 }
 
 /** Offline — outbox de emergencia (colas offline de alertas vida-safety).
@@ -397,7 +399,7 @@ export async function checkGeofenceCapability(): Promise<void> {
   if (typeof mod.decidePermissionUX !== 'function') {
     throw new Error('geofence_engine_unavailable');
   }
-  await admin.firestore().collection('geofences').limit(1).get();
+  await getFirestore().collection('geofences').limit(1).get();
 }
 
 /** Hombre caído — correlación del System Engine (trigger server-side que
@@ -416,7 +418,7 @@ export async function checkWearablesCapability(): Promise<void> {
   if (typeof mod.startMqttTelemetryBridge !== 'function') {
     throw new Error('telemetry_bridge_unavailable');
   }
-  await admin.firestore().collection('telemetry_events').limit(1).get();
+  await getFirestore().collection('telemetry_events').limit(1).get();
 }
 
 /** SLM offline — motor de consulta sin conexión (on-device). El servidor

@@ -28,11 +28,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -75,7 +76,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -319,7 +320,7 @@ router.post(
       return res.status(403).json({ error: 'insufficient_role' });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const docId = `${projectId}_${body.period}`;
     try {
       // Server stamps recordedBy/recordedAt — client-supplied values are
@@ -332,7 +333,7 @@ router.post(
           overtimeHours: body.overtimeHours,
           headcount: body.headcount,
           recordedBy: callerUid,
-          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recordedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -351,7 +352,7 @@ router.post(
           userId: callerUid,
           userEmail: callerEmail,
           projectId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
@@ -430,7 +431,7 @@ router.get(
     const { period } = req.validated as z.infer<typeof operationalPressureQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
       const snap = await db
         .collection('workforce_periods')

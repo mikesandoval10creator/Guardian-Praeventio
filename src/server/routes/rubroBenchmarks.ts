@@ -31,7 +31,6 @@
 // pattern) and serve the cached doc here instead.
 
 import { Router } from 'express';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -40,6 +39,9 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { findByCodigo } from '../../services/sii/rubroSearch.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   computeRubroBenchmarks,
   type AnonymousProjectMetrics,
@@ -118,7 +120,7 @@ async function safeRead(
  * `tenants/{tid}/projects/{pid}/incidents`, deduped by doc id.
  */
 async function metricsForProject(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   projectId: string,
   tenantKey: string,
   nowMs: number,
@@ -224,7 +226,7 @@ router.get('/:projectId/rubro-benchmarks', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'invalid_project_id' });
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   try {
     // Membership gate FIRST (rule #6). assertProjectMember throws the same
     // 403 for "not found" and "not a member" — no existence oracle.

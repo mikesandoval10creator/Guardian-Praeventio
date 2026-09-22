@@ -16,7 +16,7 @@
 //
 // Diseño:
 //   • Inyección de dependencias para Firestore + embedder (no usa el
-//     `admin.firestore()` global), idéntico al patrón de
+//     `getFirestore()` global), idéntico al patrón de
 //     services/auth/projectMembership.ts. Esto deja la lógica
 //     unit-testable sin tener que inicializar firebase-admin.
 //   • `indexIncident(report)`: persiste {tenantId, incidentId, projectId,
@@ -35,6 +35,7 @@
 import { randomId } from '../../utils/randomId';
 import { AI_MODEL_INCIDENT_EMBEDDINGS } from '../../config/aiModels.js';
 
+import { getFirestore } from 'firebase-admin/firestore';
 export interface IncidentReport {
   /** Identificador estable del incidente (DIAT, doc id, etc.). */
   id: string;
@@ -64,7 +65,7 @@ export interface IncidentSearchResult {
 export type EmbedFn = (text: string) => Promise<number[]>;
 
 /**
- * Forma mínima de Firestore que necesitamos. `admin.firestore()` la cumple
+ * Forma mínima de Firestore que necesitamos. `getFirestore()` la cumple
  * estructuralmente; tests inyectan un fake.
  */
 export interface MinimalFirestore {

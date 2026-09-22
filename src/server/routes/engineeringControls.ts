@@ -26,12 +26,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -44,7 +46,7 @@ const router = Router();
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
-  db: admin.firestore.Firestore,
+  db: Firestore,
 ): Promise<string | null> {
   const proj = await db.collection('projects').doc(projectId).get();
   const data = proj.exists ? proj.data() : null;
@@ -69,7 +71,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<{ tenantId: string } | null> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });
@@ -80,7 +82,7 @@ async function guard(
   const tenantId = await resolveTenantId(
     callerUid,
     projectId,
-    admin.firestore(),
+    getFirestore(),
   );
   if (!tenantId) {
     res.status(404).json({ error: 'tenant_not_found' });
@@ -159,7 +161,7 @@ router.get(
         }
       };
 
-      const db = admin.firestore();
+      const db = getFirestore();
       const colRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
       );
@@ -254,13 +256,12 @@ router.post(
         lastVerifiedAt: null,
         verifications: [],
       };
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
         )
         .doc(body.id);
-      const db = admin.firestore();
+      const db = getFirestore();
       try {
         await db.runTransaction(async (txn) => {
           const existing = await txn.get(ref);
@@ -320,8 +321,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const ref = admin
-        .firestore()
+      const ref = getFirestore()
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
         )
@@ -339,10 +339,10 @@ router.post(
         ...(body.evidence ? { evidence: body.evidence } : {}),
       };
       const updatePayload: {
-        verifications: admin.firestore.FieldValue;
+        verifications: FieldValue;
         lastVerifiedAt?: string;
       } = {
-        verifications: admin.firestore.FieldValue.arrayUnion(entry),
+        verifications: FieldValue.arrayUnion(entry),
       };
       if (body.result === 'pass') {
         updatePayload.lastVerifiedAt = now;

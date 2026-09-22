@@ -8,9 +8,10 @@
 //
 // We don't mock firebase-admin globally; the helper takes a `MinimalDb`
 // parameter so the test injects an in-memory fake. The production caller
-// (server.ts) injects `admin.firestore()`.
+// (server.ts) injects `getFirestore()`.
 
 import { describe, it, expect, vi } from 'vitest';
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,

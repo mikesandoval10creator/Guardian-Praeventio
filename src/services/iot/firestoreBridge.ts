@@ -41,7 +41,6 @@
 // We never derive tenant from sample fields (those are device-controlled
 // and could be spoofed).
 
-import admin from 'firebase-admin';
 import type { TelemetrySample, IngestRule, IngestDecision, IotDeviceKind } from './types.js';
 import { evaluateSample } from './ingestRuleEngine.js';
 import { deriveStableEventId } from './deduplicator.js';
@@ -49,6 +48,10 @@ import { classifyGasMetric } from '../workPermits/gasGate.js';
 import { sendToProjectSupervisors } from '../../server/routes/emergency.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../observability/index.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
+import type { Messaging } from 'firebase-admin/messaging';
 
 export interface BridgeContext {
   tenantId: string;
@@ -61,12 +64,12 @@ export interface BridgeContext {
   /** Optional rule override (tests inject smaller rule sets). */
   rules?: IngestRule[];
   /**
-   * Optional Firestore handle; defaults to `admin.firestore()` for
+   * Optional Firestore handle; defaults to `getFirestore()` for
    * production. Tests inject their in-memory shim.
    */
   db?: FirebaseFirestore.Firestore;
-  /** Optional FCM messaging handle (defaults to `admin.messaging()`). */
-  messaging?: admin.messaging.Messaging;
+  /** Optional FCM messaging handle (defaults to `getMessaging()`). */
+  messaging?: Messaging;
   /**
    * Identidad estable de la muestra (tarea P1 mqtt-dedup): eventId del
    * dispositivo o hash determinístico. Se usa como doc id idempotente.
@@ -134,7 +137,7 @@ export async function bridgeMqttToFirestore(
     persistFailed: false,
   };
 
-  const db = ctx.db ?? admin.firestore();
+  const db = ctx.db ?? getFirestore();
   const isCritical = decision.alerts.some((a) => a.severity === 'critical');
   const hasWarning = decision.alerts.some((a) => a.severity === 'warning');
 
@@ -175,7 +178,7 @@ export async function bridgeMqttToFirestore(
           tenantId: ctx.tenantId,
           zoneId: ctx.zoneId ?? null,
           deviceTimestamp: sample.timestamp,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -217,7 +220,7 @@ export async function bridgeMqttToFirestore(
           unit: sample.unit,
           severity: 'critical',
           alerts: decision.alerts,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
           deviceTimestamp: sample.timestamp,
         },
         { merge: true },
@@ -240,7 +243,7 @@ export async function bridgeMqttToFirestore(
 
   // Step 2b — FCM fan-out to project supervisors.
   try {
-    const messaging = ctx.messaging ?? admin.messaging();
+    const messaging = ctx.messaging ?? getMessaging();
     const fan = await sendToProjectSupervisors(
       ctx.projectId,
       {
@@ -291,7 +294,7 @@ export async function bridgeMqttToFirestore(
       },
       userId: 'system:iot.bridge',
       projectId: ctx.projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   } catch (err: any) {
     logger.error('iot_bridge_audit_write_failed', err, {

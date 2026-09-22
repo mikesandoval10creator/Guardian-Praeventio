@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -17,15 +18,15 @@ import { seedProject } from './fixtures/seed';
 const USER = { uid: 'e2e-c6-evac', email: 'c6-evac@praeventio.test', displayName: 'C6 Evac' };
 const DRILL_ID = 'e2e-drill-c6';
 
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error('c6-evacuation-dashboard.spec: FIRESTORE_EMULATOR_HOST is not set.');
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('C6 — EvacuationDashboard con drill activo sembrado', () => {

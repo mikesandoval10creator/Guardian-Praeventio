@@ -8,8 +8,9 @@
 // No work happens at import time. `setupMaterializerListener` is called by the
 // productive server boot and returns a lifecycle handle for SIGTERM cleanup.
 
-import type admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
+
+import type { Firestore } from 'firebase-admin/firestore';
 import {
   materializeNode,
   canonicalNodePath,
@@ -380,7 +381,7 @@ export async function processSnapshotDoc(
 // ────────────────────────────────────────────────────────────────────────
 
 export interface MaterializerListenerDeps {
-  db: admin.firestore.Firestore;
+  db: Firestore;
   /** Optional single-tenant filter for isolated maintenance/testing. */
   tenantId?: string;
   /** Required by productive boot to verify project → tenant ownership. */

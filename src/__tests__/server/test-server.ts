@@ -42,6 +42,7 @@ import {
   planFromIapProductId,
 } from '../../services/pricing/subscriptionPlan.js';
 import { invoicePeriodExpiredMs } from '../../server/routes/subscription.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,

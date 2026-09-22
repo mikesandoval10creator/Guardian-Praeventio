@@ -34,7 +34,7 @@ const H = vi.hoisted(() => ({
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
   const m = adminMock(() => H.db!);
-  // The gas-block alert path passes admin.messaging() through to the (mocked)
+  // The gas-block alert path passes getMessaging() through to the (mocked)
   // emergency fan-out; a stub object is enough here.
   const messaging = () => ({});
   return { ...m, messaging, default: { ...(m.default as object), messaging } };
@@ -74,6 +74,7 @@ import workPermitsRouter from '../../server/routes/workPermits.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { GAS_NO_TELEMETRY_NOTE_ES } from '../../services/workPermits/gasGate.js';
 
+import { getMessaging } from 'firebase-admin/messaging';
 function buildApp() {
   const app = express();
   app.use(express.json());

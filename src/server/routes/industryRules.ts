@@ -21,17 +21,18 @@
 //   • No external organism is contacted — this is local knowledge.
 //
 // ADR 0019 (Google ecosystem foundation):
-//   Membership is checked via `admin.firestore()` only. The preset engine
+//   Membership is checked via `getFirestore()` only. The preset engine
 //   itself is in-memory and deterministic — no second backend.
 
 import { Router } from 'express';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+
+import { getFirestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -54,7 +55,7 @@ async function guard(
   res: import('express').Response,
 ): Promise<boolean> {
   try {
-    await assertProjectMember(callerUid, projectId, admin.firestore());
+    await assertProjectMember(callerUid, projectId, getFirestore());
   } catch (err) {
     if (err instanceof ProjectMembershipError) {
       res.status(err.httpStatus).json({ error: 'forbidden' });

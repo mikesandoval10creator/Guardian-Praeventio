@@ -35,9 +35,10 @@
 // resolves with `false` on failure, but defensive callers still wrap it.
 
 import type { Request } from 'express';
-import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 export interface AuditServerEventOptions {
   /** Optional projectId tag for tenant-scoped events. */
@@ -69,7 +70,7 @@ export async function auditServerEvent(
   const userEmail: string | null = actor.email ?? null;
 
   try {
-    await admin.firestore().collection('audit_logs').add({
+    await getFirestore().collection('audit_logs').add({
       action,
       module,
       details,
@@ -79,7 +80,7 @@ export async function auditServerEvent(
       // Trust level: server-emitted events are the authoritative ones. Client
       // telemetry via POST /api/audit-log is stamped source:'client'.
       source: 'server',
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
