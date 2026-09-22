@@ -64,12 +64,23 @@ vi.mock('firebase-admin/app', async () => {
   // (without args) — which resolves to getApp() — find it.
   const APP_NAME = 'praeventio-handler-integration';
   if (getApps().length === 0) {
-    initializeApp({ credential: applicationDefault() }, APP_NAME);
+    // projectId EXPLÍCITO: el 2º arg de initializeApp es el NOMBRE de la app,
+    // no el proyecto. Sin esto el admin SDK escribe en el proyecto del entorno
+    // (env) y los contextos de rules-unit-testing leen de APP_NAME → proyectos
+    // distintos en el emulator → el doc "no existe" en el read-back.
+    initializeApp(
+      { credential: applicationDefault(), projectId: APP_NAME },
+      APP_NAME,
+    );
   }
   return {
     initializeApp: (opts: unknown) =>
       initializeApp(
-        (opts as object | undefined) ?? { credential: applicationDefault() },
+        {
+          projectId: APP_NAME,
+          credential: applicationDefault(),
+          ...(opts as object | undefined),
+        },
         APP_NAME,
       ),
     applicationDefault,
@@ -162,7 +173,10 @@ beforeAll(async () => {
   // does not exist" and the request 500s.
   const { initializeApp, applicationDefault, getApps } = await import('firebase-admin/app');
   if (getApps().length === 0) {
-    initializeApp({ credential: applicationDefault() }, RULES_PROJECT_ID);
+    initializeApp(
+      { credential: applicationDefault(), projectId: RULES_PROJECT_ID },
+      RULES_PROJECT_ID,
+    );
   }
 });
 

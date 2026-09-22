@@ -19,8 +19,13 @@ vi.mock('firebase-admin', async () => {
 
 // ─── firebase-admin/firestore (getFirestore dynamic import inside route) ─────
 vi.mock('firebase-admin/firestore', async () => {
+  const { FieldValue } = await import('../helpers/fakeFirestore');
   return {
     getFirestore: () => H.db!,
+    // El audit usa FieldValue.serverTimestamp() — sin este export vitest lanza
+    // "No FieldValue export is defined on the mock" y la fila de audit_logs
+    // nunca se escribe. Mismo sentinel del root mock (adminMock/fakeFirestore).
+    FieldValue,
   };
 });
 

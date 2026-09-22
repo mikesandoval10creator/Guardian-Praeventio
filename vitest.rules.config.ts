@@ -30,7 +30,13 @@ export default defineConfig({
   test: {
     environment: 'node',
     // SOLO rules-tests. El sweep general (vitest.config.ts) excluye este path.
-    include: ['src/rules-tests/**/*.test.ts'],
+    include: [
+      'src/rules-tests/**/*.test.ts',
+      // Integración handler + firestore.rules REALES (necesita emulator — el job
+      // CI corre bajo `firebase emulators:exec --only firestore,storage`). Va
+      // acá y no en el suite unit porque usa @firebase/rules-unit-testing.
+      'src/__tests__/integration/healthVault.handler.integration.test.ts',
+    ],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,

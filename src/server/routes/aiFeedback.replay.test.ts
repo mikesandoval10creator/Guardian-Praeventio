@@ -101,7 +101,14 @@ vi.mock('firebase-admin', () => {
 
 vi.mock('firebase-admin/firestore', () => {
   const fs = mocks.firestoreFactory();
-  return { getFirestore: () => fs };
+  return {
+    getFirestore: () => fs,
+    // El append de audit usa FieldValue.serverTimestamp() — sin este export
+    // vitest lanza "No FieldValue export is defined on the mock" y la fila de
+    // audit nunca se escribe (ai_feedback_audit_append_failed). Mismo shape
+    // de sentinel que el root mock de este archivo ({ __ts: true }).
+    FieldValue: { serverTimestamp: () => ({ __ts: true }) },
+  };
 });
 
 // Mockear el limiter para el caso 4 — necesitamos un `max` chico para no

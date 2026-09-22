@@ -27,7 +27,7 @@ function buildDeps(
   const setClaims = vi.fn(
     (_uid: string, _claims: Record<string, unknown>): Promise<void> => Promise.resolve(),
   );
-  const authAdmin = (() => () => ({
+  const authAdmin = (() => ({
     updateUser,
     revokeRefreshTokens: revoke,
     setCustomUserClaims: setClaims,

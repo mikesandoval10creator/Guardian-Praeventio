@@ -86,9 +86,7 @@ const resend = {
   emails: { send: async () => ({ id: 'unused' }) },
 } as unknown as BackgroundTriggersDeps['resend'];
 
-const fieldValue = {
-  FieldValue,
-} as unknown as BackgroundTriggersDeps['fieldValue'];
+const fieldValue: BackgroundTriggersDeps['fieldValue'] = FieldValue;
 
 const handle = setupBackgroundTriggers({
   db: triggerDb,
