@@ -489,6 +489,7 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
       uid: callerUid,
       projectId,
       message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 8).join('\n'),
     });
     captureRouteError(error, 'emergency.sos', { projectId });
     return res.status(500).json({

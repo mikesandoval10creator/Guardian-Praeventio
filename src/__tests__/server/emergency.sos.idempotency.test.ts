@@ -46,6 +46,41 @@ vi.mock('firebase-admin', async () => {
   };
 });
 
+// firebase-admin v14 modular API: sub-modules import from 'firebase-admin/firestore'
+// directly. Without this mock the middleware's `getFirestore()` reaches the real
+// SDK and throws when no credentials are configured (CI runs as `npm test`, not
+// against the emulator). Mirror adminMock() onto the firestore subpath so both
+// the v13 `admin.firestore()` AND the v14 `import { getFirestore } from
+// 'firebase-admin/firestore'` resolve to H.db.
+vi.mock('firebase-admin/firestore', async () => {
+  const actual = await vi.importActual<typeof import('firebase-admin/firestore')>(
+    'firebase-admin/firestore',
+  );
+  const { getFirestore } = actual;
+  return {
+    ...actual,
+    getFirestore: (..._args: unknown[]) => {
+      if (!H.db) throw new Error('firebase-admin/firestore called before H.db was seeded');
+      return H.db;
+    },
+  };
+});
+
+// Same modular sub-module pattern for messaging — `getMessaging()` is imported
+// from 'firebase-admin/messaging' (firebase-admin v14). Without this mock the
+// handler reaches the real SDK, which has no credentials in `npm test`.
+vi.mock('firebase-admin/messaging', async () => {
+  const actual = await vi.importActual<typeof import('firebase-admin/messaging')>(
+    'firebase-admin/messaging',
+  );
+  return {
+    ...actual,
+    getMessaging: () => ({
+      sendEachForMulticast: (...args: unknown[]) => H.fcmSendEach(...args),
+    }),
+  };
+});
+
 // ── verifyAuth: x-test-uid→user, absent→401 ─────────────────────────────────
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
