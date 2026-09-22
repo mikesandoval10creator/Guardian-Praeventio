@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import {
   buildE2EAuthHeader,
   DEFAULT_TEST_USER,
@@ -39,17 +40,17 @@ const API_BASE = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const E2E_SECRET = process.env.E2E_TEST_SECRET ?? 'e2e-test-secret-do-not-use-in-prod';
 const CREATOR = { uid: 'e2e-c4-owner', email: 'c4-owner@praeventio.test', displayName: 'C4 Owner' };
 
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error(
         'projects-invite-lifecycle.spec: FIRESTORE_EMULATOR_HOST is not set. Run via `npm run test:e2e:full`.',
       );
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('Project lifecycle: create → invite → accept (two users)', () => {

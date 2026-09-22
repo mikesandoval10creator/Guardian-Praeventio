@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -21,15 +22,15 @@ import { seedProject } from './fixtures/seed';
 
 const USER = { uid: 'e2e-c5-prexor', email: 'c5-prexor@praeventio.test', displayName: 'C5 Prexor' };
 
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error('protocolo-prexor.spec: FIRESTORE_EMULATOR_HOST is not set. Run via `npm run test:e2e:full`.');
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('PREXOR — dosis de ruido real con recompute server-side', () => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -28,7 +28,7 @@ test.describe('Billing checkout — create invoice (real flow)', () => {
   test('elegir un plan y pagar con Webpay crea una invoice real con identidad estampada por el servidor', async ({ page }) => {
     await loginAsTestUser(page);
     // seedProject() initializes firebase-admin against the emulator, so
-    // admin.firestore() below reads the same store the server writes to.
+    // getFirestore() below reads the same store the server writes to.
     const seed = await seedProject();
 
     try {
@@ -80,7 +80,7 @@ test.describe('Billing checkout — create invoice (real flow)', () => {
       // Firestore emulator. These fields are server-stamped and
       // client-unwritable (firestore.rules default-deny), so a browser / E2E
       // context can never fabricate them.
-      const db = admin.firestore();
+      const db = getFirestore();
       const invRef = db.collection('invoices').doc(invoiceId!);
       // Absorb the emulator write latency between the 200 and the doc landing.
       await expect

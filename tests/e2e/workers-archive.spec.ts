@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -21,15 +22,15 @@ import { seedProject } from './fixtures/seed';
 const USER = { uid: 'e2e-e1-workers', email: 'e1-workers@praeventio.test', displayName: 'E1 Workers' };
 const WORKER_ID = 'e2e-worker-archive-1';
 
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error('workers-archive.spec: FIRESTORE_EMULATOR_HOST is not set. Run via `npm run test:e2e:full`.');
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('Workers — archivar (nunca hard-delete) con audit', () => {

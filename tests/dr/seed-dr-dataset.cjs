@@ -20,7 +20,8 @@
 
 'use strict';
 
-const admin = require('firebase-admin');
+const { getApp, getApps, initializeApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 const SEED_VERSION = 'dr-dryrun-v1';
 
@@ -48,10 +49,10 @@ function ensureAdmin() {
   if (!process.env.GOOGLE_CLOUD_PROJECT) {
     process.env.GOOGLE_CLOUD_PROJECT = 'demo-dr';
   }
-  if (admin.apps.length === 0) {
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+  if (getApps().length === 0) {
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.app();
+  return getApp();
 }
 
 // Tiny LCG — deterministic, no extra deps. Same seed → same outputs.
@@ -64,7 +65,7 @@ function makeRng(seed) {
 }
 
 async function batchedWrite(refsAndDocs, batchSize = 400) {
-  const db = admin.firestore();
+  const db = getFirestore();
   for (let i = 0; i < refsAndDocs.length; i += batchSize) {
     const batch = db.batch();
     for (const { ref, data } of refsAndDocs.slice(i, i + batchSize)) {
@@ -76,7 +77,7 @@ async function batchedWrite(refsAndDocs, batchSize = 400) {
 
 async function seed() {
   ensureAdmin();
-  const db = admin.firestore();
+  const db = getFirestore();
   // Deterministic seed (DR dryrun dataset 2026-05-05). The previous literal
   // `0xdr20260505` was INVALID hex — the script did not even parse, so the
   // DR dry-run could never seed (AUDIT-2026-06 lint sweep).
@@ -193,7 +194,7 @@ async function seed() {
 
 async function clearAll() {
   ensureAdmin();
-  const db = admin.firestore();
+  const db = getFirestore();
   const collections = [
     'tenants',
     'projects',

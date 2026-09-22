@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import {
   buildE2EAuthHeader,
   DEFAULT_TEST_USER,
@@ -38,17 +39,17 @@ const CHALLENGE_URL = `${API_BASE}/api/auth/webauthn/challenge`;
 const VERIFY_URL = `${API_BASE}/api/auth/webauthn/verify`;
 
 /** Read-only admin handle to the SAME Firestore emulator the server writes. */
-function emulatorDb(): admin.firestore.Firestore {
-  if (!admin.apps.length) {
+function emulatorDb(): Firestore {
+  if (!getApps().length) {
     if (!process.env.FIRESTORE_EMULATOR_HOST) {
       throw new Error(
         'webauthn-challenge.spec: FIRESTORE_EMULATOR_HOST is not set. Run via `npm run test:e2e:full`.',
       );
     }
     if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = 'demo-test';
-    admin.initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
+    initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 test.describe('WebAuthn challenge lifecycle (verifyAuth gating + single-use)', () => {
