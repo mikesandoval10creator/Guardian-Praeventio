@@ -158,7 +158,7 @@
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
     "dxf-parser": "^1.1.2",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
@@ -276,6 +276,21 @@
     "brace-expansion@5": "5.0.9",
     "js-yaml@3": "3.15.2",
     "js-yaml@4": "4.3.2",
-    "nanoid@5": "5.1.16"
+    "nanoid@5": "5.1.16",
+    "hono@4": "4.13.8",
+    "@hono/node-server@1": "1.19.17",
+    "body-parser@1": "1.20.8",
+    "body-parser@2": "2.3.0",
+    "qs@6": "6.16.0",
+    "dompurify@3": "3.4.15",
+    "joi@17": "17.13.8",
+    "fflate@0.6": "0.6.11",
+    "fflate@0.8": "0.8.3",
+    "@babel/core@7": "7.29.7",
+    "@smithy/middleware-compression@4": "4.6.2",
+    "@puppeteer/browsers@2": "3.2.2",
+    "uuid@7": "11.1.1",
+    "uuid@8": "11.1.1",
+    "uuid@9": "11.1.1"
   }
 }
