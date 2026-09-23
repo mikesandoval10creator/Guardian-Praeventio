@@ -6,6 +6,8 @@ import {
   createAuditEntry,
   verifyAuditChain,
   shallowDiff,
+  hashEntry,
+  hashStringSync,
   RegulatoryAuditError,
   type RegulatoryMutationEvent,
   type RegulatoryAuditEntry,
@@ -179,5 +181,39 @@ describe('shallowDiff', () => {
     expect(shallowDiff(undefined, { a: 1 })).toEqual([
       { key: 'a', before: undefined, after: 1 },
     ]);
+  });
+});
+
+describe('hashStringSync (fallback determinístico para tests)', () => {
+  it('es determinístico: mismo input → mismo hash', () => {
+    expect(hashStringSync('hola')).toBe(hashStringSync('hola'));
+  });
+
+  it('distingue inputs distintos', () => {
+    expect(hashStringSync('hola')).not.toBe(hashStringSync('hola '));
+  });
+
+  it('devuelve hex de 16 chars (FNV-1a 64-bit)', () => {
+    expect(hashStringSync('guardian')).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('no reemplaza a hashEntry para integridad regulatoria', async () => {
+    // hashStringSync NO es criptográfico: dos strings distintos nunca deben
+    // producir el SHA-256 real que hashEntry calcula para la audit chain.
+    const entry = {
+      kind: 'update_regulation',
+      byUid: 'uid-test',
+      byRole: 'admin',
+      regulationId: 'CL/DS-44-2024',
+      reason: 'Actualización editorial de definiciones (DS 44 art. 2)',
+      before: {},
+      after: { x: 1 },
+      at: '2026-05-21T03:00:00.000Z',
+      tenantId: 't-test',
+    } as unknown as Parameters<typeof hashEntry>[0];
+    const real = await hashEntry(entry);
+    expect(real).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashStringSync(JSON.stringify(entry))).toHaveLength(16);
+    expect(hashStringSync(JSON.stringify(entry))).not.toBe(real);
   });
 });
