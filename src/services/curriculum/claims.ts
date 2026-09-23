@@ -158,9 +158,31 @@ export type AuditLogger = (
 const COLLECTION = 'curriculum_claims';
 const CLAIM_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_CLAIM_TEXT_LENGTH = 500;
-// Plain RFC-5322-lite regex: good enough for client-side hint validation.
-// We're not the ultimate authority — Resend will bounce truly invalid ones.
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// [P0][CI][seguridad] regex frágil — js/polynomial-redos (alertas #28/#29),
+// ticket "Sanitizar y reemplazar regex frágil en flujo de claim de recursos":
+// el patrón /^[^\s@]+@[^\s@]+\.[^\s@]+$/ tiene backtracking polinomial sobre
+// entradas largas sin '@' ni '.' (p.ej. un workerEmail de 1 MB postea cuadra
+// el tiempo de validación). Reemplazado por un validador MANUAL de tiempo
+// lineal, sin cuantificadores con backtracking, más sanitización de longitud
+// máxima RFC 5321 (254). Equivalencia de comportamiento (salvo el nuevo
+// límite de largo, intencional) y regresión ReDoS verificadas en
+// claims.email.test.ts. Resend sigue siendo la autoridad final de bounceo.
+const MAX_EMAIL_LENGTH = 254;
+
+export function isValidEmail(email: unknown): boolean {
+  if (typeof email !== 'string') return false;
+  if (email.length === 0 || email.length > MAX_EMAIL_LENGTH) return false;
+  const at = email.indexOf('@');
+  if (at < 1) return false; // local ≥ 1 char
+  if (email.indexOf('@', at + 1) !== -1) return false; // exactly one '@'
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (domain.length < 3) return false; // domain = X '.' Y with |X|,|Y| ≥ 1
+  if (/[\s@]/.test(local)) return false;
+  if (/[\s@]/.test(domain)) return false;
+  const dot = domain.indexOf('.', 1); // a '.' that is neither 1st nor last char
+  return dot !== -1 && dot <= domain.length - 2;
+}
 
 // --- Validation helpers --------------------------------------------------
 
@@ -168,7 +190,7 @@ function validatePayload(p: ClaimCreatePayload): void {
   if (typeof p.workerId !== 'string' || p.workerId.length === 0) {
     throw new Error('workerId is required');
   }
-  if (typeof p.workerEmail !== 'string' || !EMAIL_REGEX.test(p.workerEmail)) {
+  if (typeof p.workerEmail !== 'string' || !isValidEmail(p.workerEmail)) {
     throw new Error('workerEmail is invalid');
   }
   const text = (p.claim ?? '').trim();
@@ -180,7 +202,7 @@ function validatePayload(p: ClaimCreatePayload): void {
     throw new Error('exactly 2 referees are required');
   }
   for (const r of p.referees) {
-    if (!r || typeof r.email !== 'string' || !EMAIL_REGEX.test(r.email)) {
+    if (!r || typeof r.email !== 'string' || !isValidEmail(r.email)) {
       throw new Error(`referee email is invalid: ${r?.email ?? '(missing)'}`);
     }
     if (typeof r.name !== 'string' || r.name.trim().length === 0) {
