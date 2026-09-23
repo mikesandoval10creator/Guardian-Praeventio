@@ -457,20 +457,33 @@ jobs:
 
       - name: Fail on critical CVEs
         if: always()
-        # Final grep makes the failure reason explicit in the job log.
+        # [P0][CI][seguridad] Anti-falso-verde (regex frágil): el grep
+        # '"severity":"critical"' no matcheaba el JSON real de npm audit
+        # ("severity": "critical", con espacio tras ':') → el gate quedaba
+        # VERDE con CVEs críticas presentes (reproducido 2026-09-22: grep
+        # rc=1 con la crítica de tar en el reporte; PR #1691 SUCCESS era
+        # falso verde). Ahora el gate decide con JSON.parse (inmune al
+        # formato del texto) y FALLA CERRADO si el reporte falta o está
+        # vacío (antes: reporte ausente → else → "OK" verde, 2º falso verde).
         run: |
-          if [ -s npm-audit.json ] && grep -qE '"severity":"critical"' npm-audit.json; then
-            echo "::error::npm audit found CRITICAL CVEs in the dependency tree. See the npm-audit-report artifact for the full list."
-            echo "==== Top advisories ===="
-            node -e "
-              const a = require('./npm-audit.json');
-              const adv = (a.vulnerabilities || {});
-              const names = Object.entries(adv)
-                .filter(([, v]) => v.severity === 'critical')
-                .map(([name, v]) => \`- \${name} [\${v.severity}] via \${v.via[0]?.title || v.via[0]?.name || 'see advisory'}\`);
-              console.log(names.join('\n'));
-            " || true
+          if [ ! -s npm-audit.json ]; then
+            echo "::error::npm audit report missing or empty - failing closed. See the Run npm audit step."
             exit 1
-          else
-            echo "npm audit: no CRITICAL CVEs. OK."
           fi
+          node -e "
+            const a = require('./npm-audit.json');
+            const adv = Object.entries(a.vulnerabilities || {})
+              .filter(([, v]) => v && v.severity === 'critical');
+            const meta = (a.metadata && a.metadata.vulnerabilities && a.metadata.vulnerabilities.critical) || 0;
+            const count = Math.max(adv.length, meta);
+            if (count > 0) {
+              console.error('::error::npm audit found CRITICAL CVEs in the dependency tree (count=' + count + '). See the npm-audit-report artifact for the full list.');
+              console.error('==== Top advisories ====');
+              for (const [name, v] of adv) {
+                const via = (v.via && v.via[0]) || {};
+                console.error('- ' + name + ' [critical] via ' + (via.title || via.name || 'see advisory'));
+              }
+              process.exit(1);
+            }
+            console.log('npm audit: no CRITICAL CVEs. OK.');
+          "
