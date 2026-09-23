@@ -210,22 +210,6 @@ const ds67Schema = z.object({
   body: z.record(z.string(), z.unknown()),
 });
 
-// _ds76Schema was previously used by clSafetyInspectionAdapter (Sprint 38 passthrough).
-// Kept for reference; may be used when a DS-76 specific adapter ships (Sprint 40).
-const _ds76Schema = z.object({
-  tenantId: z.string().min(1),
-  body: z.record(z.string(), z.unknown()),
-});
-
-// _susesoSchema (opaque body) was the previous Sprint 38 stub for occupational_injury.
-// Replaced by susesoFullSchema below which validates the complete SUSESO form.
-// Kept for reference; remove when Sprint 40 confirms no callers remain.
-const _susesoSchema = z.object({
-  tenantId: z.string().min(1),
-  formType: z.enum(['DIAT', 'DIEP']),
-  body: z.record(z.string(), z.unknown()),
-});
-
 const dteSchema = z.object({
   type: z.union([z.literal(33), z.literal(39)]),
   emisor: z.record(z.string(), z.unknown()),

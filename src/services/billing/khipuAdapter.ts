@@ -222,15 +222,15 @@ export class KhipuAdapter {
           } catch {
             /* swallow body-parse fail; the status code is the signal */
           }
+          // `detail` is intentionally not embedded in the message — it may
+          // contain echo of secret-bearing fields; ops should reach for
+          // Sentry context (sanitized) instead.
+          void detail;
           throw new KhipuAdapterError(
             'createPayment',
             `Khipu returned ${response.status}`,
             response.status,
           );
-          // `detail` is intentionally not embedded in the message — it may
-          // contain echo of secret-bearing fields; ops should reach for
-          // Sentry context (sanitized) instead.
-          void detail;
         }
 
         let payload: unknown;

@@ -131,6 +131,24 @@ export async function hashEntry(entry: Omit<RegulatoryAuditEntry, 'hash'>): Prom
 }
 
 /**
+ * Hash determinístico SÍNCRONO, NO criptográfico — solo para tests sin
+ * async (prometido en el JSDoc de `hashEntry`). FNV-1a 64-bit en hex.
+ *
+ * NO usar para integridad regulatoria: `hashEntry` (SHA-256) es el único
+ * hash admisible para la audit chain.
+ */
+export function hashStringSync(input: string): string {
+  // FNV-1a 64-bit con BigInt (determinístico cross-env)
+  let hash = 0xcbf29ce484222325n;
+  const prime = 0x100000001b3n;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= BigInt(input.charCodeAt(i));
+    hash = (hash * prime) & 0xffffffffffffffffn;
+  }
+  return hash.toString(16).padStart(16, '0');
+}
+
+/**
  * Crea una entry de audit log con hash chain. Llama
  * `previousHash` con el último hash de la chain (null si es el primero).
  *
