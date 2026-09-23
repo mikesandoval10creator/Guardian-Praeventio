@@ -55,7 +55,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies (vitest only)
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm install -g npm@12 && npm ci --ignore-scripts --no-audit --no-fund
         env:
           CI: 'true'
 
