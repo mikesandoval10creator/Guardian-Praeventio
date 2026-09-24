@@ -75,6 +75,23 @@ export const IDEMPOTENCY_CACHE_COLLECTION = 'system_idempotency_cache';
 /** Header name (RFC-style — Stripe / IETF idempotency-key draft). */
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
 
+/**
+ * In-flight claim lifecycle. The cache doc is created BEFORE the handler
+ * runs (atomic claim, first writer wins) and completed with the captured
+ * response afterwards. P0 VIDA: without this, two concurrent requests with
+ * the same key both observe a cache miss and both execute the handler —
+ * double FCM fan-out for one SOS event.
+ */
+export const IDEMPOTENCY_STATE_IN_FLIGHT = 'in_flight';
+export const IDEMPOTENCY_STATE_COMPLETED = 'completed';
+
+/**
+ * A claim older than this is considered abandoned (the owner crashed or the
+ * process died between claim and response write) and may be taken over by a
+ * fresh request instead of leaving the key 409-blocked forever.
+ */
+export const IN_FLIGHT_STALE_MS = 30_000;
+
 export interface IdempotencyKeyOptions {
   /** TTL for cached entries. Default 24 h. */
   ttlSec?: number;
@@ -99,6 +116,12 @@ export interface IdempotencyKeyOptions {
 interface CachedResponse {
   status: number;
   body: unknown;
+  /**
+   * Lifecycle marker: 'in_flight' while the handler runs, 'completed' once
+   * the response has been captured. Docs written before this field existed
+   * carry no state and are treated as completed.
+   */
+  state?: 'in_flight' | 'completed';
   /**
    * Headers we replay. We deliberately filter out hop-by-hop / sensitive
    * headers at write time (see `safeReplayHeaders`); this is the typed
@@ -244,7 +267,30 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     try {
       const snap = await ref.get();
       if (snap.exists) {
-        const data = snap.data() as CachedResponse | undefined;
+        const entry = snap.data() as (CachedResponse & { claimedAtMs?: number }) | undefined;
+        // ── In-flight claim guard (P0 VIDA): another request with this key
+        // owns the claim and has not responded yet. Retryable conflict —
+        // the retry will replay the completed response, or re-run after the
+        // stale-claim takeover below.
+        let takenOverStaleClaim = false;
+        if (entry?.state === IDEMPOTENCY_STATE_IN_FLIGHT) {
+          const claimedAtMs = typeof entry.claimedAtMs === 'number' ? entry.claimedAtMs : 0;
+          const stale = now().getTime() - claimedAtMs > IN_FLIGHT_STALE_MS;
+          if (!stale) {
+            res.setHeader('Retry-After', '2');
+            res.setHeader('Idempotency-State', IDEMPOTENCY_STATE_IN_FLIGHT);
+            return res.status(409).json({ error: 'idempotency_in_flight' });
+          }
+          // Owner died before completing the response — release the stale
+          // claim so this request can take it over below (fresh claim).
+          try {
+            await ref.delete();
+          } catch {
+            /* best effort — the claim create below still guards the race */
+          }
+          takenOverStaleClaim = true;
+        }
+        const data = takenOverStaleClaim ? undefined : (entry as CachedResponse | undefined);
         if (data && data.expiresAt) {
           // Firestore TTL policy will eventually delete expired docs, but
           // we double-check on read so a TTL that hasn't run yet doesn't
@@ -310,12 +356,73 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     // are cached: a 4xx/5xx is an error we want the client to be allowed
     // to retry against fresh state.
 
+    // ── Step 3a: atomic claim — first writer wins (P0 VIDA) ──────────────
+    // The cache doc is created HERE, before the handler runs, so a second
+    // concurrent request with the same key cannot observe a miss and execute
+    // the handler again (double fan-out). The loser gets a retryable 409;
+    // once the winner's response is cached, the retry replays it.
+    let claimed = false;
+    try {
+      claimed = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (fresh.exists) return false;
+        tx.create(ref, {
+          state: IDEMPOTENCY_STATE_IN_FLIGHT,
+          fingerprint,
+          claimedAtMs: now().getTime(),
+          expiresAt: Timestamp.fromMillis(now().getTime() + ttlSec * 1000),
+        } as unknown as Record<string, unknown>);
+        return true;
+      });
+    } catch (err) {
+      // `create()` threw. Two very different cases:
+      //   • ALREADY_EXISTS (code 6 / 'ALREADY_EXISTS') — another request won
+      //     the claim race between our get() and create(). That is a normal
+      //     loss: retryable 409, the winner will complete the cache row.
+      //   • anything else — infrastructure failure. Fail OPEN like the cache
+      //     read above: log and run the handler normally. Idempotency is a
+      //     SAFETY net; failing it must never break the request path.
+      const code = (err as { code?: number | string }).code;
+      const isAlreadyExists =
+        code === 6 ||
+        code === 'ALREADY_EXISTS' ||
+        /already exists/i.test((err as Error)?.message ?? '');
+      if (isAlreadyExists) {
+        res.setHeader('Retry-After', '2');
+        res.setHeader('Idempotency-State', IDEMPOTENCY_STATE_IN_FLIGHT);
+        return res.status(409).json({ error: 'idempotency_in_flight' });
+      }
+      logger.warn?.('idempotency_claim_failed', {
+        route: routeLabel,
+        message: (err as Error)?.message,
+      });
+      sentryCapture(err, { endpoint: 'idempotencyKey.claim', tags: { route: routeLabel } });
+      return next();
+    }
+    if (!claimed) {
+      // Lost the claim race to an in-flight (or just-completed) request.
+      // Retryable: once the winner completes, the retry replays the response.
+      res.setHeader('Retry-After', '2');
+      res.setHeader('Idempotency-State', IDEMPOTENCY_STATE_IN_FLIGHT);
+      return res.status(409).json({ error: 'idempotency_in_flight' });
+    }
+
     let captured = false;
     const originalJson = res.json.bind(res);
     const originalSend = res.send.bind(res);
 
     const writeCache = async (status: number, body: unknown) => {
-      if (status < 200 || status >= 300) return;
+      if (status < 200 || status >= 300) {
+        // Non-2xx: do not cache the response (the client may retry against
+        // fresh state) but DO release the claim so the retry is not stuck
+        // behind an in-flight doc until the stale timeout.
+        try {
+          await ref.delete();
+        } catch {
+          /* best effort */
+        }
+        return;
+      }
       if (captured) return;
       captured = true;
       const expiresMs = now().getTime() + ttlSec * 1000;
@@ -333,9 +440,17 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
         // its own write.
         await db.runTransaction(async (tx) => {
           const fresh = await tx.get(ref);
-          if (fresh.exists) return; // race lost, that's fine
-          tx.set(ref, payload as unknown as Record<string, unknown>);
-        });
+          const record = {
+            ...payload,
+            state: IDEMPOTENCY_STATE_COMPLETED,
+          } as unknown as Record<string, unknown>;
+          if (fresh.exists) {
+            // Complete our own in-flight claim with the captured response.
+            tx.update(ref, record as unknown as { [field: string]: any });
+          } else {
+            tx.set(ref, record);
+          }
+          });
         logger.info?.('idempotency.cache_write', {
           route: routeLabel,
           uid: user.uid,
