@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { buildPacket } from './meshPacket';
+import { signPacket, type MeshSigningKey } from './meshPacketSigner';
 
 const NOW = 1_000_000_000;
 const PROJECT = 'p1';
@@ -57,13 +58,35 @@ function makeSupervisorEvent(fromUid: string, bornAtMs: number = NOW, projectId:
   });
 }
 
+async function makeTestKey(): Promise<MeshSigningKey> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new Uint8Array(32).fill(7),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify'],
+  );
+  return { keyId: 'p1:test-v1', key };
+}
+
+let TEST_KEY: MeshSigningKey;
+async function signed(packet: ReturnType<typeof makeBreadcrumb>): Promise<typeof packet> {
+  const signature = await signPacket(packet, TEST_KEY);
+  return { ...packet, ...signature };
+}
+
 describe('MeshRelayQueue — store-carry-forward', () => {
   let queue: MeshRelayQueue;
+
+  beforeAll(async () => {
+    TEST_KEY = await makeTestKey();
+  });
 
   beforeEach(() => {
     queue = new MeshRelayQueue({
       selfUid: 'self',
       projectId: PROJECT,
+      signingKey: TEST_KEY,
       now: () => NOW,
     });
   });
@@ -112,7 +135,7 @@ describe('MeshRelayQueue — store-carry-forward', () => {
   describe('receive — incoming peer packets', () => {
     it('forLocal cuando broadcast destinado a self', async () => {
       const fromOther = makeBreadcrumb('peer-1');
-      const result = await queue.receive([fromOther]);
+      const result = await queue.receive([await signed(fromOther)]);
       expect(result.forLocal).toHaveLength(1);
       expect(result.enqueued).toHaveLength(1); // también se relaya broadcast
       expect(result.dropped).toHaveLength(0);
@@ -120,7 +143,7 @@ describe('MeshRelayQueue — store-carry-forward', () => {
 
     it('drop packets de otro project (privacy ADR 0011 simétrico)', async () => {
       const wrong = makeBreadcrumb('peer-1', NOW, 'other-project');
-      const result = await queue.receive([wrong]);
+      const result = await queue.receive([await signed(wrong)]);
       expect(result.dropped).toHaveLength(1);
       expect(result.forLocal).toHaveLength(0);
       expect(result.enqueued).toHaveLength(0);
@@ -128,8 +151,8 @@ describe('MeshRelayQueue — store-carry-forward', () => {
 
     it('drop duplicados (Bloom-filter dedup)', async () => {
       const p = makeBreadcrumb('peer-1');
-      await queue.receive([p]);
-      const result = await queue.receive([p]);
+      await queue.receive([await signed(p)]);
+      const result = await queue.receive([await signed(p)]);
       expect(result.dropped).toHaveLength(1);
       expect(result.forLocal).toHaveLength(0);
     });
@@ -144,21 +167,21 @@ describe('MeshRelayQueue — store-carry-forward', () => {
         projectId: PROJECT,
         payload: { workerUid: 'peer-1', lat: 0, lng: 0, accuracyM: 0, capturedAtMs: 0, projectId: PROJECT },
       });
-      const result = await queue.receive([expired]);
+      const result = await queue.receive([await signed(expired)]);
       expect(result.dropped).toHaveLength(1);
     });
 
     it('NO relaya packet si self ya está en relayedBy', async () => {
       const p = makeBreadcrumb('peer-1');
       const seen = { ...p, relayedBy: ['self'] };
-      const result = await queue.receive([seen]);
+      const result = await queue.receive([await signed(seen)]);
       expect(result.forLocal).toHaveLength(1); // sigue siendo broadcast a self
       expect(result.enqueued).toHaveLength(0);
     });
 
     it('NO relaya packet de propio origen', async () => {
       const myOwn = makeBreadcrumb('self');
-      const result = await queue.receive([myOwn]);
+      const result = await queue.receive([await signed(myOwn)]);
       expect(result.enqueued).toHaveLength(0);
     });
   });
@@ -172,10 +195,11 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const supQueue = new MeshRelayQueue({
         selfUid: 'self',
         projectId: PROJECT,
+        signingKey: TEST_KEY,
         now: () => NOW,
         isSupervisor: () => true,
       });
-      const result = await supQueue.receive([makeSupervisorEvent('peer-1')]);
+      const result = await supQueue.receive([await signed(makeSupervisorEvent('peer-1'))]);
       expect(result.forLocal).toHaveLength(1);
       expect(result.forLocal[0].toUid).toBe('supervisors');
     });
@@ -184,10 +208,11 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const workerQueue = new MeshRelayQueue({
         selfUid: 'self',
         projectId: PROJECT,
+        signingKey: TEST_KEY,
         now: () => NOW,
         isSupervisor: () => false,
       });
-      const result = await workerQueue.receive([makeSupervisorEvent('peer-1')]);
+      const result = await workerQueue.receive([await signed(makeSupervisorEvent('peer-1'))]);
       expect(result.forLocal).toHaveLength(0);
       // The packet keeps riding the mesh toward a supervisor node.
       expect(result.enqueued).toHaveLength(1);
@@ -196,7 +221,7 @@ describe('MeshRelayQueue — store-carry-forward', () => {
 
     it('treats an absent isSupervisor option as not-a-supervisor (relay-only, legacy behavior)', async () => {
       // `queue` from the outer beforeEach has no isSupervisor option.
-      const result = await queue.receive([makeSupervisorEvent('peer-1')]);
+      const result = await queue.receive([await signed(makeSupervisorEvent('peer-1'))]);
       expect(result.forLocal).toHaveLength(0);
       expect(result.enqueued).toHaveLength(1);
     });
@@ -205,12 +230,13 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const brokenQueue = new MeshRelayQueue({
         selfUid: 'self',
         projectId: PROJECT,
+        signingKey: TEST_KEY,
         now: () => NOW,
         isSupervisor: () => {
           throw new Error('role store unavailable');
         },
       });
-      const result = await brokenQueue.receive([makeSupervisorEvent('peer-1')]);
+      const result = await brokenQueue.receive([await signed(makeSupervisorEvent('peer-1'))]);
       expect(result.forLocal).toHaveLength(0);
       expect(result.enqueued).toHaveLength(1);
     });
@@ -220,13 +246,14 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const liveQueue = new MeshRelayQueue({
         selfUid: 'self',
         projectId: PROJECT,
+        signingKey: TEST_KEY,
         now: () => NOW,
         isSupervisor: () => role === 'prevencionista',
       });
-      const first = await liveQueue.receive([makeSupervisorEvent('peer-1', NOW)]);
+      const first = await liveQueue.receive([await signed(makeSupervisorEvent('peer-1', NOW))]);
       expect(first.forLocal).toHaveLength(0);
       role = 'prevencionista';
-      const second = await liveQueue.receive([makeSupervisorEvent('peer-2', NOW + 1)]);
+      const second = await liveQueue.receive([await signed(makeSupervisorEvent('peer-2', NOW + 1))]);
       expect(second.forLocal).toHaveLength(1);
     });
   });
@@ -272,13 +299,13 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const fromOther = makeBreadcrumb('alice');
       const seen = { ...fromOther, relayedBy: ['peer-1'] };
       // Inyectamos directo en queue via receive
-      await queue.receive([seen]);
+      await queue.receive([await signed(seen)]);
       const result = queue.drainForPeer('peer-1', 50);
       expect(result.toSend).toHaveLength(0);
     });
 
     it('NO envía packet a su propio origen', async () => {
-      await queue.receive([makeBreadcrumb('alice')]);
+      await queue.receive([await signed(makeBreadcrumb('alice'))]);
       const result = queue.drainForPeer('alice', 50);
       // alice es origin → no se le envía su propio packet
       expect(result.toSend).toHaveLength(0);

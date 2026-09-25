@@ -135,12 +135,15 @@ async function makeSigningKey(keyId = 'project-X:v1'): Promise<MeshSigningKey> {
 
 describe('TransportFacade', () => {
   let queue: MeshRelayQueue;
+  let queueKey: MeshSigningKey;
   let plugin: FakePlugin;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    queueKey = await makeSigningKey();
     queue = new MeshRelayQueue({
       selfUid: 'worker-self',
       projectId: 'project-X',
+      signingKey: queueKey,
     });
     plugin = makeFakePlugin();
   });
@@ -223,7 +226,11 @@ describe('TransportFacade', () => {
     // A native write is only local acceptance; the queue remains until peer ACK.
     expect(queue.size()).toBe(1);
 
-    plugin.__emit('mesh:packet', makeAck(packet.id));
+    const ack = makeAck(packet.id);
+    plugin.__emit('mesh:packet', {
+      ...ack,
+      ...(await signPacket(ack, queueKey)),
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(queue.size()).toBe(0);
 
@@ -263,7 +270,11 @@ describe('TransportFacade', () => {
 
     const packet = makePacket({ fromUid: 'worker-self' });
     await facade.sendLocal(packet);
-    plugin.__emit('mesh:packet', makeAck(packet.id, 'peer-2'));
+    const unexpectedAck = makeAck(packet.id, 'peer-2');
+    plugin.__emit('mesh:packet', {
+      ...unexpectedAck,
+      ...(await signPacket(unexpectedAck, queueKey)),
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(queue.size()).toBe(1);
 
@@ -331,7 +342,10 @@ describe('TransportFacade', () => {
     await facade.startMesh();
 
     const packet = makePacket({ fromUid: 'worker-other' });
-    plugin.__emit('mesh:packet', packet);
+    plugin.__emit('mesh:packet', {
+      ...packet,
+      ...(await signPacket(packet, queueKey)),
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');

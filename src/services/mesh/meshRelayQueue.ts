@@ -53,11 +53,8 @@ export interface MeshRelayQueueOptions {
   /**
    * Project mesh signing key for verify-on-receive. When present, every
    * incoming packet is HMAC-verified against the project key and rejected on
-   * mismatch (forgery). When null/absent (offline first-run before the key is
-   * provisioned), the queue cannot verify and keeps the legacy pre-signing
-   * behavior — a degraded mode, NOT a security regression: this is exactly
-   * today's behavior, and SOS still relays. Once a key lands, verification is
-   * enforced fail-closed.
+   * mismatch (forgery). When absent, remote packets enter the explicit
+   * key-unavailable policy: SOS is untrusted/relay-bounded, non-SOS drops.
    */
   signingKey?: MeshSigningKey | null;
   /** Cuántos packets max almacenar en queue. Default 500. */
@@ -86,6 +83,8 @@ export interface MeshRelayQueueOptions {
    * restarting the BLE transport. Absent/throwing → treated as false.
    */
   isSupervisor?: () => boolean;
+  /** Observable hook for the explicit key-unavailable degraded state. */
+  onKeyUnavailable?: () => void;
 }
 
 export interface RelayResult {
@@ -110,6 +109,8 @@ export interface ReceiveResult {
    * mesh until a verified hop confirms them. The consumer decides what to do.
    */
   untrusted: MeshPacket[];
+  /** True when this receive ran without an authenticated project key. */
+  keyUnavailable: boolean;
 }
 
 const DEFAULT_MAX_QUEUE_SIZE = 500;
@@ -124,6 +125,8 @@ export class MeshRelayQueue {
   private readonly onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
   private readonly signingKey: MeshSigningKey | null;
   private readonly isSupervisorFn?: () => boolean;
+  private readonly onKeyUnavailable?: () => void;
+  private keyUnavailableReported = false;
 
   private queue: MeshPacket[] = [];
   /** Set de packet IDs vistos recientemente. Cleanup por TTL. */
@@ -138,6 +141,7 @@ export class MeshRelayQueue {
     this.onRelaySuccess = options.onRelaySuccess;
     this.signingKey = options.signingKey ?? null;
     this.isSupervisorFn = options.isSupervisor;
+    this.onKeyUnavailable = options.onKeyUnavailable;
   }
 
   /** Estado actual (lectura). Útil para UI badge "N pendientes". */
@@ -179,6 +183,7 @@ export class MeshRelayQueue {
     const enqueued: MeshPacket[] = [];
     const dropped: MeshPacket[] = [];
     const untrusted: MeshPacket[] = [];
+    const keyUnavailable = !this.signingKey;
 
     for (const packet of packets) {
       // Dedup: ya lo vimos
@@ -202,37 +207,54 @@ export class MeshRelayQueue {
       // Marcar visto
       this.seenIds.set(packet.id, this.nowFn());
 
-      // ─── Verify-on-receive (authenticity gate) ──────────────────────────
-      // Only enforced when a project signing key is provisioned. Without a key
-      // (offline first-run) we cannot verify, so we keep today's legacy
-      // behavior unchanged — a documented degraded mode, not a regression.
-      // With a key: a packet is TRUSTED iff it carries a real keyId AND its
-      // HMAC verifies against our project key. Forgery / tamper → not trusted.
-      if (this.signingKey) {
-        const trusted =
-          isVerifiablePacket(packet) &&
-          (await verifyPacket(packet, this.signingKey));
-        if (!trusted) {
-          if (packet.type === 'sos') {
-            // Never drop a life signal — relay it, but flag it untrusted so the
-            // consumer does NOT auto-escalate to brigade without a verified
-            // hop. It never reaches forLocal.
-            untrusted.push(packet);
-            if (shouldRelay(packet, this.selfUid, { now: this.nowFn })) {
-              this.append(packet);
-              enqueued.push(packet);
-            }
-          } else {
-            // Unsigned/forged breadcrumb, file, event, ack → drop. These are
-            // not life-safety; an attacker must not be able to inject them.
-            dropped.push(packet);
+      // ─── Explicit key-unavailable policy ─────────────────────────────────
+      // A remote packet must never become a local life-safety action while
+      // this node lacks the project key. Preserve SOS as bounded untrusted
+      // relay traffic; drop non-SOS packets rather than trusting them.
+      if (!this.signingKey) {
+        if (!this.keyUnavailableReported) {
+          this.keyUnavailableReported = true;
+          try {
+            this.onKeyUnavailable?.();
+          } catch {
+            // Observability must never break the relay path.
           }
-          continue;
         }
+        if (packet.type === 'sos') {
+          untrusted.push(packet);
+          if (shouldRelay(packet, this.selfUid, { now: this.nowFn })) {
+            this.append(packet);
+            enqueued.push(packet);
+          }
+        } else {
+          dropped.push(packet);
+        }
+        continue;
       }
 
-      // ─── Trusted path (verified, or degraded no-key legacy) ──────────────
-      // ¿Va dirigido a mí explícitamente?
+      // ─── Verify-on-receive (authenticity gate) ──────────────────────────
+      // With a key: a packet is TRUSTED iff it carries a real keyId AND its
+      // HMAC verifies against our project key. Forgery / tamper → not trusted.
+      const trusted =
+        isVerifiablePacket(packet) &&
+        (await verifyPacket(packet, this.signingKey));
+      if (!trusted) {
+        if (packet.type === 'sos') {
+          // Never drop a life signal — relay it, but flag it untrusted so the
+          // consumer does NOT auto-escalate to brigade without a verified hop.
+          untrusted.push(packet);
+          if (shouldRelay(packet, this.selfUid, { now: this.nowFn })) {
+            this.append(packet);
+            enqueued.push(packet);
+          }
+        } else {
+          // Unsigned/forged breadcrumb, file, event, ack → drop.
+          dropped.push(packet);
+        }
+        continue;
+      }
+
+      // ─── Trusted path ───────────────────────────────────────────────────
       const isForMe =
         packet.toUid === this.selfUid ||
         packet.toUid === 'broadcast' ||
@@ -249,7 +271,7 @@ export class MeshRelayQueue {
     }
 
     this.cleanup();
-    return { forLocal, enqueued, dropped, untrusted };
+    return { forLocal, enqueued, dropped, untrusted, keyUnavailable };
   }
 
   /**
