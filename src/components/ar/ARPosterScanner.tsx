@@ -315,7 +315,10 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {
+          // jsdom/edge mocks may make `play` undefined on stubbed HTMLMediaElement;
+          // optional-chain both the ref and the method, mirroring the pattern used
+          // later in this file (line ~587), so the .catch never runs on undefined.
+          await videoRef.current.play?.().catch(() => {
             // [Hy3-audit 3c4aa66d-73fe-81ac-a35b-d847e613b98e 2026-08-25]:
             // iOS Safari rejects play() until a user gesture has been
             // observed; the empty catch left the loop running with
