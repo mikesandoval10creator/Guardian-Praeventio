@@ -20,7 +20,7 @@
  * the Node test runtime. It does not certify Android reachability or
  * production Firestore semantics (runtime-pending).
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
@@ -333,10 +333,10 @@ describe('idempotencyKey middleware — deterministic in-flight race (component 
 });
 
 describe('POST /api/emergency/sos — CONCURRENT idempotency (P0 VIDA probe)', () => {
-  afterEach(() => stopServer());
+  beforeAll(startServer);
+  afterAll(stopServer);
 
   it('two in-flight same-key SOS requests trigger exactly ONE alert and ONE fan-out', async () => {
-    startServer();
 
     const [r1, r2] = await Promise.all([
       postSos('evt-uuid-concurrent-1'),
@@ -367,8 +367,6 @@ describe('POST /api/emergency/sos — CONCURRENT idempotency (P0 VIDA probe)', (
   });
 
   it('five in-flight same-key SOS requests fan out exactly ONCE', async () => {
-    startServer();
-
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => postSos('evt-uuid-concurrent-5')),
     );
@@ -384,8 +382,6 @@ describe('POST /api/emergency/sos — CONCURRENT idempotency (P0 VIDA probe)', (
   });
 
   it('sequential retry AFTER a concurrent race still replays the same alertId (no phantom alert)', async () => {
-    startServer();
-
     const [r1, r2] = await Promise.all([
       postSos('evt-uuid-concurrent-seq'),
       postSos('evt-uuid-concurrent-seq'),
