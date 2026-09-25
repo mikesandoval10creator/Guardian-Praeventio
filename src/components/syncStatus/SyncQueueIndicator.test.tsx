@@ -8,19 +8,13 @@
 //   - "Reintentar fallidos" drives the real machine's syncNow()
 
 import React from 'react';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, act, fireEvent, waitFor } from '@testing-library/react';
-
-const memStore = new Map<string, unknown>();
-vi.mock('idb-keyval', () => ({
-  get: vi.fn(async (key: string) => memStore.get(key)),
-  set: vi.fn(async (key: string, value: unknown) => {
-    memStore.set(key, value);
-  }),
-  del: vi.fn(async (key: string) => {
-    memStore.delete(key);
-  }),
-}));
+import type {
+  LegacyQuarantineRecord,
+  SyncOperation,
+  SyncQueuePersistence,
+} from '../../services/sync/syncStateMachine';
 
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -29,11 +23,38 @@ vi.mock('../../utils/logger', () => ({
 const { OfflineSyncStateMachine } = await import('../../services/sync/syncStateMachine');
 const { SyncQueueIndicator } = await import('./SyncQueueIndicator');
 
-const QUEUE_KEY = 'guardian_offline_sync_v1';
+const TEST_IDENTITY = {
+  ownerUid: 'u1',
+  tenantId: 'tenant-1',
+  installationId: 'installation-1',
+  schemaVersion: 2 as const,
+};
 
-beforeEach(() => {
-  memStore.clear();
-});
+function createPersistence(initial: SyncOperation[] = []): SyncQueuePersistence {
+  let operations = [...initial];
+  let quarantine: LegacyQuarantineRecord[] = [];
+  let lastSuccessMs: number | null = null;
+  return {
+    loadOperations: async () => operations,
+    saveOperations: async (next) => { operations = [...next]; },
+    loadQuarantine: async () => quarantine,
+    saveQuarantine: async (next) => { quarantine = [...next]; },
+    loadLastSuccessMs: async () => lastSuccessMs,
+    saveLastSuccessMs: async (value) => { lastSuccessMs = value; },
+    loadLegacyOperations: async () => null,
+    deleteLegacyOperations: async () => undefined,
+    clearAll: async () => { operations = []; quarantine = []; lastSuccessMs = null; },
+  };
+}
+
+function createMachine(initial: SyncOperation[] = []) {
+  return new OfflineSyncStateMachine({
+    identityResolver: async () => TEST_IDENTITY,
+    persistence: createPersistence(initial),
+  });
+}
+
+
 
 afterEach(() => {
   cleanup();
@@ -41,7 +62,7 @@ afterEach(() => {
 
 describe('<SyncQueueIndicator /> — B16 wire', () => {
   it('renders NOTHING when the queue is empty', async () => {
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine();
     sm.setOnlineGetter(() => true);
     await sm.ready();
 
@@ -51,7 +72,7 @@ describe('<SyncQueueIndicator /> — B16 wire', () => {
   });
 
   it('shows the badge with real pending counts when ops are queued offline', async () => {
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine();
     sm.setOnlineGetter(() => false);
     await sm.ready();
     await sm.enqueue({ type: 'create', collection: 'incidents', data: { id: 'i1' } });
@@ -66,19 +87,19 @@ describe('<SyncQueueIndicator /> — B16 wire', () => {
   });
 
   it('"Reintentar fallidos" calls the real machine syncNow()', async () => {
-    memStore.set(QUEUE_KEY, [
-      {
-        id: 'op-dead',
-        type: 'create',
-        collection: 'incidents',
-        data: { id: 'i9' },
-        attempts: 6,
-        createdAt: Date.now(),
-        lastError: 'unavailable',
-        deadLettered: true,
-      },
-    ]);
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine([{
+      ...TEST_IDENTITY,
+      id: 'op-dead',
+      type: 'create',
+      collection: 'incidents',
+      data: { id: 'i9' },
+      queueClass: 'generic',
+      attempts: 6,
+      createdAt: Date.now(),
+      lastError: 'unavailable',
+      deadLettered: true,
+      deadLetterReason: 'max_attempts',
+    }]);
     sm.setOnlineGetter(() => true);
     await sm.ready();
     const syncNowSpy = vi.spyOn(sm, 'syncNow');
