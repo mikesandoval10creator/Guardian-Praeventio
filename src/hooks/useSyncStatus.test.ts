@@ -8,19 +8,13 @@
 // allowed in the derivation path. The 5 HTTP wrappers in useSyncStatus.ts
 // remain for server-verified flows; the hook does NOT use them.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-
-const memStore = new Map<string, unknown>();
-vi.mock('idb-keyval', () => ({
-  get: vi.fn(async (key: string) => memStore.get(key)),
-  set: vi.fn(async (key: string, value: unknown) => {
-    memStore.set(key, value);
-  }),
-  del: vi.fn(async (key: string) => {
-    memStore.delete(key);
-  }),
-}));
+import type {
+  LegacyQuarantineRecord,
+  SyncOperation,
+  SyncQueuePersistence,
+} from '../services/sync/syncStateMachine';
 
 vi.mock('../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -29,15 +23,40 @@ vi.mock('../utils/logger', () => ({
 const { OfflineSyncStateMachine } = await import('../services/sync/syncStateMachine');
 const { useSyncQueueStatus } = await import('./useSyncStatus');
 
-const QUEUE_KEY = 'guardian_offline_sync_v1';
+const TEST_IDENTITY = {
+  ownerUid: 'u1',
+  tenantId: 'tenant-1',
+  installationId: 'installation-1',
+  schemaVersion: 2 as const,
+};
 
-beforeEach(() => {
-  memStore.clear();
-});
+function createPersistence(initial: SyncOperation[] = []): SyncQueuePersistence {
+  let operations = [...initial];
+  let quarantine: LegacyQuarantineRecord[] = [];
+  let lastSuccessMs: number | null = null;
+  return {
+    loadOperations: async () => operations,
+    saveOperations: async (next) => { operations = [...next]; },
+    loadQuarantine: async () => quarantine,
+    saveQuarantine: async (next) => { quarantine = [...next]; },
+    loadLastSuccessMs: async () => lastSuccessMs,
+    saveLastSuccessMs: async (value) => { lastSuccessMs = value; },
+    loadLegacyOperations: async () => null,
+    deleteLegacyOperations: async () => undefined,
+    clearAll: async () => { operations = []; quarantine = []; lastSuccessMs = null; },
+  };
+}
+
+function createMachine(initial: SyncOperation[] = []) {
+  return new OfflineSyncStateMachine({
+    identityResolver: async () => TEST_IDENTITY,
+    persistence: createPersistence(initial),
+  });
+}
 
 describe('useSyncQueueStatus — real offline queue → visible badge (B16)', () => {
   it('empty queue → green badge, 0 items', async () => {
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine();
     sm.setOnlineGetter(() => true);
     await sm.ready();
 
@@ -48,7 +67,7 @@ describe('useSyncQueueStatus — real offline queue → visible badge (B16)', ()
   });
 
   it('ops enqueued offline surface as pending (amber badge, saved_local)', async () => {
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine();
     sm.setOnlineGetter(() => false);
     await sm.ready();
 
@@ -70,19 +89,19 @@ describe('useSyncQueueStatus — real offline queue → visible badge (B16)', ()
   it('dead-lettered ops surface as sync_failed (red badge + failedItems)', async () => {
     // Hydrate a machine whose persisted queue already holds a dead-letter —
     // exactly what a worker sees after an op exhausted MAX_ATTEMPTS.
-    memStore.set(QUEUE_KEY, [
-      {
-        id: 'op-dead',
-        type: 'create',
-        collection: 'incidents',
-        data: { id: 'i9' },
-        attempts: 6,
-        createdAt: Date.now(),
-        lastError: 'permission-denied',
-        deadLettered: true,
-      },
-    ]);
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine([{
+      ...TEST_IDENTITY,
+      id: 'op-dead',
+      type: 'create',
+      collection: 'incidents',
+      data: { id: 'i9' },
+      queueClass: 'generic',
+      attempts: 6,
+      createdAt: Date.now(),
+      lastError: 'permission-denied',
+      deadLettered: true,
+      deadLetterReason: 'max_attempts',
+    }]);
     sm.setOnlineGetter(() => true);
     await sm.ready();
 
@@ -97,7 +116,7 @@ describe('useSyncQueueStatus — real offline queue → visible badge (B16)', ()
   });
 
   it('retry() drives the REAL machine (syncNow drains via executor)', async () => {
-    const sm = new OfflineSyncStateMachine();
+    const sm = createMachine();
     let online = false;
     sm.setOnlineGetter(() => online);
     const executor = vi.fn(async () => {});

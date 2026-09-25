@@ -20,6 +20,12 @@ const graphNodeCalls: Array<{ projectId: string; nodeId: string }> = [];
 
 /** Captures the executor the component registers on the state machine. */
 let registeredExecutor: ((op: SyncOperation) => Promise<void>) | null = null;
+const { quarantineLegacyOperation } = vi.hoisted(() => ({
+  quarantineLegacyOperation: vi.fn(async () => undefined),
+}));
+const { uploadBytesMock } = vi.hoisted(() => ({
+  uploadBytesMock: vi.fn(async () => undefined),
+}));
 
 const pendingActions: unknown[] = [];
 
@@ -51,13 +57,35 @@ vi.mock('firebase/firestore', () => ({
   deleteDoc: vi.fn(async () => undefined),
 }));
 
+vi.mock('firebase/storage', () => ({
+  ref: (_storage: unknown, path: string) => ({ path }),
+  uploadBytes: uploadBytesMock,
+  getDownloadURL: vi.fn(async () => 'unused'),
+}));
+
 vi.mock('../services/sync/syncStateMachine', () => ({
   offlineSync: {
     setExecutor: (fn: (op: SyncOperation) => Promise<void>) => {
       registeredExecutor = fn;
     },
     syncNow: vi.fn(async () => ({ succeeded: 0, failed: 0 })),
+    quarantineLegacyOperation,
   },
+}));
+
+vi.mock('../services/sync/queueIdentity', () => ({
+  resolveCurrentQueueIdentity: vi.fn(async () => ({
+    ownerUid: 'current-user',
+    tenantId: 'current-tenant',
+    installationId: 'current-installation',
+    schemaVersion: 2,
+  })),
+  queueIdentitiesMatch: (
+    left: { ownerUid: string; tenantId: string; installationId: string },
+    right: { ownerUid: string; tenantId: string; installationId: string },
+  ) => left.ownerUid === right.ownerUid &&
+    left.tenantId === right.tenantId &&
+    left.installationId === right.installationId,
 }));
 
 vi.mock('../services/zettelkasten/graphMutations', () => ({
@@ -99,6 +127,11 @@ const stateMachineOp = (data: Record<string, unknown>): SyncOperation =>
     type: 'create',
     collection: 'incidents',
     data,
+    ownerUid: 'current-user',
+    tenantId: 'current-tenant',
+    installationId: 'current-installation',
+    schemaVersion: 2,
+    queueClass: 'generic',
     attempts: 0,
     createdAt: Date.now(),
   }) as SyncOperation;
@@ -109,6 +142,8 @@ describe('OfflineSyncManager — one operation, one document', () => {
     graphNodeCalls.length = 0;
     pendingActions.length = 0;
     registeredExecutor = null;
+    quarantineLegacyOperation.mockClear();
+    uploadBytesMock.mockClear();
   });
 
   it('writes a single document when BOTH queues carry the same create', async () => {
@@ -127,12 +162,16 @@ describe('OfflineSyncManager — one operation, one document', () => {
     // legacy executor strips. Same operation, different payload shape.
     expect(registeredExecutor).toBeTypeOf('function');
     await registeredExecutor!(
-      stateMachineOp({ ...payload, createNode: true, nodeData: { kind: 'hazard' } }),
+      stateMachineOp({
+        ...payload,
+        createNode: true,
+        nodeData: { kind: 'hazard', projectId: 'project-1' },
+      }),
     );
 
     // Both queues drained. Two writes, but to ONE document — that is the fix.
-    expect(setDocCalls).toHaveLength(2);
-    expect(new Set(setDocCalls.map((c) => c.path)).size).toBe(1);
+    expect(quarantineLegacyOperation).toHaveBeenCalledOnce();
+    expect(setDocCalls).toHaveLength(1);
   });
 
   it('stores the same fields no matter which queue wins the race', async () => {
@@ -147,13 +186,17 @@ describe('OfflineSyncManager — one operation, one document', () => {
     await flush();
 
     await registeredExecutor!(
-      stateMachineOp({ ...payload, createNode: true, nodeData: { kind: 'hazard' } }),
+      stateMachineOp({
+        ...payload,
+        createNode: true,
+        nodeData: { kind: 'hazard', projectId: 'project-1' },
+      }),
     );
 
     // Control keys steer the executors; they must not be written to the
     // document, or the surviving row would depend on drain order.
     const incidentWrites = setDocCalls.filter((c) => c.path.startsWith('incidents/'));
-    expect(incidentWrites.length).toBeGreaterThan(0);
+    expect(incidentWrites).toHaveLength(1);
     for (const call of incidentWrites) {
       expect(call.data).not.toHaveProperty('createNode');
       expect(call.data).not.toHaveProperty('nodeData');
@@ -182,14 +225,14 @@ describe('OfflineSyncManager — one operation, one document', () => {
         },
       },
     };
-    pendingActions.push(action);
-
     const first = render(<OfflineSyncManager />);
     await flush();
+    await registeredExecutor!(stateMachineOp(action.data));
     first.unmount();
 
     render(<OfflineSyncManager />);
     await flush();
+    await registeredExecutor!(stateMachineOp(action.data));
 
     expect(graphNodeCalls.length).toBeGreaterThanOrEqual(2);
     expect(new Set(graphNodeCalls.map((c) => c.nodeId)).size).toBe(1);
@@ -197,18 +240,12 @@ describe('OfflineSyncManager — one operation, one document', () => {
   });
 
   it('keeps two distinct reports as two documents', async () => {
-    pendingActions.push(
-      { id: 1, type: 'create', collection: 'incidents', data: { ...payload } },
-      {
-        id: 2,
-        type: 'create',
-        collection: 'incidents',
-        data: { ...payload, title: 'Andamio sin baranda' },
-      },
-    );
-
     render(<OfflineSyncManager />);
     await flush();
+    await registeredExecutor!(stateMachineOp({ ...payload }));
+    await registeredExecutor!(
+      stateMachineOp({ ...payload, title: 'Andamio sin baranda' }),
+    );
 
     // Deduplication must not swallow a genuinely different hazard report.
     expect(new Set(setDocCalls.map((c) => c.path)).size).toBe(2);
@@ -217,21 +254,67 @@ describe('OfflineSyncManager — one operation, one document', () => {
   it('re-syncing after a restart does not duplicate an already-synced create', async () => {
     // A crash between the Firestore write and removeSyncedAction() leaves the
     // action in the queue; the next boot replays it.
-    pendingActions.push({
-      id: 1,
-      type: 'create',
-      collection: 'incidents',
-      data: { ...payload },
-    });
-
     const first = render(<OfflineSyncManager />);
     await flush();
+    await registeredExecutor!(stateMachineOp({ ...payload }));
     first.unmount();
 
     render(<OfflineSyncManager />);
     await flush();
+    await registeredExecutor!(stateMachineOp({ ...payload }));
 
     expect(setDocCalls.length).toBeGreaterThanOrEqual(2);
     expect(new Set(setDocCalls.map((c) => c.path)).size).toBe(1);
+  });
+
+  it('holds a legacy upload without identity and never passes its File to the central executor', async () => {
+    const heldEvents: Array<{ count: number }> = [];
+    const listener = (event: Event) => {
+      heldEvents.push((event as CustomEvent<{ count: number }>).detail);
+    };
+    window.addEventListener('sync-upload-boundary-held', listener);
+    pendingActions.push({
+      id: 7,
+      type: 'upload',
+      collection: 'documents',
+      data: { storagePath: 'documents/legacy.pdf' },
+      file: new File(['legacy'], 'legacy.pdf', { type: 'application/pdf' }),
+    });
+
+    render(<OfflineSyncManager />);
+    await flush();
+
+    expect(heldEvents).toEqual([{ count: 1 }]);
+    expect(setDocCalls).toEqual([]);
+    expect(quarantineLegacyOperation).not.toHaveBeenCalled();
+    window.removeEventListener('sync-upload-boundary-held', listener);
+  });
+
+  it('preserves the File upload path for a matching authenticated upload identity', async () => {
+    const file = new File(['evidence'], 'evidence.pdf', { type: 'application/pdf' });
+    pendingActions.push({
+      id: 8,
+      type: 'upload',
+      collection: 'documents',
+      data: {
+        storagePath: 'documents/evidence.pdf',
+        documentData: { title: 'Evidence' },
+      },
+      file,
+      queueIdentity: {
+        ownerUid: 'current-user',
+        tenantId: 'current-tenant',
+        installationId: 'current-installation',
+        schemaVersion: 2,
+      },
+    });
+
+    render(<OfflineSyncManager />);
+    await flush();
+
+    expect(uploadBytesMock).toHaveBeenCalledOnce();
+    const uploadCall = (uploadBytesMock.mock.calls as unknown[][])[0];
+    expect(uploadCall?.[1]).toBe(file);
+    expect(setDocCalls).toHaveLength(1);
   });
 });

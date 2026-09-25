@@ -26,13 +26,11 @@ export interface ClearDeviceSecretsResult {
  * fallido: dejaría al usuario con la sesión abierta. El caller decide si
  * loguea el resultado parcial.
  *
- * ⚠️ Borra TODO el `encryptedKvStore`, no solo el enrolamiento MFA. Hoy el
- * único escritor del store es el TOTP de SecurityShield, así que el costo es
- * re-enrolar MFA tras cerrar sesión. Si algún día se cablea el outbox cifrado
- * (`createEncryptedOutboxAdapter`, hoy sin callers de producción), esto
- * empezaría a descartar writes offline pendientes — posiblemente incidentes —
- * de forma silenciosa. Ese día: flush del outbox antes de llamar acá, o
- * borrado acotado por namespace.
+ * ⚠️ Borra TODO el `encryptedKvStore`, incluido el queue genérico. `logOut()`
+ * aplica primero la política explícita `offlineSync.purgeForLogout()` para que
+ * el estado en memoria no pueda re-persistir datos después del wipe. Los
+ * outboxes especializados de SOS e incidentes viven en stores separados y no
+ * se modifican aquí.
  */
 export async function clearDeviceSecrets(): Promise<ClearDeviceSecretsResult> {
   const result: ClearDeviceSecretsResult = {

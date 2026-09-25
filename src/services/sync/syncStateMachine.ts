@@ -1,93 +1,164 @@
-// Sprint 25 Bucket QQ — Centralized Offline Sync State Machine.
-//
-// Why this exists: today the sync surface is fragmented. Modals call
-// `saveForSync()` (utils/pwa-offline.ts), the matrixSyncManager owns its
-// own queue for RiskNode mutations, and OfflineSyncManager.tsx drains a
-// third queue on `online` events. UI components have no centralized
-// "what's the sync state right now" question they can ask.
-//
-// This module fixes that by introducing a single state machine that:
-//   1. Owns a unified, IndexedDB-persisted queue of pending operations
-//      (idb-keyval — already in deps, no new dependency).
-//   2. Exposes a Zustand-light `subscribe(snapshot => …)` API so React
-//      components can drive UI from a single source of truth via
-//      `useSyncState()`.
-//   3. Implements per-operation exponential backoff (1s, 5s, 30s, 5min,
-//      30min, give-up after 6 attempts) so a single broken op doesn't
-//      starve the queue.
-//   4. Dedupes by `${collection}:${id}:${type}` (last-write-wins) so a
-//      modal that submits twice doesn't double-write.
-//
-// Reuse / non-goals:
-//   • This does NOT replace `matrixSyncManager` (RiskNode-specific) —
-//     they coexist for now. `saveForSync()` in pwa-offline.ts now
-//     delegates here so that ad-hoc modal callers go through the
-//     central path; matrixSyncManager keeps its own batched write path
-//     for embedding-aware Risk node sync.
-//   • The actual network executor is injected via `setExecutor()` so
-//     the state machine has zero coupling to firebase/firestore. The
-//     default executor is a noop that fails — production wires the
-//     real Firestore executor from `OfflineSyncManager.tsx`.
-
+import { del, get } from 'idb-keyval';
 import { randomId } from '../../utils/randomId';
-import { get, set } from 'idb-keyval';
 import { logger } from '../../utils/logger';
+import {
+  deleteEncrypted,
+  getEncrypted,
+  setEncrypted,
+} from '../security/encryptedKvStore';
+import {
+  QUEUE_SCHEMA_VERSION,
+  resolveCurrentQueueIdentity,
+  type QueueIdentity,
+  type QueueIdentityResolver,
+} from './queueIdentity';
 
-const QUEUE_KEY = 'guardian_offline_sync_v1';
-const LAST_SUCCESS_KEY = 'guardian_offline_sync_last_success_v1';
+const LEGACY_QUEUE_KEY = 'guardian_offline_sync_v1';
+const ENCRYPTED_QUEUE_KEY = 'offline-sync::generic::queue::v2';
+const ENCRYPTED_QUARANTINE_KEY = 'offline-sync::generic::quarantine::v1';
+const ENCRYPTED_LAST_SUCCESS_KEY = 'offline-sync::generic::last-success::v2';
+
+const DEFAULT_MAX_OPERATIONS = 500;
+const DEFAULT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+const MAX_ATTEMPTS = 6;
+const BACKOFF_MS: number[] = [0, 1_000, 5_000, 30_000, 5 * 60_000, 30 * 60_000];
 
 export type SyncState =
-  | 'online_synced' // online + 0 pending operations
-  | 'online_syncing' // online + sync in progress
-  | 'online_failed' // online + at least 1 op failed (will retry)
-  | 'offline_queued' // offline + ops queued
-  | 'offline_idle' // offline + 0 pending
-  | 'reconnecting'; // online state transitioning, drain queue
+  | 'online_synced'
+  | 'online_syncing'
+  | 'online_failed'
+  | 'offline_queued'
+  | 'offline_idle'
+  | 'reconnecting';
 
-export interface SyncOperation {
+export type SyncQueueClass = 'generic' | 'life_safety';
+export type SyncHoldReason = 'identity_mismatch' | 'identity_unavailable';
+export type SyncDeadLetterReason = 'max_attempts' | 'retention_expired';
+
+export interface SyncOperation extends QueueIdentity {
   id: string;
   type: 'create' | 'update' | 'delete' | 'set';
   collection: string;
-  data: any;
+  data: Record<string, unknown>;
+  projectId?: string;
+  queueClass: SyncQueueClass;
   attempts: number;
   lastAttemptMs?: number;
   lastError?: string;
   createdAt: number;
-  /**
-   * 🛟 Marcado tras agotar MAX_ATTEMPTS. Una op dead-lettered se RETIENE (no
-   * se borra de la cola) pero deja de reintentarse y deja de contar como
-   * `pending`. La UI la surge para escalamiento manual. El bug previo la
-   * borraba en silencio, perdiendo el dato (DEEP-B16 / TODO §2.32 / B16).
-   */
   deadLettered?: boolean;
+  deadLetterReason?: SyncDeadLetterReason;
+  holdReason?: SyncHoldReason;
+}
+
+export interface LegacyQuarantineRecord {
+  id: string;
+  source: 'legacy_central_v1' | 'legacy_pending_sync' | 'encrypted_queue_invalid';
+  legacyId: string;
+  reason: 'missing_identity' | 'invalid_envelope';
+  quarantinedAt: number;
+  payload: unknown;
+}
+
+export interface LegacyQuarantineInput {
+  source: LegacyQuarantineRecord['source'];
+  legacyId: string;
+  payload: unknown;
+  reason?: LegacyQuarantineRecord['reason'];
+}
+
+export interface SyncQueuePersistence {
+  loadOperations(): Promise<unknown>;
+  saveOperations(operations: SyncOperation[]): Promise<void>;
+  loadQuarantine(): Promise<unknown>;
+  saveQuarantine(records: LegacyQuarantineRecord[]): Promise<void>;
+  loadLastSuccessMs(): Promise<number | null>;
+  saveLastSuccessMs(value: number): Promise<void>;
+  loadLegacyOperations(): Promise<unknown>;
+  deleteLegacyOperations(): Promise<void>;
+  clearAll(): Promise<void>;
+}
+
+class EncryptedSyncQueuePersistence implements SyncQueuePersistence {
+  loadOperations(): Promise<unknown> {
+    return getEncrypted<unknown>(ENCRYPTED_QUEUE_KEY);
+  }
+
+  async saveOperations(operations: SyncOperation[]): Promise<void> {
+    if (operations.length === 0) {
+      await deleteEncrypted(ENCRYPTED_QUEUE_KEY);
+      return;
+    }
+    await setEncrypted(ENCRYPTED_QUEUE_KEY, operations);
+  }
+
+  loadQuarantine(): Promise<unknown> {
+    return getEncrypted<unknown>(ENCRYPTED_QUARANTINE_KEY);
+  }
+
+  async saveQuarantine(records: LegacyQuarantineRecord[]): Promise<void> {
+    if (records.length === 0) {
+      await deleteEncrypted(ENCRYPTED_QUARANTINE_KEY);
+      return;
+    }
+    await setEncrypted(ENCRYPTED_QUARANTINE_KEY, records);
+  }
+
+  async loadLastSuccessMs(): Promise<number | null> {
+    const value = await getEncrypted<unknown>(ENCRYPTED_LAST_SUCCESS_KEY);
+    return typeof value === 'number' ? value : null;
+  }
+
+  saveLastSuccessMs(value: number): Promise<void> {
+    return setEncrypted(ENCRYPTED_LAST_SUCCESS_KEY, value);
+  }
+
+  loadLegacyOperations(): Promise<unknown> {
+    return get<unknown>(LEGACY_QUEUE_KEY);
+  }
+
+  deleteLegacyOperations(): Promise<void> {
+    return del(LEGACY_QUEUE_KEY);
+  }
+
+  async clearAll(): Promise<void> {
+    await Promise.all([
+      deleteEncrypted(ENCRYPTED_QUEUE_KEY),
+      deleteEncrypted(ENCRYPTED_QUARANTINE_KEY),
+      deleteEncrypted(ENCRYPTED_LAST_SUCCESS_KEY),
+      del(LEGACY_QUEUE_KEY),
+    ]);
+  }
 }
 
 export interface SyncStateSnapshot {
   state: SyncState;
-  /** Ops vivas pendientes de reintento (EXCLUYE dead-letters). */
   pendingCount: number;
-  /** Ops vivas pendientes (EXCLUYE dead-letters). */
   operations: SyncOperation[];
-  /** 🛟 Ops que agotaron los reintentos y quedan retenidas para escalamiento. */
+  heldCount: number;
   deadLetterCount: number;
+  quarantineCount: number;
   lastSyncSuccessMs: number | null;
   isOnline: boolean;
 }
 
 export type SyncExecutor = (op: SyncOperation) => Promise<void>;
 
-const MAX_ATTEMPTS = 6;
-// Backoff schedule indexed by attempt count (after attempt N has failed).
-// 1s, 5s, 30s, 5min, 30min — capped at 30 min for any further attempts.
-// Index 0 unused (a fresh op has attempts=0 and runs immediately).
-const BACKOFF_MS: number[] = [
-  0, // attempt 0 — never used (immediate)
-  1_000, // after 1st failure
-  5_000, // after 2nd failure
-  30_000, // after 3rd failure
-  5 * 60_000, // after 4th failure
-  30 * 60_000, // after 5th failure
-];
+export interface OfflineSyncStateMachineOptions {
+  persistence?: SyncQueuePersistence;
+  identityResolver?: QueueIdentityResolver;
+  nowMs?: () => number;
+  maxOperations?: number;
+  retentionMs?: number;
+}
+
+export interface EnqueueSyncOperation {
+  type: SyncOperation['type'];
+  collection: string;
+  data: Record<string, unknown>;
+  projectId?: string;
+  queueClass?: SyncQueueClass;
+}
 
 function getBackoffMs(attempts: number): number {
   if (attempts <= 0) return 0;
@@ -95,41 +166,85 @@ function getBackoffMs(attempts: number): number {
   return BACKOFF_MS[attempts];
 }
 
-function dedupeKey(op: { collection: string; data: any; type: string; id?: string }): string {
-  // Best-effort doc id: prefer explicit data.id (the document id we're touching),
-  // fall back to data.docId, and finally the op's own id when neither is set.
-  //
-  // Why the op.id fallback matters (P0 [Audit-2026-08-31] sync state machine):
-  //   For CREATE operations without an explicit id, the previous logic
-  //   collapsed every idless create for the same collection onto the same
-  //   dedupe key (e.g. 'projects:create:'), so enqueue's last-write-wins
-  //   replaced the previous op and silently lost data. Including the op's
-  //   own unique id in the key guarantees distinct slots for distinct
-  //   operations — UPDATE/DELETE/SET still use the docId (last-write-wins
-  //   semantics preserved), while CREATE keeps every distinct create.
-  const explicitId =
-    op.data && (op.data.id || op.data.docId) ? String(op.data.id || op.data.docId) : '';
-  if (explicitId) return `${op.collection}:${op.type}:${explicitId}`;
-  // For CREATE without an explicit id, op.id (assigned in enqueue before this
-  // key is computed) is the stable per-op discriminator. For non-CREATE ops
-  // we still want last-write-wins to group by docId, so we only fall back
-  // here when there is no docId at all (rare for update/delete/set which
-  // almost always carry one).
-  return `${op.collection}:${op.type}:__idless__:${op.id ?? ''}`;
+function recordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isQueueIdentity(value: unknown): value is QueueIdentity {
+  if (!recordValue(value)) return false;
+  return (
+    typeof value.ownerUid === 'string' &&
+    value.ownerUid.length > 0 &&
+    typeof value.tenantId === 'string' &&
+    value.tenantId.length > 0 &&
+    typeof value.installationId === 'string' &&
+    value.installationId.length > 0 &&
+    value.schemaVersion === QUEUE_SCHEMA_VERSION
+  );
+}
+
+function isSyncOperation(value: unknown): value is SyncOperation {
+  if (!recordValue(value) || !isQueueIdentity(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    (value.type === 'create' || value.type === 'update' || value.type === 'delete' || value.type === 'set') &&
+    typeof value.collection === 'string' &&
+    recordValue(value.data) &&
+    (value.queueClass === 'generic' || value.queueClass === 'life_safety') &&
+    typeof value.attempts === 'number' &&
+    typeof value.createdAt === 'number'
+  );
+}
+
+function dedupeKey(op: {
+  collection: string;
+  data: Record<string, unknown>;
+  type: string;
+  id?: string;
+  ownerUid?: string;
+  tenantId?: string;
+  installationId?: string;
+  projectId?: string;
+}): string {
+  const dataId = op.data.id ?? op.data.docId;
+  const explicitId = typeof dataId === 'string' || typeof dataId === 'number' ? String(dataId) : '';
+  const operationId = explicitId || `__idless__:${op.id ?? ''}`;
+  return [
+    op.ownerUid ?? '',
+    op.tenantId ?? '',
+    op.installationId ?? '',
+    op.projectId ?? '',
+    op.collection,
+    op.type,
+    operationId,
+  ].join(':');
 }
 
 function makeOpId(): string {
-  // We can't rely on crypto.randomUUID under all environments (older
-  // jsdom / Node < 19); fall back to a timestamp+random combo.
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return (crypto as Crypto).randomUUID();
-  }
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `op_${Date.now().toString(36)}_${randomId()}`;
 }
 
+function identitiesMatch(operation: SyncOperation, current: QueueIdentity): boolean {
+  return (
+    operation.ownerUid === current.ownerUid &&
+    operation.tenantId === current.tenantId &&
+    operation.installationId === current.installationId &&
+    operation.schemaVersion === current.schemaVersion
+  );
+}
+
+function legacyId(value: unknown, index: number): string {
+  if (recordValue(value) && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return String(value.id);
+  }
+  return `index-${index}`;
+}
+
 export class OfflineSyncStateMachine {
-  private operations: Map<string, SyncOperation> = new Map();
-  private listeners: Set<(snap: SyncStateSnapshot) => void> = new Set();
+  private operations = new Map<string, SyncOperation>();
+  private quarantine = new Map<string, LegacyQuarantineRecord>();
+  private listeners = new Set<(snap: SyncStateSnapshot) => void>();
   private isSyncing = false;
   private hasFailures = false;
   private lastSyncSuccessMs: number | null = null;
@@ -139,11 +254,19 @@ export class OfflineSyncStateMachine {
   private onlineGetter: () => boolean = () =>
     typeof navigator !== 'undefined' ? navigator.onLine : true;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  // Promise gate for the initial IndexedDB hydrate — exposed so tests can
-  // `await offlineSync.ready()` without poking at private state.
-  private readyPromise: Promise<void>;
+  private readonly persistence: SyncQueuePersistence;
+  private readonly identityResolver: QueueIdentityResolver;
+  private readonly nowMs: () => number;
+  private readonly maxOperations: number;
+  private readonly retentionMs: number;
+  private readonly readyPromise: Promise<void>;
 
-  constructor() {
+  constructor(options: OfflineSyncStateMachineOptions = {}) {
+    this.persistence = options.persistence ?? new EncryptedSyncQueuePersistence();
+    this.identityResolver = options.identityResolver ?? resolveCurrentQueueIdentity;
+    this.nowMs = options.nowMs ?? Date.now;
+    this.maxOperations = options.maxOperations ?? DEFAULT_MAX_OPERATIONS;
+    this.retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
     this.readyPromise = this.hydrate();
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.handleOnline);
@@ -162,311 +285,362 @@ export class OfflineSyncStateMachine {
     this.notify();
   };
 
+  private makeQuarantineRecord(input: LegacyQuarantineInput): LegacyQuarantineRecord {
+    return {
+      id: `${input.source}:${input.legacyId}`,
+      source: input.source,
+      legacyId: input.legacyId,
+      reason: input.reason ?? 'missing_identity',
+      quarantinedAt: this.nowMs(),
+      payload: input.payload,
+    };
+  }
+
+  private async addQuarantineRecords(records: LegacyQuarantineRecord[]): Promise<void> {
+    const next = new Map(this.quarantine);
+    for (const record of records) next.set(record.id, record);
+    const values = Array.from(next.values());
+    JSON.stringify(values);
+    await this.persistence.saveQuarantine(values);
+    this.quarantine = next;
+  }
+
   private async hydrate(): Promise<void> {
     try {
-      const stored = await get<SyncOperation[]>(QUEUE_KEY);
-      if (stored && Array.isArray(stored)) {
-        for (const op of stored) {
-          this.operations.set(op.id, op);
+      const storedQuarantine = await this.persistence.loadQuarantine();
+      if (Array.isArray(storedQuarantine)) {
+        for (const item of storedQuarantine) {
+          if (recordValue(item) && typeof item.id === 'string') {
+            this.quarantine.set(item.id, item as unknown as LegacyQuarantineRecord);
+          }
         }
       }
-      const last = await get<number>(LAST_SUCCESS_KEY);
-      if (typeof last === 'number') this.lastSyncSuccessMs = last;
-    } catch (e) {
-      logger.error('offlineSync: hydrate failed', e);
+
+      const storedOperations = await this.persistence.loadOperations();
+      if (Array.isArray(storedOperations)) {
+        const invalid: LegacyQuarantineRecord[] = [];
+        storedOperations.forEach((operation, index) => {
+          if (isSyncOperation(operation)) this.operations.set(operation.id, operation);
+          else {
+            invalid.push(this.makeQuarantineRecord({
+              source: 'encrypted_queue_invalid',
+              legacyId: legacyId(operation, index),
+              reason: 'invalid_envelope',
+              payload: operation,
+            }));
+          }
+        });
+        if (invalid.length > 0) {
+          await this.addQuarantineRecords(invalid);
+          await this.persistence.saveOperations(Array.from(this.operations.values()));
+        }
+      }
+
+      const legacy = await this.persistence.loadLegacyOperations();
+      if (legacy !== null && legacy !== undefined) {
+        const legacyItems = Array.isArray(legacy) ? legacy : [legacy];
+        const records = legacyItems.map((operation, index) =>
+          this.makeQuarantineRecord({
+            source: 'legacy_central_v1',
+            legacyId: legacyId(operation, index),
+            payload: operation,
+          }),
+        );
+        await this.addQuarantineRecords(records);
+        await this.persistence.deleteLegacyOperations();
+      }
+
+      this.lastSyncSuccessMs = await this.persistence.loadLastSuccessMs();
+    } catch (error) {
+      logger.error('offlineSync: hydrate failed', error);
     }
     this.notify();
   }
 
-  /** Test/admin helper — wait for hydrate to finish. */
   ready(): Promise<void> {
     return this.readyPromise;
   }
 
-  /** Wire the real network executor. Call once on app boot. */
   setExecutor(fn: SyncExecutor): void {
     this.executor = fn;
   }
 
-  /** Override navigator.onLine accessor (testing only). */
   setOnlineGetter(fn: () => boolean): void {
     this.onlineGetter = fn;
   }
 
-  private async persist(): Promise<void> {
-    try {
-      await set(QUEUE_KEY, Array.from(this.operations.values()));
-    } catch (e) {
-      logger.error('offlineSync: persist failed', e);
-    }
+  private persistOperations(): Promise<void> {
+    return this.persistence.saveOperations(Array.from(this.operations.values()));
   }
 
-  /**
-   * Compute current snapshot from internal state. Pure projection — calling
-   * this multiple times is cheap and side-effect-free.
-   */
-  /** Live ops still eligible for retry (EXCLUDES dead-letters). */
   private pendingOps(): SyncOperation[] {
-    return Array.from(this.operations.values()).filter((op) => !op.deadLettered);
+    return Array.from(this.operations.values()).filter(
+      (operation) => !operation.deadLettered && !operation.holdReason,
+    );
   }
 
   getState(): SyncStateSnapshot {
     const isOnline = this.onlineGetter();
     const pending = this.pendingOps();
-    const pendingCount = pending.length;
-    const deadLetterCount = this.operations.size - pendingCount;
+    const heldCount = this.heldOperations().length;
+    const deadLetterCount = this.deadLetters().length;
     let state: SyncState;
-    if (this.isSyncing) {
-      state = 'online_syncing';
-    } else if (!isOnline) {
-      state = pendingCount > 0 ? 'offline_queued' : 'offline_idle';
-    } else if (this.hasFailures && pendingCount > 0) {
-      state = 'online_failed';
-    } else if (pendingCount === 0) {
-      // Queue drained from the retry perspective. Any dead-letters are
-      // surfaced separately (deadLetterCount) for manual escalation.
-      state = 'online_synced';
-    } else {
-      // Online, ops queued, no recorded failures — we're between drains.
-      state = 'reconnecting';
-    }
+    if (this.isSyncing) state = 'online_syncing';
+    else if (!isOnline) state = pending.length > 0 ? 'offline_queued' : 'offline_idle';
+    else if (this.hasFailures && pending.length > 0) state = 'online_failed';
+    else if (pending.length === 0) state = 'online_synced';
+    else state = 'reconnecting';
     return {
       state,
-      pendingCount,
+      pendingCount: pending.length,
       operations: pending,
+      heldCount,
       deadLetterCount,
+      quarantineCount: this.quarantine.size,
       lastSyncSuccessMs: this.lastSyncSuccessMs,
       isOnline,
     };
   }
 
-  /**
-   * 🛟 Ops that exhausted MAX_ATTEMPTS and are retained for manual
-   * escalation. The UI should surface these prominently.
-   */
   deadLetters(): SyncOperation[] {
-    return Array.from(this.operations.values()).filter((op) => op.deadLettered);
+    return Array.from(this.operations.values()).filter((operation) => operation.deadLettered);
   }
 
-  /**
-   * Remove a dead-lettered op once it has been escalated by another channel.
-   * Idempotent and SAFE: only removes if the op is actually dead-lettered, so
-   * it can never drop a still-pending operation.
-   */
+  heldOperations(): SyncOperation[] {
+    return Array.from(this.operations.values()).filter((operation) => Boolean(operation.holdReason));
+  }
+
+  quarantinedEntries(): LegacyQuarantineRecord[] {
+    return Array.from(this.quarantine.values());
+  }
+
+  async quarantineLegacyOperation(input: LegacyQuarantineInput): Promise<void> {
+    await this.readyPromise;
+    await this.addQuarantineRecords([this.makeQuarantineRecord(input)]);
+    this.notify();
+  }
+
   async clearDeadLetter(id: string): Promise<void> {
     await this.readyPromise;
-    const op = this.operations.get(id);
-    if (op && op.deadLettered) {
+    const operation = this.operations.get(id);
+    if (operation?.deadLettered) {
       this.operations.delete(id);
-      await this.persist();
+      await this.persistOperations();
       this.notify();
     }
   }
 
   subscribe(cb: (snap: SyncStateSnapshot) => void): () => void {
     this.listeners.add(cb);
-    // Fire once with current state so subscribers don't have to call
-    // getState() separately on mount.
     try {
       cb(this.getState());
-    } catch (e) {
-      logger.error('offlineSync: subscriber threw on initial fire', e);
+    } catch (error) {
+      logger.error('offlineSync: subscriber threw on initial fire', error);
     }
-    return () => {
-      this.listeners.delete(cb);
-    };
+    return () => this.listeners.delete(cb);
   }
 
   private notify(): void {
-    const snap = this.getState();
-    for (const l of this.listeners) {
+    const snapshot = this.getState();
+    for (const listener of this.listeners) {
       try {
-        l(snap);
-      } catch (e) {
-        logger.error('offlineSync: listener threw', e);
+        listener(snapshot);
+      } catch (error) {
+        logger.error('offlineSync: listener threw', error);
       }
     }
   }
 
-  /**
-   * Enqueue a pending operation. Returns the assigned op id.
-   *
-   * Dedup contract: if an op with the same collection+type+docId is
-   * already queued, the existing op is replaced (last-write-wins) and
-   * its id is returned. Attempts counter resets to 0 on replace because
-   * the new payload may succeed even where the old one failed.
-   */
-  async enqueue(
-    op: Omit<SyncOperation, 'id' | 'attempts' | 'createdAt'>,
-  ): Promise<string> {
+  async enqueue(input: EnqueueSyncOperation): Promise<string> {
     await this.readyPromise;
-    // Assign a candidate id up front so the dedupe key includes it for
-    // idless CREATE ops. The id is the per-op discriminator for those, so
-    // two distinct enqueues can never collide on the same dedupe key.
-    const candidateId = makeOpId();
-    const key = dedupeKey({ ...op, id: candidateId });
-    let id: string | undefined;
-    for (const existing of this.operations.values()) {
-      if (dedupeKey(existing) === key) {
-        id = existing.id;
-        break;
-      }
+    const identity = await this.identityResolver();
+    if (!identity) {
+      throw new Error('OfflineSyncStateMachine: authenticated queue identity unavailable');
     }
-    if (!id) id = candidateId;
+    const candidateId = makeOpId();
+    const operationShape = { ...input, ...identity, id: candidateId };
+    const key = dedupeKey(operationShape);
+    const existing = Array.from(this.operations.values()).find(
+      (operation) => dedupeKey(operation) === key,
+    );
+    if (!existing && this.operations.size >= this.maxOperations) {
+      throw new Error(`OfflineSyncStateMachine: queue capacity ${this.maxOperations} reached`);
+    }
+
+    const id = existing?.id ?? candidateId;
     const next: SyncOperation = {
       id,
-      type: op.type,
-      collection: op.collection,
-      data: op.data,
+      type: input.type,
+      collection: input.collection,
+      data: input.data,
+      ...(input.projectId ? { projectId: input.projectId } : {}),
+      queueClass: input.queueClass ?? 'generic',
+      ...identity,
       attempts: 0,
-      createdAt: Date.now(),
+      createdAt: this.nowMs(),
     };
+    const previous = this.operations.get(id);
     this.operations.set(id, next);
-    await this.persist();
-    this.notify();
-    // Auto-trigger a sync if we're online — gives modals "fire and forget"
-    // semantics without each caller having to remember to call syncNow.
-    if (this.onlineGetter()) {
-      void this.syncNow();
+    try {
+      await this.persistOperations();
+    } catch (error) {
+      if (previous) this.operations.set(id, previous);
+      else this.operations.delete(id);
+      throw error;
     }
+    this.notify();
+    if (this.onlineGetter()) void this.syncNow();
     return id;
   }
 
-  /**
-   * Force a sync attempt. Returns counts of succeeded/failed ops in this
-   * pass. Safe to call concurrently — the second call will short-circuit.
-   */
-  async syncNow(): Promise<{ succeeded: number; failed: number }> {
+  async syncNow(): Promise<{ succeeded: number; failed: number; held: number }> {
     await this.readyPromise;
-    if (this.isSyncing) return { succeeded: 0, failed: 0 };
-    if (!this.onlineGetter()) return { succeeded: 0, failed: 0 };
+    if (this.isSyncing || !this.onlineGetter()) return { succeeded: 0, failed: 0, held: 0 };
     if (this.operations.size === 0) {
       this.hasFailures = false;
       this.notify();
-      return { succeeded: 0, failed: 0 };
+      return { succeeded: 0, failed: 0, held: 0 };
     }
 
     this.isSyncing = true;
     this.notify();
-
     let succeeded = 0;
     let failed = 0;
-    const now = Date.now();
-    // Snapshot to avoid mutation-during-iteration when enqueue races.
-    const ops = Array.from(this.operations.values());
+    let held = 0;
+    const now = this.nowMs();
+    const currentIdentity = await this.identityResolver();
+    const operations = Array.from(this.operations.values());
 
-    for (const op of ops) {
-      // 🛟 Dead-lettered ops are retained but never retried.
-      if (op.deadLettered) continue;
-      // Skip ops still in backoff window.
-      if (op.lastAttemptMs && op.attempts > 0) {
-        const wait = getBackoffMs(op.attempts);
-        if (now - op.lastAttemptMs < wait) {
-          continue;
-        }
+    for (const original of operations) {
+      if (original.deadLettered) continue;
+      if (!currentIdentity) {
+        this.operations.set(original.id, { ...original, holdReason: 'identity_unavailable' });
+        held += 1;
+        continue;
       }
+      if (!identitiesMatch(original, currentIdentity)) {
+        this.operations.set(original.id, { ...original, holdReason: 'identity_mismatch' });
+        held += 1;
+        continue;
+      }
+
+      const operation = original.holdReason
+        ? { ...original, holdReason: undefined }
+        : original;
+      this.operations.set(operation.id, operation);
+
+      if (
+        operation.queueClass === 'generic' &&
+        now - operation.createdAt > this.retentionMs
+      ) {
+        this.operations.set(operation.id, {
+          ...operation,
+          deadLettered: true,
+          deadLetterReason: 'retention_expired',
+          lastError: 'retention_expired',
+        });
+        continue;
+      }
+      if (operation.lastAttemptMs && operation.attempts > 0) {
+        const wait = getBackoffMs(operation.attempts);
+        if (now - operation.lastAttemptMs < wait) continue;
+      }
+
       try {
-        await this.executor(op);
-        this.operations.delete(op.id);
+        await this.executor(operation);
+        this.operations.delete(operation.id);
         succeeded += 1;
-      } catch (err) {
+      } catch (error) {
         const updated: SyncOperation = {
-          ...op,
-          attempts: op.attempts + 1,
-          lastAttemptMs: Date.now(),
-          lastError: err instanceof Error ? err.message : String(err),
+          ...operation,
+          attempts: operation.attempts + 1,
+          lastAttemptMs: this.nowMs(),
+          lastError: error instanceof Error ? error.message : String(error),
         };
         if (updated.attempts >= MAX_ATTEMPTS) {
-          // 🛟 Dead-letter (NO drop): stop retrying so we don't block the
-          // queue forever, but RETAIN the op so the safety data isn't lost.
-          // The UI surfaces dead-letters for manual escalation. Loud log
-          // because the op can no longer be auto-delivered.
-          logger.error(
-            'offlineSync: op exceeded MAX_ATTEMPTS — dead-lettering (retained for escalation)',
-            {
-              opId: op.id,
-              collection: op.collection,
-              type: op.type,
-              lastError: updated.lastError,
-            },
-          );
-          this.operations.set(op.id, { ...updated, deadLettered: true });
-        } else {
-          this.operations.set(op.id, updated);
-        }
+          this.operations.set(operation.id, {
+            ...updated,
+            deadLettered: true,
+            deadLetterReason: 'max_attempts',
+          });
+          logger.error('offlineSync: op exceeded MAX_ATTEMPTS — dead-lettering', {
+            opId: operation.id,
+            collection: operation.collection,
+            type: operation.type,
+          });
+        } else this.operations.set(operation.id, updated);
         failed += 1;
       }
     }
 
     this.hasFailures = failed > 0;
-    // Only "fully synced" when no PENDING ops remain. Dead-letters are
-    // retained but don't block the success marker (they're terminal).
     const pending = this.pendingOps();
     if (succeeded > 0 && pending.length === 0 && failed === 0) {
-      this.lastSyncSuccessMs = Date.now();
-      try {
-        await set(LAST_SUCCESS_KEY, this.lastSyncSuccessMs);
-      } catch {
-        /* non-fatal */
-      }
+      this.lastSyncSuccessMs = this.nowMs();
+      await this.persistence.saveLastSuccessMs(this.lastSyncSuccessMs);
     }
-
-    await this.persist();
+    await this.persistOperations();
     this.isSyncing = false;
     this.notify();
 
-    // Schedule a follow-up only if PENDING (non-dead-lettered) ops remain —
-    // dead-letters are terminal, so a queue holding only dead-letters must
-    // NOT busy-loop syncNow. Picks the shortest backoff window so we don't
-    // sleep longer than needed.
     if (pending.length > 0) {
-      const tNow = Date.now();
+      const timerNow = this.nowMs();
       let minWait = Infinity;
-      for (const op of pending) {
-        const due = (op.lastAttemptMs ?? tNow) + getBackoffMs(op.attempts);
-        const wait = Math.max(0, due - tNow);
-        if (wait < minWait) minWait = wait;
+      for (const operation of pending) {
+        const due = (operation.lastAttemptMs ?? timerNow) + getBackoffMs(operation.attempts);
+        minWait = Math.min(minWait, Math.max(0, due - timerNow));
       }
-      if (!Number.isFinite(minWait)) minWait = 30_000;
       if (this.retryTimer) clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => {
         this.retryTimer = null;
         void this.syncNow();
-      }, Math.max(minWait, 250));
+      }, Math.max(Number.isFinite(minWait) ? minWait : 30_000, 250));
     }
-
-    return { succeeded, failed };
+    return { succeeded, failed, held };
   }
 
-  /** Clear the queue (admin / dev tool). Does NOT execute any ops. */
   async clearQueue(): Promise<void> {
     await this.readyPromise;
     this.operations.clear();
     this.hasFailures = false;
-    await this.persist();
+    await this.persistOperations();
     this.notify();
   }
 
-  /** Test-only — dispose listeners and timers. Not for production use. */
+  /** Explicit auth-lifecycle policy: purge only this generic queue namespace. */
+  async purgeForLogout(): Promise<void> {
+    await this.readyPromise;
+    this.operations.clear();
+    this.quarantine.clear();
+    this.hasFailures = false;
+    this.lastSyncSuccessMs = null;
+    await this.persistence.clearAll();
+    this.notify();
+  }
+
   _dispose(): void {
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.handleOnline);
       window.removeEventListener('offline', this.handleOffline);
     }
-    if (this.retryTimer) {
-      clearTimeout(this.retryTimer);
-      this.retryTimer = null;
-    }
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     this.listeners.clear();
     this.operations.clear();
+    this.quarantine.clear();
     this.isSyncing = false;
     this.hasFailures = false;
     this.lastSyncSuccessMs = null;
   }
 }
 
-// Singleton — there is one offline queue per app instance.
 export const offlineSync = new OfflineSyncStateMachine();
 
-// Exposed for testing only.
-export const _internal = { getBackoffMs, dedupeKey, MAX_ATTEMPTS, BACKOFF_MS };
+export const _internal = {
+  getBackoffMs,
+  dedupeKey,
+  MAX_ATTEMPTS,
+  BACKOFF_MS,
+  DEFAULT_MAX_OPERATIONS,
+  DEFAULT_RETENTION_MS,
+};

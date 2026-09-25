@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const memStore = new Map<string, unknown>();
+const encryptedMemStore = new Map<string, unknown>();
 vi.mock('idb-keyval', () => ({
   get: vi.fn(async (key: string) => memStore.get(key)),
   set: vi.fn(async (key: string, value: unknown) => {
@@ -15,6 +16,26 @@ vi.mock('idb-keyval', () => ({
   del: vi.fn(async (key: string) => {
     memStore.delete(key);
   }),
+}));
+
+vi.mock('../security/encryptedKvStore', () => ({
+  getEncrypted: vi.fn(async (key: string) => encryptedMemStore.get(key) ?? null),
+  setEncrypted: vi.fn(async (key: string, value: unknown) => {
+    encryptedMemStore.set(key, structuredClone(value));
+  }),
+  deleteEncrypted: vi.fn(async (key: string) => {
+    encryptedMemStore.delete(key);
+  }),
+}));
+
+vi.mock('./queueIdentity', () => ({
+  QUEUE_SCHEMA_VERSION: 2,
+  resolveCurrentQueueIdentity: vi.fn(async () => ({
+    ownerUid: 'test-user',
+    tenantId: 'test-tenant',
+    installationId: 'test-installation',
+    schemaVersion: 2,
+  })),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -33,6 +54,7 @@ const {
 
 beforeEach(() => {
   memStore.clear();
+  encryptedMemStore.clear();
 });
 
 function makeOnline(initial = true) {
@@ -275,7 +297,7 @@ describe('OfflineSyncStateMachine', () => {
       if (snap.pendingCount === 0) break;
       // Rewind lastAttemptMs so backoff lets the op run again
       const op = snap.operations[0];
-      (op as any).lastAttemptMs = 0;
+      op.lastAttemptMs = 0;
       await sm.syncNow();
     }
     const snap = sm.getState();
@@ -303,7 +325,7 @@ describe('OfflineSyncStateMachine', () => {
     for (let i = 0; i < _internal.MAX_ATTEMPTS + 1; i++) {
       const snap = sm.getState();
       if (snap.pendingCount === 0) break;
-      (snap.operations[0] as any).lastAttemptMs = 0;
+      snap.operations[0].lastAttemptMs = 0;
       await sm.syncNow();
     }
     const callsAfterDeadLetter = executor.mock.calls.length;
@@ -326,7 +348,7 @@ describe('OfflineSyncStateMachine', () => {
     for (let i = 0; i < _internal.MAX_ATTEMPTS + 1; i++) {
       const snap = sm.getState();
       if (snap.pendingCount === 0) break;
-      (snap.operations[0] as any).lastAttemptMs = 0;
+      snap.operations[0].lastAttemptMs = 0;
       await sm.syncNow();
     }
     expect(sm.deadLetters()).toHaveLength(1);
