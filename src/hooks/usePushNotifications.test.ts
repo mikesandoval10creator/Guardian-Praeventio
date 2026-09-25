@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Praeventio Guard — usePushNotifications unit tests (Round 16 R3).
 //
 // We test the pure helper `registerTokenToServer` directly. The React
@@ -7,39 +9,90 @@
 // classify, non-2xx → classify) so testing it gives us the meaningful
 // coverage.
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
+
+const mockNative = vi.hoisted(() => ({ value: false }));
+const mockAuth = vi.hoisted(() => ({ currentUser: { uid: 'u1' } as { uid: string } | null }));
+const mockGetMessagingInstance = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const mockOnMessage = vi.hoisted(() => vi.fn());
+const mockFetch = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+const mockSetDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockAddListener = vi.hoisted(() => vi.fn());
+const mockRegister = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockRemoveAllListeners = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const nativeCallbacks = vi.hoisted(() => new Map<string, ((value: any) => void)[]>());
 
 // Mock firebase + Capacitor + push-notifications so importing the hook
 // module under test doesn't bootstrap a real Firebase app or touch the
 // native bridge.
 vi.mock('../services/firebase', () => ({
-  auth: { currentUser: null },
+  auth: mockAuth,
   db: {},
-  getMessagingInstance: vi.fn().mockResolvedValue(null),
+  getMessagingInstance: mockGetMessagingInstance,
   getToken: vi.fn(),
-  onMessage: vi.fn(),
+  onMessage: mockOnMessage,
 }));
+vi.mock('../lib/apiAuth', () => ({ apiAuthHeader: vi.fn().mockResolvedValue('Bearer test-token') }));
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
-  setDoc: vi.fn(),
+  setDoc: mockSetDoc,
 }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
-    isNativePlatform: () => false,
-    getPlatform: () => 'web',
+    isNativePlatform: () => mockNative.value,
+    getPlatform: () => mockNative.value ? 'android' : 'web',
   },
 }));
 vi.mock('@capacitor/push-notifications', () => ({
   PushNotifications: {
-    checkPermissions: vi.fn().mockResolvedValue({ receive: 'prompt' }),
-    requestPermissions: vi.fn().mockResolvedValue({ receive: 'denied' }),
-    register: vi.fn().mockResolvedValue(undefined),
-    addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }),
-    removeAllListeners: vi.fn().mockResolvedValue(undefined),
+    checkPermissions: vi.fn().mockResolvedValue({ receive: 'granted' }),
+    requestPermissions: vi.fn().mockResolvedValue({ receive: 'granted' }),
+    register: mockRegister,
+    createChannel: vi.fn().mockResolvedValue(undefined),
+    listChannels: vi.fn().mockResolvedValue({ channels: [] }),
+    addListener: mockAddListener,
+    removeAllListeners: mockRemoveAllListeners,
   },
 }));
 
-import { registerTokenToServer } from './usePushNotifications';
+import {
+  __resetPushNotificationRuntimeForTests,
+  registerTokenToServer,
+  usePushNotifications,
+} from './usePushNotifications';
+
+beforeEach(() => {
+  mockNative.value = false;
+  mockAuth.currentUser = { uid: 'u1' };
+  nativeCallbacks.clear();
+  mockAddListener.mockReset();
+  mockAddListener.mockImplementation(async (event: string, callback: (value: unknown) => void) => {
+    const callbacks = nativeCallbacks.get(event) ?? [];
+    callbacks.push(callback);
+    nativeCallbacks.set(event, callbacks);
+    return {
+      remove: vi.fn(async () => {
+        nativeCallbacks.set(event, (nativeCallbacks.get(event) ?? []).filter((candidate) => candidate !== callback));
+      }),
+    };
+  });
+  mockRegister.mockClear();
+  mockRemoveAllListeners.mockClear();
+  mockOnMessage.mockReset();
+  mockOnMessage.mockReturnValue(vi.fn());
+  mockGetMessagingInstance.mockReset();
+  mockGetMessagingInstance.mockResolvedValue(null);
+  mockSetDoc.mockClear();
+  mockFetch.mockClear();
+  mockFetch.mockResolvedValue({ ok: true, status: 200 });
+  vi.stubGlobal('fetch', mockFetch);
+});
+
+afterEach(async () => {
+  await __resetPushNotificationRuntimeForTests();
+  vi.unstubAllGlobals();
+});
 
 describe('registerTokenToServer', () => {
   it('returns no_auth when there is no signed-in user', async () => {
@@ -114,5 +167,77 @@ describe('registerTokenToServer', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toBe('id_token_failed');
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePushNotifications runtime lifecycle', () => {
+  it('shares native listeners and removes only owned handles after the last unmount', async () => {
+    mockNative.value = true;
+    const first = renderHook(() => usePushNotifications());
+    const second = renderHook(() => usePushNotifications());
+
+    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(2));
+    expect(mockAddListener.mock.calls.map((call) => call[0])).toEqual([
+      'pushNotificationReceived',
+      'pushNotificationActionPerformed',
+    ]);
+
+    first.unmount();
+    expect(mockRemoveAllListeners).not.toHaveBeenCalled();
+    expect(nativeCallbacks.get('pushNotificationReceived')).toHaveLength(1);
+
+    second.unmount();
+    await waitFor(() => expect(nativeCallbacks.get('pushNotificationReceived')).toHaveLength(0));
+    expect(mockRemoveAllListeners).not.toHaveBeenCalled();
+  });
+
+  it('installs registration handlers before register and dedupes repeated token events', async () => {
+    mockNative.value = true;
+    const first = renderHook(() => usePushNotifications());
+    const second = renderHook(() => usePushNotifications());
+    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      await Promise.all([
+        first.result.current.requestPermission(),
+        second.result.current.requestPermission(),
+      ]);
+    });
+
+    expect(mockRegister).toHaveBeenCalledOnce();
+    expect(mockAddListener.mock.calls.map((call) => call[0])).toEqual([
+      'pushNotificationReceived',
+      'pushNotificationActionPerformed',
+      'registration',
+      'registrationError',
+    ]);
+    expect(mockAddListener.mock.invocationCallOrder.at(-1)!).toBeLessThan(
+      mockRegister.mock.invocationCallOrder[0],
+    );
+
+    const registrationCallbacks = nativeCallbacks.get('registration') ?? [];
+    await act(async () => {
+      await Promise.all(registrationCallbacks.map((callback) => callback({ value: 'token-1' })));
+      await Promise.all(registrationCallbacks.map((callback) => callback({ value: 'token-1' })));
+    });
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledOnce());
+
+    first.unmount();
+    second.unmount();
+  });
+
+  it('shares one web foreground listener and unsubscribes after the last consumer leaves', async () => {
+    mockNative.value = false;
+    mockGetMessagingInstance.mockResolvedValue({});
+    const webUnsubscribe = vi.fn();
+    mockOnMessage.mockReturnValue(webUnsubscribe);
+    const first = renderHook(() => usePushNotifications());
+    const second = renderHook(() => usePushNotifications());
+
+    await waitFor(() => expect(mockOnMessage).toHaveBeenCalledOnce());
+    first.unmount();
+    expect(webUnsubscribe).not.toHaveBeenCalled();
+    second.unmount();
+    await waitFor(() => expect(webUnsubscribe).toHaveBeenCalledOnce());
   });
 });
