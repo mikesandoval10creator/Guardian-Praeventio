@@ -1,15 +1,10 @@
-// Praeventio Guard — usePushNotifications (Round 16, R3 agent)
-// ─────────────────────────────────────────────────────────────────────
-// Wires the device-level push token (FCM web / APNs+FCM native) up to
-// the server endpoint POST /api/push/register-token. The server stores
-// the token under the calling user's UID (verified via Bearer ID token)
-// and uses it later to fan-out incident alerts to supervisors.
+// Praeventio Guard — usePushNotifications
 //
-// We extract the registration-to-server logic into the pure helper
-// `registerTokenToServer` so it is unit-testable without jsdom or
-// Capacitor mocks. The hook itself stays a thin React wrapper.
+// The hook exposes the push state/API used by RootLayout, Notifications and
+// Settings. Device/web listeners are owned by one module-level runtime so
+// multiple consumers cannot duplicate delivery or remove each other's listeners.
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { logger } from '../utils/logger';
 import { getMessagingInstance, getToken, onMessage } from '../services/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -24,10 +19,6 @@ import {
   criticalAlertsBlocked as isCriticalAlertsBlocked,
 } from '../services/notifications/criticalNotificationChannel';
 
-/**
- * Bind the pure critical-channel service to the live Capacitor plugin. Kept
- * here (not in the service) so the service stays Capacitor-free and testable.
- */
 const criticalChannelDeps = {
   createChannel: (channel: Parameters<typeof PushNotifications.createChannel>[0]) =>
     PushNotifications.createChannel(channel),
@@ -38,9 +29,7 @@ const criticalChannelDeps = {
 export { dispatchNotificationDeepLink };
 
 export interface RegisterTokenDeps {
-  /** Resolves the Firebase ID token for the current user, or null if unauth. */
   getIdToken: () => Promise<string | null>;
-  /** Injectable fetch (real fetch in prod, mock in tests). */
   fetchImpl: typeof fetch;
 }
 
@@ -50,15 +39,6 @@ export interface RegisterTokenResult {
   error?: string;
 }
 
-/**
- * POST {token, platform} to /api/push/register-token with the user's ID token.
- *
- * - If there's no authenticated user, returns { ok: false, error: 'no_auth' }
- *   without making a network call. Push registration is best-effort, so we
- *   never throw — callers log a warning at most.
- * - On non-2xx response, returns { ok: false, status, error }.
- * - On network exception, returns { ok: false, error: <message> }.
- */
 export async function registerTokenToServer(
   token: string,
   platform: string,
@@ -75,9 +55,6 @@ export async function registerTokenToServer(
   if (!idToken) return { ok: false, error: 'no_auth' };
 
   try {
-    // §2.20 (2026-05-23) — el `idToken` viene de `deps.getIdToken()`
-    // (DI pattern). Para soportar el flow E2E donde el header completo
-    // (`E2E <secret>:<uid>`) reemplaza al Bearer, detectamos shape:
     const authValue =
       idToken.startsWith('E2E ') || idToken.startsWith('Bearer ')
         ? idToken
@@ -90,243 +67,334 @@ export async function registerTokenToServer(
       },
       body: JSON.stringify({ token, platform }),
     });
-    if (!res.ok) {
-      return { ok: false, status: res.status, error: `http_${res.status}` };
-    }
+    if (!res.ok) return { ok: false, status: res.status, error: `http_${res.status}` };
     return { ok: true, status: res.status };
-  } catch (err: any) {
-    return { ok: false, error: err?.message ?? 'network_error' };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : 'network_error' };
   }
 }
 
-export function usePushNotifications() {
-  const [fcmToken, setFcmToken] = useState<string | null>(null);
-  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<
-    NotificationPermission | 'granted' | 'denied' | 'prompt'
-  >('default');
-  const [hasPermission, setHasPermission] = useState<boolean>(false);
-  const [lastRegisteredAt, setLastRegisteredAt] = useState<number | null>(null);
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
-  // [P1][VIDA] true when the OS will NOT deliver notifications (worker denied
-  // POST_NOTIFICATIONS on Android 13+ / turned them off). In that state SOS and
-  // evacuation are silently dead, so the UI must warn and offer recovery.
-  const [criticalAlertsBlocked, setCriticalAlertsBlocked] = useState<boolean>(false);
+type PushPermission = 'default' | 'granted' | 'denied' | 'prompt';
 
-  // Helper closure that uses the live Firebase auth + global fetch.
-  const reportTokenToServer = async (token: string) => {
-    const platform = Capacitor.getPlatform();
-    const result = await registerTokenToServer(token, platform, {
-      // §2.20 (2026-05-23) — prefiero apiAuthHeader (E2E + Bearer
-      // fallback) y devuelvo el header completo. registerTokenToServer
-      // ya detecta si vino con prefix o no.
-      getIdToken: async () => {
-        try {
-          const { apiAuthHeader } = await import('../lib/apiAuth');
-          return await apiAuthHeader();
-        } catch {
-          return null;
-        }
-      },
-      fetchImpl: ((input: any, init?: any) => fetch(input, init)) as typeof fetch,
-    });
-    if (result.ok) {
-      setLastRegisteredAt(Date.now());
-      setRegistrationError(null);
-    } else {
-      console.warn('[push] registro de token al servidor falló:', result.error);
-      setRegistrationError(result.error ?? 'unknown');
-    }
-  };
+export interface PushRuntimeSnapshot {
+  fcmToken: string | null;
+  notificationPermissionStatus: PushPermission;
+  hasPermission: boolean;
+  lastRegisteredAt: number | null;
+  registrationError: string | null;
+  criticalAlertsBlocked: boolean;
+}
 
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      PushNotifications.checkPermissions().then((res) => {
-        setNotificationPermissionStatus(res.receive as NotificationPermission);
-        setHasPermission(res.receive === 'granted');
-      });
-      // Surface the "critical alerts are OFF" state so the UI can warn. Fails
-      // closed inside getCriticalAlertStatus, so a read error → blocked.
-      getCriticalAlertStatus(criticalChannelDeps).then((status) =>
-        setCriticalAlertsBlocked(isCriticalAlertsBlocked(status)),
-      );
-    } else if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermissionStatus(Notification.permission);
-      setHasPermission(Notification.permission === 'granted');
-      setCriticalAlertsBlocked(Notification.permission !== 'granted');
-    }
-  }, []);
+interface ListenerHandle {
+  remove: () => Promise<void> | void;
+}
 
-  const requestPermission = async () => {
+type PushSubscriber = (snapshot: PushRuntimeSnapshot) => void;
+
+const initialPushSnapshot: PushRuntimeSnapshot = {
+  fcmToken: null,
+  notificationPermissionStatus: 'default',
+  hasPermission: false,
+  lastRegisteredAt: null,
+  registrationError: null,
+  criticalAlertsBlocked: false,
+};
+
+let pushSnapshot: PushRuntimeSnapshot = { ...initialPushSnapshot };
+const pushSubscribers = new Set<PushSubscriber>();
+let runtimeStarted = false;
+let runtimeStartPromise: Promise<void> | null = null;
+let runtimeGeneration = 0;
+let webForegroundUnsubscribe: (() => void) | null = null;
+let webMessaging: Exclude<Awaited<ReturnType<typeof getMessagingInstance>>, null> | null = null;
+let nativeHandles: ListenerHandle[] = [];
+let nativeRegistrationHandles: ListenerHandle[] = [];
+let nativeRegistrationPromise: Promise<void> | null = null;
+let permissionPromise: Promise<void> | null = null;
+const registeredTokenKeys = new Set<string>();
+const tokenRegistrationInFlight = new Map<string, Promise<RegisterTokenResult>>();
+
+function publish(patch: Partial<PushRuntimeSnapshot>): void {
+  pushSnapshot = { ...pushSnapshot, ...patch };
+  for (const subscriber of pushSubscribers) {
     try {
-      if (Capacitor.isNativePlatform()) {
-        let permStatus = await PushNotifications.checkPermissions();
-
-        if (permStatus.receive === 'prompt') {
-          permStatus = await PushNotifications.requestPermissions();
-        }
-
-        if (permStatus.receive !== 'granted') {
-          logger.warn('User denied push permission');
-          setHasPermission(false);
-          // [P1][VIDA] The worker just turned OFF the only channel through which
-          // SOS/evacuation reach them. Flag it so the UI can warn + recover.
-          setCriticalAlertsBlocked(true);
-          return;
-        }
-        setHasPermission(true);
-        setCriticalAlertsBlocked(false);
-
-        // [P1][VIDA] Register the dedicated high-importance emergency channel so
-        // critical FCM messages render as a heads-up popup with sound instead
-        // of the default channel. Idempotent + never throws.
-        await ensureEmergencyChannel(criticalChannelDeps);
-
-        await PushNotifications.register();
-
-        PushNotifications.addListener('registration', async (token) => {
-          // Redacción (tarea P1 secretos): el token FCM es una credencial —
-          // solo el sufijo corto para correlación, nunca el token completo.
-          logger.info('Push registration success', { tokenSuffix: token.value.slice(-8) });
-          setFcmToken(token.value);
-          // Fire-and-forget Firestore mirror (kept for backward compat).
-          if (auth.currentUser) {
-            try {
-              await setDoc(
-                doc(db, 'users', auth.currentUser.uid),
-                { fcmToken: token.value, updatedAt: new Date() },
-                { merge: true },
-              );
-            } catch (err) {
-              console.warn('[push] firestore mirror failed:', err);
-            }
-          }
-          // Server-side registration via /api/push/register-token.
-          await reportTokenToServer(token.value);
-        });
-
-        PushNotifications.addListener('registrationError', (error: any) => {
-          logger.error('Push registration error', { error });
-          setRegistrationError('native_registration_error');
-        });
-        // NOTE: the tap handler (`pushNotificationActionPerformed`) is NOT
-        // registered here. It is installed on mount (see effect below) so it
-        // survives launches where permission is already granted and
-        // requestPermission() is never called — otherwise a notification that
-        // cold-starts the app would have no handler.
-      } else {
-        const messaging = await getMessagingInstance();
-        if (!messaging) {
-          logger.warn('Messaging not supported in this browser');
-          return;
-        }
-
-        const permission = await Notification.requestPermission();
-        setNotificationPermissionStatus(permission);
-        setHasPermission(permission === 'granted');
-
-        if (permission === 'granted') {
-          const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-
-          if (!vapidKey) {
-            logger.warn('VITE_FIREBASE_VAPID_KEY is not set — push notifications will not work in production');
-          }
-
-          const token = await getToken(messaging, {
-            vapidKey: vapidKey || undefined,
-          });
-
-          if (token) {
-            setFcmToken(token);
-            logger.info('FCM token acquired');
-
-            if (auth.currentUser) {
-              try {
-                await setDoc(
-                  doc(db, 'users', auth.currentUser.uid),
-                  { fcmToken: token, updatedAt: new Date() },
-                  { merge: true },
-                );
-              } catch (err) {
-                console.warn('[push] firestore mirror failed:', err);
-              }
-            }
-            await reportTokenToServer(token);
-          } else {
-            logger.warn('No FCM registration token available');
-          }
-        } else {
-          logger.warn('Push notification permission denied by user');
-        }
-      }
+      subscriber(pushSnapshot);
     } catch (error) {
-      logger.error('Error retrieving push token', { error });
+      logger.warn('push runtime subscriber failed', { error: String(error) });
     }
-  };
+  }
+}
 
-  // Alias name requested by Round 16 R3 spec, kept alongside the legacy
-  // `requestPermission` so existing callers (Settings, Notifications) don't
-  // break.
-  const registerForPushNotifications = requestPermission;
+async function removeHandle(handle: ListenerHandle): Promise<void> {
+  try {
+    await handle.remove();
+  } catch (error) {
+    logger.warn('push runtime listener cleanup failed', { error: String(error) });
+  }
+}
 
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+async function removeHandles(handles: ListenerHandle[]): Promise<void> {
+  await Promise.all(handles.map((handle) => removeHandle(handle)));
+}
 
-    const setupMessaging = async () => {
-      if (Capacitor.isNativePlatform()) {
-        // [P1][VIDA] Install the tap handler at mount, independent of the
-        // permission-request flow, so a notification that cold-starts or
-        // resumes the app (permission already granted, requestPermission never
-        // called) still navigates to the referenced emergency.
-        await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          logger.debug('Push notification received', { notification });
-        });
-        await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-          logger.debug('Push action performed', { action });
-          try {
-            const data = (action?.notification?.data ?? undefined) as
-              | Record<string, string>
-              | undefined;
-            dispatchNotificationDeepLink(data);
-          } catch (err) {
-            logger.warn('Push action deep-link dispatch failed', { err });
-          }
-        });
-        return;
+async function reportTokenToServer(token: string): Promise<RegisterTokenResult> {
+  const result = await registerTokenToServer(token, Capacitor.getPlatform(), {
+    getIdToken: async () => {
+      try {
+        const { apiAuthHeader } = await import('../lib/apiAuth');
+        return await apiAuthHeader();
+      } catch {
+        return null;
       }
+    },
+    fetchImpl: fetch,
+  });
 
-      const messaging = await getMessagingInstance();
-      if (!messaging) return;
+  if (result.ok) {
+    publish({ lastRegisteredAt: Date.now(), registrationError: null });
+  } else {
+    publish({ registrationError: result.error ?? 'unknown' });
+    logger.warn('push token registration failed', { error: result.error });
+  }
+  return result;
+}
 
-      unsubscribe = onMessage(messaging, (payload) => {
+async function handleToken(token: string): Promise<RegisterTokenResult> {
+  const uid = auth.currentUser?.uid;
+  const tokenKey = uid ? `${uid}:${Capacitor.getPlatform()}:${token}` : null;
+  publish({ fcmToken: token });
+  if (tokenKey && registeredTokenKeys.has(tokenKey)) return { ok: true };
+  if (tokenKey) {
+    const inFlight = tokenRegistrationInFlight.get(tokenKey);
+    if (inFlight) return inFlight;
+  }
+
+  const registration = (async () => {
+    if (auth.currentUser) {
+      try {
+        await setDoc(
+          doc(db, 'users', auth.currentUser.uid),
+          { fcmToken: token, updatedAt: new Date() },
+          { merge: true },
+        );
+      } catch (error) {
+        logger.warn('push firestore token mirror failed', { error: String(error) });
+      }
+    }
+    const result = await reportTokenToServer(token);
+    if (result.ok && tokenKey) registeredTokenKeys.add(tokenKey);
+    return result;
+  })();
+
+  if (tokenKey) tokenRegistrationInFlight.set(tokenKey, registration);
+  try {
+    return await registration;
+  } finally {
+    if (tokenKey) tokenRegistrationInFlight.delete(tokenKey);
+  }
+}
+
+async function refreshPermissionState(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permission = await PushNotifications.checkPermissions();
+      publish({
+        notificationPermissionStatus: permission.receive as PushPermission,
+        hasPermission: permission.receive === 'granted',
+      });
+    } catch (error) {
+      logger.warn('native push permission check failed', { error: String(error) });
+      publish({ criticalAlertsBlocked: true });
+    }
+    try {
+      const status = await getCriticalAlertStatus(criticalChannelDeps);
+      publish({ criticalAlertsBlocked: isCriticalAlertsBlocked(status) });
+    } catch (error) {
+      logger.warn('critical push channel check failed', { error: String(error) });
+      publish({ criticalAlertsBlocked: true });
+    }
+    return;
+  }
+
+  if (typeof Notification !== 'undefined') {
+    const permission = Notification.permission as PushPermission;
+    publish({
+      notificationPermissionStatus: permission,
+      hasPermission: permission === 'granted',
+      criticalAlertsBlocked: permission !== 'granted',
+    });
+  }
+}
+
+async function ensureNativeRegistrationListeners(): Promise<void> {
+  if (nativeRegistrationHandles.length > 0) return;
+  if (nativeRegistrationPromise) return nativeRegistrationPromise;
+
+  nativeRegistrationPromise = (async () => {
+    const registrationHandle = await PushNotifications.addListener('registration', (token) => {
+      void handleToken(token.value);
+    });
+    const errorHandle = await PushNotifications.addListener('registrationError', (error) => {
+      logger.error('push registration error', { error });
+      publish({ registrationError: 'native_registration_error' });
+    });
+    if (pushSubscribers.size === 0) {
+      await removeHandles([registrationHandle, errorHandle]);
+      return;
+    }
+    nativeRegistrationHandles = [registrationHandle, errorHandle];
+  })().finally(() => {
+    nativeRegistrationPromise = null;
+  });
+  return nativeRegistrationPromise;
+}
+
+async function startRuntime(): Promise<void> {
+  const generation = runtimeGeneration;
+  if (Capacitor.isNativePlatform()) {
+    const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      logger.debug('Push notification received', { notification });
+    });
+    const actionHandle = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      logger.debug('Push action performed', { action });
+      try {
+        const data = (action?.notification?.data ?? undefined) as
+          | Record<string, string>
+          | undefined;
+        dispatchNotificationDeepLink(data);
+      } catch (error) {
+        logger.warn('push action deep-link dispatch failed', { error: String(error) });
+      }
+    });
+    if (generation !== runtimeGeneration || pushSubscribers.size === 0) {
+      await removeHandles([receivedHandle, actionHandle]);
+      return;
+    }
+    nativeHandles = [receivedHandle, actionHandle];
+  } else {
+    const messaging = await getMessagingInstance();
+    if (messaging && generation === runtimeGeneration && pushSubscribers.size > 0) {
+      webMessaging = messaging;
+      webForegroundUnsubscribe = onMessage(messaging, (payload) => {
         logger.debug('FCM message received', { payload });
-        // [P1][VIDA] Preserve the FCM data map and wire the same click-to-deep-
-        // link behavior used by NotificationContext. The shared helper prevents
-        // these two foreground listeners from drifting again.
         showForegroundPushNotification(payload);
       });
-    };
+    }
+  }
 
-    setupMessaging();
+  if (generation !== runtimeGeneration || pushSubscribers.size === 0) return;
+  await refreshPermissionState();
+  runtimeStarted = true;
+}
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+function ensureRuntimeStarted(): Promise<void> {
+  if (runtimeStarted) return Promise.resolve();
+  if (runtimeStartPromise) return runtimeStartPromise;
+  runtimeStartPromise = startRuntime()
+    .catch((error) => {
+      logger.error('push runtime startup failed', { error: String(error) });
+      publish({ registrationError: 'runtime_start_failed' });
+    })
+    .finally(() => {
+      runtimeStartPromise = null;
+    });
+  return runtimeStartPromise;
+}
+
+async function stopRuntime(): Promise<void> {
+  if (pushSubscribers.size > 0) return;
+  runtimeGeneration += 1;
+  runtimeStarted = false;
+  const handles = [...nativeHandles, ...nativeRegistrationHandles];
+  nativeHandles = [];
+  nativeRegistrationHandles = [];
+  webForegroundUnsubscribe?.();
+  webForegroundUnsubscribe = null;
+  webMessaging = null;
+  await removeHandles(handles);
+}
+
+function subscribePushRuntime(subscriber: PushSubscriber): () => void {
+  pushSubscribers.add(subscriber);
+  subscriber(pushSnapshot);
+  void ensureRuntimeStarted();
+  return () => {
+    pushSubscribers.delete(subscriber);
+    if (pushSubscribers.size === 0) void stopRuntime();
+  };
+}
+
+function requestPushPermission(): Promise<void> {
+  if (permissionPromise) return permissionPromise;
+  permissionPromise = (async () => {
+    await ensureRuntimeStarted();
+    if (Capacitor.isNativePlatform()) {
+      let permission = await PushNotifications.checkPermissions();
+      if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions();
+      publish({
+        notificationPermissionStatus: permission.receive as PushPermission,
+        hasPermission: permission.receive === 'granted',
+      });
+      if (permission.receive !== 'granted') {
+        publish({ criticalAlertsBlocked: true });
+        logger.warn('user denied push permission');
+        return;
       }
-      if (Capacitor.isNativePlatform()) {
-        PushNotifications.removeAllListeners();
-      }
-    };
-  }, []);
+      publish({ criticalAlertsBlocked: false });
+      await ensureEmergencyChannel(criticalChannelDeps);
+      // Install before register: native registration events cannot race past us.
+      await ensureNativeRegistrationListeners();
+      await PushNotifications.register();
+      return;
+    }
+
+    const messaging = webMessaging ?? await getMessagingInstance();
+    if (!messaging) {
+      logger.warn('messaging not supported in this browser');
+      return;
+    }
+    webMessaging = messaging;
+    const permission = await Notification.requestPermission();
+    publish({
+      notificationPermissionStatus: permission,
+      hasPermission: permission === 'granted',
+      criticalAlertsBlocked: permission !== 'granted',
+    });
+    if (permission !== 'granted') return;
+
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    if (!vapidKey) logger.warn('VITE_FIREBASE_VAPID_KEY is not set — web push may not work');
+    const token = await getToken(messaging, { vapidKey: vapidKey || undefined });
+    if (token) await handleToken(token);
+    else logger.warn('no FCM registration token available');
+  })()
+    .catch((error) => {
+      logger.error('push permission flow failed', { error: String(error) });
+    })
+    .finally(() => {
+      permissionPromise = null;
+    });
+  return permissionPromise;
+}
+
+/** Test-only lifecycle reset; production consumers use subscriber cleanup. */
+export async function __resetPushNotificationRuntimeForTests(): Promise<void> {
+  pushSubscribers.clear();
+  await stopRuntime();
+  pushSnapshot = { ...initialPushSnapshot };
+  registeredTokenKeys.clear();
+  tokenRegistrationInFlight.clear();
+  permissionPromise = null;
+  nativeRegistrationPromise = null;
+}
+
+export function usePushNotifications() {
+  const [state, setState] = useState<PushRuntimeSnapshot>(() => pushSnapshot);
+  useEffect(() => subscribePushRuntime(setState), []);
 
   return {
-    fcmToken,
-    notificationPermissionStatus,
-    hasPermission,
-    requestPermission,
-    registerForPushNotifications,
-    lastRegisteredAt,
-    registrationError,
-    /** True when SOS/evacuation notifications cannot reach the worker. */
-    criticalAlertsBlocked,
+    ...state,
+    requestPermission: requestPushPermission,
+    registerForPushNotifications: requestPushPermission,
   };
 }
