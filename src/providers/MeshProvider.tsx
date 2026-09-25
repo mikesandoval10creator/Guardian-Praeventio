@@ -106,8 +106,8 @@ export function MeshProvider({ children }: MeshProviderProps) {
 
     (async () => {
       // Provision the project mesh signing key while online (best-effort), then
-      // load the cached key for offline verify-on-receive. Failure is a
-      // degraded mode — the queue runs without verification until a key lands.
+      // load the cached key for offline verify-on-receive. A missing key is an
+      // explicit fail-closed state: remote packets cannot auto-escalate.
       await provisionMeshSigningKey(projectId).catch((err) =>
         reportMeshError(err, 'provisionMeshKey'),
       );
@@ -130,6 +130,8 @@ export function MeshProvider({ children }: MeshProviderProps) {
         // false since Sprint 26, i.e. never delivered anywhere).
         isSupervisor: () =>
           isSupervisorRole(roleRef.current) || isAdminRole(roleRef.current),
+        onKeyUnavailable: () =>
+          logger.warn('mesh_key_unavailable', { projectId }),
       });
 
       facade = new TransportFacade({

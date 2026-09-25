@@ -6,7 +6,7 @@
 // a validly signed packet reaches forLocal+enqueued. No reimplementation of the
 // handler — the actual queue object is exercised end to end.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { MeshRelayQueue } from './meshRelayQueue';
 import { buildPacket } from './meshPacket';
 import { signPacket, type MeshSigningKey } from './meshPacketSigner';
@@ -147,17 +147,34 @@ describe('MeshRelayQueue verify-on-receive', () => {
     expect(res.dropped).toHaveLength(0);
   });
 
-  it('degraded (no key) mode preserves legacy behavior — unsigned breadcrumb still relays', async () => {
+  it('no key: unsigned SOS is untrusted/relayed but never reaches local escalation', async () => {
+    const keyUnavailable = vi.fn();
     const q = new MeshRelayQueue({
       selfUid: 'self',
       projectId: PROJECT,
-      // no signingKey → cannot verify → legacy parity
+      now: () => NOW,
+      onKeyUnavailable: keyUnavailable,
+    });
+    const res = await q.receive([sos('peer-1')]);
+    expect(res.keyUnavailable).toBe(true);
+    expect(res.forLocal).toHaveLength(0);
+    expect(res.untrusted).toHaveLength(1);
+    expect(res.enqueued).toHaveLength(1);
+    expect(res.dropped).toHaveLength(0);
+    expect(keyUnavailable).toHaveBeenCalledOnce();
+  });
+
+  it('no key: unsigned non-SOS is dropped and never relayed or delivered locally', async () => {
+    const q = new MeshRelayQueue({
+      selfUid: 'self',
+      projectId: PROJECT,
       now: () => NOW,
     });
     const res = await q.receive([breadcrumb('peer-1')]);
-    expect(res.forLocal).toHaveLength(1);
-    expect(res.enqueued).toHaveLength(1);
-    expect(res.dropped).toHaveLength(0);
+    expect(res.keyUnavailable).toBe(true);
+    expect(res.forLocal).toHaveLength(0);
+    expect(res.enqueued).toHaveLength(0);
+    expect(res.dropped).toHaveLength(1);
     expect(res.untrusted).toHaveLength(0);
   });
 });
