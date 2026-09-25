@@ -221,8 +221,10 @@ describe('TransportFacade', () => {
     expect(queue.size()).toBe(1);
 
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(plugin.__sentPackets).toHaveLength(1);
+    await vi.waitFor(
+      () => expect(plugin.__sentPackets).toHaveLength(1),
+      { timeout: 1000, interval: 10 },
+    );
     // A native write is only local acceptance; the queue remains until peer ACK.
     expect(queue.size()).toBe(1);
 
@@ -231,8 +233,10 @@ describe('TransportFacade', () => {
       ...ack,
       ...(await signPacket(ack, queueKey)),
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(queue.size()).toBe(0);
+    await vi.waitFor(
+      () => expect(queue.size()).toBe(0),
+      { timeout: 1000, interval: 10 },
+    );
 
     await facade.stopMesh();
   });
@@ -250,8 +254,10 @@ describe('TransportFacade', () => {
 
     await facade.sendLocal(makePacket({ fromUid: 'worker-self' }));
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(plugin.__sentPackets).toHaveLength(2);
+    await vi.waitFor(
+      () => expect(plugin.__sentPackets).toHaveLength(2),
+      { timeout: 1000, interval: 10 },
+    );
     expect(queue.size()).toBe(1);
 
     await facade.stopMesh();
@@ -271,11 +277,15 @@ describe('TransportFacade', () => {
     const packet = makePacket({ fromUid: 'worker-self' });
     await facade.sendLocal(packet);
     const unexpectedAck = makeAck(packet.id, 'peer-2');
+    const receiveSpy = vi.spyOn(queue, 'receive');
     plugin.__emit('mesh:packet', {
       ...unexpectedAck,
       ...(await signPacket(unexpectedAck, queueKey)),
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(
+      () => expect(receiveSpy).toHaveBeenCalledTimes(1),
+      { timeout: 1000, interval: 10 },
+    );
     expect(queue.size()).toBe(1);
 
     await facade.stopMesh();
@@ -296,8 +306,10 @@ describe('TransportFacade', () => {
     const packet = makePacket({ fromUid: 'worker-self' });
     queue.enqueueLocal(packet);
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(queue.size()).toBe(0);
+    await vi.waitFor(
+      () => expect(queue.size()).toBe(0),
+      { timeout: 1000, interval: 10 },
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 35));
     expect(queue.size()).toBe(1);
@@ -346,18 +358,21 @@ describe('TransportFacade', () => {
       ...packet,
       ...(await signPacket(packet, queueKey)),
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
-    expect(ack).toMatchObject({
-      type: 'ack',
-      fromUid: 'worker-self',
-      toUid: 'worker-other',
-      payload: {
-        ackedPacketId: packet.id,
-        confirmedBy: 'worker-self',
+    await vi.waitFor(
+      () => {
+        const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
+        expect(ack).toMatchObject({
+          type: 'ack',
+          fromUid: 'worker-self',
+          toUid: 'worker-other',
+          payload: {
+            ackedPacketId: packet.id,
+            confirmedBy: 'worker-self',
+          },
+        });
       },
-    });
+      { timeout: 1000, interval: 10 },
+    );
 
     await facade.stopMesh();
   });
@@ -382,10 +397,15 @@ describe('TransportFacade', () => {
     const inbound = makePacket({ fromUid: 'worker-other' });
     const signature = await signPacket(inbound, signingKey);
     plugin.__emit('mesh:packet', { ...inbound, ...signature });
-    await new Promise((resolve) => setTimeout(resolve, 25));
 
-    const ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
-    expect(ack).toBeDefined();
+    let ack: MeshPacket | undefined;
+    await vi.waitFor(
+      () => {
+        ack = plugin.__sentPackets.find((sent) => sent.type === 'ack');
+        expect(ack).toBeDefined();
+      },
+      { timeout: 1000, interval: 10 },
+    );
     if (!ack) throw new Error('expected a generated ACK');
     expect(await verifyPacket(ack, signingKey)).toBe(true);
 
