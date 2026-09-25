@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle2, 
@@ -13,7 +13,10 @@ import {
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { isSupervisorRole } from '../../types/roles';
-import { db, collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, getDocs, writeBatch, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { db, collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { submitEmergencyDelivery } from '../../services/emergency/emergencyDeliveryOutbox';
+import { randomId } from '../../utils/randomId';
+import { logger } from '../../utils/logger';
 import { Timestamp } from 'firebase/firestore';
 
 interface WorkerStatus {
@@ -28,6 +31,8 @@ export function EmergencyCheckIn() {
   const { user, userRole, isAdmin } = useFirebase();
   const { selectedProject } = useProject();
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [activeEmergencyEventId, setActiveEmergencyEventId] = useState<string | null>(null);
+  const pendingLifecycleState = useRef<boolean | null>(null);
   const [myStatus, setMyStatus] = useState<'safe' | 'danger' | 'unknown'>('unknown');
   const [workers, setWorkers] = useState<WorkerStatus[]>([]);
   const canManageEmergency = isAdmin || isSupervisorRole(userRole);
@@ -35,18 +40,43 @@ export function EmergencyCheckIn() {
 
   useEffect(() => {
     if (!selectedProject?.id) return undefined;
+    pendingLifecycleState.current = null;
+    setActiveEmergencyEventId(null);
 
     // Listen to emergency state (could be a document in the project)
     const projectRef = doc(db, 'projects', selectedProject.id);
     const unsubscribeProject = onSnapshot(projectRef, (docSnap) => {
-      if (docSnap.exists()) {
+      if (docSnap.exists() && pendingLifecycleState.current === null) {
         setIsEmergencyActive(docSnap.data().isEmergencyActive || false);
       }
     });
 
+    // Canonical lifecycle reader: emergency_events wins when present; the
+    // project boolean remains a compatibility projection for legacy projects.
+    const activeEventsQuery = query(
+      collection(db, `projects/${selectedProject.id}/emergency_events`),
+      where('status', '==', 'active'),
+      limit(1),
+    );
+    const unsubscribeActiveEvents = onSnapshot(activeEventsQuery, (snapshot) => {
+      const activeEvent = snapshot.docs[0];
+      setActiveEmergencyEventId(activeEvent?.id ?? null);
+      if (activeEvent && pendingLifecycleState.current === null) setIsEmergencyActive(true);
+    }, (error) => {
+      // Legacy boolean remains usable if the canonical collection is not
+      // readable yet (older rules/indexes or a pre-migration project).
+      logger.warn('emergency lifecycle event read unavailable; using projection', {
+        projectId: selectedProject.id,
+        error: String(error),
+      });
+    });
+
     if (isSelfScopedHeadcount && !user) {
       setWorkers([]);
-      return () => unsubscribeProject();
+      return () => {
+        unsubscribeProject();
+        unsubscribeActiveEvents();
+      };
     }
 
     // Listen to check-ins (last 24h, capped at 100). Worker-class roles add
@@ -94,6 +124,7 @@ export function EmergencyCheckIn() {
 
     return () => {
       unsubscribeProject();
+      unsubscribeActiveEvents();
       unsubscribeCheckins();
     };
   }, [selectedProject?.id, user, isSelfScopedHeadcount]);
@@ -124,34 +155,60 @@ export function EmergencyCheckIn() {
 
   const toggleEmergency = async () => {
     if (!canManageEmergency || !selectedProject?.id) return;
-    try {
-      const projectRef = doc(db, 'projects', selectedProject.id);
-      const newStatus = !isEmergencyActive;
-      await setDoc(projectRef, { isEmergencyActive: newStatus }, { merge: true });
 
-      if (newStatus) {
-        // Populate emergency_checkins with all workers
-        const workersRef = collection(db, `projects/${selectedProject.id}/workers`);
-        const workersSnap = await getDocs(workersRef);
-        
-        const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
-        
-        const batch = writeBatch(db);
-        for (const workerDoc of workersSnap.docs) {
-          const workerData = workerDoc.data();
-          const checkinDocRef = doc(checkinsRef, workerDoc.id);
-          batch.set(checkinDocRef, {
-            projectId: selectedProject.id,
-            workerId: workerDoc.id,
-            name: workerData.name || 'Desconocido',
-            status: 'unknown',
-            timestamp: serverTimestamp()
-          });
-        }
-        await batch.commit();
+    const newStatus = !isEmergencyActive;
+    const occurredAt = new Date().toISOString();
+    const clientEventId = `emergency-${newStatus ? 'activation' : 'resolution'}-${randomId()}`;
+
+    if (!newStatus && !activeEmergencyEventId) {
+      logger.warn('emergency resolution blocked: no canonical active event', {
+        projectId: selectedProject.id,
+      });
+      return;
+    }
+
+    // Keep the safety interaction immediate while the durable outbox attempts
+    // delivery. Event/project listeners ignore stale server state until the
+    // attempt is accepted or a later project selection resets this override.
+    pendingLifecycleState.current = newStatus;
+    setIsEmergencyActive(newStatus);
+
+    try {
+      const attempt = newStatus
+        ? await submitEmergencyDelivery(
+            {
+              operation: 'activation',
+              projectId: selectedProject.id,
+              emergencyType: 'manual_checkin',
+              occurredAt,
+            },
+            { clientEventId },
+          )
+        : await submitEmergencyDelivery(
+            {
+              operation: 'resolution',
+              projectId: selectedProject.id,
+              eventId: activeEmergencyEventId ?? '',
+              occurredAt,
+            },
+            { clientEventId },
+          );
+
+      if (attempt.status === 'accepted') pendingLifecycleState.current = null;
+      if (attempt.status === 'failed') {
+        logger.error('emergency lifecycle delivery retained as failed', {
+          projectId: selectedProject.id,
+          clientEventId,
+          operation: newStatus ? 'activation' : 'resolution',
+          error: attempt.error,
+        });
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `projects/${selectedProject.id}`);
+      logger.error('emergency lifecycle delivery retained for retry', {
+        projectId: selectedProject.id,
+        clientEventId,
+        error: String(error),
+      });
     }
   };
 
