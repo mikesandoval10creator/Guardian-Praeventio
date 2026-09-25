@@ -773,6 +773,8 @@ router.post(
         );
       } else if (input.operation === 'activation') {
         const batch = db.batch();
+        const projectRef = db.collection('projects').doc(input.projectId);
+        batch.set(projectRef, { isEmergencyActive: true }, { merge: true });
         const eventRef = db
           .collection('projects')
           .doc(input.projectId)
@@ -825,6 +827,22 @@ router.post(
             },
             { merge: true },
           );
+          batch.set(
+            db
+              .collection('projects')
+              .doc(input.projectId)
+              .collection('emergency_checkins')
+              .doc(worker.id),
+            {
+              projectId: input.projectId,
+              workerId: worker.id,
+              name: (worker.data().name as string | undefined) ?? 'Desconocido',
+              status: 'unknown',
+              activationEventId: input.clientEventId,
+              timestamp: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
         }
         await batch.commit();
       } else {
@@ -841,6 +859,8 @@ router.post(
           return res.status(403).json({ error: 'supervisor_required' });
         }
         const batch = db.batch();
+        const projectRef = db.collection('projects').doc(input.projectId);
+        batch.set(projectRef, { isEmergencyActive: false }, { merge: true });
         batch.update(
           db
             .collection('projects')

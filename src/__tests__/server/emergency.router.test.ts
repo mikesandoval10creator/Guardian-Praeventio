@@ -994,8 +994,9 @@ describe('POST /api/emergency/delivery', () => {
     });
   });
 
-  it('writes activation under the clientEventId and is safe to replay', async () => {
+  it('writes activation under the clientEventId, projects active state and is safe to replay', async () => {
     seedProject(H.db!, 'p1', { tenantId: 'tenant-1', createdBy: 'u1', members: ['u1'] });
+    H.db!._seed('projects/p1/workers/w1', { name: 'Worker One' });
     const activation = {
       clientEventId: 'delivery-activation-1',
       operation: 'activation',
@@ -1014,7 +1015,50 @@ describe('POST /api/emergency/delivery', () => {
     }
 
     expect(H.db!._store.has('projects/p1/emergency_events/delivery-activation-1')).toBe(true);
+    expect(H.db!._store.get('projects/p1')).toMatchObject({ isEmergencyActive: true });
+    expect(H.db!._store.get('projects/p1/emergency_checkins/w1')).toMatchObject({
+      workerId: 'w1',
+      name: 'Worker One',
+      status: 'unknown',
+      activationEventId: activation.clientEventId,
+    });
     expect([...H.db!._store.keys()].filter((key) => key.includes('emergency_events/'))).toHaveLength(1);
+  });
+
+  it('projects resolution to the legacy boolean in the same lifecycle transition', async () => {
+    seedProject(H.db!, 'p1', { tenantId: 'tenant-1', createdBy: 'u1', members: ['u1'] });
+    seedMember(H.db!, 'p1', 'u1', 'supervisor');
+    H.db!._seed('projects/p1/emergency_events/activation-1', {
+      clientEventId: 'activation-1',
+      status: 'active',
+      active: true,
+    });
+    H.db!._seed('projects/p1', {
+      tenantId: 'tenant-1',
+      createdBy: 'u1',
+      members: ['u1'],
+      isEmergencyActive: true,
+    });
+    const resolution = {
+      clientEventId: 'delivery-resolution-1',
+      operation: 'resolution',
+      projectId: 'p1',
+      eventId: 'activation-1',
+      occurredAt: '2026-09-17T10:10:00.000Z',
+    };
+
+    const res = await request(buildApp())
+      .post(DELIVERY)
+      .set('x-test-uid', 'u1')
+      .set('Idempotency-Key', resolution.clientEventId)
+      .send(resolution);
+
+    expect(res.status).toBe(200);
+    expect(H.db!._store.get('projects/p1/emergency_events/activation-1')).toMatchObject({
+      status: 'resolved',
+      resolvedBy: 'u1',
+    });
+    expect(H.db!._store.get('projects/p1')).toMatchObject({ isEmergencyActive: false });
   });
 
   it('persists triage as the worker-scoped latest check-in state', async () => {
