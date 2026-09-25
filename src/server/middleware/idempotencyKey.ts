@@ -92,6 +92,15 @@ export const IDEMPOTENCY_STATE_COMPLETED = 'completed';
  */
 export const IN_FLIGHT_STALE_MS = 30_000;
 
+/**
+ * Same-process completion bridge for the pre-handler claim. The durable
+ * Firestore row remains authoritative across instances; this map only lets a
+ * request in the same Node process await the owner's already-running cache
+ * completion instead of observing the transient in_flight row and returning
+ * a false conflict during a sequential transport retry.
+ */
+const inFlightWrites = new Map<string, Promise<void>>();
+
 export interface IdempotencyKeyOptions {
   /** TTL for cached entries. Default 24 h. */
   ttlSec?: number;
@@ -267,30 +276,39 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     try {
       const snap = await ref.get();
       if (snap.exists) {
-        const entry = snap.data() as (CachedResponse & { claimedAtMs?: number }) | undefined;
+        let entry = snap.data() as (CachedResponse & { claimedAtMs?: number }) | undefined;
         // ── In-flight claim guard (P0 VIDA): another request with this key
-        // owns the claim and has not responded yet. Retryable conflict —
-        // the retry will replay the completed response, or re-run after the
-        // stale-claim takeover below.
-        let takenOverStaleClaim = false;
+        // owns the claim and has not responded yet. If the owner is in this
+        // process, await its completion and then re-read the durable row so a
+        // sequential retry can replay instead of seeing a transient 409.
         if (entry?.state === IDEMPOTENCY_STATE_IN_FLIGHT) {
-          const claimedAtMs = typeof entry.claimedAtMs === 'number' ? entry.claimedAtMs : 0;
-          const stale = now().getTime() - claimedAtMs > IN_FLIGHT_STALE_MS;
-          if (!stale) {
-            res.setHeader('Retry-After', '2');
-            res.setHeader('Idempotency-State', IDEMPOTENCY_STATE_IN_FLIGHT);
-            return res.status(409).json({ error: 'idempotency_in_flight' });
+          const pending = inFlightWrites.get(cacheKey);
+          if (pending) {
+            await pending;
+            const completed = await ref.get();
+            entry = completed.exists
+              ? (completed.data() as (CachedResponse & { claimedAtMs?: number }) | undefined)
+              : undefined;
           }
-          // Owner died before completing the response — release the stale
-          // claim so this request can take it over below (fresh claim).
-          try {
-            await ref.delete();
-          } catch {
-            /* best effort — the claim create below still guards the race */
+          if (entry?.state === IDEMPOTENCY_STATE_IN_FLIGHT) {
+            const claimedAtMs = typeof entry.claimedAtMs === 'number' ? entry.claimedAtMs : 0;
+            const stale = now().getTime() - claimedAtMs > IN_FLIGHT_STALE_MS;
+            if (!stale) {
+              res.setHeader('Retry-After', '2');
+              res.setHeader('Idempotency-State', IDEMPOTENCY_STATE_IN_FLIGHT);
+              return res.status(409).json({ error: 'idempotency_in_flight' });
+            }
+            // Owner died before completing the response — release the stale
+            // claim so this request can take it over below (fresh claim).
+            try {
+              await ref.delete();
+            } catch {
+              /* best effort — the claim create below guards the race */
+            }
+            entry = undefined;
           }
-          takenOverStaleClaim = true;
         }
-        const data = takenOverStaleClaim ? undefined : (entry as CachedResponse | undefined);
+        const data = entry as CachedResponse | undefined;
         if (data && data.expiresAt) {
           // Firestore TTL policy will eventually delete expired docs, but
           // we double-check on read so a TTL that hasn't run yet doesn't
@@ -365,14 +383,39 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     try {
       claimed = await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
-        if (fresh.exists) return false;
-        tx.create(ref, {
+        const claim = {
           state: IDEMPOTENCY_STATE_IN_FLIGHT,
           fingerprint,
           claimedAtMs: now().getTime(),
           expiresAt: Timestamp.fromMillis(now().getTime() + ttlSec * 1000),
-        } as unknown as Record<string, unknown>);
-        return true;
+        } as unknown as Record<string, unknown>;
+        if (!fresh.exists) {
+          tx.create(ref, claim);
+          return true;
+        }
+
+        const existing = fresh.data() as
+          | (CachedResponse & { claimedAtMs?: number })
+          | undefined;
+        const existingExpiry = existing?.expiresAt;
+        const expiryMs =
+          typeof (existingExpiry as { toMillis?: () => number } | undefined)?.toMillis === 'function'
+            ? (existingExpiry as { toMillis: () => number }).toMillis()
+            : new Date(
+                existingExpiry as unknown as string | number | Date,
+              ).getTime();
+        const staleClaim =
+          existing?.state === IDEMPOTENCY_STATE_IN_FLIGHT &&
+          typeof existing.claimedAtMs === 'number' &&
+          now().getTime() - existing.claimedAtMs > IN_FLIGHT_STALE_MS;
+        if (expiryMs <= now().getTime() || staleClaim) {
+          // A completed TTL-expired row or abandoned claim is reclaimable.
+          // `set` replaces the old response so stale status/body cannot be
+          // replayed while the new handler is running.
+          tx.set(ref, claim);
+          return true;
+        }
+        return false;
       });
     } catch (err) {
       // `create()` threw. Two very different cases:
@@ -470,14 +513,32 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
       }
     };
 
+    let cacheWriteStarted = false;
+    const trackCacheWrite = (body: unknown) => {
+      if (cacheWriteStarted) return;
+      cacheWriteStarted = true;
+      const writePromise = writeCache(res.statusCode, body);
+      inFlightWrites.set(cacheKey, writePromise);
+      void writePromise.then(
+        () => {
+          if (inFlightWrites.get(cacheKey) === writePromise) {
+            inFlightWrites.delete(cacheKey);
+          }
+        },
+        () => {
+          if (inFlightWrites.get(cacheKey) === writePromise) {
+            inFlightWrites.delete(cacheKey);
+          }
+        },
+      );
+    };
+
     (res as any).json = (body: unknown) => {
-      // Fire-and-forget: do not await before letting the response go out.
-      // The cache write is best-effort post-response side effect.
-      void writeCache(res.statusCode, body);
+      trackCacheWrite(body);
       return originalJson(body);
     };
     (res as any).send = (body: unknown) => {
-      void writeCache(res.statusCode, body);
+      trackCacheWrite(body);
       return originalSend(body);
     };
 

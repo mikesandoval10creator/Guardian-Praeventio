@@ -68,8 +68,32 @@ function makeFakeFirestore() {
           // tx.set is sync in real firestore-admin; emulate.
           (ref as any).store.set((ref as any).id, data);
         },
+        create: (ref: FakeDocRef, data: any) => {
+          if ((ref as any).store.has((ref as any).id)) {
+            const error = new Error(
+              `Document already exists: ${(ref as any).id}`,
+            ) as Error & { code: number };
+            error.code = 6; // ALREADY_EXISTS
+            throw error;
+          }
+          (ref as any).store.set((ref as any).id, data);
+        },
+        update: (ref: FakeDocRef, data: any) => {
+          if (!(ref as any).store.has((ref as any).id)) {
+            const error = new Error(
+              `Document does not exist: ${(ref as any).id}`,
+            ) as Error & { code: number };
+            error.code = 5; // NOT_FOUND
+            throw error;
+          }
+          const current = (ref as any).store.get((ref as any).id) ?? {};
+          (ref as any).store.set((ref as any).id, { ...current, ...data });
+        },
+        delete: (ref: FakeDocRef) => {
+          (ref as any).store.delete((ref as any).id);
+        },
       };
-      await fn(tx);
+      return await fn(tx);
     },
   };
   return { fs, collections, writeAttempts };
@@ -282,10 +306,11 @@ describe('idempotencyKey middleware', () => {
     ]);
 
     expect(r1.status).toBe(200);
-    expect(r2.status).toBe(200);
-    // Both handlers may have run (concurrent miss is allowed by contract,
-    // matching withIdempotency's note). The CACHE invariant: exactly ONE
-    // row exists for this key.
+    expect(r2.status).toBe(409);
+    // The pre-handler claim prevents the second handler from running. The
+    // loser receives a retryable 409; a later retry replays the winner.
+    expect(handlerRuns).toBe(1);
+    // The CACHE invariant: exactly ONE row exists for this key.
     await new Promise((resolve) => setImmediate(resolve));
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(1);
   });

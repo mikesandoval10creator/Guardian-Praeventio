@@ -20,9 +20,9 @@
  * the Node test runtime. It does not certify Android reachability or
  * production Firestore semantics (runtime-pending).
  */
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
-import type { Server } from 'http';
+import { request as httpRequest, type Server } from 'http';
 import type { AddressInfo } from 'net';
 import 'express-async-errors';
 
@@ -199,21 +199,54 @@ function startServer(): void {
   baseUrl = `http://127.0.0.1:${addr.port}`;
 }
 
-function stopServer(): void {
-  server?.close();
+async function stopServer(): Promise<void> {
+  const current = server;
   server = null;
   baseUrl = '';
+  if (!current) return;
+  await new Promise<void>((resolve, reject) => {
+    current.close((error) => (error ? reject(error) : resolve()));
+  });
 }
 
-function postSos(key: string) {
-  return fetch(`${baseUrl}${SOS}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-test-uid': 'u1',
-      'Idempotency-Key': key,
-    },
-    body: JSON.stringify(BODY),
+function postSos(key: string): Promise<globalThis.Response> {
+  const url = new URL(`${baseUrl}${SOS}`);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: url.hostname,
+        port: Number(url.port),
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          connection: 'close',
+          'x-test-uid': 'u1',
+          'Idempotency-Key': key,
+        },
+        agent: false,
+      },
+      (incoming) => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+        incoming.on('error', reject);
+        incoming.on('end', () => {
+          const responseHeaders = new Headers();
+          for (const [name, value] of Object.entries(incoming.headers)) {
+            if (typeof value === 'string') responseHeaders.set(name, value);
+            else if (Array.isArray(value)) responseHeaders.set(name, value.join(', '));
+          }
+          resolve(
+            new globalThis.Response(Buffer.concat(chunks), {
+              status: incoming.statusCode ?? 0,
+              headers: responseHeaders,
+            }),
+          );
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end(JSON.stringify(BODY));
   });
 }
 
@@ -342,6 +375,7 @@ describe('POST /api/emergency/sos — CONCURRENT idempotency (P0 VIDA probe)', (
       postSos('evt-uuid-concurrent-1'),
       postSos('evt-uuid-concurrent-1'),
     ]);
+    await Promise.all([r1.arrayBuffer(), r2.arrayBuffer()]);
 
     // Both callers must get a sane outcome: one 200 (creator); the other a
     // replayed 200 or a retryable 409. Never a 5xx.
@@ -370,6 +404,7 @@ describe('POST /api/emergency/sos — CONCURRENT idempotency (P0 VIDA probe)', (
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => postSos('evt-uuid-concurrent-5')),
     );
+    await Promise.all(responses.map((response) => response.arrayBuffer()));
 
     for (const r of responses) {
       expect([200, 409]).toContain(r.status);
