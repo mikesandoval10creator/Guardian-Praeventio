@@ -333,6 +333,15 @@ export const logOut = async () => {
   // Wipe this device's crypto material (encrypted KV + device KEK) so the next
   // account on a shared faena device cannot inherit it. Dynamically imported to
   // keep the crypto modules out of the eager firebase chunk.
+  // Explicit queue lifecycle policy: purge the generic authenticated queue
+  // before destroying the device KEK. Specialized SOS/incident stores are
+  // separate and are intentionally untouched here.
+  try {
+    const { offlineSync } = await import('./sync/syncStateMachine');
+    await offlineSync.purgeForLogout();
+  } catch (err) {
+    logger.warn('[firebase.logOut] generic offline queue purge failed (non-fatal)', { err });
+  }
   try {
     const { clearDeviceSecrets } = await import('./security/clearDeviceSecrets');
     const cleared = await clearDeviceSecrets();

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // --- Mock platform check + SQLite + idb so the SUT thinks it's running native ---
@@ -5,6 +6,8 @@ let nativePlatform = true;
 const fakeRows: Array<Record<string, unknown>> = [];
 const isConnectionMock = vi.fn(async () => ({ result: false }));
 const createConnectionMock = vi.fn(async (..._args: unknown[]) => fakeDb);
+const idbAddMock = vi.fn(async () => 41);
+const centralEnqueueMock = vi.fn(async () => 'central-op-1');
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -44,7 +47,22 @@ vi.mock('@capacitor-community/sqlite', () => ({
 vi.mock('idb', () => ({
   openDB: vi.fn(async () => ({
     getAll: vi.fn(async () => []),
+    add: idbAddMock,
   })),
+}));
+
+vi.mock('../services/sync/syncStateMachine', () => ({
+  offlineSync: { enqueue: centralEnqueueMock },
+}));
+
+vi.mock('../services/sync/queueIdentity', () => ({
+  resolveCurrentQueueIdentity: vi.fn(async () => ({
+    ownerUid: 'upload-user',
+    tenantId: 'upload-tenant',
+    installationId: 'upload-installation',
+    schemaVersion: 2,
+  })),
+  isQueueIdentity: (value: unknown) => typeof value === 'object' && value !== null,
 }));
 
 const fakeDb = {
@@ -54,7 +72,7 @@ const fakeDb = {
   query: vi.fn(async (_sql: string) => ({ values: fakeRows })),
 };
 
-const { getPendingActions, __resetPwaOfflineForTests } = await import('./pwa-offline');
+const { getPendingActions, saveForSync, __resetPwaOfflineForTests } = await import('./pwa-offline');
 
 describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () => {
   beforeEach(() => {
@@ -65,6 +83,8 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
     fakeRows.length = 0;
     fakeDb.query.mockClear();
     fakeDb.execute.mockClear();
+    idbAddMock.mockClear();
+    centralEnqueueMock.mockReset().mockResolvedValue('central-op-1');
   });
 
   it('shares one native initialization across concurrent readers', async () => {
@@ -231,5 +251,72 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
 
     const actions = await getPendingActions();
     expect(typeof actions[0].localUpdatedAt).toBe('string');
+  });
+});
+
+describe('pwa-offline.saveForSync queue boundary', () => {
+  beforeEach(() => {
+    nativePlatform = false;
+    __resetPwaOfflineForTests();
+    idbAddMock.mockClear();
+    centralEnqueueMock.mockReset().mockResolvedValue('central-op-1');
+  });
+
+  it('enqueues a generic action exactly once through the central queue', async () => {
+    await saveForSync({
+      type: 'create',
+      collection: 'documents',
+      data: { title: 'offline document' },
+    });
+
+    expect(centralEnqueueMock).toHaveBeenCalledOnce();
+    expect(centralEnqueueMock).toHaveBeenCalledWith({
+      type: 'create',
+      collection: 'documents',
+      data: expect.objectContaining({
+        title: 'offline document',
+        localUpdatedAt: expect.any(String),
+      }),
+    });
+    expect(idbAddMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the authenticated central enqueue rejects', async () => {
+    centralEnqueueMock.mockRejectedValueOnce(new Error('authenticated queue identity unavailable'));
+
+    await expect(
+      saveForSync({
+        type: 'update',
+        docId: 'doc-1',
+        collection: 'documents',
+        data: { title: 'changed' },
+      }),
+    ).rejects.toThrow(/authenticated queue identity unavailable/);
+    expect(idbAddMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps File uploads on the legacy upload boundary without JSON queueing them', async () => {
+    const file = new File(['content'], 'evidence.txt', { type: 'text/plain' });
+
+    await saveForSync({
+      type: 'upload',
+      collection: 'documents',
+      data: { storagePath: 'documents/evidence.txt' },
+      file,
+    });
+
+    expect(centralEnqueueMock).not.toHaveBeenCalled();
+    expect(idbAddMock).toHaveBeenCalledOnce();
+    const idbAddCall = (idbAddMock.mock.calls as unknown[][])[0];
+    expect(idbAddCall?.[1]).toMatchObject({
+      type: 'upload',
+      file,
+      queueIdentity: {
+        ownerUid: 'upload-user',
+        tenantId: 'upload-tenant',
+        installationId: 'upload-installation',
+        schemaVersion: 2,
+      },
+    });
   });
 });

@@ -25,6 +25,14 @@ import {
   ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
 } from './graphMutations';
 
+const queueEnvelope = {
+  ownerUid: 'user-1',
+  tenantId: 'tenant-1',
+  installationId: 'installation-1',
+  schemaVersion: 2 as const,
+  queueClass: 'generic' as const,
+};
+
 const node = {
   type: 'Riesgo',
   title: 'Caída de altura',
@@ -104,6 +112,7 @@ describe('Universal Knowledge graph mutation queue', () => {
 describe('executeGraphSyncOperation', () => {
   it('sends the queued operation with current auth at drain time', async () => {
     await executeGraphSyncOperation({
+      ...queueEnvelope,
       id: 'op-1', attempts: 0, createdAt: 1, type: 'set',
       collection: ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
       data: {
@@ -121,6 +130,7 @@ describe('executeGraphSyncOperation', () => {
 
   it('rejects untrusted endpoints instead of turning the queue into an arbitrary fetch primitive', async () => {
     await expect(executeGraphSyncOperation({
+      ...queueEnvelope,
       id: 'op-1', attempts: 0, createdAt: 1, type: 'set',
       collection: ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
       data: { id: 'x', endpoint: 'https://attacker.example/steal', body: {} },
@@ -131,6 +141,7 @@ describe('executeGraphSyncOperation', () => {
   it('keeps the operation queued when auth is unavailable or the server rejects it', async () => {
     H.apiAuthHeader.mockResolvedValueOnce(null);
     await expect(executeGraphSyncOperation({
+      ...queueEnvelope,
       id: 'op-1', attempts: 0, createdAt: 1, type: 'set',
       collection: ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
       data: { id: 'x', endpoint: '/api/zettelkasten/graph/migrations', body: {} },
@@ -143,6 +154,7 @@ describe('executeGraphSyncOperation', () => {
       text: vi.fn(async () => 'forbidden'),
     } as unknown as Response);
     await expect(executeGraphSyncOperation({
+      ...queueEnvelope,
       id: 'op-2', attempts: 0, createdAt: 1, type: 'set',
       collection: ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
       data: { id: 'y', endpoint: '/api/zettelkasten/graph/migrations', body: {} },

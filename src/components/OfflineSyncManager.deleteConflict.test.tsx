@@ -15,6 +15,13 @@ const deleteDocCalls: string[] = [];
 const dispatched: unknown[] = [];
 
 const pendingActions: unknown[] = [];
+let registeredExecutor:
+  | ((operation: {
+      type: 'delete';
+      collection: string;
+      data: Record<string, unknown>;
+    }) => Promise<void>)
+  | null = null;
 
 vi.mock('../hooks/useOnlineStatus', () => ({ useOnlineStatus: () => true }));
 
@@ -56,8 +63,11 @@ vi.mock('firebase/firestore', () => ({
 
 vi.mock('../services/sync/syncStateMachine', () => ({
   offlineSync: {
-    setExecutor: vi.fn(),
+    setExecutor: (executor: typeof registeredExecutor) => {
+      registeredExecutor = executor;
+    },
     syncNow: vi.fn(async () => ({ succeeded: 0, failed: 0 })),
+    quarantineLegacyOperation: vi.fn(async () => undefined),
   },
 }));
 
@@ -93,6 +103,7 @@ describe('OfflineSyncManager — offline DELETE routes through the conflict engi
     deleteDocCalls.length = 0;
     dispatched.length = 0;
     pendingActions.length = 0;
+    registeredExecutor = null;
     remoteDoc.exists = false;
     remoteDoc.data = null;
     // Capture the sync-critical-conflict event.
@@ -103,14 +114,13 @@ describe('OfflineSyncManager — offline DELETE routes through the conflict engi
 
   it('deletes normally when the remote doc does NOT exist (no conflict)', async () => {
     remoteDoc.exists = false;
-    pendingActions.push({
-      id: 1,
+    render(<OfflineSyncManager />);
+    await flush();
+    await registeredExecutor!({
       type: 'delete',
       collection: 'incidents',
       data: { id: 'inc-1' },
     });
-    render(<OfflineSyncManager />);
-    await flush();
     expect(deleteDocCalls).toContain('incidents/inc-1');
     expect(dispatched).toHaveLength(0);
   });
@@ -118,14 +128,13 @@ describe('OfflineSyncManager — offline DELETE routes through the conflict engi
   it('DIVERTS the delete (no deleteDoc) when the remote doc diverged and requires manual resolution', async () => {
     remoteDoc.exists = true;
     remoteDoc.data = { status: 'open', updatedAt: '2026-08-05T12:00:00.000Z' };
-    pendingActions.push({
-      id: 2,
+    render(<OfflineSyncManager />);
+    await flush();
+    await expect(registeredExecutor!({
       type: 'delete',
       collection: 'incidents',
       data: { id: 'inc-2' },
-    });
-    render(<OfflineSyncManager />);
-    await flush();
+    })).rejects.toThrow(/conflict_pending_resolution/);
     // The delete must NOT execute — evidence survives until a human decides.
     expect(deleteDocCalls).not.toContain('incidents/inc-2');
     // The human-resolution flow was notified.
@@ -138,14 +147,13 @@ describe('OfflineSyncManager — offline DELETE routes through the conflict engi
     // Override: requiresManualResolution -> false for this test.
     const resolver = await import('../services/sync/conflictResolver');
     vi.mocked(resolver.requiresManualResolution).mockReturnValue(false as never);
-    pendingActions.push({
-      id: 3,
+    render(<OfflineSyncManager />);
+    await flush();
+    await registeredExecutor!({
       type: 'delete',
       collection: 'incidents',
       data: { id: 'inc-3' },
     });
-    render(<OfflineSyncManager />);
-    await flush();
     expect(deleteDocCalls).toContain('incidents/inc-3');
     expect(dispatched).toHaveLength(0);
   });

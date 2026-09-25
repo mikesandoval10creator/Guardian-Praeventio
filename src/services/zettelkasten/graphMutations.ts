@@ -11,7 +11,7 @@ const GRAPH_MUTATION_ENDPOINTS = new Set([
   '/api/zettelkasten/graph/connections',
 ]);
 
-interface GraphMutationData {
+interface GraphMutationData extends Record<string, unknown> {
   id: string;
   endpoint: string;
   body: Record<string, unknown>;

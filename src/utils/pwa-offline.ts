@@ -3,6 +3,11 @@ import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacito
 import { openDB, IDBPDatabase } from 'idb';
 import { logger } from './logger';
 import { ensureSqliteEncryptionSecret } from './sqliteEncryption';
+import {
+  isQueueIdentity,
+  resolveCurrentQueueIdentity,
+  type QueueIdentity,
+} from '../services/sync/queueIdentity';
 
 const DB_NAME = 'praeventio-offline';
 const STORE_NAME = 'pending-sync';
@@ -18,6 +23,8 @@ export interface SyncAction {
   file?: File;
   timestamp: number;
   localUpdatedAt: string; // ISO timestamp of when the action was queued offline
+  /** Present only for new File uploads kept outside the JSON central queue. */
+  queueIdentity?: QueueIdentity;
 }
 
 let idbPromise: Promise<IDBPDatabase> | null = null;
@@ -212,19 +219,27 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
   // OfflineSyncManager handles via its custom executor — so we skip
   // delegating those to avoid mistyped queue entries.
   if (action.type !== 'upload') {
-    try {
-      const { offlineSync } = await import('../services/sync/syncStateMachine');
-      await offlineSync.enqueue({
-        type: action.type,
-        collection: action.collection,
-        data: { ...syncAction.data, ...(action.docId ? { id: action.docId } : {}) },
-      });
-    } catch (e) {
-      // Non-fatal — the legacy IndexedDB queue below is still authoritative
-      // until full migration. Log so we notice if delegation is broken.
-      logger.debug('saveForSync: state machine delegate skipped', e);
-    }
+    const { offlineSync } = await import('../services/sync/syncStateMachine');
+    return offlineSync.enqueue({
+      type: action.type,
+      collection: action.collection,
+      data: { ...syncAction.data, ...(action.docId ? { id: action.docId } : {}) },
+    });
   }
+  // File stays out of the JSON-only encrypted state machine until a
+  // binary-safe encrypted upload outbox exists.
+  logger.info('saveForSync: upload retained on binary legacy boundary', {
+    collection: action.collection,
+    hasFile: action.file instanceof File,
+  });
+  window.dispatchEvent(new CustomEvent('sync-upload-boundary-pending', {
+    detail: { collection: action.collection },
+  }));
+  const queueIdentity = await resolveCurrentQueueIdentity();
+  if (!queueIdentity) {
+    throw new Error('saveForSync: authenticated upload queue identity unavailable');
+  }
+  const uploadAction: SyncAction = { ...syncAction, queueIdentity };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if (db) {
@@ -233,14 +248,21 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
       // reliable source even if `data` was ever stored without it.
       await db.run(
         'INSERT INTO pending_sync (docId, type, collection, data, timestamp, localUpdatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-        [action.docId, action.type, action.collection, JSON.stringify(syncAction.data), syncAction.timestamp, nowMs]
+        [
+          action.docId,
+          action.type,
+          action.collection,
+          JSON.stringify({ ...syncAction.data, __queueIdentity: queueIdentity }),
+          syncAction.timestamp,
+          nowMs,
+        ]
       );
     }
     window.dispatchEvent(new CustomEvent('sync-actions-updated'));
     return undefined;
   } else {
     const db = await getIDB();
-    const result = await db.add(STORE_NAME, syncAction);
+    const result = await db.add(STORE_NAME, uploadAction);
     window.dispatchEvent(new CustomEvent('sync-actions-updated'));
     return result;
   }
@@ -277,19 +299,24 @@ export const getPendingActions = async (): Promise<SyncAction[]> => {
     if(!db) return [];
     const res = await db.query('SELECT * FROM pending_sync');
     return res.values?.map(row => {
-      const parsedData = JSON.parse(row.data);
+      const parsedData = JSON.parse(row.data) as unknown;
+      const parsedRecord =
+        parsedData && typeof parsedData === 'object' && !Array.isArray(parsedData)
+          ? parsedData as Record<string, unknown>
+          : {};
+      const { __queueIdentity, ...payloadData } = parsedRecord;
       // Boundary conversion: epoch-ms (number) → ISO string, exactly once.
       // Prefer the JSON-payload value (closer to source-of-truth), fall back
       // to the column. We do NOT spread `row` directly into the result —
       // that previously leaked `row.localUpdatedAt: number` through the
       // typed interface and forced every consumer to re-check the type.
       const localUpdatedAtIso =
-        toIsoTimestamp(parsedData?.localUpdatedAt) ??
+        toIsoTimestamp(payloadData.localUpdatedAt) ??
         toIsoTimestamp(row.localUpdatedAt) ??
         '';
       const normalizedData = localUpdatedAtIso
-        ? { ...parsedData, localUpdatedAt: localUpdatedAtIso }
-        : parsedData;
+        ? { ...payloadData, localUpdatedAt: localUpdatedAtIso }
+        : payloadData;
       return {
         id: row.id,
         docId: row.docId,
@@ -298,6 +325,7 @@ export const getPendingActions = async (): Promise<SyncAction[]> => {
         data: normalizedData,
         timestamp: row.timestamp,
         localUpdatedAt: localUpdatedAtIso,
+        ...(isQueueIdentity(__queueIdentity) ? { queueIdentity: __queueIdentity } : {}),
       } as SyncAction;
     }) || [];
   } else {

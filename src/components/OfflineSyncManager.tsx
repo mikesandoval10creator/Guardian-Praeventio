@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
+import type { RiskNode } from '../types';
 import { logger } from '../utils/logger';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { syncWithFirebase, SyncAction, getPendingActions, removeSyncedAction } from '../utils/pwa-offline';
+import { SyncAction, getPendingActions, removeSyncedAction } from '../utils/pwa-offline';
 import { db, storage, handleFirestoreError, OperationType } from '../services/firebase';
 import { updateDoc, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
 import {
   detectConflicts,
@@ -24,6 +25,10 @@ import {
   executeGraphSyncOperation,
   ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
 } from '../services/zettelkasten/graphMutations';
+import {
+  queueIdentitiesMatch,
+  resolveCurrentQueueIdentity,
+} from '../services/sync/queueIdentity';
 
 /**
  * Lee el campo `updatedAt` (o variantes) de un documento. El contrato
@@ -36,6 +41,10 @@ function pickUpdatedAt(data: Record<string, unknown> | undefined | null): string
   if (typeof candidate === 'string') return candidate;
   if (candidate instanceof Date) return candidate.toISOString();
   return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function OfflineSyncManager() {
@@ -427,15 +436,77 @@ export function OfflineSyncManager() {
       const actions = await getPendingActions();
       if (actions.length === 0) return;
 
-      let current = 0;
-      window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: actions.length } }));
-
+      const pendingUploadActions: SyncAction[] = [];
+      let quarantinedCount = 0;
       for (const action of actions) {
+        if (action.type === 'upload') {
+          pendingUploadActions.push(action);
+          continue;
+        }
+        try {
+          await offlineSync.quarantineLegacyOperation({
+            source: 'legacy_pending_sync',
+            legacyId: action.id !== undefined
+              ? String(action.id)
+              : offlineOpDocId(action.collection, action.type, action.data),
+            payload: action,
+          });
+          if (action.id !== undefined) await removeSyncedAction(action.id);
+          quarantinedCount += 1;
+        } catch (error) {
+          // Fail closed: leave the raw legacy record in place, but never bind
+          // or execute it as the currently authenticated account.
+          logger.error('Failed to quarantine unowned legacy sync action', {
+            actionId: action.id,
+            collection: action.collection,
+            error,
+          });
+        }
+      }
+      if (quarantinedCount > 0) {
+        logger.warn('OfflineSyncManager: legacy generic actions quarantined', {
+          count: quarantinedCount,
+        });
+        window.dispatchEvent(new CustomEvent('sync-legacy-quarantined', {
+          detail: { count: quarantinedCount },
+        }));
+      }
+      if (pendingUploadActions.length === 0) return;
+
+      const currentIdentity = await resolveCurrentQueueIdentity();
+      const uploadActions = currentIdentity
+        ? pendingUploadActions.filter(
+            (action) => action.queueIdentity &&
+              queueIdentitiesMatch(action.queueIdentity, currentIdentity),
+          )
+        : [];
+      const heldUploadCount = pendingUploadActions.length - uploadActions.length;
+      if (heldUploadCount > 0) {
+        logger.warn('OfflineSyncManager: legacy uploads held at identity boundary', {
+          count: heldUploadCount,
+        });
+        window.dispatchEvent(new CustomEvent('sync-upload-boundary-held', {
+          detail: { count: heldUploadCount },
+        }));
+      }
+      if (uploadActions.length === 0) return;
+
+      logger.info('OfflineSyncManager: draining binary legacy upload boundary', {
+        count: uploadActions.length,
+      });
+      window.dispatchEvent(new CustomEvent('sync-upload-boundary-drain', {
+        detail: { count: uploadActions.length },
+      }));
+
+      let current = 0;
+      window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: uploadActions.length } }));
+
+      for (const action of uploadActions) {
         try {
           await handleSync(action);
           if (action.id) await removeSyncedAction(action.id);
           current++;
-          window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: actions.length } }));
+          window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: uploadActions.length } }));
         } catch (err) {
           logger.error('Failed to sync action', { action, error: err });
           window.dispatchEvent(new CustomEvent('sync-action-failed', { detail: { action, error: err } }));
@@ -443,9 +514,37 @@ export function OfflineSyncManager() {
       }
     };
 
-    const handleSingleSync = async (e: any) => {
+    const handleSingleSync = async (e: Event) => {
       if (!isOnline) return;
-      const { action } = e.detail;
+      const detail = (e as CustomEvent<{ action?: SyncAction }>).detail;
+      const action = detail?.action;
+      if (!action) return;
+      if (action.type !== 'upload') {
+        try {
+          await offlineSync.quarantineLegacyOperation({
+            source: 'legacy_pending_sync',
+            legacyId: action.id !== undefined
+              ? String(action.id)
+              : offlineOpDocId(action.collection, action.type, action.data),
+            payload: action,
+          });
+          if (action.id !== undefined) await removeSyncedAction(action.id);
+          window.dispatchEvent(new CustomEvent('sync-legacy-quarantined', {
+            detail: { count: 1 },
+          }));
+        } catch (err) {
+          logger.error('Failed to quarantine single legacy sync action', { error: err });
+        }
+        return;
+      }
+      const currentIdentity = await resolveCurrentQueueIdentity();
+      if (!currentIdentity || !action.queueIdentity ||
+          !queueIdentitiesMatch(action.queueIdentity, currentIdentity)) {
+        window.dispatchEvent(new CustomEvent('sync-upload-boundary-held', {
+          detail: { count: 1 },
+        }));
+        return;
+      }
       try {
         await handleSync(action);
         if (action.id) await removeSyncedAction(action.id);
@@ -468,11 +567,40 @@ export function OfflineSyncManager() {
         // Mirror of the legacy path above: same derived id, and the same
         // control keys stripped, so it does not matter which queue drains
         // first — both write one identical document.
-        const { id: _id, createNode: _createNode, nodeData: _nodeData, ...payload } = op.data ?? {};
+        const { id: _id, createNode, nodeData, ...payload } = op.data;
+        const documentId = offlineOpDocId(collectionName, 'create', op.data);
         await setDoc(
-          doc(db, collectionName, offlineOpDocId(collectionName, 'create', op.data)),
+          doc(db, collectionName, documentId),
           payload,
         );
+        if (createNode === true && isRecord(nodeData)) {
+          const nodeId = offlineOpDocId('nodes', 'create', {
+            docId: documentId,
+            collection: collectionName,
+          });
+          const now = new Date().toISOString();
+          const newNode: Record<string, unknown> = {
+            ...nodeData,
+            id: nodeId,
+            createdAt: now,
+            updatedAt: now,
+          };
+          const projectId =
+            typeof newNode.projectId === 'string' && newNode.projectId
+              ? newNode.projectId
+              : op.projectId ?? activeProjectId;
+          if (!projectId) throw new Error('Derived Risk node missing project scope');
+          const { id: _nodeId, projectId: _projectId, ...nodePayload } = newNode;
+          // nodeData is a legacy persisted RiskNode payload. The runtime
+          // producer already owns validation; this explicit boundary keeps
+          // the central executor type-safe without widening to `any`.
+          await enqueueGraphNode(
+            nodePayload as unknown as Omit<RiskNode, 'id'>,
+            projectId,
+            nodeId,
+          );
+          await updateDoc(doc(db, collectionName, documentId), { nodeId });
+        }
       } else if (op.type === 'update' || op.type === 'set' || op.type === 'delete') {
         // [P0][VIDA-SAFETY] Hy3-audit 3c4aa66d-73fe-81ae-80ee-f7d29c502f34
         // (reabierto 2026-08-24): el state machine escribía/boraba sin chequear
@@ -482,8 +610,11 @@ export function OfflineSyncManager() {
         // el doc remoto, comparamos `updatedAt` (o el más reciente que
         // tengamos offline), y dispatch sync-critical-conflict si difieren.
         // El supervisor decide. La evidencia laboral no se pisa.
-        const opId = op.type === 'delete' ? op.data?.id : (op.data ?? {}).id;
-        if (!opId) throw new Error(`${op.type} op missing id`);
+        const rawOpId = op.data.id;
+        if (typeof rawOpId !== 'string' || rawOpId.length === 0) {
+          throw new Error(`${op.type} op missing id`);
+        }
+        const opId = rawOpId;
         const remoteSnap = await getDoc(doc(db, collectionName, opId));
         if (remoteSnap.exists()) {
           const remoteData = remoteSnap.data() as Record<string, unknown> | undefined;
@@ -517,15 +648,37 @@ export function OfflineSyncManager() {
             // cola offline para un reintento post-resolución.
             throw new Error(`conflict_pending_resolution:${collectionName}:${opId}`);
           }
+          if (op.type === 'delete') {
+            const pendingDelete: PendingAction = {
+              docId: String(opId),
+              collection: collectionName,
+              type: 'delete',
+              data: {},
+              localUpdatedAt: localUpdatedAt ?? new Date(0).toISOString(),
+            };
+            const remoteDelete: DocSnapshot = {
+              collection: collectionName,
+              docId: String(opId),
+              data: remoteData ?? {},
+              serverUpdatedAt: remoteUpdatedAt ?? new Date().toISOString(),
+            };
+            const conflicts = detectConflicts([pendingDelete], [remoteDelete]);
+            if (conflicts.length > 0 && requiresManualResolution(conflicts[0])) {
+              window.dispatchEvent(new CustomEvent('sync-critical-conflict', {
+                detail: conflicts[0],
+              }));
+              throw new Error(`conflict_pending_resolution:${collectionName}:${opId}`);
+            }
+          }
         }
         if (op.type === 'update') {
-          const { id, ...payload } = op.data ?? {};
-          await updateDoc(doc(db, collectionName, id), payload);
+          const { id: _id, ...payload } = op.data;
+          await updateDoc(doc(db, collectionName, opId), payload as never);
         } else if (op.type === 'delete') {
           await deleteDoc(doc(db, collectionName, opId));
         } else {
-          const { id, ...payload } = op.data ?? {};
-          await setDoc(doc(db, collectionName, id), payload, { merge: true });
+          const { id: _id, ...payload } = op.data;
+          await setDoc(doc(db, collectionName, opId), payload, { merge: true });
         }
       }
     });
