@@ -20,6 +20,13 @@ describe('sanitizeAsesorQuery', () => {
     expect(out.toLowerCase()).not.toContain('situacion_reportada');
   });
 
+  it('removes fence tags that carry attributes', () => {
+    const out = sanitizeAsesorQuery(
+      '<situacion_reportada data-evil="x">fuego</situacion_reportada>',
+    );
+    expect(out).toBe('fuego');
+  });
+
   it('caps length to MAX_ASESOR_QUERY_CHARS', () => {
     const out = sanitizeAsesorQuery('a'.repeat(MAX_ASESOR_QUERY_CHARS + 500));
     expect(out.length).toBeLessThanOrEqual(MAX_ASESOR_QUERY_CHARS);
