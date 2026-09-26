@@ -891,6 +891,40 @@ router.post(
       return res.status(500).json({ error: "internal_error" });
     }
 
+    // CLAUDE.md #3/#14: the durable heartbeat write must have an awaited,
+    // handler-owned audit after the transaction. The native request has no
+    // Firebase token by design, so bind the audit actor to the worker UID
+    // proven by the session/capability instead of recording "anonymous".
+    // Replay requests are audited as idempotency events without creating a
+    // second heartbeat document.
+    try {
+      await auditServerEvent(
+        req,
+        "loneWorker.nativeLoneWorkerHeartbeat",
+        "loneWorker",
+        {
+          projectId,
+          sessionId,
+          eventId: eventRef.id,
+          clientEventId: body.clientEventId,
+          workerUid,
+          duplicate,
+          source: "android_lone_worker_service",
+        },
+        { projectId, actorOverride: { uid: workerUid } },
+      );
+    } catch (auditErr) {
+      logger.warn?.(
+        "loneWorker.nativeLoneWorkerHeartbeat.audit_failed",
+        auditErr,
+      );
+      captureRouteError(
+        auditErr,
+        "loneWorker.nativeLoneWorkerHeartbeat.audit",
+        { projectId, sessionId, eventId: eventRef.id },
+      );
+    }
+
     return res.status(202).json({
       accepted: true,
       ...(duplicate ? { duplicate: true } : {}),
