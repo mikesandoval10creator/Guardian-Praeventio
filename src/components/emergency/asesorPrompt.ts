@@ -19,14 +19,15 @@ export const MAX_ASESOR_QUERY_CHARS = 2000;
 
 /**
  * Strip anything that could break out of, or forge, the fence: the literal
- * open/close tags in any case. Caps length. Returns trimmed, fence-safe text.
+ * open/close tags, including attributes, in any case. Caps length. Returns
+ * trimmed, fence-safe text.
  */
 export function sanitizeAsesorQuery(rawQuery: string): string {
   return rawQuery
     .slice(0, MAX_ASESOR_QUERY_CHARS)
     // Remove forged fence tags (case-insensitive) so user content can't close
     // the block early and append its own out-of-band instructions.
-    .replace(/<\/?\s*situacion_reportada\s*>/gi, '')
+    .replace(/<\/?\s*situacion_reportada(?:\s+[^>]*?)?\s*>/gi, '')
     .trim();
 }
 
