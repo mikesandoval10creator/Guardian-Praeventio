@@ -9,7 +9,9 @@
 // pins the new member-gated rules (life-safety = FREE on every tier, ADR 0021):
 //
 //   projects/{pid}/emergency_chat     — append-only, member create
-//   projects/{pid}/emergency_safety   — member create/update (roll-call)
+//   projects/{pid}/emergency_safety   — member self create/update; tenant-bound
+//                                      supervisor/admin marks others; immutable identity
+//                                      stamps; never deleted.
 //   projects/{pid}/emergency_plans    — member create, admin/supervisor mutate
 //   projects/{pid}/notifications      — member create/update, admin delete
 //   projects/{pid}/epp_verifications  — member create, immutable, admin delete
@@ -206,21 +208,103 @@ describe('emergency_chat — firestore.rules (§365)', () => {
 });
 
 describe('emergency_safety — firestore.rules (§365)', () => {
-  const status = (s: string) => ({ workerId: 'w1', status: s, confirmedAt: '2026-06-08T00:00:00.000Z' });
+  const status = (workerId: string, s: string, activationEventId = 'event-1') => ({
+    workerId,
+    status: s,
+    confirmedAt: '2026-06-08T00:00:00.000Z',
+    activationEventId,
+  });
 
-  it('a member can CREATE a roll-call entry', async () => {
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'emergency_safety', 'w1'), status('unknown')));
+  it('a worker can CREATE their own roll-call entry', async () => {
+    await assertSucceeds(
+      setDoc(ref(authed(MEMBER), 'emergency_safety', MEMBER), status(MEMBER, 'unknown')),
+    );
   });
-  it('a member can UPDATE a roll-call status (supervisor marks a worker)', async () => {
-    await seed('emergency_safety', 'w1', status('unknown'));
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'emergency_safety', 'w1'), status('safe'), { merge: true }));
+
+  it('a worker can UPDATE their own roll-call status', async () => {
+    await seed('emergency_safety', MEMBER, status(MEMBER, 'unknown'));
+    await assertSucceeds(
+      setDoc(
+        ref(authed(MEMBER), 'emergency_safety', MEMBER),
+        status(MEMBER, 'safe'),
+        { merge: true },
+      ),
+    );
   });
+
+  it('a plain member CANNOT CREATE a roll-call entry for another worker', async () => {
+    await assertFails(
+      setDoc(ref(authed(MEMBER), 'emergency_safety', OTHER), status(OTHER, 'safe')),
+    );
+  });
+
+  it('a plain member CANNOT UPDATE another worker\'s roll-call entry', async () => {
+    await seed('emergency_safety', OTHER, status(OTHER, 'unknown'));
+    await assertFails(
+      setDoc(
+        ref(authed(MEMBER), 'emergency_safety', OTHER),
+        status(OTHER, 'safe'),
+        { merge: true },
+      ),
+    );
+  });
+
+  it('a tenant-bound supervisor can CREATE and UPDATE another worker\'s roll-call entry', async () => {
+    const supervisorDb = tenantAuthed(SUPERVISOR, TID, 'supervisor');
+    await assertSucceeds(
+      setDoc(ref(supervisorDb, 'emergency_safety', OTHER), status(OTHER, 'unknown')),
+    );
+    await assertSucceeds(
+      setDoc(
+        ref(supervisorDb, 'emergency_safety', OTHER),
+        status(OTHER, 'safe'),
+        { merge: true },
+      ),
+    );
+  });
+
+  it('a tenant-bound admin can UPDATE another worker\'s roll-call entry', async () => {
+    await seed('emergency_safety', OTHER, status(OTHER, 'unknown'));
+    await assertSucceeds(
+      setDoc(
+        ref(tenantAuthed(ADMIN, TID, 'admin'), 'emergency_safety', OTHER),
+        status(OTHER, 'danger'),
+        { merge: true },
+      ),
+    );
+  });
+
+  it('a supervisor bound to another tenant CANNOT mark this project\'s worker', async () => {
+    await seed('emergency_safety', OTHER, status(OTHER, 'unknown'));
+    await assertFails(
+      setDoc(
+        ref(tenantAuthed(SUPERVISOR, 'tenant-other', 'supervisor'), 'emergency_safety', OTHER),
+        status(OTHER, 'danger'),
+        { merge: true },
+      ),
+    );
+  });
+
+  it('a worker CANNOT change workerId or activationEventId on update', async () => {
+    await seed('emergency_safety', MEMBER, status(MEMBER, 'unknown', 'event-1'));
+    const workerDb = authed(MEMBER);
+    await assertFails(
+      updateDoc(ref(workerDb, 'emergency_safety', MEMBER), { workerId: OTHER }),
+    );
+    await assertFails(
+      updateDoc(ref(workerDb, 'emergency_safety', MEMBER), { activationEventId: 'event-2' }),
+    );
+  });
+
   it('a non-member CANNOT create a roll-call entry', async () => {
-    await assertFails(setDoc(ref(authed(OUTSIDER), 'emergency_safety', 'w1'), status('safe')));
+    await assertFails(
+      setDoc(ref(authed(OUTSIDER), 'emergency_safety', OTHER), status(OTHER, 'safe')),
+    );
   });
+
   it('a roll-call entry can never be DELETED', async () => {
-    await seed('emergency_safety', 'w1', status('safe'));
-    await assertFails(deleteDoc(ref(authed(ADMIN, 'admin'), 'emergency_safety', 'w1')));
+    await seed('emergency_safety', MEMBER, status(MEMBER, 'safe'));
+    await assertFails(deleteDoc(ref(authed(ADMIN, 'admin'), 'emergency_safety', MEMBER)));
   });
 });
 

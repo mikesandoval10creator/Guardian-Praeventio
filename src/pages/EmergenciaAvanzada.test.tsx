@@ -42,11 +42,16 @@ vi.mock('framer-motion', () => ({
 }));
 
 let mockProject: { id: string; name: string; tenantId?: string; country?: string } | null = null;
+const mockFirebaseState = vi.hoisted(() => ({
+  user: { uid: 'u1', email: 'u1@test.com' },
+  isAdmin: true,
+  userRole: 'supervisor',
+}));
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockProject }),
 }));
 vi.mock('../contexts/FirebaseContext', () => ({
-  useFirebase: () => ({ user: { uid: 'u1', email: 'u1@test.com' }, isAdmin: true }),
+  useFirebase: () => mockFirebaseState,
 }));
 
 // Deep-link plumbing: configurable ?query and a neutralized realignment hook
@@ -69,8 +74,11 @@ vi.mock('../hooks/useAcousticSOS', () => ({
 vi.mock('../hooks/useSeismicMonitor', () => ({
   useSeismicMonitor: () => ({ earthquakes: [], criticalAlert: null }),
 }));
+const collectionData = vi.hoisted(() => new Map<string, unknown[]>());
 vi.mock('../hooks/useFirestoreCollection', () => ({
-  useFirestoreCollection: () => ({ data: [] }),
+  useFirestoreCollection: (path: string | null) => ({
+    data: path ? collectionData.get(path) ?? [] : [],
+  }),
 }));
 
 vi.mock('../components/shared/Card', () => ({
@@ -151,6 +159,9 @@ const sosDoc = (
 
 beforeEach(() => {
   snapshotHandlers.clear();
+  collectionData.clear();
+  mockFirebaseState.isAdmin = true;
+  mockFirebaseState.userRole = 'supervisor';
   mockProject = { id: 'p1', name: 'Faena Norte', tenantId: 'tA' };
   mockSearchParams = new URLSearchParams('');
   mockDeepLink.status = 'idle';
@@ -304,5 +315,31 @@ describe('<EmergenciaAvanzada /> — SOS de trabajadores (B.3 VIDA)', () => {
     );
     expect(hrefs).toContain('tel:107');
     expect(hrefs).not.toContain('tel:131');
+  });
+
+  it('hides third-party roll-call controls from a plain worker but keeps self controls', async () => {
+    mockFirebaseState.isAdmin = false;
+    mockFirebaseState.userRole = 'worker';
+    collectionData.set('projects/p1/emergency_events', [{
+      id: 'event-1',
+      type: 'general',
+      status: 'active',
+      startedBy: 'supervisor-1',
+      startedAt: '2026-09-26T00:00:00.000Z',
+      active: true,
+    }]);
+    collectionData.set('projects/p1/workers', [
+      { id: 'u1', name: 'Yo', role: 'Trabajador' },
+      { id: 'other-worker', name: 'Otra persona', role: 'Trabajador' },
+    ]);
+
+    render(<EmergenciaAvanzada />);
+    await act(async () => {
+      screen.getByRole('button', { name: /brigadas y recursos/i }).click();
+    });
+
+    expect(screen.getByRole('button', { name: 'Marcar a Yo como seguro' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Marcar a Otra persona como seguro' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Marcar a Otra persona en peligro' })).not.toBeInTheDocument();
   });
 });

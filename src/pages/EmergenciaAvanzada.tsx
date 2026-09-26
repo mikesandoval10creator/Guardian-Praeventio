@@ -19,6 +19,7 @@ import {
   doc, setDoc, onSnapshot, query, orderBy, limit, where,
 } from "../services/firebase";
 import { Worker } from "../types";
+import { isSupervisorRole } from "../types/roles";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
 import { Tooltip } from "../components/shared/Tooltip";
 import { logger } from "../utils/logger";
@@ -91,7 +92,8 @@ export function EmergenciaAvanzada() {
   // The specific SOS this notification was about (deep link ?alertId=...).
   const focusedAlertId = searchParams.get('alertId');
   const focusedAlertRef = useRef<HTMLDivElement | null>(null);
-  const { user, isAdmin } = useFirebase();
+  const { user, userRole, isAdmin } = useFirebase();
+  const canManageWorkerSafety = isAdmin || isSupervisorRole(userRole);
   const [activeTab, setActiveTab] = useState<"map" | "comms" | "resources">("map");
   const [chatInput, setChatInput] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
@@ -377,8 +379,10 @@ export function EmergenciaAvanzada() {
     }
   };
 
+  const canMarkWorker = (workerId: string) => canManageWorkerSafety || workerId === user?.uid;
+
   const markWorker = async (workerId: string, status: 'safe' | 'danger') => {
-    if (!selectedProject) return;
+    if (!selectedProject || !canMarkWorker(workerId)) return;
     // A failed roll-call write must not throw out of the click handler.
     try {
       await setDoc(doc(db, `projects/${selectedProject.id}/emergency_safety`, workerId), {
@@ -866,7 +870,7 @@ export function EmergenciaAvanzada() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {activeEmergency ? (
+                          {activeEmergency && canMarkWorker(w.id) ? (
                             <>
                               {/* Sprint 20 19th-wave (Bucket C): native title= â†’ Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
                               <Tooltip content="Marcar seguro">
@@ -888,6 +892,8 @@ export function EmergenciaAvanzada() {
                                 </button>
                               </Tooltip>
                             </>
+                          ) : activeEmergency ? (
+                            <span className="text-[10px] text-zinc-400 italic">Solo supervisores pueden marcar a terceros</span>
                           ) : (
                             <span className="text-[10px] text-zinc-400 italic">Sin emergencia activa</span>
                           )}
