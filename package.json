@@ -132,6 +132,7 @@
     "@pinecone-database/pinecone": "^9.0.0",
     "@playcanvas/react": "^0.11.5",
     "@praeventio/capacitor-battery-optimization": "file:packages/capacitor-battery-optimization",
+    "@praeventio/capacitor-lone-worker": "file:packages/capacitor-lone-worker",
     "@praeventio/capacitor-mandown": "file:packages/capacitor-mandown",
     "@praeventio/capacitor-mesh": "file:packages/capacitor-mesh",
     "@praeventio/capacitor-proximity": "file:packages/capacitor-proximity",

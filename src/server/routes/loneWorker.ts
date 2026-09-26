@@ -9,6 +9,8 @@
 //
 // Endpoints:
 //   POST /:projectId/lone-worker/start-session   { checkInIntervalMin, startedAt?, lastKnownLocation? }
+//   POST /:projectId/lone-worker/:sessionId/native-lone-worker-capability
+//   POST /:projectId/lone-worker/:sessionId/native-lone-worker-heartbeat
 //   POST /:projectId/lone-worker/check-in        { session, checkIn }
 //   POST /:projectId/lone-worker/end-session     { session, endedAt? }
 //   POST /:projectId/lone-worker/derive-status   { session, now? }
@@ -70,7 +72,12 @@ import {
 import { isAdminRole, isSupervisorRole } from "../../types/roles.js";
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import type {
+  DocumentReference,
+  DocumentData,
+  Firestore,
+  UpdateData,
+} from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 
 const router = Router();
@@ -310,6 +317,8 @@ type NativeSessionRecord = {
   endedAt?: unknown;
   nativeManDownCapabilityHash?: unknown;
   nativeManDownCapabilityExpiresAt?: unknown;
+  nativeLoneWorkerCapabilityHash?: unknown;
+  nativeLoneWorkerCapabilityExpiresAt?: unknown;
 };
 
 class NativeManDownError extends Error {
@@ -632,6 +641,267 @@ router.post(
 );
 
 // ────────────────────────────────────────────────────────────────────────────
+// Native lone-worker heartbeat bridge — capability mint + durable ingest
+// ────────────────────────────────────────────────────────────────────────────
+//
+// This is deliberately separate from native ManDown. ManDown owns sensor
+// suspicion/escalation; this capability owns the ordinary session pulse and
+// location continuity. The Android service never receives a Firebase token.
+// It queues a stable clientEventId before network I/O and this route commits
+// the authoritative check-in exactly once inside a Firestore transaction.
+const NATIVE_LONE_WORKER_CAPABILITY_TTL_MS = 13 * 60 * 60_000;
+const NATIVE_LONE_WORKER_HEADER = "x-lone-worker-capability";
+
+const nativeLoneWorkerHeartbeatSchema = z
+  .object({
+    clientEventId: z.string().uuid(),
+    capturedAt: z.string().min(10).max(80),
+    lat: z.number().finite().min(-90).max(90).optional(),
+    lng: z.number().finite().min(-180).max(180).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if ((value.lat === undefined) !== (value.lng === undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "lat and lng must be supplied together",
+      });
+    }
+  });
+
+type NativeLoneWorkerHeartbeatPayload = z.infer<
+  typeof nativeLoneWorkerHeartbeatSchema
+>;
+
+class NativeLoneWorkerError extends Error {
+  constructor(
+    readonly httpStatus: 409,
+    message:
+      | "native_lone_worker_session_inactive"
+      | "native_lone_worker_capability_invalid",
+  ) {
+    super(message);
+    this.name = "NativeLoneWorkerError";
+  }
+}
+
+router.post(
+  "/:projectId/lone-worker/:sessionId/native-lone-worker-capability",
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, sessionId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    const db = getFirestore();
+    const sessionRef = sessionDocRef(db, projectId, sessionId);
+    const capability = crypto.randomBytes(32).toString("base64url");
+    const expiresAt = new Date(
+      Date.now() + NATIVE_LONE_WORKER_CAPABILITY_TTL_MS,
+    ).toISOString();
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(sessionRef);
+        if (
+          !snap.exists ||
+          !isOpenNativeSession(snap.data() as NativeSessionRecord, callerUid)
+        ) {
+          throw new NativeLoneWorkerError(
+            409,
+            "native_lone_worker_session_inactive",
+          );
+        }
+        tx.update(sessionRef, {
+          nativeLoneWorkerCapabilityHash: capabilityHash(capability),
+          nativeLoneWorkerCapabilityExpiresAt: expiresAt,
+          nativeLoneWorkerCapabilityIssuedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      if (err instanceof NativeLoneWorkerError) {
+        return res.status(err.httpStatus).json({ error: err.message });
+      }
+      logger.error?.("loneWorker.nativeLoneWorkerCapability.error", err);
+      captureRouteError(err, "loneWorker.nativeLoneWorkerCapability", {
+        callerUid,
+        projectId,
+        sessionId,
+      });
+      return res.status(500).json({ error: "internal_error" });
+    }
+
+    try {
+      await auditServerEvent(
+        req,
+        "loneWorker.nativeLoneWorkerCapabilityIssued",
+        "loneWorker",
+        { projectId, sessionId, workerUid: callerUid, expiresAt },
+        { projectId },
+      );
+    } catch (auditErr) {
+      logger.warn?.("loneWorker.nativeLoneWorkerCapability.audit_failed", auditErr);
+      captureRouteError(
+        auditErr,
+        "loneWorker.nativeLoneWorkerCapability.audit",
+        { callerUid, projectId, sessionId },
+      );
+    }
+    return res.json({ sessionId, capability, expiresAt });
+  },
+);
+
+router.post(
+  "/:projectId/lone-worker/:sessionId/native-lone-worker-heartbeat",
+  validate(nativeLoneWorkerHeartbeatSchema),
+  async (req, res) => {
+    const { projectId, sessionId } = req.params;
+    const rawCapability = req.header(NATIVE_LONE_WORKER_HEADER);
+    if (!validNativeCapability(rawCapability)) {
+      return res.status(401).json({ error: "native_lone_worker_unauthorized" });
+    }
+    const body = req.validated as NativeLoneWorkerHeartbeatPayload;
+    const capturedAtMs = Date.parse(body.capturedAt);
+    if (
+      !Number.isFinite(capturedAtMs) ||
+      capturedAtMs > Date.now() + 5 * 60_000
+    ) {
+      return res
+        .status(400)
+        .json({ error: "native_lone_worker_invalid_timestamp" });
+    }
+
+    const db = getFirestore();
+    const sessionRef = sessionDocRef(db, projectId, sessionId);
+    const eventRef = db
+      .collection("projects")
+      .doc(projectId)
+      .collection("lone_worker_heartbeat_events")
+      .doc(body.clientEventId);
+    const serverAt = new Date().toISOString();
+    let workerUid = "";
+    let duplicate = false;
+    let responseServerAt = serverAt;
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const [sessionSnap, existingEvent] = await Promise.all([
+          tx.get(sessionRef),
+          tx.get(eventRef),
+        ]);
+        if (!sessionSnap.exists) {
+          throw new NativeLoneWorkerError(
+            409,
+            "native_lone_worker_session_inactive",
+          );
+        }
+        const session = sessionSnap.data() as NativeSessionRecord & {
+          checkIns?: unknown;
+          lastKnownLocation?: unknown;
+        };
+        const storedWorkerUid =
+          typeof session.workerUid === "string" ? session.workerUid : "";
+        const expiry =
+          typeof session.nativeLoneWorkerCapabilityExpiresAt === "string"
+            ? Date.parse(session.nativeLoneWorkerCapabilityExpiresAt)
+            : Number.NaN;
+        if (
+          !isOpenNativeSession(session, storedWorkerUid) ||
+          !Number.isFinite(expiry) ||
+          expiry <= Date.now() ||
+          !capabilityMatches(
+            rawCapability,
+            session.nativeLoneWorkerCapabilityHash,
+          )
+        ) {
+          throw new NativeLoneWorkerError(
+            409,
+            "native_lone_worker_capability_invalid",
+          );
+        }
+        workerUid = storedWorkerUid;
+
+        if (existingEvent.exists) {
+          const existing = existingEvent.data() as Record<string, unknown>;
+          if (
+            existing.projectId !== projectId ||
+            existing.sessionId !== sessionId ||
+            existing.workerUid !== workerUid ||
+            existing.source !== "android_lone_worker_service"
+          ) {
+            throw new NativeLoneWorkerError(
+              409,
+              "native_lone_worker_capability_invalid",
+            );
+          }
+          duplicate = true;
+          if (typeof existing.serverAt === "string") {
+            responseServerAt = existing.serverAt;
+          }
+          return;
+        }
+
+        const checkIns = Array.isArray(session.checkIns)
+          ? session.checkIns.slice(-9_999)
+          : [];
+        const entry = {
+          at: serverAt,
+          status: "ok" as const,
+          ...(body.lat !== undefined && body.lng !== undefined
+            ? { lat: body.lat, lng: body.lng }
+            : {}),
+        };
+        const sessionPatch: UpdateData<DocumentData> = {
+          checkIns: [...checkIns, entry],
+          // A heartbeat proves the worker is reachable again. Never overwrite
+          // an explicit help request with an automatic pulse.
+          ...(session.status === "help_requested" ? {} : { status: "active" }),
+        };
+        if (body.lat !== undefined && body.lng !== undefined) {
+          sessionPatch.lastKnownLocation = {
+            lat: body.lat,
+            lng: body.lng,
+            at: serverAt,
+          };
+        }
+        tx.update(sessionRef, sessionPatch);
+        tx.create(eventRef, {
+          projectId,
+          sessionId,
+          workerUid,
+          source: "android_lone_worker_service",
+          clientEventId: body.clientEventId,
+          capturedAt: body.capturedAt,
+          serverAt,
+          ...(body.lat !== undefined && body.lng !== undefined
+            ? { lat: body.lat, lng: body.lng }
+            : {}),
+          acceptedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      if (err instanceof NativeLoneWorkerError) {
+        return res.status(err.httpStatus).json({ error: err.message });
+      }
+      logger.error?.("loneWorker.nativeLoneWorkerHeartbeat.error", err);
+      captureRouteError(err, "loneWorker.nativeLoneWorkerHeartbeat", {
+        projectId,
+        sessionId,
+      });
+      return res.status(500).json({ error: "internal_error" });
+    }
+
+    return res.status(202).json({
+      accepted: true,
+      ...(duplicate ? { duplicate: true } : {}),
+      eventId: eventRef.id,
+      serverAt: responseServerAt,
+      workerUid,
+    });
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────────
 // 1. check-in  — worker pulses heartbeat (or "help")
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -762,6 +1032,12 @@ router.post(
           nativeManDownCapabilityExpiresAt:
             FieldValue.delete(),
           nativeManDownCapabilityIssuedAt:
+            FieldValue.delete(),
+          nativeLoneWorkerCapabilityHash:
+            FieldValue.delete(),
+          nativeLoneWorkerCapabilityExpiresAt:
+            FieldValue.delete(),
+          nativeLoneWorkerCapabilityIssuedAt:
             FieldValue.delete(),
         });
         return { session, wasReplay: false };

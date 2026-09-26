@@ -35,6 +35,9 @@ project(':kiwi-health-capacitor-health-connect').projectDir = new File('../node_
 include ':praeventio-capacitor-battery-optimization'
 project(':praeventio-capacitor-battery-optimization').projectDir = new File('../packages/capacitor-battery-optimization/android')
 
+include ':praeventio-capacitor-lone-worker'
+project(':praeventio-capacitor-lone-worker').projectDir = new File('../packages/capacitor-lone-worker/android')
+
 include ':praeventio-capacitor-mandown'
 project(':praeventio-capacitor-mandown').projectDir = new File('../packages/capacitor-mandown/android')
 

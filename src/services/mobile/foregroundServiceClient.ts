@@ -1,23 +1,23 @@
 /**
  * Praeventio Guard — Sprint mobile FGS: foreground-service client wrapper.
  *
- * Thin runtime adapter over `@capawesome-team/capacitor-android-foreground-service`
- * used by the lone-worker check-in flow. The wrapper is the ONLY place in the
- * web codebase that touches the native plugin directly — every other call site
- * (LoneWorker page, scheduled jobs, future SOS escalation) imports the
- * helpers from this module so the platform guard is enforced once.
+ * Legacy notification-only adapter over `@capawesome-team/capacitor-android-foreground-service`.
+ * It is retained for unrelated future/legacy callers, but it is NOT the
+ * lone-worker protection loop. Ordinary lone-worker heartbeat, location, and
+ * outbox work live in `nativeLoneWorkerClient.ts` + the local Android plugin.
+ * No caller may treat this notification shell as evidence of safety coverage.
+ *
+ * The wrapper is the only web-code touchpoint for the legacy plugin so its
+ * platform guard remains centralized.
  *
  * Responsibilities:
  *   1. Platform guard — silently no-ops on web/iOS. The plugin throws
  *      synchronously on iOS/web because `AndroidForegroundService` simply
  *      isn't registered there; calling code should NOT have to catch that.
  *   2. Notification channel bootstrap — Android 8+ requires a channel before
- *      any foreground notification can render. We create the `lone_worker`
- *      channel lazily on the first start call.
- *   3. Running-state mirror — the plugin doesn't expose an `isRunning()`
- *      query, so we keep a local boolean. This is good enough for the
- *      LoneWorker page (it just needs to know whether to render the
- *      stop / cancel button or the start button).
+ *      any foreground notification can render.
+ *   3. Running-state mirror — advisory UI state only; it is not service
+ *      liveness proof and never replaces server heartbeats.
  *   4. Mockable plugin — `__setForegroundServicePlugin` exists for tests so
  *      the unit suite never imports the real native module.
  *
@@ -139,7 +139,7 @@ async function ensureChannel(plugin: ForegroundServicePluginLike): Promise<void>
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Public API — used by LoneWorker.tsx and any future caller.
+// Public API — retained for legacy notification-only callers.
 // ────────────────────────────────────────────────────────────────────────
 
 export interface StartLoneWorkerFgsArgs {

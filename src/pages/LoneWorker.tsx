@@ -8,11 +8,12 @@
 //      routes `/api/sprint-k/{projectId}/lone-worker/{check-in,end-session}`.
 //      Check-in/help results are persisted by the existing client path;
 //      end-session closes the canonical Firestore document server-side and
-//      revokes the native capability atomically.
+//      revokes the native capabilities atomically.
 //
-//   2. Android foreground service: while the worker is on this screen Android
-//      keeps the persistent "Guardian Activo" notification + process alive even
-//      if the WebView hibernates. No-op (no error) on web/iOS.
+//   2. Surface the state of the Android-owned protection. The actual heartbeat,
+//      location sampling, outbox, and service lifecycle live in the global
+//      `NativeLoneWorkerBridge` + local Capacitor plugin, not in this route
+//      component. No-op (no error) on web/iOS.
 //
 // OLA 1 (2026-06-14): replaced the previous FABRICATED mock session — which
 // fed a fake card and violated the no-invented-data directive — with the
@@ -20,13 +21,15 @@
 // the caller). Honest empty-state when the worker has no active session, with
 // a one-tap start.
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Shield, Power, PauseCircle, UserCheck, Loader2 } from 'lucide-react';
+import { Shield, UserCheck, Loader2 } from 'lucide-react';
 import { LoneWorkerCheckInWidget } from '../components/loneWorker/LoneWorkerCheckInWidget';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
-import { startLoneWorkerFgs, stopLoneWorkerFgs, isRunning, isAndroidNative } from '../services/mobile/foregroundServiceClient';
+import {
+  isAndroidNativeLoneWorker,
+} from '../services/mobile/nativeLoneWorkerClient';
 import {
   shouldPromptForBatteryExclusion,
   requestBatteryOptimizationExclusion,
@@ -44,26 +47,16 @@ const DEFAULT_INTERVAL_MIN = 15;
 
 export function LoneWorker() {
   const { t } = useTranslation();
-  const translationRef = useRef(t);
-  const fgsLifecycleRef = useRef(0);
-  useEffect(() => {
-    translationRef.current = t;
-  }, [t]);
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const workerUid = user?.uid ?? 'anonymous';
   const projectId = selectedProject?.id;
 
-  const [fgsActive, setFgsActive] = useState<boolean>(false);
-  const [fgsMessage, setFgsMessage] = useState<string>('');
-  // Battery-optimization exclusion status. null = unknown / not yet queried.
-  // On Android (the only platform that has the gate), we query on mount so
-  // the CTA shows up before the user starts the session. On web/iOS this
-  // stays null and the CTA is never rendered.
+  const [session, setSession] = useState<LoneWorkerSession | null>(null);
+  // Battery-optimization exclusion status. null/false means unknown or not needed.
   const [needsBatteryExclusion, setNeedsBatteryExclusion] = useState<boolean>(false);
   const [batteryPromptShown, setBatteryPromptShown] = useState<boolean>(false);
 
-  const [session, setSession] = useState<LoneWorkerSession | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [starting, setStarting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -106,89 +99,6 @@ export function LoneWorker() {
     );
     return () => unsub();
   }, [projectId, workerUid, subRetryKey]);
-
-  // ── Android foreground service lifecycle ──────────────────────────────────
-  useEffect(() => {
-    if (!user?.uid) {
-      setFgsActive(false);
-      setFgsMessage(translationRef.current(
-        'lone_worker.fgs_requires_auth',
-        'Inicia sesión para activar Guardian Activo.',
-      ));
-      return undefined;
-    }
-
-    const generation = ++fgsLifecycleRef.current;
-    let cancelled = false;
-    const startPromise = (async () => {
-      const r = await startLoneWorkerFgs({
-        workerUid,
-        checkInIntervalSec: DEFAULT_INTERVAL_MIN * 60,
-      });
-      if (cancelled) return;
-      setFgsActive(isRunning());
-      const currentT = translationRef.current;
-      setFgsMessage(
-        r.applied
-          ? `FGS ${r.reason}.`
-          : r.reason === 'not_native'
-            ? currentT('lone_worker.fgs_not_native')
-            : r.reason === 'no_plugin'
-              ? currentT('lone_worker.fgs_no_plugin')
-              : `FGS error: ${r.error ?? currentT('lone_worker.fgs_error_unknown')}`,
-      );
-    })();
-
-    return () => {
-      cancelled = true;
-      // Do not race stop() against start(). Android requires the service to
-      // call startForeground() promptly; stopping the component during the
-      // in-flight start leaves a pending FGS and crashes the process. Cleanup
-      // waits for the start result, then stops the service if the page left.
-      void startPromise.then(async () => {
-        if (fgsLifecycleRef.current !== generation) return;
-        await stopLoneWorkerFgs();
-        setFgsActive(false);
-      });
-    };
-  }, [workerUid]);
-
-  // Keep the FGS persistent-notification cadence in sync with the worker's REAL
-  // session interval (the mount effect uses the default until the session loads,
-  // which would otherwise show "Check-in cada 15 min" for a 30-min session).
-  // startLoneWorkerFgs is idempotent (updates the notification when running).
-  useEffect(() => {
-    if (!session) return;
-    void startLoneWorkerFgs({
-      workerUid,
-      checkInIntervalSec: session.checkInIntervalMin * 60,
-    });
-  }, [session?.checkInIntervalMin, workerUid]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleManualStop = useCallback(async () => {
-    const r = await stopLoneWorkerFgs();
-    setFgsActive(isRunning());
-    setFgsMessage(
-      r.applied ? t('lone_worker.fgs_stopped_msg') : r.error ?? t('lone_worker.fgs_not_running'),
-    );
-  }, [t]);
-
-  const handleManualStart = useCallback(async () => {
-    if (!user?.uid) {
-      setFgsActive(false);
-      setFgsMessage(translationRef.current(
-        'lone_worker.fgs_requires_auth',
-        'Inicia sesión para activar Guardian Activo.',
-      ));
-      return;
-    }
-    const r = await startLoneWorkerFgs({
-      workerUid,
-      checkInIntervalSec: DEFAULT_INTERVAL_MIN * 60,
-    });
-    setFgsActive(isRunning());
-    setFgsMessage(r.applied ? `FGS ${r.reason}.` : `FGS no aplica (${r.reason}).`);
-  }, [user?.uid, workerUid]);
 
   // Query the OS battery-optimization exemption status on Android mount.
   // The query is fire-and-forget; on web/iOS it resolves to "unavailable"
@@ -409,12 +319,11 @@ export function LoneWorker() {
 
       {/* Android battery-optimization exemption CTA (Xiaomi/Huawei/Samsung).
           On Android, when the OS still considers the app a "battery hog",
-          the foreground service can be killed within minutes of the screen
-          turning off. The CTA above the FGS controls is non-blocking: the
-          user can still start the session, but if they ignore it the
-          check-in loop will silently die after a few minutes in their
-          pocket. We explain that in plain Spanish. */}
-      {needsBatteryExclusion && isAndroidNative() && (
+          the native foreground service can be killed within minutes of the
+          screen turning off. The CTA is non-blocking: the user can still start
+          the session, but if they ignore it the native loop may die after a
+          few minutes in their pocket. We explain that in plain Spanish. */}
+      {needsBatteryExclusion && isAndroidNativeLoneWorker() && (
         <div
           className="rounded-2xl border border-amber-300 bg-amber-50 p-4 space-y-2 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-100"
           data-testid="loneWorker.batteryExclusion"
@@ -441,43 +350,47 @@ export function LoneWorker() {
         </div>
       )}
 
-      {/* Android foreground service controls (process survival while solo). */}
+      {/* Protection is global and session-scoped. It is deliberately not
+          started/stopped by this route component: NativeLoneWorkerBridge owns
+          the lifecycle, while Android owns the heartbeat/outbox after the
+          WebView is suspended. */}
       <div
         className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-zinc-900/60"
         data-testid="loneWorker.fgs"
       >
         <header className="flex items-center gap-2">
-          <Power className={`w-4 h-4 ${fgsActive ? 'text-teal-600' : 'text-slate-400'}`} aria-hidden="true" />
+          <Shield
+            className={`w-4 h-4 ${session ? 'text-teal-600' : 'text-slate-400'}`}
+            aria-hidden="true"
+          />
           <h2 className="text-sm font-bold">
-            {fgsActive ? t('lone_worker.fgs_active') : t('lone_worker.fgs_stopped')}
+            {session
+              ? t('lone_worker.fgs_active', 'Protección nativa de sesión activa')
+              : t('lone_worker.fgs_stopped', 'Sin sesión nativa activa')}
           </h2>
         </header>
-        <p className="text-[11px] text-slate-600 dark:text-slate-400" data-testid="loneWorker.fgs.message">
-          {fgsMessage || t('lone_worker.fgs_starting')}
+        <p
+          className="text-[11px] text-slate-600 dark:text-slate-400"
+          data-testid="loneWorker.fgs.message"
+        >
+          {session
+            ? t(
+                'lone_worker.fgs_native_global',
+                'Guardian envía heartbeat y ubicación desde Android, aunque navegues fuera de esta pantalla.',
+              )
+            : user?.uid
+              ? t(
+                  'lone_worker.fgs_waiting_session',
+                  'Inicia una sesión de trabajo solitario para activar la protección nativa.',
+                )
+              : t(
+                  'lone_worker.fgs_requires_auth',
+                  'Inicia sesión para activar Guardian Activo.',
+                )}
         </p>
         <p className="text-[11px] text-slate-500">
-          {t('lone_worker.platform_label')}: {isAndroidNative() ? t('lone_worker.platform_android') : t('lone_worker.platform_web')}
+          {t('lone_worker.platform_label')}: {isAndroidNativeLoneWorker() ? t('lone_worker.platform_android') : t('lone_worker.platform_web')}
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleManualStart}
-            disabled={fgsActive || !user?.uid}
-            className="rounded-md px-3 py-2 text-xs font-bold bg-teal-600 text-white disabled:bg-slate-200 disabled:text-slate-400"
-            data-testid="loneWorker.fgs.start"
-          >
-            <Power className="w-3 h-3 inline mr-1" aria-hidden="true" /> {t('lone_worker.btn_start')}
-          </button>
-          <button
-            type="button"
-            onClick={handleManualStop}
-            disabled={!fgsActive}
-            className="rounded-md px-3 py-2 text-xs font-bold bg-rose-600 text-white disabled:bg-slate-200 disabled:text-slate-400"
-            data-testid="loneWorker.fgs.stop"
-          >
-            <PauseCircle className="w-3 h-3 inline mr-1" aria-hidden="true" /> {t('lone_worker.btn_stop')}
-          </button>
-        </div>
       </div>
     </section>
   );
