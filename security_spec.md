@@ -758,8 +758,11 @@ EPP verifications and training assignments all silently failed. Life-safety is F
 on every tier (ADR 0021) → member-gated, never tier-gated. New rules:
 
 - `projects/{pid}/emergency_chat` — member create, **append-only** (no update/delete).
-- `projects/{pid}/emergency_safety/{workerId}` — member create/update (roll-call;
-  a supervisor marks others, a worker confirms self), never deleted.
+- `projects/{pid}/emergency_safety/{workerId}` — a project member may create/update
+  **only their own** roll-call row (`workerId == auth.uid` and doc id binding);
+  a supervisor/admin may create/update another worker only when tenant-bound to
+  the project's tenant. `workerId`, `projectId` and `activationEventId` are
+  immutable on update; never deleted.
 - `projects/{pid}/emergency_plans` — member create, admin/supervisor update/delete.
 - `projects/{pid}/notifications` — member create/update (mark-read), admin delete.
 - `projects/{pid}/epp_verifications` — member create, **immutable**, admin delete.
@@ -771,7 +774,7 @@ on every tier (ADR 0021) → member-gated, never tier-gated. New rules:
   section below (entries 97-99). The tenant match block was removed; writes
   there fall to the tenant catch-all default-deny.
 
-Rules tests: `src/rules-tests/emergencyOpsCollections.rules.test.ts` (32 cases, F1
+Rules tests: `src/rules-tests/emergencyOpsCollections.rules.test.ts` (47 cases, F1
 harness). `EmergenciaAvanzada`'s `emergency_events` write was also realigned to the
 canonical `{status:'active', triggeredBy:uid}` shape the rule already enforces, and
 all four handlers wrapped in try/catch so a denied write never aborts the SOS flow.
@@ -783,6 +786,11 @@ all four handlers wrapped in try/catch so a denied write never aborts the SOS fl
     `notifications` / `epp_verifications` / `trainings` — denied by
     `isProjectMember(projectId)`. A stranger cannot eavesdrop on a faena's emergency
     comms or fabricate a roll-call status.
+71a. **Cross-Worker Roll-Call Forge**: a project member whose `workerId` differs
+     from `request.auth.uid` tries to CREATE/UPDATE another worker's
+     `emergency_safety` row — denied. A supervisor/admin needs a tenant-bound
+     role for this project's tenant; `workerId`, `projectId` and
+     `activationEventId` cannot be changed on update.
 72. **Emergency-Chat History Tamper**: any user (incl. admin) tries to UPDATE or
     DELETE an `emergency_chat` message — denied (`update,delete:false`). The
     emergency channel is an append-only record of who said what during a crisis.

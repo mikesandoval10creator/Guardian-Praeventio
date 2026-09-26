@@ -844,11 +844,34 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Worker safety roll-call (docId == workerId). During an active emergency
-      // a member confirms their own status AND a supervisor marks others, so
-      // create/update are member-gated (not uid-bound). Never deleted.
+      // Worker safety roll-call (docId == workerId). A worker may only write
+      // their own document; a supervisor/admin must be bound to this project's
+      // tenant before marking another worker. Identity and activation-event
+      // stamps are immutable on update. Never deleted.
       match /emergency_safety/{workerId} {
-        allow create, update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
+        allow create: if isValidId(projectId)
+          && isValidId(workerId)
+          && isProjectMemberTenantScoped(projectId)
+          && incoming().get('workerId', '') == workerId
+          && incoming().get('projectId', projectId) == projectId
+          && incoming().get('activationEventId', '') is string
+          && (
+            workerId == request.auth.uid ||
+            isSupervisorOfTenant(projectTenantId(projectId))
+          );
+        allow update: if isValidId(projectId)
+          && isValidId(workerId)
+          && isProjectMemberTenantScoped(projectId)
+          && existing().get('workerId', '') == workerId
+          && incoming().get('workerId', '') == existing().get('workerId', '')
+          && existing().get('projectId', projectId) == projectId
+          && incoming().get('projectId', projectId) == projectId
+          && incoming().get('activationEventId', '') == existing().get('activationEventId', '')
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'confirmedAt'])
+          && (
+            workerId == request.auth.uid ||
+            isSupervisorOfTenant(projectTenantId(projectId))
+          );
         allow delete: if false;
       }
 
