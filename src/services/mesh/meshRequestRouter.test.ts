@@ -12,6 +12,7 @@ import {
   type SosPayload,
 } from './meshPacket';
 import { MeshRelayQueue } from './meshRelayQueue';
+import { computeContentHash } from './fileChunker';
 import { MeshRequestRouter, type FileRequestRecord } from './meshRequestRouter';
 
 // ---------------------------------------------------------------------------
@@ -282,12 +283,14 @@ describe('MeshRequestRouter', () => {
 
     const c0 = new Uint8Array([1, 2, 3]);
     const c1 = new Uint8Array([4, 5, 6, 7]);
+    const expectedHash = await computeContentHash(new Blob([c0, c1]));
     await router.processIncomingPackets([
       makeFileChunkPacket({
         requestId,
         chunkIndex: 0,
         totalChunks: 2,
         data: c0,
+        contentHash: expectedHash,
       }),
       makeFileChunkPacket({
         requestId,
@@ -295,6 +298,7 @@ describe('MeshRequestRouter', () => {
         totalChunks: 2,
         data: c1,
         bornAtMs: 2_001,
+        contentHash: expectedHash,
       }),
     ]);
 
@@ -305,6 +309,70 @@ describe('MeshRequestRouter', () => {
       await completed[0].reconstructedFile!.arrayBuffer(),
     );
     expect(Array.from(buf)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('hash mismatch purges the assembly and leaves the request reintentable', async () => {
+    const onComplete = vi.fn();
+    const { router } = makeRouter({ now, onFileComplete: onComplete });
+    const { requestId } = await router.requestFile({
+      nodeId: 'node-hash',
+      contentHash: null,
+      title: 'x',
+    });
+
+    const c0 = new Uint8Array([1, 2, 3]);
+    const originalC1 = new Uint8Array([4, 5, 6, 7]);
+    const mutatedC1 = new Uint8Array([4, 5, 6, 99]);
+    const expectedHash = await computeContentHash(new Blob([c0, originalC1]));
+
+    await router.processIncomingPackets([
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 0,
+        totalChunks: 2,
+        data: c0,
+        contentHash: expectedHash,
+      }),
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 1,
+        totalChunks: 2,
+        data: mutatedC1,
+        bornAtMs: 2_001,
+        contentHash: expectedHash,
+      }),
+    ]);
+
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(router.getActiveRequests()[0]).toMatchObject({
+      state: 'in_transit',
+      totalChunks: null,
+      reconstructedFile: null,
+      receivedContentHash: null,
+    });
+    expect(router.getActiveRequests()[0].receivedChunks.size).toBe(0);
+
+    await router.processIncomingPackets([
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 0,
+        totalChunks: 2,
+        data: c0,
+        bornAtMs: 3_000,
+        contentHash: expectedHash,
+      }),
+      makeFileChunkPacket({
+        requestId,
+        chunkIndex: 1,
+        totalChunks: 2,
+        data: originalC1,
+        bornAtMs: 3_001,
+        contentHash: expectedHash,
+      }),
+    ]);
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(router.getActiveRequests()[0].state).toBe('complete');
   });
 
   it('6. cancelRequest → state=cancelled', async () => {
@@ -346,18 +414,25 @@ describe('MeshRequestRouter', () => {
       title: 't',
     });
 
+    const firstChunk = new Uint8Array([10]);
+    const secondChunk = new Uint8Array([20]);
+    const expectedHash = await computeContentHash(
+      new Blob([firstChunk, secondChunk]),
+    );
     const dup = makeFileChunkPacket({
       requestId,
       chunkIndex: 0,
       totalChunks: 2,
-      data: new Uint8Array([10]),
+      data: firstChunk,
+      contentHash: expectedHash,
     });
     const second = makeFileChunkPacket({
       requestId,
       chunkIndex: 1,
       totalChunks: 2,
-      data: new Uint8Array([20]),
+      data: secondChunk,
       bornAtMs: 2_001,
+      contentHash: expectedHash,
     });
 
     await router.processIncomingPackets([dup, dup, second]);
@@ -411,11 +486,14 @@ describe('MeshRequestRouter', () => {
 
     // Mix: file_request + file_chunk + un tipo no relacionado (gps_breadcrumb)
     const fileReq = makeFileRequestPacket({ nodeId: 'node-D' });
+    const incomingData = new Uint8Array([99]);
+    const incomingHash = await computeContentHash(new Blob([incomingData]));
     const chunk = makeFileChunkPacket({
       requestId,
       chunkIndex: 0,
       totalChunks: 1,
-      data: new Uint8Array([99]),
+      data: incomingData,
+      contentHash: incomingHash,
     });
     const gps = buildPacket({
       type: 'gps_breadcrumb',

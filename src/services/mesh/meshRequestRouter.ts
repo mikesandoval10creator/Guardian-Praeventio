@@ -31,7 +31,7 @@ import {
   type SosPayload,
 } from './meshPacket';
 import { MeshRelayQueue } from './meshRelayQueue';
-import { chunkBlob, reconstructBlob } from './fileChunker';
+import { chunkBlob, computeContentHash, reconstructBlob } from './fileChunker';
 import { logger } from '../../utils/logger';
 
 export type FileRequestState =
@@ -51,6 +51,8 @@ export interface FileRequestRecord {
   createdAt: number;
   expiresAt: number;
   receivedChunks: Map<number, Uint8Array>;
+  /** Hash declared by the received chunk stream, once its first chunk arrives. */
+  receivedContentHash: string | null;
   totalChunks: number | null;
   reconstructedFile: Blob | null;
 }
@@ -180,6 +182,7 @@ export class MeshRequestRouter {
       createdAt: now,
       expiresAt: now + this.requestLifetimeMs,
       receivedChunks: new Map(),
+      receivedContentHash: null,
       totalChunks: null,
       reconstructedFile: null,
     };
@@ -216,7 +219,7 @@ export class MeshRequestRouter {
         continue;
       }
       if (isFileChunk(packet)) {
-        this.handleIncomingFileChunk(packet);
+        await this.handleIncomingFileChunk(packet);
         continue;
       }
       if (isSos(packet)) {
@@ -304,10 +307,16 @@ export class MeshRequestRouter {
     }
   }
 
-  private handleIncomingFileChunk(
+  private async handleIncomingFileChunk(
     packet: MeshPacket & { type: 'file_chunk'; payload: FileChunkPayload },
-  ): void {
-    const { requestId, chunkIndex, totalChunks, dataBase64 } = packet.payload;
+  ): Promise<void> {
+    const {
+      requestId,
+      contentHash,
+      chunkIndex,
+      totalChunks,
+      dataBase64,
+    } = packet.payload;
     // [Hy3-audit] DoS guard \u2014 reject totalChunks outside the safe range
     // BEFORE any record mutation. A negative or zero value is also invalid
     // and falls under the same reject path.
@@ -353,6 +362,19 @@ export class MeshRequestRouter {
       return;
     }
 
+    // Every chunk must agree with the requested hash and with the first
+    // received declaration. A mixed hash stream is not a valid assembly.
+    if (record.contentHash !== null && record.contentHash !== contentHash) {
+      return;
+    }
+    if (
+      record.receivedContentHash !== null &&
+      record.receivedContentHash !== contentHash
+    ) {
+      return;
+    }
+    record.receivedContentHash ??= contentHash;
+
     // Dedup: si ya tenemos este index, skip silencioso (idempotente).
     if (record.receivedChunks.has(chunkIndex)) {
       return;
@@ -377,10 +399,25 @@ export class MeshRequestRouter {
         }
         ordered.push(piece);
       }
-      record.reconstructedFile = reconstructBlob(
+      const reconstructed = reconstructBlob(
         ordered,
         'application/octet-stream',
       );
+      const expectedHash = record.contentHash ?? record.receivedContentHash;
+      const actualHash = expectedHash
+        ? await computeContentHash(reconstructed)
+        : null;
+      if (actualHash !== expectedHash) {
+        // Keep the request retryable, but never expose or callback a
+        // reconstructed artifact whose bytes do not match the declaration.
+        record.receivedChunks.clear();
+        record.receivedContentHash = null;
+        record.totalChunks = null;
+        record.reconstructedFile = null;
+        record.state = 'in_transit';
+        return;
+      }
+      record.reconstructedFile = reconstructed;
       record.state = 'complete';
       this.onFileComplete(record);
     }
