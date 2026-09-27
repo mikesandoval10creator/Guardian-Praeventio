@@ -6,9 +6,9 @@
 //     dependency, so `cap update` never wrote it into
 //     android/capacitor.settings.gradle → on device `registerPlugin('Mesh')`
 //     fell back to the web simulator and offline SOS-over-mesh did nothing.
-//   • The lone-worker foreground-service plugin (capawesome) was installed
-//     in package.json but missing from capacitor.settings.gradle, while
-//     AndroidManifest.xml declared its <service> → class absent from APK.
+//   • The native lone-worker foreground-service plugin must be present in
+//     package.json and capacitor.settings.gradle, otherwise Android silently
+//     falls back to the web bridge and no protection loop runs on device.
 //   • AndroidManifest.xml lacked ACCESS_FINE/COARSE_LOCATION and CAMERA —
 //     the geolocation plugin does not declare them, so SOS GPS and the QR
 //     scanner were dead on device.
@@ -41,7 +41,11 @@ describe("android build wiring — life-safety plugins (B21)", () => {
     ],
     [
       ":capawesome-team-capacitor-android-foreground-service",
-      "lone-worker check-in FGS",
+      "legacy notification-only foreground service",
+    ],
+    [
+      ":praeventio-capacitor-lone-worker",
+      "native lone-worker heartbeat and location service",
     ],
     [":praeventio-capacitor-proximity", "man-down proximity sensing"],
     [":capacitor-geolocation", "SOS GPS"],
@@ -145,15 +149,18 @@ describe("AndroidManifest — permissions the plugins do not provide (B21)", () 
     expect(manifest).toContain('android:allowBackup="false"');
   });
 
-  it("the declared FGS service class ships in the APK (plugin included in gradle)", () => {
-    // AndroidManifest declares the capawesome service class; if the plugin
-    // is not compiled in, Android crashes on service start. The settings
-    // check above plus this assertion tie the two files together.
-    expect(manifest).toContain(
-      "io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService",
+  it("the native lone-worker FGS class ships in the plugin manifest", () => {
+    // The local plugin owns the concrete protection service. The application
+    // manifest intentionally does not declare Capawesome's notification-only
+    // service as if it were the lone-worker loop.
+    const pluginManifest = read(
+      "packages/capacitor-lone-worker/android/src/main/AndroidManifest.xml",
+    );
+    expect(pluginManifest).toContain(
+      "android:name=\".NativeLoneWorkerForegroundService\"",
     );
     expect(read("android/capacitor.settings.gradle")).toContain(
-      "new File('../node_modules/@capawesome-team/capacitor-android-foreground-service/android')",
+      "new File('../packages/capacitor-lone-worker/android')",
     );
   });
 

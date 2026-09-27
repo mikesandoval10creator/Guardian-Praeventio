@@ -82,13 +82,9 @@ vi.mock('../hooks/useLoneWorker', () => ({
   startLoneWorkerSessionApi: (...a: unknown[]) => startLoneWorkerSessionApi(...a),
 }));
 
-const startLoneWorkerFgs = vi.fn().mockResolvedValue({ applied: false, reason: 'not_native' });
-const stopLoneWorkerFgs = vi.fn().mockResolvedValue({ applied: true, reason: 'stopped' });
-vi.mock('../services/mobile/foregroundServiceClient', () => ({
-  startLoneWorkerFgs: (...args: unknown[]) => startLoneWorkerFgs(...args),
-  stopLoneWorkerFgs: (...args: unknown[]) => stopLoneWorkerFgs(...args),
-  isRunning: () => false,
-  isAndroidNative: () => false,
+const isAndroidNativeLoneWorker = vi.fn(() => false);
+vi.mock('../services/mobile/nativeLoneWorkerClient', () => ({
+  isAndroidNativeLoneWorker: () => isAndroidNativeLoneWorker(),
 }));
 
 vi.mock('../utils/logger', () => ({
@@ -128,42 +124,18 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(screen.getByTestId('loneWorker.fgs')).toBeTruthy();
   });
 
-  it('anonymous worker does not start the native FGS', async () => {
+  it('anonymous worker does not expose a manual native-service control', async () => {
     mockUser = null;
     render(<LoneWorker />);
 
     expect(screen.getByTestId('loneWorker.fgs.message').textContent).toMatch(/Inicia sesión/);
-    expect(startLoneWorkerFgs).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('loneWorker.fgs.start')).toBeNull();
   });
 
-  it('anonymous worker cannot manually start the native FGS', async () => {
-    mockUser = null;
-    render(<LoneWorker />);
-
-    const startButton = screen.getByTestId('loneWorker.fgs.start') as HTMLButtonElement;
-    expect(startButton.disabled).toBe(true);
-    fireEvent.click(startButton);
-    expect(startLoneWorkerFgs).not.toHaveBeenCalled();
-  });
-
-  it('cleanup waits for a pending FGS start before stopping it', async () => {
-    let resolveStart:
-      | ((value: { applied: boolean; reason: string }) => void)
-      | undefined;
-    startLoneWorkerFgs.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
-
+  it('page unmount does not own or stop the global native service lifecycle', async () => {
     const { unmount } = render(<LoneWorker />);
-    await waitFor(() => expect(startLoneWorkerFgs).toHaveBeenCalledOnce());
     unmount();
-
-    expect(stopLoneWorkerFgs).not.toHaveBeenCalled();
-    resolveStart?.({ applied: true, reason: 'started' });
-    await waitFor(() => expect(stopLoneWorkerFgs).toHaveBeenCalledOnce());
+    expect(isAndroidNativeLoneWorker).toHaveBeenCalled();
   });
 
   it('worker has an active session → renders the real check-in widget', async () => {
@@ -292,12 +264,8 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(screen.queryByTestId('loneWorker.subError')).toBeNull();
   });
 
-  it('starts the Android foreground service on mount', async () => {
+  it('does not start a native service from the route component', async () => {
     render(<LoneWorker />);
-    await waitFor(() =>
-      expect(startLoneWorkerFgs).toHaveBeenCalledWith(
-        expect.objectContaining({ workerUid: 'worker-1' }),
-      ),
-    );
+    expect(isAndroidNativeLoneWorker).toHaveBeenCalled();
   });
 });

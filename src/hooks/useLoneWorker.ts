@@ -81,6 +81,23 @@ export async function mintNativeManDownCapability(
   return json<NativeManDownCapabilityResponse>(res);
 }
 
+export interface NativeLoneWorkerCapabilityResponse {
+  sessionId: string;
+  capability: string;
+  expiresAt: string;
+}
+
+export async function mintNativeLoneWorkerCapability(
+  projectId: string,
+  sessionId: string,
+): Promise<NativeLoneWorkerCapabilityResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/lone-worker/${sessionId}/native-lone-worker-capability`,
+    { method: "POST", body: "{}" },
+  );
+  return json<NativeLoneWorkerCapabilityResponse>(res);
+}
+
 export interface CheckInInput {
   session: LoneWorkerSession;
   checkIn: {

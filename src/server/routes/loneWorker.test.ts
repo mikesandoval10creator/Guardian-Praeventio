@@ -22,6 +22,8 @@ describe("loneWorkerRouter (wire-up contract)", () => {
     "/:projectId/lone-worker/start-session",
     "/:projectId/lone-worker/:sessionId/native-mandown-capability",
     "/:projectId/lone-worker/:sessionId/native-man-down",
+    "/:projectId/lone-worker/:sessionId/native-lone-worker-capability",
+    "/:projectId/lone-worker/:sessionId/native-lone-worker-heartbeat",
     "/:projectId/lone-worker/check-in",
     "/:projectId/lone-worker/end-session",
     "/:projectId/lone-worker/derive-status",
@@ -35,9 +37,9 @@ describe("loneWorkerRouter (wire-up contract)", () => {
     });
   }
 
-  it("registers exactly 8 POST endpoints", () => {
+  it("registers exactly 10 POST endpoints", () => {
     const postRoutes = layers.filter((l) => l.route?.methods.post === true);
-    expect(postRoutes.length).toBe(8);
+    expect(postRoutes.length).toBe(10);
   });
 
   it("all routes are nested under /:projectId/lone-worker/", () => {
