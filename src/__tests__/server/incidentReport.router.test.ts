@@ -63,6 +63,7 @@ vi.mock('../../services/observability/index.js', () => ({
 // realistically per test.
 
 import incidentReportRouter from '../../server/routes/incidentReport.js';
+import { reportIncident } from '../../services/incidents/incidentRagService';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 function buildApp() {
@@ -79,14 +80,15 @@ function seedProjectAndIncident() {
     createdBy: 'w1',
     name: 'Oficial Test',
   });
-  H.db!._seed('incidents/inc-real', {
+  H.db!._seed('tenants/t-off/projects/p-off/incidents/inc-real', {
+    id: 'inc-real',
     projectId: 'p-off',
     tenantId: 't-off',
-    occurredAt: '2026-07-15T10:00:00.000Z',
-    reportedAt: '2026-07-15T10:05:00.000Z',
-    reportedByUid: 'w1',
+    ts: '2026-07-15T10:00:00.000Z',
+    createdAt: '2026-07-15T10:05:00.000Z',
+    reporterUid: 'w1',
+    incidentType: 'incident',
     severity: 'high',
-    summary: 'Resumen autoritativo del incidente',
     description: 'Descripción autoritativa',
     location: { site: 'Faena Norte' },
   });
@@ -119,11 +121,21 @@ describe('POST /api/sprint-k/:projectId/incidents/:incidentId/report — officia
     expect(res.status).toBe(403);
   });
 
-  it('404 when the incident does not exist (caller IS a member of the project)', async () => {
+  it('404 when only a legacy root incident exists (caller IS a member of the project)', async () => {
     H.db!._seed('projects/p-off', {
       tenantId: 't-off',
       members: ['w1'],
       createdBy: 'w1',
+    });
+    // The reader must not fall back to this pre-canonical collection.
+    H.db!._seed('incidents/inc-ghost', {
+      projectId: 'p-off',
+      tenantId: 't-off',
+      occurredAt: '2026-07-15T10:00:00.000Z',
+      reportedAt: '2026-07-15T10:05:00.000Z',
+      reportedByUid: 'w1',
+      severity: 'high',
+      summary: 'legacy record must not become official',
     });
     const res = await request(buildApp())
       .post('/api/sprint-k/p-off/incidents/inc-ghost/report')
@@ -159,13 +171,13 @@ describe('POST /api/sprint-k/:projectId/incidents/:incidentId/report — officia
       members: ['w1'],
       createdBy: 'w1',
     });
-    H.db!._seed('incidents/inc-smuggle', {
+    H.db!._seed('tenants/t-real/projects/p-real/incidents/inc-smuggle', {
       projectId: 'p-other',
       tenantId: 't-other',
-      occurredAt: '2026-07-15T10:00:00.000Z',
-      reportedByUid: 'somebody-else',
+      ts: '2026-07-15T10:00:00.000Z',
+      reporterUid: 'somebody-else',
       severity: 'low',
-      summary: 'belongs to p-other',
+      description: 'belongs to p-other',
     });
     const res = await request(buildApp())
       .post('/api/sprint-k/p-real/incidents/inc-smuggle/report')
@@ -196,5 +208,46 @@ describe('POST /api/sprint-k/:projectId/incidents/:incidentId/report — officia
     const body = res.body as Buffer;
     expect(body.length).toBeGreaterThan(500);
     expect(body.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('reads the tenant-scoped canonical record written by POST /api/incidents/report', async () => {
+    H.db!._seed('projects/p-off', {
+      tenantId: 't-off',
+      members: ['w1'],
+      createdBy: 'w1',
+    });
+    const written = await reportIncident(
+      'w1',
+      {
+        id: 'inc-canonical',
+        tenantId: 't-off',
+        projectId: 'p-off',
+        incidentType: 'incident',
+        severity: 'high',
+        description: 'Descripción canónica del incidente',
+        location: 'Faena Norte',
+        ts: '2026-07-15T10:00:00.000Z',
+      },
+      {
+        db: H.db!,
+        embed: async () => [0.1],
+        now: () => '2026-07-15T10:05:00.000Z',
+      },
+    );
+    expect(written).toMatchObject({
+      ok: true,
+      path: 'tenants/t-off/projects/p-off/incidents/inc-canonical',
+    });
+
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p-off/incidents/inc-canonical/report')
+      .set('x-test-uid', 'w1')
+      .send({ title: 'caller-controlled title must be ignored' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['x-praeventio-doc-tier']).toBe('official');
+    expect(res.headers['x-report-incident-id']).toBe('inc-canonical');
+    expect(res.headers['x-report-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect((res.body as Buffer).subarray(0, 5).toString('latin1')).toBe('%PDF-');
   });
 });

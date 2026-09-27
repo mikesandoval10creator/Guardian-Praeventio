@@ -32,6 +32,7 @@ const router = Router();
 
 const SEVERITY_LABEL: Record<string, string> = {
   low: 'LEVE',
+  med: 'MEDIO',
   medium: 'MEDIO',
   high: 'ALTO',
   critical: 'CRÍTICO',
@@ -58,6 +59,23 @@ interface CanonicalIncident {
   reportedByUid: string;
 }
 
+function timestampText(value: unknown): string | null {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+  if (value && typeof value === 'object' && 'toDate' in value) {
+    const toDate = (value as { toDate?: unknown }).toDate;
+    if (typeof toDate === 'function') {
+      const date = toDate.call(value);
+      if (date instanceof Date && !Number.isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+  }
+  return null;
+}
+
 async function resolveTenantId(
   projectId: string,
   db: Firestore,
@@ -71,20 +89,27 @@ async function resolveTenantId(
 async function loadCanonicalIncident(
   incidentId: string,
   projectId: string,
+  tenantId: string,
   db: Firestore,
 ): Promise<CanonicalIncident | null> {
-  const snap = await db.collection('incidents').doc(incidentId).get();
+  const snap = await db
+    .collection(`tenants/${tenantId}/projects/${projectId}/incidents`)
+    .doc(incidentId)
+    .get();
   if (!snap.exists) return null;
   const d = snap.data() ?? {};
-  if (typeof d.projectId !== 'string' || d.projectId !== projectId) return null;
+  if (
+    typeof d.tenantId !== 'string' ||
+    d.tenantId !== tenantId ||
+    typeof d.projectId !== 'string' ||
+    d.projectId !== projectId
+  ) {
+    return null;
+  }
   const occurredAt =
-    typeof d.occurredAt === 'string'
-      ? d.occurredAt
-      : typeof d.createdAt === 'string'
-        ? d.createdAt
-        : null;
+    timestampText(d.ts) ?? timestampText(d.occurredAt) ?? timestampText(d.createdAt);
   const reportedAt =
-    typeof d.reportedAt === 'string' ? d.reportedAt : occurredAt;
+    timestampText(d.reportedAt) ?? timestampText(d.createdAt) ?? occurredAt;
   if (!occurredAt || !reportedAt) return null;
   const sev = String(d.severity ?? 'medium');
   let locationLabel: string | undefined;
@@ -106,7 +131,7 @@ async function loadCanonicalIncident(
     summary: String(d.summary ?? d.description ?? snap.id),
     description: typeof d.description === 'string' ? d.description : undefined,
     locationLabel,
-    reportedByUid: String(d.reportedByUid ?? d.userId ?? 'unknown'),
+    reportedByUid: String(d.reportedByUid ?? d.reporterUid ?? d.userId ?? 'unknown'),
   };
 }
 
@@ -166,7 +191,7 @@ router.post(
       const db = getFirestore();
       const tenantId = await resolveTenantId(projectId, db);
       if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
-      const loaded = await loadCanonicalIncident(incidentId, projectId, db);
+      const loaded = await loadCanonicalIncident(incidentId, projectId, tenantId, db);
       if (!loaded) {
         return res.status(404).json({ error: 'incident_not_found' });
       }
