@@ -18,7 +18,8 @@ import { installOfflineRejectionGuard } from './lib/offlineErrorGuard';
 import { registerSW } from 'virtual:pwa-register';
 import { logger } from './utils/logger';
 import { ErrorFallback } from './components/shared/ErrorFallback';
-import { DEEP_LINK_EVENT_NAME } from './components/shared/DeepLinkHandler';
+import { dispatchDeepLink } from './services/notifications/deepLinkBridge';
+import { installNativePushActionBridge } from './services/notifications/nativePushActionBridge';
 
 // Neutralise the benign "Firestore read while offline" unhandled rejection
 // BEFORE Sentry attaches its own global handler (see offlineErrorGuard.ts).
@@ -59,6 +60,10 @@ installBatteryOptimizationBridge();
 // belongs in App.tsx (hasEntered flow), not a history rewrite here.
 
 if (Capacitor.isNativePlatform()) {
+  // Register before React renders: a cold-start push action may arrive before
+  // the lazy router/RootLayout mounts its own subscribers.
+  void installNativePushActionBridge();
+
   CapacitorApp.addListener('appUrlOpen', (event) => {
     try {
       // event.url example: 'https://app.praeventio.net/sos?lat=-33.4&lng=-70.6'.
@@ -66,9 +71,7 @@ if (Capacitor.isNativePlatform()) {
       // changes (staging domain, custom dev tunnel, etc.).
       const parsed = new URL(event.url);
       const slug = `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
-      window.dispatchEvent(
-        new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url: slug } }),
-      );
+      dispatchDeepLink({ url: slug });
     } catch (err) {
       logger.warn('appUrlOpen: failed to parse incoming URL', {
         url: event.url,

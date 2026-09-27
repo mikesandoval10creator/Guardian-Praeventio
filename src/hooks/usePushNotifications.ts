@@ -1,8 +1,9 @@
 // Praeventio Guard — usePushNotifications
 //
 // The hook exposes the push state/API used by RootLayout, Notifications and
-// Settings. Device/web listeners are owned by one module-level runtime so
-// multiple consumers cannot duplicate delivery or remove each other's listeners.
+// Settings. Foreground/registration listeners are owned by one module-level
+// runtime; the cold-start action listener is installed by main.tsx before the
+// React tree mounts.
 
 import { useEffect, useState } from 'react';
 import { logger } from '../utils/logger';
@@ -255,22 +256,11 @@ async function startRuntime(): Promise<void> {
     const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
       logger.debug('Push notification received', { notification });
     });
-    const actionHandle = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      logger.debug('Push action performed', { action });
-      try {
-        const data = (action?.notification?.data ?? undefined) as
-          | Record<string, string>
-          | undefined;
-        dispatchNotificationDeepLink(data);
-      } catch (error) {
-        logger.warn('push action deep-link dispatch failed', { error: String(error) });
-      }
-    });
     if (generation !== runtimeGeneration || pushSubscribers.size === 0) {
-      await removeHandles([receivedHandle, actionHandle]);
+      await removeHandles([receivedHandle]);
       return;
     }
-    nativeHandles = [receivedHandle, actionHandle];
+    nativeHandles = [receivedHandle];
   } else {
     const messaging = await getMessagingInstance();
     if (messaging && generation === runtimeGeneration && pushSubscribers.size > 0) {
