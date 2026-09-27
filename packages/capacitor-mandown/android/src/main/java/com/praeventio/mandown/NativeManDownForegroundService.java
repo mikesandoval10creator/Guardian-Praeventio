@@ -83,6 +83,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
     private String sessionId;
     private String capability;
     private String apiBaseUrl;
+    private String secureReference;
     private long capabilityExpiresAtMs;
     private long inactivityThresholdMs;
     private long cancelWindowMs;
@@ -136,7 +137,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
         capability = intent.getStringExtra(EXTRA_CAPABILITY);
         String expiryRaw = intent.getStringExtra(EXTRA_CAPABILITY_EXPIRES_AT);
         capabilityExpiresAtMs = expiryRaw == null ? 0L : parseEpochMs(expiryRaw);
-        apiBaseUrl = intent.getStringExtra(EXTRA_API_BASE_URL);
+        apiBaseUrl = NativeManDownEndpoint.canonicalize(intent.getStringExtra(EXTRA_API_BASE_URL));
         long requestedInactivity = intent.getLongExtra(EXTRA_INACTIVITY_MS, 30_000L);
         inactivityThresholdMs = Math.max(MIN_INACTIVITY_MS, Math.min(MAX_INACTIVITY_MS, requestedInactivity));
         long requestedCancel = intent.getLongExtra(EXTRA_CANCEL_WINDOW_MS, DEFAULT_CANCEL_WINDOW_MS);
@@ -146,7 +147,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
         boolean valid = nonEmpty(projectId) && nonEmpty(sessionId) && nonEmpty(capability)
             && capability.matches("[A-Za-z0-9_-]{32,256}")
             && capabilityExpiresAtMs > System.currentTimeMillis()
-            && nonEmpty(apiBaseUrl) && apiBaseUrl.startsWith("https://");
+            && apiBaseUrl != null;
         if (valid) {
             // A stale suspected countdown must never be rebound to a different
             // project/session after Android restarts the service.
@@ -156,7 +157,13 @@ public final class NativeManDownForegroundService extends Service implements Sen
             if (!projectId.equals(previousProject) || !sessionId.equals(previousSession)) {
                 NativeManDownSuspectWorker.cancel(getApplicationContext());
             }
-            persistConfig();
+            valid = persistConfig();
+            String reference = NativeManDownSecureStore.referenceForSession(sessionId);
+            if (valid) {
+                secureReference = reference;
+            } else if (reference != null) {
+                NativeManDownSecureStore.clearReference(getApplicationContext(), reference);
+            }
         }
         return valid;
     }
@@ -277,20 +284,34 @@ public final class NativeManDownForegroundService extends Service implements Sen
         getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, buildMonitoringNotification());
     }
 
-    private void persistConfig() {
-        prefs().edit()
+    private boolean persistConfig() {
+        boolean securePersisted = NativeManDownSecureStore.persist(
+            getApplicationContext(),
+            sessionId,
+            capability,
+            apiBaseUrl
+        );
+        boolean metadataPersisted = prefs().edit()
             .putString(PREF_CONFIG_PROJECT, projectId)
             .putString(PREF_CONFIG_SESSION, sessionId)
-            .putString(PREF_CONFIG_CAPABILITY, capability)
-            .putLong(PREF_CONFIG_CAPABILITY_EXPIRES_AT, capabilityExpiresAtMs)
-            .putString(PREF_CONFIG_API_BASE, apiBaseUrl)
+            .remove(PREF_CONFIG_CAPABILITY)
+            .remove(PREF_CONFIG_CAPABILITY_EXPIRES_AT)
+            .remove(PREF_CONFIG_API_BASE)
             .commit();
+        return securePersisted && metadataPersisted;
     }
 
     private void clearAllState() {
         if (capabilityExpiryRunnable != null) handler.removeCallbacks(capabilityExpiryRunnable);
         capabilityExpiryRunnable = null;
         NativeManDownSuspectWorker.cancel(getApplicationContext());
+        if (secureReference != null && !NativeManDownSecureStore.clearReference(
+            getApplicationContext(),
+            secureReference
+        )) {
+            Log.e(TAG, "Native ManDown secure state could not be cleared");
+        }
+        secureReference = null;
         prefs().edit().clear().commit();
     }
 
@@ -342,7 +363,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
     private void stopMonitoring() {
         if (sensorManager != null) sensorManager.unregisterListener(this);
         if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);
-        NativeManDownSuspectWorker.cancel(getApplicationContext());
+        clearAllState();
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
     }

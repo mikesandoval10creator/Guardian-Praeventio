@@ -31,12 +31,12 @@ public final class NativeManDownPlugin extends Plugin {
         String projectId = call.getString("projectId");
         String sessionId = call.getString("sessionId");
         String capability = call.getString("capability");
-        String apiBaseUrl = call.getString("apiBaseUrl");
+        String apiBaseUrl = NativeManDownEndpoint.canonicalize(call.getString("apiBaseUrl"));
         Integer inactivityThresholdMs = call.getInt("inactivityThresholdMs");
         Double impactThresholdMps2 = call.getDouble("impactThresholdMps2", 25d);
-        if (blank(projectId) || blank(sessionId) || blank(capability) || blank(apiBaseUrl)
+        if (blank(projectId) || blank(sessionId) || blank(capability) || apiBaseUrl == null
                 || inactivityThresholdMs == null) {
-            call.reject("projectId, sessionId, capability, apiBaseUrl and inactivityThresholdMs are required");
+            call.reject("projectId, sessionId, capability, canonical apiBaseUrl and inactivityThresholdMs are required");
             return;
         }
         Intent intent = new Intent(getContext(), NativeManDownForegroundService.class);

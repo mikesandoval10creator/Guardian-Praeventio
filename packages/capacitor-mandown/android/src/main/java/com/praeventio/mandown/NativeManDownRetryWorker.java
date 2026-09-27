@@ -60,20 +60,22 @@ public final class NativeManDownRetryWorker extends Worker {
         JSONObject payload
     ) {
         try {
+            if (!NativeManDownSecureStore.persist(context, sessionId, capability, apiBaseUrl)) {
+                return false;
+            }
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
             // Persist the UUID inside the actual request payload so every
             // WorkManager retry maps to the same server-side event document.
             String clientEventId = UUID.randomUUID().toString();
             payload.put("clientEventId", clientEventId);
-            JSONObject event = new JSONObject();
-            event.put("clientEventId", clientEventId);
-            event.put("projectId", projectId);
-            event.put("sessionId", sessionId);
-            event.put("capability", capability);
-            event.put("apiBaseUrl", apiBaseUrl);
-            event.put("payload", payload);
-            event.put("capturedAt", System.currentTimeMillis());
+            JSONObject event = NativeManDownOutboxCodec.queueEvent(
+                projectId,
+                sessionId,
+                NativeManDownSecureStore.referenceForSession(sessionId),
+                payload,
+                System.currentTimeMillis()
+            );
             queue.put(event);
             return prefs.edit().putString(PREF_QUEUE, queue.toString()).commit();
         } catch (Exception ignored) {
@@ -93,11 +95,21 @@ public final class NativeManDownRetryWorker extends Worker {
             removeFirst(prefs, queue);
             return Result.retry();
         }
+        String secretRef = event.optString("secretRef", null);
+        NativeManDownSecureStore.Secrets secrets = NativeManDownSecureStore.load(
+            getApplicationContext(),
+            secretRef
+        );
+        if (secrets == null) {
+            NativeManDownSecureStore.clearReference(getApplicationContext(), secretRef);
+            moveFirstToDeadLetter(prefs, queue, "secure_material_unavailable");
+            return queue.length() > 1 ? Result.retry() : Result.success();
+        }
         int outcome = NativeManDownForegroundService.postPersistedEvent(
-            event.optString("apiBaseUrl", null),
+            secrets.apiBaseUrl,
             event.optString("projectId", null),
             event.optString("sessionId", null),
-            event.optString("capability", null),
+            secrets.capability,
             event.optJSONObject("payload")
         );
         if (outcome == NativeManDownForegroundService.DELIVERY_ACCEPTED) {
@@ -105,6 +117,7 @@ public final class NativeManDownRetryWorker extends Worker {
             return queue.length() > 1 ? Result.retry() : Result.success();
         }
         if (outcome == NativeManDownForegroundService.DELIVERY_AUTHORITY_GONE) {
+            NativeManDownSecureStore.clearReference(getApplicationContext(), secretRef);
             moveFirstToDeadLetter(prefs, queue, "authority_gone");
             return queue.length() > 1 ? Result.retry() : Result.success();
         }
@@ -129,14 +142,12 @@ public final class NativeManDownRetryWorker extends Worker {
         JSONObject event = queue.optJSONObject(0);
         if (event != null) {
             try {
-                // Capability is authentication material, not diagnostic evidence.
-                // Never retain it after the server has revoked the authority.
-                event.remove("capability");
-                event.remove("apiBaseUrl");
-                event.put("deadLetterReason", reason);
-                event.put("deadLetteredAt", System.currentTimeMillis());
+                letters.put(NativeManDownOutboxCodec.scrubForDeadLetter(
+                    event,
+                    reason,
+                    System.currentTimeMillis()
+                ));
             } catch (Exception ignored) { }
-            letters.put(event);
         }
         JSONArray remaining = new JSONArray();
         for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
