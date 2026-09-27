@@ -1,4 +1,4 @@
-import { DEEP_LINK_EVENT_NAME } from "../../components/shared/DeepLinkHandler";
+import { dispatchDeepLink } from "./deepLinkBridge";
 import { resolveNotificationDeepLink } from "./notificationDeepLink";
 
 /**
@@ -11,7 +11,5 @@ export function dispatchNotificationDeepLink(
 ): void {
   if (typeof window === "undefined") return;
   const { url, projectId } = resolveNotificationDeepLink(data);
-  window.dispatchEvent(
-    new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url, projectId } }),
-  );
+  dispatchDeepLink({ url, projectId });
 }

@@ -176,10 +176,9 @@ describe('usePushNotifications runtime lifecycle', () => {
     const first = renderHook(() => usePushNotifications());
     const second = renderHook(() => usePushNotifications());
 
-    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(1));
     expect(mockAddListener.mock.calls.map((call) => call[0])).toEqual([
       'pushNotificationReceived',
-      'pushNotificationActionPerformed',
     ]);
 
     first.unmount();
@@ -195,7 +194,7 @@ describe('usePushNotifications runtime lifecycle', () => {
     mockNative.value = true;
     const first = renderHook(() => usePushNotifications());
     const second = renderHook(() => usePushNotifications());
-    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockAddListener).toHaveBeenCalledTimes(1));
 
     await act(async () => {
       await Promise.all([
@@ -207,7 +206,6 @@ describe('usePushNotifications runtime lifecycle', () => {
     expect(mockRegister).toHaveBeenCalledOnce();
     expect(mockAddListener.mock.calls.map((call) => call[0])).toEqual([
       'pushNotificationReceived',
-      'pushNotificationActionPerformed',
       'registration',
       'registrationError',
     ]);

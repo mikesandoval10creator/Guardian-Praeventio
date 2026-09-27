@@ -2,36 +2,32 @@
 //
 // This component bridges deep-link sources with the React Router navigation
 // stack. Two sources feed it, both landing on the same `navigate(path)`:
-//   1. Capacitor's `appUrlOpen` listener (native Universal/App Links, set up
-//      in `src/main.tsx`) — and tapped NATIVE push notifications
-//      (usePushNotifications) — dispatch a `praeventio:deep-link` CustomEvent.
+//   1. Capacitor's `appUrlOpen` listener and the native push-action bridge (both
+//      installed in `src/main.tsx`) dispatch a `praeventio:deep-link` event.
 //   2. Tapped WEB push notifications: the service worker
 //      (public/firebase-messaging-sw.js) `notificationclick` handler focuses
 //      the app tab and `postMessage`s the same `{type,url}` payload; we
-//      navigate in-SPA instead of a full reload.
+//      forward it through the same bridge instead of a full reload.
 //
 // Why a CustomEvent bridge instead of calling `navigate` directly from
 // `main.tsx`? React Router's `useNavigate` is only available *inside* a
 // `<BrowserRouter>` — so the listener must live in a component that
-// renders inside the router tree. The CustomEvent indirection lets the
-// native plugin attach its listener once at boot (before the React tree
-// exists) and have its dispatches survive even if this component
-// remounts.
+// renders inside the router tree. The bridge also buffers early events until
+// the lazy component mounts, preventing cold-start pushes from disappearing.
 //
 // Mounted once inside `<BrowserRouter>` in `src/App.tsx`. Renders nothing.
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  dispatchDeepLink,
+  DEEP_LINK_EVENT_NAME,
+  registerDeepLinkListener,
+  type DeepLinkEventDetail,
+} from '../../services/notifications/deepLinkBridge';
 
-export interface DeepLinkEventDetail {
-  /** In-app path + query, e.g. `/sos?lat=-33.4&lng=-70.6`. */
-  url: string;
-  /** Project the deep link pertains to, if any (push notifications carry it so
-   *  the target screen can detect/realign a project mismatch). Optional. */
-  projectId?: string | null;
-}
-
-export const DEEP_LINK_EVENT_NAME = 'praeventio:deep-link';
+export { DEEP_LINK_EVENT_NAME };
+export type { DeepLinkEventDetail };
 
 /** Reduce any incoming url to an in-app relative path. The native side (and a
  *  hostile push payload) may pass an absolute URL by mistake; we only navigate
@@ -54,18 +50,11 @@ export function DeepLinkHandler() {
 
   // Source 1: CustomEvent (native App Links + tapped native push).
   useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<DeepLinkEventDetail>).detail;
-      if (!detail || typeof detail.url !== 'string' || detail.url.length === 0) {
-        return;
-      }
+    const handler = (detail: DeepLinkEventDetail) => {
       navigate(toInAppPath(detail.url));
     };
 
-    window.addEventListener(DEEP_LINK_EVENT_NAME, handler as EventListener);
-    return () => {
-      window.removeEventListener(DEEP_LINK_EVENT_NAME, handler as EventListener);
-    };
+    return registerDeepLinkListener(handler);
   }, [navigate]);
 
   // Source 2: service worker postMessage (tapped web push notification).
@@ -84,7 +73,7 @@ export function DeepLinkHandler() {
       ) {
         return;
       }
-      navigate(toInAppPath(data.url));
+      dispatchDeepLink({ url: data.url });
     };
     sw.addEventListener('message', handler);
     return () => sw.removeEventListener('message', handler);
