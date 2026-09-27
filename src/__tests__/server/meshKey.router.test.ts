@@ -110,6 +110,21 @@ describe('GET /api/mesh/key', () => {
     expect(first.body.keyId).toBe(second.body.keyId);
   });
 
+  it('500 fail-closed when the stored mesh key document is malformed', async () => {
+    seedProject(H.db!);
+    H.db!._seed(`mesh_keys/${PROJECT_ID}`, {
+      keyId: `${PROJECT_ID}:v1`,
+      // Missing key material must never become a successful response.
+    });
+
+    const res = await request(buildApp())
+      .get(`/api/mesh/key?projectId=${PROJECT_ID}`)
+      .set(asUser(MEMBER_UID));
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'mesh_key_fetch_failed' });
+  });
+
   it('writes an audit row on key fetch', async () => {
     seedProject(H.db!);
     await request(buildApp())

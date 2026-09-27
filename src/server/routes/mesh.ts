@@ -35,6 +35,11 @@ const QuerySchema = z.object({
   projectId: z.string().min(1).max(128),
 });
 
+const MeshKeyDocumentSchema = z.object({
+  keyId: z.string().min(1),
+  key: z.string().min(1),
+});
+
 const router = Router();
 
 router.get('/key', verifyAuth, validate(QuerySchema, 'query'), async (req, res) => {
@@ -56,8 +61,11 @@ router.get('/key', verifyAuth, validate(QuerySchema, 'query'), async (req, res) 
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (snap.exists) {
-        const data = snap.data() as { keyId: string; key: string };
-        return { keyId: data.keyId, key: data.key };
+        const parsed = MeshKeyDocumentSchema.safeParse(snap.data());
+        if (!parsed.success) {
+          throw new Error('mesh_key_document_invalid');
+        }
+        return parsed.data;
       }
       // Mint a fresh 256-bit key on first access.
       const keyId = `${projectId}:v1`;
