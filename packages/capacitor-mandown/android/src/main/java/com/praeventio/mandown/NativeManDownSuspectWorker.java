@@ -26,8 +26,6 @@ public final class NativeManDownSuspectWorker extends Worker {
     private static final String PREF_SUSPECTED_DEADLINE = "suspectedDeadline";
     private static final String PREF_CONFIG_PROJECT = "configProject";
     private static final String PREF_CONFIG_SESSION = "configSession";
-    private static final String PREF_CONFIG_CAPABILITY = "configCapability";
-    private static final String PREF_CONFIG_API_BASE = "configApiBase";
     private static final String WORK_NAME = "guardian-native-mandown-suspect";
     /** Serializes cancel-vs-expiry across the FGS action and WorkManager worker. */
     private static final Object SUSPECT_LOCK = new Object();
@@ -66,12 +64,19 @@ public final class NativeManDownSuspectWorker extends Worker {
             }
             try {
                 JSONObject payload = new JSONObject(raw);
+                String projectId = prefs.getString(PREF_CONFIG_PROJECT, null);
+                String sessionId = prefs.getString(PREF_CONFIG_SESSION, null);
+                NativeManDownSecureStore.Secrets secrets = NativeManDownSecureStore.load(
+                    getApplicationContext(),
+                    NativeManDownSecureStore.referenceForSession(sessionId)
+                );
+                if (secrets == null) return Result.retry();
                 boolean saved = NativeManDownRetryWorker.enqueuePending(
                     getApplicationContext(),
-                    prefs.getString(PREF_CONFIG_PROJECT, null),
-                    prefs.getString(PREF_CONFIG_SESSION, null),
-                    prefs.getString(PREF_CONFIG_CAPABILITY, null),
-                    prefs.getString(PREF_CONFIG_API_BASE, null),
+                    projectId,
+                    sessionId,
+                    secrets.capability,
+                    secrets.apiBaseUrl,
                     payload
                 );
                 if (!saved) return Result.retry();
