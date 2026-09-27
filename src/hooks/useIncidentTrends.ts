@@ -38,6 +38,8 @@ export interface IncidentTrendsResponse {
   trend: IncidentTrendDirection;
   /** 0..1 — confianza R² de la regresión lineal sobre severityWeighted. */
   trendConfidence: number;
+  /** Fuentes que fallaron; [] significa que las lecturas fueron completas. */
+  degradedSources: string[];
   generatedAt: string;
 }
 
@@ -84,6 +86,8 @@ export interface IncidentListResponse {
   projectId: string;
   total: number;
   incidents: IncidentListItem[];
+  /** Fuentes que fallaron; [] significa que las lecturas fueron completas. */
+  degradedSources: string[];
   generatedAt: string;
 }
 

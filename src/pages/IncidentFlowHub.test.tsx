@@ -86,7 +86,13 @@ vi.mock('../components/incidentFlow/AssignedMicrotrainingCard', () => ({
 
 function emptyList(): typeof mockList {
   return {
-    data: { projectId: 'p-1', total: 0, incidents: [], generatedAt: '2026-06-20T00:00:00Z' },
+    data: {
+      projectId: 'p-1',
+      total: 0,
+      incidents: [],
+      degradedSources: [],
+      generatedAt: '2026-06-20T00:00:00Z',
+    },
     loading: false,
     error: null,
     refetch: refetchSpy,
@@ -120,6 +126,7 @@ function populatedList(): typeof mockList {
           nearMiss: true,
         },
       ],
+      degradedSources: [],
       generatedAt: '2026-06-20T00:00:00Z',
     },
     loading: false,
@@ -171,6 +178,7 @@ function trendsData(): typeof mockTrends {
       leading: { nearMissRatio: 0, closureRate: 0, averageDaysOpen: 0 },
       trend: 'stable',
       trendConfidence: 0,
+      degradedSources: [],
       generatedAt: '2026-06-20T00:00:00Z',
     },
     loading: false,

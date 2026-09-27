@@ -94,6 +94,7 @@ function emptyTrends(): TrendsMock {
       trend: 'stable',
       trendConfidence: 0,
       generatedAt: '2026-05-17T00:00:00Z',
+      degradedSources: [],
     },
     loading: false,
     error: null,
@@ -136,6 +137,7 @@ function populatedTrends(over: Partial<IncidentTrendsResponse> = {}): TrendsMock
       trend: 'worsening',
       trendConfidence: 0.85,
       generatedAt: '2026-05-17T00:00:00Z',
+      degradedSources: [],
       ...over,
     },
     loading: false,
@@ -150,6 +152,7 @@ function emptyList(): ListMock {
       total: 0,
       incidents: [],
       generatedAt: '2026-05-17T00:00:00Z',
+      degradedSources: [],
     },
     loading: false,
     error: null,
@@ -163,6 +166,7 @@ function populatedList(incidents: IncidentListItem[]): ListMock {
       total: incidents.length,
       incidents,
       generatedAt: '2026-05-17T00:00:00Z',
+      degradedSources: [],
     },
     loading: false,
     error: null,
@@ -210,6 +214,19 @@ describe('<IncidentTrends /> page wrapper (F.29)', () => {
       screen.getByTestId('incident-trends-error'),
     ).toBeInTheDocument();
     expect(screen.getByText(/Trends down/i)).toBeInTheDocument();
+  });
+
+  it('muestra advertencia de datos parciales y no afirma que no haya incidentes', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const trends = emptyTrends();
+    trends.data = { ...trends.data!, degradedSources: ['incidents_nested'] };
+    mockTrends = trends;
+
+    render(<IncidentTrends />);
+
+    expect(screen.getByTestId('incident-trends-degraded')).toBeInTheDocument();
+    expect(screen.getByText(/datos parciales/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('incident-trends-no-data')).not.toBeInTheDocument();
   });
 
   it('renderiza chart, dirección de tendencia y leading indicators', () => {

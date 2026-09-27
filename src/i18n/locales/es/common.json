@@ -4737,6 +4737,10 @@
       "subtitle": "Conteo crudo en la ventana actual (no ponderado).",
       "title": "Distribución por tipo"
     },
+    "degraded": {
+      "message": "Una o más fuentes no respondieron. Los datos visibles pueden estar incompletos; un total vacío no confirma que no haya incidentes.",
+      "title": "Datos parciales"
+    },
     "empty": "No hay incidentes registrados en esta ventana.",
     "error": "No se pudo cargar la tendencia: {{msg}}",
     "filter": {

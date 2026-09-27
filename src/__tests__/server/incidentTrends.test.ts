@@ -85,6 +85,8 @@ describe('GET /api/sprint-k/:projectId/incidents/trends', () => {
     expect(res.body.leading.averageDaysOpen).toBe(1.5); // (2 + 1) / 2
     expect(res.body.window).toBe('12m');
     expect(res.body.group).toBe('month');
+    expect(res.body.degradedSources).toEqual([]);
+    expect(res.headers['x-guardian-degraded']).toBeUndefined();
     expect(['improving', 'stable', 'worsening']).toContain(res.body.trend);
   });
 
@@ -106,6 +108,22 @@ describe('GET /api/sprint-k/:projectId/incidents/trends', () => {
     H.db!._seed('incidents/solo', { projectId: 'p1', occurredAt: daysAgo(5), severity: 'media' });
     const res = await get();
     expect(res.body.totalIncidents).toBe(2); // dup counted once + solo
+  });
+
+  it('reports a nested read failure while preserving healthy top-level data', async () => {
+    H.db!._seed('incidents/top', {
+      projectId: 'p1',
+      occurredAt: daysAgo(2),
+      severity: 'media',
+    });
+    H.db!._failReads('tenants/t1/projects/p1/incidents');
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalIncidents).toBe(1);
+    expect(res.body.degradedSources).toEqual(['incidents_nested']);
+    expect(res.headers['x-guardian-degraded']).toBe('1');
   });
 });
 
@@ -175,11 +193,29 @@ describe('GET /api/sprint-k/:projectId/incidents/list', () => {
     expect(empty.status).toBe(200);
     expect(empty.body.total).toBe(0);
     expect(empty.body.incidents).toEqual([]);
+    expect(empty.body.degradedSources).toEqual([]);
+    expect(empty.headers['x-guardian-degraded']).toBeUndefined();
 
     H.db!._seed('incidents/a', { projectId: 'p1', occurredAt: daysAgo(1), severity: 'low' });
     H.db!._seed('incidents/b', { projectId: 'p1', occurredAt: daysAgo(2), severity: 'low' });
     const res = await list('?limit=1');
     expect(res.body.total).toBe(2); // total reflects all
     expect(res.body.incidents).toHaveLength(1); // page limited to 1
+  });
+
+  it('reports a nested list read failure while preserving healthy top-level data', async () => {
+    H.db!._seed('incidents/top', {
+      projectId: 'p1',
+      occurredAt: daysAgo(2),
+      severity: 'media',
+    });
+    H.db!._failReads('tenants/t1/projects/p1/incidents');
+
+    const res = await list();
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.degradedSources).toEqual(['incidents_nested']);
+    expect(res.headers['x-guardian-degraded']).toBe('1');
   });
 });

@@ -4737,6 +4737,10 @@
       "subtitle": "Contagem bruta na janela atual (não ponderada).",
       "title": "Distribuição por tipo"
     },
+    "degraded": {
+      "message": "Uma ou mais fontes não responderam. Os dados visíveis podem estar incompletos; um total vazio não confirma que não há incidentes.",
+      "title": "Dados parciais"
+    },
     "empty": "Não há incidentes registrados nesta janela.",
     "error": "Não foi possível carregar a tendência: {{msg}}",
     "filter": {
