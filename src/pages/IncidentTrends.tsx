@@ -318,6 +318,11 @@ export function IncidentTrends() {
 
   const data = trendsResp.data;
   const buckets = useMemo(() => data?.buckets ?? [], [data]);
+  const degradedSources = [
+    ...(data?.degradedSources ?? []),
+    ...(listResp.data?.degradedSources ?? []),
+  ];
+  const hasDegradedData = degradedSources.length > 0;
 
   // Serie temporal determinística sobre los incidents REALES, filtrada a la
   // ventana activa y agrupada según el selector mes/semana. `comparePeriods`
@@ -491,6 +496,27 @@ export function IncidentTrends() {
             'No se pudo cargar la tendencia: {{msg}}',
             { msg: trendsResp.error.message },
           )}
+        </div>
+      )}
+
+      {hasDegradedData && (
+        <div
+          className="flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300"
+          data-testid="incident-trends-degraded"
+          role="status"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-bold">
+              {t('incidentTrends.degraded.title', 'Datos parciales')}
+            </p>
+            <p className="mt-1 text-xs">
+              {t(
+                'incidentTrends.degraded.message',
+                'Una o más fuentes no respondieron. Los datos visibles pueden estar incompletos; un total vacío no confirma que no haya incidentes.',
+              )}
+            </p>
+          </div>
         </div>
       )}
 
@@ -670,7 +696,7 @@ export function IncidentTrends() {
           )}
 
           {/* Empty state — endpoint OK pero sin incidents en la ventana */}
-          {data.totalIncidents === 0 && (
+          {data.totalIncidents === 0 && !hasDegradedData && (
             <div
               className="rounded-2xl border border-default-token bg-surface p-8 text-center"
               data-testid="incident-trends-no-data"

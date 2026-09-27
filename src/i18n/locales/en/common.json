@@ -4737,6 +4737,10 @@
       "subtitle": "Raw count in the current window (unweighted).",
       "title": "Distribution by type"
     },
+    "degraded": {
+      "message": "One or more sources did not respond. Visible data may be incomplete; an empty total does not confirm that there are no incidents.",
+      "title": "Partial data"
+    },
     "empty": "No incidents recorded in this window.",
     "error": "Could not load the trend: {{msg}}",
     "filter": {

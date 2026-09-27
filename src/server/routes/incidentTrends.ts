@@ -271,6 +271,8 @@ export interface TrendResponse {
   leading: TrendLeadingIndicators;
   trend: 'improving' | 'stable' | 'worsening';
   trendConfidence: number;
+  /** Sources whose read failed; an empty array means complete data. */
+  degradedSources: string[];
   generatedAt: string;
 }
 
@@ -301,6 +303,7 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
     const windowMs = TREND_WINDOW_MS[windowKey] ?? TREND_WINDOW_MS['12m']!;
     const cutoffMs = Date.now() - windowMs;
     const cutoffIso = new Date(cutoffMs).toISOString();
+    const degradedSources = new Set<string>();
 
     const safeRead = async <T,>(
       label: string,
@@ -309,6 +312,7 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
       try {
         return await fn();
       } catch (err) {
+        degradedSources.add(label);
         logger.warn?.(`sprintK.trends.${label}.read_failed`, err);
         return [];
       }
@@ -489,6 +493,10 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
       else trend = 'stable';
     }
 
+    const degradedSourceList = Array.from(degradedSources).sort();
+    if (degradedSourceList.length > 0) {
+      res.set('X-Guardian-Degraded', '1');
+    }
     const response: TrendResponse = {
       window: windowKey,
       group: groupKey,
@@ -497,6 +505,7 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
       leading,
       trend,
       trendConfidence,
+      degradedSources: degradedSourceList,
       generatedAt: new Date().toISOString(),
     };
 
@@ -543,6 +552,8 @@ export interface IncidentListResponse {
   projectId: string;
   total: number;
   incidents: IncidentListItem[];
+  /** Sources whose read failed; an empty array means complete data. */
+  degradedSources: string[];
   generatedAt: string;
 }
 
@@ -557,6 +568,7 @@ router.get('/:projectId/incidents/list', verifyAuth, async (req, res) => {
 
   try {
     const db = getFirestore();
+    const degradedSources = new Set<string>();
 
     const rawLimit =
       typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : NaN;
@@ -568,6 +580,7 @@ router.get('/:projectId/incidents/list', verifyAuth, async (req, res) => {
       try {
         return await fn();
       } catch (err) {
+        degradedSources.add(label);
         logger.warn?.(`sprintK.list.${label}.read_failed`, err);
         return [];
       }
@@ -625,10 +638,15 @@ router.get('/:projectId/incidents/list', verifyAuth, async (req, res) => {
 
     const limited = incidents.slice(0, limit);
 
+    const degradedSourceList = Array.from(degradedSources).sort();
+    if (degradedSourceList.length > 0) {
+      res.set('X-Guardian-Degraded', '1');
+    }
     const response: IncidentListResponse = {
       projectId,
       total: incidents.length,
       incidents: limited,
+      degradedSources: degradedSourceList,
       generatedAt: new Date().toISOString(),
     };
     return res.json(response);
