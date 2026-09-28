@@ -90,8 +90,9 @@ describe('GET /api/mesh/key', () => {
     expect(res.status).toBe(200);
     expect(res.body.keyId).toBe(`${PROJECT_ID}:v1`);
     expect(typeof res.body.key).toBe('string');
-    // 256-bit base64 key → 44 chars.
-    expect(res.body.key.length).toBeGreaterThanOrEqual(43);
+    // The server contract is exactly 32 random bytes encoded as canonical Base64.
+    expect(Buffer.from(res.body.key, 'base64')).toHaveLength(32);
+    expect(Buffer.from(res.body.key, 'base64').toString('base64')).toBe(res.body.key);
     const stored = H.db!._store.get(`mesh_keys/${PROJECT_ID}`);
     expect(stored).toBeDefined();
     expect(stored?.keyId).toBe(`${PROJECT_ID}:v1`);
@@ -115,6 +116,24 @@ describe('GET /api/mesh/key', () => {
     H.db!._seed(`mesh_keys/${PROJECT_ID}`, {
       keyId: `${PROJECT_ID}:v1`,
       // Missing key material must never become a successful response.
+    });
+
+    const res = await request(buildApp())
+      .get(`/api/mesh/key?projectId=${PROJECT_ID}`)
+      .set(asUser(MEMBER_UID));
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'mesh_key_fetch_failed' });
+  });
+
+  it.each([
+    ['invalid Base64', 'not-base64!'],
+    ['decoded length other than 256 bits', Buffer.alloc(31, 0x2a).toString('base64')],
+  ])('500 fail-closed when stored key material has %s', async (_case, key) => {
+    seedProject(H.db!);
+    H.db!._seed(`mesh_keys/${PROJECT_ID}`, {
+      keyId: `${PROJECT_ID}:v1`,
+      key,
     });
 
     const res = await request(buildApp())

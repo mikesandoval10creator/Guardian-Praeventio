@@ -123,7 +123,7 @@
 | M6 | Inadequate Privacy Controls | ✅ Consentimiento + GDPR ARCO endpoints (gap: tenant check) |
 | M7 | Insufficient Binary Protections | ⚠️ Sin runtime hash check |
 | M8 | Security Misconfiguration | ⚠️ Capacitor.config.ts + App ID AdMob de prueba (Play rechazaría) |
-| M9 | Insecure Data Storage | ✅ IDB cifrado + GCS CMEK |
+| M9 | Insecure Data Storage | ⚠️ IndexedDB (incl. `meshKeyStore` raw key) is not encrypted at rest by this layer; GCS uses CMEK |
 | M10 | Insufficient Cryptography | ✅ TLS 1.3 + pins + WebAuthn |
 
 ## 5. AI / MAESTRO (capacidades IA)
