@@ -1,0 +1,756 @@
+{
+  "source_sha": "c6c0a2bcd9f35167a1fee919a749ac1aa625e72e",
+  "environment": "Windows; Node 26.7.0; jsdom/fetch and Firebase mocks; no real user data",
+  "runs_overlap_do_not_sum": true,
+  "audit_PASS_is_not_fix": true,
+  "runs": {
+    "health_existing": {
+      "total": 94,
+      "passed": 94,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "file": "pages/HealthVaultShare.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "HealthVaultShare v2 requires a verified professional and explicit records before enabling consent",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 posts a v2 snapshot with Bearer auth and renders the fragment QR",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 creates an open QR without a recipient and requires later owner confirmation",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 keeps revocation authenticated for legacy and v2 summaries",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 keeps a share active and explains what to do when revocation fails",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 shows an open-QR claim and confirms exactly that professional",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 shows a professional claim received while the owner keeps the page open",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultShare v2 releases the live grant listener when the owner leaves the page",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "pages/HealthVaultViewer.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "HealthVaultViewer v2 requires login without sending the QR secret to the server",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 explains that a legacy path-secret link must be reissued",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 offers independent professional enrollment when the account has no identity",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 registers a server-verifiable passkey before submitting professional identity",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 fails closed and keeps identity data local when passkey registration fails",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 does not release data while professional verification is pending",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 requests owner confirmation for an open QR without releasing records",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 opens a server-verified session and fetches exactly the authorized records",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 shows the server human message instead of a raw 403",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "server/middleware/verifyAuth.healthPrivacy.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "verifyAuth clinical endpoint privacy removes grant, record and query identifiers before logs or Sentry",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy preserves ordinary static endpoints",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy redacts the grant id on a view link with no file segment",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy redacts the grant id on a share link",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy keeps view and share distinct (guards the $1 back-reference)",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy strips the query string off a grant link before it reaches telemetry",
+              "status": "passed"
+            },
+            {
+              "name": "verifyAuth clinical endpoint privacy returns an empty string for a missing url instead of leaking \"undefined\"",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "server/routes/healthVaultProfessional.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "Health Vault professional v2 routes creates an owner-bound grant with an explicit resource snapshot and fragment secret",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes blocks cached clients from creating a legacy link that no viewer can open",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes lists only safe metadata so the owner can choose records explicitly",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes rejects any resource id that is not in the authenticated owner vault",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes persists recipient confirmation with an explicit audit action",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes lets the verified QR holder request access and waits for owner confirmation",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes does not let a QR holder claim with an invalid secret",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes persists owner revocation with an explicit audit action",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes issues a challenge bound to an external professional and grant without tenant membership",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes verifies WebAuthn and creates a short-lived session only for the selected doctor",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes rejects another valid doctor with a human recipient message",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes returns exactly the frozen records and no raw file URI",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes serves an authorized file through a body id and retires the identifier URL",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes audits an unavailable file as an attempt and never as a completed access",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes audits an authorized request even when the record has no downloadable file",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes revalidates revocation before every records request",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes rejects a stale session activation when Firestore observes a concurrent revocation",
+              "status": "passed"
+            },
+            {
+              "name": "Health Vault professional v2 routes fails closed if the critical clinical audit cannot be written",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "services/health/vaultAccessSession.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "vault access session stores only a hash and binds the session to grant and professional",
+              "status": "passed"
+            },
+            {
+              "name": "vault access session rejects another grant",
+              "status": "passed"
+            },
+            {
+              "name": "vault access session rejects another doctor",
+              "status": "passed"
+            },
+            {
+              "name": "vault access session expires after a short TTL and fails closed after revocation",
+              "status": "passed"
+            },
+            {
+              "name": "vault access session rejects an invalid secret without throwing crypto length errors",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "services/health/vaultShare.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "createShareToken creates a token with default TTL 24h and 5 max consumes",
+              "status": "passed"
+            },
+            {
+              "name": "createShareToken honors custom ttl and maxConsumes",
+              "status": "passed"
+            },
+            {
+              "name": "createShareToken throws when scope=topic without topic field",
+              "status": "passed"
+            },
+            {
+              "name": "createShareToken NEVER stores raw secret — only hash + prefix",
+              "status": "passed"
+            },
+            {
+              "name": "createShareToken throws when workerUid missing",
+              "status": "passed"
+            },
+            {
+              "name": "createShareToken topic record stores the topic and recordIds",
+              "status": "passed"
+            },
+            {
+              "name": "verifySecret (constant time HMAC compare) returns true when secret matches hash",
+              "status": "passed"
+            },
+            {
+              "name": "verifySecret (constant time HMAC compare) returns false when secret tampered",
+              "status": "passed"
+            },
+            {
+              "name": "verifySecret (constant time HMAC compare) returns false on type mismatch",
+              "status": "passed"
+            },
+            {
+              "name": "verifySecret (constant time HMAC compare) returns false on length mismatch (early return, no leak)",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken happy path: returns reveal=all when scope=full and increments counter",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken topic scope returns recordIds + topicHint",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken throws expired when now > expiresAt",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken throws revoked when revokedAt set",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken throws max_consumes_reached when limit hit",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken throws invalid_token when secret tampered",
+              "status": "passed"
+            },
+            {
+              "name": "consumeShareToken error code field is properly typed",
+              "status": "passed"
+            },
+            {
+              "name": "revokeShareToken returns patch with revokedAt + revokedBy",
+              "status": "passed"
+            },
+            {
+              "name": "revokeShareToken idempotent — already revoked returns existing values",
+              "status": "passed"
+            },
+            {
+              "name": "buildAuditEntry emits action + safe details (no raw secret)",
+              "status": "passed"
+            },
+            {
+              "name": "buildAuditEntry accepts extra fields for context",
+              "status": "passed"
+            },
+            {
+              "name": "buildAuditEntry accepts the file_accessed action",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) passes for a fresh valid share + correct secret",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) throws revoked when revokedAt set",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) throws expired past expiresAt",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) throws max_consumes_reached at the cap",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) throws invalid_token on wrong secret",
+              "status": "passed"
+            },
+            {
+              "name": "validateShareAccess (non-consuming re-check for the file proxy) does NOT mutate the record (no consumeCount increment)",
+              "status": "passed"
+            },
+            {
+              "name": "recordIdInShareScope full scope without subset exposes any record",
+              "status": "passed"
+            },
+            {
+              "name": "recordIdInShareScope full scope WITH explicit subset honors the subset",
+              "status": "passed"
+            },
+            {
+              "name": "recordIdInShareScope topic scope only exposes pinned recordIds",
+              "status": "passed"
+            },
+            {
+              "name": "recordIdInShareScope recent scope honors the day-window cutoff (parity with /view)",
+              "status": "passed"
+            },
+            {
+              "name": "recordIdInShareScope rejects empty/non-string recordId",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 freezes explicit resources and puts the raw secret only in the URL fragment",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 rejects an 'empty' resource snapshot",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 rejects an 'duplicated' resource snapshot",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 does not allow another verified professional to consume a bound grant",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 rejects a professional whose verification status is pending",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 rejects a professional whose verification status is suspended",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 rejects a professional whose verification status is revoked",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 open invitation requires owner confirmation before it becomes active",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 lets an eligible QR holder request access without releasing clinical data",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 binds owner confirmation to the professional who claimed the QR",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 counts clinical sessions and stops at the explicit cap",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 never activates a session from a grant revoked after the initial claim",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 never activates a session from a grant that expired after the initial claim",
+              "status": "passed"
+            },
+            {
+              "name": "HealthAccessGrant v2 revocation is owner-only and blocks the next claim",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "audit_reproductions": {
+      "total": 25,
+      "passed": 25,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "file": "health-viewer.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "HealthVaultViewer v2 requires login without sending the QR secret to the server",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 explains that a legacy path-secret link must be reissued",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 offers independent professional enrollment when the account has no identity",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 registers a server-verifiable passkey before submitting professional identity",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 fails closed and keeps identity data local when passkey registration fails",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 does not release data while professional verification is pending",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 requests owner confirmation for an open QR without releasing records",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 opens a server-verified session and fetches exactly the authorized records",
+              "status": "passed"
+            },
+            {
+              "name": "HealthVaultViewer v2 shows the server human message instead of a raw 403",
+              "status": "passed"
+            },
+            {
+              "name": "NOT FIXED — stale health records after identity transition late records response replaces login-required view AFTER logout",
+              "status": "passed"
+            },
+            {
+              "name": "NOT FIXED — stale health records after identity transition previous records can reappear while the replacement identity is still being checked",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "hook-boundaries.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "visitors retains A data while B pending, but rejects aborted A response",
+              "status": "passed"
+            },
+            {
+              "name": "visitors ignores actual late A response after switching to B",
+              "status": "passed"
+            },
+            {
+              "name": "corrective actions retains A data while B pending, but rejects aborted A response",
+              "status": "passed"
+            },
+            {
+              "name": "corrective actions ignores actual late A response after switching to B",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "moc-boundaries.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "approval modal of A survives B and sends A change ID with B project",
+              "status": "passed"
+            },
+            {
+              "name": "normal Firebase User shape with token role but no customClaims field hides approval",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "visitor-regressions.test.tsx",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "<Visitors /> muestra selector de proyecto cuando no hay proyecto activo",
+              "status": "passed"
+            },
+            {
+              "name": "<Visitors /> muestra placeholder de carga mientras el hook resuelve",
+              "status": "passed"
+            },
+            {
+              "name": "<Visitors /> renderiza las visitas activas reales devueltas por el hook",
+              "status": "passed"
+            },
+            {
+              "name": "<Visitors /> muestra empty-state honesto cuando no hay visitas activas",
+              "status": "passed"
+            },
+            {
+              "name": "<Visitors /> monta <VisitorCheckInForm/> con hosts reales del roster al abrir \"Nueva visita\"",
+              "status": "passed"
+            },
+            {
+              "name": "Audit regression reproductions — NOT FIXED retains visitor from A in B after request error",
+              "status": "passed"
+            },
+            {
+              "name": "Audit regression reproductions — NOT FIXED retains visitor A after deselect and selecting B with failed fetch",
+              "status": "passed"
+            },
+            {
+              "name": "Audit regression reproductions — NOT FIXED new successful B result replaces stale A visitor",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "history_current": {
+      "total": 5,
+      "passed": 4,
+      "failed": 1,
+      "pending": 0,
+      "files": [
+        {
+          "file": "server/routes/shiftHandover.history.test.ts",
+          "status": "failed",
+          "assertions": [
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 401 without a token",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 403 when caller is not a project member",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 returns shifts with server-computed quality, newest first",
+              "status": "failed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 respects ?days= filter (excludes older shifts)",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 returns empty shifts when no handovers stored",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "history_frozen": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "file": "server/routes/shiftHandover.history.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 401 without a token",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 403 when caller is not a project member",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 returns shifts with server-computed quality, newest first",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 respects ?days= filter (excludes older shifts)",
+              "status": "passed"
+            },
+            {
+              "name": "shiftHandoverRouter — GET /:projectId/shift-handover/history 200 returns empty shifts when no handovers stored",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "metric_helpers_prior": {
+      "total": 24,
+      "passed": 24,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "file": "routePolicy.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "shouldSkipLanding bypasses the anonymous landing for a cold emergency deep link",
+              "status": "passed"
+            },
+            {
+              "name": "shouldSkipLanding bypasses the landing for other critical native destinations",
+              "status": "passed"
+            },
+            {
+              "name": "shouldSkipLanding keeps the real landing as the default root route",
+              "status": "passed"
+            },
+            {
+              "name": "shouldSkipLanding preserves existing public and push deep-link bypasses",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "pages/climateRouteSchematic.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "eonetEventLonLat reads a Point geometry [lon, lat]",
+              "status": "passed"
+            },
+            {
+              "name": "eonetEventLonLat prefers the most recent geometry entry",
+              "status": "passed"
+            },
+            {
+              "name": "eonetEventLonLat extracts the first vertex of a polygon (nested arrays)",
+              "status": "passed"
+            },
+            {
+              "name": "eonetEventLonLat returns null for empty / missing / non-numeric geometry",
+              "status": "passed"
+            },
+            {
+              "name": "projectToSchematic maps the bbox center to the schematic center",
+              "status": "passed"
+            },
+            {
+              "name": "projectToSchematic maps the north-west corner to the top-left (north-up)",
+              "status": "passed"
+            },
+            {
+              "name": "projectToSchematic maps the south-east corner to the bottom-right",
+              "status": "passed"
+            },
+            {
+              "name": "projectToSchematic clamps out-of-bbox points into the box instead of overflowing",
+              "status": "passed"
+            },
+            {
+              "name": "projectToSchematic returns null for a degenerate or non-finite bbox/point",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "pages/hygieneMetrics.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "computeMonthlyHygieneTrend returns hasData:false and all-zero bars when there are no nodes",
+              "status": "passed"
+            },
+            {
+              "name": "computeMonthlyHygieneTrend places a measurement in the correct month bucket as % of limit",
+              "status": "passed"
+            },
+            {
+              "name": "computeMonthlyHygieneTrend averages multiple measurements in the same month",
+              "status": "passed"
+            },
+            {
+              "name": "computeMonthlyHygieneTrend clamps over-limit exposure to 100 and ignores invalid/old rows",
+              "status": "passed"
+            },
+            {
+              "name": "computeMedicalExamCompliance returns null when there are no medical-exam obligations (honest no-data)",
+              "status": "passed"
+            },
+            {
+              "name": "computeMedicalExamCompliance computes % of non-overdue medical-exam obligations",
+              "status": "passed"
+            },
+            {
+              "name": "computeMedicalExamCompliance ignores non-medical kinds when computing the ratio",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "pages/medicineMetrics.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "computeSurveillanceBreakdown returns hasData:false and no rows when there are no records (honest empty state)",
+              "status": "passed"
+            },
+            {
+              "name": "computeSurveillanceBreakdown derives per-examType counts from the REAL records",
+              "status": "passed"
+            },
+            {
+              "name": "computeSurveillanceBreakdown emits rows in canonical EXAM_TYPE_ORDER and only for non-empty buckets",
+              "status": "passed"
+            },
+            {
+              "name": "computeSurveillanceBreakdown buckets unknown / missing exam types under `other` (null i18n key)",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
