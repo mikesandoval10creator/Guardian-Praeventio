@@ -126,70 +126,61 @@ This is the **opposite** policy from the KMS adapter, which refuses to
 silently downgrade. Encryption fall-back is a security bug; observability
 fall-back is a reliability win.
 
-## 2. Sentry setup (Round 13 — DONE)
+## 2. Sentry setup (Sentry SDK v11 — local migration in progress)
 
-Status: **DONE** as of Round 13. `@sentry/node@^10.50` and
-`@sentry/react@^10.50` are pinned in `package.json`. `sentryAdapter.ts`
-now forwards every method to the real SDK; the stub
-`ObservabilityNotImplementedError` paths are gone for Sentry. The fall-
-back contract is unchanged: if `SENTRY_DSN` is not set, `init()`
-silently logs a `console.warn` and skips `Sentry.init`, so calls land in
-`logger.error` only (still captured by Cloud Logging).
+En la rama aislada de trabajo, `@sentry/node` y `@sentry/react` están alineados en `~11.0.0`; se mantiene el mismo `@sentry/core` para Node, browser y `sentryInstrumentation.ts`. La razón del bump conjunto: el test runtime de compatibilidad fallaba si React 11 inicializaba un BrowserClient mientras el import directo de `@sentry/core` seguía en versión 10.
+
+Sentry v11 eliminó `sendDefaultPii` y cambió el default de recolección a uno más permisivo. Ambos puntos de entrada (`src/lib/sentry.ts` y `src/services/observability/sentryAdapter.ts`) usan el perfil restrictivo compartido `createSentryV10PrivacyDataCollection()` definido en `src/services/observability/sentryDataCollection.ts`. No quitar este perfil ni reemplazarlo por un `dataCollection` vacío. El `beforeSend` es una defensa adicional para eventos; no sustituye el control explícito de transacciones/replays.
+
+Estado del trabajo: unit + compatibilidad y TypeScript focalizado pasan en la rama local; full Typecheck/CI/build y runtime E2E siguen pendientes hasta integrar la rama. DSN ausente continúa siendo no fatal; las capturas degradan a Cloud Logging como se describe en §1.
 
 Wiring summary:
 
-| Concern                                      | Where                                                         |
-| -------------------------------------------- | ------------------------------------------------------------- |
-| `Sentry.init(...)` at process boot           | `server.ts` top-level (right after `dotenv.config()`)         |
-| Express terminal error middleware            | `server.ts` last `app.use(...)` before `app.listen` — feeds `getErrorTracker().captureException` |
-| Webpay return histogram                      | `src/services/billing/webpayMetrics.ts` — see §4              |
-| `Sentry.ErrorBoundary` around React root     | **Deferred** — Round 14 task; see §10 follow-ups              |
-| Source-map upload                            | **Deferred** — Round 14 build-pipeline task                   |
+| Concern | Where |
+|---|---|
+| `@sentry/node` y `@sentry/react` bootstrap | `server.ts` llama `sentryAdapter.init`; `src/main.tsx` llama `initSentry` |
+| Restrictive `dataCollection` baseline | `src/services/observability/sentryDataCollection.ts` compartido por server y browser |
+| Cross-runtime `withSentryScope` | `src/services/observability/sentryInstrumentation.ts` usa `@sentry/core`; versionado compartido probado por `sentryCoreCompatibility.integration.test.ts` |
+| Express terminal error middleware | último `app.use(...)` antes de `app.listen`, delega a `getErrorTracker().captureException` |
+| Webpay return histogram | `src/services/billing/webpayMetrics.ts` — ver §4 |
+| `Sentry.ErrorBoundary` alrededor de React root | **Deferred** — ver §10 follow-ups |
+| Source-map upload | **Deferred** — tarea de build pipeline |
+
 
 Original install instructions (kept for reference / re-runs):
 
 ```bash
-npm install @sentry/node @sentry/react
+npm install @sentry/node@~11.0.0 @sentry/react@~11.0.0
 ```
 
-The body of `sentryAdapter.ts` matches:
+Both initializers use the shared privacy profile. The server adapter also scrubs event-only request headers and sensitive URL/query keys in `beforeSend`; this hook supplements `dataCollection` and does not cover transactions/replays by itself.
 
 ```ts
-import * as Sentry from '@sentry/node';
+// Browser: src/lib/sentry.ts
+Sentry.init({
+  dsn,
+  dataCollection: createSentryV10PrivacyDataCollection(),
+  // traces/replay settings and event-only redactPii callback...
+});
 
-class SentryAdapter implements ErrorTrackingAdapter {
-  init(options) {
-    Sentry.init({
-      dsn: process.env.SENTRY_DSN,
-      environment: options.environment,
-      release: options.release,
-      tracesSampleRate: options.sampleRate ?? 0.1,
-      // Strip known PII keys from event payloads
-      beforeSend(event) {
-        if (event.request?.headers) delete event.request.headers['authorization'];
-        return event;
-      },
-    });
-  }
-  captureException(error, ctx) {
-    return Sentry.captureException(error, {
-      user: ctx?.userId ? { id: ctx.userId } : undefined,
-      tags: ctx?.tags,
-      extra: ctx?.extra,
-    });
-  }
-  // ... etc.
-}
+// Server: src/services/observability/sentryAdapter.ts
+Sentry.init({
+  dsn,
+  environment,
+  release,
+  tracesSampleRate,
+  dataCollection: createSentryV10PrivacyDataCollection(),
+  // Existing beforeSend event scrubber is omitted here for brevity.
+});
 ```
+
+`sendDefaultPii` is removed in v11. Do not delete the shared `dataCollection` profile: v11 defaults are more permissive than the prior v10 baseline.
 
 Wire-up:
 
-1. **Express (server.ts)**: `Sentry.Handlers.errorHandler()` registered as
-   the LAST middleware (after all routes), so unhandled errors land in
-   Sentry before the generic 500 handler.
-2. **React (src/main.tsx)**: Wrap `<App />` in `<Sentry.ErrorBoundary>`.
-3. **Source maps**: Upload via `@sentry/cli` in the build step so the
-   stack traces match the original TypeScript.
+1. **Express (server.ts)**: `sentryAdapter.init(...)` se llama durante el boot; el middleware terminal delega a `getErrorTracker().captureException`. No usamos `Sentry.Handlers.errorHandler()` directamente.
+2. **React (src/main.tsx)**: llama `initSentry()` antes de montar la app. `Sentry.ErrorBoundary` aún está deferred.
+3. **Source maps**: Upload via `@sentry/cli` en el build step sigue deferred; cuando se implemente, verificar que source maps no contienen datos sensibles.
 4. **Release tagging**: pass the git SHA via `release` so
    regressions show up as "first seen in release X".
 5. **Environment**: `development` for local, `staging` for the staging
@@ -386,10 +377,7 @@ Observability has its own failure modes. Paths to handle:
 
 ## Round 2 follow-ups
 
-- [x] **Sentry SDK install + wiring** — replaced `sentryAdapter` stub
-      (Round 13). `@sentry/node@^10.50` + `@sentry/react@^10.50` pinned
-      in `package.json`. Init runs at the top of `server.ts` and the
-      adapter forwards every method to the real SDK.
+- [x] **Sentry SDK install + wiring** — initial Round 13 adapter is complete. The local v11 migration branch aligns `@sentry/node@~11.0.0` + `@sentry/react@~11.0.0`; don't treat it as deployed until its PR/CI is complete.
   - [ ] React `Sentry.ErrorBoundary` around root — **deferred to Round 14**.
         `src/main.tsx` is small but the choice of fallback UI (Spanish-CL
         copy, retry button vs. generic page) deserves a design pass.
@@ -413,9 +401,8 @@ Observability has its own failure modes. Paths to handle:
 - [ ] **Replace direct `console.log` / `console.error` with logger** —
   audit older code paths in `server.ts` and `src/services/*` for
   unstructured logging.
-- [ ] **PII scrubbing** — `beforeSend` hook in Sentry init must strip
-  `authorization`, `cookie`, `set-cookie` headers and any field matching
-  the SII RUT pattern.
+- [x] **Restrictive automatic Sentry collection** — both browser and server use the shared v11 `dataCollection` profile to preserve the v10 privacy baseline; `beforeSend` remains a second event-only scrubber.
+- [ ] **Free-text PII/RUT scrubbing** — arbitrary event messages and breadcrumbs are not scanned for Chilean RUT patterns. `dataCollection` limits SDK-collected fields but does not prove arbitrary free-text is clean; handle as a separate privacy-hardening task.
 - [ ] **Alert policies as code** — codify the alert policies in §5 as
   Terraform / `gcloud alpha monitoring policies` definitions so they're
   reproducible across staging / prod.

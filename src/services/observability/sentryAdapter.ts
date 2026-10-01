@@ -40,6 +40,7 @@
 //     try/catch so a malformed URL never causes us to drop the event.
 
 import * as Sentry from '@sentry/node';
+import { createSentryV10PrivacyDataCollection } from './sentryDataCollection';
 import type {
   Breadcrumb,
   ErrorContext,
@@ -156,6 +157,9 @@ class SentryAdapter implements ErrorTrackingAdapter {
         environment: options.environment,
         release: options.release,
         tracesSampleRate: options.sampleRate ?? 0.1,
+        // Same explicit restrictive collection profile as the browser SDK:
+        // v11 defaults otherwise include request bodies, headers, and user info.
+        dataCollection: createSentryV10PrivacyDataCollection(),
         // PII scrubbing — strip auth/cookie headers, plus sensitive query
         // params in url + query_string (Round 14, A4 audit). The whole
         // hook is wrapped in try/catch so a parse fault never causes the

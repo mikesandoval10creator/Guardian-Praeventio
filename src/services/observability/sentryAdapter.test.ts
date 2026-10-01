@@ -61,6 +61,7 @@ describe('sentryAdapter (real SDK)', () => {
       release: 'praeventio-guard@1.2.3',
       sampleRate: 0.25,
     });
+    const denySensitiveHeaderNames = ['forwarded', '-ip', 'remote-', 'via', '-user'];
     expect(Sentry.init).toHaveBeenCalledTimes(1);
     expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -68,6 +69,20 @@ describe('sentryAdapter (real SDK)', () => {
         environment: 'production',
         release: 'praeventio-guard@1.2.3',
         tracesSampleRate: 0.25,
+        dataCollection: {
+          userInfo: false,
+          cookies: false,
+          httpHeaders: {
+            request: { deny: denySensitiveHeaderNames },
+            response: { deny: denySensitiveHeaderNames },
+          },
+          httpBodies: [],
+          urlQueryParams: { deny: denySensitiveHeaderNames },
+          genAI: { inputs: false, outputs: false },
+          databaseQueryData: false,
+          queues: false,
+          graphQL: { document: false, variables: false },
+        },
       }),
     );
   });

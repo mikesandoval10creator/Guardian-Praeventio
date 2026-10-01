@@ -79,6 +79,32 @@ describe('initSentry — @sentry/react client wiring', () => {
     );
   });
 
+  it('keeps Sentry v11 automatic PII and payload collection at the v10 restrictive baseline', async () => {
+    vi.stubEnv('VITE_SENTRY_DSN', 'https://test@sentry.io/123');
+    const { initSentry, __resetForTests } = await import('./sentry');
+
+    __resetForTests();
+    initSentry();
+
+    const initOptions = (Sentry.init as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Record<string, unknown>;
+    const denySensitiveHeaderNames = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+    expect(initOptions.dataCollection).toEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: denySensitiveHeaderNames },
+        response: { deny: denySensitiveHeaderNames },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: denySensitiveHeaderNames },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    });
+    expect(initOptions).not.toHaveProperty('sendDefaultPii');
+  });
+
   it('beforeSend redacts user.email so PII never leaves the browser', async () => {
     vi.stubEnv('VITE_SENTRY_DSN', 'https://test@sentry.io/123');
     const { initSentry, __resetForTests } = await import('./sentry');
