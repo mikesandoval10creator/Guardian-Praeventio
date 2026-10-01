@@ -1,6 +1,6 @@
 // Praeventio Guard — Contract test #4: configuración Sentry alineada
-// con la directiva 2026-05-17 (sendDefaultPii: true + redactPii como
-// backstop en beforeSend).
+// con el perfil privacy-first explícito para Sentry v11 y `redactPii` como
+// backstop en beforeSend.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
@@ -14,9 +14,10 @@ describe('Sentry configuration contract', () => {
     expect(existsSync(SENTRY_PATH)).toBe(true);
   });
 
-  it('sendDefaultPii está habilitado (directiva usuario 2026-05-17)', () => {
+  it('uses the explicit Sentry v11 dataCollection privacy profile, not the removed option', () => {
     const src = readFileSync(SENTRY_PATH, 'utf8');
-    expect(src).toContain('sendDefaultPii: true');
+    expect(src).toMatch(/^\s+dataCollection:\s*createSentryV10PrivacyDataCollection\(\),/m);
+    expect(src).not.toMatch(/^\s+sendDefaultPii:\s*(?:true|false)\s*,?\s*$/m);
   });
 
   it('redactPii sigue siendo backstop en beforeSend', () => {

@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react';
+import { createSentryV10PrivacyDataCollection } from '../services/observability/sentryDataCollection';
 
 const dsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
 
@@ -94,19 +95,10 @@ export function initSentry(): void {
 
   Sentry.init({
     dsn,
-    // 2026-05-17: directiva usuario — habilitar PII por default (IP cliente).
-    // El `beforeSend` aplica `redactPii` después, que borra email/username/
-    // ip_address/GPS/Auth headers antes de transportar al backend Sentry.
-    // [Hy3-audit 3c4aa66d-73fe-81c0-b3bf-da5b90997bdb 2026-08-25,
- //  vida-safety / Ley 19.628 + GDPR]: `beforeSend` only runs on
- // events — transactions and replays bypass it entirely, so with
- // `sendDefaultPii: true` the IP-address flowed in transactions
- // and replay payloads. The module JSDoc and the redactPii
- // contract promised "MUST NOT contain ip_address" — this gap
- // broke that promise. We now opt out of default PII collection
- // entirely; the redactPii belt-and-braces remains for events
- // that explicitly opt in.
-    sendDefaultPii: false,
+    // Sentry v11 removed sendDefaultPii and made dataCollection defaults more
+    // permissive. This explicit profile preserves the prior restrictive
+    // baseline across events, transactions, request data, and replay context.
+    dataCollection: createSentryV10PrivacyDataCollection(),
     environment: (import.meta.env.VITE_APP_ENV as string | undefined) ?? import.meta.env.MODE,
     release: (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev',
 
