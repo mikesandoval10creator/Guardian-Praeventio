@@ -114,8 +114,11 @@ describe("shiftHandoverRouter — GET /:projectId/shift-handover/history", () =>
   });
 
   it("200 returns shifts with server-computed quality, newest first", async () => {
-    seedShift("sh-old", "2026-07-01T08:00:00.000Z", { notes: 1 });
-    seedShift("sh-new", "2026-08-01T08:00:00.000Z", { notes: 2, urgent: 1 });
+    const now = Date.now();
+    const old = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    seedShift("sh-old", old, { notes: 1 });
+    seedShift("sh-new", recent, { notes: 2, urgent: 1 });
 
     const res = await request(buildApp())
       .get(url("history?days=90"))
