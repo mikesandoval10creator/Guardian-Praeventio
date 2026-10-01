@@ -20,6 +20,7 @@
 //   would leak the project secret to a member's browser. Rotation = bump keyId.
 
 import { Router } from 'express';
+import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -35,9 +36,16 @@ const QuerySchema = z.object({
   projectId: z.string().min(1).max(128),
 });
 
+function isCanonicalMeshSigningKey(value: string): boolean {
+  const rawKey = Buffer.from(value, 'base64');
+  return rawKey.length === 32 && rawKey.toString('base64') === value;
+}
+
 const MeshKeyDocumentSchema = z.object({
   keyId: z.string().min(1),
-  key: z.string().min(1),
+  key: z.string().refine(isCanonicalMeshSigningKey, {
+    message: 'key must be canonical Base64 for a 256-bit HMAC key',
+  }),
 });
 
 const router = Router();
