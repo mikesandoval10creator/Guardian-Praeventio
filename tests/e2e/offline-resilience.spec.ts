@@ -105,17 +105,34 @@ test.describe('Offline-first sync', () => {
       // Observaciones previas encontraron cero requests cuando el flush se
       // disparaba tarde; ahora no basta observar un intento: las aserciones
       // posteriores exigen ACK exitoso para este hallazgo y read-back remoto.
+      // Arm the listener before reconnecting: online can flush immediately.
+      // Match THIS finding, not an unrelated batch from startup/background work.
+      const syncResponsePromise = page.waitForResponse(
+        (response) => {
+          if (!response.url().includes('/api/gemini')) return false;
+          try {
+            const body = response.request().postDataJSON();
+            return body?.action === 'syncBatchToNetwork' &&
+              Array.isArray(body.args?.[0]) &&
+              body.args[0].some((operation: { data?: { title?: string } }) =>
+                operation.data?.title === findingTitle,
+              );
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 20_000 },
+      );
+      // Handle rejection while setOffline is pending, without swallowing failure.
+      void syncResponsePromise.catch(() => undefined);
       await context.setOffline(false);
-      await page
-        .waitForResponse(
-          (r) =>
-            r.url().includes('/api/gemini') &&
-            (r.request().postData() ?? '').includes('syncBatchToNetwork'),
-          { timeout: 20_000 },
-        )
-        .catch(() => {
-          /* si no salió, el flush post-reload (abajo) es el que sincroniza */
-        });
+      const syncResponse = await syncResponsePromise;
+      // waitForResponse observes headers, not a completed body. Navigation may
+      // otherwise abort response.json() and manufacture a false negative ACK.
+      const syncPayload = await syncResponse.json();
+      expect(syncResponse.status()).toBe(200);
+      expect(syncPayload?.result?.success).toBe(true);
+      expect(syncPayload?.result?.failedOps ?? []).toEqual([]);
 
       // Recargar prueba durabilidad real: el estado optimista en memoria se
       // pierde, así que el hallazgo solo reaparece si se persistió en `nodes`.
