@@ -1,9 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
 import { logger } from '../utils/logger';
 import { autoConnectNodes } from "./geminiBackend";
 import { assertProjectMember } from "./auth/projectMembership";
-import { AI_MODEL_EMBEDDINGS } from '../config/aiModels';
-
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -28,18 +25,18 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const AUTO_CONNECT_RECENT_LIMIT = 50;
 
 /**
- * Generates an embedding for a text.
+ * A usable vector must be a non-empty numeric array. Persistence of the node
+ * is deliberately independent of whether semantic indexing is available.
  */
-const getEmbedding = async (text: string): Promise<number[]> => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const result = await ai.models.embedContent({ model: AI_MODEL_EMBEDDINGS, contents: text });
-  return result.embeddings?.[0]?.values ?? [];
-};
+const hasUsableEmbedding = (value: unknown): value is number[] =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  Array.from(value).every((entry) => typeof entry === 'number' && Number.isFinite(entry));
 
 /**
- * Upserts a safety node both to Firestore and the vector store for unified RAG.
- * Also handles bidirectional connections with admin privileges.
+ * Upserts a safety node to Firestore and, when a valid vector is supplied,
+ * to the vector store. Vector generation is an asynchronous enrichment path
+ * and never gates durable persistence of a user-reported finding.
  */
 export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   const db = getFirestore();
@@ -68,10 +65,11 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
     await assertProjectMember(authorUid, canonicalProjectId, db);
   }
 
-  // 1. Generate Embedding if not provided
-  if (!nodeData.embedding || (Array.isArray(nodeData.embedding) && nodeData.embedding.length === 0)) {
-    const textToEmbed = `${nodeData.title} ${nodeData.description} ${nodeData.tags?.join(' ') || ''}`;
-    nodeData.embedding = await getEmbedding(textToEmbed);
+  // Embeddings arrive through the separate asynchronous enrichment path.
+  // The durable sync endpoint must never call an external model or wait for
+  // semantic indexing; malformed/missing vectors are simply omitted.
+  if (!hasUsableEmbedding(nodeData.embedding)) {
+    delete nodeData.embedding;
   }
 
   const nodeId = nodeData.id || db.collection('nodes').doc().id;
@@ -91,22 +89,26 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   // However, for Vector Search, it MUST be in the collection where findNearest is called.
   await nodeRef.set(finalData, { merge: true });
 
-  // 3. Sync to Firestore Vector Store for "El Guardián" (RAG)
-  try {
-    const vectorStoreRef = db.collection('vector_store').doc(`node-${nodeId}`);
-    await vectorStoreRef.set({
-      id: `node-${nodeId}`,
-      nodeId: nodeId,
-      title: nodeData.title,
-      content: `${nodeData.title}: ${nodeData.description}`,
-      embedding: FieldValue.vector(nodeData.embedding),
-      type: nodeData.type,
-      projectId: nodeData.projectId || 'global',
-      indexedAt: FieldValue.serverTimestamp()
-    });
-    logger.debug(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
-  } catch (e) {
-    logger.error(`[NetworkBackend] Failed to sync to Firestore Vector Store:`, e);
+  // 3. Semantic indexing is best-effort and only valid for a usable vector.
+  // Skipping this write leaves the durable node intact and searchable by its
+  // non-vector fields; a later async embedding update can index it.
+  if (hasUsableEmbedding(nodeData.embedding)) {
+    try {
+      const vectorStoreRef = db.collection('vector_store').doc(`node-${nodeId}`);
+      await vectorStoreRef.set({
+        id: `node-${nodeId}`,
+        nodeId: nodeId,
+        title: nodeData.title,
+        content: `${nodeData.title}: ${nodeData.description}`,
+        embedding: FieldValue.vector(nodeData.embedding),
+        type: nodeData.type,
+        projectId: nodeData.projectId || 'global',
+        indexedAt: FieldValue.serverTimestamp()
+      });
+      logger.debug(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
+    } catch (e) {
+      logger.error(`[NetworkBackend] Failed to sync to Firestore Vector Store:`, e);
+    }
   }
 
   // 4. Handle Bidirectional Connections

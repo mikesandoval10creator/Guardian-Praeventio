@@ -19,7 +19,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+// Load firebase-admin/firestore dynamically after the fake admin is initialized.
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
 // firebase-admin: a minimal fake firestore with the chained surface that
@@ -29,10 +29,12 @@ type DocStore = Map<string, Record<string, any>>;
 
 function makeFakeAdmin() {
   const docs: DocStore = new Map();
+  const failedWrites = new Set<string>();
   const recentDocs: Array<{ id: string; data: Record<string, any> }> = [];
 
   const docRef = (path: string) => ({
     set: vi.fn(async (data: Record<string, any>, opts?: { merge?: boolean }) => {
+      if (failedWrites.has(path)) throw new Error('Firestore unavailable');
       const prev = docs.get(path);
       if (opts?.merge && prev) {
         docs.set(path, { ...prev, ...data });
@@ -109,6 +111,7 @@ function makeFakeAdmin() {
   return {
     admin: { firestore },
     docs,
+    failedWrites,
     recentDocs,
   };
 }
@@ -146,6 +149,7 @@ let syncBatchToNetwork: typeof import('./networkBackend').syncBatchToNetwork;
 beforeEach(async () => {
   vi.stubEnv('GEMINI_API_KEY', 'test-key');
   fakeAdmin.docs.clear();
+  fakeAdmin.failedWrites.clear();
   fakeAdmin.recentDocs.length = 0;
   // B14 — the sync path now enforces project membership. Seed 'author-uid' as a
   // member of the project the suggestion tests use ('p1') so they still pass.
@@ -162,6 +166,124 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe('syncNodeToNetwork — embeddings are optional for durable persistence', () => {
+  it.each([
+    undefined, null, [], [NaN], [Infinity], ['0.1'], Array(2),
+  ].map((embedding) => ({ embedding })))('omits malformed embedding $embedding without losing the project node', async ({ embedding }) => {
+    const result = await syncNodeToNetwork({
+      id: 'invalid-vector', title: 'Hazard', description: 'D',
+      type: 'Riesgo', projectId: 'p1', connections: [], embedding,
+    }, 'author-uid');
+
+    expect(result.success).toBe(true);
+    expect(fakeAdmin.docs.get('nodes/invalid-vector')).toMatchObject({
+      id: 'invalid-vector', projectId: 'p1', title: 'Hazard',
+    });
+    expect(fakeAdmin.docs.get('nodes/invalid-vector')).not.toHaveProperty('embedding');
+    expect(fakeAdmin.docs.has('vector_store/node-invalid-vector')).toBe(false);
+  });
+
+  it('indexes a supplied finite vector even when the Gemini key is absent', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.resetModules();
+    const mod = await import('./networkBackend');
+    await mod.syncNodeToNetwork({
+      id: 'valid-vector', title: 'Hazard', description: 'D',
+      type: 'Riesgo', projectId: 'p1', connections: [], embedding: [0, -0.2, 0.3],
+    }, 'author-uid');
+    expect(fakeAdmin.docs.get('vector_store/node-valid-vector')).toMatchObject({
+      nodeId: 'valid-vector', projectId: 'p1', embedding: { __vector: [0, -0.2, 0.3] },
+    });
+  });
+
+  it('rejects a project non-member even without an embedding or Gemini key', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.resetModules();
+    const mod = await import('./networkBackend');
+    const result = await mod.syncBatchToNetwork([{
+      type: 'set', id: 'denied-no-vector', data: {
+        title: 'Hazard', description: 'D', type: 'Riesgo', projectId: 'victim',
+      },
+    }], 'author-uid');
+    expect(result.success).toBe(false);
+    expect(result.results[0]).toMatchObject({ id: 'denied-no-vector', status: 'error' });
+    expect(fakeAdmin.docs.has('nodes/denied-no-vector')).toBe(false);
+  });
+
+  it('reports a real primary Firestore write failure as a failed operation', async () => {
+    fakeAdmin.failedWrites.add('nodes/write-fails');
+    const result = await syncBatchToNetwork([{
+      type: 'set', id: 'write-fails', data: {
+        title: 'Hazard', description: 'D', type: 'Riesgo', projectId: 'global',
+      },
+    }], 'author-uid');
+    expect(result.success).toBe(false);
+    expect(result.results[0]).toMatchObject({
+      id: 'write-fails', status: 'error', error: 'Firestore unavailable',
+    });
+    expect(result.failedOps).toHaveLength(1);
+    expect(fakeAdmin.docs.has('nodes/write-fails')).toBe(false);
+  });
+
+  it('persists the node and skips vector indexing when Gemini has no API key', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.resetModules();
+    const mod = await import('./networkBackend');
+
+    const result = await mod.syncNodeToNetwork(
+      {
+        id: 'no-embedding-key',
+        title: 'Hallazgo sin embedding',
+        description: 'El hallazgo debe sobrevivir al fallo de Gemini',
+        type: 'Riesgo',
+        projectId: 'global',
+        connections: [],
+        embedding: [],
+      },
+      'author-uid',
+    );
+
+    expect(result).toMatchObject({ success: true, nodeId: 'no-embedding-key' });
+    expect(fakeAdmin.docs.get('nodes/no-embedding-key')).toMatchObject({
+      id: 'no-embedding-key',
+      title: 'Hallazgo sin embedding',
+      description: 'El hallazgo debe sobrevivir al fallo de Gemini',
+    });
+    expect(fakeAdmin.docs.has('vector_store/node-no-embedding-key')).toBe(false);
+    expect(fakeAdmin.docs.get('nodes/no-embedding-key')).not.toHaveProperty('embedding');
+  });
+
+  it('reports a successful batch set when only optional embedding generation is unavailable', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.resetModules();
+    const mod = await import('./networkBackend');
+
+    const result = await mod.syncBatchToNetwork(
+      [{
+        type: 'set',
+        id: 'batch-no-embedding-key',
+        data: {
+          title: 'Hallazgo offline',
+          description: 'Persistir antes que indexar',
+          type: 'Riesgo',
+          projectId: 'global',
+          connections: [],
+        },
+      }],
+      'author-uid',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.failedOps).toBeUndefined();
+    expect(result.results[0]).toMatchObject({ id: 'batch-no-embedding-key', status: 'success' });
+    expect(fakeAdmin.docs.get('nodes/batch-no-embedding-key')).toMatchObject({
+      id: 'batch-no-embedding-key',
+      title: 'Hallazgo offline',
+    });
+    expect(fakeAdmin.docs.has('vector_store/node-batch-no-embedding-key')).toBe(false);
+  });
 });
 
 describe('syncNodeToNetwork — autoConnect suggestions', () => {
