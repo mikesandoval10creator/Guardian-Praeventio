@@ -27,7 +27,7 @@ const emulatorProjectId = (() => {
   // Prod never enters here (gate import.meta.env.MODE === 'test' = only the
   // `vite build --mode test` bundle, never deploy.yml).
   if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
-    return 'demo-test';
+    return import.meta.env?.VITE_E2E_FIREBASE_PROJECT_ID || 'demo-test';
   }
   return undefined;
 })();
@@ -111,7 +111,10 @@ function resolveFirestoreEmulator(): { host: string; port: number } | null {
   }
   try {
     if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
-      return { host: 'localhost', port: 8080 };
+      return {
+        host: import.meta.env?.VITE_E2E_FIRESTORE_EMULATOR_HOST || 'localhost',
+        port: Number(import.meta.env?.VITE_E2E_FIRESTORE_EMULATOR_PORT) || 8080,
+      };
     }
   } catch {
     // import.meta.env access may throw in some sandbox environments — safe.
@@ -214,8 +217,9 @@ function shouldConnectAuthEmulator(): boolean {
 
 if (shouldConnectAuthEmulator()) {
     try {
-      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-      logger.debug('[firebase] Auth client connected to emulator localhost:9099 (MODE=test)');
+      const authEmulatorUrl = import.meta.env?.VITE_E2E_AUTH_EMULATOR_URL || 'http://localhost:9099';
+      connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+      logger.debug(`[firebase] Auth client connected to emulator ${authEmulatorUrl} (MODE=test)`);
     } catch (err) {
       // Already connected — safe to ignore (HMR re-import).
       logger.debug('[firebase] connectAuthEmulator skipped (already connected or no emulator)', { err });

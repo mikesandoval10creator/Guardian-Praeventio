@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getFirestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -26,13 +27,43 @@ import { seedProject } from './fixtures/seed';
 //     handleSubmit hacía early-return y el modal nunca cerraba.
 test.describe('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
+    test.setTimeout(60_000);
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
       'Requires full E2E stack (preview + Express + Firestore Emulator). Run `npm run test:e2e:full`.',
     );
 
     await loginAsTestUser(page);
+    const findingId = crypto.randomUUID();
+    const findingTitle = `Cable suelto ${findingId}`;
+    const findingDescription = `Cable suelto en piso 3 ${findingId}`;
     const seed = await seedProject();
+    const syncAttempts: Array<{ status: number; success: boolean; failedOpsCount: number }> = [];
+    let matchingRemoteIds: string[] = [];
+
+    page.on('response', async (response) => {
+      if (!response.url().includes('/api/gemini')) return;
+      let requestBody: any;
+      try {
+        requestBody = response.request().postDataJSON();
+      } catch {
+        return;
+      }
+      if (requestBody?.action !== 'syncBatchToNetwork') return;
+      const operations = requestBody.args?.[0];
+      if (!Array.isArray(operations) || !JSON.stringify(operations).includes(findingTitle)) return;
+
+      const payload = await response.json().catch(() => null);
+      const result = payload?.result;
+      const failedOps = result?.failedOps;
+      const attempt = {
+        status: response.status(),
+        success: result?.success === true,
+        failedOpsCount: Array.isArray(failedOps) ? failedOps.length : failedOps ? 1 : 0,
+      };
+      syncAttempts.push(attempt);
+      console.log('[offline-e2e-sync-ack]', JSON.stringify(attempt));
+    });
 
     try {
       await page.goto('/findings');
@@ -58,9 +89,9 @@ test.describe('Offline-first sync', () => {
 
       // Título, Ubicación y Descripción son required en el modal AddFinding —
       // sin los tres, la validación HTML5 bloquea el submit y el modal no cierra.
-      await page.getByLabel(/T[ií]tulo/i).fill('Cable suelto');
+      await page.getByLabel(/T[ií]tulo/i).fill(findingTitle);
       await page.getByLabel(/Ubicaci[oó]n/i).fill('Piso 3, Sector B');
-      await page.getByLabel(/Descripci[oó]n/i).fill('Cable suelto en piso 3');
+      await page.getByLabel(/Descripci[oó]n/i).fill(findingDescription);
       await page.getByRole('button', { name: /Registrar/i }).click();
 
       // El save offline tuvo éxito cuando el modal cierra (addNode encoló el nodo
@@ -71,11 +102,9 @@ test.describe('Offline-first sync', () => {
       // Reconectar. El evento `online` dispara flush() del outbox en ESTA página
       // (autenticada, con el op en memoria). Esperamos a que el POST del flush
       // llegue al backend ANTES de recargar; sin esto, el page.goto de abajo
-      // destruía la página antes de que el fetch del flush arrancara (se
-      // observaron 0 requests syncBatchToNetwork). El primer intento puede fallar
-      // (transitorio de arranque del server); el outbox reintenta y el flush
-      // post-reload sincroniza — por eso NO exigimos 2xx aquí, solo que el
-      // intento haya salido.
+      // Observaciones previas encontraron cero requests cuando el flush se
+      // disparaba tarde; ahora no basta observar un intento: las aserciones
+      // posteriores exigen ACK exitoso para este hallazgo y read-back remoto.
       await context.setOffline(false);
       await page
         .waitForResponse(
@@ -102,15 +131,39 @@ test.describe('Offline-first sync', () => {
       // re-entrega. Sin esto el poll leería un feed sin proyecto.
       await expect(page.getByRole('button', { name: 'Proyecto Activo E2E Project', exact: true })).toBeVisible({ timeout: 15_000 });
 
-      // El hallazgo debe haberse pushed al backend y aparecer en el feed. El
-      // flush post-reload arranca con el timer de scheduleFlush (5s) + POST +
-      // confirmación onSnapshot del emulador; expect.poll con backoff tolera esa
-      // latencia variable (y un reintento del outbox si el primer flush falla).
+      const db = getFirestore();
       await expect.poll(
-        async () => await page.getByText(/Cable suelto en piso 3/i).isVisible().catch(() => false),
+        async () => {
+          const snapshot = await db.collection('nodes').where('projectId', '==', seed.projectId).get();
+          matchingRemoteIds = snapshot.docs
+            .filter((doc) =>
+              doc.data()?.title === findingTitle &&
+              doc.data()?.description === findingDescription,
+            )
+            .map((doc) => doc.id);
+          const successfulSync = syncAttempts.some(
+            (attempt) => attempt.status === 200 && attempt.success && attempt.failedOpsCount === 0,
+          );
+          return successfulSync && matchingRemoteIds.length > 0;
+        },
         { timeout: 20_000, intervals: [500, 1000, 2000] },
       ).toBe(true);
+
+      await expect(page.getByText(findingDescription)).toBeVisible({ timeout: 10_000 });
     } finally {
+      console.log('[offline-e2e-final-evidence]', JSON.stringify({ syncAttempts, matchingRemoteIds }));
+      const db = getFirestore();
+      const createdNodes = await db.collection('nodes').where('title', '==', findingTitle).get();
+      const auditEntries = await db.collection('audit_logs').where('details.title', '==', findingTitle).get();
+      await Promise.all([
+        ...createdNodes.docs.map(async (doc) => {
+          await Promise.all([
+            doc.ref.delete(),
+            db.collection('vector_store').doc(`node-${doc.id}`).delete(),
+          ]);
+        }),
+        ...auditEntries.docs.map((doc) => doc.ref.delete()),
+      ]);
       await seed.cleanup();
     }
   });
