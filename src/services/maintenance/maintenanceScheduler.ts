@@ -205,6 +205,8 @@ export function deriveStatusFromCompletion(
 // ────────────────────────────────────────────────────────────────────
 
 export interface MaintenanceTaskStore {
+  /** Atomically creates a new threshold task or returns the unchanged existing task. */
+  createTaskIfAbsent(task: MaintenanceTask): Promise<MaintenanceTask>;
   saveTask(task: MaintenanceTask): Promise<void>;
   getTaskById(input: {
     tenantId: string;
@@ -233,15 +235,14 @@ export interface ScheduleMaintenanceTaskInput {
 }
 
 /**
- * Persiste una tarea recien construida. Idempotente — si ya existe una
- * tarea con el mismo id la sobreescribe (set merge:true del adapter).
+ * Scheduling is create-only: replaying a threshold never resets lifecycle
+ * state, operator notes or signed completion. Atomicity belongs to the store.
  */
 export async function scheduleMaintenanceTask(
   input: ScheduleMaintenanceTaskInput,
   store: MaintenanceTaskStore,
 ): Promise<MaintenanceTask> {
-  await store.saveTask(input.task);
-  return input.task;
+  return store.createTaskIfAbsent(input.task);
 }
 
 export interface CompleteMaintenanceTaskInput {

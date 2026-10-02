@@ -172,6 +172,15 @@ function buildTaskStore(
   tenantId: string,
 ): MaintenanceTaskStore {
   return {
+    async createTaskIfAbsent(task) {
+      const ref = db.collection(TASK_PATH(tenantId, task.projectId)).doc(task.id);
+      return db.runTransaction(async (tx) => {
+        const existing = await tx.get(ref);
+        if (existing.exists) return existing.data() as MaintenanceTask;
+        tx.set(ref, task);
+        return task;
+      });
+    },
     async saveTask(task) {
       await db
         .collection(TASK_PATH(tenantId, task.projectId))

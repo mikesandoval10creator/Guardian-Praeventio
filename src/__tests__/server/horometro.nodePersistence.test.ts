@@ -150,6 +150,37 @@ beforeEach(() => {
 });
 
 describe('horometro route → REAL serverWriteNodes persists ZK nodes', () => {
+  it('repeated HTTP readings preserve cancellation and create only the next threshold task', async () => {
+    seedProject();
+    seedEquipment();
+    expect((await postReading(300)).status).toBe(201);
+    const path = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/maintenance_tasks/mtask-${EQUIPMENT_ID}-250h-k1`;
+    const cancelled = { ...H.db!._dump()[path], status: 'cancelled', notes: 'Supervisor cancelled this cycle' };
+    H.db!._seed(path, cancelled);
+
+    expect((await postReading(301)).status).toBe(201);
+    expect(H.db!._dump()[path]).toEqual(cancelled);
+    expect((await postReading(550)).status).toBe(201);
+    expect(H.db!._dump()[path]).toEqual(cancelled);
+    const nextPath = path.replace('250h-k1', '250h-k2');
+    expect(H.db!._dump()[nextPath]).toMatchObject({ status: 'open', multiplier: 2, triggeredAtHours: 500 });
+  });
+
+  it('repeated HTTP readings preserve signed completion and its maintenance baseline', async () => {
+    seedProject();
+    seedEquipment();
+    expect((await postReading(300)).status).toBe(201);
+    const path = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/maintenance_tasks/mtask-${EQUIPMENT_ID}-250h-k1`;
+    const completed = { ...H.db!._dump()[path], status: 'completed', completion: {
+      completedByUid: UID, completedAt: '2026-10-01T12:00:00.000Z', notes: 'Signed maintenance', horometroAtCompletion: 300,
+    } };
+    H.db!._seed(path, completed);
+    const repeated = await postReading(301);
+    expect(repeated.status).toBe(201);
+    expect(repeated.body.flow.crossesDetected).toBe(0);
+    expect(H.db!._dump()[path]).toEqual(completed);
+  });
+
   it('a plain reading (no threshold) persists the horometro-reading node to zettelkasten_nodes', async () => {
     seedProject();
     seedEquipment();

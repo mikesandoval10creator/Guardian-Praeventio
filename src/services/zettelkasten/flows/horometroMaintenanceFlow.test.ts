@@ -53,6 +53,10 @@ function inMemoryTaskStore(): MaintenanceTaskStore & {
 } {
   const byId = new Map<string, MaintenanceTask>();
   return {
+    async createTaskIfAbsent(task) {
+      if (!byId.has(task.id)) byId.set(task.id, task);
+      return byId.get(task.id)!;
+    },
     async saveTask(task) {
       byId.set(task.id, task);
     },
