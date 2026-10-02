@@ -107,6 +107,19 @@ describe("GeofenceAlert with the real GPS hook and event wrapper", () => {
     expect(H.emit).not.toHaveBeenCalled();
   });
 
+  it("notifies a new project failure even when the previous project never recovered", async () => {
+    const view = render(<GeofenceAlert />);
+    await act(async () => undefined);
+    act(() => vi.advanceTimersByTime(8_000));
+    expect(H.addNotification).toHaveBeenCalledTimes(1);
+    H.projectId = "project-b";
+    view.rerender(<GeofenceAlert />);
+    await act(async () => undefined);
+    act(() => vi.advanceTimersByTime(8_000));
+    expect(H.addNotification).toHaveBeenCalledTimes(2);
+    expect(H.addNotification).toHaveBeenLastCalledWith(unavailableNotice);
+  });
+
   it("notifies once per failure episode on the same GPS watcher", async () => {
     await act(async () => {
       render(<GeofenceAlert />);

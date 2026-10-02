@@ -173,7 +173,7 @@ export function GeofenceAlert() {
   const permissionToastFiredRef = useRef(false);
   const { addNotification } = useNotifications();
   useEffect(() => {
-    if (permissionState === 'granted') {
+    if (permissionState === 'granted' || permissionState === 'pending') {
       permissionToastFiredRef.current = false;
     }
     if (permissionState === 'denied' && !permissionToastFiredRef.current) {

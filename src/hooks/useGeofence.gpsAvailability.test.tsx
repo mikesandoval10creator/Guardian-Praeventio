@@ -78,6 +78,16 @@ describe("useGeofence GPS availability", () => {
     expect(clearWatch).not.toHaveBeenCalled();
   });
 
+  it("surfaces a synchronous provider startup failure without leaking a timer", async () => {
+    watchPosition.mockImplementationOnce(() => {
+      throw new Error("Provider unavailable");
+    });
+    const { result } = renderHook(() => useGeofence([]));
+    await act(async () => undefined);
+    expect(result.current.permissionState).toBe("unavailable");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("surfaces an explicit GPS timeout without waiting for the watchdog", () => {
     const { result } = renderHook(() => useGeofence([]));
     act(() => watchPosition.mock.calls[0][1]?.(gpsError(3)));

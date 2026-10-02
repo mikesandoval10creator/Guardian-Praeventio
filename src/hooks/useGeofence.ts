@@ -331,7 +331,12 @@ export function useGeofence(
 
     };
 
-    void startWatcher();
+    void startWatcher().catch(() => {
+      if (disposed || scopeRef.current !== scopeKey) return;
+      clearFirstFixTimeout();
+      setPermissionState('unavailable');
+      logger.warn('[useGeofence] No se pudo iniciar el proveedor de ubicación.');
+    });
     return () => {
       disposed = true;
       clearFirstFixTimeout();
