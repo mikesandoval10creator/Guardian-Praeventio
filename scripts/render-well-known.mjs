@@ -121,7 +121,7 @@ export function buildSecurityTxt(securityEmail) {
   return `Contact: mailto:${securityEmail}
 Contact: https://praeventio.net/security
 Expires: 2027-04-28T00:00:00.000Z
-# Encryption: TODO when PGP key published at /.well-known/pgp-key.asc
+Encryption: https://praeventio.net/.well-known/pgp-key.asc
 Acknowledgments: https://github.com/mikesandoval10creator/Guardian-Praeventio/blob/main/SECURITY.md#hall-of-fame
 Preferred-Languages: es, en
 Canonical: https://praeventio.net/.well-known/security.txt
