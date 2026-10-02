@@ -12,6 +12,7 @@
 // disk writes, deterministic across machines.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -109,6 +110,12 @@ describe('buildAssetlinks', () => {
 });
 
 describe('buildSecurityTxt', () => {
+  it('keeps the published PGP Encryption directive active', () => {
+    expect(buildSecurityTxt('contacto@praeventio.net')).toMatch(
+      /^Encryption: https:\/\/praeventio\.net\/\.well-known\/pgp-key\.asc$/m,
+    );
+  });
+
   it('renders the contact email into an RFC 9116 body', () => {
     const txt = buildSecurityTxt('contacto@praeventio.net');
     expect(txt).toContain('Contact: mailto:contacto@praeventio.net');
@@ -117,6 +124,19 @@ describe('buildSecurityTxt', () => {
 });
 
 describe('render (e2e with injected fs + env)', () => {
+  it('keeps Encryption active across repeated renders without changing the public key', async () => {
+    const keyPath = path.join(WELL_KNOWN_DIR, 'pgp-key.asc');
+    const publicKey = readFileSync(path.resolve(here, '..', '..', '..', keyPath), 'utf8');
+    const fsImpl = makeFakeFs({ [AASA]: AASA_FIXTURE, [keyPath]: publicKey });
+    for (let pass = 0; pass < 2; pass++) {
+      await render({ env: {}, fsImpl, log: () => {}, warn: () => {} });
+      expect(fsImpl.store[SECURITY_TXT]).toMatch(
+        /^Encryption: https:\/\/praeventio\.net\/\.well-known\/pgp-key\.asc$/m,
+      );
+      expect(fsImpl.store[keyPath]).toBe(publicKey);
+    }
+  });
+
   it('writes HONEST empty-fingerprint assetlinks + warns when ANDROID_CERT_SHA256 is absent (non-release)', async () => {
     const warnings: string[] = [];
     const fsImpl = makeFakeFs({ [AASA]: AASA_FIXTURE });
