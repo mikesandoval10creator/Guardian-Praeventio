@@ -163,6 +163,8 @@ export function useGeofence(
   useLayoutEffect(() => {
     if (scopeRef.current === scopeKey) return;
     scopeRef.current = scopeKey;
+    setPermissionState('pending');
+    setCurrentLocation(null);
     insideZonesRef.current = [];
   }, [scopeKey]);
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
@@ -219,6 +221,11 @@ export function useGeofence(
   useEffect(() => {
     let disposed = false;
     let watchId: number | null = null;
+    let firstFixTimeout: ReturnType<typeof setTimeout> | undefined;
+    const clearFirstFixTimeout = () => {
+      clearTimeout(firstFixTimeout);
+      firstFixTimeout = undefined;
+    };
 
     const startWatcher = async () => {
       if (!('geolocation' in navigator)) {
@@ -242,8 +249,18 @@ export function useGeofence(
       }
 
       if (disposed) return;
+      // Some providers never invoke either callback despite the API timeout.
+      // Start only after disclosure permits the watcher, and retain the watch
+      // so a delayed first fix can restore protection without a route reload.
+      firstFixTimeout = setTimeout(() => {
+        if (!disposed && scopeRef.current === scopeKey) {
+          setPermissionState('unavailable');
+        }
+      }, 8_000);
       watchId = navigator.geolocation.watchPosition(
       (position) => {
+        if (disposed || scopeRef.current !== scopeKey) return;
+        clearFirstFixTimeout();
         const { latitude, longitude } = position.coords;
         const observedPosition = { lat: latitude, lng: longitude };
         setCurrentLocation(observedPosition);
@@ -290,6 +307,7 @@ export function useGeofence(
         });
       },
       (err) => {
+        if (disposed || scopeRef.current !== scopeKey) return;
         // Sprint 29 (audit H27) — surface PERMISSION_DENIED so el trabajador
         // no crea que tiene protección activa cuando no la tiene. Exponemos
         // `permissionState='denied'` en el return para que el UI consumer
@@ -297,11 +315,13 @@ export function useGeofence(
         // NotificationContext).
         if (err && typeof err === 'object' && 'code' in err) {
           if (err.code === 1) {
+            clearFirstFixTimeout();
             setPermissionState('denied');
             logger.warn(
               '[useGeofence] Geolocalización denegada — protección desactivada.',
             );
-          } else if (err.code === 2) {
+          } else if (err.code === 2 || err.code === 3) {
+            clearFirstFixTimeout();
             setPermissionState('unavailable');
           }
         }
@@ -311,9 +331,15 @@ export function useGeofence(
 
     };
 
-    void startWatcher();
+    void startWatcher().catch(() => {
+      if (disposed || scopeRef.current !== scopeKey) return;
+      clearFirstFixTimeout();
+      setPermissionState('unavailable');
+      logger.warn('[useGeofence] No se pudo iniciar el proveedor de ubicación.');
+    });
     return () => {
       disposed = true;
+      clearFirstFixTimeout();
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
 
