@@ -40,6 +40,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
 vi.mock('../../server/middleware/limiters.js', () => ({
   geminiLimiter: (_q: Request, _s: Response, n: NextFunction) => n(),
   geminiGlobalDailyLimiter: (_q: Request, _s: Response, n: NextFunction) => n(),
+  networkSyncLimiter: (_q: Request, _s: Response, n: NextFunction) => n(),
 }));
 vi.mock('../../server/middleware/auditLog.js', () => ({ auditServerEvent: vi.fn(async () => true) }));
 vi.mock('../../services/observability/tracing.js', () => ({
