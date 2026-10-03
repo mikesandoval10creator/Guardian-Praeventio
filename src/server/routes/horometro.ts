@@ -167,7 +167,7 @@ function buildHorometroStore(
   };
 }
 
-function buildTaskStore(
+export function buildTaskStore(
   db: Firestore,
   tenantId: string,
 ): MaintenanceTaskStore {
