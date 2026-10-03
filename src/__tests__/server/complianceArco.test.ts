@@ -14,7 +14,7 @@
 // (status transitions, deletions, legal-retention preservation) are the
 // actual code under test — not a reimplementation.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
@@ -97,11 +97,13 @@ function auditRows(action: string) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   H.db = createFakeFirestore();
   H.missingAuthUids.clear();
   H.roles = { admin1: 'admin', gerente1: 'gerente', worker1: 'operario', platform1: 'platform_operator' };
   H.tenants = { admin1: 'tenant-a', gerente1: 'tenant-a', worker1: 'tenant-a', victim: 'tenant-a' };
 });
+afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
 // POST /api/compliance/admin/data-request/:id/process — access/portability
@@ -414,6 +416,45 @@ describe('POST /api/compliance/admin/data-request/:id/erase', () => {
     const proof = H.db!._store.get('anonymization_events/victim');
     expect(proof).toBeTruthy();
     expect((proof as Record<string, unknown>).authDisabled).toBe(true);
+  });
+
+  it('409 query mismatch preserves other subjects and never reports a completed erasure on retry', async () => {
+    seedErasureWorld();
+    const otherBefore = { ...H.db!._store.get('users/other-doc')! };
+    const originalCollection = H.db!.collection.bind(H.db!);
+    vi.spyOn(H.db!, 'collection').mockImplementation((name) => {
+      const ref = originalCollection(name);
+      if (name !== 'users') return ref;
+      return {
+        ...ref,
+        where: (field, op, value) => ({
+          ...ref.where(field, op, value),
+          // Fault injection at the DB boundary, not a mocked erasure service.
+          get: () => ref.get(),
+        }),
+      };
+    });
+    const app = buildApp();
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await request(app)
+        .post('/api/compliance/admin/data-request/req-er-1/erase')
+        .set(asUser('admin1'))
+        .send({ confirm: 'req-er-1' });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: 'erasure_subject_mismatch' });
+      expect(H.db!._store.get('users/other-doc')).toEqual(otherBefore);
+      expect(H.db!._store.has('users/victim-doc')).toBe(true);
+      expect(H.db!._store.get('compliance_data_requests/req-er-1')?.status).toBe('pending');
+      expect(auditRows('arco_erasure_executed')).toHaveLength(0);
+      expect(H.db!._store.has('audit_logs/legacy-row')).toBe(true);
+    }
+
+    // Existing route order is preserved: anonymization precedes the sweep.
+    // Failure is not a rollback of Auth disable or the earlier anonymization proof.
+    expect(H.auth!.updateUser).toHaveBeenCalledWith('victim', expect.objectContaining({ disabled: true }));
+    expect(H.db!._store.has('anonymization_events/victim')).toBe(true);
+    expect(auditRows('arco_erasure_started')).toHaveLength(2);
   });
 
   it('200 idempotent: erasing an already-completed request is a no-op (no second sweep)', async () => {

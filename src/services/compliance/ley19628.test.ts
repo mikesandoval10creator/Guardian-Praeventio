@@ -3,7 +3,8 @@
 // In-memory MinimalComplianceDb fake. Mirrors the pattern used by
 // `src/services/auth/projectMembership.test.ts`. No firebase-admin import.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { logger } from '../../utils/logger.js';
 import {
   recordConsent,
   revokeConsent,
@@ -29,7 +30,11 @@ interface DocRecord {
   data: Record<string, any>;
 }
 
-function makeDb(initial: Record<string, DocRecord[]> = {}): MinimalComplianceDb {
+function makeDb(
+  initial: Record<string, DocRecord[]> = {},
+  ignoreUidFilterFor?: string,
+  ignoreFilterField?: string,
+): MinimalComplianceDb {
   const store: Record<string, Map<string, Record<string, any>>> = {};
   for (const [coll, rows] of Object.entries(initial)) {
     store[coll] = new Map(rows.map((r) => [r.id, { ...r.data }]));
@@ -77,7 +82,9 @@ function makeDb(initial: Record<string, DocRecord[]> = {}): MinimalComplianceDb 
       async get(): Promise<MinimalQuerySnap> {
         const docs: MinimalDocSnap[] = [];
         for (const [docId, data] of store[name].entries()) {
-          if (filter && data[filter.field] !== filter.value) continue;
+          const ignoreFilter = name === ignoreUidFilterFor &&
+            (!ignoreFilterField || filter?.field === ignoreFilterField);
+          if (filter && !ignoreFilter && data[filter.field] !== filter.value) continue;
           docs.push({
             exists: true,
             id: docId,
@@ -103,7 +110,9 @@ describe('compliance/ley19628', () => {
   let db: MinimalComplianceDb;
   beforeEach(() => {
     db = makeDb();
+    vi.spyOn(logger, 'warn').mockImplementation(() => {});
   });
+  afterEach(() => vi.restoreAllMocks());
 
   it('1. recordConsent persists with grantedAt and is queryable by uid', async () => {
     const rec = await recordConsent(db, {
@@ -282,6 +291,218 @@ describe('compliance/ley19628', () => {
       .where('userId', '==', 'uid-B')
       .get();
     expect(auditB.docs).toHaveLength(1);
+  });
+
+  it('stops erasure when an overbroad query returns another subject', async () => {
+    db = makeDb(
+      { users: [{ id: 'foreign', data: { uid: 'uid-B', name: 'Bob' } }] },
+      'users',
+    );
+
+    const outcome = await eraseUserData(db, 'uid-A').catch((error: unknown) => error);
+
+    // Inspect durable fake state: a failing response alone cannot undo a delete.
+    expect((await db.collection('users').doc('foreign').get()).exists).toBe(true);
+    expect(outcome).toBeInstanceOf(ComplianceError);
+    expect(outcome).toMatchObject({
+      code: 'erasure_subject_mismatch',
+      httpStatus: 409,
+    });
+  });
+
+  it('stops explicit legal purge when a query returns another subject', async () => {
+    db = makeDb(
+      { audit_logs: [{ id: 'foreign-audit', data: { userId: 'uid-B', action: 'login' } }] },
+      'audit_logs',
+    );
+
+    const outcome = await eraseUserData(db, 'uid-A', { keepLegalRecords: false })
+      .catch((error: unknown) => error);
+
+    expect((await db.collection('audit_logs').doc('foreign-audit').get()).exists).toBe(true);
+    expect(outcome).toBeInstanceOf(ComplianceError);
+    expect(outcome).toMatchObject({ code: 'erasure_subject_mismatch', httpStatus: 409 });
+  });
+
+  it('signals a subject mismatch without adding personal data to warning metadata', async () => {
+    db = makeDb(
+      { users: [{ id: 'private-doc', data: { uid: 'uid-B', name: 'Bob' } }] },
+      'users',
+    );
+
+    await expect(eraseUserData(db, 'uid-A')).rejects.toBeInstanceOf(ComplianceError);
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      'compliance_erasure_subject_mismatch',
+      { collection: 'users' },
+    );
+    const warning = JSON.stringify(vi.mocked(logger.warn).mock.calls);
+    for (const privateValue of ['uid-A', 'uid-B', 'private-doc', 'Bob']) {
+      expect(warning).not.toContain(privateValue);
+    }
+  });
+
+  it.each([
+    ['users', 'uid'],
+    ['compliance_consents', 'uid'],
+    ['compliance_data_requests', 'uid'],
+    ['curriculum_claims', 'uid'],
+    ['gamification_xp', 'uid'],
+    ['commute_sessions', 'uid'],
+    ['notifications', 'recipientUid'],
+  ])('checks the configured subject field in %s.%s', async (collection, field) => {
+    db = makeDb(
+      { [collection]: [{ id: 'foreign', data: { uid: 'uid-A', [field]: 'uid-B' } }] },
+      collection,
+    );
+
+    await expect(eraseUserData(db, 'uid-A')).rejects.toMatchObject({
+      code: 'erasure_subject_mismatch',
+    });
+    expect((await db.collection(collection).doc('foreign').get()).exists).toBe(true);
+  });
+
+  it.each([undefined, null, 42, { uid: 'uid-A' }])(
+    'fails closed for missing or invalid record ownership (%j)',
+    async (owner) => {
+      db = makeDb({ users: [{ id: 'unowned', data: { uid: owner } }] }, 'users');
+
+      await expect(eraseUserData(db, 'uid-A')).rejects.toMatchObject({
+        code: 'erasure_subject_mismatch',
+      });
+      expect((await db.collection('users').doc('unowned').get()).exists).toBe(true);
+    },
+  );
+
+  it.each([false, true])(
+    'validates the entire snapshot before deleting any mixed row (reverse=%s)',
+    async (reverse) => {
+      const rows = [
+        { id: 'own', data: { uid: 'uid-A' } },
+        { id: 'foreign', data: { uid: 'uid-B' } },
+      ];
+      db = makeDb({ users: reverse ? rows.reverse() : rows }, 'users');
+
+      await expect(eraseUserData(db, 'uid-A')).rejects.toBeInstanceOf(ComplianceError);
+      for (const id of ['own', 'foreign']) {
+        expect((await db.collection('users').doc(id).get()).exists).toBe(true);
+      }
+    },
+  );
+
+  it.each(
+    ['audit_logs', 'incidents', 'sos_alerts'].flatMap((collection) =>
+      ['userId', 'reporterUid', 'workerUid', 'uid'].map((field) => [collection, field]),
+    ),
+  )('checks each explicit legal-purge query in %s.%s', async (collection, field) => {
+    db = makeDb(
+      { [collection]: [{ id: 'foreign', data: { [field]: 'uid-B' } }] },
+      collection,
+      field,
+    );
+
+    await expect(eraseUserData(db, 'uid-A', { keepLegalRecords: false }))
+      .rejects.toMatchObject({ code: 'erasure_subject_mismatch' });
+    expect((await db.collection(collection).doc('foreign').get()).exists).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'compliance_erasure_subject_mismatch',
+      { collection },
+    );
+  });
+
+  it.each([undefined, true])('keeps legal records without querying them (%s)', async (keepLegalRecords) => {
+    db = makeDb({
+      audit_logs: [{ id: 'a', data: { userId: 'uid-A' } }],
+      incidents: [{ id: 'i', data: { reporterUid: 'uid-A' } }],
+      sos_alerts: [{ id: 's', data: { workerUid: 'uid-A' } }],
+    });
+    const collectionSpy = vi.spyOn(db, 'collection');
+
+    const result = await eraseUserData(db, 'uid-A', { keepLegalRecords });
+    expect(result.preserved).toEqual(['audit_logs', 'incidents', 'sos_alerts']);
+    expect(result.erased).toEqual([]);
+    for (const collection of ['audit_logs', 'incidents', 'sos_alerts']) {
+      expect(collectionSpy).not.toHaveBeenCalledWith(collection);
+    }
+    for (const [collection, id] of [['audit_logs', 'a'], ['incidents', 'i'], ['sos_alerts', 's']]) {
+      expect((await db.collection(collection).doc(id).get()).exists).toBe(true);
+    }
+  });
+
+  it('rejects the processing request instead of marking an anomalous erasure completed', async () => {
+    db = makeDb({ users: [{ id: 'foreign', data: { uid: 'uid-B' } }] }, 'users');
+    const req = await requestDataAccess(db, 'uid-A', 'erasure');
+
+    await expect(processDataAccessRequest(db, req.id, {
+      onErase: async (pending) => { await eraseUserData(db, pending.uid); },
+    })).rejects.toMatchObject({ code: 'erasure_subject_mismatch' });
+
+    const stored = (await db.collection('compliance_data_requests').doc(req.id).get()).data();
+    expect(stored?.status).toBe('rejected');
+    expect(stored?.rejectionReason).toBe('Erasure stopped: document subject does not match the request.');
+    expect((await db.collection('users').doc('foreign').get()).exists).toBe(true);
+  });
+
+  it.each(['get', 'delete'])('propagates explicit legal-purge %s failures', async (stage) => {
+    db = makeDb({ audit_logs: [{ id: 'own', data: { userId: 'uid-A' } }] });
+    const failure = new Error('storage unavailable');
+    const originalCollection = db.collection.bind(db);
+    vi.spyOn(db, 'collection').mockImplementation((name) => {
+      const ref = originalCollection(name);
+      if (name !== 'audit_logs') return ref;
+      if (stage === 'delete') {
+        return { ...ref, doc: (id) => ({
+          ...ref.doc(id),
+          delete: async () => { throw failure; },
+        }) };
+      }
+      return { ...ref, where: (field, op, value) => ({
+        ...ref.where(field, op, value),
+        get: async () => { throw failure; },
+      }) };
+    });
+
+    await expect(eraseUserData(db, 'uid-A', { keepLegalRecords: false }))
+      .rejects.toBe(failure);
+    expect((await db.collection('audit_logs').doc('own').get()).exists).toBe(true);
+  });
+
+  it.each([
+    ['users', 'uid'],
+    ['compliance_consents', 'uid'],
+    ['compliance_data_requests', 'uid'],
+    ['curriculum_claims', 'uid'],
+    ['gamification_xp', 'uid'],
+    ['commute_sessions', 'uid'],
+    ['notifications', 'recipientUid'],
+  ])('still erases only matching subjects in %s.%s', async (collection, field) => {
+    db = makeDb({ [collection]: [
+      { id: 'own', data: { [field]: 'uid-A' } },
+      { id: 'foreign', data: { [field]: 'uid-B' } },
+    ] });
+
+    const result = await eraseUserData(db, 'uid-A');
+    expect(result.erased).toContain(`${collection}:1`);
+    expect((await db.collection(collection).doc('own').get()).exists).toBe(false);
+    expect((await db.collection(collection).doc('foreign').get()).exists).toBe(true);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    ['audit_logs', 'incidents', 'sos_alerts'].flatMap((collection) =>
+      ['userId', 'reporterUid', 'workerUid', 'uid'].map((field) => [collection, field]),
+    ),
+  )('still purges only matching legal records in %s.%s', async (collection, field) => {
+    db = makeDb({ [collection]: [
+      { id: 'own', data: { [field]: 'uid-A' } },
+      { id: 'foreign', data: { [field]: 'uid-B' } },
+    ] });
+
+    const result = await eraseUserData(db, 'uid-A', { keepLegalRecords: false });
+    expect(result.preserved).toEqual([]);
+    expect(result.erased).toContain(`${collection}:legal_purged`);
+    expect((await db.collection(collection).doc('own').get()).exists).toBe(false);
+    expect((await db.collection(collection).doc('foreign').get()).exists).toBe(true);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('8. PROCESSING_ACTIVITIES catalog has every required field for each entry', () => {
