@@ -160,18 +160,34 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
 
   const handleDownload = () => {
     if (!result) return;
-    const bin = atob(result.pdfBase64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    const blob = new Blob([arr], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${result.form.folio}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setError(null);
+    let url: string | null = null;
+    let anchor: HTMLAnchorElement | null = null;
+    try {
+      if (
+        typeof result.pdfBase64 !== 'string' ||
+        result.pdfBase64.trim().length === 0
+      ) {
+        throw new Error('Empty PDF response');
+      }
+      const bin = atob(result.pdfBase64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const blob = new Blob([arr], { type: 'application/pdf' });
+      url = URL.createObjectURL(blob);
+      anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${result.form.folio}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+    } catch {
+      setError(
+        'No pudimos descargar el PDF. Inténtalo nuevamente; si el problema continúa, genera un nuevo reglamento.',
+      );
+    } finally {
+      anchor?.remove();
+      if (url) URL.revokeObjectURL(url);
+    }
   };
 
   return (
