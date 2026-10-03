@@ -171,7 +171,9 @@ class MatrixSyncManager {
   }
 
   private scheduleFlush() {
-    if (!this.flushInterval) {
+    // An in-flight flush owns its follow-up timer in `finally`. Scheduling
+    // here would let that timer overwrite the handle of a concurrent enqueue.
+    if (!this.isFlushing && !this.flushInterval) {
       this.flushInterval = setTimeout(() => this.flush(), this.flushDelayMs);
     }
   }
