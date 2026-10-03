@@ -1,5 +1,6 @@
+import { z } from "zod";
 import { apiAuthHeaderOrThrow } from "../../lib/apiAuth";
-import type { TierId } from "../pricing/tiers";
+import { TIER_IDS, type TierId } from "../pricing/tiers";
 
 export type TierDowngradeCategory = "workers" | "projects";
 
@@ -40,6 +41,54 @@ export interface TierDowngradeBackup {
 interface ExportResponse {
   backup: TierDowngradeBackup;
   fingerprint: string;
+}
+
+const candidateSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("project"),
+    projectId: z.string().min(1),
+    data: z.record(z.string(), z.unknown()),
+  }),
+  z.object({
+    kind: z.literal("worker"),
+    projectId: z.string().min(1),
+    workerId: z.string().min(1),
+    data: z.record(z.string(), z.unknown()),
+  }),
+]);
+
+const exportSchema = z.object({
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  backup: z.object({
+    version: z.literal(1),
+    generatedAt: z.iso.datetime(),
+    sourceTier: z.enum(TIER_IDS),
+    targetTier: z.enum(TIER_IDS),
+    category: z.enum(["workers", "projects"]),
+    count: z.number().int().nonnegative(),
+    records: z.array(candidateSchema),
+  }),
+});
+
+function assertExportResponse(
+  value: unknown,
+  category: TierDowngradeCategory,
+  targetTier: TierId,
+): asserts value is ExportResponse {
+  const parsed = exportSchema.safeParse(value);
+  if (
+    !parsed.success ||
+    parsed.data.backup.category !== category ||
+    parsed.data.backup.targetTier !== targetTier ||
+    parsed.data.backup.count !== parsed.data.backup.records.length ||
+    parsed.data.backup.records.some(
+      (record) =>
+        record.kind !== (category === "workers" ? "worker" : "project"),
+    )
+  ) {
+    throw new Error("downgrade_export_invalid");
+  }
+  // Validate only: download the original backup without stripping record data.
 }
 
 export interface ArchiveResponse {
@@ -99,25 +148,33 @@ function startBackupDownload(backup: TierDowngradeBackup): void {
     type: "application/json;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  const timestamp = backup.generatedAt.replace(/[:.]/g, "-");
-  anchor.href = url;
-  anchor.download = `praeventio-downgrade-${backup.category}-${timestamp}.json`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  let anchor: HTMLAnchorElement | undefined;
+  try {
+    anchor = document.createElement("a");
+    const timestamp = backup.generatedAt.replace(/[:.]/g, "-");
+    anchor.href = url;
+    anchor.download = `praeventio-downgrade-${backup.category}-${timestamp}.json`;
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+  } finally {
+    try {
+      anchor?.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 }
 
 export async function exportThenArchiveTierDowngrade(
   category: TierDowngradeCategory,
   targetTier: TierId,
 ): Promise<ArchiveResponse> {
-  const exported = await postJson<ExportResponse>(
-    "/api/tier-downgrade/export",
-    {
-      targetTier,
-      category,
-    },
-  );
+  const exported = await postJson<unknown>("/api/tier-downgrade/export", {
+    targetTier,
+    category,
+  });
+  assertExportResponse(exported, category, targetTier);
   startBackupDownload(exported.backup);
   return archiveTierDowngrade(category, targetTier, exported.fingerprint);
 }
