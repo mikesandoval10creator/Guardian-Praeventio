@@ -324,6 +324,20 @@ export const erpSyncLimiter = rateLimit({
   message: { error: 'rate_limited' },
 });
 
+// Durable outbox sync is Firestore traffic, not AI generation. A separate
+// 30/min per-user budget (same cadence as ERP sync) bounds abuse without
+// charging findings to the AI 30/15min or global daily spend buckets.
+// Keep its production counter shared across replicas under a unique prefix.
+export const networkSyncLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: uidOrIpKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'network_sync_rate_limited', retryAfterMs: 60_000 },
+  store: makeIaRateLimitStore('network-sync-uid:'),
+});
+
 /**
  * Round 22 R1 — global daily cap on /api/gemini and /api/ask-guardian
  * across ALL users. Per-uid limiter (geminiLimiter) caps individual abuse;

@@ -8,9 +8,9 @@
 //     search and prompts Gemini; supports SSE streaming when the body sets
 //     `stream: true`.
 //
-// Both endpoints require a Firebase ID token (`verifyAuth`) and consume the
-// shared per-user Gemini limiter (`geminiLimiter`) — 30 req / 15 min keyed
-// on uid (see src/server/middleware/limiters.ts for rationale). The
+// Both endpoints require a Firebase ID token (`verifyAuth`). AI generation
+// consumes the shared Gemini budgets; the two durable sync RPCs instead use
+// a separate per-user write budget and never consume AI quota. The
 // allowlist on /api/gemini is the security boundary that prevents arbitrary
 // backend method invocation; adding a new RPC requires adding it here.
 //
@@ -18,7 +18,7 @@
 // siblings under /api (not nested under /api/gemini). Final paths
 // preserved verbatim.
 
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -32,7 +32,7 @@ import {
   hasServerSlmFallback,
   geminiSlmFallback,
 } from '../../services/gemini/geminiSlmFallback.js';
-import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
+import { geminiLimiter, geminiGlobalDailyLimiter, networkSyncLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
 // quota gating at the dispatch seam. Both /api/ask-guardian and /api/gemini
@@ -641,11 +641,21 @@ ${incidentBlock}
 // writes via networkBackend — no Gemini quota, only getFirestore() +
 // assertProjectMember (the caller's uid is identity-stamped above). See the
 // E2E mock branch in the handler below.
-const E2E_REAL_ACTIONS = new Set(['syncNodeToNetwork', 'syncBatchToNetwork']);
+const NETWORK_SYNC_ACTIONS = new Set(['syncNodeToNetwork', 'syncBatchToNetwork']);
+
+// Exact action matching only. Unknown/AI actions retain every original AI gate;
+// verified persistence calls still have an independent, bounded write budget.
+const aiRpcOnly = (limiter: RequestHandler): RequestHandler => (req, res, next) =>
+  NETWORK_SYNC_ACTIONS.has(req.body?.action) ? next() : limiter(req, res, next);
 
 // Gemini API Proxy
-router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
+router.post('/gemini', verifyAuth,
+  (req, res, next) => NETWORK_SYNC_ACTIONS.has(req.body?.action)
+    ? networkSyncLimiter(req, res, next)
+    : next(),
+  aiRpcOnly(geminiGlobalDailyLimiter), aiRpcOnly(geminiLimiter), async (req, res) => {
   const { action, args } = req.body;
+  const isNetworkSync = NETWORK_SYNC_ACTIONS.has(action);
 
   // Sprint 19 / F-B11 — E2E_MODE deterministic mock (same gating as
   // /ask-guardian). Returns a shape compatible with the typical wrapper
@@ -663,7 +673,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     process.env.NODE_ENV !== 'production' &&
     typeof req.headers.authorization === 'string' &&
     req.headers.authorization.startsWith('E2E ') &&
-    !E2E_REAL_ACTIONS.has(action)
+    !NETWORK_SYNC_ACTIONS.has(action)
   ) {
     return res.json({
       result: { ok: true, mock: true, source: 'e2e-mode', action, args: args ?? [] },
@@ -720,7 +730,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   //                                 else 503.
   // The self-hosted breaker uses its OWN key ('selfhosted') so a broken
   // local model never trips the Gemini breaker, and vice versa.
-  if (resolveProvider(action) === 'selfhosted' && hasSelfHostedActionSpec(action)) {
+  if (!isNetworkSync && resolveProvider(action) === 'selfhosted' && hasSelfHostedActionSpec(action)) {
     let selfHostedBlocked = false;
     try {
       // Per-tenant quota is provider-agnostic (abuse ceiling); the circuit
@@ -786,7 +796,8 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   const geminiDispatchStartedAt = Date.now();
 
   try {
-    await assertGeminiAllowed(tenantId, tier);
+    // Durable Firestore writes are not AI calls, regardless of provider/quota.
+    if (!isNetworkSync) await assertGeminiAllowed(tenantId, tier);
   } catch (err: any) {
     if (err?.code === 'gemini_circuit_open') {
       // Life-safety carve-out: serve the deterministic fallback instead of 503
@@ -874,20 +885,18 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       // not return per-call token usage, so we charge a flat estimate
       // based on serialized arg/result size. This is intentionally a
       // ceiling — better to over-charge slightly than to under-meter.
-      const argsLen = JSON.stringify(args ?? []).length;
-      const resultLen = JSON.stringify(result ?? null).length;
-      const tokensIn = Math.ceil(argsLen / 4);
-      const tokensOut = Math.ceil(resultLen / 4);
-      recordProviderCall('gemini', 'success', Date.now() - geminiDispatchStartedAt, action);
-      await recordGeminiOutcome(tenantId, 'success', {
-        tokens: tokensIn + tokensOut,
-        // Charge at the REAL model the action dispatched to (Bucket X
-        // under-billing fix): reasoning/chat/vision actions run on Gemini Pro
-        // (~17× Flash), so billing them at Flash under-meters spend and lets a
-        // tenant blow past their cost ceiling. `modelForAction` resolves the
-        // SKU; unmapped Flash-tier actions keep the AI_MODEL_FAST_STABLE rate.
-        costUsd: estimateGeminiCostUsd(modelForAction(action), tokensIn, tokensOut),
-      });
+      if (!isNetworkSync) {
+        const argsLen = JSON.stringify(args ?? []).length;
+        const resultLen = JSON.stringify(result ?? null).length;
+        const tokensIn = Math.ceil(argsLen / 4);
+        const tokensOut = Math.ceil(resultLen / 4);
+        recordProviderCall('gemini', 'success', Date.now() - geminiDispatchStartedAt, action);
+        await recordGeminiOutcome(tenantId, 'success', {
+          tokens: tokensIn + tokensOut,
+          // Keep actual-model accounting for AI; persistence has no AI spend.
+          costUsd: estimateGeminiCostUsd(modelForAction(action), tokensIn, tokensOut),
+        });
+      }
     } else {
       res.status(400).json({ error: `Action ${action} not found` });
     }
@@ -901,8 +910,10 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     }
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
-    recordProviderCall('gemini', 'failure', Date.now() - geminiDispatchStartedAt, action);
-    await recordGeminiOutcome(tenantId, 'failure');
+    if (!isNetworkSync) {
+      recordProviderCall('gemini', 'failure', Date.now() - geminiDispatchStartedAt, action);
+      await recordGeminiOutcome(tenantId, 'failure');
+    }
     // A life-safety action surfaced a usable fallback alongside the upstream
     // failure (e.g. emergency-plan generation). The breaker failure is already
     // recorded above — so the breaker opens and the resilient SLM failover

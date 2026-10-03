@@ -26,6 +26,9 @@ const H = vi.hoisted(() => ({
   projectReads: [] as string[],
   fetchEnvContext: vi.fn(),
   searchIncidents: vi.fn(),
+  aiRateBlocked: false,
+  aiDailyBlocked: false,
+  syncRateBlocked: false,
 }));
 
 // ─── geminiBackend ────────────────────────────────────────────────────────────
@@ -71,8 +74,12 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
 
 // ─── limiters — pass-through ──────────────────────────────────────────────────
 vi.mock('../../server/middleware/limiters.js', () => ({
-  geminiLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
-  geminiGlobalDailyLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
+  geminiLimiter: (_req: Request, res: Response, next: NextFunction) =>
+    H.aiRateBlocked ? res.status(429).json({ error: 'ai_rate_limited' }) : next(),
+  geminiGlobalDailyLimiter: (_req: Request, res: Response, next: NextFunction) =>
+    H.aiDailyBlocked ? res.status(503).json({ error: 'ai_daily_limited' }) : next(),
+  networkSyncLimiter: (_req: Request, res: Response, next: NextFunction) =>
+    H.syncRateBlocked ? res.status(429).json({ error: 'network_sync_rate_limited' }) : next(),
 }));
 
 // auditServerEvent → no-op (B14 adds an audit on the node-sync success path;
@@ -170,6 +177,9 @@ beforeEach(() => {
   H.projectDocs = {};
   H.projectReads = [];
   H.fetchEnvContext.mockReset().mockResolvedValue(null);
+  H.aiRateBlocked = false;
+  H.aiDailyBlocked = false;
+  H.syncRateBlocked = false;
   H.searchIncidents.mockReset().mockResolvedValue({ results: [], citations: [] });
   process.env.GEMINI_API_KEY = 'test-key-fake';
   process.env.NODE_ENV = ORIG_NODE_ENV ?? 'test';
@@ -231,6 +241,59 @@ describe('POST /api/gemini — whitelist + gates', () => {
     expect(res.body.result.generadoSinIA).toBe(true);
     expect(res.body.result.objetivo).toContain('Incendio');
     expect((res.body.result.marcoLegal as string[]).join(' ')).toContain('16.744');
+  });
+
+  it.each(['syncNodeToNetwork', 'syncBatchToNetwork'])(
+    '%s persists without consulting or charging an exhausted AI quota',
+    async (action) => {
+      H.assertAllowed.mockRejectedValue(Object.assign(new Error('quota'), {
+        code: 'gemini_quota_exceeded',
+      }));
+      const res = await request(buildApp()).post('/api/gemini').set(uid)
+        .send({ action, args: [{ projectId: 'p1' }, 'spoofed-author'] });
+      expect(res.status).toBe(200);
+      expect(H.analyze).toHaveBeenCalledWith({ projectId: 'p1' }, 'u1');
+      expect(H.assertAllowed).not.toHaveBeenCalled();
+      expect(H.record).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['syncNodeToNetwork', 'syncBatchToNetwork'])(
+    '%s ignores exhausted AI rate budgets but retains its write limit',
+    async (action) => {
+      H.aiRateBlocked = true;
+      H.aiDailyBlocked = true;
+      const payload = { action, args: [{ projectId: 'p1' }, 'spoofed-author'] };
+      const first = await request(buildApp()).post('/api/gemini').set(uid).send(payload);
+      expect(first.status).toBe(200);
+      expect(H.analyze).toHaveBeenCalledWith({ projectId: 'p1' }, 'u1');
+
+      H.analyze.mockClear();
+      H.syncRateBlocked = true;
+      const capped = await request(buildApp()).post('/api/gemini').set(uid).send(payload);
+      expect(capped.status).toBe(429);
+      expect(capped.body.error).toBe('network_sync_rate_limited');
+      expect(H.analyze).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps the AI rate limit for generation and lookalike sync actions', async () => {
+    H.aiRateBlocked = true;
+    for (const action of ['analyzeRiskWithAI', 'syncNodeToNetworkExtra', '']) {
+      const res = await request(buildApp()).post('/api/gemini').set(uid)
+        .send({ action, args: [] });
+      expect(res.status).toBe(429);
+      expect(res.body.error).toBe('ai_rate_limited');
+    }
+    expect(H.analyze).not.toHaveBeenCalled();
+  });
+
+  it('does not charge a failed durable write to the AI breaker', async () => {
+    H.analyze.mockRejectedValue(new Error('Firestore write unavailable'));
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncNodeToNetwork', args: [{ projectId: 'p1' }] });
+    expect(res.status).toBe(500);
+    expect(H.record).not.toHaveBeenCalled();
   });
 
   // ─── F3 — identity-from-token (anti-spoof) ───────────────────────────────────
