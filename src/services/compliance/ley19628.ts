@@ -1,4 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore';
+import { logger } from '../../utils/logger.js';
 // Praeventio Guard — Sprint 23 Bucket FF.
 //
 // Compliance service for **Ley 19.628 sobre Protección de la Vida Privada**
@@ -605,6 +606,23 @@ export async function exportUserData(
   return { data, exportedAt: Date.now(), uid };
 }
 
+function assertErasureSubject(
+  snap: MinimalQuerySnap,
+  uidField: string,
+  uid: string,
+  collection: string,
+): void {
+  // Validate the whole snapshot before deleting any row in this collection.
+  if (snap.docs.some((doc) => doc.data()?.[uidField] !== uid)) {
+    logger.warn('compliance_erasure_subject_mismatch', { collection });
+    throw new ComplianceError(
+      'erasure_subject_mismatch',
+      'Erasure stopped: document subject does not match the request.',
+      409,
+    );
+  }
+}
+
 export async function eraseUserData(
   db: MinimalComplianceDb,
   uid: string,
@@ -628,6 +646,7 @@ export async function eraseUserData(
     // escribirá arco_erasure_failed en vez de marcar completed con
     // datos vivos.
     const snap = await db.collection(name).where(uidField, '==', uid).get();
+    assertErasureSubject(snap, uidField, uid, name);
     let count = 0;
     for (const doc of snap.docs) {
       await db.collection(name).doc(doc.id).delete();
@@ -642,19 +661,17 @@ export async function eraseUserData(
     }
   } else {
     for (const collection of LEGAL_RETENTION_COLLECTIONS) {
-      try {
-        // Audit / incident rows index uid as `userId` (audit_logs) or
-        // `reporterUid` (incidents). Try both.
-        for (const field of ['userId', 'reporterUid', 'workerUid', 'uid']) {
-          const snap = await db.collection(collection).where(field, '==', uid).get();
-          for (const doc of snap.docs) {
-            await db.collection(collection).doc(doc.id).delete();
-          }
+      // Audit / incident rows index uid as `userId` (audit_logs) or
+      // `reporterUid` (incidents). Try both.
+      for (const field of ['userId', 'reporterUid', 'workerUid', 'uid']) {
+        const snap = await db.collection(collection).where(field, '==', uid).get();
+        assertErasureSubject(snap, field, uid, collection);
+        for (const doc of snap.docs) {
+          await db.collection(collection).doc(doc.id).delete();
         }
-        erased.push(`${collection}:legal_purged`);
-      } catch {
-        // ignore
       }
+      // Like the regular sweep, failures must propagate rather than report success.
+      erased.push(`${collection}:legal_purged`);
     }
   }
 
