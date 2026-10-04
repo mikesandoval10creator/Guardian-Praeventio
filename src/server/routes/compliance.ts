@@ -387,7 +387,7 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       'Content-Disposition',
       `attachment; filename="praeventio-export-${uid}.json"`,
     );
-    return res.json(exported);
+    return res.status(exported.incomplete.length > 0 ? 207 : 200).json(exported);
   } catch (err) {
     logger.error(
       'compliance_data_export_failed',
@@ -438,13 +438,14 @@ router.get('/data-export/:requestId/bundle', verifyAuth, async (req, res) => {
       exportedData: exported as Record<string, unknown>,
       generatedAt: new Date(),
       applicableRegimes: activeRegimes,
+      incomplete: exported.incomplete,
     });
     res.setHeader('Content-Type', contentType);
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="praeventio-dsar-${uid}.txt"`,
     );
-    return res.send(body);
+    return res.status(exported.incomplete.length > 0 ? 207 : 200).send(body);
   } catch (err) {
     logger.error(
       'compliance_data_export_bundle_failed',

@@ -655,6 +655,30 @@ describe('GET /api/compliance/data-export/:requestId', () => {
     expect(res.body.error).toBe('request_not_exportable');
   });
 
+  it('207 distinguishes a failed category from an empty successful export', async () => {
+    H.db!._seed('compliance_data_requests/req-partial', {
+      uid: CALLER_UID, type: 'access', status: 'pending', requestedAt: 100,
+    });
+    H.db!._seed('users/own', { uid: CALLER_UID, name: 'Own profile' });
+    H.db!._seed('users/foreign', { uid: OTHER_UID, name: 'Foreign profile' });
+    const before = H.db!._dump();
+    H.db!._failReads('gamification_xp');
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-partial')
+      .set('x-test-uid', CALLER_UID);
+
+    expect(res.status).toBe(207);
+    expect(res.body.incomplete).toEqual(['gamification_xp']);
+    expect(res.body.data.users).toEqual([{ id: 'own', uid: CALLER_UID, name: 'Own profile' }]);
+    expect(res.body.data.gamification_xp).toEqual([]);
+    expect(res.text).not.toContain(OTHER_UID);
+    expect(res.text).not.toContain('Foreign profile');
+    expect(res.text).not.toContain('forced read failure');
+    expect(H.db!._dump()).toEqual(before);
+    expect(res.headers['content-disposition']).toContain('attachment');
+  });
+
   it('200 exports user data for an access request', async () => {
     H.db!._seed('compliance_data_requests/req-access-1', {
       uid: CALLER_UID,
@@ -696,11 +720,105 @@ describe('GET /api/compliance/data-export/:requestId', () => {
   });
 });
 
+describe.each(['', '/bundle'])('DSAR export recovery and guards (%s)', (suffix) => {
+  it('recovers from a partial read on retry without changing durable request data', async () => {
+    H.db!._seed('compliance_data_requests/req-retry', {
+      uid: CALLER_UID, type: 'access', status: 'pending', requestedAt: 100,
+    });
+    H.db!._seed('notifications/own', { recipientUid: CALLER_UID, message: 'Dato propio' });
+    const before = H.db!._dump();
+    const endpoint = `/api/compliance/data-export/req-retry${suffix}`;
+    H.db!._failReads('notifications');
+
+    const partial = await request(buildApp()).get(endpoint).set('x-test-uid', CALLER_UID);
+    expect(partial.status).toBe(207);
+    expect(H.db!._dump()).toEqual(before);
+
+    // Restore the same durable data with the simulated transport available.
+    H.db = createFakeFirestore(before);
+    const recovered = await request(buildApp()).get(endpoint).set('x-test-uid', CALLER_UID);
+    expect(recovered.status).toBe(200);
+    if (suffix) {
+      expect(recovered.text).toContain('export_complete: true');
+      expect(recovered.text).toContain('incomplete_categories: []');
+      expect(recovered.text).toContain('Dato propio');
+    } else {
+      expect(recovered.body.incomplete).toEqual([]);
+      expect(recovered.body.data.notifications).toEqual([
+        { id: 'own', recipientUid: CALLER_UID, message: 'Dato propio' },
+      ]);
+    }
+    expect(H.db!._dump()).toEqual(before);
+  });
+
+  it('does not turn failure to read the authorization request into a partial success', async () => {
+    H.db!._seed('compliance_data_requests/req-unreadable', {
+      uid: CALLER_UID, type: 'access', status: 'pending', requestedAt: 100,
+    });
+    const before = H.db!._dump();
+    H.db!._failReads('compliance_data_requests');
+    const res = await request(buildApp())
+      .get(`/api/compliance/data-export/req-unreadable${suffix}`)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'internal_error' });
+    expect(H.db!._dump()).toEqual(before);
+  });
+
+  it('rejects a foreign owner before reading export categories', async () => {
+    H.db!._seed('compliance_data_requests/req-foreign-partial', {
+      uid: OTHER_UID, type: 'access', status: 'pending', requestedAt: 100,
+    });
+    H.db!._failReads('users');
+    const res = await request(buildApp())
+      .get(`/api/compliance/data-export/req-foreign-partial${suffix}`)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: 'forbidden' });
+  });
+
+  it('requires authentication even when an export category is unavailable', async () => {
+    H.db!._failReads('users');
+    const res = await request(buildApp()).get(`/api/compliance/data-export/req-retry${suffix}`);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'unauthorized' });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // GET /api/compliance/data-export/:requestId/bundle  (DSAR machine-readable)
 // ---------------------------------------------------------------------------
 
 describe('GET /api/compliance/data-export/:requestId/bundle', () => {
+  it('207 carries read failures into the bundle manifest without changing request state', async () => {
+    H.db!._seed('compliance_data_requests/req-bundle-partial', {
+      uid: CALLER_UID, type: 'portability', status: 'pending', requestedAt: 100,
+    });
+    H.db!._seed('users/own', { uid: CALLER_UID, name: 'Perfil propio' });
+    H.db!._seed('users/foreign', { uid: OTHER_UID, name: 'Perfil ajeno' });
+    const before = H.db!._dump();
+    H.db!._failReads('notifications');
+
+    const res = await request(buildApp())
+      .get('/api/compliance/data-export/req-bundle-partial/bundle')
+      .set('x-test-uid', CALLER_UID);
+
+    expect(res.status).toBe(207);
+    expect(res.text).toContain('export_complete: false');
+    expect(res.text).toContain('incomplete_categories:\n  - notifications');
+    expect(res.text).toContain('Perfil propio');
+    expect(res.text).not.toContain(OTHER_UID);
+    expect(res.text).not.toContain('Perfil ajeno');
+    expect(res.text).not.toContain('forced read failure');
+    expect(H.db!._dump()).toEqual(before);
+    expect(res.headers['content-type']).toContain('text/plain');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    const jsonl = res.text.split('===== file: data.jsonl =====')[1]
+      .split('===== file: data.csv =====')[0].trim().split('\n').map((line: string) => JSON.parse(line));
+    expect(jsonl.find((row: { recordType: string }) => row.recordType === 'incomplete').value)
+      .toEqual(['notifications']);
+  });
+
   it('200 devuelve bundle con manifest + jsonl + csv concatenados (GDPR art.20)', async () => {
     H.db!._seed('compliance_data_requests/req-bundle-1', {
       uid: CALLER_UID,
