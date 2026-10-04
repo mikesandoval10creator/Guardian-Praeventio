@@ -243,6 +243,97 @@ describe('compliance/ley19628', () => {
     expect(serialized).not.toContain('Carol');
   });
 
+  it('reports a failed export category while retaining successful subject data', async () => {
+    db = makeDb({
+      users: [{ id: 'own', data: { uid: 'uid-A', name: 'Alice' } }],
+      notifications: [{ id: 'notice', data: { recipientUid: 'uid-A', read: false } }],
+    });
+    const originalCollection = db.collection.bind(db);
+    vi.spyOn(db, 'collection').mockImplementation((name) => {
+      const ref = originalCollection(name);
+      if (name !== 'curriculum_claims') return ref;
+      return { ...ref, where: (field, op, value) => ({
+        ...ref.where(field, op, value),
+        get: async () => { throw new Error('upstream read failed'); },
+      }) };
+    });
+
+    const result = await exportUserData(db, 'uid-A');
+
+    expect(result).toMatchObject({
+      uid: 'uid-A',
+      incomplete: ['curriculum_claims'],
+      data: {
+        users: [{ id: 'own', uid: 'uid-A', name: 'Alice' }],
+        notifications: [{ id: 'notice', recipientUid: 'uid-A', read: false }],
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      'compliance_export_collection_failed', { collection: 'curriculum_claims' },
+    );
+    const warning = JSON.stringify(vi.mocked(logger.warn).mock.calls);
+    for (const privateValue of ['uid-A', 'Alice', 'notice', 'upstream read failed']) {
+      expect(warning).not.toContain(privateValue);
+    }
+  });
+
+  it.each(
+    [
+      ['users', 'uid'], ['compliance_consents', 'uid'],
+      ['compliance_data_requests', 'uid'], ['curriculum_claims', 'uid'],
+      ['gamification_xp', 'uid'], ['commute_sessions', 'uid'],
+      ['notifications', 'recipientUid'],
+    ].flatMap(([collection, field]) => ['get', 'data'].map((stage) => [collection, field, stage])),
+  )('identifies only the failing category for %s.%s at %s', async (collection, field, stage) => {
+    db = makeDb({ [collection]: [{ id: 'own', data: { [field]: 'uid-A' } }] });
+    const originalCollection = db.collection.bind(db);
+    vi.spyOn(db, 'collection').mockImplementation((name) => {
+      const ref = originalCollection(name);
+      if (name !== collection) return ref;
+      return { ...ref, where: (filterField, op, value) => {
+        const filtered = ref.where(filterField, op, value);
+        return { ...filtered, get: async () => {
+          if (stage === 'get') throw new Error('private-upstream-detail');
+          const snapshot = await filtered.get();
+          return { ...snapshot, docs: snapshot.docs.map((doc) => ({
+            ...doc, data: () => { throw new Error('private-upstream-detail'); },
+          })) };
+        } };
+      } };
+    });
+
+    const result = await exportUserData(db, 'uid-A');
+
+    expect(result.incomplete).toEqual([collection]);
+    expect(result.data[collection]).toEqual([]);
+    expect(JSON.stringify(result)).not.toContain('private-upstream-detail');
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      'compliance_export_collection_failed', { collection },
+    );
+  });
+
+  it('does not mistake successfully empty or absent collections for failed reads', async () => {
+    const result = await exportUserData(db, 'uid-A');
+
+    expect(result.incomplete).toEqual([]);
+    expect(Object.keys(result.data)).toHaveLength(7);
+    expect(Object.values(result.data).every((rows) => rows.length === 0)).toBe(true);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps the subject filter when a successful export query is overbroad', async () => {
+    db = makeDb({ users: [
+      { id: 'own', data: { uid: 'uid-A' } },
+      { id: 'foreign', data: { uid: 'uid-B', name: 'Private foreign profile' } },
+    ] }, 'users');
+
+    const result = await exportUserData(db, 'uid-A');
+
+    expect(result.data.users).toEqual([{ id: 'own', uid: 'uid-A' }]);
+    expect(JSON.stringify(result)).not.toContain('uid-B');
+    expect(JSON.stringify(result)).not.toContain('Private foreign profile');
+  });
+
   it('6. eraseUserData with keepLegalRecords:true preserves audit_logs (Ley 16.744)', async () => {
     db = makeDb({
       users: [{ id: 'doc-A', data: { uid: 'uid-A', name: 'Alice' } }],

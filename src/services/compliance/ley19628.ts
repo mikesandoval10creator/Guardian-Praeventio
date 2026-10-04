@@ -579,11 +579,12 @@ const LEGAL_RETENTION_COLLECTIONS = ['audit_logs', 'incidents', 'sos_alerts'];
 export async function exportUserData(
   db: MinimalComplianceDb,
   uid: string,
-): Promise<{ data: Record<string, unknown[]>; exportedAt: number; uid: string }> {
+): Promise<{ data: Record<string, unknown[]>; exportedAt: number; uid: string; incomplete: string[] }> {
   if (!uid) {
     throw new ComplianceError('invalid_uid', 'uid is required', 400);
   }
   const data: Record<string, unknown[]> = {};
+  const incomplete: string[] = [];
   for (const { name, uidField } of EXPORTABLE_COLLECTIONS) {
     try {
       const snap = await db.collection(name).where(uidField, '==', uid).get();
@@ -599,11 +600,14 @@ export async function exportUserData(
       }
       data[name] = rows;
     } catch {
-      // Missing collection → skip, do not abort the whole export.
+      // An absent collection is a successful empty snapshot, not a read error.
+      // Keep the legacy data shape but explicitly distinguish failed reads.
       data[name] = [];
+      incomplete.push(name);
+      logger.warn('compliance_export_collection_failed', { collection: name });
     }
   }
-  return { data, exportedAt: Date.now(), uid };
+  return { data, exportedAt: Date.now(), uid, incomplete };
 }
 
 function assertErasureSubject(
