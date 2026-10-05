@@ -19,6 +19,8 @@
 // ADR 0021: este endpoint NO es gated por tier — el DSAR es derecho
 // del titular (GDPR art.20). El rate-limit global de /api/ cubre DDoS.
 
+import { createHash } from 'node:crypto';
+
 export interface BundleExportInput {
   uid: string;
   requestId: string;
@@ -164,24 +166,7 @@ export function buildCombinedBundle(input: BundleExportInput): {
   };
 }
 
-/** Web Crypto SHA-256 → lowercase hex. Available in Node 20+ globalThis.crypto.subtle. */
+/** Synchronous SHA-256 of the exact UTF-8 JSONL bytes, as declared in the manifest. */
 function sha256Hex(input: string): string {
-  // We avoid async crypto for this pure helper — fallback to FNV-1a if
-  // WebCrypto is unavailable (older test envs). Hash is for tamper
-  // evidence, not security.
-  if (typeof globalThis.crypto?.subtle?.digest === 'function') {
-    // Synchronous wrapper for a sync helper — acceptable because the
-    // bundle sizes are small. We use Node's createHash for stable sync.
-    // The function returns hex; the caller doesn't await.
-    // (Keeping this branch for future expansion.)
-    void globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
-  }
-  // Fallback: FNV-1a 64-bit hash, hex-encoded. Adequate for non-security
-  // tamper evidence (the bundle signature is auditable, not cryptographic).
-  let h = 0xcbf29ce484222325n;
-  for (let i = 0; i < input.length; i++) {
-    h ^= BigInt(input.charCodeAt(i));
-    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
-  }
-  return h.toString(16).padStart(16, '0');
+  return createHash('sha256').update(input, 'utf8').digest('hex');
 }
