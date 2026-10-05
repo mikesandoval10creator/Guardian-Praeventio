@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCombinedBundle,
+  buildJsonlBundle,
   buildManifest,
   type BundleExportInput,
 } from "./bundleExport.js";
@@ -82,4 +84,101 @@ describe("DSAR bundle completeness metadata", () => {
       ).toThrow("Export completeness metadata is required.");
     },
   );
+});
+
+describe("DSAR bundle SHA-256 integrity", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function digestFrom(body: string): string | undefined {
+    return body.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+  }
+
+  function jsonlFrom(body: string): string {
+    return body
+      .split("===== file: data.jsonl =====\n")[1]
+      .split("\n\n===== file: data.csv =====")[0];
+  }
+
+  it.each([
+    { name: "ASCII", exportedData: { profile: { name: "Own profile" } } },
+    {
+      name: "Unicode and multiple records",
+      exportedData: {
+        profile: {
+          name: "Muñoz 中文 🛡️",
+          text: "line one\nline two",
+          mark: "e\u0301",
+        },
+        notifications: [{ message: "Alerta en minería" }],
+      },
+    },
+    { name: "empty JSONL", exportedData: {} },
+  ])(
+    "hashes the exact emitted UTF-8 JSONL bytes ($name)",
+    ({ exportedData }) => {
+      const supplied = { ...input([]), exportedData };
+      const before = JSON.stringify(supplied);
+      const { body, contentType } = buildCombinedBundle(supplied);
+      const jsonl = jsonlFrom(body);
+      const expected = createHash("sha256").update(jsonl, "utf8").digest("hex");
+
+      expect(jsonl).toBe(buildJsonlBundle(supplied));
+      expect(digestFrom(body)).toMatch(/^[a-f0-9]{64}$/);
+      expect(digestFrom(body)).toBe(expected);
+      expect(contentType).toBe("text/plain; charset=utf-8");
+      expect(JSON.stringify(supplied)).toBe(before);
+    },
+  );
+
+  it("preserves partial-export metadata while hashing its actual payload", () => {
+    const { body } = buildCombinedBundle(input(["notifications"]));
+    expect(body).toContain("export_complete: false");
+    expect(body).toContain("incomplete_categories:\n  - notifications");
+    expect(digestFrom(body)).toBe(
+      createHash("sha256").update(jsonlFrom(body), "utf8").digest("hex"),
+    );
+  });
+
+  it.each([undefined, {}])(
+    "uses real SHA-256 without WebCrypto (%j)",
+    (crypto) => {
+      vi.stubGlobal("crypto", crypto);
+      const { body } = buildCombinedBundle(input([]));
+      expect(digestFrom(body)).toBe(
+        createHash("sha256").update(jsonlFrom(body), "utf8").digest("hex"),
+      );
+    },
+  );
+
+  it("does not launch an unused asynchronous WebCrypto digest", () => {
+    const digest = vi.fn(() => {
+      throw new Error("Unexpected WebCrypto digest call");
+    });
+    vi.stubGlobal("crypto", { subtle: { digest } });
+    const { body } = buildCombinedBundle(input([]));
+    expect(digestFrom(body)).toBe(
+      createHash("sha256").update(jsonlFrom(body), "utf8").digest("hex"),
+    );
+    expect(digest).not.toHaveBeenCalled();
+  });
+
+  it("is deterministic and detects a change to the exported bytes", () => {
+    const supplied = input([]);
+    const original = buildCombinedBundle(supplied);
+    const repeated = buildCombinedBundle(supplied);
+    const changed = buildCombinedBundle({
+      ...supplied,
+      exportedData: { data: "altered" },
+    });
+
+    expect(repeated).toEqual(original);
+    expect(digestFrom(changed.body)).not.toBe(digestFrom(original.body));
+    expect(digestFrom(changed.body)).toBe(
+      createHash("sha256")
+        .update(jsonlFrom(changed.body), "utf8")
+        .digest("hex"),
+    );
+  });
 });

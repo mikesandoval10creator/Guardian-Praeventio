@@ -9,6 +9,7 @@
 // Domain service (ley19628) runs REAL so Firestore side-effects are verified.
 // privacy/registry runs REAL (pure functions, no I/O).
 
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
@@ -817,6 +818,11 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
       .split('===== file: data.csv =====')[0].trim().split('\n').map((line: string) => JSON.parse(line));
     expect(jsonl.find((row: { recordType: string }) => row.recordType === 'incomplete').value)
       .toEqual(['notifications']);
+    const jsonlBytes = res.text.split('===== file: data.jsonl =====\n')[1]
+      .split('\n\n===== file: data.csv =====')[0];
+    const manifestHash = res.text.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+    expect(manifestHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifestHash).toBe(createHash('sha256').update(jsonlBytes, 'utf8').digest('hex'));
   });
 
   it('200 devuelve bundle con manifest + jsonl + csv concatenados (GDPR art.20)', async () => {
@@ -826,6 +832,7 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
       status: 'pending',
       requestedAt: Date.now(),
     });
+    H.db!._seed('users/own', { uid: CALLER_UID, name: 'Muñoz 中文 🛡️', text: 'line one\nline two' });
 
     const res = await request(buildApp())
       .get('/api/compliance/data-export/req-bundle-1/bundle')
@@ -840,6 +847,12 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
     expect(res.text).toContain('===== file: manifest.yaml =====');
     expect(res.text).toContain('===== file: data.jsonl =====');
     expect(res.text).toContain('===== file: data.csv =====');
+    expect(res.text).toContain('Muñoz 中文 🛡️');
+    const jsonlBytes = res.text.split('===== file: data.jsonl =====\n')[1]
+      .split('\n\n===== file: data.csv =====')[0];
+    const manifestHash = res.text.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+    expect(manifestHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifestHash).toBe(createHash('sha256').update(jsonlBytes, 'utf8').digest('hex'));
   });
 
   it('manifest declara el uid + requestId + timestamp + regimes aplicables', async () => {
