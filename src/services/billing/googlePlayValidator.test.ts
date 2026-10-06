@@ -242,7 +242,7 @@ describe('validateGooglePlaySubscription', () => {
     if (result.ok === false) { expect(result.reason).toBe('transient_error'); }
   });
 
-  it('auto-acknowledges when acknowledgementState is PENDING', async () => {
+  it('returns pending ACK for a durable post-grant worker without acknowledging during validation', async () => {
     const acknowledge = vi.fn(() => Promise.resolve({}));
     __setGooglePlayClientForTests(
       buildMockClient({
@@ -260,7 +260,8 @@ describe('validateGooglePlaySubscription', () => {
     );
     const result = await validateGooglePlaySubscription('tok', 'praeventio_premium_monthly');
     expect(result.ok).toBe(true);
-    expect(acknowledge).toHaveBeenCalledOnce();
+    expect(acknowledge).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ needsAcknowledgement: true });
   });
 
   it('still grants when acknowledge fails (user paid, retry handled by RTDN)', async () => {
@@ -284,3 +285,4 @@ describe('validateGooglePlaySubscription', () => {
     expect(result.ok).toBe(true);
   });
 });
+

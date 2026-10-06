@@ -29,8 +29,9 @@
 //      (prevents a valid receipt for product A being claimed as B).
 //   3. Line item expiry is in the future.
 //   4. testPurchase is false (or explicitly allowed via env).
-//   5. acknowledgementState — auto-acknowledge if pending (Google
-//      auto-refunds purchases unacknowledged for >3 days).
+//   5. acknowledgementState — reported to the caller, NOT acknowledged
+//      here (Google auto-refunds purchases unacknowledged for >3 days,
+//      so a durable post-grant worker must ACK; see billing task 3).
 //
 // Reference:
 //   https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptionsv2/get
@@ -68,6 +69,10 @@ export interface GooglePlayValidationSuccess {
   productId: string;
   /** Raw subscription state for audit. */
   subscriptionState: string;
+  /** True when Google reports the purchase still PENDING acknowledgement:
+   * a durable post-grant worker must call `purchases.acknowledge` (or the
+   * RTDN renewal cycle will) — validation itself never acknowledges. */
+  needsAcknowledgement: boolean;
 }
 
 export interface GooglePlayValidationFailure {
@@ -239,33 +244,15 @@ export async function validateGooglePlaySubscription(
     };
   }
 
-  // Auto-acknowledge if pending — Google auto-refunds purchases that are
-  // not acknowledged within 3 days. The v2 endpoint shares the
+  // Report (never perform) acknowledgement — Google auto-refunds purchases
+  // that are not acknowledged within 3 days. The ACK belongs to a durable
+  // post-grant worker: validation must stay read-only so a crash between
+  // grant and ACK is retried, and so this function cannot be tricked into
+  // a write on a forged token. The v2 endpoint shares the
   // `acknowledgementState` field with v1 even though it's surfaced at
   // the line-item level for v2.
-  if (
-    data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING'
-  ) {
-    try {
-      await client.purchases.subscriptions.acknowledge({
-        packageName,
-        subscriptionId: claimedProductId,
-        token: purchaseToken,
-        requestBody: { developerPayload: '' },
-      });
-      logger.info('google_play_subscription_acknowledged', {
-        productId: claimedProductId,
-      });
-    } catch (err) {
-      // Acknowledgement failure is logged but does NOT fail the
-      // validation — the user paid, they should be entitled. The next
-      // RTDN renewal cycle will re-acknowledge if needed.
-      logger.warn('google_play_acknowledge_failed', {
-        productId: claimedProductId,
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
+  const needsAcknowledgement =
+    data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING';
 
   return {
     ok: true,
@@ -274,6 +261,7 @@ export async function validateGooglePlaySubscription(
     linkedPurchaseToken: data.linkedPurchaseToken ?? null,
     productId: lineItem.productId!,
     subscriptionState,
+    needsAcknowledgement,
   };
 }
 

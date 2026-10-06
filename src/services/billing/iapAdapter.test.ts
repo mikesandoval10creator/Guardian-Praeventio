@@ -1,246 +1,49 @@
-// Praeventio Guard — IapAdapter unit tests.
-//
-// Capacitor's `getPlatform()` is mocked per-test so we can rotate web /
-// android / ios without spinning up a Capacitor runtime. The
-// `@capacitor-community/in-app-purchases` plugin is injected via
-// `__setCapacitorIapPluginForTests` because it is not installed in the
-// vitest environment (and must not be — these tests run in node).
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.mock('@capacitor/core', () => ({
-  Capacitor: {
-    getPlatform: vi.fn(() => 'web'),
-    isNativePlatform: vi.fn(() => false),
-    isPluginAvailable: vi.fn(() => true),
-  },
-}));
-
+import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: vi.fn(() => 'android') } }));
 import { Capacitor } from '@capacitor/core';
-import {
-  IapAdapter,
-  iapAdapter,
-  __setCapacitorIapPluginForTests,
-} from './iapAdapter.js';
-
-const mockedGetPlatform = Capacitor.getPlatform as unknown as ReturnType<
-  typeof vi.fn
->;
-
-beforeEach(() => {
-  mockedGetPlatform.mockReturnValue('web');
-  __setCapacitorIapPluginForTests(null);
-});
-
-afterEach(() => {
-  __setCapacitorIapPluginForTests(null);
-  vi.clearAllMocks();
-});
-
-// ───────────────────────────────────────────────────────────────────────────
-// Test 1 — web platform exposes the three local CL/LATAM rails.
-// ───────────────────────────────────────────────────────────────────────────
-describe('IapAdapter.getAvailableProviders', () => {
-  it('web → [webpay, mercadopago, khipu]', () => {
-    mockedGetPlatform.mockReturnValue('web');
-    expect(IapAdapter.getAvailableProviders()).toEqual([
-      'webpay',
-      'mercadopago',
-      'khipu',
-    ]);
+import { IapAdapter, __setCapacitorIapPluginForTests } from './iapAdapter';
+import { ALL_IAP_SKUS } from '../pricing/iapSkus';
+const sku = 'praeventio_cobre_monthly';
+const product = { identifier: 'monthly', planIdentifier: sku, offerToken: 'base-token', offerId: null, title: 'Cobre', price: 3.99, priceString: '$3.99', currencyCode: 'USD' };
+function plugin() { return { getProducts: vi.fn(async () => ({ products: [product] })), purchaseProduct: vi.fn(async () => ({ productIdentifier: sku, purchaseToken: 'receipt', transactionId: 'not-the-receipt' })), getPurchases: vi.fn(async () => ({ purchases: [{ productIdentifier: sku, purchaseToken: 'receipt', transactionId: 'order', appAccountToken: 'account' }] })), restorePurchases: vi.fn() }; }
+afterEach(() => { __setCapacitorIapPluginForTests(null); vi.mocked(Capacitor.getPlatform).mockReturnValue('android'); });
+describe('Play subscription adapter', () => {
+  it('queries the complete twelve SKU subscription catalog and normalizes SKU/base plan', async () => {
+    const p = plugin(); __setCapacitorIapPluginForTests(p);
+    const products = await new IapAdapter().listProducts();
+    expect(p.getProducts).toHaveBeenCalledWith({ productIdentifiers: Object.keys(ALL_IAP_SKUS), productType: 'subs' });
+    expect(products[0]).toMatchObject({ id: sku, basePlanId: 'monthly', offerToken: 'base-token', currency: 'USD', priceFormatted: '$3.99' });
   });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 2 — android platform exposes only google-play (store policy).
-  // ─────────────────────────────────────────────────────────────────────
-  it('android → [google-play]', () => {
-    mockedGetPlatform.mockReturnValue('android');
-    expect(IapAdapter.getAvailableProviders()).toEqual(['google-play']);
+  it('purchases only the selected exact base plan and offer without acknowledging', async () => {
+    const p = plugin(); __setCapacitorIapPluginForTests(p); const adapter = new IapAdapter();
+    const [selected] = await adapter.listProducts();
+    const result = await adapter.purchase(sku, 'google-play', { ...selected, accountId: 'account' });
+    expect(p.purchaseProduct).toHaveBeenCalledWith(expect.objectContaining({ productIdentifier: sku, planIdentifier: 'monthly', offerToken: 'base-token', appAccountToken: 'account', autoAcknowledgePurchases: false, productType: 'subs' }));
+    expect(result).toMatchObject({ success: true, productId: sku, receiptId: 'receipt' });
   });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 3 — ios platform exposes only app-store (store policy).
-  // ─────────────────────────────────────────────────────────────────────
-  it('ios → [app-store]', () => {
-    mockedGetPlatform.mockReturnValue('ios');
-    expect(IapAdapter.getAvailableProviders()).toEqual(['app-store']);
+  it('rejects an unavailable offer instead of selecting the first one', async () => {
+    const p = plugin(); __setCapacitorIapPluginForTests(p); const a = new IapAdapter(); await a.listProducts();
+    expect((await a.purchase(sku, 'google-play', { basePlanId: 'monthly', offerToken: 'wrong', accountId: 'account' })).success).toBe(false);
+    expect(p.purchaseProduct).not.toHaveBeenCalled();
   });
-});
-
-describe('IapAdapter.getPlatform', () => {
-  it('falls back to web when Capacitor throws', () => {
-    mockedGetPlatform.mockImplementationOnce(() => {
-      throw new Error('not initialised');
-    });
-    expect(IapAdapter.getPlatform()).toBe('web');
+  it('never substitutes a guessed CLP price for an unavailable store product', async () => {
+    const p = plugin(); p.getProducts.mockResolvedValue({ products: [] }); __setCapacitorIapPluginForTests(p);
+    expect(await new IapAdapter().listProducts()).toEqual([]);
   });
-});
-
-// ───────────────────────────────────────────────────────────────────────────
-// Test 4 — listProducts on web returns the static catalogue.
-// ───────────────────────────────────────────────────────────────────────────
-describe('IapAdapter.listProducts', () => {
-  it('web returns the static CLP catalogue', async () => {
-    mockedGetPlatform.mockReturnValue('web');
-    const products = await iapAdapter.listProducts();
-    expect(products.length).toBeGreaterThanOrEqual(1);
-    expect(products[0]).toMatchObject({
-      id: 'praeventio_premium_monthly',
-      type: 'subscription',
-      priceClp: 9990,
-    });
+  it('restores via SUBS query and purchaseToken, without native auto-ACK restore', async () => {
+    const p = plugin(); __setCapacitorIapPluginForTests(p);
+    const results = await new IapAdapter().restorePurchases('account');
+    expect(p.getPurchases).toHaveBeenCalledWith({ productType: 'subs', appAccountToken: 'account', onlyCurrentEntitlements: true });
+    expect(results).toEqual([{ success: true, provider: 'google-play', productId: sku, receiptId: 'receipt' }]);
+    expect(p.restorePurchases).not.toHaveBeenCalled();
   });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 5 — listProducts on android queries the Capacitor plugin and
-  //         passes through the store's localized priceString.
-  // ─────────────────────────────────────────────────────────────────────
-  it('android queries the Capacitor plugin and uses store priceString', async () => {
-    mockedGetPlatform.mockReturnValue('android');
-    const getProducts = vi.fn(async () => ({
-      products: [
-        {
-          productId: 'praeventio_premium_monthly',
-          title: 'Praeventio Premium Mensual',
-          priceString: 'CLP $9,990.00',
-          priceMicros: 9_990_000_000,
-          type: 'subs' as const,
-        },
-      ],
-    }));
-    __setCapacitorIapPluginForTests({
-      getProducts,
-      purchase: vi.fn(),
-      restorePurchases: vi.fn(),
-    });
-
-    const products = await iapAdapter.listProducts();
-    expect(getProducts).toHaveBeenCalledWith({
-      productIds: expect.arrayContaining(['praeventio_premium_monthly']),
-    });
-    expect(products[0].priceFormatted).toBe('CLP $9,990.00');
-    expect(products[0].priceClp).toBe(9990);
+  it('does not expose another signed-in account receipt on restore', async () => {
+    const p = plugin(); __setCapacitorIapPluginForTests(p);
+    expect(await new IapAdapter().restorePurchases('other')).toEqual([]);
   });
-});
-
-// ───────────────────────────────────────────────────────────────────────────
-// Test 6 — purchase on android calls the plugin and surfaces the receipt.
-// ───────────────────────────────────────────────────────────────────────────
-describe('IapAdapter.purchase', () => {
-  it('android calls plugin.purchase and returns purchaseToken as receiptId', async () => {
-    mockedGetPlatform.mockReturnValue('android');
-    const purchase = vi.fn(async () => ({
-      productId: 'praeventio_premium_monthly',
-      purchaseToken: 'play-token-abc-123',
-    }));
-    __setCapacitorIapPluginForTests({
-      getProducts: vi.fn(),
-      purchase,
-      restorePurchases: vi.fn(),
-    });
-
-    const result = await iapAdapter.purchase('praeventio_premium_monthly');
-    expect(purchase).toHaveBeenCalledWith({
-      productId: 'praeventio_premium_monthly',
-      type: 'subs',
-    });
-    expect(result).toEqual({
-      success: true,
-      provider: 'google-play',
-      receiptId: 'play-token-abc-123',
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 7 — purchase on ios falls through to the same plugin contract.
-  // ─────────────────────────────────────────────────────────────────────
-  it('ios calls plugin.purchase with app-store provider', async () => {
-    mockedGetPlatform.mockReturnValue('ios');
-    const purchase = vi.fn(async () => ({
-      productId: 'praeventio_premium_monthly',
-      transactionId: 'apple-tx-1',
-      receipt: 'apple-receipt-blob',
-    }));
-    __setCapacitorIapPluginForTests({
-      getProducts: vi.fn(),
-      purchase,
-      restorePurchases: vi.fn(),
-    });
-
-    const result = await iapAdapter.purchase('praeventio_premium_monthly');
-    expect(result.success).toBe(true);
-    expect(result.provider).toBe('app-store');
-    expect(result.receiptId).toBe('apple-tx-1');
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 8 — purchase on web does NOT call any store rail. It returns a
-  //         clear error directing callers to the existing /api/billing
-  //         checkout flow (so future bugs that wire `iapAdapter.purchase`
-  //         on web fail loudly instead of silently dropping the user).
-  // ─────────────────────────────────────────────────────────────────────
-  it('web refuses the unified call and points at the checkout endpoints', async () => {
-    mockedGetPlatform.mockReturnValue('web');
-    const result = await iapAdapter.purchase(
-      'praeventio_premium_monthly',
-      'webpay',
-    );
-    expect(result.success).toBe(false);
-    expect(result.provider).toBe('webpay');
-    expect(result.errorMessage).toMatch(/Pricing checkout/i);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Test 9 — refusing a provider that is unavailable on the platform.
-  // ─────────────────────────────────────────────────────────────────────
-  it('android refuses webpay (not available on this platform)', async () => {
-    mockedGetPlatform.mockReturnValue('android');
-    __setCapacitorIapPluginForTests({
-      getProducts: vi.fn(),
-      purchase: vi.fn(),
-      restorePurchases: vi.fn(),
-    });
-    const result = await iapAdapter.purchase(
-      'praeventio_premium_monthly',
-      'webpay',
-    );
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toMatch(/not available/i);
-  });
-});
-
-// ───────────────────────────────────────────────────────────────────────────
-// Test 10 — restorePurchases on web is a no-op; native delegates to plugin.
-// ───────────────────────────────────────────────────────────────────────────
-describe('IapAdapter.restorePurchases', () => {
-  it('web returns an empty list', async () => {
-    mockedGetPlatform.mockReturnValue('web');
-    const result = await iapAdapter.restorePurchases();
-    expect(result).toEqual([]);
-  });
-
-  it('ios calls plugin.restorePurchases and maps receipts', async () => {
-    mockedGetPlatform.mockReturnValue('ios');
-    const restorePurchases = vi.fn(async () => ({
-      purchases: [
-        {
-          productId: 'praeventio_premium_monthly',
-          transactionId: 'apple-restore-1',
-        },
-      ],
-    }));
-    __setCapacitorIapPluginForTests({
-      getProducts: vi.fn(),
-      purchase: vi.fn(),
-      restorePurchases,
-    });
-    const result = await iapAdapter.restorePurchases();
-    expect(result).toEqual([
-      {
-        success: true,
-        provider: 'app-store',
-        receiptId: 'apple-restore-1',
-      },
-    ]);
+  it('keeps web rails separate', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    expect(IapAdapter.getAvailableProviders()).toEqual(['webpay', 'mercadopago', 'khipu']);
+    expect((await new IapAdapter().purchase(sku)).success).toBe(false);
   });
 });
