@@ -17,7 +17,7 @@ function findPinProblems(source) {
   const xml = source.replace(/<!--[\s\S]*?-->/g, '');
   if (!/^\s*(?:<\?xml[^>]*>\s*)?<network-security-config>[\s\S]*<\/network-security-config>\s*$/.test(xml)) return ['network security XML root is invalid'];
   if (/cleartextTrafficPermitted\s*=\s*["']true["']/.test(xml)) problems.push('release network policy permits cleartext');
-  if (/<certificates\b[^>]*src=["']user["']/.test(xml.replace(/<debug-overrides>[\s\S]*?<\/debug-overrides>/g, ''))) problems.push('release network policy trusts user CAs');
+  if (/<certificates\b[^>]*\bsrc\s*=\s*["']user["']/.test(xml.replace(/<debug-overrides>[\s\S]*?<\/debug-overrides>/g, ''))) problems.push('release network policy trusts user CAs');
   const domains = xml.match(/<domain-config\b[\s\S]*?<\/domain-config>/g) || [];
   const pinned = domains.filter(block => /<domain\b[^>]*>\s*app\.praeventio\.net\s*<\/domain>/.test(block));
   if (pinned.length !== 1) return [...problems, 'exactly one app.praeventio.net domain policy is required'];

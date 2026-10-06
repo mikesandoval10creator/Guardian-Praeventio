@@ -18,11 +18,12 @@ The six local Vitest migration files were preserved as binary patches, exact fil
 
 ## Checks performed
 
-- `node --test scripts/__tests__/android-release.test.cjs`: 5 passed.
+- `node --test scripts/__tests__/android-release.test.cjs`: 6 passed, including a RED/GREEN regression for whitespace around a user-CA XML attribute.
 - `node node_modules/vitest/vitest.mjs run src/__tests__/mobile/androidBuildWiring.test.ts`: 44 passed.
 - `node --check` on both release guard scripts: passed.
 - `scripts/__tests__/test_android_16kb.py`: 4 passed against synthetic ELF64 fixtures. No actual AAB has been checked yet.
-- Focused ESLint: no errors; scripts are excluded by the repository lint configuration. Pipeline smoke check passed structural checks; Ruby syntax and full YAML parsing are deferred to CI because those local dependencies are unavailable.
+- Focused ESLint: no errors; scripts are excluded by the repository lint configuration. Both workflow YAML files parsed using js-yaml; pipeline smoke check passed. Actual Ruby/Fastlane execution remains deferred to CI because Ruby is unavailable locally.
+- Fresh review identified an AAB path error in Fastlane and whitespace escaping the user-CA guard; both were corrected before PR submission.
 - Release guard against current checkout: correctly fails missing Firebase/signing, placeholder TLS pins and unsynced production assets. This is not a successful release build.
 
 ## Remaining work

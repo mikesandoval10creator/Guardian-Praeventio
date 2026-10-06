@@ -7,6 +7,13 @@ const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '../..');
 const pinScript = path.join(root, 'scripts/check-cert-pinning-ratchet.cjs');
+test('release user CA rejection accepts XML attribute whitespace', () => {
+  const { findPinProblems } = require('../check-cert-pinning-ratchet.cjs');
+  const pins = [Buffer.alloc(32, 1), Buffer.alloc(32, 2)].map(buffer =>
+    `<pin digest="SHA-256">${buffer.toString('base64')}</pin>`).join('');
+  const xml = `<network-security-config><domain-config><domain>app.praeventio.net</domain><pin-set>${pins}</pin-set><trust-anchors><certificates src = "user" /></trust-anchors></domain-config></network-security-config>`;
+  assert.ok(findPinProblems(xml).some(problem => problem.includes('user CAs')));
+});
 const leaf = Buffer.alloc(32, 7).toString('base64');
 const backup = Buffer.alloc(32, 9).toString('base64');
 const xml = (pins) => `<network-security-config><base-config cleartextTrafficPermitted="false"/><domain-config cleartextTrafficPermitted="false"><domain>app.praeventio.net</domain><pin-set>${pins.map(p => `<pin digest="SHA-256">${p}</pin>`).join('')}</pin-set></domain-config></network-security-config>`;
