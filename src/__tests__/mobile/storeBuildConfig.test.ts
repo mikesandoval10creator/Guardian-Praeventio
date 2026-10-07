@@ -83,14 +83,20 @@ describe('capacitor.config.ts — store build must never embed the dev server', 
 
     const syncIndex = androidJob.indexOf('name: Capacitor sync (Android)');
     const guardIndex = androidJob.indexOf('name: Store-build guard (post-sync)');
-    const fastlaneIndex = androidJob.indexOf('name: Fastlane lane');
+    const buildCandidateIndex = androidJob.indexOf(
+      'name: Build signed candidate (no upload)',
+    );
+    const fastlaneBuildCommandIndex = androidJob.indexOf(
+      'run: bundle exec fastlane android build_only',
+    );
 
     expect(androidJobStart).toBeGreaterThanOrEqual(0);
     expect(iosJobStart).toBeGreaterThan(androidJobStart);
     expect(fastfileLintStart).toBeGreaterThan(iosJobStart);
     expect(syncIndex).toBeGreaterThanOrEqual(0);
     expect(guardIndex).toBeGreaterThan(syncIndex);
-    expect(fastlaneIndex).toBeGreaterThan(guardIndex);
+    expect(buildCandidateIndex).toBeGreaterThan(guardIndex);
+    expect(fastlaneBuildCommandIndex).toBeGreaterThan(buildCandidateIndex);
   });
 
   it('local mobile release commands force production mode before syncing', () => {
