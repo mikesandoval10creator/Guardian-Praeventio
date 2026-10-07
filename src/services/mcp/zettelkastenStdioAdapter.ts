@@ -12,7 +12,6 @@
 // (entrypoint `bin/mcp-server.mjs`) — no se bundlea con la app web.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -40,6 +39,9 @@ export interface StdioAdapterConfig {
  * llamar `server.close()` explícito.
  */
 export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<Server> {
+  // Defer binding process.stdin/stdout until the CLI actually starts the
+  // transport; importing this adapter in Vitest must remain side-effect-free.
+  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
   const server = new Server(
     {
       name: config.serverName ?? 'praeventio-zettelkasten',

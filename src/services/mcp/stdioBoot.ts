@@ -16,18 +16,20 @@
 // NO se ejecuta automáticamente al importar el módulo (zero side-effect).
 // El entrypoint productivo sigue siendo `bin/mcp-server.mjs`.
 
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  startStdioMcpServer,
-  type StdioAdapterConfig,
-} from './zettelkastenStdioAdapter.js';
+import { createRequire } from 'node:module';
+import { startStdioMcpServer } from './zettelkastenStdioAdapter.js';
+import type { StdioAdapterConfig } from './zettelkastenStdioAdapter.js';
 
 // Re-exportamos para que callers tipen un único import path.
 export type { StdioAdapterConfig } from './zettelkastenStdioAdapter.js';
 
+const require = createRequire(import.meta.url);
+
 /** Smoke-test: la dep `@modelcontextprotocol/sdk` resolvió al cargar. */
 export function assertSdkAvailable(): void {
-  if (typeof StdioServerTransport !== 'function') {
+  try {
+    require.resolve('@modelcontextprotocol/sdk/server/stdio.js');
+  } catch {
     throw new Error(
       'MCP SDK no disponible. Instala `@modelcontextprotocol/sdk` o ' +
         'asegúrate de que el bundler no lo esté tree-shaking en runtime Node.',
