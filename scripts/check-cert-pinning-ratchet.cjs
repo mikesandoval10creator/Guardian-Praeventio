@@ -2,6 +2,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { XMLValidator } = require('fast-xml-parser');
 const NSC_PATH = path.resolve(__dirname, '../android/app/src/main/res/xml/network_security_config.xml');
 
 // Require canonical standard Base64 and exactly 32 SHA-256 bytes. Android
@@ -12,9 +13,28 @@ function decodePin(value) {
   if (decoded.length !== 32 || decoded.toString('base64').replace(/=$/, '') !== value.replace(/=$/, '')) return null;
   return decoded;
 }
+function stripXmlComments(source) {
+  const parts = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    const start = source.indexOf('<!--', cursor);
+    if (start === -1) {
+      parts.push(source.slice(cursor));
+      break;
+    }
+    parts.push(source.slice(cursor, start));
+    const end = source.indexOf('-->', start + 4);
+    if (end === -1 || source.slice(start + 4, end).includes('--')) return null;
+    parts.push(' '.repeat(end + 3 - start));
+    cursor = end + 3;
+  }
+  return parts.join('');
+}
 function findPinProblems(source) {
   const problems = [];
-  const xml = source.replace(/<!--[\s\S]*?-->/g, '');
+  const xml = stripXmlComments(source);
+  if (xml === null) return ['network security XML has a malformed or unterminated comment'];
+  if (XMLValidator.validate(source) !== true) return ['network security XML is malformed'];
   if (!/^\s*(?:<\?xml[^>]*>\s*)?<network-security-config>[\s\S]*<\/network-security-config>\s*$/.test(xml)) return ['network security XML root is invalid'];
   if (/cleartextTrafficPermitted\s*=\s*["']true["']/.test(xml)) problems.push('release network policy permits cleartext');
   if (/<certificates\b[^>]*\bsrc\s*=\s*["']user["']/.test(xml.replace(/<debug-overrides>[\s\S]*?<\/debug-overrides>/g, ''))) problems.push('release network policy trusts user CAs');

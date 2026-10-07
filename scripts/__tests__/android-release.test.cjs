@@ -33,6 +33,14 @@ test('malformed, short, noncanonical, duplicated and placeholder pins fail', () 
     assert.equal(pinRun(pins).status, 1);
   }
 });
+test('unterminated XML comments cannot hide a fake release pin-set', () => {
+  const { findPinProblems } = require('../check-cert-pinning-ratchet.cjs');
+  const hiddenPins = [leaf, backup]
+    .map(pin => `<pin digest="SHA-256">${pin}</pin>`)
+    .join('');
+  const malformed = `<network-security-config><!-- <domain-config><domain>app.praeventio.net</domain><pin-set>${hiddenPins}</pin-set></domain-config></network-security-config>`;
+  assert.ok(findPinProblems(malformed).some(problem => /comment/i.test(problem)));
+});
 test('release guard fails missing native Firebase and signing without exposing credentials', () => {
   const result = spawnSync(process.execPath, ['scripts/check-android-release.cjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, KEYSTORE_PATH: '', ANDROID_KEYSTORE_PASSWORD: 'do-not-print-this', KEY_ALIAS: '', KEY_PASSWORD: '' } });
   assert.equal(result.status, 1);
@@ -58,4 +66,13 @@ test('mobile check compiles native changes and production distribution awaits pr
   const fastfile = fs.readFileSync(path.join(root, 'fastlane/Fastfile'), 'utf8');
   assert.match(fastfile, /project_dir:/);
   assert.match(fastfile, /print_command: false/);
+});
+test('Android SDK setup does not request the removed tools package', () => {
+  const check = fs.readFileSync(path.join(root, '.github/workflows/mobile-build-check.yml'), 'utf8');
+  assert.match(check, /uses: android-actions\/setup-android@v3\s*\n\s+with:\s*\n\s+packages:\s*platform-tools/);
+  const packageMatch = check.match(/^\s*packages:\s*(.+)$/m);
+  assert.ok(packageMatch, 'Android SDK package list must be explicit');
+  const sdkPackages = packageMatch[1].trim().split(/\s+/);
+  assert.ok(sdkPackages.includes('platform-tools'));
+  assert.ok(!sdkPackages.includes('tools'));
 });
