@@ -32,6 +32,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: npm install -g npm@12 && npm ci --ignore-scripts
       - name: Release guard regressions
         run: |

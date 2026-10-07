@@ -25,7 +25,7 @@ describe('Android Play Store versionCode contract', () => {
 
   it('injects GitHub run number as VERSION_CODE for Android release builds', () => {
     expect(mobileReleaseWorkflow).toContain('VERSION_CODE: ${{ github.run_number }}');
-    expect(mobileReleaseWorkflow).toContain('bundle exec fastlane android "$LANE"');
+    expect(mobileReleaseWorkflow).toContain('run: bundle exec fastlane android build_only');
   });
 });
 
