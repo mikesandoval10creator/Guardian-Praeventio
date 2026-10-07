@@ -30,6 +30,7 @@
 import { initializeApp, cert, deleteApp, type App } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { clearFirestoreProject } from './firestoreEmulatorClear';
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'praeventio-test';
 const EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
@@ -74,18 +75,7 @@ afterEach(async () => {
   //   DELETE /emulator/v1/projects/{projectId}/databases/(default)/documents
   const host = EMULATOR_HOST;
   const url = `http://${host}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-  try {
-    const res = await fetch(url, { method: 'DELETE' });
-    if (!res.ok) {
-
-      console.warn(
-        `[firestore-emulator-setup] clear endpoint respondió ${res.status} ${res.statusText}`,
-      );
-    }
-  } catch (err) {
-
-    console.warn('[firestore-emulator-setup] clear falló (emulator down?):', err);
-  }
+  await clearFirestoreProject(url);
 });
 
 /**
