@@ -111,24 +111,8 @@ let sut: OfflineStorageModule;
 
 async function freshSut(): Promise<OfflineStorageModule> {
   vi.resetModules();
-  // Re-register mocks after resetModules so they survive the fresh module graph.
-  vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
-  vi.mock('@capacitor-community/sqlite', () => ({
-    CapacitorSQLite: {},
-    SQLiteConnection: class {
-      async checkConnectionsConsistency() { return { result: false }; }
-      async isConnection() { return { result: false }; }
-      async createConnection() { return null; }
-      async retrieveConnection() { return null; }
-    },
-    SQLiteDBConnection: class {},
-  }));
-  vi.mock('./sqliteEncryption', () => ({
-    ensureSqliteEncryptionSecret: vi.fn(async () => 'secret'),
-  }));
-  vi.mock('./logger', () => ({
-    logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-  }));
+  // Module-level mocks remain registered across resetModules; re-registering
+  // them here is rejected by Vitest because vi.mock is hoisted.
   return import('./offlineStorage') as Promise<OfflineStorageModule>;
 }
 
