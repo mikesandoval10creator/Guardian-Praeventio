@@ -10,9 +10,13 @@ import {
 // hijo Node), no en vitest.
 
 describe('zettelkastenStdioAdapter smoke import', () => {
-  it('módulo carga sin tirar errores top-level', async () => {
+  it('módulo carga sin tirar errores top-level ni abrir pipes de stdio', async () => {
+    const pipeWrapCount = () =>
+      process.getActiveResourcesInfo?.().filter((resource) => resource === 'PipeWrap').length ?? 0;
+    const beforeImport = pipeWrapCount();
     const mod = await import('./zettelkastenStdioAdapter.js');
     expect(typeof mod.startStdioMcpServer).toBe('function');
+    expect(pipeWrapCount()).toBe(beforeImport);
   });
 
   it('expone MCP_TOOLS con al menos zk.getNode y zk.listNodes', () => {

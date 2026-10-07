@@ -9,7 +9,21 @@
 // for Sprint 27 H6; this PR makes it observable.
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import 'fake-indexeddb/auto';
+import { act, renderHook, waitFor } from '@testing-library/react';
+
+const firestoreMocks = vi.hoisted(() => ({
+  doc: vi.fn((_db: unknown, path: string, id: string) => ({ path, id })),
+  setDoc: vi.fn(async () => undefined),
+  serverTimestamp: vi.fn(() => 'test-server-timestamp'),
+}));
+
+vi.mock('../../firebase', () => ({ db: {}, auth: { currentUser: null } }));
+vi.mock('firebase/firestore', () => ({
+  doc: firestoreMocks.doc,
+  setDoc: firestoreMocks.setDoc,
+  serverTimestamp: firestoreMocks.serverTimestamp,
+}));
 
 import { onLocalEmit } from '../eventLog';
 import { useProjectContextAdapter } from './projectContextAdapter';
@@ -49,8 +63,7 @@ vi.mock('../../../contexts/FirebaseContext', () => ({
   useFirebase: vi.fn(() => ({ user: { uid: 'user-test-001' } })),
 }));
 
-// Spy on the local-emit fan-out so we can capture events without
-// touching the real eventLog/IndexedDB.
+// Subscribe to the real local event log while Firestore/Auth I/O stays mocked.
 type Captured = Parameters<Parameters<typeof onLocalEmit>[0]>[0];
 const captured: Captured[] = [];
 let unsubscribeLocal: (() => void) | null = null;
@@ -62,6 +75,8 @@ beforeEach(async () => {
     unsubscribeLocal = null;
   }
   projectReturn = undefined;
+  firestoreMocks.setDoc.mockClear();
+  firestoreMocks.doc.mockClear();
   // Default: a signed-in user. Tests that exercise "signed out" override
   // this via `vi.mocked(useFirebase).mockReturnValue(...)`.
   vi.mocked(useFirebase).mockReturnValue({ user: { uid: 'user-test-001' } } as never);
@@ -128,9 +143,8 @@ describe('useProjectContextAdapter', () => {
     setSelectedProject('proj-B');
     rerender();
 
-    await act(async () => {
-      // Wait for the async emit() chain to flush.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(captured.filter((e) => e.type === 'tier_changed')).toHaveLength(1);
     });
 
     const tierEvents = captured.filter((e) => e.type === 'tier_changed');
@@ -143,6 +157,7 @@ describe('useProjectContextAdapter', () => {
     expect(event.payload.source).toBe('admin');
     expect(event.metadata?.source).toBe('project_context_adapter');
     expect(event.metadata?.reason).toBe('project_switch');
+    expect(firestoreMocks.setDoc).toHaveBeenCalledOnce();
   });
 
   it('does NOT emit when selectedProject.id stays the same (reference change without id change)', async () => {
@@ -157,6 +172,7 @@ describe('useProjectContextAdapter', () => {
     });
 
     expect(captured.filter((e) => e.type === 'tier_changed')).toHaveLength(0);
+    expect(firestoreMocks.setDoc).not.toHaveBeenCalled();
   });
 
   it('emits tier_changed with toTier="none" when selectedProject becomes null', async () => {
@@ -166,8 +182,8 @@ describe('useProjectContextAdapter', () => {
     setSelectedProject(undefined);
     rerender();
 
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(captured.filter((e) => e.type === 'tier_changed')).toHaveLength(1);
     });
 
     const tierEvents = captured.filter((e) => e.type === 'tier_changed');
@@ -176,6 +192,7 @@ describe('useProjectContextAdapter', () => {
     if (event.type !== 'tier_changed') throw new Error('unreachable');
     expect(event.payload.fromTier).toBe('proj-A');
     expect(event.payload.toTier).toBe('none');
+    expect(firestoreMocks.setDoc).not.toHaveBeenCalled();
   });
 
   it('uses the same envelope shape as subscriptionContextAdapter (idempotencyKey present)', async () => {
@@ -185,8 +202,8 @@ describe('useProjectContextAdapter', () => {
     setSelectedProject('proj-B');
     rerender();
 
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(captured.filter((e) => e.type === 'tier_changed')).toHaveLength(1);
     });
 
     const tierEvents = captured.filter((e) => e.type === 'tier_changed');
@@ -196,5 +213,6 @@ describe('useProjectContextAdapter', () => {
     expect(event.idempotencyKey).toContain('project_switch:user-test-001:proj-A->proj-B');
     expect(typeof event.ts).toBe('number');
     expect(event.ts).toBeGreaterThan(0);
+    expect(firestoreMocks.setDoc).toHaveBeenCalledOnce();
   });
 });
