@@ -204,9 +204,12 @@ async function stopServer(): Promise<void> {
   server = null;
   baseUrl = '';
   if (!current) return;
-  await new Promise<void>((resolve, reject) => {
+  const closing = new Promise<void>((resolve, reject) => {
     current.close((error) => (error ? reject(error) : resolve()));
   });
+  current.closeAllConnections();
+  await closing;
+  await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
 function postSos(key: string): Promise<globalThis.Response> {
@@ -236,12 +239,16 @@ function postSos(key: string): Promise<globalThis.Response> {
             if (typeof value === 'string') responseHeaders.set(name, value);
             else if (Array.isArray(value)) responseHeaders.set(name, value.join(', '));
           }
-          resolve(
-            new globalThis.Response(Buffer.concat(chunks), {
-              status: incoming.statusCode ?? 0,
-              headers: responseHeaders,
-            }),
-          );
+          const response = new globalThis.Response(Buffer.concat(chunks), {
+            status: incoming.statusCode ?? 0,
+            headers: responseHeaders,
+          });
+          if (req.destroyed) {
+            resolve(response);
+            return;
+          }
+          req.once('close', () => resolve(response));
+          req.destroy();
         });
       },
     );

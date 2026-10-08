@@ -11,7 +11,7 @@
 // no creaba el job de critical-replica. Este test es la red de seguridad del
 // nuevo orquestador (independiente de la red real de GCP).
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -53,6 +53,10 @@ describe('run-dr-rehearsal.ts', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-04T15:30:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('corre restore --dry-run y reporta el resultado', async () => {

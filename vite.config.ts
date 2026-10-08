@@ -220,18 +220,18 @@ export default defineConfig(({mode}) => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
         // Sprint 30 Bucket II — local workspace alias for the
         // @praeventio/capacitor-mesh plugin scaffold (ADR 0013). The
         // plugin lives in packages/ and is not yet npm-published; the
         // alias lets `import { Mesh } from '@praeventio/capacitor-mesh'`
         // resolve without setting up workspaces.
         '@praeventio/capacitor-mesh': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'packages/capacitor-mesh/src/index.ts',
         ),
         '@praeventio/capacitor-proximity': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'packages/capacitor-proximity/src/index.ts',
         ),
         // Vida-XX 2026-08-26 — missing alias discovered by runtime probe.
@@ -239,7 +239,7 @@ export default defineConfig(({mode}) => {
         // Without it, src/services/mobile/batteryOptimization.ts:106 fails
         // to resolve in dev and the app boots to a blank screen.
         '@praeventio/capacitor-battery-optimization': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'packages/capacitor-battery-optimization/src/index.ts',
         ),
         // Sprint 32 audit P0 build fix — redirect server-only error
@@ -257,15 +257,15 @@ export default defineConfig(({mode}) => {
         // Browser surfaces use `@sentry/react` directly via
         // `src/lib/sentry.ts` — independent path.
         './sentryAdapter': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'src/services/observability/sentryAdapter.browser-stub.ts',
         ),
         './cloudErrorReportingAdapter': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'src/services/observability/cloudErrorReportingAdapter.browser-stub.ts',
         ),
         './noopErrorTrackingAdapter': path.resolve(
-          __dirname,
+          import.meta.dirname,
           'src/services/observability/noopErrorTrackingAdapter.browser-stub.ts',
         ),
       },

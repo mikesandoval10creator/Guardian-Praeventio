@@ -98,7 +98,7 @@
     "test:readiness-matrix": "node --test scripts/generate-readiness-matrix.test.cjs",
     "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check",
     "test:scheduler-crons": "node scripts/validate-scheduler-crons.cjs",
-    "postinstall": "node scripts/patch-artillery.mjs"
+    "postinstall": "node scripts/patch-artillery.mjs && node scripts/patch-stryker-vitest5.cjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
@@ -261,7 +261,7 @@
     "vite": "^8.3.2",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.3",
     "workbox-window": "^7.4.0"
   },
   "overrides": {
