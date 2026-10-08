@@ -9,7 +9,7 @@
 // comprueba que la deadline se controla desde el dato persistido
 // (no recalculada, que es donde estaba el bug).
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   requestDataAccess,
   getDataAccessRequest,
@@ -57,6 +57,10 @@ describe('requestDataAccess — persistencia regulatoria', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('persiste subjectCountry/dataResidency/regime/deadlineDays/regla', async () => {
