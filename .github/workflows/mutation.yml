@@ -79,6 +79,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: Apply Stryker Vitest 5 compatibility backport
+        run: node scripts/patch-stryker-vitest5.cjs
+
       - name: Run Stryker mutation testing (core, 15 módulos)
         run: npm run mutation
         env:
@@ -132,6 +135,8 @@ jobs:
         run: npm install -g npm@12 && npm ci --ignore-scripts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+      - name: Apply Stryker Vitest 5 compatibility backport
+        run: node scripts/patch-stryker-vitest5.cjs
       - name: Run Stryker (healthvault — Oleada 3 group)
         # stryker.soft.config.json tiene thresholds.break:0 (vs core's
         # break:50). Stryker 9.6.1 no soporta override de thresholds
@@ -165,6 +170,8 @@ jobs:
         run: npm install -g npm@12 && npm ci --ignore-scripts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+      - name: Apply Stryker Vitest 5 compatibility backport
+        run: node scripts/patch-stryker-vitest5.cjs
       - name: Run Stryker (webauthn — Oleada 3 group)
         run: npx stryker run stryker.soft.config.json --mutate=src/services/auth/webauthnChallenge.ts,src/services/auth/webauthnCredentialStore.ts,src/server/auth/webauthnAssertion.ts,src/server/services/complianceWebAuthnSigning.ts,src/server/auth/webauthnFirestoreDb.ts
         env:
@@ -193,6 +200,8 @@ jobs:
         run: npm install -g npm@12 && npm ci --ignore-scripts
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+      - name: Apply Stryker Vitest 5 compatibility backport
+        run: node scripts/patch-stryker-vitest5.cjs
       - name: Run Stryker (admin — Oleada 3 group)
         run: npx stryker run stryker.soft.config.json --mutate=src/server/routes/admin.ts,src/server/routes/adminJobs.ts
         env:

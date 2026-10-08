@@ -98,7 +98,7 @@
     "test:readiness-matrix": "node --test scripts/generate-readiness-matrix.test.cjs",
     "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check",
     "test:scheduler-crons": "node scripts/validate-scheduler-crons.cjs",
-    "postinstall": "node scripts/patch-artillery.mjs"
+    "postinstall": "node scripts/patch-artillery.mjs && node scripts/patch-stryker-vitest5.cjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",

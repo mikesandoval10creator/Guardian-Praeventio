@@ -2,11 +2,11 @@ import path from 'node:path';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 // Round 15 (I3 / A6 audit fix) — `environmentMatchGlobs` is REMOVED in
-// Vitest 4 (we run 4.1.5). The previous config kept it as a dead option:
+// Vitest 5. The previous config kept it as a dead option:
 // it parsed silently but had ZERO effect. Now that jsdom is installed
-// and component tests are arriving, the supported v4 mechanism is the
+// and component tests are arriving, the supported Vitest mechanism is the
 // per-file pragma `// @vitest-environment jsdom` at the top of each
-// `.test.tsx` file. Backend (.test.ts) tests stay on the default `node`
+// `.test.tsx` file. Backend (`.test.ts`) tests stay on the default `node`
 // environment via the top-level `environment: 'node'` below.
 //
 // The alternative (`test.projects` workspaces) splits the run across
@@ -14,7 +14,7 @@ import { defineConfig, type Plugin } from 'vitest/config';
 // For our single-setup case the per-file pragma is lighter and keeps
 // this config flat.
 
-// vitest 4 / vite 7 reject `#!/usr/bin/env node` shebangs in `.mjs`
+// Vitest 5 / Vite 8 reject `#!/usr/bin/env node` shebangs in `.mjs`
 // scripts (SyntaxError: Invalid or unexpected token). Node's loader
 // tolerates them natively — this plugin strips the shebang so the
 // vite-node transform stays happy when tests import .mjs scripts as
@@ -38,15 +38,15 @@ export default defineConfig({
     alias: {
       // Sprint 30 Bucket II — see vite.config.ts for context.
       '@praeventio/capacitor-mesh': path.resolve(
-        __dirname,
+        import.meta.dirname,
         'packages/capacitor-mesh/src/index.ts',
       ),
       '@praeventio/capacitor-proximity': path.resolve(
-        __dirname,
+        import.meta.dirname,
         'packages/capacitor-proximity/src/index.ts',
       ),
       '@praeventio/capacitor-battery-optimization': path.resolve(
-        __dirname,
+        import.meta.dirname,
         'packages/capacitor-battery-optimization/src/index.ts',
       ),
     },
