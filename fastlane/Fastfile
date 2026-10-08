@@ -1,76 +1,42 @@
-# Sprint 21 Ola 6 — Bucket S — Fastlane lanes for Android signing + Play upload
-#
-# Lanes:
-#   - `internal`     → signed AAB → upload to Play Internal Testing track.
-#   - `production`   → signed AAB → upload to Play Production track.
-#   - `build_only`   → signed AAB only, no upload (CI dry-run, smoke test).
-#
-# All lanes consume the same signing env vars provided by GHA secrets (or by
-# the local shell when running `bundle exec fastlane android <lane>` on a
-# developer machine):
-#   KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
-#
-# The web bundle (`dist/`) and `npx cap sync android` are run BEFORE Fastlane
-# in the workflow — Fastlane itself only owns the Gradle + Play Store steps.
-#
-# ADR-0009 supersedes ADR-0006 (local-only mobile builds) for Android.
-
+# Signing is consumed by app/build.gradle from environment or keystore.properties.
+# Never put passwords in Gradle argv (Fastlane/Gradle logs can expose them).
 default_platform(:android)
+ANDROID_PROJECT = File.expand_path('../android', __dir__)
 
-# Shared signing properties block — DRY across the three lanes. Every Gradle
-# `bundle` invocation needs the same set of `android.injected.signing.*`
-# properties; pulling them into a helper avoids drift.
-def signing_properties
-  {
-    "android.injected.signing.store.file"     => ENV["KEYSTORE_PATH"],
-    "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
-    "android.injected.signing.key.alias"      => ENV["KEY_ALIAS"],
-    "android.injected.signing.key.password"   => ENV["KEY_PASSWORD"],
-  }
+def build_android_candidate
+  gradle(task: 'clean', project_dir: ANDROID_PROJECT, print_command: false)
+  gradle(task: 'bundle', build_type: 'Release', project_dir: ANDROID_PROJECT, print_command: false)
+end
+
+def distribute_android_candidate(track)
+  candidate = ENV['ANDROID_AAB_PATH'] || lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]
+  candidate = File.expand_path(candidate, File.expand_path('..', __dir__)) if candidate
+  UI.user_error!('Signed candidate AAB is required') unless candidate && File.file?(candidate)
+  UI.user_error!('Production requires approved workflow candidate') if track == 'production' && ENV['ANDROID_PRODUCTION_APPROVED'] != 'true'
+  upload_to_play_store(track: track, aab: candidate, skip_upload_metadata: true,
+                       skip_upload_images: true, skip_upload_screenshots: true)
 end
 
 platform :android do
-  desc "Build signed AAB for internal track"
-  lane :internal do
-    gradle(task: "clean")
-    gradle(
-      task: "bundle",
-      build_type: "Release",
-      properties: signing_properties
-    )
-    upload_to_play_store(
-      track: "internal",
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true
-    )
-  end
-
-  desc "Build signed AAB for production track"
-  lane :production do
-    gradle(task: "clean")
-    gradle(
-      task: "bundle",
-      build_type: "Release",
-      properties: signing_properties
-    )
-    upload_to_play_store(
-      track: "production",
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true
-    )
-  end
-
-  desc "Build only (no upload) — CI dry-run / local smoke test"
+  desc 'Build signed AAB, without distribution'
   lane :build_only do
-    gradle(task: "clean")
-    gradle(
-      task: "bundle",
-      build_type: "Release",
-      properties: signing_properties
-    )
+    build_android_candidate
+  end
+  desc 'Build signed AAB and upload to Internal Testing'
+  lane :internal do
+    build_android_candidate
+    distribute_android_candidate('internal')
+  end
+  desc 'Build signed AAB and upload after explicit production approval'
+  lane :production do
+    UI.user_error!('Production requires explicit approval') unless ENV['ANDROID_PRODUCTION_APPROVED'] == 'true'
+    build_android_candidate
+    distribute_android_candidate('production')
+  end
+  desc 'Upload the already-built candidate (protected workflow only)'
+  lane :upload_candidate do
+    track = ENV.fetch('ANDROID_TRACK', 'internal')
+    UI.user_error!('Unsupported Android track') unless ['internal', 'production'].include?(track)
+    distribute_android_candidate(track)
   end
 end

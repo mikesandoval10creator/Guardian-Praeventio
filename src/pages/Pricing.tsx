@@ -1061,7 +1061,17 @@ function PricingInner() {
       // Pricing.tsx UI actualmente solo hace checkout monthly (annual es
       // info-only). Cuando se agregue toggle annual, pasar el cycle real.
       const productId = iapSkuForTier(tier.id, 'monthly');
-      const result = await iapAdapter.purchase(productId, provider);
+      // Play Billing v8 returns real base plans + offer tokens; purchase
+      // must send the exact selected pair (billing task 3). A missing or
+      // stale offer fails closed here with a clear message instead of
+      // silently buying "the first offer" at an unknown price.
+      const catalog = await iapAdapter.listProducts();
+      const selected = catalog.find((p) => p.id === productId);
+      const result = await iapAdapter.purchase(productId, provider, {
+        basePlanId: selected?.basePlanId,
+        offerToken: selected?.offerToken,
+        accountId: user?.uid,
+      });
 
       if (!result.success || !result.receiptId) {
         const message =

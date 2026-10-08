@@ -245,7 +245,8 @@ describe("AndroidManifest — network security config (MASVS-NETWORK-1)", () => 
   it("keeps the dev live-reload loopback working (10.0.2.2 cleartext exception)", () => {
     // capacitor.config dev server is http://10.0.2.2:5173 (removed for store
     // builds); 10.0.2.2 is non-routable in prod so this cannot weaken release.
-    expect(nsc).toContain("10.0.2.2");
+    expect(read("android/app/src/debug/res/xml/network_security_config.xml")).toContain("10.0.2.2");
+    expect(nsc).not.toMatch(/cleartextTrafficPermitted="true"/);
   });
 
   it("confines user-CA trust to <debug-overrides> — release never trusts a user CA", () => {
@@ -323,7 +324,7 @@ describe("AndroidManifest — certificate pinning for app.praeventio.net (MASVS-
     const pinValues = pinned.match(/<pin digest="SHA-256">([^<]+)<\/pin>/g) ?? [];
     expect(pinValues.length).toBeGreaterThanOrEqual(2);
 
-    const SPKI_RE = /^[A-Za-z0-9+/]{43}$/; // 43 chars base64, no padding
+    const SPKI_RE = /^[A-Za-z0-9+/]{43}=?$/; // 43 chars base64, no padding
     const ALLOWED_PLACEHOLDERS = new Set([
       "PIN_SHA256_LEAF_REPLACE_AT_PROD_DEPLOY",
       "PIN_SHA256_BACKUP_REPLACE_AT_PROD_DEPLOY",
@@ -394,7 +395,7 @@ describe("AndroidManifest — FGS health background permissions (MASVS-LIFE-SAFE
 
   it("declares READ_HEALTH_DATA_IN_BACKGROUND with tools:targetApi=36 (API 36+ replacement)", () => {
     expect(manifest).toContain(
-      'android:name="android.permission.READ_HEALTH_DATA_IN_BACKGROUND"',
+      'android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"',
     );
     // The tools:targetApi=36 attribute keeps AGP / lint quiet on older
     // API levels where the permission doesn't exist yet.

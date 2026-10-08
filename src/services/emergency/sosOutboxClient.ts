@@ -27,10 +27,13 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
   if (!event.projectId) {
     return { ok: false, error: 'missing_projectId' };
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const authHeader = await apiAuthHeader();
     const res = await fetch('/api/emergency/sos', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         // Audit 2026-07-02 §3.1 #5 (VIDA): the same queued event always
@@ -58,7 +61,9 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
     // duplicate the emergency_alerts doc or the supervisor fan-out.
     return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'network_error' };
+    return { ok: false, error: controller.signal.aborted ? 'sos_timeout' : err instanceof Error ? err.message : 'network_error' };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -72,13 +77,42 @@ function outbox(): SosOutbox {
 
 /** Enqueue a SOS for durable, retried delivery. Arms the reconnect drain. */
 export async function enqueueSos(event: SosEvent): Promise<void> {
-  registerSosFlushOnReconnect();
   await outbox().enqueue(event);
+  registerSosFlushOnReconnect();
+  requestFlush();
 }
 
 /** Process the queue once (sends due entries, retries/dead-letters failures). */
 export function flushSos(): ReturnType<SosOutbox['flush']> {
-  return outbox().flush();
+  if (_drain) return _drain;
+  clearRetryTimer();
+  _drain = outbox().flush().finally(async () => {
+    _drain = null;
+    await scheduleRetry();
+  });
+  return _drain;
+}
+
+let _drain: ReturnType<SosOutbox['flush']> | null = null;
+let _retryTimer: ReturnType<typeof setTimeout> | undefined;
+const isOnline = () => typeof navigator === 'undefined' || navigator.onLine;
+function clearRetryTimer(): void {
+  if (_retryTimer !== undefined) clearTimeout(_retryTimer);
+  _retryTimer = undefined;
+}
+function requestFlush(): void {
+  if (!isOnline()) return;
+  void flushSos().catch(err => logger.warn('sosOutbox: flush failed', { err: String(err) }));
+}
+async function scheduleRetry(): Promise<void> {
+  clearRetryTimer();
+  if (!isOnline()) return;
+  const entries = await outbox().snapshot();
+  if (_drain) return;
+  const due = entries.filter(entry => !entry.deadLettered && Number.isFinite(entry.nextRetryAt));
+  if (!due.length) return;
+  const nextRetryAt = Math.min(...due.map(entry => entry.nextRetryAt));
+  _retryTimer = setTimeout(requestFlush, Math.max(0, nextRetryAt - Date.now()));
 }
 
 /** SOS that exhausted retries and remain undelivered (for the UI to surface). */
@@ -98,13 +132,17 @@ let _reconnectArmed = false;
  */
 export function registerSosFlushOnReconnect(): void {
   if (typeof window === 'undefined') return;
-  // Drain leftovers from a previous session that closed before delivery.
-  if (typeof navigator === 'undefined' || navigator.onLine) {
-    flushSos().catch((err) => logger.warn('sosOutbox: initial flush failed', { err: String(err) }));
-  }
   if (_reconnectArmed) return;
   _reconnectArmed = true;
-  window.addEventListener('online', () => {
-    flushSos().catch((err) => logger.warn('sosOutbox: flush on reconnect failed', { err: String(err) }));
-  });
+  window.addEventListener('online', requestFlush);
+  window.addEventListener('offline', clearRetryTimer);
+  window.addEventListener('pageshow', requestFlush);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestFlush();
+    });
+    // Capacitor/Cordova lifecycle events when delivered by the native shell.
+    document.addEventListener('resume', requestFlush);
+  }
+  requestFlush();
 }

@@ -30,6 +30,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    testOptions { unitTests.includeAndroidResources = true }
 }
 
 repositories {
@@ -43,4 +44,7 @@ dependencies {
     implementation "androidx.work:work-runtime:2.9.0"
     implementation "androidx.core:core:1.13.1"
     testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.robolectric:robolectric:4.16"
+    testImplementation "org.mockito:mockito-core:5.20.0"
+    testImplementation "androidx.work:work-testing:2.9.0"
 }
