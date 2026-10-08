@@ -10,7 +10,7 @@ name: Mobile Release (Android + iOS — Fastlane)
 #
 # Triggers:
 #   - workflow_dispatch  → manual run; chooses internal / production / build_only.
-#   - push tag `mobile-v*` → automatic production upload.
+#   - push tag `mobile-v*` → automatic internal candidate upload.
 #
 # Required GitHub Secrets:
 #   ANDROID_KEYSTORE_BASE64                 — `base64 -i release.keystore | tr -d '\n'`
@@ -45,7 +45,7 @@ jobs:
   # Pre-flight: detect which platforms have their secrets provisioned so the
   # downstream jobs can skip cleanly instead of failing CI on a fresh repo.
   preflight:
-    name: Detect available signing secrets
+    name: Require Android signing and Firebase inputs
     runs-on: ubuntu-latest
     outputs:
       android_ready: ${{ steps.gate.outputs.android_ready }}
@@ -54,14 +54,19 @@ jobs:
       - id: gate
         env:
           ANDROID_KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FIREBASE_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           IOS_MATCH_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
-          if [ -n "$ANDROID_KS" ]; then
-            echo "android_ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "android_ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ANDROID_KEYSTORE_BASE64 not set — Android job will skip."
-          fi
+          for variable in ANDROID_KS FIREBASE_JSON STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Required Android release input $variable is missing"
+              exit 1
+            fi
+          done
+          echo "android_ready=true" >> "$GITHUB_OUTPUT"
           if [ -n "$IOS_MATCH_URL" ]; then
             echo "ios_ready=true" >> "$GITHUB_OUTPUT"
           else
@@ -71,7 +76,7 @@ jobs:
 
   android-release:
     name: Android signed AAB → Play Store
-    needs: preflight
+    needs: [preflight, fastfile-lint, pipeline-lint]
     if: needs.preflight.outputs.android_ready == 'true'
     runs-on: ubuntu-latest
     env:
@@ -112,10 +117,10 @@ jobs:
 
       # Decode Google Play service-account JSON. Fastlane Appfile points at
       # `play-service-account.json` (relative to repo root).
-      - name: Decode Play service account
+      - name: Provision native Firebase config
         env:
-          PLAY_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
-        run: echo "$PLAY_JSON_BASE64" | base64 -d > play-service-account.json
+          FIREBASE_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: printf "%s" "$FIREBASE_JSON_BASE64" | base64 -d > android/app/google-services.json
 
       # `cap sync` requires that android/ has been generated locally and
       # committed (see ADR-0006 §Plan / ADR-0009). The first store build
@@ -127,39 +132,84 @@ jobs:
       - name: Store-build guard (post-sync)
         run: npm run guard:store-build
 
-      - name: Fastlane lane
+      - name: Build signed candidate (no upload)
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          # Incremental versionCode so Google Play accepts successive AABs.
-          # build.gradle reads VERSION_CODE env var (fallback: 1).
           VERSION_CODE: ${{ github.run_number }}
-        # Tag-trigger (mobile-v*) ⇒ production. Manual dispatch ⇒ chosen
-        # input. Default fallback is `internal` for safety.
-        run: |
-          LANE="${{ inputs.track }}"
-          if [ -z "$LANE" ]; then
-            if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]]; then
-              LANE="production"
-            else
-              LANE="internal"
-            fi
-          fi
-          echo "Running fastlane android $LANE"
-          bundle exec fastlane android "$LANE"
+        run: bundle exec fastlane android build_only
+
+      - name: Inspect native libraries for 16 KB alignment
+        run: python3 scripts/check-android-16kb.py android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Record candidate digest
+        run: sha256sum android/app/build/outputs/bundle/release/app-release.aab > android/app/build/outputs/bundle/release/candidate.sha256
 
       - uses: actions/upload-artifact@v7
         with:
           name: praeventio-aab
-          path: android/app/build/outputs/bundle/release/*.aab
-          if-no-files-found: warn
+          path: android/app/build/outputs/bundle/release/*
+          if-no-files-found: error
+
+  android-internal-upload:
+    needs: [android-release, fastfile-lint, pipeline-lint]
+    if: inputs.track == 'internal' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - uses: actions/download-artifact@v7
+        with:
+          name: praeventio-aab
+          path: android/app/build/outputs/bundle/release
+      - name: Upload verified internal candidate
+        env:
+          PLAY_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          ANDROID_AAB_PATH: android/app/build/outputs/bundle/release/app-release.aab
+          ANDROID_TRACK: internal
+        run: |
+          test -n "$PLAY_JSON_BASE64" || { echo "::error::Play credentials missing"; exit 1; }
+          printf "%s" "$PLAY_JSON_BASE64" | base64 -d > play-service-account.json
+          sha256sum -c android/app/build/outputs/bundle/release/candidate.sha256
+          bundle exec fastlane android upload_candidate
+
+  android-production-upload:
+    needs: [android-release, fastfile-lint, pipeline-lint]
+    if: github.event_name == 'workflow_dispatch' && inputs.track == 'production'
+    environment: android-production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - uses: actions/download-artifact@v7
+        with:
+          name: praeventio-aab
+          path: android/app/build/outputs/bundle/release
+      - name: Upload approved production candidate
+        env:
+          PLAY_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          ANDROID_AAB_PATH: android/app/build/outputs/bundle/release/app-release.aab
+          ANDROID_TRACK: production
+          ANDROID_PRODUCTION_APPROVED: 'true'
+        run: |
+          test -n "$PLAY_JSON_BASE64" || { echo "::error::Play credentials missing"; exit 1; }
+          printf "%s" "$PLAY_JSON_BASE64" | base64 -d > play-service-account.json
+          sha256sum -c android/app/build/outputs/bundle/release/candidate.sha256
+          bundle exec fastlane android upload_candidate
 
   ios-release:
     name: iOS signed IPA → TestFlight / App Store
     needs: preflight
     if: needs.preflight.outputs.ios_ready == 'true'
+    environment: ${{ inputs.track == 'production' && 'ios-production' || 'ios-internal' }}
     runs-on: macos-14
     env:
       NODE_ENV: production
@@ -219,9 +269,6 @@ jobs:
             internal|"") LANE="testflight" ;;
             *)          LANE="testflight" ;;
           esac
-          if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]] && [ -z "${{ inputs.track }}" ]; then
-            LANE="appstore"
-          fi
           echo "Running fastlane ios $LANE"
           bundle exec fastlane ios "$LANE"
 

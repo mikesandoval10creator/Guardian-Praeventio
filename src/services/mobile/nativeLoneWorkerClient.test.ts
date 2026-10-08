@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   native: false,
@@ -33,8 +33,24 @@ beforeEach(() => {
   H.plugin.stop.mockReset();
   H.plugin.getStatus.mockReset();
 });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("nativeLoneWorkerClient", () => {
+  it("reports a start timeout after 10 seconds if the service never acknowledges", async () => {
+    vi.useFakeTimers();
+    H.native = true;
+    H.platform = "android";
+    H.plugin.start.mockImplementation(() => new Promise(() => {}));
+    let result: Awaited<ReturnType<typeof startNativeLoneWorker>> | undefined;
+    void startNativeLoneWorker({
+      projectId: "project-1", sessionId: "session-1", capability: "a".repeat(32),
+      capabilityExpiresAt: "2099-01-01T00:00:00.000Z",
+    }).then(value => { result = value; });
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(result).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(result).toEqual({ applied: false, reason: "native_error", error: "native_lone_worker_start_timeout" });
+  });
   it("is a no-op outside native Android", async () => {
     const result = await startNativeLoneWorker({
       projectId: "project-1",

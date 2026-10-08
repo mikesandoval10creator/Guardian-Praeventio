@@ -70,8 +70,14 @@ export async function startNativeLoneWorker(
   if (!apiBaseUrl) {
     return { applied: false, reason: "missing_public_origin" };
   }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    const status = await NativeLoneWorker.start({ ...options, apiBaseUrl });
+    const status = await Promise.race([
+      NativeLoneWorker.start({ ...options, apiBaseUrl }),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("native_lone_worker_start_timeout")), 10_000);
+      }),
+    ]);
     return status.running
       ? { applied: true, ...(status.lastError ? { lastError: status.lastError } : {}) }
       : {
@@ -85,6 +91,8 @@ export async function startNativeLoneWorker(
       reason: "native_error",
       error: error instanceof Error ? error.message : String(error),
     };
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
   }
 }
 

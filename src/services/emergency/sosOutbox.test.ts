@@ -26,6 +26,21 @@ describe('computeBackoffMs', () => {
 });
 
 describe('SosOutbox', () => {
+  it('durably enqueues a new SOS while an earlier HTTP send is still waiting', async () => {
+    const storage = new InMemorySosStorage();
+    let finish!: (value: { ok: boolean }) => void;
+    const outbox = new SosOutbox({ storage, send: () => new Promise(resolve => { finish = resolve; }) });
+    await outbox.enqueue(makeEvent({ clientEventId: 'first' }));
+    const flushing = outbox.flush();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const enqueuing = outbox.enqueue(makeEvent({ clientEventId: 'second' }));
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const pendingDuringHttp = await storage.load();
+    finish({ ok: true });
+    await Promise.all([flushing, enqueuing]);
+    expect(pendingDuringHttp.map(entry => entry.event.clientEventId)).toEqual(['first', 'second']);
+    expect((await storage.load()).map(entry => entry.event.clientEventId)).toEqual(['second']);
+  });
   it('enqueue persiste el evento', async () => {
     const storage = new InMemorySosStorage();
     const outbox = new SosOutbox({ storage, send: async () => ({ ok: true }) });

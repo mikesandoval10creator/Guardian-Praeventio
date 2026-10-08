@@ -36,6 +36,7 @@
 // Praeventio's tier subscription is digital, so the policy applies.)
 
 import { Capacitor } from '@capacitor/core';
+import { ALL_IAP_SKUS } from '../pricing/iapSkus';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types
@@ -54,8 +55,10 @@ export interface IapProduct {
    * Connect. e.g. `praeventio_premium_monthly`. */
   id: string;
   title: string;
-  /** CLP base price in whole-CLP units (Webpay convention). */
-  priceClp: number;
+  /** CLP base price in whole-CLP units (Webpay convention). Web catalogue
+   * only — native products carry the store's own currency/price and must
+   * NEVER be re-labeled as CLP (a guessed price is a lie to the user). */
+  priceClp?: number;
   /** Localized formatted display, e.g. "$ 9.990 CLP". On native, the
    * store returns its own localized string (e.g. "USD $9.99") — we
    * pass that through verbatim. */
@@ -63,13 +66,35 @@ export interface IapProduct {
   type: 'subscription' | 'one-time';
   /** Subscription period length in days. Omitted for one-time. */
   durationDays?: number;
+  /** Play base plan id, e.g. 'monthly'. Native (Play) only. */
+  basePlanId?: string;
+  /** Play offer token for the selected base plan/offer. Native (Play)
+   * only — purchasing requires an exact (basePlanId, offerToken) pair. */
+  offerToken?: string;
+  /** ISO 4217 store currency, e.g. 'USD', 'CLP'. Native only. */
+  currency?: string;
+  /** Store price in `currency` units. Native only. */
+  price?: number;
+}
+
+/** Explicit storefront selection for a purchase. Play requires the exact
+ * base plan + offer token; we refuse to "pick the first offer" for the
+ * user (that can silently charge a different price/commitment). */
+export interface IapSelection {
+  basePlanId?: string;
+  offerToken?: string;
+  /** App-account token (authenticated uid) — scopes the receipt to the
+   * signed-in account so restores never leak another account's receipt. */
+  accountId?: string;
 }
 
 export interface IapPurchaseResult {
   success: boolean;
   provider: BillingProvider;
+  productId?: string;
   /** Receipt id / orderId / purchaseToken — opaque to the caller. The
-   * server validates this against the store API. */
+   * server validates this against the store API. On Play this is always
+   * the purchaseToken (transactionId/order ids are NOT receipt identity). */
   receiptId?: string;
   errorMessage?: string;
 }
@@ -108,34 +133,47 @@ const WEB_CATALOG: ReadonlyArray<IapProduct> = [
 //   • a missing-plugin install fails gracefully with a clear error
 //     instead of a webpack/vite resolution explosion.
 // ───────────────────────────────────────────────────────────────────────────
+interface PlayStoreProduct {
+  /** Base plan id, e.g. 'monthly'. */
+  identifier: string;
+  /** Full SKU, e.g. 'praeventio_cobre_monthly'. */
+  planIdentifier: string;
+  offerToken: string;
+  offerId?: string | null;
+  title?: string;
+  price?: number;
+  priceString?: string;
+  currencyCode?: string;
+}
+
+interface PlayStorePurchase {
+  productIdentifier: string;
+  /** THE receipt identity on Play. transactionId/orderId are NOT. */
+  purchaseToken?: string;
+  transactionId?: string;
+  appAccountToken?: string;
+}
+
 interface CapacitorIapPlugin {
-  getProducts(opts: { productIds: string[] }): Promise<{
-    products: Array<{
-      productId: string;
-      title?: string;
-      priceString?: string;
-      priceMicros?: number;
-      type?: 'subs' | 'inapp';
-      subscriptionPeriod?: string;
-    }>;
-  }>;
-  purchase(opts: {
-    productId: string;
-    type: 'subs' | 'inapp';
-  }): Promise<{
-    productId: string;
-    purchaseToken?: string;
-    transactionId?: string;
-    receipt?: string;
-  }>;
-  restorePurchases(): Promise<{
-    purchases: Array<{
-      productId: string;
-      purchaseToken?: string;
-      transactionId?: string;
-      receipt?: string;
-    }>;
-  }>;
+  getProducts(opts: {
+    productIdentifiers: string[];
+    productType: 'subs' | 'inapp';
+  }): Promise<{ products: PlayStoreProduct[] }>;
+  purchaseProduct(opts: {
+    productIdentifier: string;
+    planIdentifier: string;
+    offerToken: string;
+    appAccountToken?: string;
+    /** Must be false: Play acknowledgement is the server's durable
+     * post-grant worker's job (billing task 3), never the client's. */
+    autoAcknowledgePurchases: boolean;
+    productType: 'subs' | 'inapp';
+  }): Promise<PlayStorePurchase>;
+  getPurchases(opts: {
+    productType: 'subs' | 'inapp';
+    appAccountToken?: string;
+    onlyCurrentEntitlements?: boolean;
+  }): Promise<{ purchases: PlayStorePurchase[] }>;
 }
 
 /** Optional injection point for tests. When set, used in lieu of the real
@@ -179,10 +217,10 @@ async function loadCapacitorIapPlugin(): Promise<CapacitorIapPlugin> {
     mod?.InAppPurchases ??
     mod?.default ??
     mod;
-  if (!plugin || typeof plugin.purchase !== 'function') {
+  if (!plugin || typeof plugin.purchaseProduct !== 'function') {
     throw new IapAdapterError(
       'loadCapacitorIapPlugin',
-      'Capacitor IAP plugin loaded but missing expected surface',
+      'Capacitor IAP plugin loaded but missing expected Play Billing v8 surface (purchaseProduct/getProducts/getPurchases)',
     );
   }
   return plugin as CapacitorIapPlugin;
@@ -251,10 +289,12 @@ export class IapAdapter {
   // already shows full tier breakdown via `services/pricing/tiers.ts`;
   // this catalogue is for callers that want the IAP-shaped product list.
   //
-  // Android/iOS: queries the store via the Capacitor plugin so prices are
-  // localized to the user's territory (the store auto-converts to local
-  // currency). Falls back to the web catalogue if the plugin returns an
-  // empty list (offline / store outage / unsigned build).
+  // Android/iOS: queries the store via the Capacitor plugin (Play Billing
+  // v8 ProductDetails) so prices are localized to the user's territory
+  // and base plans + offer tokens are real. An unavailable product is
+  // simply absent: we NEVER fall back to the web CLP catalogue on native
+  // (a guessed CLP price on a store that bills in USD is a lie, and the
+  // silent fallback used to be exactly that).
   // ─────────────────────────────────────────────────────────────────────
   async listProducts(): Promise<IapProduct[]> {
     const platform = IapAdapter.getPlatform();
@@ -264,30 +304,24 @@ export class IapAdapter {
 
     try {
       const plugin = await loadCapacitorIapPlugin();
-      const ids = WEB_CATALOG.map((p) => p.id);
-      const response = await plugin.getProducts({ productIds: ids });
-      if (!response.products || response.products.length === 0) {
-        return WEB_CATALOG.slice();
-      }
-      return response.products.map((p) => {
-        const baseEntry = WEB_CATALOG.find((c) => c.id === p.productId);
-        const type: IapProduct['type'] =
-          p.type === 'subs' ? 'subscription' : baseEntry?.type ?? 'subscription';
-        // priceMicros is stored in micros of the local currency unit;
-        // we pass priceFormatted through and use priceMicros only when
-        // the Android Billing client returns it (iOS gives priceString).
-        const priceClp =
-          typeof p.priceMicros === 'number'
-            ? Math.round(p.priceMicros / 1_000_000)
-            : baseEntry?.priceClp ?? 0;
+      const response = await plugin.getProducts({
+        productIdentifiers: Object.keys(ALL_IAP_SKUS),
+        productType: 'subs',
+      });
+      return (response.products ?? []).map((p) => {
+        const sku = p.planIdentifier;
+        const entry = ALL_IAP_SKUS[sku];
         return {
-          id: p.productId,
-          title: p.title ?? baseEntry?.title ?? p.productId,
-          priceClp,
-          priceFormatted:
-            p.priceString ?? baseEntry?.priceFormatted ?? '',
-          type,
-          durationDays: baseEntry?.durationDays,
+          id: sku,
+          title: p.title ?? sku,
+          priceFormatted: p.priceString ?? '',
+          type: 'subscription' as const,
+          ...(entry?.cycle === 'annual' ? { durationDays: 365 } : {}),
+          ...(entry?.cycle === 'monthly' ? { durationDays: 30 } : {}),
+          basePlanId: p.identifier,
+          offerToken: p.offerToken,
+          currency: p.currencyCode,
+          price: p.price,
         };
       });
     } catch (err) {
@@ -319,6 +353,7 @@ export class IapAdapter {
   async purchase(
     productId: string,
     provider?: BillingProvider,
+    selection?: IapSelection,
   ): Promise<IapPurchaseResult> {
     const platform = IapAdapter.getPlatform();
     const available = IapAdapter.getAvailableProviders();
@@ -333,10 +368,10 @@ export class IapAdapter {
     }
 
     if (platform === 'android') {
-      return this.purchaseViaStore(productId, 'google-play');
+      return this.purchaseViaStore(productId, 'google-play', selection);
     }
     if (platform === 'ios') {
-      return this.purchaseViaStore(productId, 'app-store');
+      return this.purchaseViaStore(productId, 'app-store', selection);
     }
 
     // Web: we don't do the redirect here. Pricing.tsx already orchestrates
@@ -355,27 +390,69 @@ export class IapAdapter {
   private async purchaseViaStore(
     productId: string,
     provider: 'google-play' | 'app-store',
+    selection?: IapSelection,
   ): Promise<IapPurchaseResult> {
+    // Fail closed: Play must receive the EXACT base plan + offer the user
+    // selected. Picking "the first offer" can charge a different price or
+    // commitment than the one shown on screen.
+    if (!selection?.basePlanId || !selection?.offerToken) {
+      return {
+        success: false,
+        provider,
+        productId,
+        errorMessage:
+          'Store purchase requires an explicit basePlanId and offerToken ' +
+          '(select the product from listProducts() first) — refusing to guess an offer',
+      };
+    }
     try {
       const plugin = await loadCapacitorIapPlugin();
-      const baseEntry = WEB_CATALOG.find((p) => p.id === productId);
-      const type: 'subs' | 'inapp' =
-        baseEntry?.type === 'one-time' ? 'inapp' : 'subs';
-      const result = await plugin.purchase({ productId, type });
-      const receiptId =
-        result.purchaseToken ?? result.transactionId ?? result.receipt;
+      // Validate the selection against the live store catalogue: a stale
+      // UI selection (revoked offer, renamed base plan) must not reach
+      // the billing flow.
+      const catalog = await this.listProducts();
+      const selected = catalog.find(
+        (p) =>
+          p.id === productId &&
+          p.basePlanId === selection.basePlanId &&
+          p.offerToken === selection.offerToken,
+      );
+      if (!selected) {
+        return {
+          success: false,
+          provider,
+          productId,
+          errorMessage:
+            'Offer not available in the store catalogue — it may have ' +
+            'been revoked or renamed; refresh the product list',
+        };
+      }
+      const result = await plugin.purchaseProduct({
+        productIdentifier: productId,
+        planIdentifier: selection.basePlanId,
+        offerToken: selection.offerToken,
+        appAccountToken: selection.accountId,
+        // NEVER auto-acknowledge client-side: the server's durable
+        // post-grant worker acknowledges after the authoritative grant.
+        autoAcknowledgePurchases: false,
+        productType: 'subs',
+      });
+      // purchaseToken IS the receipt identity on Play — transactionId /
+      // order ids must never be substituted for it.
+      const receiptId = result.purchaseToken;
       if (!receiptId) {
         return {
           success: false,
           provider,
-          errorMessage: 'Store returned no receipt — cannot validate',
+          productId,
+          errorMessage: 'Store returned no purchaseToken — cannot validate',
         };
       }
-      return { success: true, provider, receiptId };
+      return { success: true, provider, productId, receiptId };
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'Unknown store error';
-      return { success: false, provider, errorMessage };
+      return { success: false, provider, productId, errorMessage };
     }
   }
 
@@ -386,28 +463,46 @@ export class IapAdapter {
   // Play handles this via the BillingClient cache automatically, but
   // we expose a uniform method so the UI can show one button.
   //
+  // On Play we query `getPurchases` (SUBS, current entitlements only)
+  // scoped to the signed-in account's appAccountToken — never the
+  // legacy restorePurchases flow, which can surface receipts belonging
+  // to another Google account on a shared device.
+  //
   // On web we return [] — there's nothing to restore, the subscription
   // lives in Firestore keyed by uid.
   // ─────────────────────────────────────────────────────────────────────
-  async restorePurchases(): Promise<IapPurchaseResult[]> {
+  async restorePurchases(accountId?: string): Promise<IapPurchaseResult[]> {
     const platform = IapAdapter.getPlatform();
     if (platform === 'web') return [];
     const provider: BillingProvider =
       platform === 'android' ? 'google-play' : 'app-store';
     try {
       const plugin = await loadCapacitorIapPlugin();
-      const response = await plugin.restorePurchases();
-      return (response.purchases ?? []).map((p) => {
-        const receiptId =
-          p.purchaseToken ?? p.transactionId ?? p.receipt;
-        return receiptId
-          ? { success: true as const, provider, receiptId }
-          : {
-              success: false as const,
-              provider,
-              errorMessage: 'Restore returned a purchase with no receipt',
-            };
+      const response = await plugin.getPurchases({
+        productType: 'subs',
+        ...(accountId ? { appAccountToken: accountId } : {}),
+        onlyCurrentEntitlements: true,
       });
+      return (response.purchases ?? [])
+        .filter(
+          // Defense in depth: even if the store query echoes another
+          // account's purchase, receipt identity is the purchaseToken
+          // scoped to the authenticated account.
+          (p) => (accountId ? p.appAccountToken === accountId : true),
+        )
+        .flatMap((p) => {
+          const receiptId = p.purchaseToken;
+          return receiptId
+            ? [
+                {
+                  success: true as const,
+                  provider,
+                  productId: p.productIdentifier,
+                  receiptId,
+                },
+              ]
+            : [];
+        });
     } catch (err) {
       return [
         {

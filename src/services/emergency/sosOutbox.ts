@@ -121,12 +121,11 @@ export class SosOutbox {
    * sobreescribe el SOS recién encolado → SOS PERDIDO. flush/enqueue/
    * clearDeadLetter comparten esta cadena; snapshot/deadLetters son solo
    * lectura y no la necesitan.
-   * ponytail: el lock abarca los `send()` de red del flush, así que un
-   * enqueue durante un flush largo espera a que termine. Aceptable para un
-   * backstop de reintento en cliente; si la latencia del enqueue-durante-flush
-   * llegara a importar, cambiar a reconciliar-al-guardar (re-load + merge).
+   * Network I/O runs outside the storage lock. A new SOS must persist even
+   * while an earlier request stalls; delivery reconciles the latest queue by ID.
    */
   private mutation: Promise<unknown> = Promise.resolve();
+  private draining: ReturnType<SosOutbox['flush']> | null = null;
 
   constructor(private readonly deps: SosOutboxDeps) {
     this.now = deps.now ?? (() => Date.now());
@@ -177,7 +176,10 @@ export class SosOutbox {
     gaveUp: number;
     deadLettered: number;
   }> {
-    return this.runExclusive(async () => this.flushInternal());
+    if (!this.draining) {
+      this.draining = this.flushInternal().finally(() => { this.draining = null; });
+    }
+    return this.draining;
   }
 
   private async flushInternal(): Promise<{
@@ -187,8 +189,7 @@ export class SosOutbox {
     deadLettered: number;
   }> {
     const now = this.now();
-    const current = await this.deps.storage.load();
-    const next: OutboxEntry[] = [];
+    const current = await this.runExclusive(() => this.deps.storage.load());
     let sent = 0;
     let gaveUp = 0;
 
@@ -196,11 +197,9 @@ export class SosOutbox {
       // 🛟 Un dead-letter ya agotó los reintentos: se retiene intacto
       // (jamás se descarta), pero no se vuelve a enviar.
       if (entry.deadLettered) {
-        next.push(entry);
         continue;
       }
       if (entry.nextRetryAt > now) {
-        next.push(entry); // todavía no toca reintentar
         continue;
       }
       const result = await this.deps.send(entry.event).catch((err) => ({
@@ -208,34 +207,31 @@ export class SosOutbox {
         error: err instanceof Error ? err.message : 'unknown',
       }));
 
-      if (result.ok) {
-        sent += 1;
-        continue;
-      }
-
-      const newRetry = entry.retryCount + 1;
-      if (newRetry > MAX_RETRY) {
-        // Agotados los reintentos: NO se descarta. Se marca dead-letter y
-        // se retiene para escalamiento presencial (la UI debe surjirlo).
-        gaveUp += 1;
-        next.push({
-          ...entry,
-          retryCount: newRetry,
-          deadLettered: true,
-          nextRetryAt: Number.POSITIVE_INFINITY,
-          lastError: result.error ?? entry.lastError,
-        });
-        continue;
-      }
-      next.push({
-        ...entry,
-        retryCount: newRetry,
-        nextRetryAt: now + computeBackoffMs(newRetry),
-        lastError: result.error,
+      await this.runExclusive(async () => {
+        const latest = await this.deps.storage.load();
+        const index = latest.findIndex(item => item.event.clientEventId === entry.event.clientEventId);
+        if (index < 0) return;
+        const stored = latest[index];
+        if (result.ok) {
+          sent += 1;
+          latest.splice(index, 1);
+        } else {
+          const retryCount = stored.retryCount + 1;
+          const deadLettered = retryCount > MAX_RETRY;
+          if (deadLettered) gaveUp += 1;
+          latest[index] = {
+            ...stored,
+            retryCount,
+            ...(deadLettered ? { deadLettered: true } : {}),
+            nextRetryAt: deadLettered ? Number.POSITIVE_INFINITY : this.now() + computeBackoffMs(retryCount),
+            lastError: result.error ?? stored.lastError,
+          };
+        }
+        await this.deps.storage.save(latest);
       });
     }
 
-    await this.deps.storage.save(next);
+    const next = await this.runExclusive(() => this.deps.storage.load());
     const deadLettered = next.filter((e) => e.deadLettered).length;
     return {
       sent,

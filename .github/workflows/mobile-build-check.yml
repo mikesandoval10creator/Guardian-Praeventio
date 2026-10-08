@@ -1,115 +1,54 @@
-name: Mobile build check (Android only — iOS requires macOS runner)
-
-# Sprint 20 Brecha A — Capacitor mobile preparation.
-# This workflow is a STUB. It does NOT run a real Android Gradle build because
-# the android/ folder is intentionally not committed yet (see ADR-0006). What
-# it DOES validate on every PR that touches mobile-relevant files:
-#   1. The web bundle still builds (npm ci + npm run build).
-#   2. capacitor.config.ts is parseable by the Capacitor CLI.
-#
-# It is deliberately wired to `pull_request` (paths-filtered) + `workflow_dispatch`,
-# NOT to push events on main, and is NOT marked as a required check in branch
-# protection. Sprint 21+ will replace this with a real Gradle + Fastlane job
-# once the signing keystore + Play console are wired.
-
+name: Mobile native build check
 on:
   pull_request:
     paths:
       - 'capacitor.config.ts'
       - 'src/**'
+      - 'android/**'
+      - 'packages/**'
+      - 'fastlane/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
-      - '.github/workflows/mobile-build-check.yml'
+      - '.github/workflows/mobile-*.yml'
   workflow_dispatch:
-
 permissions:
-      contents: read
-      pull-requests: read
-
-# Cancel in-progress mobile build runs when a new commit is pushed to the same PR.
+  contents: read
 concurrency:
   group: mobile-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
-
 jobs:
   android-build-check:
-    name: Web bundle + Capacitor config sanity
+    name: Compile native debug candidate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
-          cache: 'npm'
-
+          node-version: '22'
+          cache: npm
       - uses: actions/setup-java@v6
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install dependencies
-        run: npm install -g npm@12 && npm ci --ignore-scripts
-
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: npm install -g npm@12 && npm ci --ignore-scripts
+      - name: Release guard regressions
+        run: |
+          node --test scripts/__tests__/android-release.test.cjs
+          python3 scripts/__tests__/test_android_16kb.py
       - name: Build web bundle
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-          # B14: CI validation lanes don't ship the bundle — skip the
-          # 483 MB SLM prepackage download. Release/deploy lanes MUST
-          # run the real prepackage (they don't set this).
           SLM_PREPACKAGE_SKIP: '1'
-
-      # `cap sync` requires android/ to exist on disk; this workflow validates
-      # ONLY that the web build succeeds and the Capacitor CLI can parse the
-      # config. Full Android build (Gradle + signed bundle) deferred to
-      # Sprint 21+ once signing secrets + Fastlane are wired.
-      #
-      # `cap doctor` (no platform) errors on Linux with "Xcode is not
-      # installed"; `cap doctor android` errors with "android platform has
-      # not been added yet" because android/ is intentionally NOT committed
-      # (ADR-0006 — adding it requires the signing keystore + Sprint 21+
-      # Fastlane). The cheapest correct sanity check is a parse-only
-      # validation of `capacitor.config.ts`: confirm the file exists and
-      # exports the two fields the Capacitor CLI requires (appId, appName).
-      # Vite imports the same file during `npm run build` above, so a
-      # syntax error has already failed by the time we get here.
-      - name: Capacitor config sanity (parse only)
-        run: |
-          test -f capacitor.config.ts || { echo "::error::capacitor.config.ts is missing"; exit 1; }
-          grep -q "appId" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'appId'"; exit 1; }
-          grep -q "appName" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'appName'"; exit 1; }
-          grep -q "export default" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'export default'"; exit 1; }
-          echo "capacitor.config.ts parses + carries appId/appName"
-
-      # The dev server (http://10.0.2.2:5173 — the Android-emulator host alias)
-      # must NEVER reach the store. `cap sync` bakes the RESOLVED config into
-      # android/app/src/main/assets/capacitor.config.json, which ships inside the
-      # APK; syncing without NODE_ENV=production embeds the dev url + cleartext
-      # and the app opens BLANK on a real device.
-      #
-      # Two layers: the vitest gate `src/__tests__/mobile/storeBuildConfig.test.ts`
-      # pins the config LOGIC (prod => no server block) and runs in the Tests
-      # shards; this step pins the built ARTIFACT. No `cap sync` runs here yet
-      # (the Android build is local — ADR-0006), so the guard SKIPs cleanly; it
-      # is wired now so the future Gradle job inherits it for free.
-      - name: Store-build guard (dev server never embedded)
+      - name: Capacitor sync
+        run: npx cap sync android
+        env:
+          NODE_ENV: production
+      - name: Store configuration check
         run: npm run guard:store-build
-
-      # Sprint 21+: agregar android-build job real con Gradle + signing.
-      # Sketch:
-      #   - run: npx cap add android  (once android/ is committed, drop this)
-      #   - run: npx cap sync android
-      #   - working-directory: android
-      #     run: ./gradlew assembleRelease
-      #     env:
-      #       SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-      #       SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      #       SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      #       SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-      #   - uses: r0adkll/upload-google-play@v1
-      #     with:
-      #       serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-      #       packageName: com.praeventio.guard
-      #       releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
-      #       track: internal
+      - name: Compile native Android and run native unit tests
+        run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon

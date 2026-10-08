@@ -77,11 +77,25 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
+// Debug remains usable without production Firebase/signing inputs.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
+// Covers IDE, Fastlane and direct wrapper invocations, including -x preReleaseBuild.
+// Signing values stay in the child environment, never in command-line output.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.project == project && it.name.toLowerCase().contains('release') && !it.name.toLowerCase().startsWith('clean') }) {
+        def signing = android.signingConfigs.release
+        def result = providers.exec {
+            workingDir rootProject.projectDir.parentFile
+            commandLine 'node', 'scripts/check-android-release.cjs'
+            environment 'KEYSTORE_PATH', signing.storeFile?.absolutePath ?: ''
+            environment 'ANDROID_KEYSTORE_PASSWORD', signing.storePassword ?: ''
+            environment 'KEY_ALIAS', signing.keyAlias ?: ''
+            environment 'KEY_PASSWORD', signing.keyPassword ?: ''
+            ignoreExitValue = true
+        }.result.get()
+        if (result.exitValue != 0) throw new GradleException('Android release inputs rejected; see guard failures above.')
     }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
