@@ -218,7 +218,7 @@
     "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
-    "@firebase/rules-unit-testing": "^5.0.2",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@gltf-transform/core": "^4.5.1",
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.64.0",
