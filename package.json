@@ -165,7 +165,7 @@
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
     "fast-xml-parser": "^5.11.2",
-    "firebase": "^12.19.0",
+    "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
     "framer-motion": "^14.1.0",
     "fuse.js": "^7.5.0",
