@@ -258,25 +258,25 @@ function main(argv = process.argv.slice(2)) {
 
   const routes = collectRouteDeclarations(repoRoot);
   const capabilities = collectBackgroundCapabilities(repoRoot);
-  const matrix = [
-    ...buildRouteMatrix(routes),
-    ...buildBackgroundMatrix(capabilities),
-  ];
+  const routeMatrix = buildRouteMatrix(routes);
+  const backgroundMatrix = buildBackgroundMatrix(capabilities);
+  const matrix = [...routeMatrix, ...backgroundMatrix];
+  const json = JSON.stringify(matrix, null, 2) + "\n";
 
   const markdown = renderMarkdown({
-    routes,
-    capabilities,
+    routes: routeMatrix,
+    capabilities: backgroundMatrix,
     routeCount: routes.length,
     capabilityCount: capabilities.length,
   });
 
   if (check) {
-    const current = fs.existsSync(output)
-      ? fs.readFileSync(output, "utf8")
-      : "";
-    if (current !== markdown) {
-      process.stderr.write(`Readiness matrix is stale: ${output}\n`);
-      process.exitCode = 1;
+    for (const [file, expected] of [[output, markdown], [jsonOutput, json]]) {
+      const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+      if (current !== expected) {
+        process.stderr.write(`Readiness matrix is stale: ${file}\n`);
+        process.exitCode = 1;
+      }
     }
     return;
   }
@@ -284,10 +284,7 @@ function main(argv = process.argv.slice(2)) {
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, markdown);
   fs.mkdirSync(path.dirname(jsonOutput), { recursive: true });
-  fs.writeFileSync(
-    jsonOutput,
-    JSON.stringify(matrix, null, 2) + "\n",
-  );
+  fs.writeFileSync(jsonOutput, json);
   process.stdout.write(
     `Generated ${output} (${routes.length} routes, ${capabilities.length} capabilities)\n`,
   );
