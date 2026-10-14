@@ -1,29 +1,7 @@
-// Real-router supertest for src/server/routes/healthVault.ts (Sprint 26 VV).
-//
-// HealthVault QR sharing — the worker is the ABSOLUTE owner of their medical
-// portfolio. These endpoints mint / consume / revoke share tokens a treating
-// doctor uses (by scanning the QR) for time-boxed read access. Compliance
-// target: Ley 20.584 (patient controls access), Ley 21.719 (personal data),
-// Ley 16.744 (occupational exams). Praeventio NEVER diagnoses.
-//
-// Mounts the ACTUAL router over fakeFirestore and exercises the REAL handlers
-// + the REAL vaultShare / vaultRecord services (UNMOCKED). Only firebase-admin,
-// verifyAuth, logger, and observability are stubbed. The firebase-admin mock is
-// extended inline with collectionGroup (the /view lookup uses it) and storage
-// (the file-proxy streams a blob) — fakeFirestore exposes neither.
-//
-// Endpoints + cases:
-//   POST   /share              401 / 400×4 (scope, topic, ttl, recordIds) / 201 happy
-//                              (persists hash NOT secret, audit from token, identity
-//                               server-stamped not body)
-//   GET    /view/:id/:secret   404 invalid / 401 wrong secret / 410 revoked / 410 expired
-//                              / 410 max_consumes / 200 happy (records w/ fileProxyPath,
-//                               NO raw fileUri; consumeCount++; audit consumed) / 200 empty
-//   GET    .../file/:recordId  404 invalid token / 410 revoked / 403 out_of_scope
-//                              / 404 file_unavailable / 200 streams (audit file_accessed,
-//                               does NOT burn a view)
-//   POST   /share/:id/revoke   401 / 404 not_found / 403 forbidden (workerUid mismatch)
-//                              / 200 happy (revokedAt set, audit revoked)
+// Real-router tests for legacy HealthVault share management and rejection.
+// Creation/revocation require owner authentication. Retired view/file URLs
+// return 410 without enumerating tokens or exposing records, including when
+// a legacy share and clinical fixtures exist. Firebase and auth are stubbed.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';

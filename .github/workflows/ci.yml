@@ -158,6 +158,9 @@ jobs:
       - name: MCP Node ESM build and startup regression
         run: npm run test:mcp-build
 
+      - name: Retired HealthVault route regressions
+        run: npm run test:health-vault-retired-routes
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest

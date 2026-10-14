@@ -27,6 +27,7 @@
     "test:express5-runtime": "node --test scripts/express5-runtime.test.mjs",
     "test:scalar-route-params": "node --test scripts/scalar-route-params.test.mjs",
     "test:mcp-traversal": "node --test scripts/mcp-traversal.test.mjs",
+    "test:health-vault-retired-routes": "node --test scripts/health-vault-retired-routes.test.mjs",
     "lint": "eslint . && node scripts/check-open-reads-ratchet.cjs && node scripts/check-user-facing-errors.cjs && node scripts/check-pgp-disclosure-ratchet.cjs",
     "lint:fix": "eslint . --fix && eslint firestore.rules --fix",
     "lint:rules": "node scripts/check-open-reads-ratchet.cjs",
