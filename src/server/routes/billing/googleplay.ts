@@ -28,6 +28,7 @@ import {
   planFromIapProductId,
   type BillingCycle,
 } from '../../../services/pricing/subscriptionPlan.js';
+import { ALL_IAP_SKUS } from '../../../services/pricing/iapSkus.js';
 import { sentryCapture } from './shared.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -103,9 +104,18 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
       let cycle: BillingCycle | null = null;
       let subscriptionLineItem: ReturnType<typeof selectGooglePlayVerificationItem> | null = null;
       if (type === 'subscription') {
+        // Validate the requested future tier too, before a deferred selector
+        // can temporarily return a different, currently paid product.
+        if (typeof productId !== 'string' || !Object.hasOwn(ALL_IAP_SKUS, productId)) {
+          logger.error('iap_unknown_product', undefined, { uid, productId: typeof productId === 'string' ? productId : null, type });
+          sentryCapture(new Error('iap_unknown_product'), {
+            endpoint: '/api/billing/verify', tags: { method: 'POST', uid },
+          });
+          return res.status(400).json({ error: 'unknown_product' });
+        }
         subscriptionLineItem = selectGooglePlayVerificationItem(data, productId, Date.now());
         resolvedPlan = planFromIapProductId(subscriptionLineItem.productId);
-        if (resolvedPlan === null) {
+        if (!Object.hasOwn(ALL_IAP_SKUS, subscriptionLineItem.productId) || resolvedPlan === null) {
           logger.error('iap_unknown_product', undefined, { uid, productId: subscriptionLineItem.productId, type });
           sentryCapture(new Error('iap_unknown_product'), {
             endpoint: '/api/billing/verify', tags: { method: 'POST', uid },
@@ -299,9 +309,13 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               const isActive =
                 data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
                 data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
+              const persisted = userDoc.data()?.subscription;
               const lineItem = selectGooglePlayRtdnItem(
-                data, userDoc.data()?.subscription?.productId, Date.now(),
-                (sku) => planFromIapProductId(sku) !== null,
+                data, persisted?.productId, Date.now(),
+                (sku) => Object.hasOwn(ALL_IAP_SKUS, sku),
+                (sku) => typeof persisted?.planId === 'string' && typeof persisted?.cycle === 'string'
+                  && planFromIapProductId(sku) === persisted.planId
+                  && cycleFromProductId(sku) === persisted.cycle,
               );
               const subscriptionId = lineItem.productId;
               const expiryDate = parseGooglePlayExpiryTime(lineItem.expiryTime);
