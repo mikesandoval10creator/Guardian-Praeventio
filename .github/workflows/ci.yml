@@ -85,6 +85,22 @@ jobs:
       - name: Verify src/types/roles.ts and firestore.rules agree
         run: node scripts/verify-roles-sync.cjs
 
+  readiness-matrix:
+    name: Readiness matrix evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Test evidence generation
+        run: npm run test:readiness-matrix
+      - name: Check both generated reports
+        run: npm run lint:readiness-matrix
+
   lint:
     # AUDIT-2026-06 B19 — CLAUDE.md afirmaba que CI corre lint, pero no
     # existía job (y `npm run lint` llevaba tiempo roto: el parser del
@@ -135,6 +151,9 @@ jobs:
         run: npm run test:express5-runtime && npm run typecheck:ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: MCP Node ESM build and startup regression
+        run: npm run test:mcp-build
 
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
