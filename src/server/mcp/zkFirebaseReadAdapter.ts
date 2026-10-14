@@ -21,7 +21,7 @@
  *   visibles para la cuenta del Admin SDK.
  */
 
-import type { ZkNodeRef, ZkReadAdapter } from '../../services/mcp/zettelkastenServer';
+import type { ZkNodeRef, ZkReadAdapter } from '../../services/mcp/zettelkastenServer.js';
 
 /**
  * Tipo estructural minimalista de Firestore Admin que necesitamos.

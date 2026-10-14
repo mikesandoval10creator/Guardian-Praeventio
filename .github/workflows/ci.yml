@@ -155,6 +155,9 @@ jobs:
       - name: MCP traversal read budget regressions
         run: npm run test:mcp-traversal
 
+      - name: MCP Node ESM build and startup regression
+        run: npm run test:mcp-build
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest

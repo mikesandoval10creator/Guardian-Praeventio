@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+dist-mcp/
 coverage/
 reports/
 tsconfig.tsbuildinfo

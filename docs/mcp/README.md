@@ -51,15 +51,18 @@ upstream para evitar que un MCP client lea tenants ajenos.
 ### 3. Build TypeScript
 
 El entrypoint es JavaScript puro pero importa los módulos
-TypeScript compilados de `dist/`:
+TypeScript compilados de `dist-mcp/`, independiente del build web:
 
 ```bash
 # Una sola vez antes de configurar Claude Desktop:
 npm run build:mcp
 ```
 
-(Si todavía no existe el script: corre `npx tsc -p tsconfig.mcp.json`
-o `tsx bin/mcp-server.mjs` para dev sin build previo.)
+`npm run mcp:start` y `npm run mcp:dev` compilan antes de arrancar.
+Para conectar un cliente por stdio usando npm, usa
+`npm --silent run mcp:start`: los banners de npm no deben llegar al
+canal JSON-RPC. La configuración con `node` de abajo evita esos banners;
+requiere ejecutar `npm run build:mcp` después de actualizar el código.
 
 ### 4. mcp.json (Claude Desktop)
 
