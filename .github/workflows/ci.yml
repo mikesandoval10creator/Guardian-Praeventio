@@ -131,8 +131,8 @@ jobs:
       - name: Install dependencies
         run: npm install -g npm@12 && npm ci --ignore-scripts
 
-      - name: TypeScript typecheck
-        run: npm run typecheck:ci
+      - name: Express runtime regressions and TypeScript typecheck
+        run: npm run test:express5-runtime && npm run typecheck:ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 

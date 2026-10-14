@@ -41,7 +41,7 @@ function makeApp() {
     res.type('application/json');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.sendFile(AASA_PATH);
+    res.sendFile(AASA_PATH, { dotfiles: 'allow' });
   });
   return app;
 }

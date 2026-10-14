@@ -1,11 +1,5 @@
 import express from "express";
-// express-async-errors monkeypatches Express 4 layer internals so that
-// async route handlers that throw (or reject) automatically forward the
-// error to next(err) → global error handler → clean 500.
-// MUST be imported right after express, before any router is constructed.
-// Without this, Express 4 silently hangs on async rejections (e.g. a
-// Firestore outage inside assertProjectMember on the SOS path).
-import 'express-async-errors';
+// Express 5 forwards rejected async handlers to the terminal error middleware.
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit
@@ -778,6 +772,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(
     path.resolve(process.cwd(), 'public/.well-known/apple-app-site-association'),
+    { dotfiles: 'allow' },
   );
 });
 // codeql[js/missing-rate-limiting] — static public file, 1h Cache-Control, no state/DB/auth; polling by Apple/Google validators is expected and cheap. Mounted above /api/ limiter by design.
@@ -787,6 +782,7 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(
     path.resolve(process.cwd(), 'public/.well-known/assetlinks.json'),
+    { dotfiles: 'allow' },
   );
 });
 
@@ -1614,7 +1610,7 @@ app.use('/api/sitebook', sitebookSignRouter);
 // (Vite middlewareMode handles the SPA in dev). #506 contract test
 // `serverMountOrder` enforces this ordering.
 if (process.env.NODE_ENV === "production") {
-  app.get('*', (_req, res) => {
+  app.get('/{*splat}', (_req, res) => {
     if (!INDEX_HTML_TEMPLATE) {
       return res.status(503).type('text/plain').send('SPA bundle missing');
     }

@@ -24,7 +24,6 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { request as httpRequest, type Server } from 'http';
 import type { AddressInfo } from 'net';
-import 'express-async-errors';
 
 // ── hoisted holder (mirrors emergency.sos.idempotency.test.ts) ──────────────
 const H = vi.hoisted(() => ({
