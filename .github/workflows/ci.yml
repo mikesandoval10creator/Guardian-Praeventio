@@ -162,7 +162,7 @@ jobs:
         run: npm run test:health-vault-retired-routes
 
       - name: Google Play expiry regressions
-        run: node --test scripts/google-play-expiry.test.mjs scripts/google-play-canceled-access.test.mjs
+        run: node --test scripts/google-play-expiry.test.mjs scripts/google-play-line-item.test.mjs scripts/google-play-canceled-access.test.mjs
 
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})

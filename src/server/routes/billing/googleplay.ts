@@ -147,9 +147,10 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         // paymentState/expiryTimeMillis de la v1 deprecada.
         const subData = data as {
           subscriptionState?: string | null;
-          lineItems?: Array<{ expiryTime?: string | null; latestSuccessfulOrderId?: string | null }> | null;
+          lineItems?: Array<{ productId?: string | null; expiryTime?: string | null; latestSuccessfulOrderId?: string | null }> | null;
         };
-        const lineItem = subData.lineItems?.[0];
+        const lineItem = subData.lineItems?.find((item) => item.productId === productId);
+        if (!lineItem) throw new Error('Google Play product mismatch');
         const expiryDate = parseGooglePlayExpiryTime(lineItem?.expiryTime);
         // subscriptionState ACTIVE = suscripción vigente (incluye prueba gratis
         // y gracia); GRACE_PERIOD se considera activa para no cortar el acceso
@@ -306,9 +307,11 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
 
               const data = verificationResult.data as {
                 subscriptionState?: string | null;
-                lineItems?: Array<{ expiryTime?: string | null }> | null;
+                lineItems?: Array<{ productId?: string | null; expiryTime?: string | null }> | null;
               };
-              const expiryDate = parseGooglePlayExpiryTime(data.lineItems?.[0]?.expiryTime);
+              const lineItem = data.lineItems?.find((item) => item.productId === subscriptionId);
+              if (!lineItem) throw new Error('Google Play product mismatch');
+              const expiryDate = parseGooglePlayExpiryTime(lineItem.expiryTime);
               const isActive =
                 data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
                 data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' ||
