@@ -153,62 +153,50 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
       .doc(projectId)
       .collection('knowledge_base');
 
-    const safeRead = async <T,>(
-      label: string,
-      fn: () => Promise<T[]>,
-    ): Promise<T[]> => {
-      try {
-        return await fn();
-      } catch (err) {
-        logger.warn?.(`knowledgeBase.read.${label}.failed`, err);
-        return [];
-      }
-    };
-
-    const projectEntries = await safeRead<KbDoc>('project', async () => {
-      const snap = await colRef.get();
-      return snap.docs.map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        return {
-          id: d.id,
-          kind: (typeof data.kind === 'string'
-            ? data.kind
-            : 'guide') as KbDoc['kind'],
-          title: typeof data.title === 'string' ? data.title : '',
-          content: typeof data.content === 'string' ? data.content : '',
-          tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-          lastReviewedAt:
-            typeof data.lastReviewedAt === 'string'
-              ? data.lastReviewedAt
-              : new Date(0).toISOString(),
-          viewCount:
-            typeof data.viewCount === 'number' &&
-            Number.isFinite(data.viewCount)
-              ? data.viewCount
-              : 0,
-          averageRating:
-            typeof data.averageRating === 'number'
-              ? data.averageRating
-              : undefined,
-          isObsolete: Boolean(data.isObsolete),
-          authorUid:
-            typeof data.authorUid === 'string'
-              ? data.authorUid
-              : 'unknown',
-          sourceType:
-            typeof data.sourceType === 'string'
-              ? (data.sourceType as KbDoc['sourceType'])
-              : 'experience',
-          obsoleteReason:
-            typeof data.obsoleteReason === 'string'
-              ? data.obsoleteReason
-              : undefined,
-          obsoleteAt:
-            typeof data.obsoleteAt === 'string'
-              ? data.obsoleteAt
-              : undefined,
-        };
-      });
+    // Let storage failures reach the route error boundary; an empty corpus
+    // is a successful read with no documents, not a fallback for failed reads.
+    const snap = await colRef.get();
+    const projectEntries = snap.docs.map((d): KbDoc => {
+      const data = d.data() as Record<string, unknown>;
+      return {
+        id: d.id,
+        kind: (typeof data.kind === 'string'
+          ? data.kind
+          : 'guide') as KbDoc['kind'],
+        title: typeof data.title === 'string' ? data.title : '',
+        content: typeof data.content === 'string' ? data.content : '',
+        tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+        lastReviewedAt:
+          typeof data.lastReviewedAt === 'string'
+            ? data.lastReviewedAt
+            : new Date(0).toISOString(),
+        viewCount:
+          typeof data.viewCount === 'number' &&
+          Number.isFinite(data.viewCount)
+            ? data.viewCount
+            : 0,
+        averageRating:
+          typeof data.averageRating === 'number'
+            ? data.averageRating
+            : undefined,
+        isObsolete: Boolean(data.isObsolete),
+        authorUid:
+          typeof data.authorUid === 'string'
+            ? data.authorUid
+            : 'unknown',
+        sourceType:
+          typeof data.sourceType === 'string'
+            ? (data.sourceType as KbDoc['sourceType'])
+            : 'experience',
+        obsoleteReason:
+          typeof data.obsoleteReason === 'string'
+            ? data.obsoleteReason
+            : undefined,
+        obsoleteAt:
+          typeof data.obsoleteAt === 'string'
+            ? data.obsoleteAt
+            : undefined,
+      };
     });
 
     let entries = projectEntries;
