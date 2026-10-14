@@ -76,6 +76,18 @@ export interface ZkFirebaseAdapterConfig {
 
 const DEFAULT_MAX_SUBGRAPH = 200;
 const DEFAULT_MAX_LIST = 100;
+const UTF8_ENCODER = new TextEncoder();
+
+// Connections may also be URI references. Only Firestore document IDs
+// can be used for reads within this tenant's immediate nodes collection.
+function isFirestoreNodeId(value: string): boolean {
+  return value.length > 0
+    && !value.includes('/')
+    && value !== '.' && value !== '..'
+    && !/^__.*__$/.test(value)
+    && !/[\uD800-\uDFFF]/u.test(value)
+    && UTF8_ENCODER.encode(value).byteLength <= 1500;
+}
 
 /**
  * Construye el adapter read-only contra Firestore Admin.
@@ -114,8 +126,7 @@ export function createZkFirebaseReadAdapter(
       tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
       connections: Array.isArray(data.connections)
         ? data.connections.filter(
-          (value: unknown): value is string =>
-            typeof value === 'string' && value.length > 0 && !value.includes('/'),
+          (value: unknown): value is string => typeof value === 'string',
         )
         : [],
       severity:
@@ -144,6 +155,7 @@ export function createZkFirebaseReadAdapter(
 
     async getNode(tenantId, nodeId) {
       assertTenantAllowed(tenantId);
+      if (!isFirestoreNodeId(nodeId)) throw new Error('zkFirebase: invalid node ID');
       const ref = nodesCollection(tenantId).doc(nodeId);
       const snap = await ref.get();
       if (!snap.exists) return null;
@@ -164,6 +176,7 @@ export function createZkFirebaseReadAdapter(
 
     async expandSubgraph(tenantId, rootNodeId, depth) {
       assertTenantAllowed(tenantId);
+      if (!isFirestoreNodeId(rootNodeId)) throw new Error('zkFirebase: invalid node ID');
       const cappedDepth = Math.max(0, Math.min(depth, 5));
       const visited = new Map<string, ZkNodeRef>();
       const queue: Array<{ id: string; depthLeft: number }> = [
@@ -185,6 +198,7 @@ export function createZkFirebaseReadAdapter(
 
         if (depthLeft > 0) {
           for (const connId of node.connections) {
+            if (!isFirestoreNodeId(connId)) continue;
             if (scheduled.size >= maxSubgraph) break;
             if (!scheduled.has(connId)) {
               scheduled.add(connId);
