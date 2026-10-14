@@ -86,7 +86,10 @@ export function createZkFirebaseReadAdapter(
 ): ZkReadAdapter {
   const tenants = Array.from(new Set(config.accessibleTenants ?? []));
   const maxSubgraph = config.maxSubgraphNodes ?? DEFAULT_MAX_SUBGRAPH;
-  const maxList = config.maxListNodes ?? DEFAULT_MAX_LIST;
+  const rawMaxList = config.maxListNodes;
+  const maxList = typeof rawMaxList === 'number' && Number.isFinite(rawMaxList)
+    ? Math.max(1, Math.floor(rawMaxList))
+    : DEFAULT_MAX_LIST;
 
   function assertTenantAllowed(tenantId: string): void {
     if (!tenants.includes(tenantId)) {
@@ -153,7 +156,10 @@ export function createZkFirebaseReadAdapter(
       if (filter.projectId) q = q.where('projectId', '==', filter.projectId);
       if (filter.type) q = q.where('type', '==', filter.type);
       if (filter.severity) q = q.where('severity', '==', filter.severity);
-      const lim = Math.min(filter.limit ?? maxList, maxList);
+      const rawLimit = filter.limit;
+      const lim = typeof rawLimit === 'number' && Number.isFinite(rawLimit)
+        ? Math.min(maxList, Math.max(1, Math.floor(rawLimit)))
+        : maxList;
       q = q.limit(lim);
       const result = await q.get();
       return result.docs.map(snapshotToNode);
