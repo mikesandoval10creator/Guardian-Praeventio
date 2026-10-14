@@ -34,6 +34,8 @@ import {
   type ExpirationKind,
   type ExpirationSeverity,
 } from '../../services/expirations/expirationScanner.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -104,7 +106,7 @@ router.post(
   validate(scanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scanSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -139,7 +141,7 @@ router.post(
   validate(buildPayloadSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildPayloadSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -170,7 +172,7 @@ const EPP_SCAN_LIMIT = 500;
 
 router.get('/:projectId/expirations/list', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   if (!(await guard(callerUid, projectId, res))) return undefined;
 

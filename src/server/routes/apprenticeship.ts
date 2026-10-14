@@ -27,6 +27,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -116,7 +118,7 @@ async function guard(
 
 router.get('/:projectId/apprentices', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
@@ -153,7 +155,7 @@ router.post(
   validate(registerSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!projectId) return res.status(400).json({ error: 'project_id_required' });
     const body = req.body as z.infer<typeof registerSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -239,7 +241,7 @@ router.post(
   validate(authorizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, uid } = req.params;
+    const { projectId, uid } = scalarRouteParams(req.params);
     if (!projectId || !uid) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof authorizeSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -377,7 +379,7 @@ router.post(
   validate(exposeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, uid } = req.params;
+    const { projectId, uid } = scalarRouteParams(req.params);
     if (!projectId || !uid) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof exposeSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -446,7 +448,7 @@ router.post(
 
 router.get('/:projectId/mentors/availability', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;

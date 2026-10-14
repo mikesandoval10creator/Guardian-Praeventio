@@ -46,6 +46,8 @@ import {
   type OverrideInput,
   type OverrideAuditEntry,
 } from '../../services/softBlocking/requirementGate.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -140,7 +142,7 @@ router.post(
   validate(evalSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evalSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -175,7 +177,7 @@ router.post(
   validate(validateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -212,7 +214,7 @@ router.post(
   validate(buildAuditSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildAuditSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -268,7 +270,7 @@ router.post(
   validate(validitySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validitySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

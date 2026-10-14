@@ -35,6 +35,8 @@ import { collectEvents } from '../../services/telemetry/eventCollector.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -95,7 +97,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const window = parseWindow(req.query.window) ?? '7d';
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -126,7 +128,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { tenantId } = req.params;
+    const { tenantId } = scalarRouteParams(req.params);
     const window = parseWindow(req.query.window) ?? '7d';
     const projectsRaw =
       typeof req.query.projects === 'string' ? req.query.projects : '';

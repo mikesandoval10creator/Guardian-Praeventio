@@ -37,6 +37,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -150,7 +152,7 @@ router.post(
   ),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as {
       itemId: string;
       kind: z.infer<typeof qrSignatureKindEnum>;
@@ -234,7 +236,7 @@ router.post(
   ),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as {
       challengeId: string;
       workerUid: string;

@@ -33,6 +33,8 @@ import {
   explainBatch,
   partitionByActionability,
 } from '../../services/explainability/recommendationExplainer.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -94,7 +96,7 @@ router.post(
   validate(singleSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof singleSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -114,7 +116,7 @@ router.post(
   validate(batchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof batchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

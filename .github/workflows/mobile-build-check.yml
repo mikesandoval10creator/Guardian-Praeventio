@@ -51,4 +51,4 @@ jobs:
       - name: Store configuration check
         run: npm run guard:store-build
       - name: Compile native Android and run native unit tests
-        run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon
+        run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon --stacktrace

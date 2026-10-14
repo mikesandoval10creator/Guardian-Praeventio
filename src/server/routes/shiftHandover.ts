@@ -55,6 +55,8 @@ import { computeHandoverQuality } from "../../services/shiftHandover/shiftHandov
 import { auditServerEvent } from "../middleware/auditLog.js";
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -161,7 +163,7 @@ router.post(
   validate(startSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof startSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -197,7 +199,7 @@ router.post(
   validate(logEntryRouteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof logEntryRouteSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -231,7 +233,7 @@ router.post(
   validate(addNoteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof addNoteSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -259,7 +261,7 @@ router.post(
   validate(endSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof endSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -290,7 +292,7 @@ router.post(
   validate(acknowledgeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof acknowledgeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -318,7 +320,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -344,7 +346,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const daysRaw = Number(req.query.days ?? 30);
@@ -392,7 +394,7 @@ router.post(
   validate(discrepancySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, shiftId } = req.params;
+    const { projectId, shiftId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const body = req.body as z.infer<typeof discrepancySchema>;

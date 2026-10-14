@@ -37,6 +37,8 @@ import {
   shouldEscalateObservation,
   type AccreditationObservation,
 } from '../../services/vendorOnboarding/vendorAccreditationTracker.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -150,7 +152,7 @@ router.post(
   validate(evaluateStageSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateStageSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -184,7 +186,7 @@ router.post(
   validate(missingMandatorySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, vendorId } = req.params;
+    const { projectId, vendorId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof missingMandatorySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -218,7 +220,7 @@ router.post(
   validate(buildBundleSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildBundleSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -250,7 +252,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, vendorId } = req.params;
+    const { projectId, vendorId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -280,7 +282,7 @@ router.post(
   validate(escalateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof escalateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

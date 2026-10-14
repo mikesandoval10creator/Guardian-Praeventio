@@ -50,6 +50,8 @@ import {
   type AuditEvent,
   type AppendInput,
 } from '../../services/audit/tamperProofChain.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -102,7 +104,7 @@ router.post(
   validate(appendSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof appendSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -139,7 +141,7 @@ router.post(
   validate(chainBodySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof chainBodySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -163,7 +165,7 @@ router.post(
   validate(chainBodySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof chainBodySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -187,7 +189,7 @@ router.post(
   validate(chainBodySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof chainBodySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

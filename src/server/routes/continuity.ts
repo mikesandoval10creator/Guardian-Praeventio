@@ -40,6 +40,8 @@ import {
   type ScenarioInput,
   type SkillMatrix,
 } from '../../services/continuity/continuityPlanning.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -98,7 +100,7 @@ router.post(
   validate(detectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof detectSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -142,7 +144,7 @@ router.post(
   validate(simulateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof simulateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -175,7 +177,7 @@ router.post(
   validate(polyvalenceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof polyvalenceSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

@@ -39,6 +39,8 @@ import {
   DocumentVersioningAdapter,
   DocumentVersionImmutabilityViolation,
 } from '../../services/documents/documentVersioningFirestoreAdapter.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -80,7 +82,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, documentId } = req.params;
+    const { projectId, documentId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -104,7 +106,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, documentId } = req.params;
+    const { projectId, documentId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -139,7 +141,7 @@ router.post(
   validate(createVersionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, documentId } = req.params;
+    const { projectId, documentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createVersionSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -212,7 +214,7 @@ router.post(
   validate(statusTransitionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, documentId, versionId } = req.params;
+    const { projectId, documentId, versionId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof statusTransitionSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -271,7 +273,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, documentId } = req.params;
+    const { projectId, documentId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {

@@ -52,6 +52,8 @@ import {
   type Ds67AnnualPeriodWindow,
   type Ds67SimulationInput,
 } from '../../services/compliance/ds67Simulator.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -214,7 +216,7 @@ async function aggregateIncidentsByWindow(
 
 router.get('/:projectId/ds67/simulator/prefill', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   if (!(await guard(callerUid, projectId, res))) return undefined;
   try {
@@ -272,7 +274,7 @@ router.post(
   validate(simulateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof simulateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

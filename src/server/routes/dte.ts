@@ -64,6 +64,8 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
 import { getAuth } from 'firebase-admin/auth';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 function dteSentryCapture(
   err: unknown,
@@ -334,7 +336,7 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
   if (!(await isCallerDteAdmin(req))) {
     return res.status(404).json({ error: 'dte_not_found' });
   }
-  const folio = req.params.folio;
+  const folio = scalarRouteParams(req.params).folio;
   if (!folio) {
     return res.status(400).json({ error: 'folio_required' });
   }
@@ -370,7 +372,7 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
 // or, worse, accept it and the empresa ends up with duplicate NC.
 dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return undefined;
-  const folioRaw = req.params.folio;
+  const folioRaw = scalarRouteParams(req.params).folio;
   const folio = Number.parseInt(folioRaw ?? '', 10);
   if (!Number.isFinite(folio) || folio <= 0) {
     return res.status(400).json({ error: 'invalid_folio' });

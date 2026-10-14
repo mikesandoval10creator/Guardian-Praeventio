@@ -68,6 +68,8 @@ import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 function sentryCapture(
   err: unknown,
@@ -469,7 +471,7 @@ projectsRouter.post('/', verifyAuth, async (req, res) => {
 
 // POST /api/projects/:id/invite  — project creator sends an invitation
 projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
+  const projectId = scalarRouteParams(req.params).id;
   const callerUid = req.user!.uid;
   const { invitedEmail, invitedRole } = req.body;
 
@@ -673,7 +675,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
 
 // GET /api/projects/:id/members  — list members with display info and roles
 projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
+  const projectId = scalarRouteParams(req.params).id;
   const callerUid = req.user!.uid;
 
   try {
@@ -750,7 +752,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
 // user account; account-level erasure (Ley 21.719 / GDPR right to be forgotten)
 // is a separate, dedicated flow (accountRouter /anonymize), not this endpoint.
 projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, res) => {
-  const { id: projectId, workerId } = req.params;
+  const { id: projectId, workerId } = scalarRouteParams(req.params);
   const callerUid = req.user!.uid;
 
   try {
@@ -815,7 +817,7 @@ projectsRouter.post('/:id/workers/:workerId/archive', verifyAuth, async (req, re
 // worker's authenticated account from the roster's verified email, then require
 // that UID to be an actual member before any closure write.
 projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, res) => {
-  const { id: projectId, workerId } = req.params;
+  const { id: projectId, workerId } = scalarRouteParams(req.params);
   const callerUid = req.user!.uid;
   const db = getFirestore();
   const workerRef = db.collection('projects').doc(projectId).collection('workers').doc(workerId);
@@ -962,7 +964,7 @@ projectsRouter.post('/:id/members/:workerId/offboard', verifyAuth, async (req, r
 
 // DELETE /api/projects/:id/members/:uid  — remove a member
 projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
-  const { id: projectId, uid: targetUid } = req.params;
+  const { id: projectId, uid: targetUid } = scalarRouteParams(req.params);
   const callerUid = req.user!.uid;
 
   try {
@@ -1022,7 +1024,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
 
 // DELETE /api/projects/:id/invite  — project creator cancels a pending invitation
 projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
+  const projectId = scalarRouteParams(req.params).id;
   const callerUid = req.user!.uid;
   const { inviteId } = req.body;
 
@@ -1077,7 +1079,7 @@ export const invitationsRouter = Router();
 
 // GET /api/invitations/info/:token  — public, returns safe invite preview (no auth required)
 invitationsRouter.get('/info/:token', async (req, res) => {
-  const { token } = req.params;
+  const { token } = scalarRouteParams(req.params);
   try {
     const snapshot = await getFirestore()
       .collection('invitations')
@@ -1105,7 +1107,7 @@ invitationsRouter.get('/info/:token', async (req, res) => {
 
 // POST /api/invitations/:token/accept  — invited user accepts
 invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
-  const { token } = req.params;
+  const { token } = scalarRouteParams(req.params);
   const callerUid = req.user!.uid;
   const callerEmail = req.user!.email;
   // Optional client-supplied projectId — when present it MUST match the

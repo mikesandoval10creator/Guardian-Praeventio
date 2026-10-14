@@ -45,6 +45,8 @@ import {
 import { TIER_IDS } from '../../services/pricing/tiers.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -87,7 +89,7 @@ router.post(
   validate(estimateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof estimateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -119,7 +121,7 @@ router.post(
   validate(compareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof compareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -152,7 +154,7 @@ router.post(
   validate(breakEvenSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof breakEvenSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

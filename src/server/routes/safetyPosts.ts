@@ -37,6 +37,8 @@ import {
 import { moderatePostContent } from '../../utils/contentModeration.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -63,7 +65,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email ?? null;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createPostSchema>;
 
     // 1. Assert project membership

@@ -56,6 +56,8 @@ import {
   type CustodyEvent,
   CustodyValidationError,
 } from '../../services/evidenceChain/custodyChainService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -182,7 +184,7 @@ function pruneUndefined<T extends object>(obj: T): T {
 // be mistaken for an artifact hash by the `/evidence/:hash` route above.
 router.get('/:projectId/evidence-by-node/:nodeId', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, nodeId } = req.params;
+  const { projectId, nodeId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -205,7 +207,7 @@ router.get('/:projectId/evidence-by-node/:nodeId', verifyAuth, async (req, res) 
 // ── GET (artifact + chain) ───────────────────────────────────────────
 router.get('/:projectId/evidence/:hash', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, hash } = req.params;
+  const { projectId, hash } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -228,7 +230,7 @@ router.get('/:projectId/evidence/:hash', verifyAuth, async (req, res) => {
 // ── POST register ────────────────────────────────────────────────────
 router.post('/:projectId/evidence', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = registerSchema.safeParse(req.body);
@@ -284,7 +286,7 @@ router.post('/:projectId/evidence', verifyAuth, async (req, res) => {
 // ── POST replace (chain-preserving) ──────────────────────────────────
 router.post('/:projectId/evidence/:hash/replace', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, hash } = req.params;
+  const { projectId, hash } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = replaceSchema.safeParse(req.body);
@@ -332,7 +334,7 @@ router.post('/:projectId/evidence/:hash/replace', verifyAuth, async (req, res) =
 // ── POST access (read-access trail) ──────────────────────────────────
 router.post('/:projectId/evidence/:hash/access', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, hash } = req.params;
+  const { projectId, hash } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = accessSchema.safeParse(req.body ?? {});
@@ -374,7 +376,7 @@ router.post('/:projectId/evidence/:hash/access', verifyAuth, async (req, res) =>
 // ── POST export (export trail) ───────────────────────────────────────
 router.post('/:projectId/evidence/:hash/export', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, hash } = req.params;
+  const { projectId, hash } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = exportSchema.safeParse(req.body);

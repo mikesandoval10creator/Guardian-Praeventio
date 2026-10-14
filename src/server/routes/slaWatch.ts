@@ -33,6 +33,8 @@ import {
   incidentDocsToWorkflowItems,
   type RawIncidentDoc,
 } from '../../services/escalation/incidentSlaMapper.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -122,7 +124,7 @@ router.get(
   validate(paramsSchema, 'params'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     try {

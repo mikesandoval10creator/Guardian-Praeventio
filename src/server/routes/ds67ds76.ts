@@ -66,6 +66,8 @@ import {
   attachComplianceSignatureAtomically,
   persistComplianceDigestAtomically,
 } from '../services/firestoreComplianceDocument.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -328,7 +330,7 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
   if (tenantId === null) return;
   try {
     const formStore = buildDs67FormStore();
-    const form = await formStore.loadForm(tenantId, req.params.formId);
+    const form = await formStore.loadForm(tenantId, scalarRouteParams(req.params).formId);
     if (!form) return res.status(404).json({ error: 'not_found' });
     const bytes = generateDs67Pdf(form);
     // Oleada 2 — Ley 21.719 (Chile) requiere trazabilidad de acceso a
@@ -337,7 +339,7 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
     const auditOk = await auditServerEvent(req, 'compliance.ds67_pdf_read', 'compliance', {
       folio: form.folio,
       tenantId,
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
     });
     if (!auditOk) {
       captureRouteError(new Error('audit_write_failed'), 'ds67.pdf.audit', {
@@ -371,9 +373,9 @@ router.get('/ds67/:formId/sign-challenge', verifyAuth, async (req, res) => {
     const { buildWebAuthnDb } = await import('./curriculum.js');
     const challengesDb = buildWebAuthnDb();
     const issued = await issueComplianceWebAuthnChallenge({
-      uid: callerUid, tenantId, formId: req.params.formId, documentKind: 'ds67',
+      uid: callerUid, tenantId, formId: scalarRouteParams(req.params).formId, documentKind: 'ds67',
     }, {
-      documents: buildDs67SigningDocuments(tenantId, req.params.formId),
+      documents: buildDs67SigningDocuments(tenantId, scalarRouteParams(req.params).formId),
       resolveSigner: resolveRouteSigner,
       newChallengeId: () => generateWebAuthnChallenge().challengeId,
       storeChallenge: (uid, challengeId, challenge, options) =>
@@ -386,26 +388,26 @@ router.get('/ds67/:formId/sign-challenge', verifyAuth, async (req, res) => {
     // emitidos pero nunca consumidos (posible DoS o abandono).
     const auditOk = await auditServerEvent(req, 'compliance.ds67_challenge_issued', 'compliance', {
       tenantId,
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       challengeId: issued.challengeId,
     });
     if (!auditOk) {
       captureRouteError(new Error('audit_write_failed'), 'ds67.challenge.audit', {
         audit_event: 'compliance.ds67_challenge_issued',
         tenantId,
-        formId: req.params.formId,
+        formId: scalarRouteParams(req.params).formId,
       });
     }
     res.json({
       challengeId: issued.challengeId,
       challenge: Buffer.from(issued.challenge).toString('base64'),
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       payloadHashHex: issued.intent.payloadHashHex,
       rpId: getWebauthnRpId(),
     });
   } catch (err) {
     logger.warn('ds67_sign_challenge_failed', {
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
     });
     if (err instanceof ComplianceSigningFlowError || err instanceof ComplianceSignerIdentityError) {
@@ -430,10 +432,10 @@ router.post(
     const callerUid = req.user!.uid;
     try {
       const signature = await completeComplianceWebAuthnSigning({
-        uid: callerUid, tenantId, formId: req.params.formId,
+        uid: callerUid, tenantId, formId: scalarRouteParams(req.params).formId,
         documentKind: 'ds67', assertion: webauthnAssertion,
       }, {
-        documents: buildDs67SigningDocuments(tenantId, req.params.formId),
+        documents: buildDs67SigningDocuments(tenantId, scalarRouteParams(req.params).formId),
         resolveSigner: resolveRouteSigner,
         verifyAssertion: async (validateMetadata) => {
           const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
@@ -451,20 +453,20 @@ router.post(
       });
       const updated = await signDs67Form(
         tenantId,
-        req.params.formId,
+        scalarRouteParams(req.params).formId,
         signature as Ds67Signature,
         { formStore: buildDs67FormStore() },
       );
       const auditOk = await auditServerEvent(req, 'compliance.ds67_signed', 'compliance', {
         tenantId,
-        formId: req.params.formId,
+        formId: scalarRouteParams(req.params).formId,
         algorithm: signature.algorithm,
         webauthnVerified: true,
       });
       if (!auditOk) {
         captureRouteError(new Error('audit_write_failed'), 'ds67.audit', {
           audit_event: 'compliance.ds67_signed',
-          formId: req.params.formId,
+          formId: scalarRouteParams(req.params).formId,
         });
       }
       return res.json({ form: updated });
@@ -522,7 +524,7 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
   if (tenantId === null) return;
   try {
     const formStore = buildDs76FormStore();
-    const form = await formStore.loadForm(tenantId, req.params.formId);
+    const form = await formStore.loadForm(tenantId, scalarRouteParams(req.params).formId);
     if (!form) return res.status(404).json({ error: 'not_found' });
     const bytes = generateDs76Pdf(form);
     // Oleada 2 — Ley 21.719 (Chile) requiere trazabilidad de acceso a
@@ -531,7 +533,7 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
     const auditOk = await auditServerEvent(req, 'compliance.ds76_pdf_read', 'compliance', {
       folio: form.folio,
       tenantId,
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
     });
     if (!auditOk) {
       captureRouteError(new Error('audit_write_failed'), 'ds76.pdf.audit', {
@@ -563,9 +565,9 @@ router.get('/ds76/:formId/sign-challenge', verifyAuth, async (req, res) => {
     const { buildWebAuthnDb } = await import('./curriculum.js');
     const challengesDb = buildWebAuthnDb();
     const issued = await issueComplianceWebAuthnChallenge({
-      uid: callerUid, tenantId, formId: req.params.formId, documentKind: 'ds76',
+      uid: callerUid, tenantId, formId: scalarRouteParams(req.params).formId, documentKind: 'ds76',
     }, {
-      documents: buildDs76SigningDocuments(tenantId, req.params.formId),
+      documents: buildDs76SigningDocuments(tenantId, scalarRouteParams(req.params).formId),
       resolveSigner: resolveRouteSigner,
       newChallengeId: () => generateWebAuthnChallenge().challengeId,
       storeChallenge: (uid, challengeId, challenge, options) =>
@@ -578,26 +580,26 @@ router.get('/ds76/:formId/sign-challenge', verifyAuth, async (req, res) => {
     // emitidos pero nunca consumidos.
     const auditOk = await auditServerEvent(req, 'compliance.ds76_challenge_issued', 'compliance', {
       tenantId,
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       challengeId: issued.challengeId,
     });
     if (!auditOk) {
       captureRouteError(new Error('audit_write_failed'), 'ds76.challenge.audit', {
         audit_event: 'compliance.ds76_challenge_issued',
         tenantId,
-        formId: req.params.formId,
+        formId: scalarRouteParams(req.params).formId,
       });
     }
     res.json({
       challengeId: issued.challengeId,
       challenge: Buffer.from(issued.challenge).toString('base64'),
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       payloadHashHex: issued.intent.payloadHashHex,
       rpId: getWebauthnRpId(),
     });
   } catch (err) {
     logger.warn('ds76_sign_challenge_failed', {
-      formId: req.params.formId,
+      formId: scalarRouteParams(req.params).formId,
       reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
     });
     if (err instanceof ComplianceSigningFlowError || err instanceof ComplianceSignerIdentityError) {
@@ -622,10 +624,10 @@ router.post(
     const callerUid = req.user!.uid;
     try {
       const signature = await completeComplianceWebAuthnSigning({
-        uid: callerUid, tenantId, formId: req.params.formId,
+        uid: callerUid, tenantId, formId: scalarRouteParams(req.params).formId,
         documentKind: 'ds76', assertion: webauthnAssertion,
       }, {
-        documents: buildDs76SigningDocuments(tenantId, req.params.formId),
+        documents: buildDs76SigningDocuments(tenantId, scalarRouteParams(req.params).formId),
         resolveSigner: resolveRouteSigner,
         verifyAssertion: async (validateMetadata) => {
           const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
@@ -643,20 +645,20 @@ router.post(
       });
       const updated = await signDs76Form(
         tenantId,
-        req.params.formId,
+        scalarRouteParams(req.params).formId,
         signature as Ds76Signature,
         { formStore: buildDs76FormStore() },
       );
       const auditOk = await auditServerEvent(req, 'compliance.ds76_signed', 'compliance', {
         tenantId,
-        formId: req.params.formId,
+        formId: scalarRouteParams(req.params).formId,
         algorithm: signature.algorithm,
         webauthnVerified: true,
       });
       if (!auditOk) {
         captureRouteError(new Error('audit_write_failed'), 'ds76.audit', {
           audit_event: 'compliance.ds76_signed',
-          formId: req.params.formId,
+          formId: scalarRouteParams(req.params).formId,
         });
       }
       return res.json({ form: updated });

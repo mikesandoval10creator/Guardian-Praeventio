@@ -38,6 +38,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -121,7 +123,7 @@ interface StoredInspection {
 
 router.get('/:projectId/inspections', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -216,7 +218,7 @@ router.post(
   validate(inspectionStartSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof inspectionStartSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -283,7 +285,7 @@ router.post(
   validate(inspectionObservationSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, inspectionId } = req.params;
+    const { projectId, inspectionId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof inspectionObservationSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -442,7 +444,7 @@ router.post(
   validate(inspectionCompleteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, inspectionId } = req.params;
+    const { projectId, inspectionId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof inspectionCompleteSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

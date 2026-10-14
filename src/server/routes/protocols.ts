@@ -60,6 +60,8 @@ import {
   evaluatePlanesi,
   type PlanesiInput,
 } from '../../services/protocols/planesi.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -98,7 +100,7 @@ router.post(
   validate(iperSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof iperSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -132,7 +134,7 @@ router.post(
   validate(prexorSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof prexorSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -175,7 +177,7 @@ router.post(
   validate(tmertSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof tmertSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -215,7 +217,7 @@ router.post(
   validate(planesiSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof planesiSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -348,7 +350,7 @@ router.post(
   validate(tmertAssessmentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof tmertAssessmentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -386,7 +388,7 @@ router.post(
   validate(prexorAssessmentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof prexorAssessmentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -424,7 +426,7 @@ router.post(
   validate(planesiAssessmentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof planesiAssessmentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -465,7 +467,7 @@ router.post(
 
 router.get('/:projectId/protocols/assessments', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guard(callerUid, projectId, res))) return undefined;
 
   const rawProtocol = req.query.protocol;

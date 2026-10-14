@@ -14,6 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import request from 'supertest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +37,8 @@ const AASA_PATH = path.resolve(
 // mocks Firebase). Aquí verificamos el contrato HTTP/heredoc del AASA.
 function makeApp() {
   const app = express();
-  // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
+  // Bound filesystem-serving requests in this standalone HTTP test harness.
+  app.use(rateLimit({ windowMs: 1000, limit: 1000, standardHeaders: false, legacyHeaders: false }));
   app.get('/.well-known/apple-app-site-association', (_req, res) => {
     res.type('application/json');
     res.setHeader('X-Content-Type-Options', 'nosniff');

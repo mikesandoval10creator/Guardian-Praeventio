@@ -60,6 +60,8 @@ import {
   type ObligationKind,
   type RecurrencePattern,
 } from '../../services/legalCalendar/legalObligationsCalendar.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -197,7 +199,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const days = Math.max(
       1,
@@ -232,7 +234,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const rows = await loadProjectObligations(projectId);
@@ -271,7 +273,7 @@ router.post(
   validate(acknowledgeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof acknowledgeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const db = getFirestore();
@@ -340,7 +342,7 @@ router.post(
   validate(snoozeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof snoozeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const db = getFirestore();
@@ -426,7 +428,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const db = getFirestore();

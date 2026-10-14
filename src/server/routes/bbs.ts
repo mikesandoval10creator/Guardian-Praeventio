@@ -49,6 +49,8 @@ import {
   type ObservationCategory,
   type BehaviorOutcome,
 } from '../../services/behaviorObservation/bbsObservationEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -133,7 +135,7 @@ router.post(
   validate(recordSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recordSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -228,7 +230,7 @@ router.post(
   validate(profileSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof profileSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -269,7 +271,7 @@ router.get(
   validate(profileQuerySchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const { days } = req.validated as z.infer<typeof profileQuerySchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

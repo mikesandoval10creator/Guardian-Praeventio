@@ -36,6 +36,8 @@ import {
   type SupplierRecord,
   type ScoredSupplier,
 } from '../../services/suppliers/supplierScoring.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -302,7 +304,7 @@ const supplierListQuerySchema = z.object({
 
 router.get('/:projectId/suppliers', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const parsed = supplierListQuerySchema.safeParse({
     riskLevel:
       typeof req.query.riskLevel === 'string'
@@ -360,7 +362,7 @@ router.post(
   validate(supplierCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof supplierCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -410,7 +412,7 @@ router.post(
   validate(supplierIncidentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof supplierIncidentSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -470,7 +472,7 @@ router.post(
   validate(supplierAuditSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof supplierAuditSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -520,7 +522,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {

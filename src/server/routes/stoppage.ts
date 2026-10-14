@@ -69,6 +69,8 @@ import { PositiveObservationsAdapter } from '../../services/positiveObservations
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -189,7 +191,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerRole = req.user!.role ?? 'worker';
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof declareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -246,7 +248,7 @@ router.post(
   validate(markPreconditionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof markPreconditionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -315,7 +317,7 @@ router.post(
     const callerUid = req.user!.uid;
     // Server-authoritative role: from the VERIFIED token claim, never the body.
     const callerRole = req.user!.role ?? 'worker';
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof resumeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     // Only an approver role can lift a stoppage. A worker holds stop-work
@@ -439,7 +441,7 @@ router.post(
   validate(cancelSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof cancelSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -469,7 +471,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -534,7 +536,7 @@ router.post(
     // by verifyAuth — never from the request body (a body role would let any
     // member self-promote into verdict authority).
     const callerRole = req.user!.role ?? 'worker';
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof resolveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!isApproverRole(callerRole)) {

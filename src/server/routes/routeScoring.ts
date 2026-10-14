@@ -28,6 +28,8 @@ import {
 import { evaluateDriverRoute } from '../../services/routeScoring/driverRouteMatcher.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -96,7 +98,7 @@ router.post(
   validate(buildProfileSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildProfileSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -141,7 +143,7 @@ router.post(
   validate(evaluateDriverSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateDriverSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

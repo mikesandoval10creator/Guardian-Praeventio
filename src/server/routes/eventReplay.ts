@@ -44,6 +44,8 @@ import {
   type ReplayQuery,
   type ReplayResult,
 } from '../../services/eventReplay/eventReplayAuditTool.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -115,7 +117,7 @@ router.post(
   validate(executeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof executeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -171,7 +173,7 @@ router.post(
   validate(diffSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof diffSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -200,7 +202,7 @@ router.post(
   validate(exportSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof exportSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

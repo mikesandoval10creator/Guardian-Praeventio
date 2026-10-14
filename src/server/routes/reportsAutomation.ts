@@ -39,6 +39,8 @@ import {
   type RenderInputs,
   type DueReportInput,
 } from '../../services/reportsAutomation/reportsAutomation.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -96,7 +98,7 @@ router.post(
   validate(validateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -129,7 +131,7 @@ router.post(
   validate(renderSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof renderSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -162,7 +164,7 @@ router.post(
   validate(checkDueSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof checkDueSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

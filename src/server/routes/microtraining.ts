@@ -37,6 +37,8 @@ import {
   MicrotrainingAdapter,
   buildCertFromSession,
 } from '../../services/microtraining/microtrainingFirestoreAdapter.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -85,7 +87,7 @@ const RISK_CATEGORIES: readonly RiskCategory[] = [
 
 router.get('/:projectId/microtraining/catalog', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   return res.json({ modules: MICROTRAINING_CATALOG, passThreshold: PASS_THRESHOLD });
@@ -96,7 +98,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const workerUid =
       typeof req.query.workerUid === 'string' && req.query.workerUid.length > 0
         ? req.query.workerUid
@@ -156,7 +158,7 @@ router.post(
   validate(sessionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof sessionSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -219,7 +221,7 @@ router.post(
 
 router.get('/:projectId/microtraining/certs', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const workerUid =
     typeof req.query.workerUid === 'string' && req.query.workerUid.length > 0
       ? req.query.workerUid

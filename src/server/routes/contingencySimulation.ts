@@ -50,6 +50,8 @@ import {
   evaluateTabletop,
   type TabletopAttempt,
 } from '../../services/contingencySimulation/tabletopExerciseEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -130,7 +132,7 @@ router.post(
   validate(buildScenarioSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildScenarioSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -161,7 +163,7 @@ router.post(
   validate(listScenariosSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof listScenariosSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -187,7 +189,7 @@ router.post(
   validate(countTemplatesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const count = countAvailableTemplates();
@@ -230,7 +232,7 @@ router.post(
   validate(evaluateTabletopSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateTabletopSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

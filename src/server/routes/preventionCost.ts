@@ -49,6 +49,8 @@ import {
   type PreventionROIEstimate,
   type IncompletionKind,
 } from '../../services/costCalculator/preventionCostCalculator.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -276,7 +278,7 @@ router.post(
   validate(simulateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as SimulateBody;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -322,7 +324,7 @@ router.post(
   validate(saveScenarioSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof saveScenarioSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -370,7 +372,7 @@ router.post(
 
 router.get('/:projectId/cost/scenarios', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {

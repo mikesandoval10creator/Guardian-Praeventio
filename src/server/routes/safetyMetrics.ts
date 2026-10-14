@@ -61,6 +61,8 @@ import {
   classifyIncidents,
   type RawIncidentDoc,
 } from '../../services/safetyMetrics/classifyIncidents.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -145,7 +147,7 @@ router.post(
   validate(buildReportSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildReportSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -175,7 +177,7 @@ router.post(
   validate(compareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof compareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -221,7 +223,7 @@ router.post(
   validate(analyzeTrendSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof analyzeTrendSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -271,7 +273,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof exposureCaptureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -438,7 +440,7 @@ router.get(
   validate(reportQuerySchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const { period } = req.validated as z.infer<typeof reportQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -519,7 +521,7 @@ router.get(
   validate(trendQuerySchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const { period, months } = req.validated as z.infer<typeof trendQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -598,7 +600,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const db = getFirestore();

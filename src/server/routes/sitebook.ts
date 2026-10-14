@@ -29,6 +29,8 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -77,7 +79,7 @@ async function resolveTenantId(
 
 router.get('/:projectId/entries', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const yearParam = req.query.year;
   const year =
     typeof yearParam === 'string' ? Number.parseInt(yearParam, 10) : new Date().getFullYear();
@@ -105,7 +107,7 @@ router.get('/:projectId/entries', verifyAuth, async (req, res) => {
 
 router.get('/:projectId/entry/:folio', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, folio } = req.params;
+  const { projectId, folio } = scalarRouteParams(req.params);
 
   try {
     await assertProjectMember(callerUid, projectId, getFirestore());
@@ -132,7 +134,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerRole = req.user!.role ?? 'worker';
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createEntrySchema>;
 
     try {

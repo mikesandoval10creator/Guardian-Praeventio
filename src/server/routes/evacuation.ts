@@ -31,6 +31,8 @@ import {
   buildPostmortem,
   type EvacuationDrill,
 } from '../../services/evacuation/evacuationHeadcount.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -91,7 +93,7 @@ router.post(
   validate(statusSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof statusSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -125,7 +127,7 @@ router.post(
   validate(scanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scanSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -157,7 +159,7 @@ router.post(
   validate(endSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof endSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -185,7 +187,7 @@ router.post(
   validate(postmortemSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof postmortemSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

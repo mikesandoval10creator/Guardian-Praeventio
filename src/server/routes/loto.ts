@@ -42,6 +42,8 @@ import {
   type LotoApplication,
   type LotoLockPoint,
 } from '../../services/loto/lotoDigitalLight.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -115,7 +117,7 @@ const verifySchema = z.object({
 // ── GET (list) ───────────────────────────────────────────────────────
 router.get('/:projectId/loto', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -136,7 +138,7 @@ router.get('/:projectId/loto', verifyAuth, async (req, res) => {
 // ── POST create ──────────────────────────────────────────────────────
 router.post('/:projectId/loto', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = createSchema.safeParse(req.body);
@@ -183,7 +185,7 @@ router.post('/:projectId/loto', verifyAuth, async (req, res) => {
 // ── POST apply-lock ──────────────────────────────────────────────────
 router.post('/:projectId/loto/:appId/apply-lock', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, appId } = req.params;
+  const { projectId, appId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = applyLockSchema.safeParse(req.body);
@@ -250,7 +252,7 @@ router.post('/:projectId/loto/:appId/apply-lock', verifyAuth, async (req, res) =
 // ── POST verify-zero-energy ──────────────────────────────────────────
 router.post('/:projectId/loto/:appId/verify-zero-energy', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, appId } = req.params;
+  const { projectId, appId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   const parsed = verifySchema.safeParse(req.body);
@@ -298,7 +300,7 @@ router.post('/:projectId/loto/:appId/verify-zero-energy', verifyAuth, async (req
 // ── POST release ─────────────────────────────────────────────────────
 router.post('/:projectId/loto/:appId/release', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId, appId } = req.params;
+  const { projectId, appId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {

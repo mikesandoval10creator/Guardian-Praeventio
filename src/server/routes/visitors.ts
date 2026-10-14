@@ -50,6 +50,8 @@ import {
   type Visitor,
   type RegisterVisitorPayload,
 } from '../../services/visitorControl/visitorRegistry.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -210,7 +212,7 @@ router.post(
   idempotencyKey(),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const visitorId = req.params.id;
+    const visitorId = scalarRouteParams(req.params).id;
     const projectIdRaw =
       typeof req.body?.projectId === 'string' ? req.body.projectId : '';
     if (!visitorId || !projectIdRaw) {
@@ -277,7 +279,7 @@ router.post(
   validate(acknowledgeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const visitorId = req.params.id;
+    const visitorId = scalarRouteParams(req.params).id;
     const { inductionVersionId } = req.validated as z.infer<typeof acknowledgeSchema>;
     const projectIdRaw =
       typeof req.body?.projectId === 'string' ? req.body.projectId : '';

@@ -60,6 +60,8 @@ import {
   classifyIncidents,
   type RawIncidentDoc,
 } from '../../services/safetyMetrics/classifyIncidents.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -129,7 +131,7 @@ router.post(
   validate(computeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof computeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -157,7 +159,7 @@ router.post(
   validate(rankSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rankSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -201,7 +203,7 @@ router.post(
   validate(acreditationSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof acreditationSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -240,7 +242,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof contractorExposureCaptureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -421,7 +423,7 @@ router.get(
   validate(performanceQuerySchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const { period } = req.validated as z.infer<typeof performanceQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 

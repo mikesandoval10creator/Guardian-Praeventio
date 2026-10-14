@@ -62,6 +62,8 @@ import { OperationalChangeAdapter } from '../../services/changeMgmt/operationalC
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -136,7 +138,7 @@ router.post(
   validate(declareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof declareSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -187,7 +189,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -231,7 +233,7 @@ router.post(
   validate(ackSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ackSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -309,7 +311,7 @@ router.post(
   idempotencyKey(),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -343,7 +345,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const role = req.user!.role;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof decideSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -384,7 +386,7 @@ router.post(
   idempotencyKey(),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -417,7 +419,7 @@ router.post(
   validate(verifySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof verifySchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -456,7 +458,7 @@ router.post(
   validate(revertSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof revertSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -487,7 +489,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -538,7 +540,7 @@ router.post(
   validate(closeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, mocId } = req.params;
+    const { projectId, mocId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof closeSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

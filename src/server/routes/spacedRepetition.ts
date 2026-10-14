@@ -43,6 +43,8 @@ import {
   buildRetentionReport,
   type LearningCard,
 } from '../../services/spacedRepetition/spacedRepetitionScheduler.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -92,7 +94,7 @@ router.post(
   validate(createSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -134,7 +136,7 @@ router.post(
   validate(reviewSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof reviewSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -164,7 +166,7 @@ router.post(
   validate(dueSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof dueSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -194,7 +196,7 @@ router.post(
   validate(retentionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof retentionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
