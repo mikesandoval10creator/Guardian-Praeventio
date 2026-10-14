@@ -136,6 +136,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: MCP Node ESM build and startup regression
+        run: npm run test:mcp-build
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
