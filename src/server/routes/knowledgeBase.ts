@@ -18,7 +18,7 @@
 // Búsqueda: léxica via `searchArticles()` del motor (client-side al
 // endpoint — Firestore sin full-text nativo, queremos determinismo).
 // Filtro por categoría: `kind` alias.
-// `/use`: incremento atómico viewCount + bump lastReviewedAt.
+// `/use`: incremento atómico viewCount + lastUsedAt; lastReviewedAt stays editorial.
 // `/flag-obsolete`: marca isObsolete=true con auditoría.
 
 import { Router } from 'express';
