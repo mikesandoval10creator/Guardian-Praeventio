@@ -69,8 +69,8 @@ test('mobile check compiles native changes and production distribution awaits pr
 });
 test('Android SDK setup does not request the removed tools package', () => {
   const check = fs.readFileSync(path.join(root, '.github/workflows/mobile-build-check.yml'), 'utf8');
-  assert.match(check, /uses: android-actions\/setup-android@v3\s*\n\s+with:\s*\n\s+packages:\s*platform-tools/);
-  const packageMatch = check.match(/^\s*packages:\s*(.+)$/m);
+  // Check the requested SDK packages independently of the action's version.
+  const packageMatch = check.match(/uses: android-actions\/setup-android@[^\s]+\s*\n\s+with:\s*\n\s+packages:\s*([^\r\n]+)/);
   assert.ok(packageMatch, 'Android SDK package list must be explicit');
   const sdkPackages = packageMatch[1].trim().split(/\s+/);
   assert.ok(sdkPackages.includes('platform-tools'));
