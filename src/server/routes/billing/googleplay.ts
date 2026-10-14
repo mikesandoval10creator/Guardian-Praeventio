@@ -21,6 +21,7 @@ import { googlePlayWebhookLimiter } from '../../middleware/limiters.js';
 import { logger } from '../../../utils/logger.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { parseGooglePlayExpiryTime } from '../../../services/billing/googlePlayExpiry.js';
+import { GooglePlayProductMismatchError, selectGooglePlayVerificationItem, selectGooglePlayRtdnItem } from '../../../services/billing/googlePlayLineItems.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
 import {
   cycleFromProductId,
@@ -98,13 +99,27 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
       }
 
       const data = verificationResult.data;
+      let resolvedPlan: string | null = null;
+      let cycle: BillingCycle | null = null;
+      let subscriptionLineItem: ReturnType<typeof selectGooglePlayVerificationItem> | null = null;
+      if (type === 'subscription') {
+        subscriptionLineItem = selectGooglePlayVerificationItem(data, productId, Date.now());
+        resolvedPlan = planFromIapProductId(subscriptionLineItem.productId);
+        if (resolvedPlan === null) {
+          logger.error('iap_unknown_product', undefined, { uid, productId: subscriptionLineItem.productId, type });
+          sentryCapture(new Error('iap_unknown_product'), {
+            endpoint: '/api/billing/verify', tags: { method: 'POST', uid },
+          });
+          return res.status(400).json({ error: 'unknown_product' });
+        }
+        cycle = cycleFromProductId(subscriptionLineItem.productId);
+      }
       const db = getFirestore();
 
-      // Log transaction — v2 schema: orderId vive en lineItems[0].
+      // Record only a verified SKU; the order belongs to the selected item.
       const v2OrderId =
         type === 'subscription'
-          ? ((data as { lineItems?: Array<{ latestSuccessfulOrderId?: string | null }> | null })
-              .lineItems?.[0]?.latestSuccessfulOrderId ?? null)
+          ? (subscriptionLineItem?.latestSuccessfulOrderId ?? null)
           : ((data as { orderId?: string | null }).orderId ?? null);
       await db.collection('transactions').add({
         userId: uid,
@@ -118,39 +133,14 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         createdAt: FieldValue.serverTimestamp(),
       });
 
-      // The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'), NOT a
-      // plan/tier id — map SKU → tierId (tierForIapSku) → plan first.
-      let resolvedPlan: string | null = null;
-      let cycle: BillingCycle | null = null;
-
       // Update user subscription status
       if (type === 'subscription') {
-        // Hardening (#929 follow-up): a Google-VERIFIED purchase whose SKU is
-        // not registered in iapSkus is a SERVER CONFIG BUG, not a valid
-        // entitlement. Fail LOUD instead of silently over-granting the legacy
-        // 'comite' (=plata) fallback — alert hard so the SKU mapping is fixed,
-        // and reject rather than grant the wrong tier.
-        resolvedPlan = planFromIapProductId(productId);
-        if (resolvedPlan === null) {
-          logger.error('iap_unknown_product', undefined, { uid, productId, type });
-          sentryCapture(new Error(`iap_unknown_product:${productId}`), {
-            endpoint: '/api/billing/verify',
-            tags: { method: 'POST', uid },
-          });
-          return res.status(400).json({ error: 'unknown_product' });
-        }
-        cycle = cycleFromProductId(productId);
-
-        // Narrow: `type === 'subscription'` guarantees subscription branch above
-        // returned `Schema$SubscriptionPurchaseV2` (googleapis 174). El schema
-        // v2 expone subscriptionState + lineItems[0].expiryTime en lugar de
-        // paymentState/expiryTimeMillis de la v1 deprecada.
-        const subData = data as {
-          subscriptionState?: string | null;
-          lineItems?: Array<{ productId?: string | null; expiryTime?: string | null; latestSuccessfulOrderId?: string | null }> | null;
+        const subData = {
+          subscriptionState: 'subscriptionState' in data && typeof data.subscriptionState === 'string'
+            ? data.subscriptionState : null,
         };
-        const lineItem = subData.lineItems?.find((item) => item.productId === productId);
-        if (!lineItem) throw new Error('Google Play product mismatch');
+        const lineItem = subscriptionLineItem;
+        if (!lineItem) throw new GooglePlayProductMismatchError();
         const expiryDate = parseGooglePlayExpiryTime(lineItem?.expiryTime);
         // subscriptionState ACTIVE = suscripción vigente (incluye prueba gratis
         // y gracia); GRACE_PERIOD se considera activa para no cortar el acceso
@@ -168,6 +158,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.gracePeriodEnd': null,
           'subscription.purchaseToken': purchaseToken,
           'subscription.orderId': lineItem?.latestSuccessfulOrderId ?? null,
+          'subscription.productId': lineItem.productId,
           'subscription.cycle': cycle,
           'subscription.updatedAt': FieldValue.serverTimestamp(),
         });
@@ -203,6 +194,9 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
       });
       return res.json({ success: true, data });
     } catch (error: any) {
+      if (error instanceof GooglePlayProductMismatchError) {
+        return res.status(400).json({ error: 'product_mismatch' });
+      }
       logger.error('purchase_verification_failed', error, { uid });
       sentryCapture(error, { endpoint: '/api/billing/verify', tags: { method: 'POST', uid } });
       return res.status(500).json({
@@ -264,7 +258,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         db,
         { collection: 'processed_pubsub', key: messageId },
         async () => {
-          let decodedData: { subscriptionNotification?: { notificationType?: number; subscriptionId?: string; purchaseToken?: string }; packageName?: string };
+          let decodedData: { subscriptionNotification?: { notificationType?: number; purchaseToken?: string }; packageName?: string };
           try {
             decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
           } catch (parseErr) {
@@ -281,12 +275,11 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           // bearer credential for Google Play.
           logger.info('rtdn_received', {
             notificationType: subscriptionNotification?.notificationType,
-            subscriptionId: subscriptionNotification?.subscriptionId,
             packageName,
           });
 
           if (subscriptionNotification) {
-            const { purchaseToken, subscriptionId } = subscriptionNotification;
+            const { purchaseToken } = subscriptionNotification;
 
             // Update the user whose token matches
             const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
@@ -302,18 +295,19 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
                 token: purchaseToken,
               });
 
-              const data = verificationResult.data as {
-                subscriptionState?: string | null;
-                lineItems?: Array<{ productId?: string | null; expiryTime?: string | null }> | null;
-              };
+              const data = verificationResult.data;
               const isActive =
                 data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
                 data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
-              const lineItem = data.lineItems?.find((item) => item.productId === subscriptionId);
-              if (!lineItem) throw new Error('Google Play product mismatch');
+              const lineItem = selectGooglePlayRtdnItem(
+                data, userDoc.data()?.subscription?.productId, Date.now(),
+                (sku) => planFromIapProductId(sku) !== null,
+              );
+              const subscriptionId = lineItem.productId;
               const expiryDate = parseGooglePlayExpiryTime(lineItem.expiryTime);
 
-              // subscriptionId IS the SKU/productId for v3 single-product subs.
+              // Derive the SKU from the freshly verified purchase. Modern
+              // RTDN notifications contain a token, not a subscriptionId.
               // Resolve the plan too (was missing) so a renewal that changed the
               // plan doesn't leave a stale planId; only set it when resolvable
               // (never clobber with a bad value).
@@ -321,6 +315,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               await userDoc.ref.update({
                 'subscription.status': isActive ? 'active' : 'expired',
                 'subscription.expiryDate': expiryDate,
+                'subscription.productId': lineItem.productId,
                 'subscription.provider': 'google-play',
                 'subscription.paymentMethod': 'google-play',
                 'subscription.gracePeriodEnd': null,
