@@ -48,8 +48,14 @@ export function selectGooglePlayVerificationItem(data: unknown, sku: unknown, no
 
 export function selectGooglePlayRtdnItem(
   data: unknown, persistedSku: unknown, nowMs: number, isKnownSku: (sku: string) => boolean,
+  matchesLegacyPlan: (sku: string) => boolean = () => false,
 ): SelectedItem {
-  const lines = items(data).filter(item => isKnownSku(item.productId) && item.expiryTime !== null);
+  const verified = items(data);
+  if (verified.some(item => item.expiryTime !== null && Date.parse(item.expiryTime) > nowMs
+    && !isKnownSku(item.productId))) {
+    throw new Error('Unknown active Google Play product');
+  }
+  const lines = verified.filter(item => isKnownSku(item.productId) && item.expiryTime !== null);
   const live = lines.filter(item => item.expiryTime !== null && Date.parse(item.expiryTime) > nowMs);
   const candidates = live.length > 0 ? live : lines;
   const [only] = candidates;
@@ -57,6 +63,11 @@ export function selectGooglePlayRtdnItem(
   const matching = candidates.filter(item => item.productId === persistedSku);
   const [selected] = matching;
   if (matching.length === 1 && selected) return selected;
+  if (typeof persistedSku !== 'string' || !persistedSku) {
+    const legacy = candidates.filter(item => matchesLegacyPlan(item.productId));
+    const [inferred] = legacy;
+    if (legacy.length === 1 && inferred) return inferred;
+  }
   // Ambiguous purchases must not overwrite the existing paid entitlement.
   throw new Error('Ambiguous Google Play subscription products');
 }

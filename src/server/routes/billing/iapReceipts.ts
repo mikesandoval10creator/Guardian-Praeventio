@@ -217,6 +217,7 @@ export function registerIapReceiptRoutes(billingApiRouter: Router): void {
             'subscription.paymentMethod': 'google-play',
             'subscription.gracePeriodEnd': null,
             'subscription.purchaseToken': receiptId,
+            'subscription.productId': success.productId,
             'subscription.orderId': null,
             'subscription.cycle': resolvedCycle,
             'subscription.updatedAt': FieldValue.serverTimestamp(),
