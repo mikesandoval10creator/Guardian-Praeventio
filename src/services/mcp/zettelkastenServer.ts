@@ -303,8 +303,9 @@ async function dispatchTool(
       if (typeof args.projectId === 'string') filter.projectId = args.projectId;
       if (typeof args.type === 'string') filter.type = args.type;
       if (typeof args.severity === 'string') filter.severity = args.severity;
-      if (typeof args.limit === 'number') filter.limit = Math.min(100, Math.max(1, args.limit));
-      else filter.limit = 25;
+      if (typeof args.limit === 'number' && Number.isFinite(args.limit)) {
+        filter.limit = Math.min(100, Math.max(1, Math.floor(args.limit)));
+      } else filter.limit = 25;
       const nodes = await ctx.adapter.listNodes(tid, filter);
       return {
         count: nodes.length,
