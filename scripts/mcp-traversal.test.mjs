@@ -16,6 +16,7 @@ function fixture(nodes, maxSubgraphNodes) {
   const reads = [];
   const collection = {
     doc(id) {
+      assert.ok(typeof id === 'string' && id.length > 0, 'Firestore document path must be a nonempty string');
       return {
         async get() {
           reads.push(id);
@@ -92,4 +93,32 @@ test('under-budget traversal reads each breadth-first level in order', async () 
   const expected = ['root', 'a', 'b', 'a-child', 'b-child'];
   assert.deepEqual(reads, expected);
   assert.deepEqual(result.map(node => node.id), expected);
+});
+
+test('malformed stored connections cannot abort traversal or consume its read budget', async () => {
+  const nodes = new Map([
+    ['root', { connections: [42, null, false, {}, [], '', 'nested/path/node', 'child'] }],
+    ['child', { connections: ['grandchild'] }],
+    ['grandchild', {}],
+  ]);
+  const { adapter, reads } = fixture(nodes, 3);
+  const result = await adapter.expandSubgraph('test-tenant', 'root', 2);
+  assert.deepEqual(reads, ['root', 'child', 'grandchild']);
+  assert.deepEqual(result.map(node => node.id), reads);
+});
+
+test('node snapshots expose only valid connection IDs, preserving order and duplicates', async () => {
+  const { adapter } = fixture(new Map([['root', {
+    connections: ['child', 42, '', 'nested/path/node', null, 'other', 'child'],
+  }]]), 3);
+  assert.deepEqual((await adapter.getNode('test-tenant', 'root')).connections, ['child', 'other', 'child']);
+});
+
+test('missing and non-array stored connection fields remain empty', async () => {
+  for (const connections of [undefined, null, 'child', { child: true }]) {
+    const { adapter, reads } = fixture(new Map([['root', { connections }]]), 3);
+    const result = await adapter.expandSubgraph('test-tenant', 'root', 2);
+    assert.deepEqual(result[0].connections, []);
+    assert.deepEqual(reads, ['root']);
+  }
 });

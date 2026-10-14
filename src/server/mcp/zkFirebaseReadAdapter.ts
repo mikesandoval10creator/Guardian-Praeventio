@@ -113,7 +113,10 @@ export function createZkFirebaseReadAdapter(
       description: String(data.description ?? ''),
       tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
       connections: Array.isArray(data.connections)
-        ? (data.connections as string[])
+        ? data.connections.filter(
+          (value: unknown): value is string =>
+            typeof value === 'string' && value.length > 0 && !value.includes('/'),
+        )
         : [],
       severity:
         typeof data.severity === 'string'
