@@ -20,6 +20,7 @@ import { safeSecretEqual } from '../../middleware/safeSecretEqual.js';
 import { googlePlayWebhookLimiter } from '../../middleware/limiters.js';
 import { logger } from '../../../utils/logger.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
+import { parseGooglePlayExpiryTime } from '../../../services/billing/googlePlayExpiry.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
 import {
   cycleFromProductId,
@@ -149,7 +150,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           lineItems?: Array<{ expiryTime?: string | null; latestSuccessfulOrderId?: string | null }> | null;
         };
         const lineItem = subData.lineItems?.[0];
-        const expiryDate = lineItem?.expiryTime ? new Date(parseInt(lineItem.expiryTime)).toISOString() : null;
+        const expiryDate = parseGooglePlayExpiryTime(lineItem?.expiryTime);
         // subscriptionState ACTIVE = suscripción vigente (incluye prueba gratis
         // y gracia); GRACE_PERIOD se considera activa para no cortar el acceso
         // durante la ventana de reintento de pago.
@@ -307,9 +308,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               const isActive =
                 data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
                 data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
-              const expiryDate = data.lineItems?.[0]?.expiryTime
-                ? new Date(parseInt(data.lineItems[0].expiryTime!)).toISOString()
-                : null;
+              const expiryDate = parseGooglePlayExpiryTime(data.lineItems?.[0]?.expiryTime);
 
               // subscriptionId IS the SKU/productId for v3 single-product subs.
               // Resolve the plan too (was missing) so a renewal that changed the
