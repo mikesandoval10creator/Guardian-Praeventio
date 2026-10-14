@@ -67,7 +67,7 @@ describe("DSAR bundle completeness metadata", () => {
 
     expect(manifest).toContain("export_complete: false");
     expect(manifest).toContain(
-      "incomplete_categories:\n  - curriculum_claims\n  - notifications",
+      "incomplete_categories:\n  - \"curriculum_claims\"\n  - \"notifications\"",
     );
     expect(manifest).not.toContain("export_complete: true");
   });
@@ -92,7 +92,7 @@ describe("DSAR bundle SHA-256 integrity", () => {
   });
 
   function digestFrom(body: string): string | undefined {
-    return body.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+    return body.match(/^data_jsonl_sha256: "([a-f0-9]+)"$/m)?.[1];
   }
 
   function jsonlFrom(body: string): string {
@@ -135,7 +135,7 @@ describe("DSAR bundle SHA-256 integrity", () => {
   it("preserves partial-export metadata while hashing its actual payload", () => {
     const { body } = buildCombinedBundle(input(["notifications"]));
     expect(body).toContain("export_complete: false");
-    expect(body).toContain("incomplete_categories:\n  - notifications");
+    expect(body).toContain("incomplete_categories:\n  - \"notifications\"");
     expect(digestFrom(body)).toBe(
       createHash("sha256").update(jsonlFrom(body), "utf8").digest("hex"),
     );

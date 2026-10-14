@@ -170,6 +170,9 @@ jobs:
       - name: Knowledge Base review age regressions
         run: node --test scripts/knowledge-base-review-age.test.mjs
 
+      - name: DSAR manifest YAML regressions
+        run: node --test scripts/bundle-manifest-yaml.test.mjs
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest

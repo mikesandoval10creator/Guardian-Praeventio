@@ -806,7 +806,7 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
 
     expect(res.status).toBe(207);
     expect(res.text).toContain('export_complete: false');
-    expect(res.text).toContain('incomplete_categories:\n  - notifications');
+    expect(res.text).toContain('incomplete_categories:\n  - "notifications"');
     expect(res.text).toContain('Perfil propio');
     expect(res.text).not.toContain(OTHER_UID);
     expect(res.text).not.toContain('Perfil ajeno');
@@ -820,7 +820,7 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
       .toEqual(['notifications']);
     const jsonlBytes = res.text.split('===== file: data.jsonl =====\n')[1]
       .split('\n\n===== file: data.csv =====')[0];
-    const manifestHash = res.text.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+    const manifestHash = res.text.match(/^data_jsonl_sha256: "([a-f0-9]+)"$/m)?.[1];
     expect(manifestHash).toMatch(/^[a-f0-9]{64}$/);
     expect(manifestHash).toBe(createHash('sha256').update(jsonlBytes, 'utf8').digest('hex'));
   });
@@ -850,7 +850,7 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
     expect(res.text).toContain('Muñoz 中文 🛡️');
     const jsonlBytes = res.text.split('===== file: data.jsonl =====\n')[1]
       .split('\n\n===== file: data.csv =====')[0];
-    const manifestHash = res.text.match(/^data_jsonl_sha256: ([a-f0-9]+)$/m)?.[1];
+    const manifestHash = res.text.match(/^data_jsonl_sha256: "([a-f0-9]+)"$/m)?.[1];
     expect(manifestHash).toMatch(/^[a-f0-9]{64}$/);
     expect(manifestHash).toBe(createHash('sha256').update(jsonlBytes, 'utf8').digest('hex'));
   });
@@ -869,11 +869,11 @@ describe('GET /api/compliance/data-export/:requestId/bundle', () => {
       .set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
 
-    expect(res.text).toContain(`subject_uid: ${CALLER_UID}`);
-    expect(res.text).toContain('request_id: req-bundle-2');
-    expect(res.text).toMatch(/generated_at: \d{4}-\d{2}-\d{2}T/);
+    expect(res.text).toContain(`subject_uid: ${JSON.stringify(CALLER_UID)}`);
+    expect(res.text).toContain('request_id: "req-bundle-2"');
+    expect(res.text).toMatch(/generated_at: "\d{4}-\d{2}-\d{2}T/);
     // Régimen aplicable: al menos CL (Ley 21.719) cuando subjectCountry=CL.
-    expect(res.text).toMatch(/applicable_regimes:[\s\S]*- [A-Z]/);
+    expect(res.text).toMatch(/applicable_regimes:[\s\S]*- "[A-Z]/);
   });
 
   it('JSONL contiene líneas parseables, una por recordType', async () => {
