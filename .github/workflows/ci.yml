@@ -164,6 +164,9 @@ jobs:
       - name: Google Play expiry regressions
         run: node --test scripts/google-play-expiry.test.mjs scripts/google-play-line-item.test.mjs
 
+      - name: Knowledge Base review age regressions
+        run: node --test scripts/knowledge-base-review-age.test.mjs
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest

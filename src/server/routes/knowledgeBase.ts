@@ -322,7 +322,7 @@ router.post(
         if (!snap.exists) return { kind: 'not_found' };
         txn.update(docRef, {
           viewCount: FieldValue.increment(1),
-          lastReviewedAt: new Date().toISOString(),
+          // Consulting an article is not an editorial review.
           lastUsedAt: new Date().toISOString(),
         });
         return { kind: 'ok' };
