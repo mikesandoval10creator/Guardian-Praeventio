@@ -43,6 +43,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -268,7 +270,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -527,7 +529,7 @@ router.post(
   validate(culturePulseScheduleSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof culturePulseScheduleSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -614,7 +616,7 @@ router.post(
   validate(culturePulseResponseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id: surveyId } = req.params;
+    const { projectId, id: surveyId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof culturePulseResponseSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -725,7 +727,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {

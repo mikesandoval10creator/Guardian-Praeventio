@@ -79,6 +79,8 @@ import type {
   UpdateData,
 } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -203,7 +205,7 @@ router.post(
   validate(startSessionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof startSessionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -381,7 +383,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, sessionId } = req.params;
+    const { projectId, sessionId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const db = getFirestore();
@@ -449,7 +451,7 @@ router.post(
   "/:projectId/lone-worker/:sessionId/native-man-down",
   validate(nativeManDownSchema),
   async (req, res) => {
-    const { projectId, sessionId } = req.params;
+    const { projectId, sessionId } = scalarRouteParams(req.params);
     const rawCapability = req.header(NATIVE_MANDOWN_HEADER);
     if (!validNativeCapability(rawCapability)) {
       return res.status(401).json({ error: "native_mandown_unauthorized" });
@@ -690,7 +692,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, sessionId } = req.params;
+    const { projectId, sessionId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
     const db = getFirestore();
@@ -755,7 +757,7 @@ router.post(
   "/:projectId/lone-worker/:sessionId/native-lone-worker-heartbeat",
   validate(nativeLoneWorkerHeartbeatSchema),
   async (req, res) => {
-    const { projectId, sessionId } = req.params;
+    const { projectId, sessionId } = scalarRouteParams(req.params);
     const rawCapability = req.header(NATIVE_LONE_WORKER_HEADER);
     if (!validNativeCapability(rawCapability)) {
       return res.status(401).json({ error: "native_lone_worker_unauthorized" });
@@ -956,7 +958,7 @@ router.post(
   validate(checkInSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof checkInSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     // Anti-blame: a worker can only check-in for themselves. Supervisors
@@ -1016,7 +1018,7 @@ router.post(
   validate(endSessionRequestSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof endSessionRequestSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -1128,7 +1130,7 @@ router.post(
   validate(deriveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof deriveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -1156,7 +1158,7 @@ router.post(
   validate(deriveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof deriveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -1199,7 +1201,7 @@ router.post(
   validate(overviewSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof overviewSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

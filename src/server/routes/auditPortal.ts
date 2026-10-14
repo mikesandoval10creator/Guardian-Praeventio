@@ -38,6 +38,8 @@ import {
   type AuditorAffiliation,
   type PortalAccessLog,
 } from '../../services/auditPortal/externalAuditPortal.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -128,7 +130,7 @@ router.post(
   validate(createSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -168,7 +170,7 @@ router.post(
   validate(deriveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof deriveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -199,7 +201,7 @@ router.post(
   validate(revokeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof revokeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -241,7 +243,7 @@ router.post(
   validate(accessSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof accessSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -271,7 +273,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -297,7 +299,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const token = generateAccessToken();

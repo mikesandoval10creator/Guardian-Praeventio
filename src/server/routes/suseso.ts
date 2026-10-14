@@ -58,6 +58,8 @@ import { verifyPersistedComplianceSignature } from '../services/complianceSignat
 import { attestComplianceEvidence } from '../services/complianceEvidenceAttestation.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -284,11 +286,11 @@ router.post(
       const signature = await completeComplianceWebAuthnSigning({
         uid: callerUid,
         tenantId,
-        formId: req.params.id,
+        formId: scalarRouteParams(req.params).id,
         documentKind: 'suseso',
         assertion: webauthnAssertion,
       }, {
-        documents: buildSigningDocuments(tenantId, req.params.id),
+        documents: buildSigningDocuments(tenantId, scalarRouteParams(req.params).id),
         resolveSigner: resolveRouteSigner,
         verifyAssertion: async (validateMetadata) => {
           const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
@@ -308,7 +310,7 @@ router.post(
 
       const updated = await signForm(
         tenantId,
-        req.params.id,
+        scalarRouteParams(req.params).id,
         signature as SusesoSignature,
         { formStore: buildFormStore() },
       );
@@ -327,7 +329,7 @@ router.post(
       return res.json({ form: updated });
     } catch (err) {
       logger.warn('suseso_form_sign_failed', {
-        formId: req.params.id,
+        formId: scalarRouteParams(req.params).id,
         reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
       });
       return sendSigningError(res, err);
@@ -349,10 +351,10 @@ router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
     const issued = await issueComplianceWebAuthnChallenge({
       uid: callerUid,
       tenantId,
-      formId: req.params.id,
+      formId: scalarRouteParams(req.params).id,
       documentKind: 'suseso',
     }, {
-      documents: buildSigningDocuments(tenantId, req.params.id),
+      documents: buildSigningDocuments(tenantId, scalarRouteParams(req.params).id),
       resolveSigner: resolveRouteSigner,
       newChallengeId: () => generateWebAuthnChallenge().challengeId,
       storeChallenge: (uid, challengeId, challenge, options) =>
@@ -362,13 +364,13 @@ router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
     res.json({
       challengeId: issued.challengeId,
       challenge: Buffer.from(issued.challenge).toString('base64'),
-      formId: req.params.id,
+      formId: scalarRouteParams(req.params).id,
       payloadHashHex: issued.intent.payloadHashHex,
       rpId: getWebauthnRpId(),
     });
   } catch (err) {
     logger.warn('suseso_sign_challenge_failed', {
-      formId: req.params.id,
+      formId: scalarRouteParams(req.params).id,
       reason: err instanceof ComplianceSigningFlowError ? err.code : 'internal',
     });
     if (
@@ -401,7 +403,7 @@ router.post(
     // reminder cron).
     if (!callerHasRegulatoryRole(req, res)) return;
     try {
-      const updated = await submitToMutualidad(tenantId, req.params.id, {
+      const updated = await submitToMutualidad(tenantId, scalarRouteParams(req.params).id, {
         formStore: buildFormStore(),
       });
       return res.json({
@@ -430,7 +432,7 @@ router.post(
   '/forms/:formId/mark-submitted',
   verifyAuth,
   async (req, res) => {
-    const formId = req.params.formId;
+    const formId = scalarRouteParams(req.params).formId;
     // tenantId is authoritative from the verified token — never the body.
     const tenantId = callerTenantOr403(req, res, req.body?.tenantId);
     if (tenantId === null) return;
@@ -482,7 +484,7 @@ router.post(
 // reads Firestore sin afectar a fiscalizadores legítimos.
 router.get('/verify/:folio', susesoVerifyLimiter, async (req, res) => {
   try {
-    const result = await verifyFolio(req.params.folio, {
+    const result = await verifyFolio(scalarRouteParams(req.params).folio, {
       formStore: buildFormStore(),
       verifySignature: async (input) => {
         const { buildWebAuthnCredentialsDb } = await import('./curriculum.js');

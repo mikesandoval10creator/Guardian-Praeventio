@@ -36,6 +36,8 @@ import {
   type DeliveryChannel,
   type DigestInputs,
 } from '../../services/agenda/agendaScheduler.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -106,7 +108,7 @@ router.post(
   validate(scheduleSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scheduleSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -135,7 +137,7 @@ router.post(
   validate(selectChannelSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof selectChannelSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -165,7 +167,7 @@ router.post(
   validate(deliverSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof deliverSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -194,7 +196,7 @@ router.post(
   validate(focusSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof focusSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -231,7 +233,7 @@ router.post(
   validate(digestSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof digestSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

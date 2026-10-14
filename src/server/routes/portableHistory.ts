@@ -27,6 +27,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -334,7 +336,7 @@ router.get(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     if (!projectId || !workerUid) return res.status(400).json({ error: 'invalid_params' });
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -367,7 +369,7 @@ router.post(
   validate(consentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     if (!projectId || !workerUid) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof consentSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -419,7 +421,7 @@ router.get(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     if (!projectId || !workerUid) return res.status(400).json({ error: 'invalid_params' });
     const format = typeof req.query.format === 'string' ? req.query.format : 'json';
     const g = await guard(callerUid, projectId, res);

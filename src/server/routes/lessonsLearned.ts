@@ -40,6 +40,8 @@ import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAd
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -97,7 +99,7 @@ async function guard(
 
 router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -154,7 +156,7 @@ router.post(
   validate(lessonSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof lessonSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

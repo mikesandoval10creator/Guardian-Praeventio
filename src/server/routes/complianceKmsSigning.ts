@@ -41,6 +41,8 @@ import {
   attachComplianceSignatureAtomically,
   persistComplianceDigestAtomically,
 } from '../services/firestoreComplianceDocument.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 type KmsDocumentKind = 'suseso' | 'ds67' | 'ds76';
 type SignedDocument = SusesoForm | Ds67Form | Ds76Form;
@@ -198,7 +200,7 @@ export function createComplianceKmsSigningRouter(
   const register = (path: string, kind: KmsDocumentKind, param: 'id' | 'formId') => {
     router.post(path, deps.verifyCaller, validate(bodySchema), async (req, res) => {
       const { tenantId } = req.validated as z.infer<typeof bodySchema>;
-      const formId = req.params[param];
+      const formId = scalarRouteParams(req.params)[param];
       try {
         const form = await deps.signDocument(kind, tenantId, formId);
         await deps.auditSignature(req, kind, tenantId, formId, form);

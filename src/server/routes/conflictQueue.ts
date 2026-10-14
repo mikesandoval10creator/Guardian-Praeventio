@@ -50,6 +50,8 @@ import type { Conflict } from '../../services/sync/conflictResolver.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import type { DocumentSnapshot, Firestore, Query } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -220,7 +222,7 @@ router.post(
   validate(enqueueSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof enqueueSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -294,7 +296,7 @@ const QUEUE_STATUSES: readonly ConflictQueueStatus[] = [
 
 router.get('/:projectId/conflict-queue', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -330,7 +332,7 @@ router.post(
   validate(z.object({})),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, queueId } = req.params;
+    const { projectId, queueId } = scalarRouteParams(req.params);
     if (!isApprover(req.user!.role)) {
       return res.status(403).json({ error: 'approver_role_required' });
     }
@@ -391,7 +393,7 @@ router.post(
   validate(resolveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, queueId } = req.params;
+    const { projectId, queueId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof resolveSchema>;
     if (!isApprover(req.user!.role)) {
       return res.status(403).json({ error: 'approver_role_required' });
@@ -494,7 +496,7 @@ router.post(
   validate(rejectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, queueId } = req.params;
+    const { projectId, queueId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rejectSchema>;
     if (!isApprover(req.user!.role)) {
       return res.status(403).json({ error: 'approver_role_required' });

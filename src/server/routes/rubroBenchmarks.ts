@@ -47,6 +47,8 @@ import {
   type AnonymousProjectMetrics,
   type RubroMetricId,
 } from '../../services/sii/rubroBenchmarks.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -221,7 +223,7 @@ function tenantKeyOf(projectId: string, data: Doc): string {
 
 router.get('/:projectId/rubro-benchmarks', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!PROJECT_ID_REGEX.test(projectId)) {
     return res.status(400).json({ error: 'invalid_project_id' });
   }

@@ -32,6 +32,8 @@ import {
   type MaturityReport,
   type PymeIndustry,
 } from '../../services/pymeOnboarding/pymeWizard.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -91,7 +93,7 @@ router.post(
   validate(wizardInputSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof wizardInputSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -128,7 +130,7 @@ router.post(
   validate(planSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof planSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

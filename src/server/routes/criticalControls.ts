@@ -46,6 +46,8 @@ import {
   type EnergyType,
   type ControlVerificationFrequency,
 } from '../../services/criticalControls/controlRobustness.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -114,7 +116,7 @@ router.post(
   validate(getForRiskSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof getForRiskSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -144,7 +146,7 @@ router.post(
   validate(validatePreTaskSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validatePreTaskSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -175,7 +177,7 @@ router.post(
   validate(robustnessSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof robustnessSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -203,7 +205,7 @@ router.post(
   validate(superiorSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof superiorSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -233,7 +235,7 @@ router.post(
   validate(barrierSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof barrierSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -263,7 +265,7 @@ router.post(
   validate(singleBarrierSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof singleBarrierSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -294,7 +296,7 @@ router.post(
   validate(verifSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof verifSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -327,7 +329,7 @@ router.post(
   validate(energyForSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof energyForSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -355,7 +357,7 @@ router.post(
   validate(byEnergySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof byEnergySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

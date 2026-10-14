@@ -33,6 +33,8 @@ import {
   type ModuleUsageKind,
   type FirstValueEvent,
 } from '../../services/adoption/adoptionAnalytics.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -105,7 +107,7 @@ router.post(
   validate(snapshotsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof snapshotsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -129,7 +131,7 @@ router.post(
   validate(snapshotsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof snapshotsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -157,7 +159,7 @@ router.post(
   validate(churnSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof churnSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -192,7 +194,7 @@ router.post(
   validate(firstValueSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof firstValueSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

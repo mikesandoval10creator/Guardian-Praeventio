@@ -57,6 +57,8 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -106,7 +108,7 @@ async function resolveTenantId(
 
 router.get('/:projectId/risk-ranking', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   const topN = Math.min(Math.max(Number(req.query.topN) || 5, 1), 20);
@@ -150,7 +152,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, requireTier('platino', { enfo
 // ────────────────────────────────────────────────────────────────────────
 router.get('/:projectId/top-risks', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
   const db = getFirestore();
   const tenantId = await resolveTenantId(callerUid, projectId, db);
@@ -209,7 +211,7 @@ router.get('/:projectId/top-risks', verifyAuth, requireTier('platino', { enforce
 // ────────────────────────────────────────────────────────────────────────
 router.get('/:projectId/weak-controls', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
   const topN = Math.min(Math.max(Number(req.query.topN) || 10, 1), 50);
   try {
@@ -274,7 +276,7 @@ function coerceFindingDate(value: unknown): string | number | null {
 
 router.get('/:projectId/risk-timeseries', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
   const db = getFirestore();
   const tenantId = await resolveTenantId(callerUid, projectId, db);
@@ -319,7 +321,7 @@ router.get('/:projectId/risk-timeseries', verifyAuth, requireTier('platino', { e
 
 router.get('/:projectId/safety-talks', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   try {
@@ -394,7 +396,7 @@ router.get('/:projectId/role-view', verifyAuth, requireTier('platino', { enforce
   const callerUid = req.user!.uid;
   const callerEmail = req.user!.email ?? null;
   const callerRole = req.user!.role ?? 'worker';
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   const userRole: UserRole = VALID_ROLES.includes(callerRole as UserRole)

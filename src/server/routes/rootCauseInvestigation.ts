@@ -52,6 +52,8 @@ import {
   type InvestigationTree,
   type NodeInput,
 } from '../../services/rootCauseInvestigation/investigationMode.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -94,7 +96,7 @@ router.post(
   validate(buildTreeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as BuildTreeInput;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -125,7 +127,7 @@ router.post(
   validate(extractChainSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof extractChainSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -153,7 +155,7 @@ router.post(
   validate(classifyCategorySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof classifyCategorySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -181,7 +183,7 @@ router.post(
   validate(isShallowSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof isShallowSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

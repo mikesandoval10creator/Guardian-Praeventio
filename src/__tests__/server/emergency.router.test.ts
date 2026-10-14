@@ -14,11 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
-// express-async-errors must be imported in the test process too — the real
-// router is mounted on a local express() app, and the monkey-patch is per
-// process, not per server.ts. This mirrors exactly what server.ts does so
-// the guard-hang regression tests exercise the real fix path.
-import 'express-async-errors';
+// Express 5 natively forwards async rejections to the error handler.
 
 // ── hoisted holder ───────────────────────────────────────────────────────────
 // All variables referenced inside vi.mock() factories MUST be hoisted.

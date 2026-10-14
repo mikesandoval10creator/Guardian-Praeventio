@@ -26,6 +26,8 @@ import {
   suggestTalks,
   type ContextSignals,
 } from '../../services/safetyTalks/talkTopicSuggester.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -75,7 +77,7 @@ router.post(
   validate(suggestSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof suggestSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

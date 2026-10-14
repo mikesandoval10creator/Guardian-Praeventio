@@ -36,6 +36,8 @@ import {
   type VerifyEfficacyInput,
   type PostActionWindow,
 } from '../../services/efficacyVerification/efficacyVerifier.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -84,7 +86,7 @@ router.post(
   validate(verifySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof verifySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -117,7 +119,7 @@ router.post(
   validate(defaultWindowSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof defaultWindowSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

@@ -38,6 +38,8 @@ import {
 import { CL_PACK } from '../../data/normativa/cl.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -57,7 +59,7 @@ interface ProjectDocShape {
 // ────────────────────────────────────────────────────────────────────────
 router.post('/:projectId/reconcile-obligations', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
 
   // Firestore doc-id safety: projectId is the only client-controlled segment of
   // the doc paths below. Reject anything outside the isValidId charset before it

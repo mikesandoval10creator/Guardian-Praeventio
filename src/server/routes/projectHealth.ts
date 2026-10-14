@@ -34,6 +34,8 @@ import { auditProjectComplianceWithAI } from '../../services/gemini/operations.j
 import { getPackByCode, type CountryCode } from '../../services/normativa/countryPacks.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -60,7 +62,7 @@ function packFor(country: unknown): ReturnType<typeof getPackByCode> {
 // codeql[js/missing-rate-limiting] — mounted under app.use('/api/projects', projectHealthRouter) (server.ts:760), covered by the global app.use('/api/', limiter) (server.ts:865).
 router.post('/:projectId/health-check', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!PROJECT_ID_REGEX.test(projectId)) {
     return res.status(400).json({ error: 'Invalid projectId' });
   }

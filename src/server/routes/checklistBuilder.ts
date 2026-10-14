@@ -48,6 +48,8 @@ import {
   type FieldValue,
   type SignatureRole,
 } from '../../services/checklistBuilder/checklistBuilder.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -104,7 +106,7 @@ router.post(
   validate(validateResponseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateResponseSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -136,7 +138,7 @@ router.post(
   validate(rectifyFieldSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rectifyFieldSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -177,7 +179,7 @@ router.post(
   validate(applySignatureSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof applySignatureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -212,7 +214,7 @@ router.post(
   validate(lockResponseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof lockResponseSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

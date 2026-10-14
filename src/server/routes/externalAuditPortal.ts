@@ -74,6 +74,8 @@ import {
   hashAccessToken,
   type StoredAuditPortal,
 } from '../../services/auditPortal/auditPortalFirestoreAdapter.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -404,7 +406,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerTenantId = (req.user as { tenantId?: string } | undefined)?.tenantId;
-    const { portalId } = req.params;
+    const { portalId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof revokeSchema>;
 
     if (!(await assertAdminCaller(req, res))) return undefined;
@@ -477,7 +479,7 @@ router.get(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerTenantId = (req.user as { tenantId?: string } | undefined)?.tenantId;
-    const { portalId } = req.params;
+    const { portalId } = scalarRouteParams(req.params);
     const q = req.validated as z.infer<typeof accessLogQuerySchema>;
 
     if (!(await assertAdminCaller(req, res))) return undefined;
@@ -518,7 +520,7 @@ router.get(
   '/audit-portal/public/:token',
   validate(publicQuerySchema, 'query'),
   async (req, res) => {
-    const { token } = req.params;
+    const { token } = scalarRouteParams(req.params);
     const q = req.validated as z.infer<typeof publicQuerySchema>;
 
     if (!token || token.length < 16 || token.length > 256) {

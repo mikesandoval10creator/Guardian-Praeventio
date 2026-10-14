@@ -74,6 +74,8 @@ import {
   createWebAuthnChallengesFirestoreDb,
   createWebAuthnCredentialsFirestoreDb,
 } from '../auth/webauthnFirestoreDb.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
@@ -340,7 +342,7 @@ router.get('/claims', verifyAuth, async (req, res) => {
 // of the still-pending referees. Rate-limited per (claimId,refereeIndex).
 router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const claimId = req.params.id;
+  const claimId = scalarRouteParams(req.params).id;
   const { refereeIndex } = req.body ?? {};
   if (refereeIndex !== 0 && refereeIndex !== 1) {
     return res.status(400).json({ error: 'refereeIndex must be 0 or 1' });
@@ -407,7 +409,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
 // GET /api/curriculum/referee/:token — public preview for the magic-link
 // landing page. Returns minimal claim metadata if the token matches.
 router.get('/referee/:token', refereeLimiter, async (req, res) => {
-  const rawToken = req.params.token ?? '';
+  const rawToken = scalarRouteParams(req.params).token ?? '';
   if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
     return res.status(400).json({ error: 'invalid token format' });
   }
@@ -474,7 +476,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
 // UNAUTHED: the security barrier is the 256-bit token. The server hashes
 // it and matches against the stored slot. Rate-limited via refereeLimiter.
 router.post('/referee/:token', refereeLimiter, async (req, res) => {
-  const rawToken = req.params.token ?? '';
+  const rawToken = scalarRouteParams(req.params).token ?? '';
   const { action, method, signature } = req.body ?? {};
   if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
     return res.status(400).json({ error: 'invalid token format' });

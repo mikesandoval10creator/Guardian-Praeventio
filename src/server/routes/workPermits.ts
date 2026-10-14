@@ -92,6 +92,8 @@ import {
   resolveServerWindWithTimeout,
   type WindMergeResult,
 } from '../../services/workPermits/weatherGate.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -202,7 +204,7 @@ function resolveCallerRoleContext(
 
 router.get('/:projectId/work-permits', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -311,7 +313,7 @@ router.post(
   validate(workPermitCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof workPermitCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -675,7 +677,7 @@ router.post(
   validate(criticalValidateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof criticalValidateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -837,7 +839,7 @@ router.post(
   validate(signPermitSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, permitId } = req.params;
+    const { projectId, permitId } = scalarRouteParams(req.params);
     const body = (req.body ?? {}) as z.infer<typeof signPermitSchema> &
       object;
     const g = await guard(callerUid, projectId, res);
@@ -1003,7 +1005,7 @@ router.post(
   validate(closePermitSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, permitId } = req.params;
+    const { projectId, permitId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof closePermitSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

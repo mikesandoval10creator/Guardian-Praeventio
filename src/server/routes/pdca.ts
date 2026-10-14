@@ -33,6 +33,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -137,7 +139,7 @@ async function pdcaSafeRead<T>(
 
 router.get('/:projectId/pdca/cycles', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -163,7 +165,7 @@ router.post(
   validate(pdcaCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof pdcaCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -219,7 +221,7 @@ router.post(
   validate(pdcaAdvanceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof pdcaAdvanceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -351,7 +353,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -378,7 +380,7 @@ router.post(
   validate(ncCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ncCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -422,7 +424,7 @@ router.post(
 
 router.get('/:projectId/pdca/summary', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {

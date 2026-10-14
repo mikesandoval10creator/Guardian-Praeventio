@@ -32,6 +32,8 @@ import { shouldFireWindowed } from '../../services/predictiveAlerts/windowedTrig
 import { evaluateProbes } from '../../services/predictiveAlerts/alertScheduler.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -90,7 +92,7 @@ router.post(
   validate(shouldFireSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof shouldFireSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -134,7 +136,7 @@ router.post(
   validate(evaluateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -196,7 +198,7 @@ router.post(
   validate(issueRecommendationSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof issueRecommendationSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

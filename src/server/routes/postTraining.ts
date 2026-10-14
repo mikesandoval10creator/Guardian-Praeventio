@@ -49,6 +49,8 @@ import {
   type AssessmentAttempt,
   type CaseStudyNode,
 } from '../../services/postTraining/postTrainingAssessmentEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -138,7 +140,7 @@ router.post(
   validate(scoreAssessmentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scoreAssessmentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -173,7 +175,7 @@ router.post(
   validate(nextReviewDelaySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof nextReviewDelaySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -208,7 +210,7 @@ router.post(
   validate(scheduleNextReviewsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scheduleNextReviewsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -242,7 +244,7 @@ router.post(
   validate(findCaseStudiesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof findCaseStudiesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

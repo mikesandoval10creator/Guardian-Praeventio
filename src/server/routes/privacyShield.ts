@@ -45,6 +45,8 @@ import {
   type DataField,
   type ExpirableRecord,
 } from '../../services/privacyShield/piiClassifier.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -103,7 +105,7 @@ router.post(
   validate(classifyFieldSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof classifyFieldSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -131,7 +133,7 @@ router.post(
   validate(detectGapsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof detectGapsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -160,7 +162,7 @@ router.post(
   validate(reapExpiredSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof reapExpiredSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

@@ -35,6 +35,8 @@ import {
   type ConfidenceInputs,
   type DataConfidenceReport,
 } from '../../services/dataConfidence/dataConfidencePanel.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -243,7 +245,7 @@ async function readDomain(
 
 router.get('/:projectId/data-confidence', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
@@ -463,7 +465,7 @@ router.post(
   validate(dismissDataIssueSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, issueId } = req.params;
+    const { projectId, issueId } = scalarRouteParams(req.params);
     if (!projectId || !issueId) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof dismissDataIssueSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -527,7 +529,7 @@ interface DataConfidenceRecommendation {
 
 router.get('/:projectId/data-confidence/recommendations', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;

@@ -49,6 +49,8 @@ import {
   type HazmatClass,
   type CompatibilityIssue,
 } from '../../services/hazmat/hazmatInventory.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -122,7 +124,7 @@ router.post(
   validate(addSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof addSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -157,7 +159,7 @@ router.post(
   validate(getSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof getSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -197,7 +199,7 @@ router.post(
   validate(listSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof listSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -255,7 +257,7 @@ router.post(
   validate(updateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof updateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -291,7 +293,7 @@ router.post(
   validate(deleteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof deleteSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -323,7 +325,7 @@ router.post(
   validate(compatSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof compatSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -356,7 +358,7 @@ router.post(
   validate(spillSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof spillSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

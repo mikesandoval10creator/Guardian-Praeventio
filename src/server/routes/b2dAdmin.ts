@@ -39,6 +39,8 @@ import {
   revokeApiKey,
   type B2dScope,
 } from '../../services/b2d/apiKeyService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -251,7 +253,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
 router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return undefined;
   const callerUid = req.user!.uid;
-  const id = req.params.id;
+  const id = scalarRouteParams(req.params).id;
   if (!KEY_DOC_ID_REGEX.test(id)) {
     return res.status(400).json({ error: 'Invalid key id' });
   }

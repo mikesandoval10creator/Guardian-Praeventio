@@ -62,6 +62,8 @@ import {
   MAX_PROJECTS_TO_COMPARE,
   type ProjectSnapshot as ComparatorSnapshot,
 } from '../../services/projectComparator/projectComparator.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -110,7 +112,7 @@ router.post(
   validate(compareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof compareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -139,7 +141,7 @@ router.post(
   validate(bestPracticesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof bestPracticesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -168,7 +170,7 @@ router.post(
   validate(riskProjectsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof riskProjectsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -226,7 +228,7 @@ router.get(
   requireTier('platino', { enforce: tierGateEnforced(), route: 'multiProject' }),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const db = getFirestore();

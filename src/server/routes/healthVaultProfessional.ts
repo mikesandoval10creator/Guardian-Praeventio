@@ -53,6 +53,8 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 type VerifiedAssertion = { verified: boolean; credentialId?: string; reason?: string };
 type FilePayload = {
@@ -272,7 +274,7 @@ async function authorizeSession(
   professional: HealthProfessionalIdentity;
 }> {
   const callerUid = req.user?.uid;
-  const grantId = req.params.grantId;
+  const grantId = scalarRouteParams(req.params).grantId;
   const header = sessionHeader(req);
   if (!callerUid || !header) {
     throw new VaultAccessSessionError('Session missing', 'invalid_session');
@@ -554,7 +556,7 @@ export function createHealthVaultProfessionalRouter(
     try {
       const service = deps();
       const [grant, professional] = await Promise.all([
-        service.getGrant(req.params.grantId),
+        service.getGrant(scalarRouteParams(req.params).grantId),
         service.getProfessional(callerUid),
       ]);
       if (!grant) {
@@ -601,7 +603,7 @@ export function createHealthVaultProfessionalRouter(
     try {
       const service = deps();
       const [grant, professional] = await Promise.all([
-        service.getGrant(req.params.grantId),
+        service.getGrant(scalarRouteParams(req.params).grantId),
         service.getProfessional(parsed.data.professionalUid),
       ]);
       if (!grant) return res.status(404).json({ error: 'grant_not_found', message: 'Acceso no encontrado.' });
@@ -637,7 +639,7 @@ export function createHealthVaultProfessionalRouter(
     try {
       const service = deps();
       const [grant, professional] = await Promise.all([
-        service.getGrant(req.params.grantId),
+        service.getGrant(scalarRouteParams(req.params).grantId),
         service.getProfessional(callerUid),
       ]);
       if (!grant) return res.status(404).json({ error: 'grant_not_found', message: 'Acceso no encontrado.' });
@@ -662,7 +664,7 @@ export function createHealthVaultProfessionalRouter(
     try {
       const service = deps();
       const [grant, professional] = await Promise.all([
-        service.getGrant(req.params.grantId),
+        service.getGrant(scalarRouteParams(req.params).grantId),
         service.getProfessional(callerUid),
       ]);
       if (!grant) return res.status(404).json({ error: 'grant_not_found', message: 'Acceso no encontrado.' });
@@ -776,7 +778,7 @@ export function createHealthVaultProfessionalRouter(
     if (!callerUid) return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión.' });
     try {
       const service = deps();
-      const grant = await service.getGrant(req.params.grantId);
+      const grant = await service.getGrant(scalarRouteParams(req.params).grantId);
       if (!grant) return next();
       const revoked = revokeHealthAccessGrant(grant, callerUid);
       await service.replaceGrant(revoked, {

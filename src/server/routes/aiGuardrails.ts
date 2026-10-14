@@ -52,6 +52,8 @@ import {
   type CitationSource,
   type CitationPolicy,
 } from '../../services/aiGuardrails/index.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -89,7 +91,7 @@ router.post(
   validate(getPromptSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof getPromptSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -116,7 +118,7 @@ router.post(
   validate(promptIdSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof promptIdSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -139,7 +141,7 @@ router.post(
   validate(promptIdSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof promptIdSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -161,7 +163,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const ids = listPromptIds();
@@ -180,7 +182,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const catalog = getCatalog();
@@ -211,7 +213,7 @@ router.post(
   validate(renderSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof renderSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -235,7 +237,7 @@ router.post(
   validate(unresolvedSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof unresolvedSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -263,7 +265,7 @@ router.post(
   validate(extractSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof extractSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -294,7 +296,7 @@ router.post(
   validate(validateResponseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateResponseSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -322,7 +324,7 @@ router.post(
   validate(guardSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof guardSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

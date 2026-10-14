@@ -49,6 +49,8 @@ import {
 import { CEAL_ANONYMITY_THRESHOLD } from '../../services/protocols/cealSmDefinition.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -177,7 +179,7 @@ router.post(
   validate(createCampaignSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createCampaignSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!callerCanManageCampaigns(req)) {
@@ -228,7 +230,7 @@ router.post(
 
 router.get('/:projectId/ceal-sm/campaigns', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!(await guard(callerUid, projectId, res))) return undefined;
   try {
     const db = getFirestore();
@@ -291,7 +293,7 @@ router.post(
   validate(respondSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id: campaignId } = req.params;
+    const { projectId, id: campaignId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof respondSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -365,7 +367,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id: campaignId } = req.params;
+    const { projectId, id: campaignId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const db = getFirestore();

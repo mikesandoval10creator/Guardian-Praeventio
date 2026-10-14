@@ -45,6 +45,8 @@ import {
   type DrillExecutionInput,
   type PastDrillExecution,
 } from '../../services/commsDrill/commsDrillEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -96,7 +98,7 @@ router.post(
   validate(listScriptsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const scripts = listDrillScripts();
@@ -123,7 +125,7 @@ router.post(
   validate(getByIdSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof getByIdSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -174,7 +176,7 @@ router.post(
   validate(scoreSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as DrillExecutionInput;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -209,7 +211,7 @@ router.post(
   validate(planScheduleSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof planScheduleSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

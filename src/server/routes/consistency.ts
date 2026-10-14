@@ -33,6 +33,8 @@ import {
   type Inconsistency,
   type InconsistencySeverity,
 } from '../../services/consistency/consistencyAuditor.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -124,7 +126,7 @@ router.post(
   validate(runSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof runSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -152,7 +154,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

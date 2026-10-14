@@ -33,6 +33,8 @@ import {
   type ZoneStats,
   type TaskRiskRecord,
 } from '../../services/riskRanking/riskRankingEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -83,7 +85,7 @@ router.post(
   validate(ranksRisksSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ranksRisksSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -122,7 +124,7 @@ router.post(
   validate(weakControlsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof weakControlsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -158,7 +160,7 @@ router.post(
   validate(zonesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof zonesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -195,7 +197,7 @@ router.post(
   validate(tasksSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof tasksSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

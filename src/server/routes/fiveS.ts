@@ -36,6 +36,8 @@ import {
   type FiveSAuditResponse,
   type FiveSAuditReport,
 } from '../../services/fiveS/fiveSAudit.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -71,7 +73,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const items = getFiveSChecklist();
@@ -104,7 +106,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -141,7 +143,7 @@ router.post(
   validate(rankSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rankSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

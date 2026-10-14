@@ -57,6 +57,8 @@ import {
   type ZoneEntryCheckInput,
   type ZoneEntryResult,
 } from '../../services/zones/restrictedZonesEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -298,7 +300,7 @@ router.post(
 
 router.get('/by-site/:projectId', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId || projectId.length === 0) {
     return res.status(400).json({ error: 'missing_projectId' });
   }
@@ -494,7 +496,7 @@ router.get(
   validate(entryPermissionsSchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     if (!projectId || !workerUid) {
       return res.status(400).json({ error: 'missing_params' });
     }

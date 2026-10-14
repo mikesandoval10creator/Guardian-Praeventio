@@ -38,6 +38,8 @@ import {
   type RetaliationRiskAssessment,
   type RetaliationSignal,
 } from '../../services/retaliationProtection/retaliationDetector.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -93,7 +95,7 @@ router.post(
   validate(analyzeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof analyzeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -134,7 +136,7 @@ router.post(
   validate(recommendActionsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recommendActionsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

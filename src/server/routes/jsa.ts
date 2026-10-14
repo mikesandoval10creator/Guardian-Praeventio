@@ -45,6 +45,8 @@ import {
   JsaFinalizationError,
   type JsaDraft,
 } from '../../services/jsa/jobSafetyAnalysis.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -85,7 +87,7 @@ router.post(
   validate(validateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -113,7 +115,7 @@ router.post(
   validate(residualRisksSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof residualRisksSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -144,7 +146,7 @@ router.post(
   validate(finalizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof finalizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

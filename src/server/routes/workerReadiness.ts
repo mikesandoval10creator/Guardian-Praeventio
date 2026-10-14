@@ -49,6 +49,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -109,7 +111,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     const taskIdParam =
       typeof req.query.taskId === 'string' && req.query.taskId.length > 0
         ? req.query.taskId

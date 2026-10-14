@@ -38,6 +38,8 @@ import {
   type EscalationOptions,
   type EscalationHistoryEntry,
 } from '../../services/escalation/escalationSlaEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -144,7 +146,7 @@ router.post(
   validate(slaMinutesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof slaMinutesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -173,7 +175,7 @@ router.post(
   validate(assessSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof assessSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -205,7 +207,7 @@ router.post(
   validate(decideSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof decideSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -250,7 +252,7 @@ router.post(
   validate(applySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof applySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -282,7 +284,7 @@ router.post(
   validate(batchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof batchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

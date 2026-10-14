@@ -44,6 +44,8 @@ import {
   type BowtieDiagram,
   type Threat,
 } from '../../services/bowtie/bowtieAnalysisBuilder.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -150,7 +152,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -194,7 +196,7 @@ router.post(
   validate(listUnprotectedSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof listUnprotectedSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -222,7 +224,7 @@ router.post(
   validate(recommendNextSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recommendNextSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

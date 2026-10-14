@@ -42,6 +42,8 @@ import {
   type CauseNode,
   type RootCauseTree,
 } from '../../services/researchMode/researchMode.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -102,7 +104,7 @@ router.post(
   validate(treeBodySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof treeBodySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -126,7 +128,7 @@ router.post(
   validate(treeBodySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof treeBodySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -155,7 +157,7 @@ router.post(
   validate(compareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof compareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -183,7 +185,7 @@ router.post(
   validate(detectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof detectSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

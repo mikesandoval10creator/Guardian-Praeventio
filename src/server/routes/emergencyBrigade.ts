@@ -46,6 +46,8 @@ import {
   type BrigadeRole,
   type EmergencyResource,
 } from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -218,7 +220,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -329,7 +331,7 @@ router.post(
   validate(addBrigadeMemberSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof addBrigadeMemberSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -398,7 +400,7 @@ router.post(
   validate(addResourceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof addResourceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -454,7 +456,7 @@ router.post(
   validate(inspectResourceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof inspectResourceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

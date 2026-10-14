@@ -58,6 +58,8 @@ import {
   type ComputedFieldFormula,
   type CrossFieldValidationRule,
 } from '../../services/formBuilderAdvanced/advancedFieldEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -115,7 +117,7 @@ router.post(
   validate(evaluateComputedSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateComputedSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -150,7 +152,7 @@ router.post(
   validate(validateCrossFieldSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateCrossFieldSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -180,7 +182,7 @@ router.post(
   validate(detectCircularSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof detectCircularSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -209,7 +211,7 @@ router.post(
   validate(topoSortSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof topoSortSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -243,7 +245,7 @@ router.post(
   validate(evaluateAllSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evaluateAllSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

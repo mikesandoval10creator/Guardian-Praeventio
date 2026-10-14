@@ -54,6 +54,8 @@ import {
   type EquipmentCriticality,
   type PreUseResponse,
 } from '../../services/equipment/equipmentQrService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -178,7 +180,7 @@ router.post(
   validate(registerSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof registerSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -237,7 +239,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     const status =
@@ -277,7 +279,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, qrId } = req.params;
+    const { projectId, qrId } = scalarRouteParams(req.params);
     if (!qrId || qrId.length < 1 || qrId.length > 200) {
       return res.status(400).json({ error: 'invalid_qr_id' });
     }
@@ -336,7 +338,7 @@ router.post(
   validate(preUseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, qrId } = req.params;
+    const { projectId, qrId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof preUseSchema>;
     if (!qrId || qrId.length < 1 || qrId.length > 200) {
       return res.status(400).json({ error: 'invalid_qr_id' });
@@ -456,7 +458,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, qrId } = req.params;
+    const { projectId, qrId } = scalarRouteParams(req.params);
     if (!qrId || qrId.length < 1 || qrId.length > 200) {
       return res.status(400).json({ error: 'invalid_qr_id' });
     }

@@ -39,6 +39,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -280,7 +282,7 @@ export interface TrendResponse {
 
 router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) {
     return res.status(400).json({ error: 'project_id_required' });
   }
@@ -559,7 +561,7 @@ export interface IncidentListResponse {
 
 router.get('/:projectId/incidents/list', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) {
     return res.status(400).json({ error: 'project_id_required' });
   }
