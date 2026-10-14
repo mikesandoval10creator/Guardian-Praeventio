@@ -79,7 +79,12 @@ test('list normalization never allows an unauthorized tenant to reach Firestore'
 function fixture(nodes, maxSubgraphNodes) {
   const reads = [];
   const collection = {
+    limit() { return this; },
+    async get() {
+      return { docs: [...nodes].map(([id, data]) => ({ id, exists: true, data: () => data })) };
+    },
     doc(id) {
+      assert.ok(typeof id === 'string' && id.length > 0, 'Firestore document path must be a nonempty string');
       return {
         async get() {
           reads.push(id);
@@ -156,4 +161,64 @@ test('under-budget traversal reads each breadth-first level in order', async () 
   const expected = ['root', 'a', 'b', 'a-child', 'b-child'];
   assert.deepEqual(reads, expected);
   assert.deepEqual(result.map(node => node.id), expected);
+});
+
+test('malformed stored connections cannot abort traversal or consume its read budget', async () => {
+  const nodes = new Map([
+    ['root', { connections: [42, null, false, {}, [], '', 'nested/path/node', 'child'] }],
+    ['child', { connections: ['grandchild'] }],
+    ['grandchild', {}],
+  ]);
+  const { adapter, reads } = fixture(nodes, 3);
+  const result = await adapter.expandSubgraph('test-tenant', 'root', 2);
+  assert.deepEqual(reads, ['root', 'child', 'grandchild']);
+  assert.deepEqual(result.map(node => node.id), reads);
+});
+
+test('node snapshots preserve string connections including URI references and duplicates', async () => {
+  const { adapter } = fixture(new Map([['root', {
+    connections: ['child', 42, '', 'nested/path/node', null, 'other', 'child'],
+  }]]), 3);
+  assert.deepEqual((await adapter.getNode('test-tenant', 'root')).connections, ['child', '', 'nested/path/node', 'other', 'child']);
+});
+
+test('missing and non-array stored connection fields remain empty', async () => {
+  for (const connections of [undefined, null, 'child', { child: true }]) {
+    const { adapter, reads } = fixture(new Map([['root', { connections }]]), 3);
+    const result = await adapter.expandSubgraph('test-tenant', 'root', 2);
+    assert.deepEqual(result[0].connections, []);
+    assert.deepEqual(reads, ['root']);
+  }
+});
+
+test('URI connections remain visible without being followed as document paths', async () => {
+  const uri = 'https://example.invalid/meshes/site.glb';
+  const { adapter, reads } = fixture(new Map([
+    ['root', { connections: [uri, 'child'] }], ['child', {}],
+  ]), 2);
+  assert.deepEqual((await adapter.getNode('test-tenant', 'root')).connections, [uri, 'child']);
+  assert.deepEqual((await adapter.listNodes('test-tenant', {}))[0].connections, [uri, 'child']);
+  reads.length = 0;
+  const result = await adapter.expandSubgraph('test-tenant', 'root', 2);
+  assert.deepEqual(result[0].connections, [uri, 'child']);
+  assert.deepEqual(reads, ['root', 'child']);
+});
+
+test('reserved, oversized and malformed UTF-8 IDs do not consume the read budget', async () => {
+  const invalid = ['.', '..', '__reserved__', 'x'.repeat(1501), 'é'.repeat(751), '\uD800', '\uDC00'];
+  const valid = ['x'.repeat(1500), 'é'.repeat(750), '😀'.repeat(375)];
+  const { adapter, reads } = fixture(new Map([
+    ['root', { connections: [...invalid, ...valid] }], ...valid.map(id => [id, {}]),
+  ]), 4);
+  await adapter.expandSubgraph('test-tenant', 'root', 1);
+  assert.deepEqual(reads, ['root', ...valid]);
+});
+
+test('invalid starting IDs are rejected before Firestore access', async () => {
+  const { adapter, reads } = fixture(new Map(), 3);
+  for (const id of ['', '.', '..', '__reserved__', 'nested/path/node', 'é'.repeat(751), '\uD800']) {
+    await assert.rejects(adapter.getNode('test-tenant', id), /invalid node ID/);
+    await assert.rejects(adapter.expandSubgraph('test-tenant', id, 1), /invalid node ID/);
+  }
+  assert.deepEqual(reads, []);
 });
