@@ -154,9 +154,12 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         // subscriptionState ACTIVE = suscripción vigente (incluye prueba gratis
         // y gracia); GRACE_PERIOD se considera activa para no cortar el acceso
         // durante la ventana de reintento de pago.
+        // Cancelar la renovación no elimina el período que ya se pagó.
         const isActive =
           subData.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
-          subData.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
+          subData.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' ||
+          (subData.subscriptionState === 'SUBSCRIPTION_STATE_CANCELED' &&
+            typeof expiryDate === 'string' && Date.parse(expiryDate) > Date.now());
 
         await db.collection('users').doc(uid).update({
           'subscription.planId': resolvedPlan,
@@ -305,10 +308,12 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
                 subscriptionState?: string | null;
                 lineItems?: Array<{ expiryTime?: string | null }> | null;
               };
+              const expiryDate = parseGooglePlayExpiryTime(data.lineItems?.[0]?.expiryTime);
               const isActive =
                 data.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' ||
-                data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD';
-              const expiryDate = parseGooglePlayExpiryTime(data.lineItems?.[0]?.expiryTime);
+                data.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' ||
+                (data.subscriptionState === 'SUBSCRIPTION_STATE_CANCELED' &&
+                  typeof expiryDate === 'string' && Date.parse(expiryDate) > Date.now());
 
               // subscriptionId IS the SKU/productId for v3 single-product subs.
               // Resolve the plan too (was missing) so a renewal that changed the
