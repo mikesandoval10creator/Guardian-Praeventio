@@ -20,6 +20,7 @@
     "clean": "rm -rf dist",
     "typecheck": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "typecheck:ci": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
+    "test:mcp-traversal": "node --test scripts/mcp-traversal.test.mjs",
     "lint": "eslint . && node scripts/check-open-reads-ratchet.cjs && node scripts/check-user-facing-errors.cjs && node scripts/check-pgp-disclosure-ratchet.cjs",
     "lint:fix": "eslint . --fix && eslint firestore.rules --fix",
     "lint:rules": "node scripts/check-open-reads-ratchet.cjs",

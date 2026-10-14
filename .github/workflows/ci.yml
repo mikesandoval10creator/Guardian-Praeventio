@@ -152,6 +152,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: MCP traversal read budget regressions
+        run: npm run test:mcp-traversal
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
