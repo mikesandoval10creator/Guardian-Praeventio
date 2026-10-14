@@ -68,7 +68,7 @@ export interface ZkFirebaseAdapterConfig {
   /** Tenants accesibles para este servidor MCP. Default: vacío
    *  (el caller DEBE poblar a través de claim o whitelist). */
   accessibleTenants: ReadonlyArray<string>;
-  /** Hard cap del expandSubgraph BFS para evitar runaway. Default 200. */
+  /** Hard cap de lecturas y nodos encolados del BFS, incluidos ausentes. Default 200. */
   maxSubgraphNodes?: number;
   /** Hard cap del listNodes. Default 100. */
   maxListNodes?: number;
@@ -166,11 +166,13 @@ export function createZkFirebaseReadAdapter(
       const queue: Array<{ id: string; depthLeft: number }> = [
         { id: rootNodeId, depthLeft: cappedDepth },
       ];
+      const scheduled = new Set<string>([rootNodeId]);
+      let cursor = 0;
 
-      while (queue.length > 0) {
-        if (visited.size >= maxSubgraph) break;
-        const { id, depthLeft } = queue.shift()!;
-        if (visited.has(id)) continue;
+      // Missing documents also cost a Firestore read. Bound work by scheduled
+      // references, rather than successful results, and never retry a missing id.
+      while (cursor < queue.length && cursor < maxSubgraph) {
+        const { id, depthLeft } = queue[cursor++];
 
         const ref = nodesCollection(tenantId).doc(id);
         const snap = await ref.get();
@@ -180,7 +182,9 @@ export function createZkFirebaseReadAdapter(
 
         if (depthLeft > 0) {
           for (const connId of node.connections) {
-            if (!visited.has(connId)) {
+            if (scheduled.size >= maxSubgraph) break;
+            if (!scheduled.has(connId)) {
+              scheduled.add(connId);
               queue.push({ id: connId, depthLeft: depthLeft - 1 });
             }
           }
