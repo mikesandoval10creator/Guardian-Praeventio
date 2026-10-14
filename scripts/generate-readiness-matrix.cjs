@@ -244,7 +244,7 @@ ${capabilityRows.join("\n")}
 
 function main(argv = process.argv.slice(2)) {
   const repoRoot = path.resolve(
-    argv.find((arg) => arg.startsWith("--repo="))?.slice(6) ?? ".",
+    argv.find((arg) => arg.startsWith("--repo="))?.slice("--repo=".length) ?? ".",
   );
   const check = argv.includes("--check");
   const output = path.resolve(
