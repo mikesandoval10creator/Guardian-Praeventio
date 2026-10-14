@@ -41,11 +41,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import process from 'node:process';
 
-// El TypeScript se compila al directorio dist/ vía `tsc` (config
-// separado para Node ESM). El entrypoint asume que el build ya corrió.
-// Para dev, ejecutamos con `tsx` que transpila on-the-fly.
-import { createZkFirebaseReadAdapter } from '../dist/server/mcp/zkFirebaseReadAdapter.js';
-import { startStdioMcpServer } from '../dist/services/mcp/zettelkastenStdioAdapter.js';
+// `npm run build:mcp` compila Node ESM en dist-mcp/, separado del build
+// web. Los comandos npm mcp:start / mcp:dev lo compilan antes de arrancar.
+// Clientes que invocan este archivo directamente deben compilar primero.
+import { createZkFirebaseReadAdapter } from '../dist-mcp/server/mcp/zkFirebaseReadAdapter.js';
+import { startStdioMcpServer } from '../dist-mcp/services/mcp/zettelkastenStdioAdapter.js';
 
 function readTenants() {
   const raw = process.env.PRAEVENTIO_MCP_TENANTS;

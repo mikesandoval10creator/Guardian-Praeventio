@@ -29,6 +29,7 @@ export default [
       // Agent scratch output (worktrees + agents-output) — no es código fuente.
       '.claude/**',
       'dist/**',
+      'dist-mcp/**',
       'build/**',
       'out/**',
       'coverage/**',
