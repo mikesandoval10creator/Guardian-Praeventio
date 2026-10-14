@@ -95,7 +95,7 @@
     "loadtest:sos": "bash loadtest/run.sh",
     "canary:monitor": "node scripts/canary-monitor.cjs",
     "retro:weekly": "node scripts/retro-weekly.cjs",
-    "test:readiness-matrix": "node --test scripts/generate-readiness-matrix.test.cjs",
+    "test:readiness-matrix": "node --test --test-concurrency=1 scripts/generate-readiness-matrix.test.cjs scripts/generate-readiness-matrix.repo.test.cjs",
     "lint:readiness-matrix": "node scripts/generate-readiness-matrix.cjs --check",
     "test:scheduler-crons": "node scripts/validate-scheduler-crons.cjs",
     "postinstall": "node scripts/patch-artillery.mjs && node scripts/patch-stryker-vitest5.cjs"
