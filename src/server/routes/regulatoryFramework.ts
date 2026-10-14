@@ -47,6 +47,8 @@ import {
 import type { JurisdictionCode } from '../../services/regulatory/types.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -116,7 +118,7 @@ router.post(
   validate(activeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof activeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -146,7 +148,7 @@ router.post(
   validate(citeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof citeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -179,7 +181,7 @@ router.post(
   validate(resolveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof resolveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -205,7 +207,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const controls = listControls();
@@ -233,7 +235,7 @@ router.post(
   validate(referencesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof referencesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

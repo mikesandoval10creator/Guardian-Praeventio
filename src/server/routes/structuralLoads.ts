@@ -42,6 +42,8 @@ import {
   FORECAST_MINUTES_PER_STEP,
   type StructuralLoadInputs,
 } from '../../services/predictiveAlerts/structuralLoadProbe.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -134,7 +136,7 @@ function colPath(tenantId: string, projectId: string): string {
 
 router.get('/:projectId/structural-loads', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -166,7 +168,7 @@ router.post(
   validate(createSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -222,7 +224,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {

@@ -31,6 +31,8 @@ import {
   type MeetingKind,
   type BriefingInputs,
 } from '../../services/meetingPack/meetingPackBuilder.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -105,7 +107,7 @@ router.post(
   validate(summarySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -157,7 +159,7 @@ router.post(
   validate(briefingSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof briefingSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -195,7 +197,7 @@ router.post(
   validate(extractSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof extractSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

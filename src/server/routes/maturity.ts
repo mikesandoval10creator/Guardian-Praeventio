@@ -28,6 +28,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -85,7 +87,7 @@ async function guard(
 
 router.get('/:projectId/maturity-index', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'maturity' }), async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {

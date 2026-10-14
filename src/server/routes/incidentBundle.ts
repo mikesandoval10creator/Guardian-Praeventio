@@ -31,6 +31,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -72,7 +74,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {

@@ -37,6 +37,8 @@ import {
   type ChangeKind,
   type ChangeImpact,
 } from '../../services/changeMgmt/operationalChangeService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -117,7 +119,7 @@ router.post(
   validate(declareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof declareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -158,7 +160,7 @@ router.post(
   validate(ackSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ackSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -196,7 +198,7 @@ router.post(
   validate(revertSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof revertSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -232,7 +234,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

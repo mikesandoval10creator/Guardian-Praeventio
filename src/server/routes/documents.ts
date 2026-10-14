@@ -19,6 +19,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -51,7 +53,7 @@ router.post(
   validate(documentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof documentSchema>;
 
     try {

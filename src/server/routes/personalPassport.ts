@@ -15,6 +15,8 @@ import { verifyComplianceEvidenceAttestation } from "../services/complianceEvide
 import type { ComplianceArchiveAttestation } from "../../services/compliance/complianceSignature.js";
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 export const personalPassportRouter = Router();
 
 const SHAREABLE_FIELDS = [
@@ -194,7 +196,7 @@ personalPassportRouter.get(
   async (req, res) => {
     const ownerUid = authenticatedUid(req);
     if (!ownerUid) return res.status(401).json({ error: "unauthorized" });
-    const passportId = req.params.passportId;
+    const passportId = scalarRouteParams(req.params).passportId;
     try {
       const loaded = await loadOwnedPassport(ownerUid, passportId);
       if (!loaded) return res.status(404).json({ error: "passport_not_found" });
@@ -229,7 +231,7 @@ personalPassportRouter.post(
   async (req, res) => {
     const ownerUid = authenticatedUid(req);
     if (!ownerUid) return res.status(401).json({ error: "unauthorized" });
-    const passportId = req.params.passportId;
+    const passportId = scalarRouteParams(req.params).passportId;
     const recipientUid = req.body?.recipientUid;
     const targetProjectId = req.body?.targetProjectId;
     const fields = parseFields(req.body?.fields);
@@ -338,7 +340,7 @@ personalPassportRouter.post(
   "/:ownerUid/shares/:shareId/consume",
   verifyAuth,
   async (req, res) => {
-    const { ownerUid, shareId } = req.params;
+    const { ownerUid, shareId } = scalarRouteParams(req.params);
     const recipientUid = authenticatedUid(req);
     if (!recipientUid) return res.status(401).json({ error: "unauthorized" });
     try {
@@ -406,7 +408,7 @@ personalPassportRouter.post(
   async (req, res) => {
     const ownerUid = authenticatedUid(req);
     if (!ownerUid) return res.status(401).json({ error: "unauthorized" });
-    const { passportId, shareId } = req.params;
+    const { passportId, shareId } = scalarRouteParams(req.params);
     try {
       const ref = getFirestore()
         .collection("users")

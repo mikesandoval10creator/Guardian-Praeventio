@@ -18,6 +18,7 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from '../http/scalarRouteParams.js';
 
 function sentryCapture(
   err: unknown,
@@ -172,7 +173,7 @@ router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
   const callerUid: string | undefined = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
-  const { tokenId } = req.params;
+  const { tokenId } = scalarRouteParams(req.params);
   if (!tokenId) return res.status(400).json({ error: 'invalid_request' });
 
   try {

@@ -36,6 +36,8 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -105,7 +107,7 @@ router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(),
 
 router.post('/crews/:id/members', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
-  const crewId = req.params.id;
+  const crewId = scalarRouteParams(req.params).id;
   const { memberUid } = req.body ?? {};
   if (typeof memberUid !== 'string' || !memberUid) {
     return res.status(400).json({ error: 'memberUid required' });
@@ -188,7 +190,7 @@ router.post('/processes', verifyAuth, organicLimiter, assertProjectMemberFromBod
 
 router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
-  const processId = req.params.id;
+  const processId = scalarRouteParams(req.params).id;
   const { complianceScore } = req.body ?? {};
   if (typeof complianceScore !== 'number' || !Number.isFinite(complianceScore)) {
     return res.status(400).json({ error: 'complianceScore must be a number' });
@@ -239,7 +241,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
   // Sprint 17a — uses pure `checkStatusTransition` guard, audits the
   // transition, and emits a Sentry breadcrumb for ops visibility.
   const uid = req.user!.uid;
-  const processId = req.params.id;
+  const processId = scalarRouteParams(req.params).id;
   const { status } = req.body ?? {};
   if (status !== 'active' && status !== 'paused') {
     return res.status(400).json({ error: 'status must be active|paused' });
@@ -302,7 +304,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
 
 router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
-  const processId = req.params.id;
+  const processId = scalarRouteParams(req.params).id;
   const { description, date, assignedUids } = req.body ?? {};
   if (typeof description !== 'string' || !description.trim()) {
     return res.status(400).json({ error: 'description required' });
@@ -442,7 +444,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
 
 router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
-  const taskId = req.params.id;
+  const taskId = scalarRouteParams(req.params).id;
   try {
     const db = getFirestore();
     const ref = db.collection('tasks').doc(taskId);
@@ -516,7 +518,7 @@ router.get('/processes', verifyAuth, organicLimiter, async (req, res) => {
 // the project's crews, resolved to users/{uid}.displayName (fallback uid).
 router.get('/projects/:projectId/roster', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;
-  const projectId = req.params.projectId;
+  const projectId = scalarRouteParams(req.params).projectId;
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
   try {
     const db = getFirestore();

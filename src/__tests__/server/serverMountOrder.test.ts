@@ -31,7 +31,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
       (l) => /app\.use\(\s*['"`]\/billing['"`]\s*,\s*billingWebpayRouter/.test(l),
     );
     const spaCatchAll = findLine(
-      (l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l),
+      (l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l),
     );
 
     expect(webpayMount).toBeGreaterThanOrEqual(0);
@@ -44,7 +44,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
       (l) => /app\.use\(\s*['"`]\/api\/billing['"`]\s*,\s*billingApiRouter/.test(l),
     );
     const spaCatchAll = findLine(
-      (l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l),
+      (l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l),
     );
 
     expect(billingApiMount).toBeGreaterThanOrEqual(0);
@@ -57,7 +57,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
       (l) => /app\.use\(\s*['"`]\/api\/subscription['"`]/.test(l),
     );
     const spaCatchAll = findLine(
-      (l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l),
+      (l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l),
     );
 
     expect(subMount).toBeGreaterThanOrEqual(0);
@@ -70,7 +70,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
       (l) => /app\.use\(\s*['"`]\/api\/dte['"`]/.test(l),
     );
     const spaCatchAll = findLine(
-      (l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l),
+      (l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l),
     );
 
     expect(dteMount).toBeGreaterThanOrEqual(0);
@@ -79,7 +79,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
   });
 
   it('only declares the SPA catch-all once', () => {
-    const matches = lines.filter((l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l));
+    const matches = lines.filter((l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l));
     expect(matches.length).toBe(1);
   });
 });
@@ -117,7 +117,7 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
     return lines.findIndex(predicate);
   }
 
-  const spaCatchAll = findLine((l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l));
+  const spaCatchAll = findLine((l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l));
 
   const cases: ReadonlyArray<{
     name: string;

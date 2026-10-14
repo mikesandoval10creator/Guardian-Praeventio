@@ -50,6 +50,8 @@ import {
   type GapHistory,
   type PressureSignals,
 } from '../../services/orgMetrics/organizationalMetrics.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -124,7 +126,7 @@ router.post(
   validate(siloSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof siloSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -160,7 +162,7 @@ router.post(
   validate(frictionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof frictionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -194,7 +196,7 @@ router.post(
   validate(closureSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof closureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -229,7 +231,7 @@ router.post(
   validate(chronicSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof chronicSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -267,7 +269,7 @@ router.post(
   validate(pressureSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof pressureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -310,7 +312,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof workforceCaptureSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
@@ -427,7 +429,7 @@ router.get(
   validate(operationalPressureQuerySchema, 'query'),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const { period } = req.validated as z.infer<typeof operationalPressureQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 

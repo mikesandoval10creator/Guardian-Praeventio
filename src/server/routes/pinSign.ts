@@ -50,6 +50,8 @@ import {
   type PinSignItemKind,
   type PinSignedAcknowledgement,
 } from '../../services/pinSign/pinSignService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -208,7 +210,7 @@ router.post(
   validate(validatePolicySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validatePolicySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -238,7 +240,7 @@ router.post(
   validate(registerSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof registerSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -283,7 +285,7 @@ router.post(
   validate(verifySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof verifySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -327,7 +329,7 @@ router.post(
   validate(signItemSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof signItemSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -400,7 +402,7 @@ router.post(
   validate(verifyAckSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof verifyAckSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

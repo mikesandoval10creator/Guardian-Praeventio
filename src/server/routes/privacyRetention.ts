@@ -49,6 +49,8 @@ import {
   type RetentionRule,
   type PiiSensitivity,
 } from '../../services/privacyRetention/dataRetentionPolicy.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -163,7 +165,7 @@ router.post(
   validate(decideRetentionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof decideRetentionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -208,7 +210,7 @@ router.post(
   validate(checkConsentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof checkConsentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -240,7 +242,7 @@ router.post(
   validate(piiBucketSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof piiBucketSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -269,7 +271,7 @@ router.post(
   validate(sensitivityForCategorySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof sensitivityForCategorySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

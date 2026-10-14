@@ -38,6 +38,8 @@ import {
   type DrugEntry,
   type AnatomyEntry,
 } from '../../data/medical/index.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -80,7 +82,7 @@ router.post(
   validate(diagnosesSearchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof diagnosesSearchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -122,7 +124,7 @@ router.post(
   validate(drugsSearchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drugsSearchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -163,7 +165,7 @@ router.post(
   validate(anatomySearchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof anatomySearchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -204,7 +206,7 @@ router.post(
   validate(byRiskAgentSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof byRiskAgentSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -238,7 +240,7 @@ router.post(
   validate(bySystemSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof bySystemSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -264,7 +266,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       return res.json({

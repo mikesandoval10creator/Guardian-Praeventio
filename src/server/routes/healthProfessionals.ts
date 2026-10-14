@@ -28,6 +28,8 @@ import {
   StubProfessionalRegistryProvider,
   type ProfessionalRegistryVerification,
 } from '../../services/health/professionalRegistryProvider.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 type ProfessionalStore = {
   enroll(input: {
@@ -428,14 +430,14 @@ export function createHealthProfessionalsRouter(deps?: {
       });
     }
     try {
-      if (!(await hasWebAuthnCredential(req.params.uid))) {
+      if (!(await hasWebAuthnCredential(scalarRouteParams(req.params).uid))) {
         return res.status(409).json({
           error: 'professional_webauthn_required',
           message: 'El profesional debe registrar una huella o llave de seguridad antes de ser habilitado.',
         });
       }
       const identity = await getStore().approveProvisional({
-        targetUid: req.params.uid,
+        targetUid: scalarRouteParams(req.params).uid,
         reviewerUid,
         evidenceReference: parsed.data.evidenceReference,
       });
@@ -481,7 +483,7 @@ export function createHealthProfessionalsRouter(deps?: {
       }
       try {
         const identity = await getStore().transitionStatus({
-          targetUid: req.params.uid,
+          targetUid: scalarRouteParams(req.params).uid,
           reviewerUid,
           to,
           evidenceReference: parsed.data.evidenceReference,
@@ -512,7 +514,7 @@ export function createHealthProfessionalsRouter(deps?: {
       });
     }
     try {
-      const result = await getStore().revalidate({ targetUid: req.params.uid, reviewerUid });
+      const result = await getStore().revalidate({ targetUid: scalarRouteParams(req.params).uid, reviewerUid });
       if (result.verification.status === 'not_configured' || result.verification.status === 'unavailable') {
         return res.status(503).json({
           error: result.verification.status === 'not_configured'

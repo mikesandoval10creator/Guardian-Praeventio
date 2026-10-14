@@ -23,11 +23,7 @@ import express, {
   type NextFunction,
 } from "express";
 import request from "supertest";
-// express-async-errors must be imported in the test process too — the real
-// router is mounted on a local express() app and the monkey-patch is per
-// process. Without it a rejecting handler HANGS instead of 500ing, and the
-// audit-failure regression case would be meaningless.
-import "express-async-errors";
+// Express 5 natively forwards async rejections to the error handler.
 
 // ── hoisted holder ───────────────────────────────────────────────────────────
 const H = vi.hoisted(() => ({

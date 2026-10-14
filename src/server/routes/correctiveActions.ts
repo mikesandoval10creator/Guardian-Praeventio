@@ -29,6 +29,8 @@ import { CorrectiveActionsAdapter } from '../../services/correctiveActions/corre
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -70,7 +72,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -121,7 +123,7 @@ router.post(
   validate(scheduleReviewSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, actionId } = req.params;
+    const { projectId, actionId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scheduleReviewSchema>;
     if (body.actionId !== actionId) {
       return res.status(400).json({ error: 'actionId_mismatch' });
@@ -183,7 +185,7 @@ router.post(
   validate(correctiveActionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof correctiveActionSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

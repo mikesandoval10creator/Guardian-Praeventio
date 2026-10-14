@@ -44,6 +44,8 @@ import {
   type IndustryPreset,
   type PresetApplication,
 } from '../../services/industryRules/industryRuleEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -87,7 +89,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const presets = listIndustryPresets();
@@ -119,7 +121,7 @@ router.post(
   validate(selectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof selectSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -168,7 +170,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const industryPrefix = parsePrefixFromQuery(req, res);
     if (industryPrefix === null) return undefined;
@@ -200,7 +202,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const industryPrefix = parsePrefixFromQuery(req, res);
     if (industryPrefix === null) return undefined;
@@ -233,7 +235,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const industryPrefix = parsePrefixFromQuery(req, res);
     if (industryPrefix === null) return undefined;

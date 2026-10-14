@@ -33,6 +33,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -143,7 +145,7 @@ interface StoredDrill {
 
 router.get('/:projectId/drills', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -197,7 +199,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, drillId } = req.params;
+    const { projectId, drillId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -241,7 +243,7 @@ router.post(
   validate(drillPlanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drillPlanSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -302,7 +304,7 @@ router.post(
   validate(drillExecuteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, drillId } = req.params;
+    const { projectId, drillId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drillExecuteSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

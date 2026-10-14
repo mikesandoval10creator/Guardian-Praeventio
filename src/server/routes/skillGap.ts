@@ -49,6 +49,8 @@ import {
   type SkillGap,
   type WorkerSkill,
 } from '../../services/skillGap/skillGapAnalyzer.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -98,7 +100,7 @@ router.post(
   validate(analyzeGapsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof analyzeGapsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -131,7 +133,7 @@ router.post(
   validate(buildPlanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildPlanSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -164,7 +166,7 @@ router.post(
   validate(polyvalenceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof polyvalenceSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -197,7 +199,7 @@ router.post(
   validate(findSubsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof findSubsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

@@ -46,6 +46,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -232,7 +234,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -332,7 +334,7 @@ router.post(
   validate(drivingRouteCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drivingRouteCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -386,7 +388,7 @@ router.post(
   validate(drivingRouteAlertSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drivingRouteAlertSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -476,7 +478,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -543,7 +545,7 @@ router.post(
   validate(drivingJourneySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, uid } = req.params;
+    const { projectId, uid } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof drivingJourneySchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -669,7 +671,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -788,7 +790,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     // req.validated (not req.body): zod-parsed payload with unknown keys
     // stripped — a body-supplied `reportedByUid` never reaches the handler.
     const body = req.validated as z.infer<typeof drivingIncidentSchema>;

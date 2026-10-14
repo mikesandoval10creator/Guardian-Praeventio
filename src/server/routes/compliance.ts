@@ -83,6 +83,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const VALID_PURPOSES: ConsentPurpose[] = [
   'core_service',
@@ -182,7 +184,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
 
 router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
   const uid = req.user!.uid;
-  const purpose = req.params.purpose as ConsentPurpose;
+  const purpose = scalarRouteParams(req.params).purpose as ConsentPurpose;
   if (!VALID_PURPOSES.includes(purpose)) {
     return res.status(400).json({ error: 'invalid_purpose' });
   }
@@ -335,7 +337,7 @@ router.get('/data-requests', verifyAuth, async (_req, res) => {
 
 router.get('/data-request/:id', verifyAuth, async (req, res) => {
   const uid = req.user!.uid;
-  const requestId = req.params.id;
+  const requestId = scalarRouteParams(req.params).id;
   if (!requestId || requestId.length > 128) {
     return res.status(400).json({ error: 'invalid_id' });
   }
@@ -369,7 +371,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
 
 router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
   const uid = req.user!.uid;
-  const requestId = req.params.requestId;
+  const requestId = scalarRouteParams(req.params).requestId;
   try {
     const request = await getDataAccessRequest(getDb(), requestId);
     if (!request) {
@@ -408,7 +410,7 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/data-export/:requestId/bundle', verifyAuth, async (req, res) => {
   const uid = req.user!.uid;
-  const requestId = req.params.requestId;
+  const requestId = scalarRouteParams(req.params).requestId;
   try {
     const request = await getDataAccessRequest(getDb(), requestId);
     if (!request) {
@@ -505,7 +507,7 @@ async function assertAdminCaller(
 
 router.post('/admin/data-request/:id/process', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const requestId = req.params.id;
+  const requestId = scalarRouteParams(req.params).id;
   if (!REQUEST_ID_REGEX.test(requestId)) {
     return res.status(400).json({ error: 'invalid_id' });
   }
@@ -556,7 +558,7 @@ router.post('/admin/data-request/:id/process', verifyAuth, async (req, res) => {
 
 router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const requestId = req.params.id;
+  const requestId = scalarRouteParams(req.params).id;
   if (!REQUEST_ID_REGEX.test(requestId)) {
     return res.status(400).json({ error: 'invalid_id' });
   }
@@ -690,7 +692,7 @@ function resolveSector(data: Record<string, unknown>): string | undefined {
 
 router.get('/:projectId/traffic-light', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!PROJECT_ID_REGEX.test(projectId)) {
     return res.status(400).json({ error: 'project_id_required' });
   }

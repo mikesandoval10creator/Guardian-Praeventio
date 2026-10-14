@@ -26,6 +26,8 @@ import {
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -55,7 +57,7 @@ router.patch(
   validate(updateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, workerId } = req.params;
+    const { projectId, workerId } = scalarRouteParams(req.params);
     const patchIn = req.validated as z.infer<typeof updateSchema>;
 
     try {

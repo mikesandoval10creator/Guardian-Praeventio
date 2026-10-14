@@ -35,6 +35,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -128,7 +130,7 @@ type KbDoc = {
 
 router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -248,7 +250,7 @@ router.post(
   validate(kbCreateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof kbCreateSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -300,7 +302,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -350,7 +352,7 @@ router.post(
   validate(kbFlagObsoleteSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof kbFlagObsoleteSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

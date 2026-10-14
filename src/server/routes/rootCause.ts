@@ -40,6 +40,8 @@ import {
   getStarterQuestionnaire,
   type InvestigationDimension,
 } from '../../services/rootCause/noBlameInvestigation.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -102,7 +104,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -145,7 +147,7 @@ router.post(
   validate(statsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof statsSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -173,7 +175,7 @@ router.post(
   validate(punitiveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof punitiveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -201,7 +203,7 @@ router.post(
   validate(dimensionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof dimensionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -227,7 +229,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const questions = getStarterQuestionnaire();

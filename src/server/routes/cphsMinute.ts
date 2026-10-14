@@ -43,6 +43,8 @@ import { CorrectiveActionsAdapter } from '../../services/correctiveActions/corre
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -127,7 +129,7 @@ async function assertMember(
 
 router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
@@ -695,7 +697,7 @@ router.post(
   validate(createActaSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!projectId) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof createActaSchema>;
     if (!(await assertMember(callerUid, projectId, res))) return undefined;
@@ -746,7 +748,7 @@ router.post(
   validate(addAcuerdoSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, actaId } = req.params;
+    const { projectId, actaId } = scalarRouteParams(req.params);
     if (!projectId || !actaId) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof addAcuerdoSchema>;
     if (!(await assertMember(callerUid, projectId, res))) return undefined;
@@ -802,7 +804,7 @@ router.patch(
   validate(updateAcuerdoSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, actaId, acuerdoId } = req.params;
+    const { projectId, actaId, acuerdoId } = scalarRouteParams(req.params);
     if (!projectId || !actaId || !acuerdoId) {
       return res.status(400).json({ error: 'invalid_params' });
     }

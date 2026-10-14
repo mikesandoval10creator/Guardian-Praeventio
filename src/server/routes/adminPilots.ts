@@ -26,6 +26,8 @@ import {
 import { coercePilotDoc } from '../services/pilotEntitlementResolver.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 export const adminPilotsRouter = Router();
 
 // ── Zod-light input validation (kept inline; no runtime dep on zod) ────
@@ -133,7 +135,7 @@ adminPilotsRouter.get('/pilots/:orgId', verifyAuth, async (req, res) => {
       return;
     }
 
-    const orgId = req.params.orgId;
+    const orgId = scalarRouteParams(req.params).orgId;
     if (!orgId || orgId.length > 200) {
       res.status(400).json({ error: 'invalid_orgId' });
       return;
@@ -172,7 +174,7 @@ adminPilotsRouter.delete('/pilots/:pilotId', verifyAuth, async (req, res) => {
       return;
     }
 
-    const pilotId = req.params.pilotId;
+    const pilotId = scalarRouteParams(req.params).pilotId;
     if (!pilotId || pilotId.length > 200) {
       res.status(400).json({ error: 'invalid_pilotId' });
       return;

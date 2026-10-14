@@ -42,6 +42,8 @@ import {
   type PortableWorkerHistory,
   type RedactionLevel,
 } from '../../services/workerHistory/portableHistoryExporter.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -152,7 +154,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -194,7 +196,7 @@ router.post(
   validate(redactSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof redactSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -223,7 +225,7 @@ router.post(
   validate(serializeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof serializeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

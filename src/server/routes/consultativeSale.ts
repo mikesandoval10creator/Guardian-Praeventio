@@ -32,6 +32,8 @@ import {
   buildSalePlaybook,
   type ProspectContext,
 } from '../../services/consultativeSale/consultativeSalePlaybook.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -143,7 +145,7 @@ router.post(
   validate(prospectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as ProspectContext;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

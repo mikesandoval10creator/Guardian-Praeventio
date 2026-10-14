@@ -30,6 +30,8 @@ import {
   type GeoPoint,
   type ImuSample,
 } from '../../services/driving/speedTrigger.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -78,7 +80,7 @@ router.post(
   validate(haversineSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof haversineSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -110,7 +112,7 @@ router.post(
   validate(accumulateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof accumulateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -144,7 +146,7 @@ router.post(
   validate(brakeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof brakeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

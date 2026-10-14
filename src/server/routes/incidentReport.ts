@@ -27,6 +27,8 @@ import { logger } from '../../utils/logger.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -173,7 +175,7 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     if (!projectId || !incidentId) {
       return res.status(400).json({ error: 'invalid_params' });
     }

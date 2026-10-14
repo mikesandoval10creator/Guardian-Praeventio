@@ -67,6 +67,8 @@ import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.j
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -270,7 +272,7 @@ router.post(
   validate(readingSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof readingSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -350,7 +352,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, eqId } = req.params;
+    const { projectId, eqId } = scalarRouteParams(req.params);
     if (!eqId || eqId.length < 1 || eqId.length > 200) {
       return res.status(400).json({ error: 'invalid_equipment_id' });
     }
@@ -390,7 +392,7 @@ router.post(
   validate(completeTaskSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, taskId } = req.params;
+    const { projectId, taskId } = scalarRouteParams(req.params);
     const body = req.validated as z.infer<typeof completeTaskSchema>;
     if (!taskId || taskId.length < 1 || taskId.length > 200) {
       return res.status(400).json({ error: 'invalid_task_id' });
@@ -469,7 +471,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, eqId } = req.params;
+    const { projectId, eqId } = scalarRouteParams(req.params);
     if (!eqId || eqId.length < 1 || eqId.length > 200) {
       return res.status(400).json({ error: 'invalid_equipment_id' });
     }

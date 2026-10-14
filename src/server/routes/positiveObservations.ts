@@ -31,6 +31,8 @@ import { PositiveObservationsAdapter } from '../../services/positiveObservations
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -109,7 +111,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, workerUid } = req.params;
+    const { projectId, workerUid } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -153,7 +155,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerRole = req.user!.role ?? 'worker';
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof positiveObsSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -198,7 +200,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     const period = parsePeriod(req.query.period);
@@ -288,7 +290,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     const period = parsePeriod(req.query.period);

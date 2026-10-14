@@ -36,6 +36,8 @@ import {
   type RaciMatrix,
   type TaskRoleAssignment,
 } from '../../services/raciMatrix/raciMatrixEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -90,7 +92,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -123,7 +125,7 @@ router.post(
   validate(validateSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof validateSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -152,7 +154,7 @@ router.post(
   validate(overloadSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof overloadSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -180,7 +182,7 @@ router.post(
   validate(matricesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof matricesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -200,7 +202,7 @@ router.post(
   validate(matricesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof matricesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -220,7 +222,7 @@ router.post(
   validate(matricesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof matricesSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

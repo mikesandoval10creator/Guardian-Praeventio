@@ -38,6 +38,8 @@ import {
   type CircadianInput,
   type ShiftWorker,
 } from '../../services/circadian/circadianRhythmService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -74,7 +76,7 @@ router.post(
   validate(classifySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof classifySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -105,7 +107,7 @@ router.post(
   validate(alertnessSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof alertnessSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -136,7 +138,7 @@ router.post(
   validate(shiftWorkerSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof shiftWorkerSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

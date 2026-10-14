@@ -35,6 +35,8 @@ import {
   refugeAvailability,
   type MountainRefuge,
 } from '../../services/refuges/mountainRefuges.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -86,7 +88,7 @@ router.post(
   validate(listCatalogSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof listCatalogSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -120,7 +122,7 @@ router.post(
   validate(findNearestSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof findNearestSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -152,7 +154,7 @@ router.post(
   validate(availabilitySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof availabilitySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

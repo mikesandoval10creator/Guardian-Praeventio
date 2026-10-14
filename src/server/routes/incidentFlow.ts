@@ -79,6 +79,8 @@ import {
   type IncidentLessonTrainingNodeType,
   type FlowDeps,
 } from '../../services/zettelkasten/flows/incidentLessonTrainingFlow.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -281,7 +283,7 @@ router.post(
       });
     }
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof reportSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -339,7 +341,7 @@ router.post(
   validate(openInvestigationSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof openInvestigationSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -423,7 +425,7 @@ router.post(
   validate(concludeInvestigationSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof concludeInvestigationSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -511,7 +513,7 @@ router.post(
   validate(publishLessonSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof publishLessonSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -640,7 +642,7 @@ router.post(
   validate(assignMicrotrainingSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof assignMicrotrainingSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -766,7 +768,7 @@ router.post(
   validate(completeMicrotrainingSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, assignmentId } = req.params;
+    const { projectId, assignmentId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof completeMicrotrainingSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -955,7 +957,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, incidentId } = req.params;
+    const { projectId, incidentId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
 

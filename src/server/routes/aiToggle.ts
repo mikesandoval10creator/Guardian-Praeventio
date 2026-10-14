@@ -33,6 +33,8 @@ import {
 import { detectRuleDrift } from '../../services/aiToggle/ruleDriftDetector.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -79,7 +81,7 @@ router.post(
   validate(snapshotSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof snapshotSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -99,7 +101,7 @@ router.post(
   validate(snapshotSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof snapshotSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -137,7 +139,7 @@ router.post(
   validate(ruleDriftSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ruleDriftSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

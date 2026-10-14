@@ -33,6 +33,8 @@ import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -253,7 +255,7 @@ router.post(
   validate(createSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!projectId) return res.status(400).json({ error: 'project_id_required' });
     const body = req.body as z.infer<typeof createSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -325,7 +327,7 @@ router.post(
 // | 'reporter'` para conmutar entre Inbox e "Mis reportes" tabs.
 router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
-  const { projectId } = req.params;
+  const { projectId } = scalarRouteParams(req.params);
   if (!projectId) return res.status(400).json({ error: 'project_id_required' });
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
@@ -367,7 +369,7 @@ router.post(
   validate(respondSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     if (!projectId || !id) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof respondSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -437,7 +439,7 @@ router.post(
   validate(closeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, id } = req.params;
+    const { projectId, id } = scalarRouteParams(req.params);
     if (!projectId || !id) return res.status(400).json({ error: 'invalid_params' });
     const body = req.body as z.infer<typeof closeSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -502,7 +504,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!projectId) return res.status(400).json({ error: 'project_id_required' });
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

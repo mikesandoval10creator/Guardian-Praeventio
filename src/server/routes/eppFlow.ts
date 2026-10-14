@@ -59,6 +59,8 @@ import {
   type SupplierCatalogEntry,
   type PurchaseOrderDraft,
 } from '../../services/financialAnalytics/purchaseOrderSuggester.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -643,7 +645,7 @@ router.post(
   validate(inspectionPostSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof inspectionPostSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     // Cross-tenant guard (#700/#707/#708): the authoritative tenant is the
@@ -772,7 +774,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!callerCanSignEpp(req)) {
       return res.status(403).json({ error: 'forbidden_role' });
@@ -814,7 +816,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, orderId } = req.params;
+    const { projectId, orderId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!callerCanSignEpp(req)) {
       return res.status(403).json({ error: 'forbidden_role' });
@@ -868,7 +870,7 @@ router.post(
   validate(signOrderSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, orderId } = req.params;
+    const { projectId, orderId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof signOrderSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     // Procurement signing is an admin flow — project membership is not enough.
@@ -1081,7 +1083,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, orderId } = req.params;
+    const { projectId, orderId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!callerCanSignEpp(req)) {
       return res.status(403).json({ error: 'forbidden_role' });

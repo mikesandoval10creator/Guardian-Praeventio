@@ -56,6 +56,8 @@ import {
   recordRefereeEndorsement as curriculumEndorse,
   type ClaimCategory,
 } from '../../services/curriculum/claims.js';
+import { scalarRouteParams } from "../../server/http/scalarRouteParams.js";
+
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Fake Firebase Admin
@@ -794,7 +796,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/billing/invoice/:id', verifyAuth, async (req, res) => {
     const callerUid = req.user!.uid;
-    const invoiceId = req.params.id;
+    const invoiceId = scalarRouteParams(req.params).id;
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
       return res.status(400).json({ error: 'Invalid invoice id' });
     }
@@ -1066,7 +1068,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/curriculum/referee/:token (POST) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/curriculum/referee/:token', async (req, res) => {
-    const rawToken = req.params.token ?? '';
+    const rawToken = scalarRouteParams(req.params).token ?? '';
     const { action, method, signature } = req.body ?? {};
     if (!/^[0-9a-f]{64}$/.test(rawToken)) {
       return res.status(400).json({ error: 'invalid token format' });
@@ -1149,7 +1151,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/projects/:id/invite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/projects/:id/invite', verifyAuth, async (req, res) => {
-    const projectId = req.params.id;
+    const projectId = scalarRouteParams(req.params).id;
     const callerUid = req.user!.uid;
     const { invitedEmail, invitedRole } = req.body ?? {};
     if (!invitedEmail || !invitedRole) {
@@ -1222,7 +1224,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/invitations/info/:token (public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.get('/api/invitations/info/:token', async (req, res) => {
-    const { token } = req.params;
+    const { token } = scalarRouteParams(req.params);
     try {
       const snap = await deps.firestore
         .collection('invitations')
@@ -1249,7 +1251,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/invitations/:token/accept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // codeql[js/missing-rate-limiting]  // test harness: global limiter intentionally not mounted (see src/__tests__/server/rateLimit.test.ts)
   app.post('/api/invitations/:token/accept', verifyAuth, async (req, res) => {
-    const { token } = req.params;
+    const { token } = scalarRouteParams(req.params);
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email;
     // Optional client-supplied projectId — when present, must match the
@@ -1420,7 +1422,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     verifyAuth,
     async (req: Request, res: Response) => {
       const callerUid = req.user!.uid;
-      const { projectId, incidentId } = req.params;
+      const { projectId, incidentId } = scalarRouteParams(req.params);
       try {
         await assertProjectMember(callerUid, projectId!, deps.firestore as any);
       } catch (err) {
@@ -1499,7 +1501,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     verifyAuth,
     async (req: Request, res: Response) => {
       const callerUid = req.user!.uid;
-      const { projectId } = req.params;
+      const { projectId } = scalarRouteParams(req.params);
       try {
         await assertProjectMember(callerUid, projectId!, deps.firestore as any);
       } catch (err) {

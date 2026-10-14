@@ -28,6 +28,8 @@ import {
   assessFatigue,
   type WorkSession,
 } from '../../services/fatigue/fatigueMonitor.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -68,7 +70,7 @@ router.post(
   validate(assessSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof assessSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

@@ -44,6 +44,8 @@ import type {
   BrigadeMember,
   BrigadeRole,
 } from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -170,7 +172,7 @@ router.post(
   validate(dispatchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof dispatchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -204,7 +206,7 @@ router.post(
   validate(coverageSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof coverageSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -301,7 +303,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const db = getFirestore();

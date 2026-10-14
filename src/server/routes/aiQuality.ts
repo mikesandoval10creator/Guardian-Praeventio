@@ -62,6 +62,8 @@ import {
   type AiRating,
   type HumanDecision,
 } from '../../services/aiQuality/aiAuditLog.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -142,7 +144,7 @@ router.post(
   validate(logResponseSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof logResponseSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -181,7 +183,7 @@ router.post(
   validate(assertHumanGatedSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof assertHumanGatedSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -213,7 +215,7 @@ router.post(
   validate(recordHumanDecisionSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recordHumanDecisionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -243,7 +245,7 @@ router.post(
   validate(recordOverrideSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recordOverrideSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -283,7 +285,7 @@ router.post(
   validate(rateEntrySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rateEntrySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -317,7 +319,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

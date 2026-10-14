@@ -36,6 +36,8 @@ import { NormativeRagService } from '../../services/coach/normativeRag.js';
 import { DOMAIN_PROMPTS, type CoachDomain } from '../../services/coach/prompts.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -74,7 +76,7 @@ router.post(
   validate(searchSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof searchSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -101,7 +103,7 @@ router.post(
   validate(emptySchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const service = NormativeRagService.fromEnv();
@@ -133,7 +135,7 @@ router.post(
   validate(promptSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof promptSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

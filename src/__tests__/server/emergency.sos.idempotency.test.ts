@@ -18,7 +18,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
-import 'express-async-errors';
 
 // ── hoisted holder ───────────────────────────────────────────────────────────
 

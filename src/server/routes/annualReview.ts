@@ -27,6 +27,8 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -197,7 +199,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -246,7 +248,7 @@ router.post(
   validate(setObjectivesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof setObjectivesSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -318,7 +320,7 @@ router.post(
   validate(evidenceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof evidenceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -404,7 +406,7 @@ router.post(
   validate(concludeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof concludeSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;

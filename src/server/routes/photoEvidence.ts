@@ -35,6 +35,8 @@ import { PhotoEvidenceAdapter, type PhotoEvidenceFirestoreDb } from '../../servi
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -108,7 +110,7 @@ router.post(
   validate(recordSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof recordSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
@@ -173,7 +175,7 @@ router.get(
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, kind, id } = req.params;
+    const { projectId, kind, id } = scalarRouteParams(req.params);
     if (!LINKED_NODE_KINDS.includes(kind as LinkedNodeKind)) {
       return res.status(400).json({ error: 'invalid_node_kind' });
     }
@@ -216,7 +218,7 @@ router.post(
   validate(linkageSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId, artifactId } = req.params;
+    const { projectId, artifactId } = scalarRouteParams(req.params);
     const link = req.body as z.infer<typeof linkageSchema>;
     if (!/^[a-f0-9]{64}$/i.test(artifactId)) {
       return res.status(400).json({ error: 'invalid_artifact_id' });

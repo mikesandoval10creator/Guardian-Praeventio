@@ -41,6 +41,8 @@ import {
 import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -153,7 +155,7 @@ router.post(
   validate(rebaSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rebaSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -224,7 +226,7 @@ router.post(
   validate(rulaSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof rulaSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -276,7 +278,7 @@ router.post(
   validate(legalTriggerSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof legalTriggerSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 

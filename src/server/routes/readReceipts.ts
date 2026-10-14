@@ -36,6 +36,8 @@ import {
   type WorkerForRead,
   type ReadReceipt,
 } from '../../services/readReceipts/readReceiptService.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -105,7 +107,7 @@ router.post(
   validate(resolveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof resolveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -134,7 +136,7 @@ router.post(
   validate(buildSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -163,7 +165,7 @@ router.post(
   validate(deadlineSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof deadlineSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -192,7 +194,7 @@ router.post(
   validate(deriveSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof deriveSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -222,7 +224,7 @@ router.post(
   validate(ackSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof ackSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     // Anti-blame: a worker can only acknowledge for themselves. Supervisors
@@ -261,7 +263,7 @@ router.post(
   validate(summarizeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof summarizeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {

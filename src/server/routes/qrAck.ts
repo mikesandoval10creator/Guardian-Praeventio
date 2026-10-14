@@ -49,6 +49,8 @@ import {
   type Verifier,
   type ScanResult,
 } from '../../services/qrAck/qrAckSessionEngine.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -110,7 +112,7 @@ router.post(
   validate(createSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof createSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const secret = getHmacSecret();
@@ -171,7 +173,7 @@ router.post(
   validate(scanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof scanSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     const secret = getHmacSecret();

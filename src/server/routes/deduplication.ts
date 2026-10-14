@@ -37,6 +37,8 @@ import {
   type DedupRecord,
   type DuplicateCandidate,
 } from '../../services/deduplication/recordDeduplicator.js';
+import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
 
 const router = Router();
 
@@ -97,7 +99,7 @@ router.post(
   validate(detectSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof detectSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
@@ -131,7 +133,7 @@ router.post(
   validate(buildMergePlanSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { projectId } = req.params;
+    const { projectId } = scalarRouteParams(req.params);
     const body = req.body as z.infer<typeof buildMergePlanSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
