@@ -18,7 +18,7 @@
 // Búsqueda: léxica via `searchArticles()` del motor (client-side al
 // endpoint — Firestore sin full-text nativo, queremos determinismo).
 // Filtro por categoría: `kind` alias.
-// `/use`: incremento atómico viewCount + bump lastReviewedAt.
+// `/use`: incremento atómico viewCount + lastUsedAt; lastReviewedAt stays editorial.
 // `/flag-obsolete`: marca isObsolete=true con auditoría.
 
 import { Router } from 'express';
@@ -310,7 +310,7 @@ router.post(
         if (!snap.exists) return { kind: 'not_found' };
         txn.update(docRef, {
           viewCount: FieldValue.increment(1),
-          lastReviewedAt: new Date().toISOString(),
+          // Consulting an article is not an editorial review.
           lastUsedAt: new Date().toISOString(),
         });
         return { kind: 'ok' };

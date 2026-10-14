@@ -167,6 +167,9 @@ jobs:
       - name: Knowledge Base storage failure regressions
         run: node --test scripts/knowledge-base-read-errors.test.mjs
 
+      - name: Knowledge Base review age regressions
+        run: node --test scripts/knowledge-base-review-age.test.mjs
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
