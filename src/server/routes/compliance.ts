@@ -617,14 +617,19 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
     const result = await eraseUserData(getDb(), existing.uid, { keepLegalRecords: true });
 
     const completedAt = Date.now();
+    // Preserve only the request provenance, not arbitrary pre-erasure payloads.
+    const completedRequest = {
+      uid: existing.uid,
+      type: existing.type,
+      status: 'completed',
+      requestedAt: existing.requestedAt,
+      completedAt,
+      ...(typeof existing.requestedByUid === 'string'
+        ? { requestedByUid: existing.requestedByUid } : {}),
+      ...(typeof existing.reason === 'string' ? { reason: existing.reason } : {}),
+    };
     await getDb().collection(REQUESTS_COLLECTION).doc(requestId).set(
-      {
-        uid: existing.uid,
-        type: existing.type,
-        status: 'completed',
-        requestedAt: existing.requestedAt,
-        completedAt,
-      },
+      completedRequest,
       { merge: true },
     );
 
@@ -639,7 +644,7 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
 
     return res.json({
       ok: true,
-      request: { id: requestId, uid: existing.uid, type: existing.type, status: 'completed', requestedAt: existing.requestedAt, completedAt },
+      request: { id: requestId, ...completedRequest },
       result,
       anonymization: {
         applied: anonymizeResult.applied,
