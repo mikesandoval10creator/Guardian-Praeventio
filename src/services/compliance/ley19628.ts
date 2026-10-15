@@ -532,6 +532,12 @@ export async function processDataAccessRequest(
       await handlers.onErase(current);
     } else if (current.type === 'rectification' && handlers.onRectify) {
       await handlers.onRectify(current);
+    } else {
+      throw new ComplianceError(
+        'handler_missing',
+        'No handler is configured for this request type',
+        500,
+      );
     }
     const finalPatch: Partial<DataAccessRequest> = {
       status: 'completed',

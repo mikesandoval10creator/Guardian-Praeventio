@@ -618,6 +618,18 @@ describe('compliance/ley19628', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it.each(['access', 'portability', 'erasure', 'rectification'] as const)(
+    'does not complete %s requests without their configured handler',
+    async (type) => {
+      const request = await requestDataAccess(db, 'uid-A', type);
+      await expect(processDataAccessRequest(db, request.id)).rejects.toMatchObject({
+        code: 'handler_missing',
+      });
+      const stored = (await db.collection('compliance_data_requests').doc(request.id).get()).data();
+      expect(stored?.status).toBe('rejected');
+    },
+  );
+
   it('9. processDataAccessRequest dispatches export handler and marks completed', async () => {
     const req = await requestDataAccess(db, 'uid-A', 'access');
     const onExport = async () => ({ downloadUrl: 'https://signed.example/abc' });
