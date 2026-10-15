@@ -155,6 +155,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: Compliance request handler regressions
+        run: node --test scripts/compliance-request-handler.test.mjs
+
       - name: MCP traversal read budget regressions
         run: npm run test:mcp-traversal
 
