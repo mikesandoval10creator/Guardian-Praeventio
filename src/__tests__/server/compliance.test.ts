@@ -175,6 +175,32 @@ describe('POST /api/compliance/consent', () => {
     expect(snap.data()!.granted).toBe(true);
   });
 
+  it('grant/revoke/re-grant clears the persisted revocation without removing metadata', async () => {
+    const app = buildApp();
+    const initial = await request(app).post('/api/compliance/consent')
+      .set('x-test-uid', CALLER_UID).send(validBody);
+    expect(initial.status).toBe(200);
+    const ref = H.db!.collection('compliance_consents').doc(`${CALLER_UID}__analytics`);
+    await ref.update({ auditTag: 'dummy-preserved' });
+    const revoked = await request(app).delete('/api/compliance/consent/analytics')
+      .set('x-test-uid', CALLER_UID);
+    expect(revoked.status).toBe(200);
+    expect((await ref.get()).data()!.revokedAt).toBeGreaterThan(0);
+
+    const granted = await request(app).post('/api/compliance/consent')
+      .set('x-test-uid', CALLER_UID).send({ ...validBody, textVersion: 'consent_v2.0' });
+    expect(granted.status).toBe(200);
+    expect(granted.body.record).not.toHaveProperty('revokedAt');
+    const status = await request(app).get('/api/compliance/consent')
+      .set('x-test-uid', CALLER_UID);
+    expect(status.status).toBe(200);
+    expect(status.body.consents.analytics.granted).toBe(true);
+    expect(status.body.consents.analytics.textVersion).toBe('consent_v2.0');
+    expect(status.body.consents.analytics.auditTag).toBe('dummy-preserved');
+    expect(status.body.consents.analytics).not.toHaveProperty('revokedAt');
+    expect((await ref.get()).data()).not.toHaveProperty('revokedAt');
+  });
+
   it('200 records core_service consent (required purpose)', async () => {
     const res = await request(buildApp())
       .post('/api/compliance/consent')

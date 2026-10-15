@@ -1,4 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { logger } from '../../utils/logger.js';
 // Praeventio Guard — Sprint 23 Bucket FF.
 //
@@ -326,7 +326,12 @@ export async function recordConsent(
   await db
     .collection(CONSENTS_COLLECTION)
     .doc(consentDocId(record.uid, record.purpose))
-    .set(persisted, { merge: true });
+    .set(
+      record.granted
+        ? { ...persisted, revokedAt: FieldValue.delete() }
+        : persisted,
+      { merge: true },
+    );
   return persisted;
 }
 
