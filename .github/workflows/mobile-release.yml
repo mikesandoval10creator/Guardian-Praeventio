@@ -47,10 +47,19 @@ jobs:
   preflight:
     name: Require Android signing and Firebase inputs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       android_ready: ${{ steps.gate.outputs.android_ready }}
       ios_ready: ${{ steps.gate.outputs.ios_ready }}
     steps:
+      - uses: actions/checkout@v7
+      - name: Verify Android production approval protection
+        if: github.event_name == 'workflow_dispatch' && inputs.track == 'production'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-android-production-environment.mjs
       - id: gate
         env:
           ANDROID_KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -183,6 +192,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.track == 'production'
     environment: android-production
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -193,6 +205,10 @@ jobs:
         with:
           name: praeventio-aab
           path: android/app/build/outputs/bundle/release
+      - name: Recheck Android production approval protection
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-android-production-environment.mjs
       - name: Upload approved production candidate
         env:
           PLAY_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}

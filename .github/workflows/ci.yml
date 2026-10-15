@@ -185,6 +185,9 @@ jobs:
       - name: Compliance browser boundary regressions
         run: node --test scripts/compliance-browser-boundary.test.mjs
 
+      - name: Android production approval regressions
+        run: node --test scripts/check-android-production-environment.test.mjs
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
