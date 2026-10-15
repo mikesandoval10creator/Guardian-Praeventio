@@ -22,10 +22,10 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { auth } from '../services/firebase';
-import {
-  PROCESSING_ACTIVITIES,
-  type ConsentRecord,
-  type DataAccessRequest,
+import { PROCESSING_ACTIVITIES } from '../services/compliance/processingActivities';
+import type {
+  ConsentRecord,
+  DataAccessRequest,
 } from '../services/compliance/ley19628';
 import { apiAuthHeader } from '../lib/apiAuth';
 // ADR 0012 — Vista que toca consentimientos médicos (health vault, examen
