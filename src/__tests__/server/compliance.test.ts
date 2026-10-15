@@ -494,6 +494,13 @@ describe('POST /api/compliance/data-request', () => {
     expect(res.status).toBe(201);
     expect(res.body.request.type).toBe('erasure');
     expect(res.body.request.status).toBe('pending');
+    expect(res.body.request.uid).toBe(CALLER_UID);
+    expect(res.body.request.requestedByUid).toBe(CALLER_UID);
+    expect(res.body.request.reason).toBe('Closing account');
+    const stored = (await H.db!.collection('compliance_data_requests')
+      .doc(res.body.request.id).get()).data()!;
+    expect(stored.reason).toBe('Closing account');
+    expect(stored.requestedByUid).toBe(CALLER_UID);
   });
 
   it('201 rectification request accepts rectificationPayload', async () => {
