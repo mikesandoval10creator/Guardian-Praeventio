@@ -233,7 +233,7 @@ router.get('/consent', verifyAuth, async (req, res) => {
 // Sprint 28 Bucket B3 — Zod schema for the data-subject request endpoint.
 // The user-spec asked for `kind` + `targetUid` + `reason`; we map those to
 // the existing wire field names (`type` is the existing `kind` enum, and
-// `reason` lands in the rectificationPayload bag) so the contract stays
+// `reason` is preserved separately from rectificationPayload) so the contract stays
 // backward-compatible. Sprint 29 H17: legacy `VALID_REQUEST_TYPES.includes`
 // + `typeof rectificationPayload` guards removed — Zod enum + z.record are
 // the single source of truth.
@@ -255,13 +255,9 @@ const dataRequestSchema = z.object({
 
 router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
   const uid = req.user!.uid;
-  const { type, rectificationPayload, subjectCountry, dataResidency } =
-    req.body as {
-      type: 'access' | 'rectification' | 'erasure' | 'portability';
-      rectificationPayload?: Record<string, unknown>;
-      subjectCountry?: string;
-      dataResidency?: string;
-    };
+  const { type, rectificationPayload, subjectCountry, dataResidency, reason, targetUid } =
+    req.body as z.infer<typeof dataRequestSchema>;
+  const subjectUid = targetUid ?? uid;
 
   // Sprint 31 Bucket MM — compute the strictest applicable deadline based
   // on subject country + processing residency. Default to LGPD's 15-day
@@ -284,7 +280,13 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
   }
 
   try {
-    const request = await requestDataAccess(getDb(), uid, type, {
+    if (subjectUid !== uid) {
+      if (!(await assertAdminCaller(req, res))) return undefined;
+      if (!(await assertTargetInCallerTenant(res, uid, subjectUid))) return undefined;
+    }
+    const request = await requestDataAccess(getDb(), subjectUid, type, {
+      requestedByUid: uid,
+      reason,
       rectificationPayload,
       subjectCountry,
       dataResidency,
@@ -292,8 +294,10 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
     // CLAUDE.md #3: data-subject request creation is a state-changing write.
     await auditServerEvent(req, 'compliance.dataRequest', 'compliance', {
       uid,
+      targetUid: subjectUid,
       requestId: request.id,
       type,
+      ...(reason !== undefined ? { reason } : {}),
     });
     return res.status(201).json({
       ok: true,

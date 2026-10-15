@@ -147,6 +147,9 @@ jobs:
       - name: Install dependencies
         run: npm install -g npm@12 && npm ci --ignore-scripts
 
+      - name: Data request provenance and delegation regressions
+        run: node --test scripts/data-request-provenance.test.mjs
+
       - name: Express runtime regressions and TypeScript typecheck
         run: npm run test:scalar-route-params && npm run test:express5-runtime && npm run typecheck:ci
         env:

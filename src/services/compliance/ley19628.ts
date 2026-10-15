@@ -73,6 +73,10 @@ export interface DataAccessRequest {
   type: DataAccessRequestType;
   status: DataAccessRequestStatus;
   requestedAt: number;
+  /** Verified caller who created the request; uid remains the data subject. */
+  requestedByUid?: string;
+  /** Optional reason supplied when creating the request. */
+  reason?: string;
   completedAt?: number;
   /** Signed URL to the .json/.zip export. Set on `completed` only. */
   exportedToUrl?: string;
@@ -411,6 +415,8 @@ export async function requestDataAccess(
   uid: string,
   type: DataAccessRequestType,
   extras?: {
+    requestedByUid?: string;
+    reason?: string;
     rectificationPayload?: Record<string, unknown>;
     subjectCountry?: string;
     dataResidency?: string;
@@ -443,6 +449,12 @@ export async function requestDataAccess(
     status: 'pending' as DataAccessRequestStatus,
     requestedAt,
   };
+  if (extras?.requestedByUid !== undefined) {
+    payload.requestedByUid = extras.requestedByUid;
+  }
+  if (extras?.reason !== undefined) {
+    payload.reason = extras.reason;
+  }
   if (extras?.rectificationPayload !== undefined) {
     payload.rectificationPayload = extras.rectificationPayload;
   }
