@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
-import { PROCESSING_ACTIVITIES } from '../../services/compliance/ley19628';
+import { PROCESSING_ACTIVITIES } from '../../services/compliance/processingActivities';
 import { apiAuthHeader } from '../../lib/apiAuth';
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';

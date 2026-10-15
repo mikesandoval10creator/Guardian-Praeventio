@@ -176,6 +176,9 @@ jobs:
       - name: Consent re-grant persistence regressions
         run: node --test scripts/consent-regrant.test.mjs
 
+      - name: Compliance browser boundary regressions
+        run: node --test scripts/compliance-browser-boundary.test.mjs
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
