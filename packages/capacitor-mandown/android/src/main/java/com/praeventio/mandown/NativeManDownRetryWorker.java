@@ -30,6 +30,8 @@ public final class NativeManDownRetryWorker extends Worker {
     private static final String PREF_QUEUE = "queue";
     private static final String PREF_DEAD_LETTERS = "deadLetters";
     private static final String WORK_NAME = "guardian-native-mandown-delivery";
+    // The service and WorkManager share this process. Never hold this lock over HTTP.
+    private static final Object QUEUE_LOCK = new Object();
 
     public NativeManDownRetryWorker(@NonNull Context context, @NonNull WorkerParameters parameters) {
         super(context, parameters);
@@ -45,7 +47,7 @@ public final class NativeManDownRetryWorker extends Worker {
             .build();
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
             request
         );
     }
@@ -59,27 +61,29 @@ public final class NativeManDownRetryWorker extends Worker {
         String apiBaseUrl,
         JSONObject payload
     ) {
-        try {
-            if (!NativeManDownSecureStore.persist(context, sessionId, capability, apiBaseUrl)) {
+        synchronized (QUEUE_LOCK) {
+            try {
+                if (!NativeManDownSecureStore.persist(context, sessionId, capability, apiBaseUrl)) {
+                    return false;
+                }
+                SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+                // Persist the UUID inside the actual request payload so every
+                // WorkManager retry maps to the same server-side event document.
+                String clientEventId = UUID.randomUUID().toString();
+                payload.put("clientEventId", clientEventId);
+                JSONObject event = NativeManDownOutboxCodec.queueEvent(
+                    projectId,
+                    sessionId,
+                    NativeManDownSecureStore.referenceForSession(sessionId),
+                    payload,
+                    System.currentTimeMillis()
+                );
+                queue.put(event);
+                return prefs.edit().putString(PREF_QUEUE, queue.toString()).commit();
+            } catch (Exception ignored) {
                 return false;
             }
-            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
-            // Persist the UUID inside the actual request payload so every
-            // WorkManager retry maps to the same server-side event document.
-            String clientEventId = UUID.randomUUID().toString();
-            payload.put("clientEventId", clientEventId);
-            JSONObject event = NativeManDownOutboxCodec.queueEvent(
-                projectId,
-                sessionId,
-                NativeManDownSecureStore.referenceForSession(sessionId),
-                payload,
-                System.currentTimeMillis()
-            );
-            queue.put(event);
-            return prefs.edit().putString(PREF_QUEUE, queue.toString()).commit();
-        } catch (Exception ignored) {
-            return false;
         }
     }
 
@@ -87,13 +91,16 @@ public final class NativeManDownRetryWorker extends Worker {
     @Override
     public Result doWork() {
         SharedPreferences prefs = getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
-        if (queue.length() == 0) return Result.success();
+        Object pending;
+        synchronized (QUEUE_LOCK) {
+            JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+            if (queue.length() == 0) return Result.success();
+            pending = queue.opt(0);
+        }
 
-        JSONObject event = queue.optJSONObject(0);
+        JSONObject event = pending instanceof JSONObject ? (JSONObject) pending : null;
         if (event == null) {
-            removeFirst(prefs, queue);
-            return Result.retry();
+            return completeEvent(prefs, pending, null);
         }
         String secretRef = event.optString("secretRef", null);
         NativeManDownSecureStore.Secrets secrets = NativeManDownSecureStore.load(
@@ -101,9 +108,7 @@ public final class NativeManDownRetryWorker extends Worker {
             secretRef
         );
         if (secrets == null) {
-            NativeManDownSecureStore.clearReference(getApplicationContext(), secretRef);
-            moveFirstToDeadLetter(prefs, queue, "secure_material_unavailable");
-            return queue.length() > 1 ? Result.retry() : Result.success();
+            return completeEvent(prefs, pending, "secure_material_unavailable");
         }
         int outcome = NativeManDownForegroundService.postPersistedEvent(
             secrets.apiBaseUrl,
@@ -113,13 +118,10 @@ public final class NativeManDownRetryWorker extends Worker {
             event.optJSONObject("payload")
         );
         if (outcome == NativeManDownForegroundService.DELIVERY_ACCEPTED) {
-            removeFirst(prefs, queue);
-            return queue.length() > 1 ? Result.retry() : Result.success();
+            return completeEvent(prefs, pending, null);
         }
         if (outcome == NativeManDownForegroundService.DELIVERY_AUTHORITY_GONE) {
-            NativeManDownSecureStore.clearReference(getApplicationContext(), secretRef);
-            moveFirstToDeadLetter(prefs, queue, "authority_gone");
-            return queue.length() > 1 ? Result.retry() : Result.success();
+            return completeEvent(prefs, pending, "authority_gone");
         }
         // Do not delete life-safety evidence for elapsed retry count/age. WorkManager
         // supplies exponential backoff and resumes after reboot/network recovery.
@@ -131,29 +133,69 @@ public final class NativeManDownRetryWorker extends Worker {
         catch (Exception ignored) { return new JSONArray(); }
     }
 
-    private static void removeFirst(SharedPreferences prefs, JSONArray queue) {
-        JSONArray remaining = new JSONArray();
-        for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
-        prefs.edit().putString(PREF_QUEUE, remaining.toString()).commit();
+    /** Re-read durable state; an HTTP response only acknowledges its own event. */
+    private Result completeEvent(SharedPreferences prefs, Object pending, String reason) {
+        synchronized (QUEUE_LOCK) {
+            try {
+                String queueBefore = prefs.getString(PREF_QUEUE, "[]");
+                String lettersBefore = prefs.getString(PREF_DEAD_LETTERS, "[]");
+                JSONArray queue = readArray(queueBefore);
+                int matched = -1;
+                for (int i = 0; i < queue.length(); i++) {
+                    if (sameEvent(queue.opt(i), pending)) { matched = i; break; }
+                }
+                if (matched < 0) return queue.length() > 0 ? Result.retry() : Result.success();
+
+                JSONObject event = queue.optJSONObject(matched);
+                JSONArray remaining = new JSONArray();
+                for (int i = 0; i < queue.length(); i++) {
+                    if (i != matched) remaining.put(queue.opt(i));
+                }
+                SharedPreferences.Editor edit = prefs.edit().putString(PREF_QUEUE, remaining.toString());
+                if (reason != null && event != null) {
+                    JSONArray letters = readArray(lettersBefore);
+                    letters.put(NativeManDownOutboxCodec.scrubForDeadLetter(event, reason, System.currentTimeMillis()));
+                    edit.putString(PREF_DEAD_LETTERS, letters.toString());
+                }
+                // Retain evidence and credentials until the transition is durable.
+                boolean committed = false;
+                try {
+                    committed = edit.commit();
+                } finally {
+                    if (!committed) {
+                        // commit() changes SharedPreferences memory before reporting disk failure.
+                        // Even if this restore also cannot reach disk, its memory must retain
+                        // the pre-transition evidence for subsequent workers/producers.
+                        prefs.edit().putString(PREF_QUEUE, queueBefore)
+                            .putString(PREF_DEAD_LETTERS, lettersBefore).commit();
+                    }
+                }
+                if (!committed) return Result.retry();
+                if (reason != null && event != null) {
+                    String reference = event.optString("secretRef", null);
+                    boolean stillReferenced = false;
+                    for (int i = 0; i < remaining.length(); i++) {
+                        JSONObject other = remaining.optJSONObject(i);
+                        if (reference != null && other != null && reference.equals(other.optString("secretRef", null))) {
+                            stillReferenced = true;
+                            break;
+                        }
+                    }
+                    if (!stillReferenced) NativeManDownSecureStore.clearReference(getApplicationContext(), reference);
+                }
+                return remaining.length() > 0 ? Result.retry() : Result.success();
+            } catch (Exception ignored) {
+                return Result.retry();
+            }
+        }
     }
 
-    private static void moveFirstToDeadLetter(SharedPreferences prefs, JSONArray queue, String reason) {
-        JSONArray letters = readArray(prefs.getString(PREF_DEAD_LETTERS, "[]"));
-        JSONObject event = queue.optJSONObject(0);
-        if (event != null) {
-            try {
-                letters.put(NativeManDownOutboxCodec.scrubForDeadLetter(
-                    event,
-                    reason,
-                    System.currentTimeMillis()
-                ));
-            } catch (Exception ignored) { }
+    private static boolean sameEvent(Object candidate, Object pending) {
+        if (candidate instanceof JSONObject && pending instanceof JSONObject) {
+            String id = ((JSONObject) pending).optString("clientEventId", "");
+            if (!id.isEmpty()) return id.equals(((JSONObject) candidate).optString("clientEventId", ""));
         }
-        JSONArray remaining = new JSONArray();
-        for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
-        prefs.edit()
-            .putString(PREF_QUEUE, remaining.toString())
-            .putString(PREF_DEAD_LETTERS, letters.toString())
-            .commit();
+        // Legacy or malformed records have no ID; only remove the exact record read.
+        return String.valueOf(candidate).equals(String.valueOf(pending));
     }
 }
