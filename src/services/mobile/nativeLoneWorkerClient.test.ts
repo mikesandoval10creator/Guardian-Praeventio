@@ -35,21 +35,55 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 
+const startOptions = {
+  projectId: "project-1",
+  sessionId: "session-1",
+  capability: "a".repeat(32),
+  capabilityExpiresAt: "2099-01-01T00:00:00.000Z",
+};
+
 describe("nativeLoneWorkerClient", () => {
-  it("reports a start timeout after 10 seconds if the service never acknowledges", async () => {
+  it.each(["success", "error"] as const)("times out after 10 seconds and ignores a late native %s", async (outcome) => {
     vi.useFakeTimers();
     H.native = true;
     H.platform = "android";
-    H.plugin.start.mockImplementation(() => new Promise(() => {}));
+    let resolveNative!: (value: { running: boolean }) => void;
+    let rejectNative!: (error: Error) => void;
+    H.plugin.start.mockReturnValue(new Promise<{ running: boolean }>((resolve, reject) => {
+      resolveNative = resolve;
+      rejectNative = reject;
+    }));
     let result: Awaited<ReturnType<typeof startNativeLoneWorker>> | undefined;
-    void startNativeLoneWorker({
-      projectId: "project-1", sessionId: "session-1", capability: "a".repeat(32),
-      capabilityExpiresAt: "2099-01-01T00:00:00.000Z",
-    }).then(value => { result = value; });
+    const pendingStart = startNativeLoneWorker(startOptions).then(value => { result = value; });
     await vi.advanceTimersByTimeAsync(9_999);
     expect(result).toBeUndefined();
     await vi.advanceTimersByTimeAsync(1);
     expect(result).toEqual({ applied: false, reason: "native_error", error: "native_lone_worker_start_timeout" });
+    expect(vi.getTimerCount()).toBe(0);
+    // Settle the native mock too: an intentionally orphaned fixture would hide
+    // whether the bridge itself leaks promises in Vitest's async detector.
+    if (outcome === "success") resolveNative({ running: true });
+    else rejectNative(new Error("late_native_error"));
+    await pendingStart;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result).toEqual({ applied: false, reason: "native_error", error: "native_lone_worker_start_timeout" });
+  });
+
+  it.each(["success", "refusal", "rejection", "throw"] as const)("clears the timeout after immediate native %s", async (outcome) => {
+    vi.useFakeTimers();
+    H.native = true;
+    H.platform = "android";
+    if (outcome === "success") H.plugin.start.mockResolvedValue({ running: true });
+    else if (outcome === "refusal") H.plugin.start.mockResolvedValue({ running: false });
+    else if (outcome === "rejection") H.plugin.start.mockRejectedValue(new Error("native_failure"));
+    else H.plugin.start.mockImplementation(() => { throw new Error("native_failure"); });
+
+    await expect(startNativeLoneWorker(startOptions)).resolves.toEqual(
+      outcome === "success"
+        ? { applied: true }
+        : { applied: false, reason: "native_error", error: outcome === "refusal" ? "native_lone_worker_not_running" : "native_failure" },
+    );
+    expect(vi.getTimerCount()).toBe(0);
   });
   it("is a no-op outside native Android", async () => {
     const result = await startNativeLoneWorker({
