@@ -24,6 +24,9 @@ import androidx.core.content.ContextCompat;
 import org.json.JSONObject;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Android-owned ordinary lone-worker protection loop.
@@ -59,6 +62,10 @@ public final class NativeLoneWorkerForegroundService extends Service {
     private static final String PREF_INTERVAL = "heartbeatIntervalMs";
     private static final String PREF_LAST_HEARTBEAT = "lastHeartbeatAt";
     private static final String PREF_LAST_ERROR = "lastError";
+    private static final String CLEANUP_ERROR = "native_lone_worker_session_cleanup_persist_failed";
+    private static final String[] CONFIG_KEYS = {
+        PREF_PROJECT, PREF_SESSION, PREF_CAPABILITY, PREF_API_BASE, PREF_EXPIRES_AT, PREF_INTERVAL
+    };
 
     private static volatile boolean running;
 
@@ -300,62 +307,69 @@ public final class NativeLoneWorkerForegroundService extends Service {
         locationListener = null;
         lastLocation = null;
         stopForeground(STOP_FOREGROUND_REMOVE);
-        if (explicit || "capability_expired".equals(reason)
-            || "capability_expired_or_invalid".equals(reason)) {
-            if (projectId != null && sessionId != null) {
-                NativeLoneWorkerOutbox.deadLetterSession(
-                    getApplicationContext(), projectId, sessionId, reason
-                );
+        if (explicit) {
+            try {
+                // A cold ACTION_STOP has no instance config; use the stored owner.
+                explicitStop(getApplicationContext());
+            } catch (RuntimeException error) {
+                recordCleanupFailure(getApplicationContext());
             }
-            clearPersistedConfig();
+        } else if ("capability_expired".equals(reason)
+            || "capability_expired_or_invalid".equals(reason)) {
+            boolean quarantined = projectId == null || sessionId == null
+                || NativeLoneWorkerOutbox.deadLetterSession(getApplicationContext(), projectId, sessionId, reason);
+            if (!quarantined || !clearPersistedConfig()) {
+                recordCleanupFailure(getApplicationContext());
+            }
         }
         if ("native_start_failed".equals(reason)) setLastError(reason);
         stopSelf();
     }
 
     static void explicitStop(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String projectId = prefs.getString(PREF_PROJECT, null);
-        String sessionId = prefs.getString(PREF_SESSION, null);
-        if (projectId != null && sessionId != null) {
-            NativeLoneWorkerOutbox.deadLetterSession(
-                context,
-                projectId,
-                sessionId,
-                "explicit_stop"
-            );
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String projectId = prefs.getString(PREF_PROJECT, null);
+            String sessionId = prefs.getString(PREF_SESSION, null);
+            if (projectId != null && sessionId != null
+                && !NativeLoneWorkerOutbox.deadLetterSession(context, projectId, sessionId, "explicit_stop")) {
+                throw new IllegalStateException(CLEANUP_ERROR);
+            }
+            if (!clearPersistedConfig(prefs)) throw new IllegalStateException(CLEANUP_ERROR);
+        } catch (RuntimeException error) {
+            recordCleanupFailure(context);
+            throw error;
+        } finally {
+            running = false;
+            context.stopService(new Intent(context, NativeLoneWorkerForegroundService.class));
         }
-        prefs.edit()
-            .remove(PREF_PROJECT)
-            .remove(PREF_SESSION)
-            .remove(PREF_CAPABILITY)
-            .remove(PREF_API_BASE)
-            .remove(PREF_EXPIRES_AT)
-            .remove(PREF_INTERVAL)
-            .commit();
-        context.stopService(new Intent(context, NativeLoneWorkerForegroundService.class));
     }
 
-    static void authorityGone(Context context, String projectId, String sessionId) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String configuredProject = prefs.getString(PREF_PROJECT, null);
-        String configuredSession = prefs.getString(PREF_SESSION, null);
-        if (projectId.equals(configuredProject) && sessionId.equals(configuredSession)) {
-            NativeLoneWorkerOutbox.deadLetterSession(
-                context,
-                projectId,
-                sessionId,
-                "authority_gone"
-            );
-            prefs.edit()
-                .remove(PREF_PROJECT)
-                .remove(PREF_SESSION)
-                .remove(PREF_CAPABILITY)
-                .remove(PREF_API_BASE)
-                .remove(PREF_EXPIRES_AT)
-                .remove(PREF_INTERVAL)
-                .commit();
-            context.stopService(new Intent(context, NativeLoneWorkerForegroundService.class));
+    static boolean authorityGone(Context context, String projectId, String sessionId) {
+        boolean currentOwner = false;
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String configuredProject = prefs.getString(PREF_PROJECT, null);
+            String configuredSession = prefs.getString(PREF_SESSION, null);
+            currentOwner = projectId.equals(configuredProject) && sessionId.equals(configuredSession);
+            boolean orphanedCleanupError = configuredProject == null && configuredSession == null
+                && CLEANUP_ERROR.equals(prefs.getString(PREF_LAST_ERROR, null));
+            // Clear the revoked owner first: a failed config write must leave
+            // its event queued as the durable anchor for the next worker.
+            if (((currentOwner || orphanedCleanupError) && !clearPersistedConfig(prefs))
+                || !NativeLoneWorkerOutbox.deadLetterSession(context, projectId, sessionId, "authority_gone")) {
+                recordCleanupFailure(context);
+                return false;
+            }
+            return true;
+        } catch (RuntimeException error) {
+            recordCleanupFailure(context);
+            return false;
+        } finally {
+            if (currentOwner) {
+                running = false;
+                context.stopService(new Intent(context, NativeLoneWorkerForegroundService.class));
+            }
         }
     }
 
@@ -383,15 +397,48 @@ public final class NativeLoneWorkerForegroundService extends Service {
             .commit();
     }
 
-    private void clearPersistedConfig() {
-        prefs().edit()
-            .remove(PREF_PROJECT)
-            .remove(PREF_SESSION)
-            .remove(PREF_CAPABILITY)
-            .remove(PREF_API_BASE)
-            .remove(PREF_EXPIRES_AT)
-            .remove(PREF_INTERVAL)
-            .commit();
+    private boolean clearPersistedConfig() {
+        return clearPersistedConfig(prefs());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean clearPersistedConfig(SharedPreferences prefs) {
+        Map<String, ?> previous;
+        try {
+            previous = new HashMap<>(prefs.getAll());
+        } catch (RuntimeException error) {
+            return false;
+        }
+        boolean cleanupError = CLEANUP_ERROR.equals(previous.get(PREF_LAST_ERROR));
+        try {
+            SharedPreferences.Editor edit = prefs.edit();
+            for (String key : CONFIG_KEYS) edit.remove(key);
+            if (cleanupError) edit.remove(PREF_LAST_ERROR);
+            if (edit.commit()) return true;
+        } catch (RuntimeException ignored) { }
+        try {
+            SharedPreferences.Editor restore = prefs.edit();
+            for (String key : CONFIG_KEYS) {
+                Object value = previous.get(key);
+                if (value == null) restore.remove(key);
+                else if (value instanceof String) restore.putString(key, (String) value);
+                else if (value instanceof Long) restore.putLong(key, (Long) value);
+                else if (value instanceof Integer) restore.putInt(key, (Integer) value);
+                else if (value instanceof Boolean) restore.putBoolean(key, (Boolean) value);
+                else if (value instanceof Float) restore.putFloat(key, (Float) value);
+                else if (value instanceof Set) restore.putStringSet(key, (Set<String>) value);
+            }
+            if (cleanupError) restore.putString(PREF_LAST_ERROR, CLEANUP_ERROR);
+            restore.commit();
+        } catch (RuntimeException ignored) { }
+        return false;
+    }
+
+    private static void recordCleanupFailure(Context context) {
+        try {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(PREF_LAST_ERROR, CLEANUP_ERROR).commit();
+        } catch (RuntimeException ignored) { }
     }
 
     private void setLastError(String error) {

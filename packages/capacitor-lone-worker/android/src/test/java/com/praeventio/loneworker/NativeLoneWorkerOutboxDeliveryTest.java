@@ -190,7 +190,7 @@ public final class NativeLoneWorkerOutboxDeliveryTest {
         verifyFailedCommit(NativeLoneWorkerTransport.MALFORMED, false);
     }
 
-    @Test public void revokedCommitFailureDoesNotStopAuthorityBeforePersistence() throws Exception {
+    @Test public void revokedCommitFailureRetainsQueueUntilQuarantinePersists() throws Exception {
         verifyFailedCommit(NativeLoneWorkerTransport.AUTHORITY_GONE, false);
     }
 
@@ -202,7 +202,7 @@ public final class NativeLoneWorkerOutboxDeliveryTest {
         verifyFailedCommit(NativeLoneWorkerTransport.MALFORMED, true);
     }
 
-    @Test public void revokedCommitExceptionDoesNotStopAuthorityBeforePersistence() throws Exception {
+    @Test public void revokedCommitExceptionRetainsQueueUntilQuarantinePersists() throws Exception {
         verifyFailedCommit(NativeLoneWorkerTransport.AUTHORITY_GONE, true);
     }
 
@@ -242,18 +242,28 @@ public final class NativeLoneWorkerOutboxDeliveryTest {
         };
         try (MockedStatic<NativeLoneWorkerTransport> http = mockStatic(NativeLoneWorkerTransport.class);
              MockedStatic<NativeLoneWorkerForegroundService> service = mockStatic(NativeLoneWorkerForegroundService.class)) {
+            // Revocation now coordinates checked config cleanup and quarantine;
+            // execute that real coordinator rather than mocking a void notification.
+            if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
+                service.when(() -> NativeLoneWorkerForegroundService.authorityGone(target, "project", "session"))
+                    .thenCallRealMethod();
+            }
             http.when(() -> NativeLoneWorkerTransport.post(any(JSONObject.class))).thenReturn(outcome);
             assertEquals(Worker.Result.retry(), deliver(target));
             assertEquals(original.getString("clientEventId"), NativeLoneWorkerOutbox.first(context)
                 .getJSONObject("payload").getString("clientEventId"));
             assertEquals(0, letters().length());
-            service.verifyNoInteractions();
+            if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
+                service.verify(() -> NativeLoneWorkerForegroundService.authorityGone(target, "project", "session"), times(1));
+            } else {
+                service.verifyNoInteractions();
+            }
             writable.set(true);
             assertEquals(Worker.Result.success(), deliver(target));
             assertEquals(0, NativeLoneWorkerOutbox.readQueue(context).length());
             assertEquals(outcome == NativeLoneWorkerTransport.ACCEPTED ? 0 : 1, letters().length());
             if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
-                service.verify(() -> NativeLoneWorkerForegroundService.authorityGone(target, "project", "session"), times(1));
+                service.verify(() -> NativeLoneWorkerForegroundService.authorityGone(target, "project", "session"), times(2));
             }
             http.verify(() -> NativeLoneWorkerTransport.post(any(JSONObject.class)), times(outcome == 0 ? 0 : 2));
         }

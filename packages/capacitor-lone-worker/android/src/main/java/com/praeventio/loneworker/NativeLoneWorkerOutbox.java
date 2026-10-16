@@ -133,32 +133,49 @@ final class NativeLoneWorkerOutbox {
         }
     }
 
-    static void deadLetterSession(
+    static boolean deadLetterSession(
         Context context,
         String projectId,
         String sessionId,
         String reason
     ) {
         synchronized (LOCK) {
-            SharedPreferences prefs = prefs(context);
-            JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
-            JSONArray remaining = new JSONArray();
-            JSONArray letters = readArray(prefs.getString(PREF_DEAD_LETTERS, "[]"));
-            for (int i = 0; i < queue.length(); i++) {
-                JSONObject event = queue.optJSONObject(i);
-                if (event == null) continue;
-                if (!projectId.equals(event.optString("projectId", null))
-                    || !sessionId.equals(event.optString("sessionId", null))) {
-                    remaining.put(event);
-                    continue;
+            try {
+                SharedPreferences prefs = prefs(context);
+                String previousQueue = prefs.getString(PREF_QUEUE, "[]");
+                String previousLetters = prefs.getString(PREF_DEAD_LETTERS, "[]");
+                // Corrupt storage is evidence, not an empty queue to overwrite.
+                JSONArray queue = new JSONArray(previousQueue);
+                JSONArray letters = new JSONArray(previousLetters);
+                JSONArray remaining = new JSONArray();
+                boolean changed = false;
+                for (int i = 0; i < queue.length(); i++) {
+                    JSONObject event = queue.optJSONObject(i);
+                    if (event == null || !projectId.equals(event.optString("projectId", null))
+                        || !sessionId.equals(event.optString("sessionId", null))) {
+                        remaining.put(queue.opt(i));
+                        continue;
+                    }
+                    sanitizeDeadLetter(event, reason);
+                    letters.put(event);
+                    changed = true;
                 }
-                sanitizeDeadLetter(event, reason);
-                letters.put(event);
+                if (!changed) return true;
+                try {
+                    if (prefs.edit()
+                        .putString(PREF_QUEUE, remaining.toString())
+                        .putString(PREF_DEAD_LETTERS, letters.toString())
+                        .commit()) return true;
+                } catch (Exception ignored) { }
+                // SharedPreferences mutates memory before reporting disk failure.
+                try {
+                    prefs.edit().putString(PREF_QUEUE, previousQueue)
+                        .putString(PREF_DEAD_LETTERS, previousLetters).commit();
+                } catch (Exception ignored) { }
+            } catch (Exception ignored) {
+                return false;
             }
-            prefs.edit()
-                .putString(PREF_QUEUE, remaining.toString())
-                .putString(PREF_DEAD_LETTERS, letters.toString())
-                .commit();
+            return false;
         }
     }
 

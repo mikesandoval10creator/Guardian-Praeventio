@@ -61,6 +61,17 @@ public final class NativeLoneWorkerRetryWorker extends Worker {
         }
 
         int outcome = NativeLoneWorkerTransport.post(event);
+        if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
+            String projectId = event.optString("projectId", null);
+            String sessionId = event.optString("sessionId", null);
+            if (projectId != null && sessionId != null) {
+                // Keep the retry anchor until session cleanup is durable.
+                if (!NativeLoneWorkerForegroundService.authorityGone(context, projectId, sessionId)) {
+                    return Result.retry();
+                }
+                return NativeLoneWorkerOutbox.first(context) != null ? Result.retry() : Result.success();
+            }
+        }
         if (outcome == NativeLoneWorkerTransport.ACCEPTED
             || outcome == NativeLoneWorkerTransport.AUTHORITY_GONE
             || outcome == NativeLoneWorkerTransport.MALFORMED) {
@@ -69,13 +80,6 @@ public final class NativeLoneWorkerRetryWorker extends Worker {
                 : outcome == NativeLoneWorkerTransport.MALFORMED ? "malformed_payload" : null;
             int remaining = NativeLoneWorkerOutbox.acknowledge(context, eventId, reason);
             if (remaining < 0) return Result.retry();
-            if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
-                String projectId = event.optString("projectId", null);
-                String sessionId = event.optString("sessionId", null);
-                if (projectId != null && sessionId != null) {
-                    NativeLoneWorkerForegroundService.authorityGone(context, projectId, sessionId);
-                }
-            }
             return remaining > 0 ? Result.retry() : Result.success();
         }
 
