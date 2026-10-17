@@ -7,13 +7,19 @@ const source = ts.createSourceFile('ley19628.ts', readFileSync(new URL('../src/s
 const names = ['ComplianceError', 'processDataAccessRequest'];
 const selected = source.statements.filter(node => (ts.isClassDeclaration(node) || ts.isFunctionDeclaration(node)) && names.includes(node.name?.text));
 assert.equal(selected.length, names.length);
-const output = ts.transpileModule(`export function create(Date) {
+const output = ts.transpileModule(`export function create(Date, logger, FieldValue) {
  const REQUESTS_COLLECTION = 'compliance_data_requests';
  ${selected.map(node => node.getText(source).replace(/^export /, '')).join('\n')}
  return processDataAccessRequest;
 }`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { create } = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`);
-const processRequest = create({ now: () => 2000 });
+const deletedField = Symbol('deleted field');
+const loggedErrors = [];
+const processRequest = create(
+ { now: () => 2000 },
+ { error: (...args) => loggedErrors.push(args) },
+ { delete: () => deletedField },
+);
 function fixture(type = 'access', status = 'pending', exists = true) {
  let row = { uid: 'dummy-subject', type, status, requestedAt: 1000 };
  const writes = [];
@@ -21,7 +27,13 @@ function fixture(type = 'access', status = 'pending', exists = true) {
   assert.equal(name, 'compliance_data_requests');
   return { doc(id) {
    assert.equal(id, 'dummy-request');
-   return { async get() { return { id, exists, data: () => ({ ...row }) }; }, async update(patch) { writes.push({ ...patch }); row = { ...row, ...patch }; } };
+   return { async get() { return { id, exists, data: () => ({ ...row }) }; }, async update(patch) {
+    writes.push({ ...patch });
+    row = { ...row, ...patch };
+    for (const [key, value] of Object.entries(patch)) {
+     if (value === deletedField) delete row[key];
+    }
+   } };
   } };
  } };
  return { db, writes, stored: () => row };
@@ -31,6 +43,7 @@ for (const type of ['access', 'portability', 'erasure', 'rectification']) {
   const f = fixture(type);
   await assert.rejects(processRequest(f.db, 'dummy-request'), error => error.code === 'handler_missing');
   assert.equal(f.stored().status, 'rejected');
+  assert.equal(f.stored().rejectionReason, 'processing_failed');
   assert.ok(f.writes.every(patch => patch.status !== 'completed'));
  });
  test(`${type}: matching handler completes once and preserves its result`, async () => {
@@ -53,10 +66,14 @@ test('already completed requests remain idempotent even without handlers', async
  const f = fixture('erasure', 'completed'); const result = await processRequest(f.db, 'dummy-request');
  assert.equal(result.status, 'completed'); assert.equal(f.writes.length, 0);
 });
-test('handler failures retain existing rejection behavior and do not complete', async () => {
+test('handler failures retain diagnostics only in the internal log and do not complete', async () => {
  const f = fixture('rectification'); const failure = new Error('dummy handler failure');
  await assert.rejects(processRequest(f.db, 'dummy-request', { onRectify: async () => { throw failure; } }), error => error === failure);
- assert.equal(f.stored().status, 'rejected'); assert.equal(f.stored().rejectionReason, 'dummy handler failure');
+ assert.equal(f.stored().status, 'rejected'); assert.equal(f.stored().rejectionReason, 'processing_failed');
+ assert.deepEqual(loggedErrors.at(-1), [
+  'compliance_data_request_processing_failed', failure,
+  { requestId: 'dummy-request', type: 'rectification' },
+ ]);
 });
 test('missing requests keep the not-found response without a write', async () => {
  const f = fixture('access', 'pending', false);
@@ -65,6 +82,8 @@ test('missing requests keep the not-found response without a write', async () =>
 test('a request rejected for a missing handler can be retried after configuration', async () => {
  const f = fixture('erasure');
  await assert.rejects(processRequest(f.db, 'dummy-request'), error => error.code === 'handler_missing');
- let calls = 0; await processRequest(f.db, 'dummy-request', { onErase: async () => { calls += 1; } });
+ let calls = 0; const result = await processRequest(f.db, 'dummy-request', { onErase: async () => { calls += 1; } });
  assert.equal(calls, 1); assert.equal(f.stored().status, 'completed');
+ assert.equal(Object.hasOwn(f.stored(), 'rejectionReason'), false);
+ assert.equal(Object.hasOwn(result, 'rejectionReason'), false);
 });
