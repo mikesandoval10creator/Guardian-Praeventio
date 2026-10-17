@@ -2736,6 +2736,7 @@
     "driving_wildfire_dismiss": "Ocultar aviso"
   },
   "lone_worker_page": {
+    "subscription_failed": "Não foi possível carregar as sessões deste projeto. O estado atual delas não está confirmado.",
     "title": "Trabalho solitário",
     "subtitle": "Controle de trabalhadores operando em zonas remotas ou isoladas. Check-in periódico obrigatório; sem resposta há escalonamento automático (supervisor → brigada → serviços de emergência).",
     "cta_start": "Iniciar sessão",

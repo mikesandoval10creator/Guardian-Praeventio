@@ -37,6 +37,8 @@ import {
 } from '../firebase';
 
 export interface ProjectScopedStoreOptions<T> {
+  /** Emit a synthetic empty snapshot after errors. Default true. */
+  emitEmptyOnError?: boolean;
   /** Default count para subscribe + list. Cap server-side a Math.min(N, 500). */
   defaultLimit?: number;
   /** Campo por el cual ordenar (descendente por default). */
@@ -87,7 +89,8 @@ export interface ProjectScopedStore<T extends { id: string }> {
    * Live subscription ordenada por `options.orderByField`. Devuelve
    * función `unsubscribe` que el caller debe invocar en cleanup.
    * Errores se reportan via `onError` Y emiten array vacío a `onSnap`
-   * para que el caller no quede en estado loading infinito.
+   * para que el caller no quede en estado loading infinito, salvo que el store
+   * configure emitEmptyOnError: false y gestione loading/error explícitamente.
    */
   subscribe: (
     projectId: string,
@@ -142,6 +145,7 @@ export function createProjectScopedStore<T extends { id: string }>(
     orderByField,
     orderDirection = 'desc',
     activeFilter,
+    emitEmptyOnError = true,
   } = options;
 
   const collectionPath = (projectId: string): string => {
@@ -227,7 +231,7 @@ export function createProjectScopedStore<T extends { id: string }>(
         (snap) => onSnap(collectSnap(snap as Parameters<typeof collectSnap>[0])),
         (err) => {
           onError?.(err as Error);
-          onSnap([]); // No dejar al caller en loading infinito.
+          if (emitEmptyOnError) onSnap([]);
         },
       );
     },
@@ -248,7 +252,7 @@ export function createProjectScopedStore<T extends { id: string }>(
         (snap) => onSnap(collectSnap(snap as Parameters<typeof collectSnap>[0])),
         (err) => {
           onError?.(err as Error);
-          onSnap([]);
+          if (emitEmptyOnError) onSnap([]);
         },
       );
     },

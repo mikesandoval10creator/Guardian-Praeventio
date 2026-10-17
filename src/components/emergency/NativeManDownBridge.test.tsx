@@ -3,8 +3,9 @@
 // mounted above Routes. It starts native sampling only for the authenticated
 // worker's own active session and stops it when that session disappears.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import type { LoneWorkerSession } from "../../services/loneWorker/loneWorkerService";
 
 let subscriber: ((sessions: LoneWorkerSession[]) => void) | null = null;
@@ -71,6 +72,8 @@ function activeSession(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  stopNativeManDown.mockReset();
+  mintNativeManDownCapability.mockReset();
   subscriber = null;
   selectedProject = {
     id: "project-1",
@@ -85,6 +88,10 @@ beforeEach(() => {
   });
   startNativeManDown.mockResolvedValue({ applied: true });
   stopNativeManDown.mockResolvedValue(undefined);
+});
+
+afterEach(async () => {
+  await act(async () => cleanup());
 });
 
 describe("<NativeManDownBridge />", () => {
@@ -123,8 +130,6 @@ describe("<NativeManDownBridge />", () => {
     render(<NativeManDownBridge />);
     await act(async () => subscriber?.([activeSession()]));
     await waitFor(() => expect(startNativeManDown).toHaveBeenCalledTimes(1));
-    // Ignore the defensive stop emitted on the initial no-session mount.
-    stopNativeManDown.mockClear();
 
     await act(async () =>
       subscriber?.([activeSession({ status: "overdue_critical" })]),
@@ -142,10 +147,11 @@ describe("<NativeManDownBridge />", () => {
     await waitFor(() => expect(stopNativeManDown).toHaveBeenCalled());
   });
 
-  it("stops native monitoring when the active session ends or the subscription becomes unavailable", async () => {
+  it("stops native monitoring when a successful subscription confirms the session is absent", async () => {
     const view = render(<NativeManDownBridge />);
     await act(async () => subscriber?.([activeSession()]));
     await waitFor(() => expect(startNativeManDown).toHaveBeenCalled());
+    stopNativeManDown.mockClear();
 
     await act(async () => subscriber?.([]));
     await waitFor(() => expect(stopNativeManDown).toHaveBeenCalled());
@@ -154,6 +160,103 @@ describe("<NativeManDownBridge />", () => {
       onSubscriptionError?.(new Error("permission-denied")),
     );
     expect(view.container).toBeEmptyDOMElement();
+  });
+
+  it("preserves existing native protection while the first session read is unknown or fails", async () => {
+    render(<NativeManDownBridge />);
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+    expect(mintNativeManDownCapability).not.toHaveBeenCalled();
+    await act(async () => subscriber?.([]));
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stop or renew native protection when an active session read fails", async () => {
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    stopNativeManDown.mockClear();
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+    await act(async () => subscriber?.([]));
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["project", "worker"])("does not reuse the previous session after changing %s", async (identity) => {
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    stopNativeManDown.mockClear();
+    if (identity === "project") selectedProject = { id: "project-2" };
+    else user = { uid: "worker-2" };
+    view.rerender(<NativeManDownBridge />);
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+    await act(async () => subscriber?.([activeSession({ id: "session-2", workerUid: user!.uid })]));
+    expect(mintNativeManDownCapability).toHaveBeenLastCalledWith(selectedProject!.id, "session-2");
+    expect(startNativeManDown).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores data and errors from an unsubscribed identity", async () => {
+    const view = render(<NativeManDownBridge />);
+    const staleData = subscriber;
+    const staleError = onSubscriptionError;
+    selectedProject = { id: "project-2" };
+    view.rerender(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
+    stopNativeManDown.mockClear();
+    await act(async () => {
+      staleData?.([]);
+      staleError?.(new Error("unavailable"));
+    });
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops on logout and ignores a capability arriving after that boundary", async () => {
+    let resolveMint!: (value: { capability: string; expiresAt: string }) => void;
+    mintNativeManDownCapability.mockImplementationOnce(() => new Promise((resolve) => { resolveMint = resolve; }));
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    stopNativeManDown.mockClear();
+    user = null;
+    view.rerender(<NativeManDownBridge />);
+    await act(async () => resolveMint({ capability: "x".repeat(43), expiresAt: new Date(Date.now() + 60_000).toISOString() }));
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+    expect(startNativeManDown).not.toHaveBeenCalled();
+  });
+
+  it("waits for the previous identity stop before starting its replacement", async () => {
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    let resolveStop!: () => void;
+    stopNativeManDown.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveStop = resolve; }));
+    selectedProject = { id: "project-2" };
+    view.rerender(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
+    try {
+      expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+      expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => resolveStop?.());
+    }
+    expect(startNativeManDown).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-2", sessionId: "session-2" }));
+  });
+
+  it("preserves native protection when React unmounts without ending the session", async () => {
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    stopNativeManDown.mockClear();
+    await act(async () => view.unmount());
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+  });
+
+  it("does not stop restored protection during StrictMode replay or a failed first read", async () => {
+    render(<StrictMode><NativeManDownBridge /></StrictMode>);
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+    expect(startNativeManDown).not.toHaveBeenCalled();
   });
 
   it("is an honest no-op on web: it never mints a native authority", async () => {

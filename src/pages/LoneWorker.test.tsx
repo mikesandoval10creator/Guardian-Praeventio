@@ -12,8 +12,8 @@
 //
 // Hermetic: contexts, store, audited hook, FGS client, i18n mocked.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoneWorker } from './LoneWorker';
 import type { LoneWorkerSession } from '../services/loneWorker/loneWorkerService';
 
@@ -102,6 +102,8 @@ function session(over: Partial<LoneWorkerSession> = {}): LoneWorkerSession {
     ...over,
   };
 }
+
+afterEach(async () => { await act(async () => cleanup()); });
 
 beforeEach(() => {
   vi.clearAllMocks();
