@@ -11,6 +11,9 @@ import { createProjectScopedStore } from '../firestore/createProjectScopedStore'
 import type { LoneWorkerSession } from './loneWorkerService';
 
 const store = createProjectScopedStore<LoneWorkerSession>('lone_worker_sessions', {
+  // A failed read cannot authorize stopping native safety protection. Consumers
+  // handle onError explicitly; only a real snapshot may confirm an empty session.
+  emitEmptyOnError: false,
   orderByField: 'startedAt',
   // Plan §B.5 (2026-05-23): activeFilter = todos los status "vivos" (no
   // 'ended'). Reduce reads ~80% en proyectos con muchas sesiones cerradas.

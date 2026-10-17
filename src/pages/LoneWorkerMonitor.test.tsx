@@ -10,8 +10,8 @@
 // goes through startLoneWorkerSessionApi FIRST, then persists the returned
 // canonical session; a route failure blocks before any persist.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoneWorkerMonitor } from './LoneWorkerMonitor';
 import type { LoneWorkerSession } from '../services/loneWorker/loneWorkerService';
 
@@ -50,14 +50,22 @@ vi.mock('../components/loneWorker/LoneWorkerCard', () => ({
 
 const saveLoneWorkerSession = vi.fn(async (..._a: unknown[]) => undefined);
 const patchLoneWorkerSession = vi.fn(async (..._a: unknown[]) => undefined);
+let initialSessions: LoneWorkerSession[] = [];
+let subscriptionFails = false;
+let onSessionData: ((list: LoneWorkerSession[]) => void) | undefined;
+let onSessionError: ((error: Error) => void) | undefined;
 vi.mock('../services/loneWorker/loneWorkerStore', () => ({
   saveLoneWorkerSession: (...a: unknown[]) => saveLoneWorkerSession(...a),
   patchLoneWorkerSession: (...a: unknown[]) => patchLoneWorkerSession(...a),
   subscribeActiveLoneWorkerSessions: (
     _pid: string,
     onData: (list: LoneWorkerSession[]) => void,
+    onError?: (error: Error) => void,
   ) => {
-    onData([]);
+    onSessionData = onData;
+    onSessionError = onError;
+    if (subscriptionFails) onError?.(new Error('unavailable'));
+    else onData(initialSessions);
     return () => undefined;
   },
 }));
@@ -92,7 +100,11 @@ beforeEach(() => {
   startLoneWorkerSessionApi.mockResolvedValue({ session: session() });
   fetchLoneWorkerAdminOverview.mockResolvedValue({ overview: [] });
   saveLoneWorkerSession.mockResolvedValue(undefined);
+  initialSessions = [];
+  subscriptionFails = false;
 });
+
+afterEach(async () => { await act(async () => cleanup()); });
 
 async function openFormAndSubmit() {
   fireEvent.click(await screen.findByRole('button', { name: /^Iniciar sesión$/ }));
@@ -100,6 +112,36 @@ async function openFormAndSubmit() {
 }
 
 describe('<LoneWorkerMonitor /> start-session audit', () => {
+  it('hides the previous project sessions on failed reads and retries without claiming an empty project', async () => {
+    initialSessions = [session({ startedAt: new Date().toISOString() })];
+    const view = render(<LoneWorkerMonitor />);
+    expect(screen.getByTestId('lwCard')).toBeInTheDocument();
+    mockProject = { id: 'proj-2', name: 'Faena Sur' };
+    subscriptionFails = true;
+    await act(async () => view.rerender(<LoneWorkerMonitor />));
+    expect(screen.queryByTestId('lwCard')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar');
+    expect(screen.queryByText('No hay trabajadores solitarios activos en este proyecto.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Iniciar sesión$/ })).toBeDisabled();
+    subscriptionFails = false;
+    initialSessions = [];
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Reintentar' })));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay trabajadores solitarios activos en este proyecto.')).toBeInTheDocument();
+  });
+
+  it('ignores data and errors from the previously selected project', async () => {
+    const view = render(<LoneWorkerMonitor />);
+    const staleData = onSessionData;
+    const staleError = onSessionError;
+    mockProject = { id: 'proj-2', name: 'Faena Sur' };
+    initialSessions = [session({ startedAt: new Date().toISOString() })];
+    await act(async () => view.rerender(<LoneWorkerMonitor />));
+    await act(async () => { staleData?.([]); staleError?.(new Error('unavailable')); });
+    expect(screen.getByTestId('lwCard')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('start goes through the AUDITED route FIRST, then persists the returned session', async () => {
     startLoneWorkerSessionApi.mockResolvedValueOnce({
       session: session({ id: 'lws_server_9', workerUid: 'worker-1' }),

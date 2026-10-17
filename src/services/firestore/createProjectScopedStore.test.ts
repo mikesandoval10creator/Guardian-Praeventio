@@ -58,6 +58,7 @@ vi.mock('../firebase', () => ({
 
 
 import { createProjectScopedStore } from './createProjectScopedStore';
+import { subscribeLoneWorkerSessions, subscribeActiveLoneWorkerSessions } from '../loneWorker/loneWorkerStore';
 
 interface FakeDoc {
   id: string;
@@ -197,6 +198,19 @@ describe('createProjectScopedStore', () => {
   });
 
   describe('subscribeFiltered (server-side where)', () => {
+    it.each([subscribeLoneWorkerSessions, subscribeActiveLoneWorkerSessions])('does not synthesize an ended-session snapshot after a lone-worker read error (%#)', (subscribe) => {
+      const onData = vi.fn();
+      const onError = vi.fn();
+      const unsubscribe = subscribe('p1', onData, onError);
+      const error = new Error('unavailable');
+      lastErrorCallback?.(error);
+      expect(onError).toHaveBeenCalledWith(error);
+      expect(onData).not.toHaveBeenCalled();
+      lastSnapshotCallback?.(fakeSnapshot([]));
+      expect(onData).toHaveBeenCalledExactlyOnceWith([]);
+      unsubscribe();
+    });
+
     it('lanza si activeFilter no configurado', () => {
       const store = createProjectScopedStore<FakeDoc>('stoppages'); // sin activeFilter
       expect(() => store.subscribeFiltered('p1', vi.fn())).toThrow(/activeFilter no configurado/);
