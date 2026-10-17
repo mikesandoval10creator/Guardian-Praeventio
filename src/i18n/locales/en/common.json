@@ -3062,6 +3062,7 @@
     "retry": "Retry"
   },
   "lone_worker_page": {
+    "subscription_failed": "We could not load this project's sessions. Their current status is unconfirmed.",
     "title": "Lone worker",
     "subtitle": "Control of workers operating in remote or isolated zones. Mandatory periodic check-in; without response, escalation is automatic (supervisor → brigade → emergency services).",
     "cta_start": "Start session",

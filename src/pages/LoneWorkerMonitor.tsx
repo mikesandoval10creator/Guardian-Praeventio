@@ -45,14 +45,24 @@ import { startLoneWorkerSessionApi } from '../hooks/useLoneWorker';
 import { logger } from '../utils/logger';
 
 const INTERVAL_PRESETS = [15, 30, 60, 120];
+const EMPTY_SESSIONS: LoneWorkerSession[] = [];
 
 export function LoneWorkerMonitor() {
   const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
-  const [sessions, setSessions] = useState<LoneWorkerSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const projectId = selectedProject?.id ?? null;
+  const [snapshot, setSnapshot] = useState<{
+    projectId: string;
+    sessions: LoneWorkerSession[];
+    failed: boolean;
+  } | null>(null);
+  const [subscriptionRetry, setSubscriptionRetry] = useState(0);
+  const currentSnapshot = snapshot?.projectId === projectId ? snapshot : null;
+  const sessions = currentSnapshot?.sessions ?? EMPTY_SESSIONS;
+  const loading = !!projectId && !currentSnapshot;
+  const subscriptionFailed = currentSnapshot?.failed ?? false;
 
   // Force re-render every 60s so deriveLoneWorkerStatus recomputa
   // overdue_warning → overdue_critical sin esperar al próximo snapshot
@@ -69,13 +79,11 @@ export function LoneWorkerMonitor() {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    const projectId = selectedProject?.id;
+    setSnapshot(null);
     if (!projectId) {
-      setSessions([]);
-      setLoading(false);
       return undefined;
     }
-    setLoading(true);
+    let active = true;
     // Plan §B.5 (2026-05-23): subscribeActiveLoneWorkerSessions trae solo
     // sesiones "vivas" (active|overdue_*|help_requested) — reduce reads
     // ~80% en proyectos con muchas sesiones ended. El historial reciente
@@ -84,16 +92,17 @@ export function LoneWorkerMonitor() {
     const unsub = subscribeActiveLoneWorkerSessions(
       projectId,
       (list) => {
-        setSessions(list);
-        setLoading(false);
+        if (!active) return;
+        setSnapshot({ projectId, sessions: list, failed: false });
       },
       (err) => {
+        if (!active) return;
         logger.warn('lone_worker_sub_error', { err: String(err) });
-        setLoading(false);
+        setSnapshot({ projectId, sessions: [], failed: true });
       },
     );
-    return () => unsub();
-  }, [selectedProject?.id]);
+    return () => { active = false; unsub(); };
+  }, [projectId, subscriptionRetry]);
 
   // Status derivation runs on every render (cheap pure function).
   const sessionsWithStatus = useMemo(() => {
@@ -237,7 +246,7 @@ export function LoneWorkerMonitor() {
           <button
             type="button"
             onClick={() => setShowForm((v) => !v)}
-            disabled={!selectedProject || !user}
+            disabled={!selectedProject || !user || loading || subscriptionFailed}
             className="rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -252,6 +261,13 @@ export function LoneWorkerMonitor() {
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+        ) : subscriptionFailed ? (
+          <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:bg-zinc-900 dark:text-amber-200">
+            <p>{t('lone_worker_page.subscription_failed', 'No pudimos cargar las sesiones de este proyecto. Su estado actual no está confirmado.')}</p>
+            <button type="button" onClick={() => setSubscriptionRetry((attempt) => attempt + 1)} className="mt-3 rounded-lg bg-amber-200 px-4 py-2 font-bold text-amber-950">
+              {t('common.retry', 'Reintentar')}
+            </button>
           </div>
         ) : (
           <>

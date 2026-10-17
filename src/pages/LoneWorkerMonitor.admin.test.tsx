@@ -12,8 +12,8 @@
 //      and the projectId, and renders the server-returned rows.
 //   3. Honest empty-state when the project has no live sessions.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { LoneWorkerMonitor } from './LoneWorkerMonitor';
 import type {
   LoneWorkerSession,
@@ -91,6 +91,8 @@ vi.mock('../hooks/useLoneWorker', () => ({
 vi.mock('../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
+
+afterEach(async () => { await act(async () => cleanup()); });
 
 beforeEach(() => {
   vi.clearAllMocks();

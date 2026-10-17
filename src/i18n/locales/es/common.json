@@ -3062,6 +3062,7 @@
     "retry": "Reintentar"
   },
   "lone_worker_page": {
+    "subscription_failed": "No pudimos cargar las sesiones de este proyecto. Su estado actual no está confirmado.",
     "title": "Trabajo solitario",
     "subtitle": "Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).",
     "cta_start": "Iniciar sesión",
