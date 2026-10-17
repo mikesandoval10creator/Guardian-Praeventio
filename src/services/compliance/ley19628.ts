@@ -83,7 +83,7 @@ export interface DataAccessRequest {
   exportedToUrl?: string;
   /** Optional payload for rectification requests (field → new value). */
   rectificationPayload?: Record<string, unknown>;
-  /** Optional reason for rejection. */
+  /** Public rejection code; never an internal exception message. */
   rejectionReason?: string;
   /** Sprint 31 Bucket MM (tarea P1 privacidad) — persistidos al crear el
    *  request para que el control de vencimiento se calcule desde el dato
@@ -444,13 +444,19 @@ export async function processDataAccessRequest(
       completedAt: Date.now(),
     };
     if (exportedToUrl) finalPatch.exportedToUrl = exportedToUrl;
-    await ref.update(finalPatch);
-    return { ...current, ...finalPatch };
+    await ref.update({ ...finalPatch, rejectionReason: FieldValue.delete() });
+    const completed = { ...current, ...finalPatch };
+    delete completed.rejectionReason;
+    return completed;
   } catch (err) {
+    logger.error('compliance_data_request_processing_failed', err, {
+      requestId,
+      type: current.type,
+    });
     await ref.update({
       status: 'rejected' as DataAccessRequestStatus,
       completedAt: Date.now(),
-      rejectionReason: err instanceof Error ? err.message : String(err),
+      rejectionReason: 'processing_failed',
     });
     throw err;
   }

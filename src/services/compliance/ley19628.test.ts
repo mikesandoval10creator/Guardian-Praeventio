@@ -4,6 +4,7 @@
 // `src/services/auth/projectMembership.test.ts`. No firebase-admin import.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from '../../utils/logger.js';
 import {
   recordConsent,
@@ -66,8 +67,15 @@ function makeDb(
             }
           },
           async update(data: any): Promise<void> {
-            const existing = store[name].get(docId) ?? {};
-            store[name].set(docId, { ...existing, ...data });
+            const updated = { ...(store[name].get(docId) ?? {}) };
+            for (const [key, value] of Object.entries(data)) {
+              if (value instanceof FieldValue && value.isEqual(FieldValue.delete())) {
+                delete updated[key];
+              } else {
+                updated[key] = value;
+              }
+            }
+            store[name].set(docId, updated);
           },
           async delete(): Promise<void> {
             store[name].delete(docId);
@@ -111,6 +119,7 @@ describe('compliance/ley19628', () => {
   beforeEach(() => {
     db = makeDb();
     vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.spyOn(logger, 'error').mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -529,7 +538,7 @@ describe('compliance/ley19628', () => {
 
     const stored = (await db.collection('compliance_data_requests').doc(req.id).get()).data();
     expect(stored?.status).toBe('rejected');
-    expect(stored?.rejectionReason).toBe('Erasure stopped: document subject does not match the request.');
+    expect(stored?.rejectionReason).toBe('processing_failed');
     expect((await db.collection('users').doc('foreign').get()).exists).toBe(true);
   });
 
@@ -627,6 +636,7 @@ describe('compliance/ley19628', () => {
       });
       const stored = (await db.collection('compliance_data_requests').doc(request.id).get()).data();
       expect(stored?.status).toBe('rejected');
+      expect(stored?.rejectionReason).toBe('processing_failed');
     },
   );
 
@@ -637,5 +647,69 @@ describe('compliance/ley19628', () => {
     expect(completed.status).toBe('completed');
     expect(completed.exportedToUrl).toBe('https://signed.example/abc');
     expect(completed.completedAt).toBeGreaterThan(0);
+  });
+
+  it.each([
+    new Error('private Firestore project/path diagnostic'),
+    'private transport diagnostic',
+    { toString: () => 'private provider diagnostic' },
+    new ComplianceError('private_code', 'private compliance diagnostic', 500),
+  ])('persists only a generic rejection while retaining the original failure internally (%s)', async (failure) => {
+    const req = await requestDataAccess(db, 'uid-A', 'access');
+
+    await expect(processDataAccessRequest(db, req.id, {
+      onExport: async () => { throw failure; },
+    })).rejects.toBe(failure);
+
+    const stored = (await db.collection('compliance_data_requests').doc(req.id).get()).data();
+    expect(stored).toMatchObject({ status: 'rejected', rejectionReason: 'processing_failed' });
+    expect(JSON.stringify(stored)).not.toContain('private');
+    expect(logger.error).toHaveBeenCalledWith(
+      'compliance_data_request_processing_failed', failure,
+      { requestId: req.id, type: 'access' },
+    );
+  });
+
+  it.each(['processing_failed', 'legacy private infrastructure diagnostic'])(
+    'clears a previous rejection from storage and the returned request after a successful retry (%s)',
+    async (rejectionReason) => {
+      const req = await requestDataAccess(db, 'uid-A', 'access');
+      const ref = db.collection('compliance_data_requests').doc(req.id);
+      await ref.update({ status: 'rejected', completedAt: 1, rejectionReason });
+      const onExport = vi.fn(async () => ({ downloadUrl: 'https://signed.example/retry' }));
+
+      const completed = await processDataAccessRequest(db, req.id, { onExport });
+      expect(completed).toMatchObject({ status: 'completed', exportedToUrl: 'https://signed.example/retry' });
+      expect(completed).not.toHaveProperty('rejectionReason');
+      const stored = (await ref.get()).data();
+      expect(stored).not.toHaveProperty('rejectionReason');
+      expect(stored?.completedAt).toBeGreaterThan(1);
+
+      await expect(processDataAccessRequest(db, req.id, { onExport })).resolves.toEqual(completed);
+      expect(onExport).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('does not persist completion-write diagnostics in the rejected request', async () => {
+    const req = await requestDataAccess(db, 'uid-A', 'access');
+    const failure = new Error('private completion write diagnostic');
+    const collection = db.collection.bind(db);
+    vi.spyOn(db, 'collection').mockImplementation((name) => {
+      const ref = collection(name);
+      return { ...ref, doc: (id) => {
+        const doc = ref.doc(id);
+        return { ...doc, update: async (patch) => {
+          if (patch.status === 'completed') throw failure;
+          await doc.update(patch);
+        } };
+      } };
+    });
+
+    await expect(processDataAccessRequest(db, req.id, {
+      onExport: async () => ({ downloadUrl: 'https://signed.example/abc' }),
+    })).rejects.toBe(failure);
+    const stored = (await db.collection('compliance_data_requests').doc(req.id).get()).data();
+    expect(stored).toMatchObject({ status: 'rejected', rejectionReason: 'processing_failed' });
+    expect(JSON.stringify(stored)).not.toContain('private');
   });
 });
