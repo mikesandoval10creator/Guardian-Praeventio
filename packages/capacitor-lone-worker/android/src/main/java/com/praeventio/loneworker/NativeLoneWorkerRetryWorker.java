@@ -43,7 +43,10 @@ public final class NativeLoneWorkerRetryWorker extends Worker {
             .build();
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            // Preserve arrivals after the drain's last queue read but before
+            // WorkManager marks it finished. Failed/cancelled chains must not
+            // prevent a later heartbeat from scheduling delivery again.
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
             request
         );
     }
@@ -54,34 +57,29 @@ public final class NativeLoneWorkerRetryWorker extends Worker {
         Context context = getApplicationContext();
         JSONObject event = NativeLoneWorkerOutbox.first(context);
         if (event == null) return Result.success();
+        String eventId = event.optString("clientEventId", null);
+        if (eventId == null || eventId.trim().isEmpty()) {
+            int remaining = NativeLoneWorkerOutbox.quarantineUnidentifiedHead(context, event.toString());
+            return remaining == 0 ? Result.success() : Result.retry();
+        }
 
         int outcome = NativeLoneWorkerTransport.post(event);
-        if (outcome == NativeLoneWorkerTransport.ACCEPTED) {
-            int remaining = NativeLoneWorkerOutbox.removeFirst(context);
-            return remaining > 0 ? Result.retry() : Result.success();
-        }
-
-        String projectId = event.optString("projectId", null);
-        String sessionId = event.optString("sessionId", null);
-        if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
-            NativeLoneWorkerOutbox.moveFirstToDeadLetter(context, "authority_gone");
-            if (projectId != null && sessionId != null) {
-                NativeLoneWorkerForegroundService.authorityGone(
-                    context,
-                    projectId,
-                    sessionId
-                );
+        if (outcome == NativeLoneWorkerTransport.ACCEPTED
+            || outcome == NativeLoneWorkerTransport.AUTHORITY_GONE
+            || outcome == NativeLoneWorkerTransport.MALFORMED) {
+            String reason = outcome == NativeLoneWorkerTransport.AUTHORITY_GONE
+                ? "authority_gone"
+                : outcome == NativeLoneWorkerTransport.MALFORMED ? "malformed_payload" : null;
+            int remaining = NativeLoneWorkerOutbox.acknowledge(context, eventId, reason);
+            if (remaining < 0) return Result.retry();
+            if (outcome == NativeLoneWorkerTransport.AUTHORITY_GONE) {
+                String projectId = event.optString("projectId", null);
+                String sessionId = event.optString("sessionId", null);
+                if (projectId != null && sessionId != null) {
+                    NativeLoneWorkerForegroundService.authorityGone(context, projectId, sessionId);
+                }
             }
-            return NativeLoneWorkerOutbox.first(context) != null
-                ? Result.retry()
-                : Result.success();
-        }
-
-        if (outcome == NativeLoneWorkerTransport.MALFORMED) {
-            NativeLoneWorkerOutbox.moveFirstToDeadLetter(context, "malformed_payload");
-            return NativeLoneWorkerOutbox.first(context) != null
-                ? Result.retry()
-                : Result.success();
+            return remaining > 0 ? Result.retry() : Result.success();
         }
 
         // Keep the event intact. WorkManager applies exponential backoff and

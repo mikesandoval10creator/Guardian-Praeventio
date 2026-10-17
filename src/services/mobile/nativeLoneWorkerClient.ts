@@ -72,12 +72,12 @@ export async function startNativeLoneWorker(
   }
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    const status = await Promise.race([
-      NativeLoneWorker.start({ ...options, apiBaseUrl }),
-      new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(() => reject(new Error("native_lone_worker_start_timeout")), 10_000);
-      }),
-    ]);
+    // Use one result promise so clearing the timer after a native response
+    // cannot leave a separate timeout promise pending indefinitely.
+    const status = await new Promise<NativeLoneWorkerStatus>((resolve, reject) => {
+      timeout = setTimeout(() => reject(new Error("native_lone_worker_start_timeout")), 10_000);
+      NativeLoneWorker.start({ ...options, apiBaseUrl }).then(resolve, reject);
+    });
     return status.running
       ? { applied: true, ...(status.lastError ? { lastError: status.lastError } : {}) }
       : {

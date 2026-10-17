@@ -37,10 +37,21 @@ final class NativeLoneWorkerOutbox {
         synchronized (LOCK) {
             try {
                 SharedPreferences prefs = prefs(context);
-                JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+                String previousQueue = prefs.getString(PREF_QUEUE, "[]");
+                String previousLetters = prefs.getString(PREF_DEAD_LETTERS, "[]");
+                JSONArray queue = readArray(previousQueue);
+                JSONArray letters = readArray(previousLetters);
                 if (queue.length() >= MAX_QUEUE) {
-                    moveFirstToDeadLetter(prefs, queue, "queue_capacity");
-                    queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+                    // Prepare eviction and append in memory; persist both in
+                    // one transaction only after the new event is valid.
+                    JSONObject oldest = queue.optJSONObject(0);
+                    if (oldest != null) {
+                        sanitizeDeadLetter(oldest, "queue_capacity");
+                        letters.put(oldest);
+                    }
+                    JSONArray remaining = new JSONArray();
+                    for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
+                    queue = remaining;
                 }
                 String clientEventId = UUID.randomUUID().toString();
                 payload.put("clientEventId", clientEventId);
@@ -53,11 +64,32 @@ final class NativeLoneWorkerOutbox {
                 event.put("payload", payload);
                 event.put("queuedAt", System.currentTimeMillis());
                 queue.put(event);
-                return prefs.edit().putString(PREF_QUEUE, queue.toString()).commit();
+                return commitEnqueue(prefs, queue.toString(), letters.toString(), previousQueue, previousLetters);
             } catch (Exception ignored) {
                 return false;
             }
         }
+    }
+
+    private static boolean commitEnqueue(
+        SharedPreferences prefs, String queue, String letters, String previousQueue, String previousLetters
+    ) {
+        if (queue == null || letters == null) return false;
+        try {
+            if (prefs.edit()
+                .putString(PREF_QUEUE, queue)
+                .putString(PREF_DEAD_LETTERS, letters)
+                .commit()) return true;
+        } catch (Exception ignored) { }
+        // Android changes memory before reporting a disk failure. Restore the
+        // snapshot while the producer lock is still held, including dead letters.
+        try {
+            prefs.edit()
+                .putString(PREF_QUEUE, previousQueue)
+                .putString(PREF_DEAD_LETTERS, previousLetters)
+                .commit();
+        } catch (Exception ignored) { }
+        return false;
     }
 
     static JSONArray readQueue(Context context) {
@@ -73,25 +105,63 @@ final class NativeLoneWorkerOutbox {
         }
     }
 
-    static int removeFirst(Context context) {
-        synchronized (LOCK) {
-            SharedPreferences prefs = prefs(context);
-            JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
-            if (queue.length() == 0) return 0;
-            JSONArray remaining = new JSONArray();
-            for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
-            prefs.edit().putString(PREF_QUEUE, remaining.toString()).commit();
-            return remaining.length();
-        }
+    /** Confirm only the event actually sent, against the current queue. -1 means retry. */
+    static int acknowledge(Context context, String clientEventId, String deadLetterReason) {
+        return acknowledge(context, clientEventId, null, deadLetterReason);
     }
 
-    static int moveFirstToDeadLetter(Context context, String reason) {
+    /** An unidentified record may be quarantined only while it remains the exact head. */
+    static int quarantineUnidentifiedHead(Context context, String expectedHead) {
+        return acknowledge(context, null, expectedHead, "missing_client_event_id");
+    }
+
+    private static int acknowledge(
+        Context context, String clientEventId, String expectedHead, String deadLetterReason
+    ) {
         synchronized (LOCK) {
+            boolean identified = clientEventId != null && !clientEventId.trim().isEmpty();
+            if (!identified && expectedHead == null) return -1;
             SharedPreferences prefs = prefs(context);
-            JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
-            if (queue.length() == 0) return 0;
-            moveFirstToDeadLetter(prefs, queue, reason);
-            return readArray(prefs.getString(PREF_QUEUE, "[]")).length();
+            String previousQueue = prefs.getString(PREF_QUEUE, "[]");
+            String previousLetters = prefs.getString(PREF_DEAD_LETTERS, "[]");
+            JSONArray queue = readArray(previousQueue);
+            JSONArray letters = readArray(previousLetters);
+            JSONArray remaining = new JSONArray();
+            boolean found = false;
+            for (int i = 0; i < queue.length(); i++) {
+                JSONObject event = queue.optJSONObject(i);
+                String currentId = event == null ? null : event.optString("clientEventId", null);
+                boolean matches = event != null && (identified
+                    ? clientEventId.equals(currentId)
+                    : i == 0 && (currentId == null || currentId.trim().isEmpty())
+                        && expectedHead.equals(event.toString()));
+                if (!found && matches) {
+                    found = true;
+                    if (deadLetterReason != null) {
+                        sanitizeDeadLetter(event, deadLetterReason);
+                        letters.put(event);
+                    }
+                } else {
+                    remaining.put(queue.opt(i));
+                }
+            }
+            // A stop/capacity eviction may already have removed the sent event.
+            if (!found) return queue.length();
+            try {
+                if (prefs.edit()
+                    .putString(PREF_QUEUE, remaining.toString())
+                    .putString(PREF_DEAD_LETTERS, letters.toString())
+                    .commit()) return remaining.length();
+            } catch (Exception ignored) { }
+            // SharedPreferences updates memory before reporting disk failure.
+            // Restore both arrays so this process can retry the same event too.
+            try {
+                prefs.edit()
+                    .putString(PREF_QUEUE, previousQueue)
+                    .putString(PREF_DEAD_LETTERS, previousLetters)
+                    .commit();
+            } catch (Exception ignored) { }
+            return -1;
         }
     }
 
