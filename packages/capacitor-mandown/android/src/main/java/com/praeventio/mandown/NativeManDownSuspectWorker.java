@@ -1,12 +1,14 @@
 package com.praeventio.mandown;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
 import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.OneTimeWorkRequest;
+import androidx.work.Operation;
 import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
@@ -27,8 +29,9 @@ public final class NativeManDownSuspectWorker extends Worker {
     private static final String PREF_CONFIG_PROJECT = "configProject";
     private static final String PREF_CONFIG_SESSION = "configSession";
     private static final String WORK_NAME = "guardian-native-mandown-suspect";
+    static final String PREF_EXPLICITLY_STOPPED = "explicitlyStopped";
     /** Serializes cancel-vs-expiry across the FGS action and WorkManager worker. */
-    private static final Object SUSPECT_LOCK = new Object();
+    static final Object SUSPECT_LOCK = new Object();
 
     public NativeManDownSuspectWorker(@NonNull Context context, @NonNull WorkerParameters parameters) {
         super(context, parameters);
@@ -49,11 +52,43 @@ public final class NativeManDownSuspectWorker extends Worker {
         }
     }
 
+    /** A durable stop blocks late sensor/expiry callbacks without deleting queued alerts. */
+    static StopRequest explicitStop(Context context) {
+        boolean persisted;
+        Operation cancellation;
+        try {
+            synchronized (SUSPECT_LOCK) {
+                persisted = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putBoolean(PREF_EXPLICITLY_STOPPED, true)
+                    .remove(PREF_SUSPECTED_PAYLOAD)
+                    .remove(PREF_SUSPECTED_DEADLINE)
+                    .commit();
+                cancellation = WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME);
+            }
+        } finally {
+            // Release the service before waiting for cancellation completion,
+            // including when the persistence/cancellation request throws.
+            context.stopService(new Intent(context, NativeManDownForegroundService.class));
+        }
+        return new StopRequest(persisted, cancellation);
+    }
+
+    static final class StopRequest {
+        final boolean persisted;
+        final Operation cancellation;
+
+        StopRequest(boolean persisted, Operation cancellation) {
+            this.persisted = persisted;
+            this.cancellation = cancellation;
+        }
+    }
+
     @NonNull
     @Override
     public Result doWork() {
         SharedPreferences prefs = getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         synchronized (SUSPECT_LOCK) {
+            if (prefs.getBoolean(PREF_EXPLICITLY_STOPPED, false)) return Result.success();
             String raw = prefs.getString(PREF_SUSPECTED_PAYLOAD, null);
             long deadline = prefs.getLong(PREF_SUSPECTED_DEADLINE, 0L);
             if (raw == null || deadline <= 0L) return Result.success(); // User cancelled.

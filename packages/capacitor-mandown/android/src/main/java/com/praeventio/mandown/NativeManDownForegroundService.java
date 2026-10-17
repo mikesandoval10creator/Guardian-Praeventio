@@ -91,6 +91,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
     private long lastMovementElapsedMs;
     private float lastMagnitude = Float.NaN;
     private boolean suspected;
+    private volatile boolean monitoring;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable expiryRunnable;
     private Runnable capabilityExpiryRunnable;
@@ -120,6 +121,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
         }
 
         startForeground(NOTIFICATION_ID, buildMonitoringNotification());
+        monitoring = true;
         lastMovementElapsedMs = SystemClock.elapsedRealtime();
         if (accelerometer == null || !sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)) {
             Log.e(TAG, "Accelerometer unavailable; stopping native ManDown service");
@@ -170,7 +172,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (suspected || event.values.length < 3) return;
+        if (!monitoring || suspected || event.values.length < 3) return;
         float magnitude = (float) Math.sqrt(
             event.values[0] * event.values[0]
                 + event.values[1] * event.values[1]
@@ -191,6 +193,13 @@ public final class NativeManDownForegroundService extends Service implements Sen
     @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
 
     private void suspect(String kind, @Nullable Float acceleration, @Nullable Long inactivity) {
+        synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+            if (!monitoring || !ownsPendingState()) return;
+            suspectLocked(kind, acceleration, inactivity);
+        }
+    }
+
+    private void suspectLocked(String kind, @Nullable Float acceleration, @Nullable Long inactivity) {
         if (suspected) return;
         try {
             JSONObject payload = new JSONObject();
@@ -228,8 +237,10 @@ public final class NativeManDownForegroundService extends Service implements Sen
     private void scheduleCapabilityExpiry() {
         if (capabilityExpiryRunnable != null) handler.removeCallbacks(capabilityExpiryRunnable);
         capabilityExpiryRunnable = () -> {
-            clearAllState();
-            stopMonitoring();
+            synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+                if (!monitoring || !ownsPendingState()) return;
+                stopMonitoring();
+            }
         };
         handler.postDelayed(
             capabilityExpiryRunnable,
@@ -250,6 +261,20 @@ public final class NativeManDownForegroundService extends Service implements Sen
     }
 
     private void expireSuspected() {
+        synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+            if (!monitoring || !ownsPendingState()) return;
+            expireSuspectedLocked();
+        }
+    }
+
+    private boolean ownsPendingState() {
+        SharedPreferences state = prefs();
+        return !state.getBoolean(NativeManDownSuspectWorker.PREF_EXPLICITLY_STOPPED, false)
+            && projectId != null && projectId.equals(state.getString(PREF_CONFIG_PROJECT, null))
+            && sessionId != null && sessionId.equals(state.getString(PREF_CONFIG_SESSION, null));
+    }
+
+    private void expireSuspectedLocked() {
         String raw = prefs().getString(PREF_SUSPECTED_PAYLOAD, null);
         if (raw == null) return; // Cancel action won the race.
         try {
@@ -292,6 +317,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
             apiBaseUrl
         );
         boolean metadataPersisted = prefs().edit()
+            .putBoolean(NativeManDownSuspectWorker.PREF_EXPLICITLY_STOPPED, false)
             .putString(PREF_CONFIG_PROJECT, projectId)
             .putString(PREF_CONFIG_SESSION, sessionId)
             .remove(PREF_CONFIG_CAPABILITY)
@@ -361,6 +387,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
     }
 
     private void stopMonitoring() {
+        monitoring = false;
         if (sensorManager != null) sensorManager.unregisterListener(this);
         if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);
         clearAllState();
@@ -370,8 +397,10 @@ public final class NativeManDownForegroundService extends Service implements Sen
 
     @Override
     public void onDestroy() {
+        monitoring = false;
         if (sensorManager != null) sensorManager.unregisterListener(this);
         if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);
+        if (capabilityExpiryRunnable != null) handler.removeCallbacks(capabilityExpiryRunnable);
         super.onDestroy();
     }
 

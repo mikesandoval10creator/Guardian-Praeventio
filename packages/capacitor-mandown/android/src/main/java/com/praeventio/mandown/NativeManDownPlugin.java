@@ -3,6 +3,8 @@ package com.praeventio.mandown;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import androidx.work.Operation;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -72,8 +74,23 @@ public final class NativeManDownPlugin extends Plugin {
     @PluginMethod
     public void stop(PluginCall call) {
         try {
-            getContext().stopService(new Intent(getContext(), NativeManDownForegroundService.class));
-            call.resolve();
+            NativeManDownSuspectWorker.StopRequest request =
+                NativeManDownSuspectWorker.explicitStop(getContext());
+            ListenableFuture<Operation.State.SUCCESS> completion = request.cancellation.getResult();
+            // Capacitor shares a handler across plugins. Observe completion
+            // asynchronously so cancellation cannot block other native actions.
+            completion.addListener(() -> {
+                try {
+                    completion.get(); // Listener runs only after completion; never waits.
+                    if (!request.persisted) {
+                        throw new IllegalStateException("native_man_down_stop_persist_failed");
+                    }
+                    call.resolve();
+                } catch (Exception error) {
+                    if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                    call.reject("native_man_down_stop_failed: " + error.getMessage());
+                }
+            }, Runnable::run);
         } catch (Exception error) {
             call.reject("native_man_down_stop_failed: " + error.getMessage());
         }
