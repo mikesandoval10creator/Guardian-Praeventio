@@ -43,7 +43,10 @@ public final class NativeLoneWorkerRetryWorker extends Worker {
             .build();
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            // Preserve arrivals after the drain's last queue read but before
+            // WorkManager marks it finished. Failed/cancelled chains must not
+            // prevent a later heartbeat from scheduling delivery again.
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
             request
         );
     }
