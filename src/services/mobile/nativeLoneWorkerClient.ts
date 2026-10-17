@@ -36,6 +36,10 @@ export type NativeLoneWorkerApplyResult =
       error?: string;
     };
 
+export type NativeLoneWorkerStopResult =
+  | { stopped: true }
+  | { stopped: false; reason: "not_android" | "native_error"; error?: string };
+
 /** The service must call a production HTTPS origin, never capacitor://. */
 export function nativeLoneWorkerApiOrigin(): string | null {
   const candidate = (
@@ -96,12 +100,17 @@ export async function startNativeLoneWorker(
   }
 }
 
-export async function stopNativeLoneWorker(): Promise<void> {
-  if (!isAndroidNativeLoneWorker()) return;
+export async function stopNativeLoneWorker(): Promise<NativeLoneWorkerStopResult> {
+  if (!isAndroidNativeLoneWorker()) return { stopped: false, reason: "not_android" };
   try {
     await NativeLoneWorker.stop();
-  } catch {
-    // Explicit stop is idempotent when Android already reclaimed the service.
+    return { stopped: true };
+  } catch (error) {
+    return {
+      stopped: false,
+      reason: "native_error",
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

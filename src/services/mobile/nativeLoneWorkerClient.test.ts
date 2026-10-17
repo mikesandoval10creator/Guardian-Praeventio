@@ -162,4 +162,36 @@ describe("nativeLoneWorkerClient", () => {
       lastHeartbeatAt: "2026-09-26T17:00:00.000Z",
     });
   });
+
+  it("reports a confirmed native stop", async () => {
+    H.native = true;
+    H.platform = "android";
+    H.plugin.stop.mockResolvedValue(undefined);
+    await expect(stopNativeLoneWorker()).resolves.toEqual({ stopped: true });
+  });
+
+  it.each([new Error("cleanup_persist_failed"), "cleanup_persist_failed"])(
+    "reports native stop failures instead of swallowing them (%s)", async (failure) => {
+      H.native = true;
+      H.platform = "android";
+      H.plugin.stop.mockRejectedValue(failure);
+      await expect(stopNativeLoneWorker()).resolves.toEqual({
+        stopped: false, reason: "native_error", error: "cleanup_persist_failed",
+      });
+    },
+  );
+
+  it("reports a synchronous native stop refusal", async () => {
+    H.native = true;
+    H.platform = "android";
+    H.plugin.stop.mockImplementation(() => { throw new Error("native_unavailable"); });
+    await expect(stopNativeLoneWorker()).resolves.toEqual({
+      stopped: false, reason: "native_error", error: "native_unavailable",
+    });
+  });
+
+  it("does not claim a stop or call the plugin outside Android", async () => {
+    await expect(stopNativeLoneWorker()).resolves.toEqual({ stopped: false, reason: "not_android" });
+    expect(H.plugin.stop).not.toHaveBeenCalled();
+  });
 });
