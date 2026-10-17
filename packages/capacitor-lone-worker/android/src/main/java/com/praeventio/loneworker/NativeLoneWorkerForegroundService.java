@@ -26,6 +26,7 @@ import org.json.JSONObject;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -80,6 +81,8 @@ public final class NativeLoneWorkerForegroundService extends Service {
     private long capabilityExpiresAtMs;
     private long heartbeatIntervalMs;
     private Location lastLocation;
+    private String activeStartRequestId;
+    private String configError = "capability_expired_or_invalid";
 
     @Override
     public void onCreate() {
@@ -95,16 +98,44 @@ public final class NativeLoneWorkerForegroundService extends Service {
             return START_NOT_STICKY;
         }
 
-        boolean configured = intent != null && ACTION_START.equals(intent.getAction())
-            ? readConfig(intent)
-            : readPersistedConfig();
-        if (!configured || capabilityExpiresAtMs <= System.currentTimeMillis()) {
-            stopMonitoring(false, "capability_expired_or_invalid");
-            return START_NOT_STICKY;
+        boolean requested = intent != null && ACTION_START.equals(intent.getAction());
+        String requestId = requested ? intent.getStringExtra(NativeLoneWorkerPlugin.EXTRA_START_REQUEST_ID) : null;
+        if (requested) {
+            // A delayed/cancelled Intent must not mutate config or stop another owner.
+            if (!NativeLoneWorkerPlugin.isStartPending(requestId)) {
+                NativeLoneWorkerPlugin.completeStart(requestId, "native_lone_worker_start_timeout");
+                if (!running) stopSelfResult(startId);
+                return running ? START_STICKY : START_NOT_STICKY;
+            }
+            if (running) {
+                NativeLoneWorkerPlugin.completeStart(requestId,
+                    matchesRunningConfig(intent) ? null : "native_lone_worker_already_running");
+                return START_STICKY;
+            }
+            activeStartRequestId = requestId;
         }
 
-        if (!startMonitoring()) {
-            stopMonitoring(false, "native_start_failed");
+        try {
+            boolean configured = requested ? readConfig(intent) : readPersistedConfig();
+            if (!configured || capabilityExpiresAtMs <= System.currentTimeMillis()) {
+                if (requested) failStartup(requestId, startId, configError);
+                else stopMonitoring(false, "capability_expired_or_invalid");
+                return START_NOT_STICKY;
+            }
+            if (!startMonitoring()) {
+                if (requested) failStartup(requestId, startId, "native_start_failed");
+                else stopMonitoring(false, "native_start_failed");
+                return START_NOT_STICKY;
+            }
+            // Stop/timeout may win during initialization. Completion itself checks the deadline.
+            if (requested && !NativeLoneWorkerPlugin.completeStart(requestId, null)) {
+                failStartup(requestId, startId, "native_lone_worker_start_cancelled");
+                return START_NOT_STICKY;
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Native lone-worker initialization failed", error);
+            if (requested) failStartup(requestId, startId, "native_start_failed");
+            else stopMonitoring(false, "native_start_failed");
             return START_NOT_STICKY;
         }
         // START_STICKY is only safe because the persisted capability is checked
@@ -113,7 +144,30 @@ public final class NativeLoneWorkerForegroundService extends Service {
         return START_STICKY;
     }
 
+    private void failStartup(String requestId, int startId, String error) {
+        try {
+            if (Objects.equals(activeStartRequestId, requestId)) {
+                stopMonitoring(true, error, startId);
+                activeStartRequestId = null;
+            }
+        } finally {
+            NativeLoneWorkerPlugin.completeStart(requestId, error);
+        }
+    }
+
+    private boolean matchesRunningConfig(Intent intent) {
+        return Objects.equals(projectId, intent.getStringExtra(EXTRA_PROJECT_ID))
+            && Objects.equals(sessionId, intent.getStringExtra(EXTRA_SESSION_ID))
+            && Objects.equals(capability, intent.getStringExtra(EXTRA_CAPABILITY))
+            && Objects.equals(apiBaseUrl, intent.getStringExtra(EXTRA_API_BASE_URL))
+            && capabilityExpiresAtMs > System.currentTimeMillis()
+            && capabilityExpiresAtMs == parseEpochMs(intent.getStringExtra(EXTRA_CAPABILITY_EXPIRES_AT))
+            && heartbeatIntervalMs == clamp(intent.getLongExtra(EXTRA_HEARTBEAT_INTERVAL_MS,
+                DEFAULT_HEARTBEAT_INTERVAL_MS), MIN_HEARTBEAT_INTERVAL_MS, MAX_HEARTBEAT_INTERVAL_MS);
+    }
+
     private boolean readConfig(Intent intent) {
+        configError = "capability_expired_or_invalid";
         projectId = intent.getStringExtra(EXTRA_PROJECT_ID);
         sessionId = intent.getStringExtra(EXTRA_SESSION_ID);
         capability = intent.getStringExtra(EXTRA_CAPABILITY);
@@ -135,7 +189,11 @@ public final class NativeLoneWorkerForegroundService extends Service {
             && validHttps(apiBaseUrl)
             && capabilityExpiresAtMs > System.currentTimeMillis();
         if (valid) {
-            persistConfig();
+            if (!persistConfig()) {
+                configError = "native_lone_worker_config_persist_failed";
+                setLastError(configError);
+                return false;
+            }
             clearLastError();
         }
         return valid;
@@ -296,6 +354,10 @@ public final class NativeLoneWorkerForegroundService extends Service {
     }
 
     private void stopMonitoring(boolean explicit, String reason) {
+        stopMonitoring(explicit, reason, -1);
+    }
+
+    private void stopMonitoring(boolean explicit, String reason, int startId) {
         running = false;
         if (heartbeatRunnable != null) handler.removeCallbacks(heartbeatRunnable);
         heartbeatRunnable = null;
@@ -307,7 +369,10 @@ public final class NativeLoneWorkerForegroundService extends Service {
         locationListener = null;
         lastLocation = null;
         stopForeground(STOP_FOREGROUND_REMOVE);
-        if (explicit) {
+        if (startId >= 0) {
+            // Refusing startup must retain events already queued for the session.
+            if (!clearPersistedConfig()) recordCleanupFailure(getApplicationContext());
+        } else if (explicit) {
             try {
                 // A cold ACTION_STOP has no instance config; use the stored owner.
                 explicitStop(getApplicationContext());
@@ -323,7 +388,8 @@ public final class NativeLoneWorkerForegroundService extends Service {
             }
         }
         if ("native_start_failed".equals(reason)) setLastError(reason);
-        stopSelf();
+        if (startId >= 0) stopSelfResult(startId);
+        else stopSelf();
     }
 
     static void explicitStop(Context context) {
@@ -386,8 +452,8 @@ public final class NativeLoneWorkerForegroundService extends Service {
         return result;
     }
 
-    private void persistConfig() {
-        prefs().edit()
+    private boolean persistConfig() {
+        return prefs().edit()
             .putString(PREF_PROJECT, projectId)
             .putString(PREF_SESSION, sessionId)
             .putString(PREF_CAPABILITY, capability)

@@ -37,10 +37,21 @@ final class NativeLoneWorkerOutbox {
         synchronized (LOCK) {
             try {
                 SharedPreferences prefs = prefs(context);
-                JSONArray queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+                String previousQueue = prefs.getString(PREF_QUEUE, "[]");
+                String previousLetters = prefs.getString(PREF_DEAD_LETTERS, "[]");
+                JSONArray queue = readArray(previousQueue);
+                JSONArray letters = readArray(previousLetters);
                 if (queue.length() >= MAX_QUEUE) {
-                    moveFirstToDeadLetter(prefs, queue, "queue_capacity");
-                    queue = readArray(prefs.getString(PREF_QUEUE, "[]"));
+                    // Prepare eviction and append in memory; persist both in
+                    // one transaction only after the new event is valid.
+                    JSONObject oldest = queue.optJSONObject(0);
+                    if (oldest != null) {
+                        sanitizeDeadLetter(oldest, "queue_capacity");
+                        letters.put(oldest);
+                    }
+                    JSONArray remaining = new JSONArray();
+                    for (int i = 1; i < queue.length(); i++) remaining.put(queue.opt(i));
+                    queue = remaining;
                 }
                 String clientEventId = UUID.randomUUID().toString();
                 payload.put("clientEventId", clientEventId);
@@ -53,11 +64,32 @@ final class NativeLoneWorkerOutbox {
                 event.put("payload", payload);
                 event.put("queuedAt", System.currentTimeMillis());
                 queue.put(event);
-                return prefs.edit().putString(PREF_QUEUE, queue.toString()).commit();
+                return commitEnqueue(prefs, queue.toString(), letters.toString(), previousQueue, previousLetters);
             } catch (Exception ignored) {
                 return false;
             }
         }
+    }
+
+    private static boolean commitEnqueue(
+        SharedPreferences prefs, String queue, String letters, String previousQueue, String previousLetters
+    ) {
+        if (queue == null || letters == null) return false;
+        try {
+            if (prefs.edit()
+                .putString(PREF_QUEUE, queue)
+                .putString(PREF_DEAD_LETTERS, letters)
+                .commit()) return true;
+        } catch (Exception ignored) { }
+        // Android changes memory before reporting a disk failure. Restore the
+        // snapshot while the producer lock is still held, including dead letters.
+        try {
+            prefs.edit()
+                .putString(PREF_QUEUE, previousQueue)
+                .putString(PREF_DEAD_LETTERS, previousLetters)
+                .commit();
+        } catch (Exception ignored) { }
+        return false;
     }
 
     static JSONArray readQueue(Context context) {

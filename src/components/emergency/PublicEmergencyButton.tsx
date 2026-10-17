@@ -6,7 +6,7 @@
 // initialised in main.tsx before any component) and on FirstAidCards /
 // SurvivalMode (which use sensor hooks, never the AppMode/Emergency/Project/
 // Firebase contexts). One tap opens: direct `tel:` calls to the LOCAL emergency
-// services (geo-detected, Chile fallback) + the offline FirstAidCards (CPR
+// services (country explicitly selected by the caller) + offline FirstAidCards (CPR
 // metronome) + the offline SurvivalMode. No network, no auth — works on first
 // paint, which is exactly the point: life-safety must never sit behind a login
 // wall (CLAUDE.md #11).
@@ -15,7 +15,7 @@
 // without churning the large shared locale files; promote to keys later if
 // desired.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert, Phone, HeartPulse, LifeBuoy, ArrowLeft, X } from 'lucide-react';
@@ -23,41 +23,30 @@ import { FirstAidCards } from './FirstAidCards';
 import { SurvivalMode } from './SurvivalMode';
 import { PublicDeaFinder } from './PublicDeaFinder';
 import {
-  getEmergencyNumbersByCoords,
-  getEmergencyNumbersByRegion,
+  listSupportedCountries,
   toTelUri,
   type EmergencyNumbers,
 } from '../../services/emergency/emergencyNumbers';
 
 type View = 'menu' | 'firstaid' | 'survival' | 'dea';
+const countries = listSupportedCountries();
 
 export function PublicEmergencyButton() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>('menu');
-  // Default to the Chilean numbers (131/132/133); `getEmergencyNumbersByRegion`
-  // falls back to Chile for any unknown code, so this is the documented default.
-  const [numbers, setNumbers] = useState<EmergencyNumbers>(() => getEmergencyNumbersByRegion('CL'));
+  // Approximate GPS bounding boxes can overlap countries. A caller must
+  // confirm the current country; missing location must never imply Chile.
+  const [regionCode, setRegionCode] = useState('');
+  const numbers = countries.find(country => country.regionCode === regionCode);
 
-  // Best-effort geolocation → local emergency numbers (keeps the Chile fallback
-  // if denied/unavailable). Only attempted once the panel is open.
-  useEffect(() => {
-    if (!open || view !== 'menu') return;
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (p) => setNumbers(getEmergencyNumbersByCoords({ lat: p.coords.latitude, lng: p.coords.longitude })),
-      () => {
-        /* permission denied / unavailable → keep CHILE_FALLBACK */
-      },
-      { timeout: 5000, maximumAge: 600_000 },
-    );
-  }, [open, view]);
-
-  const calls: Array<{ key: keyof EmergencyNumbers; label: string; number: string }> = [
+  const calls: Array<{ key: keyof EmergencyNumbers; label: string; number: string }> = numbers ? [
     { key: 'medical', label: t('emergency.public_call_medical', 'Ambulancia'), number: numbers.medical },
     { key: 'fire', label: t('emergency.public_call_fire', 'Bomberos'), number: numbers.fire },
-    { key: 'police', label: t('emergency.public_call_police', 'Carabineros'), number: numbers.police },
-  ];
+    { key: 'police', label: numbers.regionCode === 'CL'
+      ? t('emergency.public_call_police', 'Carabineros')
+      : t('emergency.public_call_police_generic', 'Policía'), number: numbers.police },
+  ] : [];
 
   return (
     <>
@@ -66,6 +55,7 @@ export function PublicEmergencyButton() {
         data-testid="public-emergency-trigger"
         onClick={() => {
           setView('menu');
+          setRegionCode('');
           setOpen(true);
         }}
         aria-label={t('emergency.public_button', 'Emergencia')}
@@ -119,6 +109,19 @@ export function PublicEmergencyButton() {
                     'Llama directo o usa las guías sin conexión. No necesitas iniciar sesión.',
                   )}
                 </p>
+                <label className="mb-4 block text-sm font-bold text-white">
+                  {t('emergency.public_country', 'País donde estás')}
+                  <select
+                    value={regionCode}
+                    onChange={event => setRegionCode(event.target.value)}
+                    className="mt-2 block min-h-12 w-full rounded-xl border border-white/30 bg-zinc-900 px-4 py-3 text-base text-white"
+                  >
+                    <option value="">{t('emergency.public_select_country', 'Selecciona tu país')}</option>
+                    {countries.map(country => (
+                      <option key={country.regionCode} value={country.regionCode}>{country.countryName}</option>
+                    ))}
+                  </select>
+                </label>
                 <div className="space-y-3">
                   {calls.map((c) => (
                     <a
