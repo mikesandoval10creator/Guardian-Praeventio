@@ -3061,6 +3061,14 @@
     "lookup_failed": "No se pudo verificar si hay una evacuación en curso. Reintenta antes de iniciar una nueva para no duplicar el conteo.",
     "retry": "Reintentar"
   },
+  "native_mandown_stop": {
+    "failed_title": "Cierre de ManDown pendiente",
+    "pending_title": "Confirmando cierre de ManDown",
+    "failed_detail": "No pudimos confirmar el cierre anterior de ManDown.",
+    "pending_detail": "Esperando la confirmación del cierre anterior.",
+    "retry_blocked": "El reintento estará disponible cuando no haya una sesión activa.",
+    "retry": "Reintentar cierre de ManDown"
+  },
   "lone_worker_page": {
     "subscription_failed": "No pudimos cargar las sesiones de este proyecto. Su estado actual no está confirmado.",
     "title": "Trabajo solitario",

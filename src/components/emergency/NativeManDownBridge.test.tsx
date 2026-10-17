@@ -4,9 +4,14 @@
 // worker's own active session and stops it when that session disappears.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import type { LoneWorkerSession } from "../../services/loneWorker/loneWorkerService";
+import { logger } from "../../utils/logger";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+}));
 
 let subscriber: ((sessions: LoneWorkerSession[]) => void) | null = null;
 let onSubscriptionError: ((error: unknown) => void) | undefined;
@@ -87,7 +92,7 @@ beforeEach(() => {
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   });
   startNativeManDown.mockResolvedValue({ applied: true });
-  stopNativeManDown.mockResolvedValue(undefined);
+  stopNativeManDown.mockResolvedValue({ stopped: true });
 });
 
 afterEach(async () => {
@@ -190,7 +195,7 @@ describe("<NativeManDownBridge />", () => {
     stopNativeManDown.mockClear();
     if (identity === "project") selectedProject = { id: "project-2" };
     else user = { uid: "worker-2" };
-    view.rerender(<NativeManDownBridge />);
+    await act(async () => view.rerender(<NativeManDownBridge />));
     expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
     expect(stopNativeManDown).toHaveBeenCalledTimes(1);
     await act(async () => subscriber?.([activeSession({ id: "session-2", workerUid: user!.uid })]));
@@ -230,8 +235,8 @@ describe("<NativeManDownBridge />", () => {
   it("waits for the previous identity stop before starting its replacement", async () => {
     const view = render(<NativeManDownBridge />);
     await act(async () => subscriber?.([activeSession()]));
-    let resolveStop!: () => void;
-    stopNativeManDown.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveStop = resolve; }));
+    let resolveStop!: (result: { stopped: true }) => void;
+    stopNativeManDown.mockImplementationOnce(() => new Promise<{ stopped: true }>((resolve) => { resolveStop = resolve; }));
     selectedProject = { id: "project-2" };
     view.rerender(<NativeManDownBridge />);
     await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
@@ -239,7 +244,7 @@ describe("<NativeManDownBridge />", () => {
       expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
       expect(startNativeManDown).toHaveBeenCalledTimes(1);
     } finally {
-      await act(async () => resolveStop?.());
+      await act(async () => resolveStop?.({ stopped: true }));
     }
     expect(startNativeManDown).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-2", sessionId: "session-2" }));
   });
@@ -266,4 +271,93 @@ describe("<NativeManDownBridge />", () => {
     expect(mintNativeManDownCapability).not.toHaveBeenCalled();
     expect(startNativeManDown).not.toHaveBeenCalled();
   });
+
+  it("keeps a failed stop visible across rerenders without disclosing native diagnostics", async () => {
+    stopNativeManDown.mockResolvedValue({ stopped: false, reason: "native_error", error: "private disk path" });
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([]));
+    expect(screen.getByRole("alert")).toHaveTextContent("Cierre de ManDown pendiente");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("private disk path");
+    view.rerender(<NativeManDownBridge />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith("native_mandown_stop_failed", "private disk path");
+  });
+
+  it("coalesces retries and clears the warning only after a confirmed native stop", async () => {
+    stopNativeManDown.mockResolvedValueOnce({ stopped: false, reason: "native_error", error: "disk" });
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([]));
+    const pending = deferredStop();
+    stopNativeManDown.mockReturnValueOnce(pending.promise);
+    try {
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reintentar cierre de ManDown" })));
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("button")).toBeDisabled();
+      fireEvent.click(screen.getByRole("button"));
+      expect(stopNativeManDown).toHaveBeenCalledTimes(2);
+    } finally {
+      await act(async () => pending.finish({ stopped: true }));
+    }
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("blocks retry while session state is unknown, failed or active", async () => {
+    stopNativeManDown.mockResolvedValueOnce({ stopped: false, reason: "native_error", error: "disk" });
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([]));
+    selectedProject = { id: "project-2" };
+    stopNativeManDown.mockResolvedValue({ stopped: false, reason: "native_error", error: "disk" });
+    await act(async () => view.rerender(<NativeManDownBridge />));
+    expect(screen.getByRole("button")).toBeDisabled();
+    const calls = stopNativeManDown.mock.calls.length;
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    fireEvent.click(screen.getByRole("button"));
+    expect(stopNativeManDown).toHaveBeenCalledTimes(calls);
+    await act(async () => subscriber?.([activeSession({ id: "replacement" })]));
+    expect(screen.getByRole("button")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button"));
+    expect(stopNativeManDown).toHaveBeenCalledTimes(calls);
+  });
+
+  it("coalesces logout stops and displays a late failure while mounted", async () => {
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    const pending = deferredStop();
+    stopNativeManDown.mockReturnValue(pending.promise);
+    try {
+      user = null;
+      await act(async () => view.rerender(<NativeManDownBridge />));
+      expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("status")).toHaveTextContent("Confirmando cierre de ManDown");
+    } finally {
+      await act(async () => pending.finish({ stopped: false, reason: "native_error", error: "disk" }));
+    }
+    expect(screen.getByRole("button")).toBeEnabled();
+  });
+
+  it("logs a late failure after unmount without requesting another stop", async () => {
+    const pending = deferredStop();
+    stopNativeManDown.mockReturnValueOnce(pending.promise);
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([]));
+    await act(async () => view.unmount());
+    await act(async () => pending.finish({ stopped: false, reason: "native_error", error: "late disk" }));
+    expect(logger.error).toHaveBeenCalledWith("native_mandown_stop_failed", "late disk");
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports unexpected stop rejections without leaving an unhandled promise", async () => {
+    stopNativeManDown.mockRejectedValueOnce(new Error("unexpected native fault"));
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([]));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalledWith("native_mandown_stop_failed", "unexpected native fault");
+  });
 });
+
+function deferredStop() {
+  let finish!: (result: { stopped: boolean; reason?: string; error?: string }) => void;
+  const promise = new Promise<{ stopped: boolean; reason?: string; error?: string }>((resolve) => { finish = resolve; });
+  return { promise, finish };
+}
