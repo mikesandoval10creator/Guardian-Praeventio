@@ -51,4 +51,6 @@ jobs:
       - name: Store configuration check
         run: npm run guard:store-build
       - name: Compile native Android and run native unit tests
-        run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon --stacktrace
+        # APK compression exceeded the project's 1536 MB development heap in CI.
+        # Bound parallelism so packaging and Robolectric leave room for the OS.
+        run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon --stacktrace --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g
