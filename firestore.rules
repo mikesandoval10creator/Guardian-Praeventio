@@ -18,6 +18,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Active commute pointers are coordination state, never client-visible.
+    // Recovery/changes go through the authenticated, audited server API.
+    match /commute_active/{pointerId} {
+      allow read, write: if false;
+    }
+
     // ===============================================================
     // Helper Functions
     // ===============================================================

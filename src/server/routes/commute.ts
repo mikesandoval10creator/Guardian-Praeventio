@@ -1,23 +1,6 @@
-// Praeventio Guard — Sprint 12.
-//
-// /api/commute/{start,sample,end} — server-side persistence for the
-// "accidente de trayecto" workflow (Ley 16.744 SUSESO). The client hook
-// `useCommuteSession` writes directly to Firestore for low-latency local
-// state, but the SAME writes also flow through these endpoints so that:
-//
-//   • Server can apply uniform validation (member guard + body schema)
-//     even when an offline client replays a queue.
-//   • Audit logs are stamped server-side with the SDK uid (never the
-//     body) for SUSESO-grade traceability.
-//   • Rate limits cap a misbehaving client / repeat-replayed offline
-//     queue from blowing through Firestore writes.
-//
-// Membership pattern reuses verifyAuth + assertProjectMember and the
-// rate limiter mirrors `geminiLimiter` (30 req / 15 min, keyed on uid).
-//
-// Storage path: `tenants/{tenantId}/commute_sessions/{sessionId}` —
-// tenantId is sourced from the project doc (NOT the body) so a malicious
-// client cannot redirect writes into a different tenant.
+// Server-owned commute lifecycle and sample persistence. The tenant comes
+// from the project, identity from verifyAuth, and audits commit with lifecycle
+// writes. Active pointers are server-only (top-level default-deny collection).
 
 import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -28,7 +11,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { MAX_SAMPLES } from '../../services/driving/commuteLimits.js';
 
@@ -61,12 +44,81 @@ async function tenantIdFor(projectId: string): Promise<string | null> {
   return typeof tid === 'string' && tid.length > 0 ? tid : null;
 }
 
+// A deterministic document serializes starts for one actor/project/tenant,
+// including the empty-query case. Do not put this under the tenant's readable
+// catch-all subcollections; clients must recover through the authenticated API.
+function activeRef(db: FirebaseFirestore.Firestore, tenantId: string, projectId: string, uid: string) {
+  const key = createHash('sha256').update(JSON.stringify([tenantId, projectId, uid])).digest('hex');
+  return db.collection('commute_active').doc(key);
+}
+
+class ActiveCommuteConflict extends Error {}
+
+function metadata(doc: FirebaseFirestore.DocumentSnapshot, projectId: string, uid: string) {
+  const session = doc.data() ?? {};
+  if (session.startedBy !== uid || session.projectId !== projectId
+    || session.id !== doc.id || !SESSION_ID_REGEX.test(doc.id) || !VALID_TYPES.has(session.type)) {
+    throw new Error('Invalid active commute metadata');
+  }
+  return { sessionId: doc.id, projectId, type: session.type as string };
+}
+
+async function findActive(
+  db: FirebaseFirestore.Firestore, tx: FirebaseFirestore.Transaction,
+  tenantId: string, projectId: string, uid: string,
+) {
+  const pointer = await tx.get(activeRef(db, tenantId, projectId, uid));
+  const id: unknown = pointer.data()?.sessionId;
+  const sessions = db.collection(`tenants/${tenantId}/commute_sessions`);
+  if (id !== undefined && id !== null) {
+    if (typeof id !== 'string' || !SESSION_ID_REGEX.test(id)) throw new Error('Invalid active commute pointer');
+    const current = await tx.get(sessions.doc(id));
+    if (current.exists && current.data()?.endedAt == null) {
+      metadata(current, projectId, uid);
+      return current;
+    }
+  }
+  // Adopt a single legacy open session without rewriting its evidence. More
+  // than one is ambiguous: never pick an arbitrary trip or create another one.
+  const legacy = await tx.get(sessions.where('projectId', '==', projectId)
+    .where('startedBy', '==', uid).where('endedAt', '==', null).limit(2));
+  if (legacy.size > 1) throw new ActiveCommuteConflict('Multiple open commute sessions');
+  const current = legacy.docs[0] ?? null;
+  if (current) metadata(current, projectId, uid);
+  return current;
+}
+
+router.get('/active', verifyAuth, commuteLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const callerUid = req.user!.uid;
+  const { projectId } = req.query;
+  if (typeof projectId !== 'string' || !SESSION_ID_REGEX.test(projectId)) {
+    return res.status(400).json({ error: 'Invalid projectId' });
+  }
+  const db = getFirestore();
+  try {
+    await assertProjectMember(callerUid, projectId, db);
+    const tenantId = await tenantIdFor(projectId);
+    if (!tenantId) return res.status(400).json({ error: 'Project missing tenantId' });
+    const session = await db.runTransaction(async (tx) => {
+      const current = await findActive(db, tx, tenantId, projectId, callerUid);
+      return current ? metadata(current, projectId, callerUid) : null;
+    });
+    return res.json({ success: true, session });
+  } catch (error) {
+    if (error instanceof ProjectMembershipError) return res.status(error.httpStatus).json({ error: 'forbidden' });
+    if (error instanceof ActiveCommuteConflict) return res.status(409).json({ error: error.message });
+    captureRouteError(error, 'commute.active', { uid: callerUid, projectId });
+    return res.status(500).json({ error: 'commute recovery failed' });
+  }
+});
+
 router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail: string | null = req.user!.email ?? null;
   const { type, projectId } = req.body ?? {};
 
-  if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
+  if (typeof projectId !== 'string' || !SESSION_ID_REGEX.test(projectId)) {
     return res.status(400).json({ error: 'Invalid projectId' });
   }
   if (typeof type !== 'string' || !VALID_TYPES.has(type)) {
@@ -74,55 +126,38 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
   }
 
   const db = getFirestore();
+  // Generate IDs once, outside the retriable callback. Session, pointer and
+  // audit either commit together or are all discarded by Firestore.
+  const newSessionId = `cs_${Date.now()}_${randomUUID()}`;
+  const auditId = db.collection('audit_logs').doc().id;
   try {
     await assertProjectMember(callerUid, projectId, db);
-  } catch (err) {
-    if (err instanceof ProjectMembershipError) {
-      return res.status(err.httpStatus).json({ error: 'forbidden' });
-    }
-    throw err;
-  }
-
-  const tenantId = await tenantIdFor(projectId);
-  if (!tenantId) {
-    return res.status(400).json({ error: 'Project missing tenantId' });
-  }
-
-  // crypto.randomUUID() provides 128 bits of entropy per RFC-4122 v4.
-  // SESSION_ID_REGEX (line 37) allows up to 128 chars of [A-Za-z0-9_\-:.],
-  // which accommodates the full UUID (with its hyphens) plus the prefix.
-  const sessionId = `cs_${Date.now()}_${randomUUID()}`;
-  try {
-    await db
-      .collection(`tenants/${tenantId}/commute_sessions`)
-      .doc(sessionId)
-      .set({
-        id: sessionId,
-        projectId,
-        type,
-        startedBy: callerUid,
-        startedAt: FieldValue.serverTimestamp(),
-        endedAt: null,
-        samples: [],
+    const tenantId = await tenantIdFor(projectId);
+    if (!tenantId) return res.status(400).json({ error: 'Project missing tenantId' });
+    const sessionId = await db.runTransaction(async (tx) => {
+      const current = await findActive(db, tx, tenantId, projectId, callerUid);
+      if (current) {
+        if (current.data()?.type !== type) throw new ActiveCommuteConflict('An active commute has a different type');
+        tx.set(activeRef(db, tenantId, projectId, callerUid), { sessionId: current.id });
+        return current.id;
+      }
+      tx.set(db.collection(`tenants/${tenantId}/commute_sessions`).doc(newSessionId), {
+        id: newSessionId, projectId, type, startedBy: callerUid,
+        startedAt: FieldValue.serverTimestamp(), endedAt: null, samples: [],
       });
-    await db.collection('audit_logs').add({
-      action: 'commute.start',
-      module: 'driving',
-      details: { sessionId, type },
-      userId: callerUid,
-      userEmail: callerEmail,
-      projectId,
-      timestamp: FieldValue.serverTimestamp(),
-      ip: req.ip ?? null,
-      userAgent: req.header('user-agent') ?? null,
+      tx.set(activeRef(db, tenantId, projectId, callerUid), { sessionId: newSessionId });
+      tx.set(db.collection('audit_logs').doc(auditId), {
+        action: 'commute.start', module: 'driving', details: { sessionId: newSessionId, type },
+        userId: callerUid, userEmail: callerEmail, projectId,
+        timestamp: FieldValue.serverTimestamp(), ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+      return newSessionId;
     });
     return res.json({ success: true, sessionId });
-  } catch (error: any) {
-    logger.error('commute_start_failed', {
-      uid: callerUid,
-      projectId,
-      message: error?.message,
-    });
+  } catch (error) {
+    if (error instanceof ProjectMembershipError) return res.status(error.httpStatus).json({ error: 'forbidden' });
+    if (error instanceof ActiveCommuteConflict) return res.status(409).json({ error: error.message });
     captureRouteError(error, 'commute.start', { uid: callerUid, projectId });
     return res.status(500).json({ error: 'commute start failed' });
   }
@@ -236,26 +271,32 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
   if (!sessionDoc) {
     return res.status(404).json({ error: 'Session not found' });
   }
-  const session = sessionDoc.data() ?? {};
-  if (session.startedBy !== callerUid) {
-    return res.status(403).json({ error: 'forbidden' });
-  }
-
+  const ref = sessionDoc.ref;
+  const auditId = db.collection('audit_logs').doc().id;
   try {
-    await sessionDoc.ref.update({
-      endedAt: FieldValue.serverTimestamp(),
+    const outcome = await db.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      if (!current.exists) return { status: 404, error: 'Session not found' };
+      const session = current.data() ?? {};
+      if (session.startedBy !== callerUid) return { status: 403, error: 'forbidden' };
+      // Preserve the first close timestamp and its audit on retries, even if a
+      // newer trip is already open. An old end must never clear its pointer.
+      if (session.endedAt != null) return { status: 200, error: null };
+      const tenantId = current.ref.path.split('/')[1];
+      const pointerRef = typeof session.projectId === 'string'
+        ? activeRef(db, tenantId, session.projectId, callerUid) : null;
+      const pointer = pointerRef ? await tx.get(pointerRef) : null;
+      tx.update(current.ref, { endedAt: FieldValue.serverTimestamp() });
+      if (pointerRef && pointer?.data()?.sessionId === sessionId) tx.delete(pointerRef);
+      tx.set(db.collection('audit_logs').doc(auditId), {
+        action: 'commute.end', module: 'driving', details: { sessionId },
+        userId: callerUid, userEmail: callerEmail, projectId: session.projectId ?? null,
+        timestamp: FieldValue.serverTimestamp(), ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+      return { status: 200, error: null };
     });
-    await db.collection('audit_logs').add({
-      action: 'commute.end',
-      module: 'driving',
-      details: { sessionId },
-      userId: callerUid,
-      userEmail: callerEmail,
-      projectId: session.projectId ?? null,
-      timestamp: FieldValue.serverTimestamp(),
-      ip: req.ip ?? null,
-      userAgent: req.header('user-agent') ?? null,
-    });
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
     return res.json({ success: true });
   } catch (error: any) {
     logger.error('commute_end_failed', { uid: callerUid, sessionId, message: error?.message });

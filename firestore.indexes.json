@@ -1,6 +1,24 @@
 {
   "indexes": [
     {
+      "collectionGroup": "commute_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startedBy",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "emergency_alerts",
       "queryScope": "COLLECTION",
       "fields": [
