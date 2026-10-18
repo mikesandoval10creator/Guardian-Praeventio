@@ -11,7 +11,7 @@
 // /sample and /end. FakeFirestore has no collectionGroup, so we bolt it on
 // here using the same inline pattern established in externalAuditPortal.test.ts.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
@@ -195,6 +195,7 @@ function seedSession(
 
 // ── global beforeEach ─────────────────────────────────────────────────────────
 beforeEach(() => {
+  vi.restoreAllMocks();
   H.db = createFakeFirestore();
   // Project A — tenant-1, member uid-A (also creator).
   H.db._seed('projects/proj-A', {
@@ -216,6 +217,11 @@ beforeEach(() => {
     members: ['uid-A'],
     createdBy: 'uid-A',
   });
+});
+
+afterEach(async () => {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -556,6 +562,121 @@ describe('POST /api/commute/sample', () => {
       .set('x-test-uid', 'uid-A')
       .send({ ...VALID_SAMPLE, lat: 90, lng: 180, speedKmh: 0 });
     expect(res.status).toBe(200);
+  });
+
+  const sessionPath = `tenants/tenant-1/commute_sessions/${VALID_SAMPLE.sessionId}`;
+  const point = (timestamp: number) => ({ lat: -33.4, lng: -70.6, speedKmh: 60, accuracyM: 10, timestamp });
+  async function readSamples() {
+    return (await H.db!.doc(sessionPath).get()).data()!.samples as unknown[];
+  }
+  async function sendPoint(timestamp: number) {
+    return request(buildApp()).post('/api/commute/sample').set('x-test-uid', 'uid-A')
+      .send({ ...VALID_SAMPLE, timestamp });
+  }
+
+  it.each([240, 300])('retains only the latest 240 received samples from a buffer of %i', async (count) => {
+    seedSession(VALID_SAMPLE.sessionId, { samples: Array.from({ length: count }, (_, i) => point(i + 1)) });
+    const res = await sendPoint(count + 1);
+    expect(res.status).toBe(200);
+    expect(await readSamples()).toEqual(Array.from({ length: 240 }, (_, i) => point(count - 238 + i)));
+  });
+
+  it('retrying a retained sample neither duplicates it nor changes FIFO order', async () => {
+    const samples = Array.from({ length: 240 }, (_, i) => point(i + 1));
+    seedSession(VALID_SAMPLE.sessionId, { samples });
+    expect((await sendPoint(100)).status).toBe(200);
+    expect((await sendPoint(100)).status).toBe(200);
+    expect(await readSamples()).toEqual(samples);
+  });
+
+  it.each([
+    [{ endedAt: '2026-10-18T00:00:00Z' }, 409],
+    [{ startedBy: 'other-driver' }, 403],
+  ] as const)('revalidates a changed session inside its transaction: %j', async (patch, expected) => {
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementation(async (fn) => {
+      await H.db!.doc(sessionPath).update(patch);
+      return run(fn);
+    });
+    const res = await sendPoint(1);
+    expect(res.status).toBe(expected);
+    expect(await readSamples()).toEqual([]);
+  });
+
+  it('a session deleted after lookup cannot be recreated by a sample', async () => {
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementation(async (fn) => {
+      await H.db!.doc(sessionPath).delete();
+      return run(fn);
+    });
+    expect((await sendPoint(1)).status).toBe(404);
+    expect((await H.db!.doc(sessionPath).get()).exists).toBe(false);
+  });
+
+  it('concurrent appends preserve both samples under serializable transactions', async () => {
+    seedSession(VALID_SAMPLE.sessionId, { samples: Array.from({ length: 239 }, (_, i) => point(i + 1)) });
+    const run = H.db!.runTransaction.bind(H.db!);
+    let tail = Promise.resolve();
+    const transactions = vi.spyOn(H.db!, 'runTransaction').mockImplementation((fn) => {
+      // The shared fake has no isolation; serialize callbacks to model Firestore's committed order.
+      const pending = tail.then(() => run(fn));
+      tail = pending.then(() => undefined, () => undefined);
+      return pending;
+    });
+    const responses = await Promise.all([sendPoint(240), sendPoint(241)]);
+    expect(responses.map((res) => res.status)).toEqual([200, 200]);
+    expect(transactions).toHaveBeenCalledTimes(2);
+    const samples = await readSamples();
+    expect(samples).toHaveLength(240);
+    expect(samples).toContainEqual(point(240));
+    expect(samples).toContainEqual(point(241));
+    expect(samples).not.toContainEqual(point(1));
+  });
+
+  it('returns a generic failure without overwriting a malformed historical buffer', async () => {
+    await H.db!.doc(sessionPath).update({ samples: { evidence: 'preserve-me' } });
+    const res = await sendPoint(1);
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'commute sample failed' });
+    expect((await H.db!.doc(sessionPath).get()).data()!.samples).toEqual({ evidence: 'preserve-me' });
+  });
+
+  it('a retried transaction observes a committed close instead of acknowledging its discarded append', async () => {
+    const ref = H.db!.doc(sessionPath);
+    const before = (await ref.get()).data()!;
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await run(fn);
+      // Discard this attempt's write and simulate /end winning the conflict.
+      await ref.set({ ...before, endedAt: '2026-10-18T00:00:00Z' });
+      return run(fn);
+    });
+    expect((await sendPoint(1)).status).toBe(409);
+    expect(await readSamples()).toEqual([]);
+  });
+
+  it('a retried append retains the competing committed sample at the FIFO boundary', async () => {
+    const samples = Array.from({ length: 239 }, (_, i) => point(i + 1));
+    seedSession(VALID_SAMPLE.sessionId, { samples });
+    const ref = H.db!.doc(sessionPath);
+    const before = (await ref.get()).data()!;
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await run(fn);
+      // Retry against a competitor's committed write, not our discarded snapshot.
+      await ref.set({ ...before, samples: [...samples, point(240)] });
+      return run(fn);
+    });
+    expect((await sendPoint(241)).status).toBe(200);
+    expect(await readSamples()).toEqual(Array.from({ length: 240 }, (_, i) => point(i + 2)));
+  });
+
+  it('a transaction failure returns no success and exposes no internal message', async () => {
+    vi.spyOn(H.db!, 'runTransaction').mockRejectedValueOnce(new Error('private transaction details'));
+    const res = await sendPoint(1);
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'commute sample failed' });
+    expect(await readSamples()).toEqual([]);
   });
 });
 

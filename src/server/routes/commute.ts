@@ -30,6 +30,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { MAX_SAMPLES } from '../../services/driving/commuteLimits.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
@@ -178,26 +179,29 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
   if (!sessionDoc) {
     return res.status(404).json({ error: 'Session not found' });
   }
-  const session = sessionDoc.data() ?? {};
-  if (session.startedBy !== callerUid) {
-    // Allow project members to append? The session is per-driver; only the
-    // starter may append. Cross-driver appends would garble the trace.
-    return res.status(403).json({ error: 'forbidden' });
-  }
-  if (session.endedAt) {
-    return res.status(409).json({ error: 'Session already ended' });
-  }
-
   try {
-    await sessionDoc.ref.update({
-      samples: FieldValue.arrayUnion({
-        lat,
-        lng,
-        speedKmh,
-        accuracyM,
-        timestamp,
-      }),
+    const ref = sessionDoc.ref;
+    const outcome = await db.runTransaction(async (tx) => {
+      // Lookup only resolves the document path. Authorization and lifecycle
+      // must be checked again against the same snapshot used for the write.
+      const current = await tx.get(ref);
+      if (!current.exists) return { status: 404, error: 'Session not found' };
+      const session = current.data() ?? {};
+      if (session.startedBy !== callerUid) return { status: 403, error: 'forbidden' };
+      if (session.endedAt != null) return { status: 409, error: 'Session already ended' };
+      const samples: unknown = session.samples === undefined ? [] : session.samples;
+      if (!Array.isArray(samples)) throw new Error('Invalid commute sample buffer');
+      const next = { lat, lng, speedKmh, accuracyM, timestamp };
+      // Preserve arrayUnion's exact-map replay semantics within the retained window.
+      const duplicate = samples.some((sample: unknown) => sample !== null && typeof sample === 'object'
+        && Object.keys(sample).length === Object.keys(next).length
+        && Object.entries(next).every(([key, value]) => (sample as Record<string, unknown>)[key] === value));
+      if (!duplicate || samples.length > MAX_SAMPLES) {
+        tx.update(ref, { samples: (duplicate ? samples : [...samples, next]).slice(-MAX_SAMPLES) });
+      }
+      return { status: 200, error: null };
     });
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
     return res.json({ success: true });
   } catch (error: any) {
     logger.error('commute_sample_failed', { uid: callerUid, sessionId, message: error?.message });

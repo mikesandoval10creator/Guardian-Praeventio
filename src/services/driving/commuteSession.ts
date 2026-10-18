@@ -39,6 +39,8 @@ import {
   serverTimestamp,
 } from '../firebase';
 import { arrayUnion } from 'firebase/firestore';
+import { MAX_SAMPLES } from './commuteLimits';
+export { MAX_SAMPLES } from './commuteLimits';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -64,9 +66,6 @@ export interface CommuteSession {
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
-
-/** 4h × 60 (1 sample / minute) ⇒ hard upper bound on `samples[]`. */
-export const MAX_SAMPLES = 240;
 
 /** Sampling cadence — every 60 seconds. */
 export const SAMPLE_INTERVAL_MS = 60_000;

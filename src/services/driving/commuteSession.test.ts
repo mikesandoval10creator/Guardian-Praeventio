@@ -3,9 +3,16 @@
 // Unit tests for the pure helpers in commuteSession.ts. The React hook
 // `useCommuteSession` and the Firestore I/O are intentionally NOT exercised
 // here — the helpers contain all the logic worth testing (cap, type guard,
-// tag-incident decorator) and stay deterministic without mocks.
+// tag-incident decorator). Isolate Firebase initialization from these pure tests.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+vi.mock('../firebase', () => ({
+  db: {}, doc: vi.fn(), setDoc: vi.fn(), updateDoc: vi.fn(), serverTimestamp: vi.fn(),
+}));
+afterAll(async () => {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+});
 import {
   appendCappedSample,
   isCommuteType,
