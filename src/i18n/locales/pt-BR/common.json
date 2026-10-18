@@ -2736,6 +2736,8 @@
     "driving_wildfire_dismiss": "Ocultar aviso"
   },
   "native_mandown_start": {
+    "expired_title": "Autorização do ManDown expirada",
+    "expired_detail": "A autorização do monitoramento nativo expirou. Tente iniciar novamente com uma sessão ativa confirmada.",
     "failed_title": "Inicialização do ManDown não confirmada",
     "pending_title": "Confirmando a inicialização do ManDown",
     "failed_detail": "Não foi possível confirmar que o monitoramento nativo está ativo.",

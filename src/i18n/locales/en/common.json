@@ -3062,6 +3062,8 @@
     "retry": "Retry"
   },
   "native_mandown_start": {
+    "expired_title": "ManDown authorization expired",
+    "expired_detail": "Native monitoring authorization has expired. Retry startup with a confirmed active session.",
     "failed_title": "ManDown startup unconfirmed",
     "pending_title": "Confirming ManDown startup",
     "failed_detail": "We could not confirm that native monitoring is active.",
