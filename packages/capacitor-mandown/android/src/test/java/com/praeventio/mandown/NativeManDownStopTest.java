@@ -113,13 +113,16 @@ public final class NativeManDownStopTest {
         when(sensors.registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt())).thenReturn(true);
         ReflectionHelpers.setField(service, "sensorManager", sensors);
         ReflectionHelpers.setField(service, "accelerometer", mock(Sensor.class));
-        service.onStartCommand(new Intent(app, NativeManDownForegroundService.class)
-            .setAction(NativeManDownForegroundService.ACTION_START)
-            .putExtra("projectId", "project").putExtra("sessionId", "session")
-            .putExtra("capability", "a".repeat(32))
-            .putExtra("capabilityExpiresAt", Instant.now().plusSeconds(60).toString())
-            .putExtra("apiBaseUrl", "https://app.praeventio.net")
-            .putExtra("inactivityThresholdMs", 30_000L), 0, 1);
+        PluginCall call = mock(PluginCall.class);
+        when(call.getString("projectId")).thenReturn("project");
+        when(call.getString("sessionId")).thenReturn("session");
+        when(call.getString("capability")).thenReturn("a".repeat(32));
+        when(call.getString("capabilityExpiresAt")).thenReturn(Instant.now().plusSeconds(60).toString());
+        when(call.getString("apiBaseUrl")).thenReturn("https://app.praeventio.net");
+        when(call.getInt("inactivityThresholdMs")).thenReturn(30_000);
+        when(call.getDouble("impactThresholdMps2", 25d)).thenReturn(25d);
+        plugin(app).start(call);
+        service.onStartCommand(Shadows.shadowOf(RuntimeEnvironment.getApplication()).getNextStartedService(), 0, 1);
     }
 
     @Test public void explicitStopDurablyCancelsPendingCountdownBeforeAcknowledging() {
