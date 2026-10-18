@@ -63,6 +63,15 @@ export class EquipmentAdapter {
     return snap.docs.map((d: any) => d.data() as Equipment);
   }
 
+  /** Maintenance inventory includes withdrawn and locked equipment too. */
+  async listAll(limitN = 200): Promise<Equipment[]> {
+    const snap = await this.db
+      .collection(EQUIP_PATH(this.tenantId, this.projectId))
+      .limit(limitN)
+      .get();
+    return snap.docs.map((doc: { data(): Equipment }) => doc.data());
+  }
+
   async appendPreUse(validation: PreUseValidation): Promise<void> {
     await this.db
       .collection(PRE_USE_PATH(this.tenantId, this.projectId, validation.equipmentId))

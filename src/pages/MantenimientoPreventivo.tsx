@@ -101,7 +101,7 @@ export function MantenimientoPreventivo() {
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
 
-  const { data: equipmentData, refetch } = useEquipment(projectId);
+  const { data: equipmentData, refetch } = useEquipment(projectId, { status: 'all' });
   const equipment = equipmentData?.equipment ?? [];
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
   const [reading, setReading] = useState(false);

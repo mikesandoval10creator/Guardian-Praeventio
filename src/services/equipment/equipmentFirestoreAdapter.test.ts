@@ -66,6 +66,20 @@ describe('EquipmentAdapter', () => {
     expect(list[0].id).toBe('pv-1');
   });
 
+  it('inventory retains equipment after withdrawal and isolates project and tenant', async () => {
+    const db = createFakeFirestore();
+    const inventory = new EquipmentAdapter(db, 't1', 'p1');
+    await inventory.save(makeEquipment());
+    await inventory.updateStatus('eq-1', 'fuera_servicio');
+    await inventory.save(makeEquipment({ id: 'maintenance', status: 'en_mantencion' }));
+    await inventory.save(makeEquipment({ id: 'locked', status: 'bloqueado_loto' }));
+    await new EquipmentAdapter(db, 't1', 'other-project').save(makeEquipment({ id: 'other-project' }));
+    await new EquipmentAdapter(db, 'other-tenant', 'p1').save(makeEquipment({ id: 'other-tenant' }));
+    expect(await inventory.listByStatus('operativo')).toEqual([]);
+    expect((await inventory.listAll()).map((eq) => eq.id).sort()).toEqual(['eq-1', 'locked', 'maintenance']);
+    expect(await inventory.listAll(1)).toHaveLength(1);
+  });
+
   it('listPreUsesForEquipment ordena por startedAt desc', async () => {
     const db = createFakeFirestore();
     const a = new EquipmentAdapter(db, 't1', 'p1');
