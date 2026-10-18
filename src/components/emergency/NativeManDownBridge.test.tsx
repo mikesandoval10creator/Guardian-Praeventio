@@ -99,6 +99,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => cleanup());
+  vi.useRealTimers();
 });
 
 describe("<NativeManDownBridge />", () => {
@@ -484,7 +485,160 @@ describe("<NativeManDownBridge />", () => {
     await act(async () => pending.finish({ applied: false, reason: "native_error" }));
     expect(stopNativeManDown).not.toHaveBeenCalled();
   });
+
+  it("warns at authority expiry without automatically renewing or stopping the session", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(60_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => vi.advanceTimersByTime(59_999));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(1));
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+    expect(screen.getByRole("button", { name: "Reintentar inicio de ManDown" })).toBeEnabled();
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+  });
+
+  it("checks expiry when returning to the app even if the timer did not run", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(60_000);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    try {
+      render(<NativeManDownBridge />);
+      await act(async () => subscriber?.([activeSession()]));
+      vi.setSystemTime(Date.now() + 60_001);
+      await act(async () => fireEvent(document, new Event("visibilitychange")));
+      expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
+  it("retains expiry feedback during renewal until a fresh authority is acknowledged", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    authorityExpiresIn(60_000);
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    try {
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reintentar inicio de ManDown" })));
+      expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+      expect(screen.getByRole("button")).toBeDisabled();
+      fireEvent.click(screen.getByRole("button"));
+      expect(mintNativeManDownCapability).toHaveBeenCalledTimes(2);
+      expect(startNativeManDown).toHaveBeenCalledTimes(2);
+    } finally {
+      await act(async () => pending.finish({ applied: true }));
+    }
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(30_000));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps expiry visible after a failed renewal without an automatic retry loop", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    authorityExpiresIn(60_000);
+    startNativeManDown.mockResolvedValueOnce({ applied: false, reason: "native_error" });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reintentar inicio de ManDown" })));
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+    expect(screen.getByRole("button")).toBeEnabled();
+    await act(async () => vi.advanceTimersByTime(60_000));
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(2);
+    expect(startNativeManDown).toHaveBeenCalledTimes(2);
+  });
+
+  it("still warns after a session read failure but blocks renewal until the session is confirmed", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+    expect(screen.getByRole("button")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button"));
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+  });
+
+  it("does not apply an old authority deadline to a replacement identity", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    selectedProject = { id: "project-2" };
+    authorityExpiresIn(5_000);
+    await act(async () => view.rerender(<NativeManDownBridge />));
+    await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(4_000));
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+  });
+
+  it("removes authority feedback and timers after the session ends", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => subscriber?.([]));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hide expiry when a delayed startup acknowledgment arrives after its deadline", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(1_000);
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    render(<NativeManDownBridge />);
+    try {
+      await act(async () => subscriber?.([activeSession()]));
+      await act(async () => vi.advanceTimersByTime(2_000));
+    } finally {
+      await act(async () => pending.finish({ applied: true }));
+    }
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+  });
+
+  it("handles an authority deadline beyond the browser timer limit without overflow", async () => {
+    vi.useFakeTimers();
+    authorityExpiresIn(2_147_483_647 + 60_000);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => vi.advanceTimersByTime(2_147_483_647));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole("alert")).toHaveTextContent("Autorización de ManDown vencida");
+  });
+
+  it("reports a malformed authority deadline without dispatching native startup", async () => {
+    mintNativeManDownCapability.mockResolvedValueOnce({ capability: "x".repeat(43), expiresAt: "invalid" });
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    expect(screen.getByRole("alert")).toHaveTextContent("Inicio de ManDown sin confirmar");
+    expect(startNativeManDown).not.toHaveBeenCalled();
+  });
 });
+
+function authorityExpiresIn(milliseconds: number) {
+  mintNativeManDownCapability.mockResolvedValue({
+    sessionId: "session-1",
+    capability: "x".repeat(43),
+    expiresAt: new Date(Date.now() + milliseconds).toISOString(),
+  });
+}
 
 function deferredStart() {
   let finish!: (result: NativeManDownApplyResult) => void;

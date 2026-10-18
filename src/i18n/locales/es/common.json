@@ -3062,6 +3062,8 @@
     "retry": "Reintentar"
   },
   "native_mandown_start": {
+    "expired_title": "Autorización de ManDown vencida",
+    "expired_detail": "La autorización del monitoreo nativo venció. Reintenta el inicio con una sesión activa confirmada.",
     "failed_title": "Inicio de ManDown sin confirmar",
     "pending_title": "Confirmando inicio de ManDown",
     "failed_detail": "No pudimos confirmar que el monitoreo nativo esté activo.",

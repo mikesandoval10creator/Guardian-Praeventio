@@ -40,6 +40,13 @@ type StartFeedback = {
   phase: "pending" | "failed" | "retrying";
 };
 
+type NativeAuthority = {
+  projectId: string;
+  workerUid: string;
+  sessionId: string;
+  expiresAtMs: number;
+};
+
 /**
  * Links exactly one authenticated worker's active session to Android FGS.
  * It never creates sessions, never writes Firestore, and never changes safety
@@ -55,6 +62,8 @@ export function NativeManDownBridge() {
   const [stopFailed, setStopFailed] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [startFeedback, setStartFeedback] = useState<StartFeedback | null>(null);
+  const [nativeAuthority, setNativeAuthority] = useState<NativeAuthority | null>(null);
+  const [expiredAuthority, setExpiredAuthority] = useState<NativeAuthority | null>(null);
   const [startRetry, setStartRetry] = useState(0);
   const retryQueued = useRef(false);
   const pendingNativeStart = useRef<Promise<NativeManDownApplyResult> | null>(null);
@@ -160,6 +169,40 @@ export function NativeManDownBridge() {
   const ready = ownsSubscription && subscription?.state === "ready";
   const mustStop = !projectId || !workerUid || (ready && !openSessionId);
 
+  const activeAuthority = nativeAuthority?.projectId === projectId &&
+    nativeAuthority.workerUid === workerUid && nativeAuthority.sessionId === openSessionId
+    ? nativeAuthority : null;
+
+  useEffect(() => {
+    if (!activeAuthority) return undefined;
+    let cancelled = false;
+    let timer: number | undefined;
+    const checkExpiry = () => {
+      if (cancelled) return;
+      window.clearTimeout(timer);
+      const remaining = activeAuthority.expiresAtMs - Date.now();
+      if (remaining <= 0) {
+        setExpiredAuthority(activeAuthority);
+      } else {
+        // Browser timers overflow beyond a signed 32-bit delay. Recheck the
+        // absolute server deadline instead of assuming that a timer firing expires it.
+        timer = window.setTimeout(checkExpiry, Math.min(remaining, 2_147_483_647));
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") checkExpiry();
+    };
+    checkExpiry();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // A subscription read error does not invalidate the last acknowledged
+    // deadline. Keep checking it while the same safety session remains known.
+  }, [activeAuthority]);
+
   useEffect(() => {
     let cancelled = false;
     retryQueued.current = false;
@@ -167,6 +210,8 @@ export function NativeManDownBridge() {
 
     if (mustStop) {
       setStartFeedback(null);
+      setNativeAuthority(null);
+      setExpiredAuthority(null);
       void stopMonitoring();
       return undefined;
     }
@@ -205,6 +250,8 @@ export function NativeManDownBridge() {
           openSessionId,
         );
         if (cancelled) return;
+        const expiresAtMs = Date.parse(minted.expiresAt);
+        if (!Number.isFinite(expiresAtMs)) throw new Error("native_mandown_invalid_authority_expiry");
         if (pendingStop.current) await pendingStop.current;
         if (cancelled) return;
         // Serialize native dispatch only. An obsolete mint request must not
@@ -236,6 +283,7 @@ export function NativeManDownBridge() {
           });
         }
         if (!cancelled && mounted.current) {
+          if (result.applied) setNativeAuthority({ ...owner, expiresAtMs });
           setStartFeedback(result.applied ? null : { ...owner, phase: "failed" });
         }
       } catch (error) {
@@ -270,17 +318,22 @@ export function NativeManDownBridge() {
     startFeedback.workerUid === workerUid && startFeedback.sessionId === openSessionId
     ? startFeedback : null;
   const startBusy = visibleStart?.phase === "pending" || visibleStart?.phase === "retrying";
-  const startFailed = visibleStart && visibleStart.phase !== "pending";
+  const authorityExpired = !!activeAuthority && expiredAuthority === activeAuthority;
+  const startFailed = authorityExpired || (visibleStart && visibleStart.phase !== "pending");
   const canRetryStart = ready && !!openSessionId && !stopping && !startBusy;
 
-  if (!stopFailed && !stopping && !visibleStart) return null;
+  if (!stopFailed && !stopping && !visibleStart && !authorityExpired) return null;
   return (
     <>
-    {visibleStart && <div role={startFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
-      <p className="font-bold">{startFailed
+    {(visibleStart || authorityExpired) && <div role={startFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
+      <p className="font-bold">{authorityExpired
+        ? t("native_mandown_start.expired_title", "Autorización de ManDown vencida")
+        : startFailed
         ? t("native_mandown_start.failed_title", "Inicio de ManDown sin confirmar")
         : t("native_mandown_start.pending_title", "Confirmando inicio de ManDown")}</p>
-      <p className="mt-1 text-sm">{startFailed
+      <p className="mt-1 text-sm">{authorityExpired
+        ? t("native_mandown_start.expired_detail", "La autorización del monitoreo nativo venció. Reintenta el inicio con una sesión activa confirmada.")
+        : startFailed
         ? t("native_mandown_start.failed_detail", "No pudimos confirmar que el monitoreo nativo esté activo.")
         : t("native_mandown_start.pending_detail", "Esperando la confirmación de Android.")}</p>
       {startFailed && (!ready || stopping) && <p className="mt-2 text-sm">{t("native_mandown_start.retry_blocked", "El reintento requiere una sesión activa confirmada y que no haya un cierre en curso.")}</p>}
