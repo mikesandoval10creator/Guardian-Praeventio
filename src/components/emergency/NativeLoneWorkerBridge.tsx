@@ -191,7 +191,7 @@ export function NativeLoneWorkerBridge() {
 
   if (!stopFailed && !stopping) return null;
   return (
-    <div role={stopFailed ? "alert" : "status"} className="fixed bottom-4 inset-x-4 z-[160] mx-auto max-w-md rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
+    <div role={stopFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
       <p className="font-bold">{stopFailed ? "Cierre de vigilancia pendiente" : "Confirmando cierre de vigilancia"}</p>
       <p className="mt-1 text-sm">{stopFailed ? "No pudimos confirmar el cierre anterior." : "Esperando la confirmación del cierre anterior."}</p>
       {stopFailed && !mustStop && <p className="mt-2 text-sm">El reintento estará disponible cuando no haya una sesión activa.</p>}

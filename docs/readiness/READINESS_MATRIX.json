@@ -497,7 +497,7 @@
   {
     "kind": "route",
     "surface": "/login",
-    "sourceLine": 356,
+    "sourceLine": 358,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
     "authorization": "unknown",
@@ -508,28 +508,6 @@
   {
     "kind": "route",
     "surface": "/invite",
-    "sourceLine": 360,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "/onboarding",
-    "sourceLine": 361,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "/curriculum/referee/:token",
     "sourceLine": 362,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -540,7 +518,7 @@
   },
   {
     "kind": "route",
-    "surface": "/vault/share/:tokenId",
+    "surface": "/onboarding",
     "sourceLine": 363,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -551,7 +529,7 @@
   },
   {
     "kind": "route",
-    "surface": "/vault/share/:tokenId/:secret",
+    "surface": "/curriculum/referee/:token",
     "sourceLine": 364,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -562,8 +540,8 @@
   },
   {
     "kind": "route",
-    "surface": "/verificar/:folio",
-    "sourceLine": 368,
+    "surface": "/vault/share/:tokenId",
+    "sourceLine": 365,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
     "authorization": "unknown",
@@ -573,7 +551,18 @@
   },
   {
     "kind": "route",
-    "surface": "/demo",
+    "surface": "/vault/share/:tokenId/:secret",
+    "sourceLine": 366,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "/verificar/:folio",
     "sourceLine": 370,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -584,8 +573,19 @@
   },
   {
     "kind": "route",
+    "surface": "/demo",
+    "sourceLine": 372,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
     "surface": "/public/node/:nodeId",
-    "sourceLine": 371,
+    "sourceLine": 373,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
     "authorization": "unknown",
@@ -596,28 +596,6 @@
   {
     "kind": "route",
     "surface": "/privacidad",
-    "sourceLine": 375,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "/privacy",
-    "sourceLine": 376,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "/terms",
     "sourceLine": 377,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -628,7 +606,7 @@
   },
   {
     "kind": "route",
-    "surface": "/",
+    "surface": "/privacy",
     "sourceLine": 378,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -639,29 +617,29 @@
   },
   {
     "kind": "route",
+    "surface": "/terms",
+    "sourceLine": 379,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "/",
+    "sourceLine": 380,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
     "surface": "safe-driving",
-    "sourceLine": 391,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "driving",
-    "sourceLine": 392,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "webxr",
     "sourceLine": 393,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -672,7 +650,7 @@
   },
   {
     "kind": "route",
-    "surface": "history",
+    "surface": "driving",
     "sourceLine": 394,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -683,7 +661,7 @@
   },
   {
     "kind": "route",
-    "surface": "pricing",
+    "surface": "webxr",
     "sourceLine": 395,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -694,7 +672,7 @@
   },
   {
     "kind": "route",
-    "surface": "pricing/success",
+    "surface": "history",
     "sourceLine": 396,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -705,7 +683,7 @@
   },
   {
     "kind": "route",
-    "surface": "pricing/failed",
+    "surface": "pricing",
     "sourceLine": 397,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -716,7 +694,7 @@
   },
   {
     "kind": "route",
-    "surface": "pricing/retry",
+    "surface": "pricing/success",
     "sourceLine": 398,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -727,7 +705,18 @@
   },
   {
     "kind": "route",
-    "surface": "pricing-calculator",
+    "surface": "pricing/failed",
+    "sourceLine": 399,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "pricing/retry",
     "sourceLine": 400,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -738,18 +727,7 @@
   },
   {
     "kind": "route",
-    "surface": "pricing-simulator",
-    "sourceLine": 401,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "oc-sugerida",
+    "surface": "pricing-calculator",
     "sourceLine": 402,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -760,7 +738,7 @@
   },
   {
     "kind": "route",
-    "surface": "transparencia",
+    "surface": "pricing-simulator",
     "sourceLine": 403,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -771,7 +749,7 @@
   },
   {
     "kind": "route",
-    "surface": "google-drive",
+    "surface": "oc-sugerida",
     "sourceLine": 404,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -782,7 +760,7 @@
   },
   {
     "kind": "route",
-    "surface": "immutable-render",
+    "surface": "transparencia",
     "sourceLine": 405,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -793,7 +771,7 @@
   },
   {
     "kind": "route",
-    "surface": "wearables",
+    "surface": "google-drive",
     "sourceLine": 406,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -804,7 +782,7 @@
   },
   {
     "kind": "route",
-    "surface": "iot-edge",
+    "surface": "immutable-render",
     "sourceLine": 407,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -815,7 +793,7 @@
   },
   {
     "kind": "route",
-    "surface": "sso-config",
+    "surface": "wearables",
     "sourceLine": 408,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -826,7 +804,7 @@
   },
   {
     "kind": "route",
-    "surface": "cqrs-architecture",
+    "surface": "iot-edge",
     "sourceLine": 409,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -837,7 +815,7 @@
   },
   {
     "kind": "route",
-    "surface": "notifications",
+    "surface": "sso-config",
     "sourceLine": 410,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -848,7 +826,7 @@
   },
   {
     "kind": "route",
-    "surface": "settings",
+    "surface": "cqrs-architecture",
     "sourceLine": 411,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -859,7 +837,7 @@
   },
   {
     "kind": "route",
-    "surface": "settings/system-health",
+    "surface": "notifications",
     "sourceLine": 412,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -870,7 +848,7 @@
   },
   {
     "kind": "route",
-    "surface": "help",
+    "surface": "settings",
     "sourceLine": 413,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -881,7 +859,7 @@
   },
   {
     "kind": "route",
-    "surface": "safety-feed",
+    "surface": "settings/system-health",
     "sourceLine": 414,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -892,7 +870,7 @@
   },
   {
     "kind": "route",
-    "surface": "analytics",
+    "surface": "help",
     "sourceLine": 415,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -903,7 +881,7 @@
   },
   {
     "kind": "route",
-    "surface": "corrective-actions",
+    "surface": "safety-feed",
     "sourceLine": 416,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -914,7 +892,7 @@
   },
   {
     "kind": "route",
-    "surface": "closure",
+    "surface": "analytics",
     "sourceLine": 417,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -925,7 +903,7 @@
   },
   {
     "kind": "route",
-    "surface": "pdca",
+    "surface": "corrective-actions",
     "sourceLine": 418,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -936,7 +914,7 @@
   },
   {
     "kind": "route",
-    "surface": "annual-review",
+    "surface": "closure",
     "sourceLine": 419,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -947,7 +925,7 @@
   },
   {
     "kind": "route",
-    "surface": "residual-risk",
+    "surface": "pdca",
     "sourceLine": 420,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -958,7 +936,7 @@
   },
   {
     "kind": "route",
-    "surface": "data-confidence",
+    "surface": "annual-review",
     "sourceLine": 421,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -969,7 +947,7 @@
   },
   {
     "kind": "route",
-    "surface": "emergency-brigade",
+    "surface": "residual-risk",
     "sourceLine": 422,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -980,7 +958,7 @@
   },
   {
     "kind": "route",
-    "surface": "positive-observations",
+    "surface": "data-confidence",
     "sourceLine": 423,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -991,7 +969,7 @@
   },
   {
     "kind": "route",
-    "surface": "inspections",
+    "surface": "emergency-brigade",
     "sourceLine": 424,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1002,7 +980,7 @@
   },
   {
     "kind": "route",
-    "surface": "engineering-controls",
+    "surface": "positive-observations",
     "sourceLine": 425,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1013,7 +991,7 @@
   },
   {
     "kind": "route",
-    "surface": "culture-pulse",
+    "surface": "inspections",
     "sourceLine": 426,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1024,7 +1002,7 @@
   },
   {
     "kind": "route",
-    "surface": "qr-signature",
+    "surface": "engineering-controls",
     "sourceLine": 427,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1035,7 +1013,7 @@
   },
   {
     "kind": "route",
-    "surface": "maturity-index",
+    "surface": "culture-pulse",
     "sourceLine": 428,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1046,7 +1024,7 @@
   },
   {
     "kind": "route",
-    "surface": "work-permits",
+    "surface": "qr-signature",
     "sourceLine": 429,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1057,7 +1035,7 @@
   },
   {
     "kind": "route",
-    "surface": "lessons",
+    "surface": "maturity-index",
     "sourceLine": 430,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1068,7 +1046,7 @@
   },
   {
     "kind": "route",
-    "surface": "repeating-risks",
+    "surface": "work-permits",
     "sourceLine": 431,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1079,7 +1057,7 @@
   },
   {
     "kind": "route",
-    "surface": "drills",
+    "surface": "lessons",
     "sourceLine": 432,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1090,7 +1068,7 @@
   },
   {
     "kind": "route",
-    "surface": "inbox",
+    "surface": "repeating-risks",
     "sourceLine": 433,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1101,7 +1079,7 @@
   },
   {
     "kind": "route",
-    "surface": "incidents/:incidentId/bundle",
+    "surface": "drills",
     "sourceLine": 434,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1112,7 +1090,7 @@
   },
   {
     "kind": "route",
-    "surface": "incidents/report",
+    "surface": "inbox",
     "sourceLine": 435,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1123,7 +1101,7 @@
   },
   {
     "kind": "route",
-    "surface": "pre-shift-risk",
+    "surface": "incidents/:incidentId/bundle",
     "sourceLine": 436,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1134,7 +1112,7 @@
   },
   {
     "kind": "route",
-    "surface": "worker-readiness",
+    "surface": "incidents/report",
     "sourceLine": 437,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1145,7 +1123,7 @@
   },
   {
     "kind": "route",
-    "surface": "leadership-decisions",
+    "surface": "pre-shift-risk",
     "sourceLine": 438,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1156,7 +1134,7 @@
   },
   {
     "kind": "route",
-    "surface": "driving-safety",
+    "surface": "worker-readiness",
     "sourceLine": 439,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1167,7 +1145,7 @@
   },
   {
     "kind": "route",
-    "surface": "confidential-reports",
+    "surface": "leadership-decisions",
     "sourceLine": 440,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1178,7 +1156,7 @@
   },
   {
     "kind": "route",
-    "surface": "incident-trends",
+    "surface": "driving-safety",
     "sourceLine": 441,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1189,7 +1167,7 @@
   },
   {
     "kind": "route",
-    "surface": "apprenticeship",
+    "surface": "confidential-reports",
     "sourceLine": 442,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1200,7 +1178,7 @@
   },
   {
     "kind": "route",
-    "surface": "portable-history",
+    "surface": "incident-trends",
     "sourceLine": 443,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1211,7 +1189,7 @@
   },
   {
     "kind": "route",
-    "surface": "suppliers",
+    "surface": "apprenticeship",
     "sourceLine": 444,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1222,7 +1200,7 @@
   },
   {
     "kind": "route",
-    "surface": "knowledge-base",
+    "surface": "portable-history",
     "sourceLine": 445,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1233,7 +1211,7 @@
   },
   {
     "kind": "route",
-    "surface": "visitors",
+    "surface": "suppliers",
     "sourceLine": 446,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1244,7 +1222,7 @@
   },
   {
     "kind": "route",
-    "surface": "import-data",
+    "surface": "knowledge-base",
     "sourceLine": 447,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1255,7 +1233,7 @@
   },
   {
     "kind": "route",
-    "surface": "projects",
+    "surface": "visitors",
     "sourceLine": 448,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1266,7 +1244,7 @@
   },
   {
     "kind": "route",
-    "surface": "project-setup",
+    "surface": "import-data",
     "sourceLine": 449,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1277,7 +1255,18 @@
   },
   {
     "kind": "route",
-    "surface": "findings-heatmap",
+    "surface": "projects",
+    "sourceLine": 450,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "project-setup",
     "sourceLine": 451,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1288,18 +1277,7 @@
   },
   {
     "kind": "route",
-    "surface": "soft-blocks",
-    "sourceLine": 452,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "custody-chain",
+    "surface": "findings-heatmap",
     "sourceLine": 453,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1310,7 +1288,7 @@
   },
   {
     "kind": "route",
-    "surface": "projects-compare",
+    "surface": "soft-blocks",
     "sourceLine": 454,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1321,7 +1299,18 @@
   },
   {
     "kind": "route",
-    "surface": "accessibility",
+    "surface": "custody-chain",
+    "sourceLine": 455,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "projects-compare",
     "sourceLine": 456,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1332,18 +1321,7 @@
   },
   {
     "kind": "route",
-    "surface": "executive-dashboard",
-    "sourceLine": 457,
-    "sourceFile": "src/AppRoutes.tsx",
-    "persistence": "unknown",
-    "authorization": "unknown",
-    "automation": "unknown",
-    "realTest": "unknown",
-    "productionEvidence": "unknown"
-  },
-  {
-    "kind": "route",
-    "surface": "admin/b2d",
+    "surface": "accessibility",
     "sourceLine": 458,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1354,7 +1332,7 @@
   },
   {
     "kind": "route",
-    "surface": "admin/slo",
+    "surface": "executive-dashboard",
     "sourceLine": 459,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1365,7 +1343,7 @@
   },
   {
     "kind": "route",
-    "surface": "my-data",
+    "surface": "admin/b2d",
     "sourceLine": 460,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1376,7 +1354,7 @@
   },
   {
     "kind": "route",
-    "surface": "my-data/share",
+    "surface": "admin/slo",
     "sourceLine": 461,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1387,7 +1365,7 @@
   },
   {
     "kind": "route",
-    "surface": "cuadrillas",
+    "surface": "my-data",
     "sourceLine": 462,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1398,7 +1376,7 @@
   },
   {
     "kind": "route",
-    "surface": "mining-contractors",
+    "surface": "my-data/share",
     "sourceLine": 463,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1409,7 +1387,7 @@
   },
   {
     "kind": "route",
-    "surface": "sun-tracker",
+    "surface": "cuadrillas",
     "sourceLine": 464,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1420,7 +1398,7 @@
   },
   {
     "kind": "route",
-    "surface": "safety-coach",
+    "surface": "mining-contractors",
     "sourceLine": 465,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
@@ -1431,8 +1409,30 @@
   },
   {
     "kind": "route",
-    "surface": "profile",
+    "surface": "sun-tracker",
     "sourceLine": 466,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "safety-coach",
+    "sourceLine": 467,
+    "sourceFile": "src/AppRoutes.tsx",
+    "persistence": "unknown",
+    "authorization": "unknown",
+    "automation": "unknown",
+    "realTest": "unknown",
+    "productionEvidence": "unknown"
+  },
+  {
+    "kind": "route",
+    "surface": "profile",
+    "sourceLine": 468,
     "sourceFile": "src/AppRoutes.tsx",
     "persistence": "unknown",
     "authorization": "unknown",

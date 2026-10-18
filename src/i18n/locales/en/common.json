@@ -3061,6 +3061,14 @@
     "lookup_failed": "Could not verify whether an evacuation is already in progress. Retry before starting a new one to avoid duplicating the count.",
     "retry": "Retry"
   },
+  "native_mandown_stop": {
+    "failed_title": "ManDown shutdown pending",
+    "pending_title": "Confirming ManDown shutdown",
+    "failed_detail": "We could not confirm the previous ManDown shutdown.",
+    "pending_detail": "Waiting for confirmation of the previous shutdown.",
+    "retry_blocked": "Retry will be available when there is no active session.",
+    "retry": "Retry ManDown shutdown"
+  },
   "lone_worker_page": {
     "subscription_failed": "We could not load this project's sessions. Their current status is unconfirmed.",
     "title": "Lone worker",

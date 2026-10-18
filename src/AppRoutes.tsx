@@ -340,8 +340,10 @@ function AppRoutesInner({ hasEntered, setHasEntered, skipLanding }: AppRoutesInn
       <LocationPermissionGate />
       <GeolocationTracker />
       <EmergencyOverlay />
-      <NativeManDownBridge />
-      <NativeLoneWorkerBridge />
+      <div className="pointer-events-none fixed bottom-4 inset-x-4 z-[160] mx-auto max-w-md space-y-3">
+        <NativeManDownBridge />
+        <NativeLoneWorkerBridge />
+      </div>
       {/* Sprint 36 audit P1 §1.4 — lazy companions; null fallback because
           they render off-screen overlays/listeners. Reduces main entry. */}
       <Suspense fallback={null}>

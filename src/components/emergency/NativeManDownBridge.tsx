@@ -7,6 +7,7 @@
 // that can continue sampling while Capacitor's WebView is suspended.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFirebase } from "../../contexts/FirebaseContext";
 import { useProject } from "../../contexts/ProjectContext";
 import { subscribeActiveLoneWorkerSessions } from "../../services/loneWorker/loneWorkerStore";
@@ -16,6 +17,7 @@ import {
   isAndroidNativeManDown,
   startNativeManDown,
   stopNativeManDown,
+  type NativeManDownStopResult,
 } from "../../services/mobile/nativeManDownClient";
 import { logger } from "../../utils/logger";
 
@@ -37,16 +39,45 @@ type SessionSubscription = {
  * native event ingest time, so a stale process is fail-closed.
  */
 export function NativeManDownBridge() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const [subscription, setSubscription] =
     useState<SessionSubscription | null>(null);
-  const pendingStop = useRef<Promise<void> | null>(null);
+  const [stopFailed, setStopFailed] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const mounted = useRef(false);
+  const pendingStop = useRef<Promise<NativeManDownStopResult> | null>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
   const stopMonitoring = useCallback(() => {
     if (pendingStop.current) return pendingStop.current;
-    const pending = stopNativeManDown().finally(() => {
-      pendingStop.current = null;
-    });
+    if (mounted.current) setStopping(true);
+    // Register the pending operation before invoking native code, including
+    // unexpected synchronous failures. Keep all completion handlers on one chain.
+    const pending = Promise.resolve().then(() => stopNativeManDown())
+      .catch((error: unknown): NativeManDownStopResult => ({
+        stopped: false,
+        reason: "native_error",
+        error: error instanceof Error ? error.message : String(error),
+      }))
+      .then((result) => {
+        if (!result.stopped && result.reason === "native_error") {
+          logger.error("native_mandown_stop_failed", result.error);
+        }
+        if (mounted.current && (result.stopped || result.reason === "native_error")) {
+          setStopFailed(!result.stopped);
+        }
+        return result;
+      })
+      .finally(() => {
+        pendingStop.current = null;
+        if (mounted.current) setStopping(false);
+      });
     pendingStop.current = pending;
     return pending;
   }, []);
@@ -190,5 +221,24 @@ export function NativeManDownBridge() {
     selectedProject?.settings?.manDownInactivityThreshold,
   ]);
 
-  return null;
+  if (!stopFailed && !stopping) return null;
+  return (
+    <div role={stopFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
+      <p className="font-bold">{stopFailed
+        ? t("native_mandown_stop.failed_title", "Cierre de ManDown pendiente")
+        : t("native_mandown_stop.pending_title", "Confirmando cierre de ManDown")}</p>
+      <p className="mt-1 text-sm">{stopFailed
+        ? t("native_mandown_stop.failed_detail", "No pudimos confirmar el cierre anterior de ManDown.")
+        : t("native_mandown_stop.pending_detail", "Esperando la confirmación del cierre anterior.")}</p>
+      {stopFailed && !mustStop && <p className="mt-2 text-sm">{t("native_mandown_stop.retry_blocked", "El reintento estará disponible cuando no haya una sesión activa.")}</p>}
+      {stopFailed && <button
+        type="button"
+        disabled={!mustStop || stopping}
+        onClick={() => { if (mustStop) void stopMonitoring(); }}
+        className="mt-3 rounded-xl bg-amber-200 px-4 py-2 font-bold text-amber-950 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {t("native_mandown_stop.retry", "Reintentar cierre de ManDown")}
+      </button>}
+    </div>
+  );
 }

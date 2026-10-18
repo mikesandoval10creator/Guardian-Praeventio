@@ -37,6 +37,10 @@ export type NativeManDownApplyResult =
       error?: string;
     };
 
+export type NativeManDownStopResult =
+  | { stopped: true }
+  | { stopped: false; reason: "not_android" | "native_error"; error?: string };
+
 /** The native process must call a production HTTPS origin, never capacitor://. */
 export function nativeManDownApiOrigin(): string | null {
   // Store builds must remain able to reach Guardian even if VITE_APP_URL was
@@ -86,11 +90,16 @@ export async function startNativeManDown(
   }
 }
 
-export async function stopNativeManDown(): Promise<void> {
-  if (!isAndroidNativeManDown()) return;
+export async function stopNativeManDown(): Promise<NativeManDownStopResult> {
+  if (!isAndroidNativeManDown()) return { stopped: false, reason: "not_android" };
   try {
     await NativeManDown.stop();
-  } catch {
-    // Stopping a no-longer-running FGS is intentionally idempotent.
+    return { stopped: true };
+  } catch (error) {
+    return {
+      stopped: false,
+      reason: "native_error",
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

@@ -2735,6 +2735,14 @@
     "driving_wildfire_normative": "Referência normativa: DS 594 + diretrizes de direção segura.",
     "driving_wildfire_dismiss": "Ocultar aviso"
   },
+  "native_mandown_stop": {
+    "failed_title": "Encerramento do ManDown pendente",
+    "pending_title": "Confirmando encerramento do ManDown",
+    "failed_detail": "Não foi possível confirmar o encerramento anterior do ManDown.",
+    "pending_detail": "Aguardando a confirmação do encerramento anterior.",
+    "retry_blocked": "Será possível tentar novamente quando não houver uma sessão ativa.",
+    "retry": "Tentar encerrar o ManDown novamente"
+  },
   "lone_worker_page": {
     "subscription_failed": "Não foi possível carregar as sessões deste projeto. O estado atual delas não está confirmado.",
     "title": "Trabalho solitário",
