@@ -3,8 +3,12 @@ package com.praeventio.mandown;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import androidx.work.Operation;
 import com.google.common.util.concurrent.ListenableFuture;
+import java.util.UUID;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -15,6 +19,63 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "NativeManDown")
 public final class NativeManDownPlugin extends Plugin {
     private static volatile NativeManDownPlugin instance;
+    static final String EXTRA_START_REQUEST_ID = "startRequestId";
+    private static final long START_TIMEOUT_MS = 8_000L;
+    private static final Object START_LOCK = new Object();
+    private static PendingStart pendingStart;
+
+    private static final class PendingStart {
+        final String id = UUID.randomUUID().toString();
+        final long deadline = SystemClock.elapsedRealtime() + START_TIMEOUT_MS;
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final PluginCall call;
+        final Runnable timeout = () -> completeStart(id, "native_man_down_start_timeout");
+
+        PendingStart(PluginCall call) { this.call = call; }
+    }
+
+    private static PendingStart beginStart(PluginCall call) {
+        synchronized (START_LOCK) {
+            if (pendingStart != null) return null;
+            PendingStart attempt = new PendingStart(call);
+            pendingStart = attempt;
+            attempt.handler.postDelayed(attempt.timeout, START_TIMEOUT_MS);
+            return attempt;
+        }
+    }
+
+    static boolean isStartPending(String id) {
+        synchronized (START_LOCK) {
+            return pendingStart != null && pendingStart.id.equals(id)
+                && SystemClock.elapsedRealtime() < pendingStart.deadline;
+        }
+    }
+
+    /** Reserve one terminal result; never invoke the JavaScript bridge under the lock. */
+    static boolean completeStart(String id, String error) {
+        PendingStart attempt;
+        synchronized (START_LOCK) {
+            if (pendingStart == null || !pendingStart.id.equals(id)) return false;
+            attempt = pendingStart;
+            if (error == null && SystemClock.elapsedRealtime() >= attempt.deadline) {
+                error = "native_man_down_start_timeout";
+            }
+            pendingStart = null;
+        }
+        attempt.handler.removeCallbacks(attempt.timeout);
+        if (error != null) {
+            attempt.call.reject(error);
+            return false;
+        }
+        attempt.call.resolve(status(true));
+        return true;
+    }
+
+    private static void cancelPendingStart() {
+        String id;
+        synchronized (START_LOCK) { id = pendingStart == null ? null : pendingStart.id; }
+        completeStart(id, "native_man_down_start_cancelled");
+    }
 
     @Override
     public void load() {
@@ -59,21 +120,27 @@ public final class NativeManDownPlugin extends Plugin {
         if (cancelWindowMs != null) {
             intent.putExtra(NativeManDownForegroundService.EXTRA_CANCEL_WINDOW_MS, cancelWindowMs.longValue());
         }
+        PendingStart attempt = beginStart(call);
+        if (attempt == null) {
+            call.reject("native_man_down_start_in_progress");
+            return;
+        }
+        intent.putExtra(EXTRA_START_REQUEST_ID, attempt.id);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 getContext().startForegroundService(intent);
             } else {
                 getContext().startService(intent);
             }
-            call.resolve(status(true));
         } catch (Exception error) {
-            call.reject("native_man_down_start_failed: " + error.getMessage());
+            completeStart(attempt.id, "native_man_down_start_failed: " + error.getMessage());
         }
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
         try {
+            cancelPendingStart();
             NativeManDownSuspectWorker.StopRequest request =
                 NativeManDownSuspectWorker.explicitStop(getContext());
             ListenableFuture<Operation.State.SUCCESS> completion = request.cancellation.getResult();

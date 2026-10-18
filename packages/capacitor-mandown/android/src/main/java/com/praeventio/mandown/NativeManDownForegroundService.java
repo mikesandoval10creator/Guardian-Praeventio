@@ -114,23 +114,60 @@ public final class NativeManDownForegroundService extends Service implements Sen
             cancelSuspected();
             return START_NOT_STICKY;
         }
-        if (!ACTION_START.equals(intent.getAction()) || !readConfig(intent)) {
-            Log.w(TAG, "Refusing malformed native ManDown start");
-            stopMonitoring();
+        if (!ACTION_START.equals(intent.getAction())) return START_NOT_STICKY;
+        String requestId = intent.getStringExtra(NativeManDownPlugin.EXTRA_START_REQUEST_ID);
+        // A replayed, cancelled or timed-out delivery cannot mutate a newer owner.
+        if (!NativeManDownPlugin.isStartPending(requestId)) {
+            NativeManDownPlugin.completeStart(requestId, "native_man_down_start_timeout");
+            if (!monitoring) stopSelfResult(startId);
             return START_NOT_STICKY;
         }
-
-        startForeground(NOTIFICATION_ID, buildMonitoringNotification());
-        monitoring = true;
-        lastMovementElapsedMs = SystemClock.elapsedRealtime();
-        if (accelerometer == null || !sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)) {
-            Log.e(TAG, "Accelerometer unavailable; stopping native ManDown service");
-            stopMonitoring();
-            return START_NOT_STICKY;
+        try {
+            if (!readConfig(intent)) {
+                failStartup(requestId, startId, "native_man_down_config_invalid_or_unpersisted");
+                return START_NOT_STICKY;
+            }
+            startForeground(NOTIFICATION_ID, buildMonitoringNotification());
+            lastMovementElapsedMs = SystemClock.elapsedRealtime();
+            if (accelerometer == null || !sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)) {
+                failStartup(requestId, startId, "native_man_down_sensor_unavailable");
+                return START_NOT_STICKY;
+            }
+            monitoring = true;
+            restoreSuspectedIfPresent();
+            scheduleCapabilityExpiry();
+            // Completion rechecks the deadline even when the main-loop timer is delayed.
+            if (!NativeManDownPlugin.completeStart(requestId, null)) {
+                failStartup(requestId, startId, "native_man_down_start_cancelled");
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Native ManDown initialization failed", error);
+            failStartup(requestId, startId, "native_man_down_initialization_failed");
         }
-        restoreSuspectedIfPresent();
-        scheduleCapabilityExpiry();
         return START_NOT_STICKY; // explicit session end/capability expiry must not revive stale monitoring.
+    }
+
+    private void failStartup(String requestId, int startId, String error) {
+        // Startup failure is not revocation of already durable safety evidence.
+        // Keep countdown/outbox state and credentials; explicit stop owns cancellation.
+        monitoring = false;
+        if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);
+        if (capabilityExpiryRunnable != null) handler.removeCallbacks(capabilityExpiryRunnable);
+        try {
+            if (sensorManager != null) sensorManager.unregisterListener(this);
+        } catch (RuntimeException cleanupError) {
+            Log.w(TAG, "Native ManDown sensor cleanup failed", cleanupError);
+        } finally {
+            try {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } finally {
+                try {
+                    stopSelfResult(startId);
+                } finally {
+                    NativeManDownPlugin.completeStart(requestId, error);
+                }
+            }
+        }
     }
 
     private boolean readConfig(Intent intent) {
@@ -163,8 +200,6 @@ public final class NativeManDownForegroundService extends Service implements Sen
             String reference = NativeManDownSecureStore.referenceForSession(sessionId);
             if (valid) {
                 secureReference = reference;
-            } else if (reference != null) {
-                NativeManDownSecureStore.clearReference(getApplicationContext(), reference);
             }
         }
         return valid;
