@@ -81,7 +81,7 @@ export interface EquipmentResponse {
 
 export function useEquipment(
   projectId: string | null,
-  opts: { status?: EquipmentStatus } = {},
+  opts: { status?: EquipmentStatus | 'all' } = {},
 ) {
   let path: string | null = null;
   if (projectId) {

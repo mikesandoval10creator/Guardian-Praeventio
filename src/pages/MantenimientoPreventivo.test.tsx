@@ -19,6 +19,7 @@ import {
   fireEvent,
   cleanup,
   waitFor,
+  act,
 } from '@testing-library/react';
 import type { Equipment } from '../services/equipment/equipmentQrService';
 
@@ -52,13 +53,13 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 }));
 
 const refetch = vi.fn();
+const equipmentHook = vi.fn();
+let inventory: Equipment[] = [EQUIPMENT];
 vi.mock('../hooks/useEquipment', () => ({
-  useEquipment: () => ({
-    data: { equipment: [EQUIPMENT] },
-    loading: false,
-    error: null,
-    refetch,
-  }),
+  useEquipment: (...args: unknown[]) => {
+    equipmentHook(...args);
+    return { data: { equipment: inventory }, loading: false, error: null, refetch };
+  },
 }));
 
 // A real horometer status response shape (GET .../status). Used to feed the
@@ -118,6 +119,8 @@ beforeEach(() => {
   cleanup();
   selected = { id: 'proj-1', name: 'Faena Norte' };
   refetch.mockReset();
+  equipmentHook.mockClear();
+  inventory = [EQUIPMENT];
   fetchMock.mockReset();
   fetchMock.mockImplementation((url: string) => {
     if (typeof url === 'string' && url.includes('/horometro/equipment/') && url.endsWith('/status')) {
@@ -135,11 +138,27 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await act(async () => cleanup());
   vi.unstubAllGlobals();
 });
 
 describe('<MantenimientoPreventivo /> — orphan HorometroEntryForm mount', () => {
+  it('requests the complete maintenance inventory rather than operational availability', () => {
+    render(<MantenimientoPreventivo />);
+    expect(equipmentHook).toHaveBeenCalledWith('proj-1', { status: 'all' });
+  });
+
+  it.each(['fuera_servicio', 'en_mantencion', 'bloqueado_loto', 'restringido'] as const)(
+    'keeps %s equipment selectable for its maintenance tasks', async (status) => {
+      inventory = [{ ...EQUIPMENT, status }];
+      render(<MantenimientoPreventivo />);
+      fireEvent.change(screen.getByTestId('maintenance-equipment-select'), { target: { value: EQUIPMENT.id } });
+      expect(screen.getByTestId('maintenance-task-list').textContent).toContain('proj-1::eq-77');
+      await screen.findByTestId('horometer-card-GH-04');
+      expect(inventory[0].status).toBe(status);
+    },
+  );
   it('shows the select-a-project empty state when no project is selected', () => {
     selected = null;
     render(<MantenimientoPreventivo />);

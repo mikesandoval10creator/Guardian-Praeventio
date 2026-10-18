@@ -4,9 +4,11 @@
 // Migrado del monolito `sprintK.ts` (2026-05-18).
 //
 // 1 endpoint:
-//   GET /:projectId/equipment[?status=operativo|fuera_servicio|...]
+//   GET /:projectId/equipment[?status=operativo|fuera_servicio|...|all]
+// Default: operational availability. Explicit all: maintenance inventory (up to 200).
 
 import { Router } from 'express';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -22,6 +24,9 @@ import { scalarRouteParams } from "../http/scalarRouteParams.js";
 
 
 const router = Router();
+const statusFilter = z.enum([
+  'operativo', 'restringido', 'fuera_servicio', 'en_mantencion', 'bloqueado_loto', 'all',
+]);
 
 async function resolveTenantId(
   _callerUid: string,
@@ -62,14 +67,16 @@ router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
+    const status = statusFilter.safeParse(req.query.status ?? 'operativo');
+    if (!status.success) return res.status(400).json({ error: 'invalid_status' });
     const adapter = new EquipmentAdapter(
       getFirestore(),
       g.tenantId,
       projectId,
     );
-    const status =
-      typeof req.query.status === 'string' ? req.query.status : 'operativo';
-    const equipment = await adapter.listByStatus(status as any);
+    const equipment = status.data === 'all'
+      ? await adapter.listAll()
+      : await adapter.listByStatus(status.data);
     return res.json({ equipment });
   } catch (err) {
     logger.error?.('equipment.list.error', err);

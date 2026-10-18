@@ -10,7 +10,7 @@
 // the worker physically (project directive: recommend scientifically, never
 // block machinery — no `blocked` flag is ever set).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
@@ -53,6 +53,7 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
 });
 
 import equipmentQrRouter from '../../server/routes/equipmentQr.js';
+import equipmentRouter from '../../server/routes/equipment.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { assertProjectMember } from '../../services/auth/projectMembership.js';
 
@@ -60,10 +61,16 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use('/api/equipment', equipmentQrRouter);
+  app.use('/api/equipment', equipmentRouter);
   return app;
 }
 
 const BASE = '/api/equipment/p1/equipment-qr';
+
+afterEach(async () => {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+});
 
 // A complete, all-passing checklist for the `compresor` type (items c1/c2/c3).
 const COMPRESOR_PASS = [
@@ -218,6 +225,15 @@ describe('POST /equipment-qr/:qrId/preuse — safety contract', () => {
     expect(res.body.appliedStatus).toBe('fuera_servicio');
     expect(res.body.recommendation).not.toHaveProperty('blocked');
     expect(JSON.stringify(res.body)).not.toMatch(/bloquea|"blocked"/i);
+    const inventory = await request(buildApp())
+      .get('/api/equipment/p1/equipment?status=all').set('x-test-uid', 'w1');
+    expect(inventory.status).toBe(200);
+    expect(inventory.body.equipment).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: qrId, status: 'fuera_servicio' }),
+    ]));
+    const operational = await request(buildApp())
+      .get('/api/equipment/p1/equipment').set('x-test-uid', 'w1');
+    expect(operational.body.equipment).toEqual([]);
   });
 
   it('downgrades a failed non-critical machine to restringido (not fuera_servicio)', async () => {

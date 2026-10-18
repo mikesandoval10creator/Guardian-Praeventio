@@ -8,7 +8,7 @@
 //   200 (happy path — real adapter reads the nested equipment collection),
 //   500 (Firestore read failure → no internal leak).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
@@ -71,6 +71,11 @@ function seedProject(db: NonNullable<typeof H.db>, opts: { tenantId?: string } =
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+});
+
+afterEach(async () => {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
 });
 
 describe('equipmentRouter — GET /:projectId/equipment', () => {
@@ -175,6 +180,39 @@ describe('equipmentRouter — GET /:projectId/equipment', () => {
       .set('x-test-uid', MEMBER_UID);
     expect(res.status).toBe(200);
     expect(res.body.equipment).toEqual([]);
+  });
+
+  it('all statuses remain visible for maintenance after equipment withdrawal', async () => {
+    seedProject(H.db!, { tenantId: TENANT_ID });
+    const base = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/equipment`;
+    H.db!._seed(`${base}/withdrawn`, { id: 'withdrawn', status: 'operativo' });
+    await H.db!.collection(base).doc('withdrawn').update({ status: 'fuera_servicio' });
+    for (const status of ['operativo', 'restringido', 'en_mantencion', 'bloqueado_loto']) {
+      H.db!._seed(`${base}/${status}`, { id: status, status });
+    }
+    H.db!._seed(`tenants/other/projects/${PROJECT_ID}/equipment/foreign`, { id: 'foreign', status: 'fuera_servicio' });
+    H.db!._seed(`tenants/${TENANT_ID}/projects/other/equipment/foreign`, { id: 'foreign', status: 'fuera_servicio' });
+    const res = await request(buildApp()).get(`${path}?status=all`).set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+    expect(res.body.equipment.map((eq: { id: string }) => eq.id).sort()).toEqual(
+      ['withdrawn', 'operativo', 'restringido', 'en_mantencion', 'bloqueado_loto'].sort(),
+    );
+    expect(res.body.equipment.find((eq: { id: string }) => eq.id === 'withdrawn').status).toBe('fuera_servicio');
+  });
+
+  it.each(['unknown', 'all&status=operativo', 'all&status=all'])(
+    '400 rejects an invalid or ambiguous status query: %s', async (query) => {
+      seedProject(H.db!, { tenantId: TENANT_ID });
+      const res = await request(buildApp()).get(`${path}?status=${query}`).set('x-test-uid', MEMBER_UID);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_status');
+    },
+  );
+
+  it('all-status listing still rejects a non-member', async () => {
+    seedProject(H.db!, { tenantId: TENANT_ID });
+    const res = await request(buildApp()).get(`${path}?status=all`).set('x-test-uid', NON_MEMBER_UID);
+    expect(res.status).toBe(403);
   });
 
   it('500 with no internal leak when the adapter read fails', async () => {
