@@ -17,6 +17,10 @@ export interface NativeManDownStartOptions {
 
 export interface NativeManDownStatus {
   running: boolean;
+  /** Nonsecret identifier of the native monitoring attempt. */
+  monitoringId?: string;
+  /** Authority deadline for this monitoring attempt; querying never extends it. */
+  capabilityExpiresAt?: string;
   lastReportAt?: string;
   lastError?: string;
 }

@@ -29,15 +29,19 @@ public final class NativeManDownPlugin extends Plugin {
         final long deadline = SystemClock.elapsedRealtime() + START_TIMEOUT_MS;
         final Handler handler = new Handler(Looper.getMainLooper());
         final PluginCall call;
+        final Context context;
         final Runnable timeout = () -> completeStart(id, "native_man_down_start_timeout");
 
-        PendingStart(PluginCall call) { this.call = call; }
+        PendingStart(PluginCall call, Context context) {
+            this.call = call;
+            this.context = context.getApplicationContext();
+        }
     }
 
-    private static PendingStart beginStart(PluginCall call) {
+    private static PendingStart beginStart(PluginCall call, Context context) {
         synchronized (START_LOCK) {
             if (pendingStart != null) return null;
-            PendingStart attempt = new PendingStart(call);
+            PendingStart attempt = new PendingStart(call, context);
             pendingStart = attempt;
             attempt.handler.postDelayed(attempt.timeout, START_TIMEOUT_MS);
             return attempt;
@@ -67,7 +71,7 @@ public final class NativeManDownPlugin extends Plugin {
             attempt.call.reject(error);
             return false;
         }
-        attempt.call.resolve(status(true));
+        attempt.call.resolve(status(NativeManDownForegroundService.status(attempt.context)));
         return true;
     }
 
@@ -120,7 +124,7 @@ public final class NativeManDownPlugin extends Plugin {
         if (cancelWindowMs != null) {
             intent.putExtra(NativeManDownForegroundService.EXTRA_CANCEL_WINDOW_MS, cancelWindowMs.longValue());
         }
-        PendingStart attempt = beginStart(call);
+        PendingStart attempt = beginStart(call, getContext());
         if (attempt == null) {
             call.reject("native_man_down_start_in_progress");
             return;
@@ -165,9 +169,11 @@ public final class NativeManDownPlugin extends Plugin {
 
     @PluginMethod
     public void getStatus(PluginCall call) {
-        // Android does not provide a safe generic foreground-service query. The
-        // Web layer treats this as advisory; the server session remains source of truth.
-        call.resolve(status(false));
+        try {
+            call.resolve(status(NativeManDownForegroundService.status(getContext())));
+        } catch (RuntimeException error) {
+            call.reject("native_man_down_status_failed");
+        }
     }
 
     static void emitSuspected(String kind, long deadlineMs) {
@@ -199,9 +205,14 @@ public final class NativeManDownPlugin extends Plugin {
         plugin.notifyListeners("nativeManDownError", event, true);
     }
 
-    private static JSObject status(boolean running) {
+    private static JSObject status(NativeManDownForegroundService.StatusSnapshot snapshot) {
         JSObject result = new JSObject();
-        result.put("running", running);
+        result.put("running", snapshot.running);
+        if (snapshot.monitoringId != null) result.put("monitoringId", snapshot.monitoringId);
+        if (snapshot.expiresAtMs > 0L) {
+            result.put("capabilityExpiresAt", java.time.Instant.ofEpochMilli(snapshot.expiresAtMs).toString());
+        }
+        if (snapshot.lastError != null) result.put("lastError", snapshot.lastError);
         return result;
     }
 
