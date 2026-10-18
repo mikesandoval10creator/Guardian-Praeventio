@@ -306,3 +306,26 @@ Tracked here so they don't get lost in tickets:
    already record the wrapping adapter so we'd extend that to record the
    key resource name too. Don't build it until the customer actually
    shows up — premature multi-tenancy is a lot of code to maintain.
+
+## Commute active-session coordination metadata
+
+`commute_active/{sha256([tenantId, projectId, uid])}` stores only `sessionId`.
+This is pseudonymous, linkable metadata, not anonymous data: privileged access
+to the session collection can associate it with a worker. The pointer contains
+no coordinates, samples, names, tokens or cryptographic key material.
+
+This coordination store uses Firestore encryption at rest and explicit denial
+of all client reads/writes. It does not introduce envelope encryption or a new
+KEK, so there is no additional application-managed key to rotate in this change.
+The server needs the pointer in plaintext inside the session/audit transaction;
+reusing the OAuth-token KEK would not create a separate access boundary against
+that same runtime identity. Recovery exposes only owned session metadata after
+authentication and project-membership checks. A matching pointer is deleted
+when its session is closed; a late close never deletes a newer pointer.
+
+Privileged Firestore exports and runtime service-account compromise remain in
+the metadata threat model. Do not describe the hashed document ID as encryption
+or anonymity. Adding personal fields or GPS history to this collection requires
+a new security/KMS review; existing commute evidence is outside this pointer's
+scope. Contracts: `src/rules-tests/commuteActive.rules.test.ts` and
+`src/__tests__/server/commute.test.ts`.

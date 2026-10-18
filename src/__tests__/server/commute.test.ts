@@ -3,13 +3,13 @@
 // fakeFirestore + adminMock pattern (Plan v3 Fase 1 — server lever).
 //
 // Endpoints covered:
+//   GET  /api/commute/active  — authenticated metadata recovery / isolation
 //   POST /api/commute/start   — validation / membership / tenantId / 200 + audit
 //   POST /api/commute/sample  — validation / session lookup / ownership / 200
 //   POST /api/commute/end     — validation / session lookup / ownership / 200 + audit
 //
-// The route calls getFirestore().collectionGroup('commute_sessions') for
-// /sample and /end. FakeFirestore has no collectionGroup, so we bolt it on
-// here using the same inline pattern established in externalAuditPortal.test.ts.
+// Retains the collectionGroup shim for older fake variants. Transactions below
+// explicitly model retries/committed order; the fake does not provide isolation.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -352,6 +352,9 @@ describe('POST /api/commute/start', () => {
         .set('x-test-uid', 'uid-A')
         .send({ type, projectId: 'proj-A' });
       expect(res.status).toBe(200);
+      const ended = await request(buildApp()).post('/api/commute/end')
+        .set('x-test-uid', 'uid-A').send({ sessionId: res.body.sessionId });
+      expect(ended.status).toBe(200);
     }
   });
 
@@ -365,6 +368,235 @@ describe('POST /api/commute/start', () => {
     expect(body.sessionId as string).toMatch(
       /^cs_\d+_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe('commute lifecycle recovery', () => {
+  const start = (type = 'home-to-site', projectId = 'proj-A', uid = 'uid-A') =>
+    request(buildApp()).post('/api/commute/start').set('x-test-uid', uid).send({ type, projectId });
+  const active = (projectId = 'proj-A', uid = 'uid-A') =>
+    request(buildApp()).get('/api/commute/active').set('x-test-uid', uid).query({ projectId });
+  const end = (sessionId: string) => request(buildApp()).post('/api/commute/end')
+    .set('x-test-uid', 'uid-A').send({ sessionId });
+  const auditActions = async () => (await H.db!.collection('audit_logs').get()).docs
+    .map((doc) => doc.data()!.action);
+  const sessions = () => [...H.db!._store.entries()].filter(([path]) => path.includes('/commute_sessions/'));
+
+  it('repeated start recovers the same session without another start audit', async () => {
+    const first = await start();
+    const retry = await start();
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(retry.body.sessionId).toBe(first.body.sessionId);
+    expect(sessions()).toHaveLength(1);
+    expect(await auditActions()).toEqual(['commute.start']);
+  });
+
+  it('recovers only metadata of the owned open session, with no cache or GPS history', async () => {
+    const sid = seedSession('legacy-open', { samples: [{ lat: -33, lng: -70 }] });
+    const response = await active();
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toEqual({ success: true, session: {
+      sessionId: sid, projectId: 'proj-A', type: 'home-to-site',
+    } });
+    expect(await auditActions()).toEqual([]);
+    expect((await start()).body.sessionId).toBe(sid);
+    expect(await auditActions()).toEqual([]);
+  });
+
+  it('returns null when no open session exists and never creates one on recovery', async () => {
+    seedSession('closed', { endedAt: '2026-10-18T00:00:00Z' });
+    seedSession('other-driver', { startedBy: 'uid-Z' });
+    seedSession('other-project', { projectId: 'proj-B' });
+    const before = H.db!._dump();
+    const response = await active();
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true, session: null });
+    expect(H.db!._dump()).toEqual(before);
+  });
+
+  it('keeps different actors and projects isolated within the same tenant', async () => {
+    H.db!._seed('projects/proj-A', { tenantId: 'tenant-1', members: ['uid-A', 'uid-Z'] });
+    H.db!._seed('projects/proj-C', { tenantId: 'tenant-1', members: ['uid-A'] });
+    const a = await start();
+    const z = await start('home-to-site', 'proj-A', 'uid-Z');
+    const c = await start('home-to-site', 'proj-C');
+    expect(new Set([a.body.sessionId, z.body.sessionId, c.body.sessionId]).size).toBe(3);
+    expect((await active()).body.session.sessionId).toBe(a.body.sessionId);
+    expect((await active('proj-A', 'uid-Z')).body.session.sessionId).toBe(z.body.sessionId);
+    expect((await active('proj-C')).body.session.sessionId).toBe(c.body.sessionId);
+  });
+
+  it('rejects switching type while open and preserves the original evidence', async () => {
+    const first = await start();
+    const before = H.db!._dump();
+    expect((await start('site-to-home')).status).toBe(409);
+    expect(H.db!._dump()).toEqual(before);
+    expect((await active()).body.session.sessionId).toBe(first.body.sessionId);
+  });
+
+  it('fails closed for multiple legacy open sessions without choosing or rewriting evidence', async () => {
+    seedSession('legacy-one');
+    seedSession('legacy-two');
+    const before = H.db!._dump();
+    expect((await active()).status).toBe(409);
+    expect((await start()).status).toBe(409);
+    expect(H.db!._dump()).toEqual(before);
+  });
+
+  it('can start a new trip after end, and late repeated end preserves the new active trip', async () => {
+    const first = await start();
+    expect((await end(first.body.sessionId)).status).toBe(200);
+    const closed = (await H.db!.doc(`tenants/tenant-1/commute_sessions/${first.body.sessionId}`).get()).data();
+    const next = await start('site-to-home');
+    expect(next.status).toBe(200);
+    expect(next.body.sessionId).not.toBe(first.body.sessionId);
+    expect((await end(first.body.sessionId)).status).toBe(200);
+    expect((await H.db!.doc(`tenants/tenant-1/commute_sessions/${first.body.sessionId}`).get()).data()).toEqual(closed);
+    expect((await active()).body.session.sessionId).toBe(next.body.sessionId);
+    expect(await auditActions()).toEqual(['commute.start', 'commute.end', 'commute.start']);
+  });
+
+  it('rechecks end ownership after lookup, inside the write transaction', async () => {
+    const sid = seedSession('end-owner-race');
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await H.db!.doc(`tenants/tenant-1/commute_sessions/${sid}`).update({ startedBy: 'uid-Z' });
+      return run(fn);
+    });
+    expect((await end(sid)).status).toBe(403);
+    expect((await H.db!.doc(`tenants/tenant-1/commute_sessions/${sid}`).get()).data()!.endedAt).toBeNull();
+    expect(await auditActions()).toEqual([]);
+  });
+
+  it('end returns 404 if the session disappeared between lookup and transaction', async () => {
+    const sid = seedSession('end-deleted');
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await H.db!.doc(`tenants/tenant-1/commute_sessions/${sid}`).delete();
+      return run(fn);
+    });
+    expect((await end(sid)).status).toBe(404);
+    expect(await auditActions()).toEqual([]);
+  });
+
+  it('concurrent starts share one session under modeled serializable commit order', async () => {
+    const run = H.db!.runTransaction.bind(H.db!);
+    let tail = Promise.resolve();
+    const transactions = vi.spyOn(H.db!, 'runTransaction').mockImplementation((fn) => {
+      // The fake does not implement Firestore isolation; model committed order explicitly.
+      const pending = tail.then(() => run(fn));
+      tail = pending.then(() => undefined, () => undefined);
+      return pending;
+    });
+    const responses = await Promise.all([start(), start()]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(responses[1].body.sessionId).toBe(responses[0].body.sessionId);
+    expect(transactions).toHaveBeenCalledTimes(2);
+    expect(sessions()).toHaveLength(1);
+    expect(await auditActions()).toEqual(['commute.start']);
+  });
+
+  it('requires authentication and current project membership for recovery', async () => {
+    seedSession('private');
+    expect((await request(buildApp()).get('/api/commute/active').query({ projectId: 'proj-A' })).status).toBe(401);
+    expect((await active('proj-A', 'uid-Z')).status).toBe(403);
+    H.db!._seed('projects/proj-A', { tenantId: 'tenant-1', members: [] });
+    expect((await active()).status).toBe(403);
+  });
+
+  it.each(['', 'x'.repeat(129), 'invalid/path'])('rejects invalid recovery project ID: %s', async (projectId) => {
+    expect((await active(projectId)).status).toBe(400);
+  });
+
+  it('rejects missing tenant and fails generically on transaction failure', async () => {
+    expect((await active('proj-no-tenant')).status).toBe(400);
+    vi.spyOn(H.db!, 'runTransaction').mockRejectedValueOnce(new Error('private firestore details'));
+    const response = await active();
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: 'commute recovery failed' });
+  });
+
+  it('a failed start transaction does not acknowledge a session or persist an audit', async () => {
+    vi.spyOn(H.db!, 'runTransaction').mockRejectedValueOnce(new Error('private failure'));
+    const response = await start();
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: 'commute start failed' });
+    expect(sessions()).toHaveLength(0);
+    expect(await auditActions()).toEqual([]);
+  });
+
+  it('a failed end transaction leaves the active session recoverable for retry', async () => {
+    const first = await start();
+    vi.spyOn(H.db!, 'runTransaction').mockRejectedValueOnce(new Error('private failure'));
+    const response = await end(first.body.sessionId);
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: 'commute end failed' });
+    expect((await active()).body.session.sessionId).toBe(first.body.sessionId);
+    expect(await auditActions()).toEqual(['commute.start']);
+    expect((await end(first.body.sessionId)).status).toBe(200);
+  });
+
+  it.each(['deleted', 'closed'])('replaces a %s stale pointer without reopening old evidence', async (state) => {
+    const first = await start();
+    const ref = H.db!.doc(`tenants/tenant-1/commute_sessions/${first.body.sessionId}`);
+    if (state === 'deleted') await ref.delete();
+    else await ref.update({ endedAt: '2026-10-18T00:00:00Z' });
+    expect((await active()).body.session).toBeNull();
+    const next = await start();
+    expect(next.status).toBe(200);
+    expect(next.body.sessionId).not.toBe(first.body.sessionId);
+    expect((await active()).body.session.sessionId).toBe(next.body.sessionId);
+    const previous = await ref.get();
+    if (state === 'deleted') expect(previous.exists).toBe(false);
+    else expect(previous.data()!.endedAt).toBe('2026-10-18T00:00:00Z');
+  });
+
+  it('fails closed if a pointer references another actor instead of returning their metadata', async () => {
+    const first = await start();
+    await H.db!.doc(`tenants/tenant-1/commute_sessions/${first.body.sessionId}`).update({ startedBy: 'uid-Z' });
+    const before = H.db!._dump();
+    const response = await active();
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: 'commute recovery failed' });
+    expect((await start()).status).toBe(500);
+    expect(H.db!._dump()).toEqual(before);
+  });
+
+  it('a discarded start attempt returns the competing committed legacy session without its own orphan or audit', async () => {
+    const before = H.db!._dump();
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await run(fn);
+      // Explicitly discard the fake's immediate writes, then model a competitor
+      // committed before Firestore reruns our callback against fresh snapshots.
+      H.db!._store.clear();
+      for (const [path, data] of Object.entries(before)) H.db!._seed(path, data);
+      seedSession('competing-session');
+      return run(fn);
+    });
+    const response = await start();
+    expect(response.status).toBe(200);
+    expect(response.body.sessionId).toBe('competing-session');
+    expect(sessions()).toHaveLength(1);
+    expect(await auditActions()).toEqual([]);
+  });
+
+  it('a retried end preserves a competing close timestamp instead of adding another audit', async () => {
+    const sid = seedSession('retry-close');
+    const before = H.db!._dump();
+    const run = H.db!.runTransaction.bind(H.db!);
+    vi.spyOn(H.db!, 'runTransaction').mockImplementationOnce(async (fn) => {
+      await run(fn);
+      H.db!._store.clear();
+      for (const [path, data] of Object.entries(before)) H.db!._seed(path, data);
+      await H.db!.doc(`tenants/tenant-1/commute_sessions/${sid}`).update({ endedAt: 'competing-close' });
+      return run(fn);
+    });
+    expect((await end(sid)).status).toBe(200);
+    expect((await H.db!.doc(`tenants/tenant-1/commute_sessions/${sid}`).get()).data()!.endedAt).toBe('competing-close');
+    expect(await auditActions()).toEqual([]);
   });
 });
 

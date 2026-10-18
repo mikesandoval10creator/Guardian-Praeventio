@@ -1641,3 +1641,38 @@ before idempotency locks, entitlement writes, or accepted-attempt audit rows.
 185. **Nested Transaction Substitution**: a valid outer notification embeds a
      tampered or attacker-signed transaction/renewal JWS — the entire notification
      is rejected before any subscription persistence.
+
+## Commute lifecycle coordination (added 2026-10-18)
+
+`commute_active/{sha256([tenantId, projectId, uid])}` is server-only coordination
+state containing only `sessionId`. Explicit Firestore rules deny every client
+read/write, including the owner and tenant admins. It stays outside the readable
+tenant-subcollection catch-all. Authenticated `/api/commute/active` verifies
+current project membership and returns only owned open-session metadata with
+`Cache-Control: no-store`; it does not return the GPS buffer.
+
+Start atomically writes session, pointer and audit; repeat starts reuse the
+same open trip. End revalidates ownership in its transaction and preserves the
+first close and audit on retries. One legacy open trip is adopted; multiple
+legacy matches return 409 without rewriting evidence. Deploy the accompanying
+`commute_sessions` projectId/startedBy/endedAt collection index before enabling
+the new server version. UI recovery/sampling and native/offline continuity remain
+separate work; fake transaction tests do not prove service-level contention.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+186. **Forged Active Commute Pointer**: a client creates, changes or deletes a
+     coordination document to select a foreign trip or bypass uniqueness — all
+     client operations are denied, regardless of token role or payload schema.
+187. **Foreign Commute Recovery**: another actor or a user whose membership was
+     removed requests the active trip — membership and ownership validation
+     prevent returning that actor's metadata through the API.
+188. **Duplicate / Ambiguous Commute Start**: a retried or competing start cannot
+     create another open trip for the same actor/project/tenant; a changed type
+     or multiple legacy open trips fails with 409 rather than overwriting one.
+189. **Late Commute Close Replay**: a repeated end of an old trip cannot change
+     its original close time, create another end audit, or clear a newer trip's
+     active pointer.
+
+Behavioral contracts: `src/__tests__/server/commute.test.ts` and
+`src/rules-tests/commuteActive.rules.test.ts`.
