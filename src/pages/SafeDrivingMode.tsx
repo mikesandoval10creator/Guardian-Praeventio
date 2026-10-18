@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
@@ -9,7 +9,8 @@ import { useEmergency } from '../contexts/EmergencyContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
-import { setActiveCommuteSession } from '../services/driving/commuteSession';
+import { useCommuteRecorder } from '../hooks/useCommuteRecorder';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { WeatherBulletin } from '../components/WeatherBulletin';
 import { humanErrorMessage } from '../lib/humanError';
 
@@ -60,14 +61,29 @@ export function SafeDrivingMode() {
   const [isSaving, setIsSaving] = useState(false);
   // Legal commute (trayecto) session — Ley 16.744 art.5. While a commute is
   // active, a fall/ManDown is tagged tipo:'trayecto' for SUSESO.
-  const [commuteSessionId, setCommuteSessionId] = useState<string | null>(null);
-  const [commuteBusy, setCommuteBusy] = useState(false);
-  const [commuteError, setCommuteError] = useState<string | null>(null);
+  const { user, isAuthReady } = useFirebase();
+  const commute = useCommuteRecorder(isAuthReady ? user?.uid ?? null : null, selectedProject?.id ?? null);
+  const commuteSessionId = commute.sessionId;
+  const commuteBusy = commute.busy || (!commute.ready && !commute.error);
+  const commuteMessages = {
+    recovery: t('safeDrivingMode.commuteRecoveryError', 'No pudimos recuperar el trayecto. Revisa tu conexión y reintenta.'),
+    update: t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'),
+    location: t('safeDrivingMode.commuteLocationError', 'No pudimos obtener tu ubicación. Revisa los permisos y reintenta.'),
+    sample: t('safeDrivingMode.commuteSampleError', 'Hay muestras pendientes de envío. Revisa la conexión y reintenta. Si el trayecto ya terminó, avisa al administrador.'),
+    storage: t('safeDrivingMode.commuteStorageError', 'No pudimos guardar la muestra en este dispositivo. Mantén esta pantalla abierta y reintenta.'),
+  };
+  const commuteError = commute.error ? commuteMessages[commute.error] : null;
   // Web Speech API has no DOM lib types — same `any` suppression as the
   // SpeechRecognition ctor resolution below.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const dictatedTextRef = useRef('');
+  const reportRequestRef = useRef<AbortController | null>(null);
+  const reportSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    reportRequestRef.current?.abort();
+    if (reportSavedTimerRef.current !== null) clearTimeout(reportSavedTimerRef.current);
+  }, []);
   // Idempotency key — persists across retries of the SAME dictated report so a
   // flaky-network re-tap replays the server's cached response instead of
   // duplicating the incident; regenerates after a successful send. Mirrors
@@ -100,6 +116,9 @@ export function SafeDrivingMode() {
     if (!trimmed || !selectedProject) return;
     setIsSaving(true);
     setReportError(null);
+    const reportController = new AbortController();
+    reportRequestRef.current = reportController;
+    const reportTimer = setTimeout(() => reportController.abort(), 15_000);
     try {
       const authHeader = await apiAuthHeader();
       const res = await fetch(
@@ -118,7 +137,7 @@ export function SafeDrivingMode() {
           // En zona sin señal el fetch puede colgarse indefinidamente y dejar al
           // conductor con isSaving=true para siempre. Un timeout de 15 s aborta
           // y cae al branch offline (reportErrorOffline) con su texto intacto.
-          signal: AbortSignal.timeout(15000),
+          signal: reportController.signal,
         },
       );
       if (!res.ok) {
@@ -132,7 +151,8 @@ export function SafeDrivingMode() {
       }
       idempotencyKeyRef.current = `drv-${randomId()}`; // next report = fresh key
       setReportSaved(true);
-      setTimeout(() => setReportSaved(false), 3000);
+      if (reportSavedTimerRef.current !== null) clearTimeout(reportSavedTimerRef.current);
+      reportSavedTimerRef.current = setTimeout(() => setReportSaved(false), 3000);
     } catch (err) {
       // Network failure or AbortSignal.timeout (sin señal en ruta) — NUNCA
       // descartar en silencio: el texto dictado permanece visible y el botón
@@ -144,6 +164,7 @@ export function SafeDrivingMode() {
         'Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — tu texto sigue aquí.',
       ));
     } finally {
+      clearTimeout(reportTimer);
       setIsSaving(false);
     }
   };
@@ -197,66 +218,6 @@ export function SafeDrivingMode() {
     }
     await triggerEmergency('driving_sos', selectedProject?.id);
     setSosConfirmedAt(new Date().toLocaleTimeString('es-CL'));
-  };
-
-  // Start/stop a legal commute (trayecto, Ley 16.744 art.5). Persistence flows
-  // through the audited /api/commute server route (server resolves tenantId +
-  // Admin-SDK write — no client Firestore rule needed); setActiveCommuteSession
-  // flips the in-memory hint so a fall during the commute is tagged
-  // tipo:'trayecto' for SUSESO (useManDownDetection). A failure is surfaced —
-  // never swallowed — because an untracked commute loses the legal classification.
-  const handleToggleCommute = async () => {
-    if (!selectedProject || commuteBusy) return;
-    setCommuteBusy(true);
-    setCommuteError(null);
-    try {
-      const authHeader = await apiAuthHeader();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(authHeader ? { Authorization: authHeader } : {}),
-      };
-      if (commuteSessionId) {
-        const res = await fetch('/api/commute/end', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ sessionId: commuteSessionId }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          logger.error('commute_end_failed', { status: res.status, error: body.error });
-          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
-          return;
-        }
-        setCommuteSessionId(null);
-        setActiveCommuteSession(null);
-      } else {
-        const res = await fetch('/api/commute/start', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ projectId: selectedProject.id, type: 'home-to-site' }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          logger.error('commute_start_failed', { status: res.status, error: body.error });
-          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
-          return;
-        }
-        const body = (await res.json()) as { sessionId?: string };
-        if (!body.sessionId) {
-          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
-          return;
-        }
-        setCommuteSessionId(body.sessionId);
-        setActiveCommuteSession({ projectId: selectedProject.id, sessionId: body.sessionId });
-      }
-    } catch (err) {
-      logger.error('commute_toggle_failed', { error: err });
-      setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
-    } finally {
-      setCommuteBusy(false);
-    }
   };
 
   return (
@@ -434,8 +395,8 @@ export function SafeDrivingMode() {
             fall during the commute as tipo:'trayecto' for SUSESO needs an active
             session, which this toggle sets (audited server route + in-memory hint). */}
         <button
-          onClick={() => void handleToggleCommute()}
-          disabled={commuteBusy || !selectedProject}
+          onClick={() => void commute.toggle()}
+          disabled={commuteBusy || !commute.ready || !user || !selectedProject}
           aria-pressed={!!commuteSessionId}
           aria-label={commuteSessionId ? 'Terminar trayecto' : 'Iniciar trayecto'}
           className={`rounded-[3rem] border-4 flex items-center justify-center gap-4 py-6 transition-all active:scale-95 disabled:opacity-40 ${
@@ -452,8 +413,17 @@ export function SafeDrivingMode() {
           </span>
         </button>
         {commuteError && (
-          <p role="alert" className="text-amber-400 text-sm text-center font-bold -mt-2">{humanErrorMessage(commuteError)}</p>
+          <div className="text-amber-400 text-sm text-center font-bold -mt-2">
+            <p role="alert">{humanErrorMessage(commuteError)}</p>
+            <button onClick={commute.retry} disabled={commuteBusy} className="underline p-3">
+              {t('common.retry', 'Reintentar')}
+            </button>
+          </div>
         )}
+
+        <p className="text-zinc-300 text-sm text-center">
+          {commute.paused ? t('safeDrivingMode.commutePausedNotice', 'La captura está pausada. El cierre del trayecto sigue pendiente de sincronización.') : t('safeDrivingMode.commuteCaptureNotice', 'La ubicación se captura mientras esta pantalla está abierta y visible. Los errores de ubicación o envío se mostrarán aquí.')}
+        </p>
 
         {/* Emergency Button (Massive) */}
         <button

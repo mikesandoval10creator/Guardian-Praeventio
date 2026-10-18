@@ -1676,3 +1676,33 @@ separate work; fake transaction tests do not prove service-level contention.
 
 Behavioral contracts: `src/__tests__/server/commute.test.ts` and
 `src/rules-tests/commuteActive.rules.test.ts`.
+
+The foreground driving screen recovers its owned session through this API and
+uses one screen-scoped HTTP recorder. Identity is checked against Firebase/E2E
+auth before and after acquiring the header; late callbacks are discarded after
+identity/project changes or unmount. A GPS fix is accepted only while the screen
+is visible and the native disclosure gate remains open after acquisition.
+The cross-tree trayecto hint includes ownerUid, checked against the incident's
+workerId so another worker on a shared project cannot inherit the label.
+
+Pending fixes use the existing encrypted KV store, one immutable key per point,
+before transmission. Keys expose coordination identifiers, never coordinates.
+Only an acknowledged point is deleted, and acknowledgement is ignored after an
+identity change. Failed sends remain queued; failed local persistence remains
+in memory with a visible instruction to keep the screen open and retry. End
+pauses capture immediately, persists an encrypted close intent, waits for the
+current capture and drains its session's pending points before closing. Recovery
+of that intent retries sending/closure without requesting another GPS fix.
+A lost lifecycle response pauses capture until GET recovery confirms
+server state. Queued points for another session/actor are not replayed under the
+current one. This is not an exactly-once ledger beyond the server's retained
+deduplication window, nor native/background or cross-tab serialization evidence.
+
+A close intent can remain locally if a committed close loses its response and
+GET recovery returns no active session. Cleanup is pending; the marker is scoped
+to the original identity/project/session and cannot restart capture or close a
+new session. A local close intent does not establish the server close time.
+
+Contracts: `src/pages/SafeDrivingMode.test.tsx`,
+`src/services/driving/commuteSamples.test.ts`, and
+`src/services/driving/commuteSession.test.ts`.
