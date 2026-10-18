@@ -96,6 +96,70 @@ public final class NativeManDownForegroundService extends Service implements Sen
     private Runnable expiryRunnable;
     private Runnable capabilityExpiryRunnable;
 
+    // Process-local lifecycle evidence only. Never retain a Service or credentials.
+    private final Object statusOwner = new Object();
+    private static StatusSnapshot runtimeStatus;
+
+    static final class StatusSnapshot {
+        private final Object owner;
+        private final String projectId;
+        private final String sessionId;
+        final String monitoringId;
+        final long expiresAtMs;
+        final boolean running;
+        final String lastError;
+
+        StatusSnapshot(Object owner, String projectId, String sessionId, String monitoringId,
+                long expiresAtMs, boolean running, String lastError) {
+            this.owner = owner;
+            this.projectId = projectId;
+            this.sessionId = sessionId;
+            this.monitoringId = monitoringId;
+            this.expiresAtMs = expiresAtMs;
+            this.running = running;
+            this.lastError = lastError;
+        }
+
+        StatusSnapshot stopped(String reason) {
+            return new StatusSnapshot(owner, projectId, sessionId, monitoringId, expiresAtMs, false, reason);
+        }
+    }
+
+    static StatusSnapshot status(Context context) {
+        synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+            StatusSnapshot snapshot = runtimeStatus;
+            if (snapshot == null) {
+                return new StatusSnapshot(null, null, null, null, 0L, false, "native_man_down_state_unknown");
+            }
+            if (!snapshot.running) return snapshot;
+            SharedPreferences state = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            if (state.getBoolean(NativeManDownSuspectWorker.PREF_EXPLICITLY_STOPPED, false)) {
+                return snapshot.stopped("native_man_down_explicitly_stopped");
+            }
+            if (!snapshot.projectId.equals(state.getString(PREF_CONFIG_PROJECT, null))
+                    || !snapshot.sessionId.equals(state.getString(PREF_CONFIG_SESSION, null))) {
+                return snapshot.stopped("native_man_down_state_unknown");
+            }
+            if (snapshot.expiresAtMs <= System.currentTimeMillis()) {
+                return snapshot.stopped("native_man_down_authority_expired");
+            }
+            return snapshot;
+        }
+    }
+
+    private void markStopped(String reason) {
+        synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+            if (runtimeStatus != null && runtimeStatus.owner == statusOwner
+                    && (runtimeStatus.running || "native_man_down_initializing".equals(runtimeStatus.lastError))) {
+                if ("native_man_down_service_destroyed".equals(reason)
+                        && prefs().getBoolean(NativeManDownSuspectWorker.PREF_EXPLICITLY_STOPPED, false)) {
+                    reason = "native_man_down_explicitly_stopped";
+                }
+                runtimeStatus = runtimeStatus.stopped(reason);
+            }
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -122,6 +186,10 @@ public final class NativeManDownForegroundService extends Service implements Sen
             if (!monitoring) stopSelfResult(startId);
             return START_NOT_STICKY;
         }
+        synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+            runtimeStatus = new StatusSnapshot(statusOwner, intent.getStringExtra(EXTRA_PROJECT_ID),
+                intent.getStringExtra(EXTRA_SESSION_ID), requestId, 0L, false, "native_man_down_initializing");
+        }
         try {
             if (!readConfig(intent)) {
                 failStartup(requestId, startId, "native_man_down_config_invalid_or_unpersisted");
@@ -136,6 +204,10 @@ public final class NativeManDownForegroundService extends Service implements Sen
             monitoring = true;
             restoreSuspectedIfPresent();
             scheduleCapabilityExpiry();
+            synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
+                runtimeStatus = new StatusSnapshot(statusOwner, projectId, sessionId, requestId,
+                    capabilityExpiresAtMs, true, null);
+            }
             // Completion rechecks the deadline even when the main-loop timer is delayed.
             if (!NativeManDownPlugin.completeStart(requestId, null)) {
                 failStartup(requestId, startId, "native_man_down_start_cancelled");
@@ -148,6 +220,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
     }
 
     private void failStartup(String requestId, int startId, String error) {
+        markStopped(error);
         // Startup failure is not revocation of already durable safety evidence.
         // Keep countdown/outbox state and credentials; explicit stop owns cancellation.
         monitoring = false;
@@ -274,7 +347,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
         capabilityExpiryRunnable = () -> {
             synchronized (NativeManDownSuspectWorker.SUSPECT_LOCK) {
                 if (!monitoring || !ownsPendingState()) return;
-                stopMonitoring();
+                stopMonitoring("native_man_down_authority_expired");
             }
         };
         handler.postDelayed(
@@ -422,6 +495,11 @@ public final class NativeManDownForegroundService extends Service implements Sen
     }
 
     private void stopMonitoring() {
+        stopMonitoring("native_man_down_stopped");
+    }
+
+    private void stopMonitoring(String reason) {
+        markStopped(reason);
         monitoring = false;
         if (sensorManager != null) sensorManager.unregisterListener(this);
         if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);
@@ -432,6 +510,7 @@ public final class NativeManDownForegroundService extends Service implements Sen
 
     @Override
     public void onDestroy() {
+        markStopped("native_man_down_service_destroyed");
         monitoring = false;
         if (sensorManager != null) sensorManager.unregisterListener(this);
         if (expiryRunnable != null) handler.removeCallbacks(expiryRunnable);

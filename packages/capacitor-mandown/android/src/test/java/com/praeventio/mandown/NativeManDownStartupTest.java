@@ -291,6 +291,133 @@ public final class NativeManDownStartupTest {
         assertEquals(45_000L, (long) ReflectionHelpers.getField(service, "inactivityThresholdMs"));
     }
 
+    private JSObject readStatus() {
+        PluginCall call = mock(PluginCall.class);
+        plugin.getStatus(call);
+        ArgumentCaptor<JSObject> result = ArgumentCaptor.forClass(JSObject.class);
+        verify(call).resolve(result.capture());
+        return result.getValue();
+    }
+
+    @Test public void statusAcknowledgesSensorsAndReturnsOnlyPublicReceipt() throws Exception {
+        PluginCall call = startCall("session");
+        Intent intent = request(call);
+        assertFalse(readStatus().getBool("running"));
+        doAnswer(invocation -> {
+            assertFalse(readStatus().getBool("running"));
+            assertEquals("native_man_down_initializing", readStatus().getString("lastError"));
+            return true;
+        }).when(sensors).registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt());
+        service.onStartCommand(intent, 0, 1);
+        JSObject status = readStatus();
+        assertTrue(status.getBool("running"));
+        assertEquals(intent.getStringExtra("startRequestId"), status.getString("monitoringId"));
+        ArgumentCaptor<JSObject> receipt = ArgumentCaptor.forClass(JSObject.class);
+        verify(call).resolve(receipt.capture());
+        assertEquals(status.getString("monitoringId"), receipt.getValue().getString("monitoringId"));
+        assertEquals("2099-01-01T00:00:00Z", status.getString("capabilityExpiresAt"));
+        assertEquals(3, status.length());
+        assertFalse(status.toString().contains("a".repeat(32)));
+        assertFalse(status.toString().contains("praeventio.net"));
+    }
+
+    @Test public void statusReportsSensorFailure() {
+        when(sensors.registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt())).thenReturn(false);
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_sensor_unavailable", readStatus().getString("lastError"));
+    }
+
+    @Test public void statusObservesExplicitStopBeforeServiceDestructionWithoutDiscardingOutbox() throws Exception {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        String id = readStatus().getString("monitoringId");
+        String queue = queuedAlert();
+        plugin.stop(mock(PluginCall.class));
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_explicitly_stopped", readStatus().getString("lastError"));
+        assertEquals(id, readStatus().getString("monitoringId"));
+        assertEquals(queue, app.getSharedPreferences(NativeManDownRetryWorker.PREFS, 0).getString("queue", null));
+        assertQueuedSecretRetained();
+    }
+
+    @Test public void statusRejectsExpiredAuthorityEvenBeforeTimerDispatch() {
+        PluginCall call = startCall("session");
+        when(call.getString("capabilityExpiresAt")).thenReturn(java.time.Instant.ofEpochMilli(System.currentTimeMillis() + 2_000L).toString());
+        service.onStartCommand(request(call), 0, 1);
+        assertTrue(readStatus().getBool("running"));
+        // Robolectric's monotonic clock does not advance Java's wall clock.
+        // Move the receipt's authority boundary into the past without dispatching callbacks.
+        ReflectionHelpers.setField(ReflectionHelpers.getStaticField(NativeManDownForegroundService.class,
+            "runtimeStatus"), "expiresAtMs", System.currentTimeMillis() - 1L);
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_authority_expired", readStatus().getString("lastError"));
+        assertTrue((boolean) ReflectionHelpers.getField(service, "monitoring"));
+    }
+
+    @Test public void expiryReasonSurvivesDestruction() {
+        PluginCall call = startCall("session");
+        when(call.getString("capabilityExpiresAt")).thenReturn(java.time.Instant.ofEpochMilli(System.currentTimeMillis() + 2_000L).toString());
+        service.onStartCommand(request(call), 0, 1);
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3));
+        service.onDestroy();
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_authority_expired", readStatus().getString("lastError"));
+    }
+
+    @Test public void explicitStopReasonSurvivesNormalDestruction() {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        plugin.stop(mock(PluginCall.class));
+        service.onDestroy();
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_explicitly_stopped", readStatus().getString("lastError"));
+    }
+
+    @Test public void persistedConfigurationWithoutLiveProcessEvidenceIsUnknown() {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        ReflectionHelpers.setStaticField(NativeManDownForegroundService.class, "runtimeStatus", null);
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_state_unknown", readStatus().getString("lastError"));
+        assertFalse(readStatus().has("monitoringId"));
+        assertEquals("session", app.getSharedPreferences("guardian_native_mandown_state", 0).getString("configSession", null));
+    }
+
+    @Test public void unexpectedDestructionReportsInterruptionAndRetainsEvidence() throws Exception {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        String queue = queuedAlert();
+        service.onDestroy();
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_service_destroyed", readStatus().getString("lastError"));
+        assertEquals("session", app.getSharedPreferences("guardian_native_mandown_state", 0).getString("configSession", null));
+        assertEquals(queue, app.getSharedPreferences(NativeManDownRetryWorker.PREFS, 0).getString("queue", null));
+        assertQueuedSecretRetained();
+    }
+
+    @Test public void oldServiceDestructionCannotOverwriteNewReceipt() {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        ServiceController<NativeManDownForegroundService> nextController = Robolectric.buildService(NativeManDownForegroundService.class).create();
+        NativeManDownForegroundService next = nextController.get();
+        ReflectionHelpers.setField(next, "sensorManager", sensors);
+        ReflectionHelpers.setField(next, "accelerometer", mock(Sensor.class));
+        try {
+            Intent intent = request(startCall("new-session"));
+            next.onStartCommand(intent, 0, 2);
+            service.onDestroy();
+            assertTrue(readStatus().getBool("running"));
+            assertEquals(intent.getStringExtra("startRequestId"), readStatus().getString("monitoringId"));
+        } finally {
+            nextController.destroy();
+        }
+    }
+
+    @Test public void mismatchedPersistedOwnerCannotReportRunning() {
+        service.onStartCommand(request(startCall("session")), 0, 1);
+        SharedPreferences state = app.getSharedPreferences("guardian_native_mandown_state", 0);
+        state.edit().putString("configSession", "other-session").commit();
+        assertFalse(readStatus().getBool("running"));
+        assertEquals("native_man_down_state_unknown", readStatus().getString("lastError"));
+        assertEquals("other-session", state.getString("configSession", null));
+    }
+
     private String queuedAlert() throws Exception {
         String reference = NativeManDownSecureStore.referenceForSession("session");
         app.getSharedPreferences("guardian_native_mandown_secure_v1", 0).edit()
