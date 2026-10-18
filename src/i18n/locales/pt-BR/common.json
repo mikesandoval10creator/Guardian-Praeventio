@@ -2735,6 +2735,14 @@
     "driving_wildfire_normative": "Referência normativa: DS 594 + diretrizes de direção segura.",
     "driving_wildfire_dismiss": "Ocultar aviso"
   },
+  "native_mandown_start": {
+    "failed_title": "Inicialização do ManDown não confirmada",
+    "pending_title": "Confirmando a inicialização do ManDown",
+    "failed_detail": "Não foi possível confirmar que o monitoramento nativo está ativo.",
+    "pending_detail": "Aguardando a confirmação do Android.",
+    "retry_blocked": "A nova tentativa exige uma sessão ativa confirmada e nenhum encerramento em andamento.",
+    "retry": "Tentar iniciar o ManDown novamente"
+  },
   "native_mandown_stop": {
     "failed_title": "Encerramento do ManDown pendente",
     "pending_title": "Confirmando encerramento do ManDown",
