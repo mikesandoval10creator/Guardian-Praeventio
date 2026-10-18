@@ -3061,6 +3061,14 @@
     "lookup_failed": "No se pudo verificar si hay una evacuación en curso. Reintenta antes de iniciar una nueva para no duplicar el conteo.",
     "retry": "Reintentar"
   },
+  "native_mandown_start": {
+    "failed_title": "Inicio de ManDown sin confirmar",
+    "pending_title": "Confirmando inicio de ManDown",
+    "failed_detail": "No pudimos confirmar que el monitoreo nativo esté activo.",
+    "pending_detail": "Esperando la confirmación de Android.",
+    "retry_blocked": "El reintento requiere una sesión activa confirmada y que no haya un cierre en curso.",
+    "retry": "Reintentar inicio de ManDown"
+  },
   "native_mandown_stop": {
     "failed_title": "Cierre de ManDown pendiente",
     "pending_title": "Confirmando cierre de ManDown",

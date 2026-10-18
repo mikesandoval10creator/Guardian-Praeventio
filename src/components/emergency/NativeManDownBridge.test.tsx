@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import type { LoneWorkerSession } from "../../services/loneWorker/loneWorkerService";
+import type { NativeManDownApplyResult } from "../../services/mobile/nativeManDownClient";
 import { logger } from "../../utils/logger";
 
 vi.mock("react-i18next", () => ({
@@ -78,6 +79,7 @@ function activeSession(
 beforeEach(() => {
   vi.clearAllMocks();
   stopNativeManDown.mockReset();
+  startNativeManDown.mockReset();
   mintNativeManDownCapability.mockReset();
   subscriber = null;
   selectedProject = {
@@ -354,7 +356,141 @@ describe("<NativeManDownBridge />", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(logger.error).toHaveBeenCalledWith("native_mandown_stop_failed", "unexpected native fault");
   });
+
+  it("keeps a failed start visible without disclosing native diagnostics or automatically retrying", async () => {
+    startNativeManDown.mockResolvedValue({ applied: false, reason: "native_error", error: "private sensor path" });
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    expect(screen.getByRole("alert")).toHaveTextContent("Inicio de ManDown sin confirmar");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("private sensor path");
+    view.rerender(<NativeManDownBridge />);
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    expect(mintNativeManDownCapability).toHaveBeenCalledTimes(1);
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+  });
+
+  it.each(["capability", "native"])("shows %s startup rejections without leaking diagnostics", async (source) => {
+    if (source === "capability") mintNativeManDownCapability.mockRejectedValueOnce(new Error("private authority details"));
+    else startNativeManDown.mockRejectedValueOnce(new Error("private authority details"));
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    expect(screen.getByRole("alert")).toHaveTextContent("Inicio de ManDown sin confirmar");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("private authority details");
+  });
+
+  it("shows pending startup until Android confirms sensor initialization", async () => {
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    render(<NativeManDownBridge />);
+    try {
+      await act(async () => subscriber?.([activeSession()]));
+      expect(screen.getByRole("status")).toHaveTextContent("Confirmando inicio de ManDown");
+    } finally {
+      await act(async () => pending.finish({ applied: true }));
+    }
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("retries with fresh authority once and retains the warning until confirmed success", async () => {
+    startNativeManDown.mockResolvedValueOnce({ applied: false, reason: "native_error", error: "sensor" });
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    try {
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reintentar inicio de ManDown" })));
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("button")).toBeDisabled();
+      fireEvent.click(screen.getByRole("button"));
+      expect(mintNativeManDownCapability).toHaveBeenCalledTimes(2);
+      expect(startNativeManDown).toHaveBeenCalledTimes(2);
+    } finally {
+      await act(async () => pending.finish({ applied: true }));
+    }
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("blocks start retry after a subscription error and clears it when the session ends", async () => {
+    startNativeManDown.mockResolvedValue({ applied: false, reason: "native_error" });
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => onSubscriptionError?.(new Error("unavailable")));
+    expect(screen.getByRole("button", { name: "Reintentar inicio de ManDown" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button"));
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    await act(async () => subscriber?.([]));
+    expect(screen.queryByText("Inicio de ManDown sin confirmar")).not.toBeInTheDocument();
+    expect(stopNativeManDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes native starts across identities and ignores a stale failure", async () => {
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    const view = render(<NativeManDownBridge />);
+    try {
+      await act(async () => subscriber?.([activeSession()]));
+      selectedProject = { id: "project-2" };
+      await act(async () => view.rerender(<NativeManDownBridge />));
+      await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
+      expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => pending.finish({ applied: false, reason: "native_error", error: "old failure" }));
+    }
+    expect(startNativeManDown).toHaveBeenCalledTimes(2);
+    expect(startNativeManDown).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-2", sessionId: "session-2" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("serializes settings refresh while native startup is pending", async () => {
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    const view = render(<NativeManDownBridge />);
+    try {
+      await act(async () => subscriber?.([activeSession()]));
+      selectedProject = { id: "project-1", settings: { manDownInactivityThreshold: 60_000 } };
+      await act(async () => view.rerender(<NativeManDownBridge />));
+      expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => pending.finish({ applied: true }));
+    }
+    expect(startNativeManDown).toHaveBeenCalledTimes(2);
+    expect(startNativeManDown).toHaveBeenLastCalledWith(expect.objectContaining({ inactivityThresholdMs: 60_000 }));
+  });
+
+  it("starts a replacement identity without waiting for an obsolete mint request", async () => {
+    let finishMint!: (value: { capability: string; expiresAt: string }) => void;
+    mintNativeManDownCapability.mockReturnValueOnce(new Promise((resolve) => { finishMint = resolve; }));
+    const view = render(<NativeManDownBridge />);
+    try {
+      await act(async () => subscriber?.([activeSession()]));
+      selectedProject = { id: "project-2" };
+      await act(async () => view.rerender(<NativeManDownBridge />));
+      await act(async () => subscriber?.([activeSession({ id: "session-2" })]));
+      expect(startNativeManDown).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ projectId: "project-2", sessionId: "session-2" }));
+    } finally {
+      await act(async () => finishMint({ capability: "x".repeat(43), expiresAt: "2099-01-01T00:00:00Z" }));
+    }
+    expect(startNativeManDown).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("ignores a start completing after unmount without stopping the safety session", async () => {
+    const pending = deferredStart();
+    startNativeManDown.mockReturnValueOnce(pending.promise);
+    const view = render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => view.unmount());
+    await act(async () => pending.finish({ applied: false, reason: "native_error" }));
+    expect(stopNativeManDown).not.toHaveBeenCalled();
+  });
 });
+
+function deferredStart() {
+  let finish!: (result: NativeManDownApplyResult) => void;
+  const promise = new Promise<NativeManDownApplyResult>((resolve) => { finish = resolve; });
+  return { promise, finish };
+}
 
 function deferredStop() {
   let finish!: (result: { stopped: boolean; reason?: string; error?: string }) => void;

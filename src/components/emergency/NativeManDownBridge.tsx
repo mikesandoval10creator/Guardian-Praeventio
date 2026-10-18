@@ -17,6 +17,7 @@ import {
   isAndroidNativeManDown,
   startNativeManDown,
   stopNativeManDown,
+  type NativeManDownApplyResult,
   type NativeManDownStopResult,
 } from "../../services/mobile/nativeManDownClient";
 import { logger } from "../../utils/logger";
@@ -30,6 +31,13 @@ type SessionSubscription = {
   workerUid: string;
   session: LoneWorkerSession | null;
   state: "ready" | "error";
+};
+
+type StartFeedback = {
+  projectId: string;
+  workerUid: string;
+  sessionId: string;
+  phase: "pending" | "failed" | "retrying";
 };
 
 /**
@@ -46,6 +54,10 @@ export function NativeManDownBridge() {
     useState<SessionSubscription | null>(null);
   const [stopFailed, setStopFailed] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [startFeedback, setStartFeedback] = useState<StartFeedback | null>(null);
+  const [startRetry, setStartRetry] = useState(0);
+  const retryQueued = useRef(false);
+  const pendingNativeStart = useRef<Promise<NativeManDownApplyResult> | null>(null);
   const mounted = useRef(false);
   const pendingStop = useRef<Promise<NativeManDownStopResult> | null>(null);
 
@@ -150,13 +162,28 @@ export function NativeManDownBridge() {
 
   useEffect(() => {
     let cancelled = false;
+    retryQueued.current = false;
     if (!isAndroidNativeManDown()) return undefined;
 
     if (mustStop) {
+      setStartFeedback(null);
       void stopMonitoring();
       return undefined;
     }
-    if (!projectId || !workerUid || !openSessionId || !ready) return undefined;
+    if (!projectId || !workerUid || !openSessionId || !ready) {
+      // A failed session read cannot confirm a pending native start or permit retry.
+      setStartFeedback((previous) => previous && previous.phase !== "failed"
+        ? { ...previous, phase: "failed" } : previous);
+      return undefined;
+    }
+
+    const owner = { projectId, workerUid, sessionId: openSessionId };
+    setStartFeedback((previous) => ({
+      ...owner,
+      phase: previous?.projectId === projectId && previous.workerUid === workerUid &&
+        previous.sessionId === openSessionId && previous.phase !== "pending"
+        ? "retrying" : "pending",
+    }));
 
     const inactivityThresholdMs = Math.max(
       5_000,
@@ -180,7 +207,13 @@ export function NativeManDownBridge() {
         if (cancelled) return;
         if (pendingStop.current) await pendingStop.current;
         if (cancelled) return;
-        const result = await startNativeManDown({
+        // Serialize native dispatch only. An obsolete mint request must not
+        // prevent a different identity from obtaining its own fresh authority.
+        if (pendingNativeStart.current) {
+          await pendingNativeStart.current.catch(() => undefined);
+        }
+        if (cancelled) return;
+        const nativeStart = startNativeManDown({
           projectId,
           sessionId: openSessionId,
           capability: minted.capability,
@@ -189,11 +222,21 @@ export function NativeManDownBridge() {
           impactThresholdMps2,
           cancelWindowMs: DEFAULT_NATIVE_CANCEL_WINDOW_MS,
         });
+        pendingNativeStart.current = nativeStart;
+        let result: NativeManDownApplyResult;
+        try {
+          result = await nativeStart;
+        } finally {
+          if (pendingNativeStart.current === nativeStart) pendingNativeStart.current = null;
+        }
         if (!result.applied) {
           logger.warn("native_mandown_not_started", {
             reason: result.reason,
             error: result.error,
           });
+        }
+        if (!cancelled && mounted.current) {
+          setStartFeedback(result.applied ? null : { ...owner, phase: "failed" });
         }
       } catch (error) {
         // Fail loud to telemetry; do not silently claim background monitoring.
@@ -202,6 +245,7 @@ export function NativeManDownBridge() {
           projectId,
           sessionId: openSessionId,
         });
+        if (!cancelled && mounted.current) setStartFeedback({ ...owner, phase: "failed" });
       }
     })();
 
@@ -218,11 +262,41 @@ export function NativeManDownBridge() {
     ready,
     mustStop,
     stopMonitoring,
+    startRetry,
     selectedProject?.settings?.manDownInactivityThreshold,
   ]);
 
-  if (!stopFailed && !stopping) return null;
+  const visibleStart = startFeedback?.projectId === projectId &&
+    startFeedback.workerUid === workerUid && startFeedback.sessionId === openSessionId
+    ? startFeedback : null;
+  const startBusy = visibleStart?.phase === "pending" || visibleStart?.phase === "retrying";
+  const startFailed = visibleStart && visibleStart.phase !== "pending";
+  const canRetryStart = ready && !!openSessionId && !stopping && !startBusy;
+
+  if (!stopFailed && !stopping && !visibleStart) return null;
   return (
+    <>
+    {visibleStart && <div role={startFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
+      <p className="font-bold">{startFailed
+        ? t("native_mandown_start.failed_title", "Inicio de ManDown sin confirmar")
+        : t("native_mandown_start.pending_title", "Confirmando inicio de ManDown")}</p>
+      <p className="mt-1 text-sm">{startFailed
+        ? t("native_mandown_start.failed_detail", "No pudimos confirmar que el monitoreo nativo esté activo.")
+        : t("native_mandown_start.pending_detail", "Esperando la confirmación de Android.")}</p>
+      {startFailed && (!ready || stopping) && <p className="mt-2 text-sm">{t("native_mandown_start.retry_blocked", "El reintento requiere una sesión activa confirmada y que no haya un cierre en curso.")}</p>}
+      {startFailed && <button
+        type="button"
+        disabled={!canRetryStart}
+        onClick={() => {
+          if (canRetryStart && !retryQueued.current && !pendingNativeStart.current) {
+            retryQueued.current = true;
+            setStartRetry((previous) => previous + 1);
+          }
+        }}
+        className="mt-3 rounded-xl bg-amber-200 px-4 py-2 font-bold text-amber-950 disabled:cursor-not-allowed disabled:opacity-50"
+      >{t("native_mandown_start.retry", "Reintentar inicio de ManDown")}</button>}
+    </div>}
+    {(stopFailed || stopping) &&
     <div role={stopFailed ? "alert" : "status"} className="pointer-events-auto rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-xl dark:bg-zinc-900 dark:text-amber-200">
       <p className="font-bold">{stopFailed
         ? t("native_mandown_stop.failed_title", "Cierre de ManDown pendiente")
@@ -239,6 +313,7 @@ export function NativeManDownBridge() {
       >
         {t("native_mandown_stop.retry", "Reintentar cierre de ManDown")}
       </button>}
-    </div>
+    </div>}
+    </>
   );
 }
