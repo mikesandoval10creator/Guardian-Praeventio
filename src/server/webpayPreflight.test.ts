@@ -63,6 +63,27 @@ describe('validateWebpayBootConfig', () => {
     expect(result.errors).toEqual([]);
   });
 
+  it('production: rejects Transbank PUBLIC integration commerce code', () => {
+    const result = validateWebpayBootConfig({
+      NODE_ENV: 'production',
+      WEBPAY_COMMERCE_CODE: '597055555532',
+      WEBPAY_API_KEY: 'real-key',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('integration commerce code'))).toBe(true);
+  });
+
+  it('production: rejects Transbank PUBLIC integration API key', () => {
+    const result = validateWebpayBootConfig({
+      NODE_ENV: 'production',
+      WEBPAY_COMMERCE_CODE: '597000000001',
+      WEBPAY_API_KEY:
+        '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('integration API key'))).toBe(true);
+  });
+
   it('production: warns when WEBPAY_ENV=integration but NODE_ENV=production (copy-paste)', () => {
     const result = validateWebpayBootConfig({
       NODE_ENV: 'production',

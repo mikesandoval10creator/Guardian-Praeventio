@@ -186,7 +186,7 @@ describe('useBiometricAuth — web support + login happy path', () => {
   it("login succeeds: server challenge → credentials.get → /verify confirms", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.includes('/challenge')) return okJson({ challengeId: 'c1', challenge: CHALLENGE_B64 });
-      if (url.includes('/verify')) return okJson({ verified: true });
+      if (url.includes('/verify')) return okJson({ verified: true, signatureHash: 'f'.repeat(64) });
       return okJson({});
     });
     const { result } = renderHook(() => useBiometricAuth());
@@ -197,6 +197,23 @@ describe('useBiometricAuth — web support + login happy path', () => {
     expect(ok).toBe(true);
     expect(credGet).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/verify'))).toBe(true);
+    // The server-issued commitment is what callers persist as evidence.
+    expect(result.current.getLastSignatureHash()).toBe('f'.repeat(64));
+  });
+
+  it('login succeeds but exposes NO hash when the server omits it (honest absence)', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('/challenge')) return okJson({ challengeId: 'c1', challenge: CHALLENGE_B64 });
+      if (url.includes('/verify')) return okJson({ verified: true });
+      return okJson({});
+    });
+    const { result } = renderHook(() => useBiometricAuth());
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.authenticate('Confirma tu identidad', 'login');
+    });
+    expect(ok).toBe(true);
+    expect(result.current.getLastSignatureHash()).toBeNull();
   });
 });
 

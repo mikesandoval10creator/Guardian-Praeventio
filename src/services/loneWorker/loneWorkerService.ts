@@ -60,12 +60,33 @@ export function deriveLoneWorkerStatus(
   now: Date = new Date(),
 ): LoneWorkerStatus {
   if (session.endedAt) return 'ended';
-  if (session.checkIns.some((c) => c.status === 'help')) return 'help_requested';
+
+  // 'help' is a terminal safety intent: a routine heartbeat/check-in must not
+  // silently cancel it (only ending the session does). Derivation must agree
+  // with the persisted `status` even if an old 'help' entry was pruned from
+  // the capped checkIns array — otherwise the UI and the server disagree.
+  if (
+    session.status === 'help_requested' ||
+    session.checkIns.some((c) => c.status === 'help')
+  ) {
+    return 'help_requested';
+  }
 
   const lastEvent = session.checkIns.length > 0
     ? session.checkIns[session.checkIns.length - 1].at
     : session.startedAt;
-  const minSinceLast = (now.getTime() - Date.parse(lastEvent)) / 60_000;
+  const nowMs = now.getTime();
+  const lastEventMs = Date.parse(lastEvent);
+
+  // Fail-safe parsing: an unparseable server/device timestamp used to yield
+  // NaN, every comparison was false, and the session looked 'active' forever
+  // — silently suppressing the overdue escalation. Invalid clocks are a
+  // critical state, not a healthy one.
+  if (!Number.isFinite(nowMs) || !Number.isFinite(lastEventMs)) {
+    return 'overdue_critical';
+  }
+
+  const minSinceLast = (nowMs - lastEventMs) / 60_000;
 
   if (minSinceLast > session.checkInIntervalMin * 2) return 'overdue_critical';
   if (minSinceLast > session.checkInIntervalMin) return 'overdue_warning';
@@ -183,7 +204,14 @@ export function recordCheckIn(
       checkIn.lat !== undefined && checkIn.lng !== undefined
         ? { lat: checkIn.lat, lng: checkIn.lng, at }
         : session.lastKnownLocation,
-    status: status === 'help' ? 'help_requested' : 'active',
+    // Do not downgrade an active help request on a routine 'ok'. This mirrors
+    // the native heartbeat route, which already preserves help_requested, and
+    // removes the divergence where deriveLoneWorkerStatus() still said 'help'
+    // while the persisted session said 'active'.
+    status:
+      status === 'help' || session.status === 'help_requested'
+        ? 'help_requested'
+        : 'active',
   };
 }
 

@@ -254,13 +254,17 @@ export function removeLinkage(
 // ────────────────────────────────────────────────────────────────────────
 
 /**
- * Path canónico para Storage:
- *   tenants/{tid}/evidence/{contentHash}.{ext}
- * Caller wrap con tenantId al persistir.
+ * Path canónico para Storage, alineado con `storage.rules`:
+ *   projects/{pid}/evidence/{contentHash}.{ext}
+ *
+ * Cloud Storage rules cannot read Firestore, so authorization is keyed by
+ * the project claim (`memberOfSite`) — same as every other real uploader.
+ * The previous `tenants/{tid}/evidence/...` path matched NO rule and every
+ * upload would have fallen to default-deny.
  */
 export function buildStoragePath(
   artifact: EvidenceArtifact,
-  tenantId: string,
+  projectId: string,
 ): string {
   const extByMime: Record<EvidenceMimeType, string> = {
     'image/jpeg': 'jpg',
@@ -269,7 +273,7 @@ export function buildStoragePath(
     'video/mp4': 'mp4',
     'video/webm': 'webm',
   };
-  return `tenants/${tenantId}/evidence/${artifact.id}.${extByMime[artifact.mimeType]}`;
+  return `projects/${projectId}/evidence/${artifact.id}.${extByMime[artifact.mimeType]}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────

@@ -54,7 +54,7 @@ export function MaintenanceCompleteForm({
   precomputedSignatureHash,
 }: MaintenanceCompleteFormProps) {
   const { t } = useTranslation();
-  const { isSupported, authenticate } = useBiometricAuth();
+  const { isSupported, authenticate, getLastSignatureHash } = useBiometricAuth();
   const [notes, setNotes] = useState('');
   const [hoursStr, setHoursStr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -75,6 +75,11 @@ export function MaintenanceCompleteForm({
     setError(null);
     try {
       // 1. Firma biometrica fail-closed (Round 18 R6: claim-signing).
+      //    We persist ONLY a server-verifiable assertion commitment. The
+      //    hook's WebAuthn path returns the SHA-256 the /verify endpoint
+      //    emitted; the native plugin path returns null and we then send no
+      //    hash at all. A `local-<id>-<ts>` fingerprint is never fabricated:
+      //    it looked like legal evidence but proved nothing.
       let signatureHash = precomputedSignatureHash;
       if (!signatureHash) {
         setSigning(true);
@@ -96,11 +101,7 @@ export function MaintenanceCompleteForm({
           setBusy(false);
           return;
         }
-        // El hook no devuelve el assertionHash hoy; usamos un fingerprint
-        // local como audit trail provisional. El backend persiste el hash
-        // pero la verificacion real es la atomic challenge consume del
-        // /webauthn/verify endpoint que el hook ya ejecuto.
-        signatureHash = `local-${task.id}-${Date.now().toString(16)}`;
+        signatureHash = getLastSignatureHash() ?? undefined;
       }
       // 2. POST al backend.
       const idemKey = generateIdempotencyKey

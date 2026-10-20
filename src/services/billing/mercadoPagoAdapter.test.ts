@@ -72,7 +72,7 @@ describe('mercadoPagoAdapter.isConfigured', () => {
   });
 
   it('returns true when MP_ACCESS_TOKEN is set', () => {
-    process.env.MP_ACCESS_TOKEN = 'TEST-12345-abc';
+    process.env.MP_ACCESS_TOKEN = 'TEST-0';
     expect(mercadoPagoAdapter.isConfigured()).toBe(true);
   });
 
@@ -81,6 +81,27 @@ describe('mercadoPagoAdapter.isConfigured', () => {
     // configured. Sending "" through the SDK would 401 noisily.
     process.env.MP_ACCESS_TOKEN = '';
     expect(mercadoPagoAdapter.isConfigured()).toBe(false);
+  });
+
+  it('production: rejects TEST- sandbox tokens', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.MP_ENV = 'production';
+    process.env.MP_ACCESS_TOKEN = 'TEST-0';
+    expect(mercadoPagoAdapter.isConfigured()).toBe(false);
+  });
+
+  it('production: rejects a real token when MP_ENV is not production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.MP_ENV = 'sandbox';
+    process.env.MP_ACCESS_TOKEN = 'APP_USR-real-token';
+    expect(mercadoPagoAdapter.isConfigured()).toBe(false);
+  });
+
+  it('production: accepts a real token with MP_ENV=production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.MP_ENV = 'production';
+    process.env.MP_ACCESS_TOKEN = 'APP_USR-real-token';
+    expect(mercadoPagoAdapter.isConfigured()).toBe(true);
   });
 });
 

@@ -125,6 +125,24 @@ service cloud.firestore {
       );
     }
 
+    // Tenant-scoped ADMIN (not merely supervisor). Used for destructive user
+    // operations, matching the prior global `isAdmin()` intent without letting
+    // a tenant-A admin erase a tenant-B profile.
+    function isAdminOfTenant(tenantId) {
+      return isEmailVerified() && tenantId is string && tenantId.size() > 0 && (
+        (
+          request.auth.token.tenantId is string &&
+          request.auth.token.tenantId == tenantId &&
+          request.auth.token.role in ['admin', 'gerente']
+        ) ||
+        (
+          'tenants' in request.auth.token &&
+          request.auth.token.tenants[tenantId] is string &&
+          request.auth.token.tenants[tenantId] in ['admin', 'gerente']
+        )
+      );
+    }
+
     function isDoctor() {
       return isEmailVerified() && (
         request.auth.token.role == 'medico_ocupacional' ||
@@ -194,6 +212,31 @@ service cloud.firestore {
         isProjectCreator(projectId) ||
         isSupervisorOfTenant(projectTenantId(projectId))
       );
+    }
+
+    // Top-level library records (training, safety_solutions) carry an optional
+    // projectId. A record WITHOUT projectId is a global/curated library item;
+    // a record WITH projectId belongs to that project's tenant. These helpers
+    // keep the global-library branch separate from the tenant-scoped branch so
+    // a global admin/supervisor can never reach another tenant's project record.
+    function canReadProjectScopedRecord(projectId) {
+      return projectId is string
+        && isValidId(projectId)
+        && isProjectMemberTenantScoped(projectId);
+    }
+
+    function canManageProjectScopedRecord(projectId) {
+      return projectId is string
+        && isValidId(projectId)
+        && isSupervisorOfTenant(projectTenantId(projectId));
+    }
+
+    // A user document is tenant data. Read/delete by a privileged caller is
+    // scoped to the target user's OWN tenant claim, never the caller's global
+    // role. Legacy user docs without tenantId remain owner-readable only; the
+    // server can backfill tenantId via Admin SDK.
+    function userTenantId(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.get('tenantId', '');
     }
 
     function incoming() {
@@ -425,7 +468,15 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin() || isSupervisor());
+      // Read: the owner always reads their own profile. A privileged reader
+      // must be tenant-scoped to the TARGET user's tenant (userTenantId), not
+      // merely hold a global admin/supervisor role. platform_operator remains
+      // the explicit tenant-agnostic B2D role.
+      allow read: if isValidId(userId) && (
+        isOwner(userId)
+        || isPlatformOperator()
+        || isSupervisorOfTenant(userTenantId(userId))
+      );
       allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (isWorkerRole(incoming().role) || isAdmin());
       // Round 22 audit fix CRITICAL #5 (DT-05): deny client write of
       // subscription.* fields. Plan upgrades MUST go through
@@ -438,7 +489,12 @@ service cloud.firestore {
                          'subscriptionPlan',
                          'subscription',
                        ]);
-      allow delete: if isAdmin();
+      // Delete is tenant-scoped like read: a tenant-A admin cannot erase a
+      // tenant-B profile by knowing its uid. Supervisors are read-only here.
+      allow delete: if isValidId(userId) && (
+        isPlatformOperator()
+        || isAdminOfTenant(userTenantId(userId))
+      );
       
       // Strict privacy envelope for user's medical exams (Excludes Admin/Supervisor by default unless they are the Doctor)
       match /medical_exams/{examId} {
@@ -621,10 +677,7 @@ service cloud.firestore {
             subCollection == 'audit_portals' || subCollection == 'documents_for_read' ||
             subCollection == 'exceptions' || subCollection == 'legal_obligations' ||
             subCollection == 'shifts' || subCollection == 'daily' ||
-            subCollection == 'responses' || subCollection == 'supervisor_only' ||
-            subCollection == 'emergency_alerts' || subCollection == 'suseso_forms' ||
-            subCollection == 'suseso_counters' || subCollection == 'conflict_queue' ||
-            subCollection == 'evidence_artifacts' || subCollection == 'ar_anchors'
+            subCollection == 'responses'
           )
           && isProjectMemberTenantScoped(projectId);
       }
@@ -694,6 +747,15 @@ service cloud.firestore {
         allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
           && (canAcknowledgeManDown(projectId) || canResolveManDown(projectId));
         allow delete: if false;
+
+        // Escalation markers are written ONLY by the Cloud Scheduler job
+        // (runManDownEscalation) through the Admin SDK. They contain worker
+        // name/location, notification state and the paging audit trail. The
+        // parent match does not cover subcollections, so without this block
+        // they were merely default-denied; pin the intent explicitly.
+        match /escalations/{escalationId} {
+          allow read, write: if false;
+        }
       }
 
       match /zone_violations/{violationId} {
@@ -1499,19 +1561,56 @@ service cloud.firestore {
     }
 
     match /training/{sessionId} {
+      // Curated/global training (projectId == null) is a global library and is
+      // readable by every verified worker. Project-specific training is only
+      // readable by members/tenant-scoped supervisors of that project's tenant.
       allow read: if isEmailVerified() && (
-        isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMemberTenantScoped(existing().projectId))
+        existing().get('projectId', null) == null ||
+        canReadProjectScopedRecord(existing().get('projectId', null))
       );
-      allow write: if isAdmin() || isSupervisor();
+      // Writes: global library items are managed by admin/supervisor; a
+      // project-specific item requires supervisor-tier authority in the
+      // project's OWN tenant. projectId is immutable on update, so a tenant-A
+      // supervisor cannot re-home a record into tenant B.
+      allow create: if isEmailVerified() && (
+        (incoming().get('projectId', null) == null && (isAdmin() || isSupervisor())) ||
+        canManageProjectScopedRecord(incoming().get('projectId', null))
+      );
+      allow update: if isEmailVerified() && (
+        (existing().get('projectId', null) == null && (isAdmin() || isSupervisor())) ||
+        canManageProjectScopedRecord(existing().get('projectId', null))
+      )
+        && incoming().get('projectId', null) == existing().get('projectId', null);
+      allow delete: if isEmailVerified() && (
+        (existing().get('projectId', null) == null && (isAdmin() || isSupervisor())) ||
+        canManageProjectScopedRecord(existing().get('projectId', null))
+      );
     }
 
     match /safety_solutions/{solutionId} {
+      // Same shape as training: global safety-solution library (no projectId)
+      // is readable by verified workers; project-specific records stay within
+      // their project's tenant.
       allow read: if isEmailVerified() && (
-        isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMemberTenantScoped(existing().projectId))
+        existing().get('projectId', null) == null ||
+        canReadProjectScopedRecord(existing().get('projectId', null))
       );
-      allow write: if isAdmin() || isSupervisor();
+      // Global-library writes are admin-only (platform content). A
+      // project-specific solution can be managed by that project's tenant
+      // supervisor. projectId is immutable on update.
+      allow create: if isEmailVerified() && (
+        (incoming().get('projectId', null) == null && isAdmin()) ||
+        canManageProjectScopedRecord(incoming().get('projectId', null))
+      );
+      allow update: if isEmailVerified() && (
+        (existing().get('projectId', null) == null && isAdmin()) ||
+        canManageProjectScopedRecord(existing().get('projectId', null))
+      )
+        && incoming().get('projectId', null) == existing().get('projectId', null);
+      allow delete: if isEmailVerified() && (
+        (existing().get('projectId', null) == null && isAdmin()) ||
+        canManageProjectScopedRecord(existing().get('projectId', null))
+      );
     }
 
     match /normatives/{normativeId} {

@@ -295,6 +295,20 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       expect(queue.size()).toBe(7); // los otros 7 quedan
     });
 
+    it('corta por prioridad ANTES de maxPackets (SOS al final no se queda)', () => {
+      // Insertion order deliberately puts the SOS last: without a pre-cut
+      // sort, the first two breadcrumbs would consume the budget and the
+      // life-safety packet would stay queued.
+      queue.enqueueLocal(makeBreadcrumb('low-1', NOW));
+      queue.enqueueLocal(makeBreadcrumb('low-2', NOW + 1));
+      queue.enqueueLocal(makeSos('victim', NOW + 2));
+
+      const result = queue.drainForPeer('peer-x', 2);
+
+      expect(result.toSend.map((p) => p.type)).toEqual(['sos', 'gps_breadcrumb']);
+      expect(queue.snapshot().map((p) => p.fromUid)).toEqual(['low-2']);
+    });
+
     it('NO envía packet al peer si peer ya está en relayedBy (loop avoidance)', async () => {
       const fromOther = makeBreadcrumb('alice');
       const seen = { ...fromOther, relayedBy: ['peer-1'] };

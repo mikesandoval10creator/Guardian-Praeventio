@@ -26,10 +26,11 @@ import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 // ── Mocks (declared before the import-under-test so vi.mock hoists correctly).
 
 const triggerEmergencyMock = vi.fn(async () => undefined);
+let emergencyActive = false;
 
 vi.mock('../../contexts/EmergencyContext', () => ({
   useEmergency: () => ({
-    isEmergencyActive: false,
+    isEmergencyActive: emergencyActive,
     emergencyType: null,
     triggerEmergency: triggerEmergencyMock,
     resolveEmergency: vi.fn(),
@@ -73,16 +74,20 @@ vi.mock('../../hooks/useFallDetectionPreference', () => ({
 // in and expose a helper to invoke it on demand — that simulates a real
 // fall impact crossing the threshold.
 let capturedOnFallDetected: (() => void) | null = null;
+let capturedStart: ReturnType<typeof vi.fn> | null = null;
+let capturedStop: ReturnType<typeof vi.fn> | null = null;
 vi.mock('../../hooks/useAccelerometer', () => ({
   useAccelerometer: (opts: { onFallDetected?: () => void }) => {
     capturedOnFallDetected = opts.onFallDetected ?? null;
+    capturedStart = vi.fn();
+    capturedStop = vi.fn();
     return {
       data: null,
       isSupported: true,
       isActive: false,
       permissionGranted: true,
-      start: vi.fn(),
-      stop: vi.fn(),
+      start: capturedStart,
+      stop: capturedStop,
       requestPermission: vi.fn(async () => true),
     };
   },
@@ -112,6 +117,10 @@ vi.mock('framer-motion', () => ({
 
 import { FallDetectionMonitor } from './FallDetectionMonitor';
 import { useSensorBus } from '../../services/sensorBus/sensorBus';
+import {
+  __resetNativeManDownStateForTests,
+  setNativeManDownActive,
+} from '../../services/mobile/nativeManDownState';
 
 function triggerFall() {
   // Production accelerometer would call this on impact; we drive it manually.
@@ -125,6 +134,10 @@ beforeEach(() => {
   vi.useFakeTimers();
   triggerEmergencyMock.mockClear();
   capturedOnFallDetected = null;
+  capturedStart = null;
+  capturedStop = null;
+  emergencyActive = false;
+  __resetNativeManDownStateForTests();
   useSensorBus.getState().reset();
 });
 
@@ -221,5 +234,47 @@ describe('FallDetectionMonitor — H6 SOS dispatcher wire-up', () => {
       expect(triggerEmergencyMock).toHaveBeenCalledTimes(1);
       expect(triggerEmergencyMock).toHaveBeenCalledWith('fall', 'proj_test_001');
     });
+  });
+});
+
+describe('FallDetectionMonitor — Android native detector coordination', () => {
+  it('does not start the WebView accelerometer when the native ManDown FGS owns detection', () => {
+    setNativeManDownActive(true);
+    render(<FallDetectionMonitor />);
+
+    expect(capturedStart).not.toHaveBeenCalled();
+    expect(capturedStop).toHaveBeenCalled();
+  });
+
+  it('stops the WebView accelerometer when native ownership is published mid-session', () => {
+    render(<FallDetectionMonitor />);
+    expect(capturedStart).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      setNativeManDownActive(true);
+    });
+
+    // Yielded to the FGS: the fresh render's detector must not start, and the
+    // running WebView listener is stopped.
+    expect(capturedStop).toHaveBeenCalled();
+    expect(capturedStart).not.toHaveBeenCalled();
+  });
+
+  it('suppresses a duplicate fall escalation when an emergency is already active', async () => {
+    emergencyActive = true;
+    render(<FallDetectionMonitor />);
+    triggerFall();
+
+    for (let i = 0; i < 16; i++) {
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(triggerEmergencyMock).not.toHaveBeenCalled();
   });
 });

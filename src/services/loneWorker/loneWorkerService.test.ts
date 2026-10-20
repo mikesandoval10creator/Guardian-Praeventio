@@ -53,6 +53,40 @@ describe('deriveLoneWorkerStatus', () => {
     expect(deriveLoneWorkerStatus(s, NOW)).toBe('help_requested');
   });
 
+  it('un check-in "ok" posterior NO cancela el "help" (intención terminal)', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() - 10 * 60_000).toISOString(),
+      checkIns: [
+        { at: new Date(NOW.getTime() - 6 * 60_000).toISOString(), status: 'help' },
+        { at: new Date(NOW.getTime() - 2 * 60_000).toISOString(), status: 'ok' },
+      ],
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('help_requested');
+  });
+
+  it('status help_requested se conserva aunque el check-in de ayuda ya no esté en la lista', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() - 10 * 60_000).toISOString(),
+      status: 'help_requested',
+      checkIns: [
+        { at: new Date(NOW.getTime() - 2 * 60_000).toISOString(), status: 'ok' },
+      ],
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('help_requested');
+  });
+
+  it('un timestamp inválido NO se lee como "active": falla a overdue_critical', () => {
+    const s = session({ startedAt: 'not-a-date' });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('overdue_critical');
+  });
+
+  it('un check-in con timestamp inválido también falla a overdue_critical', () => {
+    const s = session({
+      checkIns: [{ at: 'garbage', status: 'ok' }],
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('overdue_critical');
+  });
+
   it('ended si tiene endedAt', () => {
     const s = session({ endedAt: NOW.toISOString() });
     expect(deriveLoneWorkerStatus(s, NOW)).toBe('ended');
@@ -158,6 +192,17 @@ describe('recordCheckIn', () => {
     const s = session({ status: 'overdue_warning' });
     const after = recordCheckIn(s, { at: NOW.toISOString(), status: 'ok' });
     expect(after.status).toBe('active');
+  });
+
+  it('un "ok" rutinario NO degrada una sesión help_requested', () => {
+    const s = session({
+      status: 'help_requested',
+      checkIns: [{ at: new Date(NOW.getTime() - 5 * 60_000).toISOString(), status: 'help' }],
+    });
+    const after = recordCheckIn(s, { at: NOW.toISOString(), status: 'ok' });
+    expect(after.status).toBe('help_requested');
+    // The derived state agrees with the persisted state.
+    expect(deriveLoneWorkerStatus(after, NOW)).toBe('help_requested');
   });
 
   it('AGREGAR: sin lat pero con lng NO actualiza lastKnownLocation (ambos requeridos)', () => {

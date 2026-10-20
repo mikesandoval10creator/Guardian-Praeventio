@@ -24,6 +24,7 @@
 // this file is intentional — see PortableCurriculum cosign flow.
 
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -75,6 +76,30 @@ import {
   createWebAuthnCredentialsFirestoreDb,
 } from '../auth/webauthnFirestoreDb.js';
 import { scalarRouteParams } from "../http/scalarRouteParams.js";
+
+
+/**
+ * Deterministic SHA-256 commitment to a verified WebAuthn assertion.
+ *
+ * Downstream sensitive flows (e.g. maintenance-task completion) persist this
+ * digest as audit evidence instead of a client-invented fingerprint. The raw
+ * assertion bytes are never returned or logged — only this digest. The
+ * `v1` domain tag lets a future version change the formula without colliding
+ * with hashes already stored.
+ */
+export function computeAssertionSignatureHash(input: {
+  challengeId: string;
+  credentialId: string;
+  clientDataJSON: string;
+  authenticatorData: string;
+  signature: string;
+}): string {
+  return createHash('sha256')
+    .update(
+      `webauthn-assertion-v1.${input.challengeId}.${input.credentialId}.${input.clientDataJSON}.${input.authenticatorData}.${input.signature}`,
+    )
+    .digest('hex');
+}
 
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -860,7 +885,19 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
         newCounter,
       });
 
-      return res.json({ verified: true, uid: callerUid, newCounter });
+      // Deterministic SHA-256 commitment to the exact verified assertion.
+      // Downstream sensitive flows (e.g. maintenance-task completion) store
+      // this as evidence instead of a client-invented fingerprint. The raw
+      // bytes are NOT returned and NOT logged; only the digest.
+      const signatureHash = computeAssertionSignatureHash({
+        challengeId,
+        credentialId,
+        clientDataJSON,
+        authenticatorData,
+        signature,
+      });
+
+      return res.json({ verified: true, uid: callerUid, newCounter, signatureHash });
   } catch (error: any) {
     logger.error('webauthn_verify_failed', {
       uid: callerUid,

@@ -167,7 +167,17 @@ function resolveInitPoint(response: {
 
 export const mercadoPagoAdapter: MercadoPagoAdapter = {
   isConfigured(): boolean {
-    return Boolean(process.env.MP_ACCESS_TOKEN);
+    const token = process.env.MP_ACCESS_TOKEN;
+    if (!token) return false;
+    if (process.env.NODE_ENV === 'production') {
+      // MP sandbox tokens are valid-looking strings (`TEST-...`). A prod
+      // deploy carrying one would create sandbox preferences and never
+      // collect money. Also require MP_ENV=production so resolveInitPoint
+      // does not prefer `sandbox_init_point`.
+      if (token.startsWith('TEST-')) return false;
+      if (isSandboxMode()) return false;
+    }
+    return true;
   },
 
   async createPreference(

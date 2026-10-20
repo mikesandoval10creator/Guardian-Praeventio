@@ -26,7 +26,7 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
-import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove, where } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import { SafetyPost, SafetySolution, NodeType, type RiskNode } from '../types';
@@ -74,7 +74,10 @@ export function SafetyFeed() {
     selectedProject ? `projects/${selectedProject.id}/safety_posts` : null, 
     []
   );
-  const { data: solutions } = useFirestoreCollection<SafetySolution>('safety_solutions', []);
+  const { data: solutions } = useFirestoreCollection<SafetySolution>(
+    'safety_solutions',
+    [where('projectId', '==', null)],
+  );
 
   const filteredPosts = posts.filter(p => activeFilter === 'all' || p.type === activeFilter)
     .sort((a, b) => {

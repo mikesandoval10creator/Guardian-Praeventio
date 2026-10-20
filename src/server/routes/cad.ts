@@ -35,8 +35,13 @@
 // can detect a misconfigured environment.
 
 import { Router } from 'express';
+import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 import {
   validateDwgUpload,
   type DwgValidationInput,
@@ -96,7 +101,9 @@ const ALLOWED_URI_RE = new RegExp(
  *   • 400 `{ error: 'missing_input_uri' }` if `inputUri` absent
  *   • 400 `{ error: 'external_uri_rejected' }` if inputUri outside our bucket
  *   • 400 `{ error: 'cad_validation_failed', findings }` if metadata invalid
+ *   • 400 `{ error: 'project_id_uri_mismatch' }` if the URI names another project
  *   • 401 (from verifyAuth) if the caller is not authenticated
+ *   • 403 `{ error: 'forbidden' }` if the caller is not a member of projectId
  *   • 502 `{ error: 'converter_failed', status }` on upstream non-2xx
  *   • 502 `{ error: 'converter_unreachable' }` on network failure
  *   • 503 `{ error: 'dwg_converter_not_configured' }` if env not set
@@ -152,15 +159,33 @@ router.post('/convert-dwg', verifyAuth, async (req, res) => {
     });
   }
 
-  // Defense in depth — the URI path's first segment must match the
-  // projectId the caller declared (or the validation step rejects it
-  // upstream because uploadedByUid isn't on that project). We compare
-  // for symmetry: if the bucket object is at
-  // `gs://.../projects/{pid}/uploads/...` and the body says pid=X, X
-  // must equal the first non-empty segment.
+  // Authorization is server-side: the Admin SDK bypasses firestore.rules,
+  // so metadata validation alone is NOT a membership check. Without this,
+  // any authenticated caller who knows another tenant's gs:// URI could ask
+  // the converter to fetch it and receive a signed DXF URL.
+  const validatedProjectId = validation.sanitizedMetadata.projectId;
+  try {
+    await assertProjectMember(uid, validatedProjectId, getFirestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    captureRouteError(err, 'cad.project_membership_check', {
+      projectId: validatedProjectId,
+      uploadId: validation.sanitizedMetadata.uploadId,
+    });
+    return res.status(500).json({ error: 'membership_check_failed' });
+  }
+
+  // Defense in depth — the URI path must name the declared project exactly.
+  // Accepted shapes are `.../projects-{projectId}/...` (current signed-upload
+  // convention) or a path containing `projectId` as a full segment. A prefix
+  // test alone (`startsWith('projects-')`) let `projects-other-pid` pass.
   const uriPathSegments = bucketMatch[1].split('/').filter(Boolean);
-  if (projectId && uriPathSegments[0] && !uriPathSegments[0].startsWith('projects-')
-      && !uriPathSegments.includes(projectId)) {
+  const uriBelongsToProject =
+    uriPathSegments[0] === `projects-${validatedProjectId}` ||
+    uriPathSegments.includes(validatedProjectId);
+  if (!uriBelongsToProject) {
     return res.status(400).json({
       error: 'project_id_uri_mismatch',
       detail: 'URI path does not reference the declared projectId',

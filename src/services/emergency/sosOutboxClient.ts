@@ -11,7 +11,7 @@
 // exhausts its retries is dead-lettered (retained, never dropped) for the UI to
 // surface ("tu alerta no salió — avisa al supervisor presencialmente").
 
-import { SosOutbox, type SosEvent } from './sosOutbox';
+import { SosOutbox, type OutboxEntry, type SosEvent } from './sosOutbox';
 import { IndexedDbSosStorage } from './sosOutbox.indexeddb';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { logger } from '../../utils/logger';
@@ -107,7 +107,15 @@ function requestFlush(): void {
 async function scheduleRetry(): Promise<void> {
   clearRetryTimer();
   if (!isOnline()) return;
-  const entries = await outbox().snapshot();
+  let entries: OutboxEntry[];
+  try {
+    entries = await outbox().snapshot();
+  } catch (err) {
+    // A failed read must not become an unhandled rejection or an empty queue.
+    // Leave the persisted SOS untouched; the next online/app-start event retries.
+    logger.warn('sosOutbox: retry snapshot failed', { err: String(err) });
+    return;
+  }
   if (_drain) return;
   const due = entries.filter(entry => !entry.deadLettered && Number.isFinite(entry.nextRetryAt));
   if (!due.length) return;

@@ -10,7 +10,6 @@ import {
   Search,
   BookOpen,
   Award,
-  BarChart3,
   Zap,
   Brain,
   Loader2,
@@ -41,10 +40,6 @@ import { TrainingSession } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { saveForSync } from '../utils/pwa-offline';
-import { useSubscription } from '../contexts/SubscriptionContext';
-import { PostTrainingAdModal } from '../components/shared/PostTrainingAdModal';
-import { prepareInterstitial, canShowAd, recordAdShown } from '../services/adService';
-import { useEmergency } from '../contexts/EmergencyContext';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
 import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
@@ -78,10 +73,7 @@ export function Training() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
-  const { plan, isPremium } = useSubscription();
-  const { isEmergencyActive } = useEmergency();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
-  const [adTrainingTitle, setAdTrainingTitle] = useState<string | null>(null);
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
   const [capsule, setCapsule] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -104,7 +96,25 @@ export function Training() {
     isCurated: false
   });
 
-  const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
+  // Firestore rules authorize these two queries separately: curated library
+  // rows (projectId == null) are global, project rows are tenant-scoped. A
+  // single unfiltered `collection('training')` list cannot be proven against
+  // either branch and was denied for workers.
+  const { data: curatedSessions, loading: curatedSessionsLoading } =
+    useFirestoreCollection<TrainingSession>('training', [where('projectId', '==', null)]);
+  const { data: projectSessions, loading: projectSessionsLoading } =
+    useFirestoreCollection<TrainingSession>(
+      selectedProject ? 'training' : null,
+      selectedProject ? [where('projectId', '==', selectedProject.id)] : [],
+    );
+  const allSessions = useMemo(() => {
+    const byId = new Map<string, TrainingSession>();
+    for (const session of [...curatedSessions, ...projectSessions]) {
+      byId.set(session.id, session);
+    }
+    return [...byId.values()];
+  }, [curatedSessions, projectSessions]);
+  const loading = curatedSessionsLoading || projectSessionsLoading;
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
@@ -158,13 +168,6 @@ export function Training() {
     }
     if (!isQuizFinished) setQuizPointsAwarded(false);
   }, [isQuizFinished]);
-
-  // Preload native AdMob interstitial so it's ready when training completes (free plan only)
-  useEffect(() => {
-    if (activeVideoSession && !isPremium) {
-      prepareInterstitial();
-    }
-  }, [activeVideoSession, isPremium]);
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -228,7 +231,7 @@ export function Training() {
   const handleCompleteVideo = async (session: TrainingSession) => {
     if (!selectedProject || !user) return;
 
-    // Guard: training already completed — clear UI but skip ad
+    // Guard: training already completed — clear UI without re-completing.
     if (session.status === 'completed') {
       setActiveVideoSession(null);
       setIsQuizActive(false);
@@ -287,11 +290,6 @@ export function Training() {
       setCurrentQuestionIndex(0);
 
       awardPoints('training_completed');
-
-      if (!isPremium && !isEmergencyActive && (await canShowAd())) {
-        await recordAdShown();
-        setTimeout(() => setAdTrainingTitle(session.title), 400);
-      }
     } catch (error) {
       logger.error('Error completing video:', error);
     }
@@ -1324,13 +1322,6 @@ export function Training() {
           />
         );
       })()}
-
-      {adTrainingTitle && (
-        <PostTrainingAdModal
-          trainingTitle={adTrainingTitle}
-          onClose={() => setAdTrainingTitle(null)}
-        />
-      )}
     </div>
   );
 }

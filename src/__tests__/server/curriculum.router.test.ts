@@ -119,6 +119,7 @@ vi.mock('@simplewebauthn/server', () => ({
 
 // ── Import real router AFTER mocks ────────────────────────────────────────────
 import curriculumRouter, { webauthnChallengeRouter } from '../../server/routes/curriculum.js';
+import { computeAssertionSignatureHash } from '../../server/routes/curriculum.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { hashToken, generateRefereeToken } from '../../services/curriculum/refereeTokens.js';
 
@@ -835,6 +836,33 @@ describe('GET /api/auth/webauthn/challenge', () => {
     expect(typeof res.body.challengeId).toBe('string');
     expect(typeof res.body.challenge).toBe('string');
     expect(res.body.ttlSeconds).toBe(300);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// WebAuthn assertion → audit-evidence hash
+// ═════════════════════════════════════════════════════════════════════════════
+describe('computeAssertionSignatureHash', () => {
+  const base = {
+    challengeId: 'challenge-1',
+    credentialId: 'cred-1',
+    clientDataJSON: 'Y2xpZW50LWRhdGE',
+    authenticatorData: 'YXV0aC1kYXRh',
+    signature: 'c2lnbmF0dXJl',
+  };
+
+  it('is deterministic and yields a 64-char lowercase hex digest', () => {
+    const a = computeAssertionSignatureHash(base);
+    const b = computeAssertionSignatureHash({ ...base });
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('changes when any assertion input changes (bound to the exact bytes)', () => {
+    const original = computeAssertionSignatureHash(base);
+    expect(computeAssertionSignatureHash({ ...base, signature: 'dGFtcGVyZWQ' })).not.toBe(original);
+    expect(computeAssertionSignatureHash({ ...base, challengeId: 'challenge-2' })).not.toBe(original);
+    expect(computeAssertionSignatureHash({ ...base, credentialId: 'cred-2' })).not.toBe(original);
   });
 });
 

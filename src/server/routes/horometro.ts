@@ -259,7 +259,14 @@ const readingSchema = z.object({
 
 const completeTaskSchema = z.object({
   notes: z.string().min(1).max(5_000),
-  biometricSignatureHash: z.string().min(8).max(200).optional(),
+  // Evidence shape: the SHA-256 commitment emitted by
+  // POST /api/auth/webauthn/verify. Optional because the native Capacitor
+  // flow proves presence locally and yields no server-verifiable assertion —
+  // in that case the honest value is ABSENT, never a fabricated fingerprint.
+  biometricSignatureHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   horometroAtCompletion: z.number().finite().min(0).max(1_000_000).optional(),
 });
 

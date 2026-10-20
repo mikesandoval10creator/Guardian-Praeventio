@@ -211,8 +211,8 @@ describe('buildStoragePath', () => {
     now: NOW,
   });
 
-  it('path canónico tenants/{tid}/evidence/{hash}.{ext}', () => {
-    expect(buildStoragePath(artifact, 'tA')).toBe(`tenants/tA/evidence/${VALID_HASH}.jpg`);
+  it('path canónico projects/{pid}/evidence/{hash}.{ext} (cubierto por storage.rules)', () => {
+    expect(buildStoragePath(artifact, 'pA')).toBe(`projects/pA/evidence/${VALID_HASH}.jpg`);
   });
 
   it('ext correcto para mp4', () => {
@@ -222,7 +222,7 @@ describe('buildStoragePath', () => {
       linkages: [],
       now: NOW,
     });
-    expect(buildStoragePath(video, 'tA')).toMatch(/\.mp4$/);
+    expect(buildStoragePath(video, 'pA')).toMatch(/\.mp4$/);
   });
 });
 

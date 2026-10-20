@@ -101,8 +101,10 @@ export function EmergencySimulator() {
   const handleTriggerRealEmergency = async () => {
     if (!scenario || !selectedProject) return;
     
-    // Trigger the global emergency state
-    triggerEmergency(String(scenario.type || '').toLowerCase());
+    // Trigger the global emergency state. Without the projectId the local
+    // alarm activates but no durable activation packet / FCM fan-out is sent,
+    // so a real emergency escalated from a drill would reach nobody.
+    triggerEmergency(String(scenario.type || '').toLowerCase(), selectedProject.id);
 
     // Add to Zettelkasten as a real incident
     await addNode({

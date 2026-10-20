@@ -2,7 +2,7 @@
  * Global/window augmentation (Sprint 49 - E.5 P2 H19).
  *
  * Centralizes the shape of properties bolted onto `globalThis`/`window` by
- * third-party SDKs (Capacitor, AdSense) and Praeventio runtime tokens
+ * third-party SDKs (Capacitor) and Praeventio runtime tokens
  * (__GP_TENANT_ID__, __SLM_OFFLINE_ENABLED__), so consumers can drop
  * `(window as any).Capacitor`-style casts in favour of typed access.
  *
@@ -40,9 +40,6 @@ declare global {
     DeviceMotionEvent?: typeof Event & {
       requestPermission?: () => Promise<'granted' | 'denied'>;
     };
-
-    // Google AdSense queue.
-    adsbygoogle?: unknown[];
 
     // requestIdleCallback is in lib.dom but mistyped in some setups.
     requestIdleCallback?: (

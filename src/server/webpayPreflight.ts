@@ -32,6 +32,26 @@ type WebpayBootEnv = {
   WEBPAY_ENVIRONMENT?: string;
 };
 
+/**
+ * Transbank publishes these "Tienda de Integración" values in its docs and
+ * SDK. Presence of either one in production means the deploy is pointed at
+ * the sandbox: cards are never charged. Reject them at boot instead of only
+ * checking that the variables are non-empty.
+ */
+const TRANSBANK_INTEGRATION_COMMERCE_CODES = new Set([
+  '597055555532', // Webpay Plus
+  '597055555535', // Webpay Plus Mall
+  '597055555536', // Webpay Plus Mall (full)
+  '597055555537', // Webpay Plus Mall (deferred capture)
+  '597055555538',
+  '597055555539',
+  '597055555540',
+]);
+
+const TRANSBANK_INTEGRATION_API_KEY =
+  // gitleaks:allow — public Transbank sandbox key, hardcoded only to reject it in production.
+  '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C';
+
 export function validateWebpayBootConfig(env: WebpayBootEnv): WebpayBootConfigResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -61,6 +81,23 @@ export function validateWebpayBootConfig(env: WebpayBootEnv): WebpayBootConfigRe
   if (!env.WEBPAY_API_KEY) {
     errors.push(
       'Production requires WEBPAY_API_KEY. Without it WebpayAdapter.resolveOptions() falls back silently to Transbank sandbox.',
+    );
+  }
+
+  // Presence is not enough: the PUBLIC integration credentials are valid
+  // non-empty strings. A production deploy carrying them looks configured
+  // while every transaction runs against the sandbox.
+  if (
+    env.WEBPAY_COMMERCE_CODE &&
+    TRANSBANK_INTEGRATION_COMMERCE_CODES.has(env.WEBPAY_COMMERCE_CODE)
+  ) {
+    errors.push(
+      'WEBPAY_COMMERCE_CODE is Transbank\'s PUBLIC integration commerce code. Production would route real payments to the sandbox (not charged).',
+    );
+  }
+  if (env.WEBPAY_API_KEY === TRANSBANK_INTEGRATION_API_KEY) {
+    errors.push(
+      'WEBPAY_API_KEY is Transbank\'s PUBLIC integration API key. Production would route real payments to the sandbox (not charged).',
     );
   }
 

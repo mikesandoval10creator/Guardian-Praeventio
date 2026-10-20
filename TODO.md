@@ -1903,7 +1903,7 @@ Items identificados durante auditoría 2026-05-27 que NO entran al sprint actual
 - **B13** integrar 11 hallazgos ⬜ AUDIT_BACKLOG (H1, H3, H5, H16, H19, H22, H23, H24, H27, H30, H32)
 - **C1** sidebar entries para 143 pages sin nav
 - **C2** decidir 24 colecciones Firestore en rules sin uso
-- **C3** eliminar `@capacitor-community/admob` de `package.json`
+- ~~**C3** eliminar `@capacitor-community/admob` de `package.json`~~ ✅ hecho 2026-10-20 (decisión de producto: app sin anuncios)
 - **C4** triage 5-8 Gemini actions whitelist con <3 callsites
 - **C5** sweep 149 TODO/FIXME (top: `slmWorker.ts` 7)
 - **C6** type cleanup `as any` (491 instancias)

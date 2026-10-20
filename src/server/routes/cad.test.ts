@@ -13,6 +13,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
+const H = vi.hoisted(() => ({
+  db: null as ReturnType<
+    typeof import('../../__tests__/helpers/fakeFirestore').createFakeFirestore
+  > | null,
+}));
+
+// assertProjectMember(uid, projectId, getFirestore()) reads projects/{id}
+// through the Admin SDK. Point it at the in-memory fake so the route test
+// exercises the REAL membership helper instead of mocking it away.
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => H.db!,
+}));
+
 // Mock auth — by default authenticated. The "auth missing" case re-mocks
 // the module locally to simulate verifyAuth rejecting.
 vi.mock('../middleware/verifyAuth.js', () => ({
@@ -23,6 +36,7 @@ vi.mock('../middleware/verifyAuth.js', () => ({
 }));
 
 import cadRouter from './cad.js';
+import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
 function makeApp() {
   const app = express();
@@ -37,6 +51,15 @@ describe('POST /api/cad/convert-dwg (Sprint 21 Bucket Q proxy)', () => {
 
   beforeEach(() => {
     fetchSpy.mockReset();
+    // Default caller is a member of test-pid. Tests that assert 403 replace
+    // this seed with a project that does not list test-uid.
+    H.db = createFakeFirestore();
+    for (const projectId of ['test-pid', 'pid', 'declared-pid']) {
+      H.db._seed(`projects/${projectId}`, {
+        members: ['test-uid'],
+        createdBy: 'test-uid',
+      });
+    }
     // vi.stubGlobal swaps globalThis.fetch for the duration of the test;
     // the route uses the global fetch, so this is the documented hook.
     vi.stubGlobal('fetch', fetchSpy);
@@ -135,6 +158,50 @@ describe('POST /api/cad/convert-dwg (Sprint 21 Bucket Q proxy)', () => {
       projectId: 'test-pid',
     });
     expect(sentBody.uploadId).toMatch(/^dwg-[a-f0-9]{64}$/);
+  });
+
+  it('returns 403 when the caller is not a member of the declared project', async () => {
+    process.env.DWG_CONVERTER_URL = 'https://dwg-fake.run.app';
+    process.env.DWG_CONVERTER_TOKEN = 'tok';
+    process.env.CAD_OUTPUT_BUCKET = 'praeventio-cad';
+    H.db!._seed('projects/foreign-pid', {
+      members: ['someone-else'],
+      createdBy: 'someone-else',
+    });
+
+    const res = await request(makeApp())
+      .post('/api/cad/convert-dwg')
+      .send({
+        inputUri: 'gs://praeventio-cad-upload/projects-foreign-pid/uploads/foo.dwg',
+        filename: 'foo.dwg',
+        byteSize: 1024 * 100,
+        declaredKind: 'site_plan',
+        projectId: 'foreign-pid',
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: 'forbidden' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects a projects-{otherProjectId} URI even though it starts with projects-', async () => {
+    process.env.DWG_CONVERTER_URL = 'https://dwg-fake.run.app';
+    process.env.DWG_CONVERTER_TOKEN = 'tok';
+    process.env.CAD_OUTPUT_BUCKET = 'praeventio-cad';
+
+    const res = await request(makeApp())
+      .post('/api/cad/convert-dwg')
+      .send({
+        inputUri: 'gs://praeventio-cad-upload/projects-other-pid/uploads/foo.dwg',
+        filename: 'foo.dwg',
+        byteSize: 1024 * 100,
+        declaredKind: 'site_plan',
+        projectId: 'test-pid',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('project_id_uri_mismatch');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('strips a trailing slash on DWG_CONVERTER_URL before joining /convert', async () => {

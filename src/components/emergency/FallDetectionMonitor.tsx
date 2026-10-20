@@ -1,5 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
+import {
+  isNativeManDownActive,
+  subscribeNativeManDownActive,
+} from '../../services/mobile/nativeManDownState';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useFallDetectionPreference } from '../../hooks/useFallDetectionPreference';
@@ -56,7 +60,16 @@ export function FallDetectionMonitor() {
   const { user } = useFirebase();
   const { addNotification } = useNotifications();
   const { enabled: fdEnabled, loading: fdLoading } = useFallDetectionPreference();
-  const { triggerEmergency } = useEmergency();
+  const { triggerEmergency, isEmergencyActive } = useEmergency();
+  // On Android the native ManDown FGS owns fall/inactivity detection while a
+  // lone-worker session is confirmed. Running the WebView accelerometer too
+  // would double-alert a single fall (two emergencies) and our Motion.stop()
+  // could interfere with the JS motion listeners. The bridge publishes here.
+  const nativeManDownActive = useSyncExternalStore(
+    subscribeNativeManDownActive,
+    isNativeManDownActive,
+    () => false,
+  );
   const { selectedProject } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(15);
@@ -83,13 +96,22 @@ export function FallDetectionMonitor() {
   // bug (#1253). Deps are the exact values it reads.
   const dispatchFallEmergency = useCallback(
     (originLabel: 'countdown_expired' | 'user_requested') => {
+      // One emergency at a time. If the worker (or the native detector) was
+      // already escalated, a second packet for the same fall just pages the
+      // same supervisors twice and creates a duplicate activation row.
+      if (isEmergencyActive) {
+        logger.warn('FallDetectionMonitor: emergency already active — duplicate fall escalation suppressed', {
+          originLabel,
+        });
+        return;
+      }
       void Promise.resolve()
         .then(() => triggerEmergency(EMERGENCY_TYPE_FALL, selectedProject?.id))
         .catch((err) => {
           logger.error('FallDetectionMonitor: triggerEmergency failed', { err, originLabel });
         });
     },
-    [triggerEmergency, selectedProject],
+    [triggerEmergency, selectedProject, isEmergencyActive],
   );
 
   const handleFallDetected = () => {
@@ -160,7 +182,11 @@ export function FallDetectionMonitor() {
     // Opt-in: solo arrancamos el acelerómetro si el usuario activó
     // explícitamente la detección de caída en Settings. Default OFF
     // protege la batería de trabajadores no expuestos a altura.
-    if (user && fdEnabled && !fdLoading) {
+    //
+    // Android + sesión de trabajo solitario activa: el FGS nativo ya detecta
+    // caídas e inactividad y sobrevive a la suspensión del WebView. El detector
+    // del WebView cede el control para no duplicar la alerta.
+    if (user && fdEnabled && !fdLoading && !nativeManDownActive) {
       start();
     } else {
       // stop() became async in the [P0][VIDA] handle.remove() fix
@@ -173,7 +199,7 @@ export function FallDetectionMonitor() {
     return () => {
       void stop();
     };
-  }, [user, fdEnabled, fdLoading, start, stop]);
+  }, [user, fdEnabled, fdLoading, nativeManDownActive, start, stop]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;

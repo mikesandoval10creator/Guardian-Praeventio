@@ -6,6 +6,7 @@ import {
   type EmergencyDeliveryEvent,
 } from './emergencyDeliveryOutbox';
 import { createInMemoryOutboxAdapter } from '../sync/genericOutboxEngine';
+import type { OutboxAdapter, OutboxEntry } from '../sync/genericOutboxEngine';
 
 vi.mock('../../lib/apiAuth', () => ({
   apiAuthHeader: vi.fn(async () => 'Bearer test-token'),
@@ -151,5 +152,75 @@ describe('createEmergencyDeliveryController', () => {
     await controller.submit(payload, { clientEventId: 'emergency-dedupe' });
     await controller.submit(payload, { clientEventId: 'emergency-dedupe' });
     expect(await adapter.listEntries()).toHaveLength(1);
+  });
+
+  it('reports an honest queue failure when IndexedDB cannot be read', async () => {
+    const adapter: OutboxAdapter<EmergencyDeliveryPayload> = {
+      listEntries: vi.fn(async () => {
+        throw new Error('IDB down');
+      }),
+      saveEntry: vi.fn(async () => {}),
+      deleteEntry: vi.fn(async () => {}),
+    };
+    const controller = createEmergencyDeliveryController({
+      adapter,
+      sender: vi.fn(),
+    });
+
+    const result = await controller.submit(payload, {
+      clientEventId: 'emergency-idb-down',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.queued).toBe(false);
+    expect(result.failureKind).toBe('queue');
+    expect(result.error).toBe('queue_unavailable');
+    expect(adapter.saveEntry).not.toHaveBeenCalled();
+  });
+
+  it('serializes concurrent submits so neither emergency packet is overwritten', async () => {
+    // Simula el read-modify-write no atómico que tenía el adapter de IDB.
+    let store: OutboxEntry<EmergencyDeliveryPayload>[] = [];
+    const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
+    const adapter: OutboxAdapter<EmergencyDeliveryPayload> = {
+      async listEntries() {
+        const snapshot = [...store];
+        await tick();
+        return snapshot;
+      },
+      async saveEntry(entry) {
+        const snapshot = [...store];
+        await tick();
+        const index = snapshot.findIndex(
+          (candidate) =>
+            candidate.event.clientEventId === entry.event.clientEventId,
+        );
+        if (index >= 0) snapshot[index] = entry;
+        else snapshot.push(entry);
+        store = snapshot;
+      },
+      async deleteEntry(clientEventId) {
+        const snapshot = [...store];
+        await tick();
+        store = snapshot.filter(
+          (entry) => entry.event.clientEventId !== clientEventId,
+        );
+      },
+    };
+    const controller = createEmergencyDeliveryController({
+      adapter,
+      sender: vi.fn(async () => ({ kind: 'retry' as const, error: 'offline' })),
+      nowMs: () => 1_000_000,
+    });
+
+    const [first, second] = await Promise.all([
+      controller.submit(payload, { clientEventId: 'em-a' }),
+      controller.submit(payload, { clientEventId: 'em-b' }),
+    ]);
+
+    expect([first.status, second.status]).toEqual(['pending', 'pending']);
+    expect(
+      store.map((entry) => entry.event.clientEventId).sort(),
+    ).toEqual(['em-a', 'em-b']);
   });
 });

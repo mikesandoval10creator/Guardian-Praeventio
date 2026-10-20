@@ -108,7 +108,6 @@ These are the Capacitor plugins already wired in `package.json` plus the runtime
 | `@capacitor/push-notifications` | `POST_NOTIFICATIONS` (Android 13+) | `UIBackgroundModes` → `remote-notification`, plus enable Push Notifications capability in Xcode |
 | `@capacitor-community/bluetooth-le` | `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` (Android 12+); `ACCESS_FINE_LOCATION` for scan results on Android 11 and below | `NSBluetoothAlwaysUsageDescription`, `NSBluetoothPeripheralUsageDescription` |
 | `@capacitor-community/sqlite` | none | none (data lives in the app sandbox) |
-| `@capacitor-community/admob` | `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID` (Android 13+) | none beyond the SKAdNetwork IDs in `Info.plist` (template in AdMob docs) |
 | `@capacitor-community/keep-awake` | none | none |
 | `@capacitor/preferences` | none | none |
 | `@aparajita/capacitor-biometric-auth` | `USE_BIOMETRIC` (and legacy `USE_FINGERPRINT` for older devices) | `NSFaceIDUsageDescription` |

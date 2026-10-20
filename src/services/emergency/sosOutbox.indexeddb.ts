@@ -40,13 +40,10 @@ export class IndexedDbSosStorage implements SosOutboxStorage {
       if (Array.isArray(raw)) return raw;
       // Distinguish "no key set yet" (legitimate first run) from "key set
       // but stored value isn't an array" (real corruption/schema drift).
-      // The previous code logged every miss as corruption, which fires on
-      // every fresh device — burying real corruption in noise. Treat
-      // undefined/null as a legitimate empty outbox; log only when the
-      // store actually has a non-array value worth investigating.
       if (raw === undefined || raw === null) return [];
       // raw is NOT an array here — could be string, number, object, etc.
-      // Log type and length for forense.
+      // Log type and length for forense. Do NOT return []: the next enqueue
+      // would then save only the new SOS and overwrite the stored value.
       const rawAsUnknown: unknown = raw;
       const rawType: string = typeof rawAsUnknown;
       const rawLength: string =
@@ -55,15 +52,19 @@ export class IndexedDbSosStorage implements SosOutboxStorage {
           : 'N/A';
       logger.error(
         'sosOutbox: IndexedDB load returned non-array (corruption or schema mismatch). ' +
-        'Discarding. Investigate before this happens again — offline SOS may be lost.',
+        'Refusing to overwrite. Investigate before this happens again — offline SOS may be lost.',
         { rawType, rawIsNull: rawAsUnknown === null, rawLength },
       );
-      return [];
+      throw new Error('sos_outbox_corrupt');
     } catch (err) {
-      // IndexedDB unavailable (private mode / quota) — degrade to empty rather
-      // than crashing the flush loop. Logged, never silent.
-      logger.warn('sosOutbox: IndexedDB load failed', { err: String(err) });
-      return [];
+      // IndexedDB unavailable (private mode / quota). Propagate the failure:
+      // returning an empty queue here would make the next enqueue overwrite
+      // any SOS already persisted. Callers (SOSButton) already fall back to
+      // tel: and surface "no se pudo enviar" when enqueue rejects.
+      logger.warn('sosOutbox: IndexedDB load failed — refusing to overwrite the queue', {
+        err: String(err),
+      });
+      throw err;
     }
   }
 

@@ -173,7 +173,8 @@ function PointCloudViewer({
   boundingBox: ReconstructionJob["boundingBox"];
 }) {
   const positions = React.useMemo(() => {
-    const arr = new Float32Array(pointCount * 3);
+    const count = Math.max(0, Math.floor(pointCount));
+    const arr = new Float32Array(count * 3);
     const bb = boundingBox || {
       minX: -10,
       maxX: 10,
@@ -182,17 +183,28 @@ function PointCloudViewer({
       minZ: -10,
       maxZ: 10,
     };
-    for (let i = 0; i < pointCount; i++) {
-      arr[i * 3] = bb.minX + Math.random() * (bb.maxX - bb.minX);
-      arr[i * 3 + 1] = bb.minY + Math.random() * (bb.maxY - bb.minY);
-      arr[i * 3 + 2] = bb.minZ + Math.random() * (bb.maxZ - bb.minZ);
+    // Deterministic lattice, NOT measured points. The old Math.random() cloud
+    // looked like a real reconstruction and tripped the honesty gate; this
+    // fallback is reproducible and the page is already badged "Vista previa".
+    const side = Math.max(1, Math.ceil(Math.cbrt(Math.max(1, count))));
+    const spanX = Math.max(0, bb.maxX - bb.minX);
+    const spanY = Math.max(0, bb.maxY - bb.minY);
+    const spanZ = Math.max(0, bb.maxZ - bb.minZ);
+    for (let i = 0; i < count; i++) {
+      const ix = i % side;
+      const iy = Math.floor(i / side) % side;
+      const iz = Math.floor(i / (side * side)) % side;
+      arr[i * 3] = bb.minX + ((ix + 0.5) / side) * spanX;
+      arr[i * 3 + 1] = bb.minY + ((iy + 0.5) / side) * spanY;
+      arr[i * 3 + 2] = bb.minZ + ((iz + 0.5) / side) * spanZ;
     }
     return arr;
   }, [pointCount, boundingBox]);
 
   const colors = React.useMemo(() => {
-    const arr = new Float32Array(pointCount * 3);
-    for (let i = 0; i < pointCount; i++) {
+    const count = positions.length / 3;
+    const arr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
       const heightRatio =
         (positions[i * 3 + 1] - (boundingBox?.minY ?? 0)) /
         Math.max(1, (boundingBox?.maxY ?? 5) - (boundingBox?.minY ?? 0));
@@ -201,7 +213,7 @@ function PointCloudViewer({
       arr[i * 3 + 2] = 0.5 - heightRatio * 0.2; // B
     }
     return arr;
-  }, [positions, pointCount, boundingBox]);
+  }, [positions, boundingBox]);
 
   return (
     <points>
