@@ -92,6 +92,14 @@ export type FlushResult =
   | { kind: 'retry'; entryId: string; error: string }
   | { kind: 'permanent_failure'; entryId: string; error: string };
 
+export interface OutboxFlushStats {
+  attempted: number;
+  succeeded: number;
+  retried: number;
+  permanentlyFailed: number;
+  deadLettered: number;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Persistence adapter interface
 // ────────────────────────────────────────────────────────────────────────
@@ -171,6 +179,27 @@ export class GenericOutboxEngine<T> {
   constructor(private readonly config: OutboxEngineConfig<T>) {}
 
   /**
+   * Serializa las mutaciones de storage (load→modify→save). Sin esto, un
+   * `flush()` que se para en la red durante `send()` y un `enqueue()`
+   * concurrente cargan el mismo snapshot; el save stale del flush puede
+   * borrar el evento recién encolado.
+   *
+   * La red queda FUERA del lock: un paquete de emergencia debe poder
+   * persistirse aunque un envío anterior esté esperando timeout.
+   */
+  private mutation: Promise<unknown> = Promise.resolve();
+  private flushInFlight: Promise<OutboxFlushStats> | null = null;
+
+  private runExclusive<R>(fn: () => Promise<R>): Promise<R> {
+    const run = this.mutation.then(fn, fn);
+    this.mutation = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /**
    * Encola un nuevo event. Si ya existe uno con el mismo
    * `clientEventId`, NO se duplica (idempotencia).
    *
@@ -180,64 +209,66 @@ export class GenericOutboxEngine<T> {
    * la IDB con events que el server no puede aceptar.
    */
   async enqueue(event: OutboxEvent<T>): Promise<boolean> {
-    const now = this.now();
-    const entries = await this.config.adapter.listEntries();
+    return this.runExclusive(async () => {
+      const now = this.now();
+      const entries = await this.config.adapter.listEntries();
 
-    // Dedup por clientEventId.
-    const existing = entries.find(
-      (e) => e.event.clientEventId === event.clientEventId,
-    );
-    if (existing) {
-      // Ya está en cola — idempotencia. No re-encolamos.
-      return true;
-    }
-
-    // Cap check.
-    const maxEntries = this.config.maxEntries ?? 100;
-    if (entries.length >= maxEntries) {
-      // Evict: el más viejo de menor prioridad (background > normal > critical).
-      // 🛟 Los dead-letters NO son candidatos a evicción — son datos de
-      // seguridad retenidos para escalamiento; descartarlos por capacidad
-      // reintroduce la pérdida silenciosa que este bloque arregla.
-      const evictable = entries
-        .filter((e) => !e.deadLettered)
-        .sort((a, b) => {
-          const pdiff =
-            PRIORITY_RANK[b.event.priority] - PRIORITY_RANK[a.event.priority];
-          if (pdiff !== 0) return pdiff;
-          return Date.parse(a.queuedAt) - Date.parse(b.queuedAt);
-        });
-      const victim = evictable[0];
-      if (
-        !victim ||
-        PRIORITY_RANK[victim.event.priority] <= PRIORITY_RANK[event.priority]
-      ) {
-        // No hay víctima viva de menor prioridad → rechazamos el nuevo (la cola
-        // está saturada de items de prioridad ≥ a la del entrante, o sólo
-        // quedan dead-letters, que nunca se desalojan).
-        return false;
+      // Dedup por clientEventId.
+      const existing = entries.find(
+        (e) => e.event.clientEventId === event.clientEventId,
+      );
+      if (existing) {
+        // Ya está en cola — idempotencia. No re-encolamos.
+        return true;
       }
-      await this.config.adapter.deleteEntry(victim.event.clientEventId);
-      this.emit({
-        kind: 'evicted',
-        entryId: victim.event.clientEventId,
-        reason: 'capacity',
-      });
-    }
 
-    const entry: OutboxEntry<T> = {
-      event,
-      queuedAt: new Date(now).toISOString(),
-      retryCount: 0,
-      nextRetryAt: now,
-    };
-    await this.config.adapter.saveEntry(entry);
-    this.emit({
-      kind: 'enqueued',
-      entryId: event.clientEventId,
-      priority: event.priority,
+      // Cap check.
+      const maxEntries = this.config.maxEntries ?? 100;
+      if (entries.length >= maxEntries) {
+        // Evict: el más viejo de menor prioridad (background > normal > critical).
+        // 🛟 Los dead-letters NO son candidatos a evicción — son datos de
+        // seguridad retenidos para escalamiento; descartarlos por capacidad
+        // reintroduce la pérdida silenciosa que este bloque arregla.
+        const evictable = entries
+          .filter((e) => !e.deadLettered)
+          .sort((a, b) => {
+            const pdiff =
+              PRIORITY_RANK[b.event.priority] - PRIORITY_RANK[a.event.priority];
+            if (pdiff !== 0) return pdiff;
+            return Date.parse(a.queuedAt) - Date.parse(b.queuedAt);
+          });
+        const victim = evictable[0];
+        if (
+          !victim ||
+          PRIORITY_RANK[victim.event.priority] <= PRIORITY_RANK[event.priority]
+        ) {
+          // No hay víctima viva de menor prioridad → rechazamos el nuevo (la cola
+          // está saturada de items de prioridad ≥ a la del entrante, o sólo
+          // quedan dead-letters, que nunca se desalojan).
+          return false;
+        }
+        await this.config.adapter.deleteEntry(victim.event.clientEventId);
+        this.emit({
+          kind: 'evicted',
+          entryId: victim.event.clientEventId,
+          reason: 'capacity',
+        });
+      }
+
+      const entry: OutboxEntry<T> = {
+        event,
+        queuedAt: new Date(now).toISOString(),
+        retryCount: 0,
+        nextRetryAt: now,
+      };
+      await this.config.adapter.saveEntry(entry);
+      this.emit({
+        kind: 'enqueued',
+        entryId: event.clientEventId,
+        priority: event.priority,
+      });
+      return true;
     });
-    return true;
   }
 
   /**
@@ -247,13 +278,16 @@ export class GenericOutboxEngine<T> {
    * NO throwea por failures individuales — captura cada error en el
    * entry y deja el resto procesando.
    */
-  async flush(): Promise<{
-    attempted: number;
-    succeeded: number;
-    retried: number;
-    permanentlyFailed: number;
-    deadLettered: number;
-  }> {
+  async flush(): Promise<OutboxFlushStats> {
+    if (this.flushInFlight) return this.flushInFlight;
+    const run = this.flushInternal().finally(() => {
+      this.flushInFlight = null;
+    });
+    this.flushInFlight = run;
+    return run;
+  }
+
+  private async flushInternal(): Promise<OutboxFlushStats> {
     const now = this.now();
     const entries = await this.config.adapter.listEntries();
     const ttlMs = (this.config.ttlHours ?? 168) * 60 * 60 * 1000;
@@ -274,12 +308,21 @@ export class GenericOutboxEngine<T> {
       const retriesExceeded = entry.retryCount >= maxRetries;
       if (ttlExpired || retriesExceeded) {
         const reason: 'ttl' | 'max_retries' = ttlExpired ? 'ttl' : 'max_retries';
-        await this.config.adapter.saveEntry({
-          ...entry,
-          deadLettered: true,
-          deadLetterReason: reason,
-          nextRetryAt: Number.POSITIVE_INFINITY,
+        const applied = await this.runExclusive(async () => {
+          const current = (await this.config.adapter.listEntries()).find(
+            (candidate) =>
+              candidate.event.clientEventId === entry.event.clientEventId,
+          );
+          if (!current || current.deadLettered) return false;
+          await this.config.adapter.saveEntry({
+            ...current,
+            deadLettered: true,
+            deadLetterReason: reason,
+            nextRetryAt: Number.POSITIVE_INFINITY,
+          });
+          return true;
         });
+        if (!applied) continue;
         this.emit({
           kind: 'dead_lettered',
           entryId: entry.event.clientEventId,
@@ -316,7 +359,9 @@ export class GenericOutboxEngine<T> {
       }
 
       if (result.kind === 'success') {
-        await this.config.adapter.deleteEntry(entry.event.clientEventId);
+        await this.runExclusive(() =>
+          this.config.adapter.deleteEntry(entry.event.clientEventId),
+        );
         this.emit({
           kind: 'flush_success',
           entryId: entry.event.clientEventId,
@@ -324,7 +369,9 @@ export class GenericOutboxEngine<T> {
         });
         succeeded++;
       } else if (result.kind === 'permanent_failure') {
-        await this.config.adapter.deleteEntry(entry.event.clientEventId);
+        await this.runExclusive(() =>
+          this.config.adapter.deleteEntry(entry.event.clientEventId),
+        );
         this.emit({
           kind: 'flush_permanent_failure',
           entryId: entry.event.clientEventId,
@@ -332,25 +379,36 @@ export class GenericOutboxEngine<T> {
         });
         permanentlyFailed++;
       } else {
-        // Retry: incrementa retryCount + recompute backoff.
-        const updatedRetryCount = entry.retryCount + 1;
-        const nextRetryAt = computeNextRetryAt({
-          now,
-          retryCount: updatedRetryCount,
-          baseMs: this.config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS,
-          capMs: this.config.backoffCapMs ?? DEFAULT_BACKOFF_CAP_MS,
+        // Retry: incrementa retryCount + recompute backoff. Re-leemos el
+        // estado actual dentro del lock para no pisar un enqueue/clear
+        // concurrente con el snapshot stale de este flush.
+        const applied = await this.runExclusive(async () => {
+          const current = (await this.config.adapter.listEntries()).find(
+            (candidate) =>
+              candidate.event.clientEventId === entry.event.clientEventId,
+          );
+          if (!current || current.deadLettered) return null;
+          const updatedRetryCount = current.retryCount + 1;
+          const nextRetryAt = computeNextRetryAt({
+            now,
+            retryCount: updatedRetryCount,
+            baseMs: this.config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS,
+            capMs: this.config.backoffCapMs ?? DEFAULT_BACKOFF_CAP_MS,
+          });
+          const updated: OutboxEntry<T> = {
+            ...current,
+            retryCount: updatedRetryCount,
+            nextRetryAt,
+            lastError: result.error,
+          };
+          await this.config.adapter.saveEntry(updated);
+          return updated;
         });
-        const updated: OutboxEntry<T> = {
-          ...entry,
-          retryCount: updatedRetryCount,
-          nextRetryAt,
-          lastError: result.error,
-        };
-        await this.config.adapter.saveEntry(updated);
+        if (!applied) continue;
         this.emit({
           kind: 'flush_retry',
           entryId: entry.event.clientEventId,
-          retryCount: updatedRetryCount,
+          retryCount: applied.retryCount,
           error: result.error ?? 'unknown',
         });
         retried++;
@@ -380,13 +438,15 @@ export class GenericOutboxEngine<T> {
    * sólo borra si el entry está efectivamente dead-lettered.
    */
   async clearDeadLetter(clientEventId: string): Promise<void> {
-    const entries = await this.config.adapter.listEntries();
-    const target = entries.find(
-      (e) => e.event.clientEventId === clientEventId && e.deadLettered,
-    );
-    if (target) {
-      await this.config.adapter.deleteEntry(clientEventId);
-    }
+    await this.runExclusive(async () => {
+      const entries = await this.config.adapter.listEntries();
+      const target = entries.find(
+        (e) => e.event.clientEventId === clientEventId && e.deadLettered,
+      );
+      if (target) {
+        await this.config.adapter.deleteEntry(clientEventId);
+      }
+    });
   }
 
   /** Stats sin flushear — útil para UI badges. */

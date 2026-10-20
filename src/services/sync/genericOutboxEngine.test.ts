@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   GenericOutboxEngine,
   createInMemoryOutboxAdapter,
+  type OutboxAdapter,
+  type OutboxEntry,
   type OutboxEvent,
   type OutboxSender,
   type TelemetryEvent,
@@ -424,6 +426,118 @@ describe('GenericOutboxEngine — stats', () => {
     const s = await engine.stats();
     expect(s.total).toBe(0);
     expect(s.oldestQueuedAt).toBeUndefined();
+  });
+});
+
+describe('GenericOutboxEngine — concurrencia y fallos de storage', () => {
+  /**
+   * Adapter que hace read-modify-write NO atómico, como el adapter real de
+   * IndexedDB antes del fix. Si dos operaciones se solapan, la última
+   * escritura pisa a la primera. El lock del engine debe impedirlo.
+   */
+  function createDelayedRmwAdapter<T>() {
+    let store: OutboxEntry<T>[] = [];
+    const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
+    const adapter: OutboxAdapter<T> = {
+      async listEntries() {
+        const snapshot = [...store];
+        await tick();
+        return snapshot;
+      },
+      async saveEntry(entry) {
+        const snapshot = [...store];
+        await tick();
+        const index = snapshot.findIndex(
+          (candidate) =>
+            candidate.event.clientEventId === entry.event.clientEventId,
+        );
+        if (index >= 0) snapshot[index] = entry;
+        else snapshot.push(entry);
+        store = snapshot;
+      },
+      async deleteEntry(clientEventId) {
+        const snapshot = [...store];
+        await tick();
+        store = snapshot.filter(
+          (entry) => entry.event.clientEventId !== clientEventId,
+        );
+      },
+    };
+    return { adapter, entries: () => [...store] };
+  }
+
+  it('serializa enqueues concurrentes: no pierde ninguno', async () => {
+    const { adapter, entries } = createDelayedRmwAdapter<FakePayload>();
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => ({ kind: 'success' as const }),
+    });
+
+    const results = await Promise.all([
+      engine.enqueue(event('a')),
+      engine.enqueue(event('b')),
+    ]);
+
+    expect(results).toEqual([true, true]);
+    expect(
+      entries()
+        .map((entry) => entry.event.clientEventId)
+        .sort(),
+    ).toEqual(['a', 'b']);
+  });
+
+  it('un enqueue durante el flush NO se pierde cuando el flush borra el enviado', async () => {
+    const { adapter, entries } = createDelayedRmwAdapter<FakePayload>();
+    let signalSenderStarted!: () => void;
+    const senderStarted = new Promise<void>((resolve) => {
+      signalSenderStarted = resolve;
+    });
+    let releaseSender!: () => void;
+    const senderGate = new Promise<void>((resolve) => {
+      releaseSender = resolve;
+    });
+
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => {
+        signalSenderStarted();
+        await senderGate;
+        return { kind: 'success' as const };
+      },
+      nowMs: () => 1000,
+    });
+
+    await engine.enqueue(event('e1'));
+    const flushing = engine.flush();
+    await senderStarted;
+
+    // El flush está esperando la red (fuera del lock). Este enqueue debe
+    // persistirse y sobrevivir al deleteEntry del flush.
+    await engine.enqueue(event('e2'));
+    releaseSender();
+    await flushing;
+
+    expect(
+      entries().map((entry) => entry.event.clientEventId),
+    ).toEqual(['e2']);
+  });
+
+  it('propaga el fallo de listEntries y NO escribe una cola vacía', async () => {
+    const saveEntry = vi.fn(async () => {});
+    const adapter: OutboxAdapter<FakePayload> = {
+      async listEntries() {
+        throw new Error('IDB down');
+      },
+      saveEntry,
+      async deleteEntry() {},
+    };
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => ({ kind: 'success' as const }),
+    });
+
+    await expect(engine.enqueue(event('e1'))).rejects.toThrow('IDB down');
+    expect(saveEntry).not.toHaveBeenCalled();
   });
 });
 

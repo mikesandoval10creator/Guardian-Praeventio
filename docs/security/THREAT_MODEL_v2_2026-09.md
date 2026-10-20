@@ -122,7 +122,7 @@
 | M5 | Insecure Communication | ⚠️ Pins SPKI aún PLACEHOLDERS |
 | M6 | Inadequate Privacy Controls | ✅ Consentimiento + GDPR ARCO endpoints (gap: tenant check) |
 | M7 | Insufficient Binary Protections | ⚠️ Sin runtime hash check |
-| M8 | Security Misconfiguration | ⚠️ Capacitor.config.ts + App ID AdMob de prueba (Play rechazaría) |
+| M8 | Security Misconfiguration | ⚠️ Capacitor.config.ts (revisar server.url/cleartext; AdMob retirado 2026-10-20) |
 | M9 | Insecure Data Storage | ⚠️ IndexedDB (incl. `meshKeyStore` raw key) is not encrypted at rest by this layer; GCS uses CMEK |
 | M10 | Insufficient Cryptography | ✅ TLS 1.3 + pins + WebAuthn |
 
@@ -148,7 +148,6 @@
 | Gap | Riesgo | Plan owner |
 |---|---|---|
 | Pins SPKI reales (bloqueado por GCP billing) | M5 / production | Daniel (GCP reactivación) |
-| App ID AdMob de producción | M8 / Play rejection | Daniel (decisión AdMob) |
 | Capacitor-mesh hardening + signing | Vida-safety / Mesh | W3-W4 |
 | `capacitor-mandown` tests nativos | Vida-safety / FGS | W4 |
 | RBAC verifier + platform_operator | M3 | W2 |

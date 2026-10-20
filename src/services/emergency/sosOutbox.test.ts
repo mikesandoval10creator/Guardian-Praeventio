@@ -50,6 +50,22 @@ describe('SosOutbox', () => {
     expect(snap[0].event.clientEventId).toBe('evt-1');
   });
 
+  it('propaga un fallo de load y NO guarda una cola parcial', async () => {
+    const save = vi.fn(async () => {});
+    const outbox = new SosOutbox({
+      storage: {
+        load: async () => {
+          throw new Error('IDB down');
+        },
+        save,
+      },
+      send: async () => ({ ok: true }),
+    });
+
+    await expect(outbox.enqueue(makeEvent())).rejects.toThrow('IDB down');
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('enqueue es idempotente por clientEventId', async () => {
     const storage = new InMemorySosStorage();
     const outbox = new SosOutbox({ storage, send: async () => ({ ok: true }) });

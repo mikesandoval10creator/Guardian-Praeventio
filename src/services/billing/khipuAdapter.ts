@@ -176,9 +176,23 @@ export class KhipuAdapter {
 
   /** Whether explicit (non-sandbox) production credentials are in play. */
   isConfigured(): boolean {
-    return Boolean(
-      process.env.KHIPU_RECEIVER_ID && process.env.KHIPU_SECRET,
-    );
+    const receiverId = process.env.KHIPU_RECEIVER_ID;
+    const secret = process.env.KHIPU_SECRET;
+    if (!receiverId || !secret) return false;
+    // Public sandbox values are valid non-empty strings; never treat them as
+    // production credentials, even if someone copied them into the env.
+    if (receiverId === KhipuAdapter.SANDBOX_DEFAULTS.receiverId) return false;
+    if (secret === KhipuAdapter.SANDBOX_DEFAULTS.secret) return false;
+    // fromEnv() defaults to the integration endpoint unless KHIPU_ENV is
+    // exactly 'production'. A production boot with real creds but no flag
+    // would silently collect zero money.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.KHIPU_ENV !== 'production'
+    ) {
+      return false;
+    }
+    return true;
   }
 
   // ─────────────────────────────────────────────────────────────────────

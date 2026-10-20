@@ -149,10 +149,19 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
     requestWakeLock();
     const interval = setInterval(() => setStrobeFlash(f => !f), 500);
 
-    // Try to toggle device torch as well
+    // Try to toggle device torch as well. `disposed` closes the async race:
+    // if the operator turns the beacon off while getUserMedia is still
+    // pending, cleanup runs before the stream exists. Without this guard the
+    // await then assigns the stream + a 500 ms interval AFTER cleanup, leaving
+    // the camera/torch on indefinitely in an emergency.
+    let disposed = false;
     const startTorch = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (disposed) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
         torchStreamRef.current = stream;
         const track = stream.getVideoTracks()[0];
         let on = false;
@@ -169,6 +178,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
     startTorch();
 
     return () => {
+      disposed = true;
       clearInterval(interval);
       if (torchIntervalRef.current) {
         clearInterval(torchIntervalRef.current);

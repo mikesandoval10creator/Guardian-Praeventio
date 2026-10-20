@@ -288,7 +288,13 @@ export class MeshRelayQueue {
     const evicted: MeshPacket[] = [];
     const remaining: MeshPacket[] = [];
 
-    for (const packet of this.queue) {
+    // Priority cut happens BEFORE maxPackets, not after. The queue preserves
+    // insertion order between overflows, so iterating it directly meant an
+    // SOS born last could be left in `remaining` while older low-priority
+    // breadcrumbs consumed the bandwidth budget. Sorting a snapshot first
+    // guarantees the highest-priority packets are the ones that leave.
+    const candidates = [...this.queue].sort(comparePackets);
+    for (const packet of candidates) {
       if (toSend.length >= maxPackets) {
         remaining.push(packet);
         continue;

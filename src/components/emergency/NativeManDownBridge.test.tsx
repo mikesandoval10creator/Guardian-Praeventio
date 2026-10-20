@@ -61,6 +61,10 @@ vi.mock("../../utils/logger", () => ({
 }));
 
 import { NativeManDownBridge } from "./NativeManDownBridge";
+import {
+  __resetNativeManDownStateForTests,
+  isNativeManDownActive,
+} from "../../services/mobile/nativeManDownState";
 
 function activeSession(
   overrides: Partial<LoneWorkerSession> = {},
@@ -78,6 +82,7 @@ function activeSession(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetNativeManDownStateForTests();
   stopNativeManDown.mockReset();
   startNativeManDown.mockReset();
   mintNativeManDownCapability.mockReset();
@@ -132,6 +137,32 @@ describe("<NativeManDownBridge />", () => {
         inactivityThresholdMs: 45_000,
       }),
     );
+  });
+
+  it("publishes confirmed native ownership for the WebView detector and clears it when the session ends", async () => {
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+
+    await waitFor(() => expect(isNativeManDownActive()).toBe(true));
+
+    await act(async () =>
+      subscriber?.([
+        activeSession({ status: "ended", endedAt: new Date().toISOString() }),
+      ]),
+    );
+    await waitFor(() => expect(isNativeManDownActive()).toBe(false));
+  });
+
+  it("never claims native ownership on web/iOS", async () => {
+    isAndroidNativeManDown.mockReturnValue(false);
+    render(<NativeManDownBridge />);
+    await act(async () => subscriber?.([activeSession()]));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(startNativeManDown).not.toHaveBeenCalled();
+    expect(isNativeManDownActive()).toBe(false);
   });
 
   it("continues native monitoring when the session becomes overdue, and stops only after explicit end", async () => {

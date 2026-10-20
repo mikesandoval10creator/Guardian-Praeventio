@@ -20,6 +20,7 @@ import {
   type NativeManDownApplyResult,
   type NativeManDownStopResult,
 } from "../../services/mobile/nativeManDownClient";
+import { setNativeManDownActive } from "../../services/mobile/nativeManDownState";
 import { logger } from "../../utils/logger";
 
 const DEFAULT_INACTIVITY_MS = 30_000;
@@ -172,6 +173,17 @@ export function NativeManDownBridge() {
   const activeAuthority = nativeAuthority?.projectId === projectId &&
     nativeAuthority.workerUid === workerUid && nativeAuthority.sessionId === openSessionId
     ? nativeAuthority : null;
+
+  // Publish confirmed native ownership so the WebView fall detector yields.
+  // Without this, Android could run two accelerometer detectors for the same
+  // worker: two emergencies for one fall, and `Motion.stop()` from the WebView
+  // can tear down the native listener app-wide.
+  useEffect(() => {
+    setNativeManDownActive(!!nativeAuthority && isAndroidNativeManDown());
+    return () => {
+      setNativeManDownActive(false);
+    };
+  }, [nativeAuthority]);
 
   useEffect(() => {
     if (!activeAuthority) return undefined;

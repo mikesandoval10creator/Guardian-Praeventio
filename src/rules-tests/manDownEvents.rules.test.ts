@@ -19,7 +19,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, Timestamp, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PROJECT_A = 'proj-mandown-a';
@@ -109,6 +109,24 @@ async function seedState() {
       acknowledgedByName: 'Worker A',
       acknowledgedAt: EVENT_TIME,
     });
+    await setDoc(
+      doc(
+        db,
+        'projects',
+        PROJECT_A,
+        'mandown_events',
+        EVENT_ID,
+        'escalations',
+        'marker-1',
+      ),
+      {
+        eventId: EVENT_ID,
+        level: 'supervisor',
+        workerId: WORKER_A,
+        workerName: 'Worker A',
+        notified: true,
+      },
+    );
   });
 }
 
@@ -207,5 +225,30 @@ describe('mandown_events — actor binding and monotonic lifecycle', () => {
         resolvedAt: Timestamp.now(),
       }),
     );
+  });
+
+  it('denies client read/write of server-only escalation markers', async () => {
+    const db = authed(SUPERVISOR_A, 'supervisor', TENANT_A);
+    const marker = doc(
+      db,
+      'projects',
+      PROJECT_A,
+      'mandown_events',
+      EVENT_ID,
+      'escalations',
+      'marker-1',
+    );
+    const newMarker = doc(
+      db,
+      'projects',
+      PROJECT_A,
+      'mandown_events',
+      EVENT_ID,
+      'escalations',
+      'marker-2',
+    );
+
+    await assertFails(getDoc(marker));
+    await assertFails(setDoc(newMarker, { level: 'supervisor', notified: false }));
   });
 });

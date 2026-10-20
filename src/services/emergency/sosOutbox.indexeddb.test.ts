@@ -1,6 +1,6 @@
 // OLA 1 (VIDA, 2026-06-14) — IndexedDbSosStorage (prod persistence for the SOS
-// outbox). Pins: save→load round-trip, empty→[], and a read failure degrades to
-// [] (logged, never crashes the flush loop) so the life-safety queue is robust.
+// outbox). Pins: save→load round-trip, empty→[], and read failures propagating
+// (never returning [] — that would let the next enqueue overwrite the queue).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -49,11 +49,19 @@ describe('IndexedDbSosStorage', () => {
     expect(await new IndexedDbSosStorage().load()).toEqual([]);
   });
 
-  it('degrades to [] (and logs) when IndexedDB read throws — never crashes flush', async () => {
+  it('propagates read failures instead of returning an empty queue', async () => {
     h.getMock.mockRejectedValueOnce(new Error('IDB unavailable (private mode)'));
-    const loaded = await new IndexedDbSosStorage().load();
-    expect(loaded).toEqual([]);
+    await expect(new IndexedDbSosStorage().load()).rejects.toThrow(
+      'IDB unavailable (private mode)',
+    );
     expect(h.warnMock).toHaveBeenCalled();
+  });
+
+  it('propagates non-array corruption instead of overwriting the stored value', async () => {
+    h.mem.set('praeventio:sos-outbox:v1', { corrupt: true });
+    await expect(new IndexedDbSosStorage().load()).rejects.toThrow(
+      'sos_outbox_corrupt',
+    );
   });
 
   it('propagates save errors so the caller knows the SOS was NOT persisted', async () => {

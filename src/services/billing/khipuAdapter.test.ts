@@ -81,6 +81,24 @@ describe('KhipuAdapter.fromEnv', () => {
     const adapter = KhipuAdapter.fromEnv();
     expect(adapter.config.environment).toBe('integration');
   });
+
+  it('production: real creds without KHIPU_ENV=production are NOT configured', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.KHIPU_RECEIVER_ID = '999888';
+    process.env.KHIPU_SECRET = 'real-prod-secret';
+    const adapter = KhipuAdapter.fromEnv();
+    expect(adapter.config.environment).toBe('integration');
+    expect(adapter.isConfigured()).toBe(false);
+  });
+
+  it('production: rejects the PUBLIC sandbox receiver/secret', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.KHIPU_ENV = 'production';
+    process.env.KHIPU_RECEIVER_ID = KhipuAdapter.SANDBOX_DEFAULTS.receiverId;
+    process.env.KHIPU_SECRET = KhipuAdapter.SANDBOX_DEFAULTS.secret;
+    const adapter = KhipuAdapter.fromEnv();
+    expect(adapter.isConfigured()).toBe(false);
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────────

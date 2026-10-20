@@ -803,16 +803,61 @@ describe('POST /:projectId/horometro/maintenance-task/:taskId/complete', () => {
     seedTask();
     H.onMaintenanceCompleted.mockResolvedValueOnce(FLOW_OK);
 
+    const hash = 'a'.repeat(64);
     const res = await request(buildApp())
       .post(url())
       .set('x-test-uid', 'uid-1')
       .send({
         notes: 'Mantenimiento completo con firma biométrica.',
-        biometricSignatureHash: 'abc123def456gh78',
+        biometricSignatureHash: hash,
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.task.completion.biometricSignatureHash).toBe('abc123def456gh78');
+    expect(res.body.task.completion.biometricSignatureHash).toBe(hash);
+  });
+
+  it('400 — rejects a fabricated non-hash biometricSignatureHash', async () => {
+    seedProject();
+    seedTask();
+
+    const res = await request(buildApp())
+      .post(url())
+      .set('x-test-uid', 'uid-1')
+      .send({
+        notes: 'Intento con hash inventado.',
+        biometricSignatureHash: `local-${'x'.repeat(20)}`,
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('400 — rejects a short/non-hex biometricSignatureHash', async () => {
+    seedProject();
+    seedTask();
+
+    const res = await request(buildApp())
+      .post(url())
+      .set('x-test-uid', 'uid-1')
+      .send({
+        notes: 'Intento con hash corto.',
+        biometricSignatureHash: 'abc123def456gh78',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('200 — completion without biometricSignatureHash is allowed (native, no assertion)', async () => {
+    seedProject();
+    seedTask();
+    H.onMaintenanceCompleted.mockResolvedValueOnce(FLOW_OK);
+
+    const res = await request(buildApp())
+      .post(url())
+      .set('x-test-uid', 'uid-1')
+      .send({ notes: 'Cierre sin assertion WebAuthn (nativo).' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.task.completion.biometricSignatureHash).toBeUndefined();
   });
 
   it('200 — completion with horometroAtCompletion → stored in completion block', async () => {

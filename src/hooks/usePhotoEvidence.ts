@@ -6,12 +6,16 @@
 // to Cloud Storage.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../services/firebase';
+import { storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import type {
   EvidenceArtifact,
   EvidenceLinkage,
   LinkedNodeKind,
   PhotoEvidencePayload,
+} from '../services/photoEvidence/photoEvidenceEngine';
+import {
+  buildArtifact,
+  buildStoragePath,
 } from '../services/photoEvidence/photoEvidenceEngine';
 import { apiAuthHeader } from '../lib/apiAuth';
 
@@ -128,6 +132,90 @@ export async function recordPhotoEvidence(
     throw new Error(errBody.detail ?? errBody.error ?? `http_${res.status}`);
   }
   return (await res.json()) as RecordEvidenceResponse;
+}
+
+export interface UploadPhotoEvidenceOptions {
+  /** UID del capturador (del usuario autenticado). El server lo revalida. */
+  capturedByUid: string;
+  /** El server exige 1..10 vínculos: la evidencia debe pertenecer a un nodo. */
+  linkages: EvidenceLinkage[];
+  /** ISO-8601; por defecto ahora. */
+  capturedAt?: string;
+  capturedLocation?: { lat: number; lng: number };
+  notes?: string;
+}
+
+export interface UploadedPhotoEvidence {
+  artifact: EvidenceArtifact;
+  storagePath: string;
+  downloadUrl: string;
+}
+
+/** SHA-256 hex del contenido (content-addressing de la evidencia). */
+export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error('sha256_unavailable_insecure_context');
+  }
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Real PhotoEvidence uploader: hashes the file bytes, uploads them to the
+ * project-scoped Storage path covered by `storage.rules`, and records the
+ * metadata keyed by that hash. Before this, only metadata was persisted and
+ * `buildStoragePath` had no caller — no bytes ever reached Storage.
+ */
+export async function uploadPhotoEvidenceBytes(
+  projectId: string,
+  file: File,
+  options: UploadPhotoEvidenceOptions,
+): Promise<UploadedPhotoEvidence> {
+  if (!projectId) throw new Error('missing_project_id');
+  const bytes = await file.arrayBuffer();
+  const contentHash = await sha256Hex(bytes);
+  // Reuse the engine's validation + canonical id so the client rejects
+  // exactly what the server would reject BEFORE burning an upload.
+  const artifact = buildArtifact({
+    payload: {
+      originalFilename: file.name,
+      mimeType: file.type,
+      byteSize: file.size,
+      capturedAt: options.capturedAt ?? new Date().toISOString(),
+      capturedLocation: options.capturedLocation,
+      capturedByUid: options.capturedByUid,
+      notes: options.notes,
+    },
+    contentHash,
+    linkages: options.linkages,
+  });
+  // Match the server schema (1..10) before spending an upload on a request
+  // that would be rejected with 400.
+  if (!options.linkages || options.linkages.length < 1) {
+    throw new Error('linkage_required');
+  }
+  const storagePath = buildStoragePath(artifact, projectId);
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: { contentHash },
+  });
+  const downloadUrl = await getDownloadURL(storageRef);
+  const recorded = await recordPhotoEvidence(projectId, {
+    contentHash,
+    payload: {
+      originalFilename: file.name,
+      mimeType: file.type,
+      byteSize: file.size,
+      capturedAt: artifact.capturedAt,
+      capturedLocation: options.capturedLocation,
+      notes: options.notes,
+    },
+    linkages: options.linkages,
+  });
+  return { artifact: recorded.artifact, storagePath, downloadUrl };
 }
 
 export async function linkPhotoEvidence(

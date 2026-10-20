@@ -63,7 +63,7 @@
  *     can show "intenta nuevamente en X minutos" instead of generic fail.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 // Round 17 (R4): replace hard-coded Spanish prompts with i18next.
@@ -185,9 +185,10 @@ async function fetchServerChallenge(): Promise<{ challengeId: string; challenge:
 /**
  * Round 18 (R6): round-trip the WebAuthn assertion through the server-
  * side /verify endpoint, which atomically consumes the challenge so a
- * captured assertion cannot be replayed. Returns true if the server
- * confirms the verification, false on any failure (no user, network
- * error, non-2xx, malformed response).
+ * captured assertion cannot be replayed. Returns `{ ok }` describing
+ * whether the server confirmed verification, plus the server-computed
+ * SHA-256 commitment to the assertion when it emitted one (null
+ * otherwise).
  *
  * The body shape mirrors the production handler in
  * src/server/routes/curriculum.ts (POST /api/auth/webauthn/verify).
@@ -195,13 +196,14 @@ async function fetchServerChallenge(): Promise<{ challengeId: string; challenge:
 async function verifyAssertionWithServer(
   challengeId: string,
   assertion: PublicKeyCredential,
-): Promise<boolean> {
+): Promise<{ ok: boolean; signatureHash: string | null }> {
+  const fail = { ok: false, signatureHash: null } as const;
   try {
     const user = auth.currentUser;
-    if (!user) return false;
+    if (!user) return fail;
     // §2.20 (2026-05-23) — apiAuthHeader unified.
     const authHeader = await apiAuthHeader();
-    if (!authHeader) return false;
+    if (!authHeader) return fail;
     const response = assertion.response as AuthenticatorAssertionResponse;
     const toB64 = (buf: ArrayBuffer): string => {
       const bytes = new Uint8Array(buf);
@@ -228,18 +230,39 @@ async function verifyAssertionWithServer(
         signature: toB64Url(response.signature),
       }),
     });
-    if (!res.ok) return false;
+    if (!res.ok) return fail;
     const data = await res.json();
-    return data?.verified === true;
+    if (data?.verified !== true) return fail;
+    // Server returns a SHA-256 commitment to the verified assertion. Callers
+    // that need audit evidence inherit THIS value — never a client-invented
+    // fingerprint. An older server that omits it yields null (honest absence)
+    // without failing the presence ceremony itself.
+    return {
+      ok: true,
+      signatureHash:
+        typeof data?.signatureHash === 'string' && data.signatureHash.length > 0
+          ? data.signatureHash
+          : null,
+    };
   } catch (err) {
     console.warn('[biometric] /verify roundtrip failed', err);
-    return false;
+    return fail;
   }
 }
 
 export const useBiometricAuth = () => {
   const platform = detectPlatform();
   const isNative = platform === 'ios' || platform === 'android';
+
+  // WebAuthn assertion commitment emitted by POST /api/auth/webauthn/verify
+  // during the last successful sensitive ceremony. Null on native (the
+  // Capacitor plugin proves local presence but yields no server-verifiable
+  // assertion) and after any failure. Never fabricate a value.
+  const lastSignatureHashRef = useRef<string | null>(null);
+  const getLastSignatureHash = useCallback(
+    (): string | null => lastSignatureHashRef.current,
+    [],
+  );
 
   // Web: synchronous capability check. Native: optimistic until checkBiometry runs.
   const [isSupported, setIsSupported] = useState<boolean>(
@@ -271,6 +294,9 @@ export const useBiometricAuth = () => {
       purpose: BiometricPurpose = 'login',
     ): Promise<boolean> => {
       const reason = challengeMessage || i18n.t('biometric.reason_login');
+      // A fresh ceremony invalidates any prior proof. Callers must read
+      // getLastSignatureHash() only after a successful authenticate().
+      lastSignatureHashRef.current = null;
       if (!isSupported) {
         // Honest "unsupported_device" — no silent simulation anymore.
         console.warn('[biometric]', i18n.t('biometric.unsupported'));
@@ -333,14 +359,18 @@ export const useBiometricAuth = () => {
         // so the server can atomically consume the challenge. A 401
         // there means replay / expiry / mismatch — fail-closed.
         if (sensitive && serverIssuedId) {
-          const verified = await verifyAssertionWithServer(
+          const { ok, signatureHash } = await verifyAssertionWithServer(
             serverIssuedId,
             credential as PublicKeyCredential,
           );
-          if (!verified) {
+          if (!ok) {
             console.warn('[biometric] /verify rejected — fail-closed');
             return false;
           }
+          // Expose the server-computed commitment to the caller for audit
+          // evidence (e.g. maintenance-task completion). Null when the server
+          // did not emit one — callers must stay honest about that.
+          lastSignatureHashRef.current = signatureHash;
         }
         return true;
       } catch (error) {
@@ -678,6 +708,7 @@ export const useBiometricAuth = () => {
   return {
     isSupported,
     authenticate,
+    getLastSignatureHash,
     register,
     registerCredential,
     createHealthProfessionalAssertion,

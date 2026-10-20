@@ -17,7 +17,7 @@ import {
   type OutboxSender,
   type TelemetryEvent,
 } from '../sync/genericOutboxEngine';
-import { get, set } from 'idb-keyval';
+import { get, update } from 'idb-keyval';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { randomId } from '../../utils/randomId';
 import { isOnline } from '../../utils/networkStatus';
@@ -82,35 +82,36 @@ type StatusListener = (status: EmergencyDeliveryStatus) => void;
 const STORAGE_KEY = 'praeventio:emergency-delivery-outbox:v1';
 
 async function loadAll(): Promise<OutboxEntry<EmergencyDeliveryPayload>[]> {
-  try {
-    const raw = await get<OutboxEntry<EmergencyDeliveryPayload>[]>(STORAGE_KEY);
-    return Array.isArray(raw) ? raw : [];
-  } catch (err) {
-    // Private browsing/quota failure must be visible to telemetry and callers;
-    // the emergency UI still remains usable, but the packet cannot be claimed
-    // durable until IDB is available again.
-    logger.error('emergencyDeliveryOutbox: IndexedDB load failed', { err: String(err) });
-    return [];
-  }
+  const raw = await get<OutboxEntry<EmergencyDeliveryPayload>[]>(STORAGE_KEY);
+  return Array.isArray(raw) ? raw : [];
 }
 
 export function createIndexedDbEmergencyDeliveryAdapter(): OutboxAdapter<EmergencyDeliveryPayload> {
   return {
     listEntries: loadAll,
     async saveEntry(entry) {
-      const all = await loadAll();
-      const index = all.findIndex(
-        (candidate) => candidate.event.clientEventId === entry.event.clientEventId,
+      // `update` is an atomic read-modify-write in IDB. The previous
+      // get→mutate→set lost packets when a flush and an enqueue overlapped.
+      await update<OutboxEntry<EmergencyDeliveryPayload>[] | undefined>(
+        STORAGE_KEY,
+        (current) => {
+          const all = Array.isArray(current) ? current : [];
+          const index = all.findIndex(
+            (candidate) => candidate.event.clientEventId === entry.event.clientEventId,
+          );
+          if (index >= 0) all[index] = entry;
+          else all.push(entry);
+          return all;
+        },
       );
-      if (index >= 0) all[index] = entry;
-      else all.push(entry);
-      await set(STORAGE_KEY, all);
     },
     async deleteEntry(clientEventId) {
-      const all = await loadAll();
-      await set(
+      await update<OutboxEntry<EmergencyDeliveryPayload>[] | undefined>(
         STORAGE_KEY,
-        all.filter((entry) => entry.event.clientEventId !== clientEventId),
+        (current) =>
+          (Array.isArray(current) ? current : []).filter(
+            (entry) => entry.event.clientEventId !== clientEventId,
+          ),
       );
     },
   };
@@ -311,13 +312,32 @@ export function createEmergencyDeliveryController(
         queued: true,
       });
 
-      const queued = await outbox.enqueue({
-        clientEventId,
-        kind: 'emergency_delivery',
-        priority: 'critical',
-        payload,
-        occurredAt: payload.occurredAt,
-      });
+      let queued: boolean;
+      try {
+        queued = await outbox.enqueue({
+          clientEventId,
+          kind: 'emergency_delivery',
+          priority: 'critical',
+          payload,
+          occurredAt: payload.occurredAt,
+        });
+      } catch (err) {
+        // A failed read/write must be reported as a queue failure. Returning
+        // "queued: true" here would tell the operator the packet is durable
+        // when it is not.
+        logger.error('emergencyDeliveryOutbox: enqueue failed', { err: String(err) });
+        const failed: EmergencyDeliveryStatus = {
+          clientEventId,
+          operation: payload.operation,
+          projectId: payload.projectId,
+          status: 'failed',
+          queued: false,
+          failureKind: 'queue',
+          error: 'queue_unavailable',
+        };
+        publish(failed);
+        return failed;
+      }
       if (!queued) {
         const failed: EmergencyDeliveryStatus = {
           clientEventId,

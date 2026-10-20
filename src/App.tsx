@@ -14,7 +14,6 @@
 
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { initAdMob } from './services/adService';
 import { preWarmHealthConnect } from './services/health/healthConnectAdapter';
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
@@ -55,7 +54,6 @@ export default function App() {
   const skipLanding = computeSkipLanding();
 
   useEffect(() => {
-    initAdMob();
     // Pre-warm the Health Connect availability probe so a user tapping
     // "Connect" on the Telemetry page within ~50ms of boot doesn't race
     // the cached probe and see a false negative. Errors are swallowed
