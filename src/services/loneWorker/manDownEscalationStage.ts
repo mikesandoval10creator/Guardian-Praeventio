@@ -29,6 +29,14 @@ export const MAN_DOWN_ESCALATION_LEVELS = [
   'emergency_services',
 ] as const;
 
+/**
+ * How far in the future a `triggeredAt` may be before we stop treating it as
+ * ordinary clock skew. Beyond this, the event timestamp is untrustworthy:
+ * silently waiting for "elapsed >= t1" would suppress every escalation for a
+ * worker who may already be down, so the resolver fails safe to all levels.
+ */
+export const MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC = 5 * 60;
+
 export type ManDownEscalationLevel = (typeof MAN_DOWN_ESCALATION_LEVELS)[number];
 
 export interface ManDownThresholds {
@@ -74,14 +82,20 @@ export function manDownThresholds(
  * intentionally re-escalated once the next day — re-asserting an unresolved
  * life-safety event — consistent with the lone-worker cron.)
  *
- * Returns `[]` for non-finite or negative elapsed (clock skew / bad data) —
- * the cron then leaves the event untouched rather than guessing.
+ * Returns `[]` for non-finite elapsed (bad data). A small negative elapsed
+ * (normal server/Firestore clock skew) stays pre-alert; a materially future
+ * timestamp is untrustworthy and returns ALL levels so a possibly-down worker
+ * is never silently left unescalated.
  */
 export function manDownLevelsForElapsed(
   elapsedSec: number,
   config: ManDownConfig = DEFAULT_MAN_DOWN_CONFIG,
 ): ManDownEscalationLevel[] {
-  if (!Number.isFinite(elapsedSec) || elapsedSec < 0) return [];
+  if (!Number.isFinite(elapsedSec)) return [];
+  if (elapsedSec < -MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC) {
+    return [...MAN_DOWN_ESCALATION_LEVELS];
+  }
+  if (elapsedSec < 0) return [];
   const { t1, t2, t3 } = manDownThresholds(config);
   const levels: ManDownEscalationLevel[] = [];
   if (elapsedSec >= t1) levels.push('supervisor');

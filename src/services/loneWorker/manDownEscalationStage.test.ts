@@ -3,6 +3,7 @@ import {
   manDownLevelsForElapsed,
   manDownThresholds,
   MAN_DOWN_ESCALATION_LEVELS,
+  MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC,
 } from './manDownEscalationStage.js';
 import { DEFAULT_MAN_DOWN_CONFIG } from './manDownTimer.js';
 
@@ -53,10 +54,20 @@ describe('manDownLevelsForElapsed', () => {
     ]);
   });
 
-  it('returns [] for non-finite or negative elapsed (clock skew / bad data)', () => {
+  it('returns [] for non-finite elapsed or ordinary negative clock skew', () => {
     expect(manDownLevelsForElapsed(-5)).toEqual([]);
+    expect(manDownLevelsForElapsed(-MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC)).toEqual([]);
     expect(manDownLevelsForElapsed(Number.NaN)).toEqual([]);
     expect(manDownLevelsForElapsed(Number.POSITIVE_INFINITY)).toEqual([]);
+  });
+
+  it('fails safe to ALL levels when triggeredAt is materially in the future', () => {
+    expect(
+      manDownLevelsForElapsed(-MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC - 1),
+    ).toEqual([...MAN_DOWN_ESCALATION_LEVELS]);
+    expect(manDownLevelsForElapsed(-3_600)).toEqual([
+      ...MAN_DOWN_ESCALATION_LEVELS,
+    ]);
   });
 
   it('the returned levels are always a prefix of MAN_DOWN_ESCALATION_LEVELS', () => {

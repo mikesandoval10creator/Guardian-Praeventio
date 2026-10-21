@@ -205,6 +205,20 @@ describe('runManDownEscalationCron', () => {
     expect(writes).toHaveLength(0);
   });
 
+  it('materially future triggeredAt fails safe to ALL levels instead of silence', async () => {
+    const { db, writes } = buildDb({
+      events: [activeEvent({ elapsedSec: -3_600 })],
+    });
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const r = await runManDownEscalationCron({ db, now: NOW, notify });
+    expect(r.escalationsEmitted).toBe(3);
+    expect(r.byLevel.supervisor).toBe(1);
+    expect(r.byLevel.brigade).toBe(1);
+    expect(r.byLevel.emergency_services).toBe(1);
+    expect(notify).toHaveBeenCalledTimes(3);
+    expect(writes).toHaveLength(3);
+  });
+
   it('t1..t2 → supervisor only', async () => {
     const { db, writes } = buildDb({ events: [activeEvent({ elapsedSec: 120 })] });
     const notify = vi.fn().mockResolvedValue(undefined);

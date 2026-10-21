@@ -29,6 +29,7 @@ import {
   markEscalationWithoutNotifier,
 } from './escalationMarker.js';
 import {
+  MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC,
   manDownLevelsForElapsed,
   type ManDownEscalationLevel,
 } from '../../services/loneWorker/manDownEscalationStage.js';
@@ -180,6 +181,14 @@ export async function runManDownEscalationCron(
         continue;
       }
       const elapsedSec = (nowMs - tMs) / 1000;
+      if (elapsedSec < -MAN_DOWN_FUTURE_SKEW_TOLERANCE_SEC) {
+        // Do not let a corrupt/future timestamp suppress a life-safety page.
+        // The resolver fails safe to all levels; log the anomaly for ops.
+        logger.warn?.('man_down_cron.future_triggeredAt', {
+          id: doc.id,
+          elapsedSec,
+        });
+      }
       const levels = manDownLevelsForElapsed(elapsedSec, config);
       if (levels.length === 0) continue;
 
