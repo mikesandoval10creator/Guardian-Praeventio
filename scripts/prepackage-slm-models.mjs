@@ -323,17 +323,21 @@ async function processModel(model) {
 // ────────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // B14 (2026-06-11): this script now runs in `prebuild` so every
+  // B14 (2026-06-11): this script now runs in `prebuild` so a web
   // production build actually SHIPS the default Qwen model (the core of
   // the "embebido" promise — no CDN downloads on faena connections).
   // CI lanes that only need the JS bundle (perf budgets, e2e, typecheck
-  // builds) export SLM_PREPACKAGE_SKIP=1 to avoid the 483 MB download;
-  // release/deploy lanes MUST NOT set it. The flag never affects
-  // runtime behavior — only build-time asset staging.
+  // builds) export SLM_PREPACKAGE_SKIP=1 to avoid the 483 MB download.
+  // Mobile store builds also set it: a 483 MB base module exceeds Play's
+  // 200 MB compressed-download limit. Those builds rely on the runtime
+  // acquisition prompt (useSlmAcquisition) to fetch the model on first use.
+  // Web deploys MUST NOT set it: they serve the model from dist/models.
+  // The flag never affects runtime behavior - only build-time asset staging.
   if (process.env.SLM_PREPACKAGE_SKIP === '1') {
     console.warn(
-      'prepackage-slm-models: SKIPPED via SLM_PREPACKAGE_SKIP=1 — the build ' +
-        'output will NOT contain the pre-packaged SLM. Do not ship this build.',
+      'prepackage-slm-models: SKIPPED via SLM_PREPACKAGE_SKIP=1 - the build ' +
+        'output will NOT contain the pre-packaged SLM. Mobile store builds ' +
+        'must offer the runtime acquisition prompt; web deploys must not use this flag.',
     );
     return;
   }
