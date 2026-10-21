@@ -275,7 +275,7 @@ export function PhotoEvidenceUploader({
           data-testid="photoEvidence.uploader.error"
         >
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-          {error}
+          {humanErrorMessage(error)}
         </p>
       )}
 

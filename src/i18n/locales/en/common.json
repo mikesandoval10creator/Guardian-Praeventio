@@ -5617,5 +5617,19 @@
     "ranking": {
       "allServices": "All services"
     }
+  },
+  "photoEvidence": {
+    "title": "Photo evidence",
+    "uploader": {
+      "aria": "Add photo evidence",
+      "title": "Add evidence",
+      "choose": "Take a photo or attach a file",
+      "offline": "Offline: evidence can be uploaded when the connection returns.",
+      "notes": "Note (optional)",
+      "notesPlaceholder": "What the evidence shows, area, conditions…",
+      "submit": "Upload evidence",
+      "uploading": "Uploading and verifying hash…",
+      "success": "Evidence uploaded and hash-verified: {{name}}"
+    }
   }
 }

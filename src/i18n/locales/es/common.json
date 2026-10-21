@@ -5617,5 +5617,19 @@
     "ranking": {
       "allServices": "Todos los servicios"
     }
+  },
+  "photoEvidence": {
+    "title": "Evidencia fotográfica",
+    "uploader": {
+      "aria": "Agregar evidencia fotográfica",
+      "title": "Agregar evidencia",
+      "choose": "Tomar foto o adjuntar archivo",
+      "offline": "Sin conexión: la evidencia se podrá subir cuando vuelva la señal.",
+      "notes": "Nota (opcional)",
+      "notesPlaceholder": "Qué muestra la evidencia, sector, condiciones…",
+      "submit": "Subir evidencia",
+      "uploading": "Subiendo y verificando hash…",
+      "success": "Evidencia subida y verificada por hash: {{name}}"
+    }
   }
 }
