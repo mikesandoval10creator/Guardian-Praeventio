@@ -14,10 +14,11 @@
 // Praeventio recommends and records; it does not actuate equipment. These tests
 // pin that the controls do what they say and that the old claims never return.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 const mockNavigate = vi.fn();
+const mockFetch = vi.hoisted(() => vi.fn());
 const mockFirebaseState = vi.hoisted(() => ({
   user: { uid: 'u1' },
   userRole: 'admin',
@@ -25,6 +26,9 @@ const mockFirebaseState = vi.hoisted(() => ({
 }));
 const mockWhere = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
+vi.mock('../../lib/apiAuth', () => ({
+  apiAuthHeader: vi.fn(async () => 'Bearer test-token'),
+}));
 vi.mock('framer-motion', async () => {
   const React = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
@@ -68,8 +72,18 @@ beforeEach(() => {
   cleanup();
   mockNavigate.mockClear();
   mockWhere.mockClear();
+  mockFetch.mockReset();
+  mockFetch.mockResolvedValue({
+    ok: true,
+    json: async () => ({ accepted: true, audited: true }),
+  });
+  vi.stubGlobal('fetch', mockFetch);
   mockFirebaseState.userRole = 'admin';
   mockFirebaseState.isAdmin = true;
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('EmergencyDashboard — controls must do what they say', () => {
@@ -100,6 +114,36 @@ describe('EmergencyDashboard — controls must do what they say', () => {
     expect(
       screen.getByText(/la aplicación no avisa a las autoridades por su cuenta/i),
     ).toBeInTheDocument();
+  });
+
+  it('does not present the viewing supervisor as the affected worker', () => {
+    render(<EmergencyDashboard />);
+    fireEvent.click(screen.getByTestId('request-external-support'));
+
+    const summary = screen.getByTestId('dispatch-summary-body').textContent ?? '';
+    expect(summary).toContain('Trabajador: No identificado');
+    expect(summary).not.toMatch(/Trabajador:\s*Trabajador/);
+    expect(summary).toContain('Ubicación: No disponible');
+    expect(summary).not.toContain('0.0000, 0.0000');
+  });
+
+  it('audits the dispatch summary without sending its text or medical values', async () => {
+    render(<EmergencyDashboard />);
+    fireEvent.click(screen.getByTestId('request-external-support'));
+
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/emergency/dispatch-summary');
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      projectId: 'p1',
+      eventType: 'other',
+      regionCode: 'CL',
+      includedMedicalFields: [],
+    });
+    expect(body).not.toHaveProperty('summary');
+    expect(body).not.toHaveProperty('medical');
+    expect(body.summaryLength).toBeGreaterThan(0);
   });
 
   it('hands LOTO off to the real registry instead of faking a lockout', () => {

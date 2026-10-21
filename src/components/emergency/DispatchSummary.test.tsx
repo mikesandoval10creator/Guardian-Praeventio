@@ -130,6 +130,12 @@ describe("DispatchSummary", () => {
     );
   });
 
+  it("hides the Maps link when no real worker location is known", () => {
+    render(<DispatchSummary summary={FAKE_SUMMARY} />);
+    expect(screen.queryByTestId("dispatch-summary-maps")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dispatch-summary-copy")).toBeInTheDocument();
+  });
+
   it("does not render any auto-dial button (spec's non-negotiable)", () => {
     render(
       <DispatchSummary

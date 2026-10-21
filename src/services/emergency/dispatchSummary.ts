@@ -67,7 +67,8 @@ export const DispatchSummaryInputSchema = z.object({
   projectName: z.string().min(1).max(200),
   workerUid: z.string().min(1).max(200),
   workerFullName: z.string().min(1).max(200),
-  workerRut: z.string().min(1).max(20),
+  /** Optional: dispatchers can still act without a RUT. */
+  workerRut: z.string().max(20).optional(),
   /** ISO 4210-style timestamp. Optional — rendered as "hace 2 min" if so. */
   detectedAt: z.date(),
   /** Coarse event type for the dispatcher's GIST. */
@@ -82,11 +83,17 @@ export const DispatchSummaryInputSchema = z.object({
   ]),
   /** Optional human-readable role / area of the worker. */
   workerRole: z.string().max(120).optional(),
-  workerCoords: z.object({
-    lat: z.number(),
-    lng: z.number(),
-    altitude: z.number().nullable().optional(),
-  }),
+  /**
+   * Real worker coordinates. Omit when only the project centroid is known:
+   * printing 0,0 would send responders to the Gulf of Guinea.
+   */
+  workerCoords: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+      altitude: z.number().nullable().optional(),
+    })
+    .optional(),
   /** Free-form additional copy. e.g. "accidente vehicular en faena". */
   eventNotes: z.string().max(500).optional(),
   /** Region code (ISO 3166-1 alpha-2) — populates the country header. */
@@ -120,6 +127,7 @@ export interface DispatchSummaryLabels {
   worker: string;
   workerRole: string;
   location: string;
+  locationUnavailable: string;
   detectedAt: string;
   elapsedMinutes: string;
   eventType: string;
@@ -140,6 +148,7 @@ export const esCLLabels: DispatchSummaryLabels = {
   worker: "Trabajador",
   workerRole: "Rol",
   location: "Ubicación",
+  locationUnavailable: "No disponible",
   detectedAt: "Detectado",
   elapsedMinutes: "Tiempo desde detección",
   eventType: "Tipo de evento",
@@ -181,15 +190,18 @@ export function formatDispatchSummary(
   lines.push(
     `${labels.project}: ${input.projectName} (id: ${input.projectId})`,
   );
-  lines.push(
-    `${labels.worker}: ${input.workerFullName} (RUT ${input.workerRut})`,
-  );
+  const rutSuffix = input.workerRut ? ` (RUT ${input.workerRut})` : "";
+  lines.push(`${labels.worker}: ${input.workerFullName}${rutSuffix}`);
   if (input.workerRole) {
     lines.push(`${labels.workerRole}: ${input.workerRole}`);
   }
-  lines.push(
-    `${labels.location}: ${formatCoords(input.workerCoords)} (${input.regionCode})`,
-  );
+  if (input.workerCoords) {
+    lines.push(
+      `${labels.location}: ${formatCoords(input.workerCoords)} (${input.regionCode})`,
+    );
+  } else {
+    lines.push(`${labels.location}: ${labels.locationUnavailable}`);
+  }
   lines.push(
     `${labels.detectedAt}: ${formatLocalTime(input.detectedAt)} (${formatElapsed(
       input.detectedAt,
