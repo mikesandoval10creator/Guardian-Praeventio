@@ -188,6 +188,9 @@ jobs:
       - name: Android production approval regressions
         run: node --test scripts/check-android-production-environment.test.mjs
 
+      - name: Firestore backup integrity contract regressions
+        run: npm run test:backup-integrity
+
   test:
     name: Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
