@@ -31,6 +31,14 @@ export type LoneWorkerStatus =
   | 'help_requested' // worker pulsó "ayuda"
   | 'ended';
 
+/**
+ * Tolerancia para timestamps de check-in ligeramente adelantados por el reloj
+ * del dispositivo. Un desfase mayor se trata como dato no confiable y escala a
+ * `overdue_critical`: un timestamp futuro hacia que `minSinceLast` fuera
+ * negativo y la sesion pareciera "activa" para siempre, silenciando la alerta.
+ */
+export const LONE_WORKER_FUTURE_SKEW_TOLERANCE_MS = 5 * 60_000;
+
 export interface EscalationDecision {
   level: 'supervisor' | 'brigade' | 'emergency_services';
   message: string;
@@ -83,6 +91,14 @@ export function deriveLoneWorkerStatus(
   // — silently suppressing the overdue escalation. Invalid clocks are a
   // critical state, not a healthy one.
   if (!Number.isFinite(nowMs) || !Number.isFinite(lastEventMs)) {
+    return 'overdue_critical';
+  }
+
+  // A device clock ahead of the server used to produce a negative
+  // `minSinceLast`, which looked "active" forever and suppressed the overdue
+  // escalation. Small skew is tolerated; a timestamp materially in the future
+  // is untrusted data and must fail safe to the highest overdue level.
+  if (lastEventMs > nowMs + LONE_WORKER_FUTURE_SKEW_TOLERANCE_MS) {
     return 'overdue_critical';
   }
 

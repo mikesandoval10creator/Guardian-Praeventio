@@ -24,6 +24,11 @@
 
 import { logger } from '../../utils/logger.js';
 import {
+  claimEscalationMarker,
+  markEscalationDelivered,
+  markEscalationWithoutNotifier,
+} from './escalationMarker.js';
+import {
   manDownLevelsForElapsed,
   type ManDownEscalationLevel,
 } from '../../services/loneWorker/manDownEscalationStage.js';
@@ -205,30 +210,29 @@ export async function runManDownEscalationCron(
         // so at most one of the racing sweeps proceeds to notify. A losing
         // transaction is aborted by Firestore and the loop falls through
         // to the existing `skippedIdempotent` branch.
-        let claimed = false;
+        const markerPayload = {
+          eventId: doc.id,
+          level,
+          triggeredAtIso,
+          workerId,
+          workerName: workerName ?? null,
+          location: location ?? null,
+          escalatedAtIso: evalNow.toISOString(),
+        };
+        let claim: Awaited<ReturnType<typeof claimEscalationMarker>>;
         try {
-          claimed = await deps.db.runTransaction(async (t) => {
-            const snap = await t.get(markerRef);
-            if (snap.exists) return false;
-            t.create(markerRef, {
-              eventId: doc.id,
-              level,
-              message: null, // hydrated below after notify succeeds
-              triggeredAtIso,
-              workerId,
-              workerName: workerName ?? null,
-              location: location ?? null,
-              notified: false,
-              escalatedAtIso: evalNow.toISOString(),
-            });
-            return true;
+          claim = await claimEscalationMarker({
+            db: deps.db,
+            markerRef,
+            payload: markerPayload,
+            now: evalNow,
           });
         } catch (e) {
           logger.warn?.('man_down_cron.marker_claim_failed', { id: doc.id, level, err: String(e) });
           result.errors += 1;
           continue;
         }
-        if (!claimed) {
+        if (claim !== 'claimed') {
           result.escalationsSkippedIdempotent += 1;
           continue;
         }
@@ -244,9 +248,8 @@ export async function runManDownEscalationCron(
         };
 
         // Notify AFTER the marker has been atomically claimed. If this
-        // throws, the marker exists with `notified: false` so a future
-        // sweep can detect the partial state and retry \u2014 but we still
-        // avoid the double-page race that motivated the fix.
+        // throws, the marker stays `notified:false` with its claim lease so a
+        // later sweep can safely retry instead of double-paging concurrently.
         if (deps.notify) {
           try {
             await deps.notify(info);
@@ -268,13 +271,19 @@ export async function runManDownEscalationCron(
         }
 
         try {
-          await markerRef.set(
-            {
-              message: info.message,
-              notified: Boolean(deps.notify),
-            },
-            { merge: true },
-          );
+          if (deps.notify) {
+            await markEscalationDelivered(
+              markerRef,
+              { ...markerPayload, message: info.message },
+              now(),
+            );
+          } else {
+            await markEscalationWithoutNotifier(
+              markerRef,
+              { ...markerPayload, message: info.message },
+              now(),
+            );
+          }
         } catch (e) {
           logger.warn?.('man_down_cron.marker_write_failed', { id: doc.id, level, err: String(e) });
           result.errors += 1;
