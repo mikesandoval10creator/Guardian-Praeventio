@@ -5617,5 +5617,19 @@
     "ranking": {
       "allServices": "Todos os serviços"
     }
+  },
+  "photoEvidence": {
+    "title": "Evidência fotográfica",
+    "uploader": {
+      "aria": "Adicionar evidência fotográfica",
+      "title": "Adicionar evidência",
+      "choose": "Tirar foto ou anexar arquivo",
+      "offline": "Sem conexão: a evidência poderá ser enviada quando a conexão voltar.",
+      "notes": "Nota (opcional)",
+      "notesPlaceholder": "O que a evidência mostra, setor, condições…",
+      "submit": "Enviar evidência",
+      "uploading": "Enviando e verificando hash…",
+      "success": "Evidência enviada e verificada por hash: {{name}}"
+    }
   }
 }

@@ -50,6 +50,14 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   invalid_project: 'El proyecto seleccionado no es válido. Elige un proyecto e inténtalo de nuevo.',
   invalid_projectId: 'El proyecto seleccionado no es válido. Vuelve a elegirlo e inténtalo nuevamente.',
 
+  // ── Evidencia fotográfica ─────────────────────────────────────────────
+  evidence_bytes_missing:
+    'No encontramos el archivo que intentaste adjuntar. Vuelve a seleccionarlo y súbelo de nuevo.',
+  evidence_hash_mismatch:
+    'El archivo recibido no coincide con la huella SHA-256 declarada. Vuelve a subirlo; si el problema persiste, avisa al administrador.',
+  evidence_storage_unavailable:
+    'No pudimos verificar el archivo en el almacenamiento. Espera unos minutos y vuelve a intentarlo.',
+
   // ── Existencia ────────────────────────────────────────────────────────
   not_found: 'No encontramos lo que buscabas. Es posible que se haya eliminado.',
   'not-found': 'No encontramos lo que buscabas. Es posible que se haya eliminado.',

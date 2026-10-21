@@ -41,6 +41,13 @@ let mockUseBundle: {
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
 }));
+vi.mock('../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({
+    user: { uid: 'u-sup' },
+    userRole: 'supervisor',
+    isAdmin: false,
+  }),
+}));
 // The deep-link project realignment is unit-tested in useDeepLinkProjectSync.test;
 // here we neutralize it so these render tests stay focused on the bundle wrapper.
 const mockProjectSyncStatus = 'idle';
@@ -138,6 +145,17 @@ describe('<IncidentBundle /> page wrapper (Fase F.3)', () => {
     expect(screen.getByTestId('incident-bundle-page')).toBeInTheDocument();
     // The card itself renders the summary text:
     expect(screen.getByText(/Caída de andamio/i)).toBeInTheDocument();
+  });
+
+  it('ofrece subir evidencia al supervisor cuando el expediente cargó', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena' };
+    mockUseBundle = {
+      data: { manifest: fixtureManifest() },
+      loading: false,
+      error: null,
+    };
+    renderAtPath(<IncidentBundle />, '/incidents/inc-1/bundle');
+    expect(screen.getByTestId('photoEvidence.uploader')).toBeInTheDocument();
   });
 
   it('muestra offline chip cuando isOnline=false', () => {
