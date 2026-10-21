@@ -116,6 +116,10 @@ jobs:
           # missing value fail the build instead of shipping empty App Links.
           ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
           REQUIRE_ANDROID_CERT: '1'
+          SLM_PREPACKAGE_SKIP: '1'
+
+      - name: Reject the browser SLM model from the Android web bundle
+        run: node scripts/check-mobile-bundle.cjs --assets dist
 
       - uses: actions/setup-java@v6
         with:
@@ -160,6 +164,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
         run: bundle exec fastlane android build_only
+
+      - name: Check the signed AAB size budget
+        run: node scripts/check-mobile-bundle.cjs --aab android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Inspect native libraries for 16 KB alignment
         run: python3 scripts/check-android-16kb.py android/app/build/outputs/bundle/release/app-release.aab
@@ -255,6 +262,10 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          SLM_PREPACKAGE_SKIP: '1'
+
+      - name: Reject the browser SLM model from the iOS web bundle
+        run: node scripts/check-mobile-bundle.cjs --assets dist
 
       - uses: ruby/setup-ruby@v1
         with:
