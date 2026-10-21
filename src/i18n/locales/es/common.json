@@ -5333,7 +5333,13 @@
     "commuteStart": "Iniciar Trayecto",
     "commuteEnd": "Terminar Trayecto",
     "commuteBusy": "Procesando…",
-    "commuteError": "No pudimos actualizar el trayecto. Reintenta."
+    "commuteError": "No pudimos actualizar el trayecto. Reintenta.",
+    "commuteRecoveryError": "No pudimos recuperar el trayecto. Revisa tu conexión y reintenta.",
+    "commuteLocationError": "No pudimos obtener tu ubicación. Revisa los permisos y reintenta.",
+    "commuteSampleError": "Hay muestras pendientes de envío. Revisa la conexión y reintenta. Si el trayecto ya terminó, avisa al administrador.",
+    "commuteStorageError": "No pudimos guardar la muestra en este dispositivo. Mantén esta pantalla abierta y reintenta.",
+    "commuteCaptureNotice": "La ubicación se captura mientras esta pantalla está abierta y visible. Los errores de ubicación o envío se mostrarán aquí.",
+    "commutePausedNotice": "La captura está pausada. El cierre del trayecto sigue pendiente de sincronización."
   },
   "maintenance": {
     "page": {

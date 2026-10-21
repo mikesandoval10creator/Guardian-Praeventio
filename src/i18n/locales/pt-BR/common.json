@@ -5333,7 +5333,13 @@
     "commuteStart": "Iniciar Trajeto",
     "commuteEnd": "Encerrar Trajeto",
     "commuteBusy": "Processando…",
-    "commuteError": "Não foi possível atualizar o trajeto. Tente novamente."
+    "commuteError": "Não foi possível atualizar o trajeto. Tente novamente.",
+    "commuteRecoveryError": "Não foi possível recuperar o trajeto. Verifique a conexão e tente novamente.",
+    "commuteLocationError": "Não foi possível obter sua localização. Verifique as permissões e tente novamente.",
+    "commuteSampleError": "Há amostras pendentes de envio. Verifique a conexão e tente novamente. Se o trajeto já terminou, avise o administrador.",
+    "commuteStorageError": "Não foi possível salvar a amostra neste dispositivo. Mantenha esta tela aberta e tente novamente.",
+    "commuteCaptureNotice": "A localização é capturada enquanto esta tela está aberta e visível. Erros de localização ou envio serão mostrados aqui.",
+    "commutePausedNotice": "A captura está pausada. O encerramento do trajeto ainda está pendente de sincronização."
   },
   "maintenance": {
     "page": {

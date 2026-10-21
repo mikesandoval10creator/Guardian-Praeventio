@@ -79,6 +79,16 @@ describe('isCommuteType', () => {
 });
 
 describe('tagIncidentTipo', () => {
+  it('never applies another worker’s owned commute hint on a shared project', () => {
+    const payload = { projectId: 'shared', workerId: 'worker-B' };
+    expect(tagIncidentTipo(payload, { projectId: 'shared', sessionId: 'trip-A', ownerUid: 'worker-A' })).toEqual(payload);
+  });
+
+  it('keeps trayecto tagging for the confirmed owner', () => {
+    expect(tagIncidentTipo({ projectId: 'shared', workerId: 'worker-A' }, {
+      projectId: 'shared', sessionId: 'trip-A', ownerUid: 'worker-A',
+    })).toMatchObject({ tipo: 'trayecto', commuteSessionId: 'trip-A' });
+  });
   beforeEach(() => {
     _setActiveSessionForTesting(null);
   });

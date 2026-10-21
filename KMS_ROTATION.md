@@ -329,3 +329,22 @@ or anonymity. Adding personal fields or GPS history to this collection requires
 a new security/KMS review; existing commute evidence is outside this pointer's
 scope. Contracts: `src/rules-tests/commuteActive.rules.test.ts` and
 `src/__tests__/server/commute.test.ts`.
+
+The foreground commute recorder also uses the existing encrypted KV store for
+pending GPS samples, one encrypted record per fix. The existing device-bound
+browser KEK and envelope rotation apply; no additional server KMS key is added.
+Keys contain encoded worker/project identifiers plus a random point ID and are
+linkable metadata, not anonymous identifiers. Coordinates and the session/sample
+payload are encrypted before HTTP transmission and deleted only after a confirmed
+response while the same identity remains current. Failed sends stay retained;
+a failed local write is surfaced and kept in memory for retry while the screen
+remains open. There is no plaintext fallback. This does not prove native
+background capture, cross-tab serialization or physical-device durability.
+
+An end request also persists an encrypted, session-scoped close-intent record
+using the same device KEK. Capture pauses immediately and stays paused after
+screen recovery while queued sends and closure are retried. The record is
+deleted after a confirmed close. If the close commits but its response is lost
+and recovery returns no active session, an old close-intent record can remain;
+cleanup of this metadata is follow-up debt. It cannot resume GPS or apply to a
+different session, and it is not evidence of a server-confirmed close time.
