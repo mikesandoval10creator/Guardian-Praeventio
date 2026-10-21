@@ -358,19 +358,15 @@ export function EmergencyDashboard() {
               summary={formatDispatchSummary({
                 projectId: selectedProject?.id ?? 'unknown',
                 projectName: selectedProject?.name ?? 'Proyecto sin nombre',
-                workerUid: user?.uid ?? 'unknown',
-                workerFullName: user?.displayName ?? user?.email ?? 'Trabajador',
-                workerRut: '',
+                // Never label the viewing supervisor as the affected worker.
+                workerUid: 'unknown',
+                workerFullName: 'No identificado',
                 detectedAt: new Date(),
                 eventType: 'other',
-                workerCoords: selectedProject?.coordinates
-                  ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
-                  : { lat: 0, lng: 0 },
+                eventNotes:
+                  'Identidad y ubicación del trabajador no confirmadas en este panel. Confirmar por radio/verbal antes de informar al despacho.',
                 regionCode: selectedProject?.country ?? 'CL',
               })}
-              coords={selectedProject?.coordinates
-                ? { lat: selectedProject.coordinates.lat, lng: selectedProject.coordinates.lng }
-                : { lat: 0, lng: 0 }}
             />
             <button
               type="button"

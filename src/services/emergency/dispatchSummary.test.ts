@@ -104,6 +104,20 @@ describe("formatDispatchSummary", () => {
     });
     expect(out).toContain("Tipo de evento: Evacuación en curso");
   });
+
+  it("omits the RUT when it is not known instead of printing an empty label", () => {
+    const { workerRut: _workerRut, ...withoutRut } = baseInput;
+    const out = formatDispatchSummary(withoutRut);
+    expect(out).toContain("Trabajador: Camila Soto Reyes");
+    expect(out).not.toContain("RUT");
+  });
+
+  it("says the location is unavailable instead of inventing 0,0 coordinates", () => {
+    const { workerCoords: _workerCoords, ...withoutCoords } = baseInput;
+    const out = formatDispatchSummary(withoutCoords);
+    expect(out).toContain("Ubicación: No disponible");
+    expect(out).not.toContain("0.0000, 0.0000");
+  });
 });
 
 describe("formatElapsed", () => {

@@ -102,6 +102,17 @@ describe('EmergencyDashboard — controls must do what they say', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not present the viewing supervisor as the affected worker', () => {
+    render(<EmergencyDashboard />);
+    fireEvent.click(screen.getByTestId('request-external-support'));
+
+    const summary = screen.getByTestId('dispatch-summary-body').textContent ?? '';
+    expect(summary).toContain('Trabajador: No identificado');
+    expect(summary).not.toMatch(/Trabajador:\s*Trabajador/);
+    expect(summary).toContain('Ubicación: No disponible');
+    expect(summary).not.toContain('0.0000, 0.0000');
+  });
+
   it('hands LOTO off to the real registry instead of faking a lockout', () => {
     render(<EmergencyDashboard />);
     fireEvent.click(screen.getByTestId('open-loto-registry'));

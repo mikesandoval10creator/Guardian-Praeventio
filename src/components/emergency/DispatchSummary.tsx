@@ -15,15 +15,15 @@
 // No "Enviar a SAMU" button. The human decides. (Spec: spec'd ticket
 // 3a3aa66d-73fe-81bf-b54a-c3dd9fa267ad.)
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Copy, MapPin, CheckCircle2 } from "lucide-react";
 
 export interface DispatchSummaryProps {
   /** Pre-rendered summary text (output of formatDispatchSummary). */
   summary: string;
-  /** Coordinates for the Maps link. */
-  coords: { lat: number; lng: number };
+  /** Coordinates for the Maps link. Omit when no real location is known. */
+  coords?: { lat: number; lng: number };
   /** Optional: a list of medical fields the worker consented to share. */
   medicalFieldsIncluded?: string[];
   /** Optional: which area/region this dispatch is happening in. */
@@ -57,13 +57,32 @@ export function DispatchSummary({
     medicalContext: t("dispatch.medicalContext", "Datos médicos consentidos"),
   };
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+
+  // Clear the "Copiado" timer on unmount: the panel can disappear when the
+  // emergency closes, and a late setState after unmount is a real leak.
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) {
+        window.clearTimeout(copiedTimer.current);
+        copiedTimer.current = null;
+      }
+    },
+    [],
+  );
 
   async function onCopy(): Promise<void> {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(summary);
         setCopied(true);
-        window.setTimeout(() => setCopied(false), 2_000);
+        if (copiedTimer.current !== null) {
+          window.clearTimeout(copiedTimer.current);
+        }
+        copiedTimer.current = window.setTimeout(() => {
+          setCopied(false);
+          copiedTimer.current = null;
+        }, 2_000);
       }
     } catch {
       // Clipboard may be blocked (e.g. non-secure context). The human
@@ -71,7 +90,9 @@ export function DispatchSummary({
     }
   }
 
-  const mapsHref = `https://google.com/maps?q=${coords.lat},${coords.lng}`;
+  const mapsHref = coords
+    ? `https://google.com/maps?q=${coords.lat},${coords.lng}`
+    : null;
 
   return (
     <section
@@ -103,16 +124,18 @@ export function DispatchSummary({
               </>
             )}
           </button>
-          <a
-            href={mapsHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="dispatch-summary-maps"
-            className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/20"
-          >
-            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-            {merged.openInMaps}
-          </a>
+          {mapsHref && (
+            <a
+              href={mapsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="dispatch-summary-maps"
+              className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/20"
+            >
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              {merged.openInMaps}
+            </a>
+          )}
         </div>
       </header>
       <pre
