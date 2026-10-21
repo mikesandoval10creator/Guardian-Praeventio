@@ -14,7 +14,8 @@
 //   2. Frontend uploads the raw .dwg bytes via PUT (single-shot, no
 //      multipart — limit ≈ 100 MB matches the converter cap).
 //   3. Frontend POSTs to /api/cad/convert-dwg with the resulting
-//      `gs://...` URI.
+//      `gs://...` URI plus filename, byteSize, projectId and declaredKind
+//      (the server validates all of them before calling the converter).
 //   4. Backend proxies to the LibreDWG service, returns
 //      { dxfSignedUrl, sha256 }.
 //   5. Frontend GETs the DXF text and hands it to `dxf-parser` via the
@@ -23,6 +24,28 @@
 // This adapter does NOT parse the DXF — it deliberately stops at the
 // DXF text so the caller can reuse `dxfAdapter.adaptEntities()` and the
 // renderer wired in Sprint 17a/b.
+
+import type { DwgValidationInput } from './dwgDocumentValidator.js';
+
+/** Kind values accepted by the server-side pre-upload validator. */
+export type DwgDeclaredKind = DwgValidationInput['declaredKind'];
+
+/**
+ * Metadata required by `/api/cad/convert-dwg` since Sprint 50 E.5 P2 H1.
+ * Sending only `inputUri` made every conversion fail with
+ * `cad_validation_failed`; this type is the client half of that contract.
+ */
+export interface DwgConversionMetadata {
+  filename: string;
+  /** Actual byte length of the uploaded blob. */
+  byteSize: number;
+  projectId: string;
+  declaredKind: DwgDeclaredKind;
+  /** Optional semver X.Y.Z. */
+  declaredVersion?: string;
+  /** Optional architectural scale 1:N. */
+  declaredScale?: string;
+}
 
 /** Signed PUT URL contract returned by the backend (mirrors the
  *  `/api/cad/upload-url` endpoint planned for the same Sprint). */
@@ -82,14 +105,16 @@ export async function uploadDwgToSignedUrl(
 
 /**
  * Call the backend `/api/cad/convert-dwg` proxy with the GCS URI of an
- * already-uploaded .dwg, then fetch the resulting DXF body. Returns
- * everything the caller needs to feed into the MIT-only viewer.
+ * already-uploaded .dwg and the metadata the server validates, then fetch
+ * the resulting DXF body. Returns everything the caller needs to feed into
+ * the MIT-only viewer.
  *
  * `apiBase` defaults to '' so the call is same-origin in production;
  * tests inject a baseURL to point at the express test app.
  */
 export async function convertDwgToDxf(
   inputUri: string,
+  metadata: DwgConversionMetadata,
   opts: {
     apiBase?: string;
     /** Bearer / Firebase ID token forwarded to /api/cad/*. */
@@ -108,7 +133,7 @@ export async function convertDwgToDxf(
   const proxyRes = await fetchImpl(`${base}/api/cad/convert-dwg`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ inputUri }),
+    body: JSON.stringify({ inputUri, ...metadata }),
   });
 
   if (!proxyRes.ok) {
@@ -157,12 +182,16 @@ export async function convertDwgToDxf(
 export async function uploadAndConvertDwg(
   file: Blob,
   ticket: DwgUploadTicket,
+  metadata: DwgConversionMetadata,
   opts: {
     apiBase?: string;
     authToken?: string;
     fetchImpl?: typeof fetch;
   } = {}
 ): Promise<DwgConversionResult> {
+  // Never trust a caller-supplied size: the server validates the actual
+  // blob length, so derive it from the bytes we are about to PUT.
+  const uploadedMetadata = { ...metadata, byteSize: file.size };
   await uploadDwgToSignedUrl(ticket, file, opts.fetchImpl);
-  return convertDwgToDxf(ticket.inputUri, opts);
+  return convertDwgToDxf(ticket.inputUri, uploadedMetadata, opts);
 }
