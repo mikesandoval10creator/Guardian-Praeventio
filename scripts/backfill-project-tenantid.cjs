@@ -6,7 +6,7 @@
  *   node scripts/backfill-project-tenantid.cjs           # dry-run (default)
  *   node scripts/backfill-project-tenantid.cjs --live    # actually write
  *
- * WHAT IT DOES (three plans, printed in full before any write):
+ * WHAT IT DOES (four plans, printed in full before any write):
  *   1. PROJECT STAMPS  — every `projects/{pid}` doc missing `tenantId` gets
  *      `tenantId = createdBy` (founder decision 2026-07-02 + design doc §4:
  *      docs/security/M1-multitenant-tenant-scope-design.md). Docs with NO
@@ -21,6 +21,10 @@
  *      projectId, every subcollection doc under `tenants/{projectId}` is
  *      COPIED to `tenants/{tenantId}` (source retained — nothing deleted;
  *      readers resolve the new namespace the moment the stamp lands).
+ *   4. USER STAMPS     — every `users/{uid}` doc missing `tenantId` gets the
+ *      company tenant when the user belongs to exactly one resolved tenant
+ *      (or uid when they belong to none). Users in multiple tenants are
+ *      needs-review: a wrong stamp would expose PII to another company.
  *
  * AUDIT: each executed phase writes one `audit_logs` entry
  * (action: security.m1_backfill.<phase>, userId: script:backfill-m1).
@@ -30,7 +34,8 @@
  * EXIT CODES
  *   0 — completed (dry-run or live)
  *   1 — fatal error (credentials, network, ...)
- *   2 — needs-review projects found (missing createdBy) — resolve manually
+ *   2 — needs-review docs found (missing createdBy / ambiguous user tenant)
+ *        — resolve manually
  */
 
 'use strict';
@@ -92,6 +97,52 @@ function planTenantDataMoves(resolved) {
 }
 
 /**
+ * Plan `users/{uid}.tenantId` for legacy profiles that predate the tenant
+ * scoping rules (firestore.rules `userTenantId`). Without this stamp a
+ * supervisor/admin of the company tenant cannot read a worker profile, even
+ * though the claim is correct.
+ *
+ * Resolution order:
+ *   1. Already stamped (non-empty string) -> skip (idempotent).
+ *   2. Member/creator of exactly ONE resolved tenant -> stamp that tenant.
+ *      This is the company tenant (project.tenantId), not the worker's uid.
+ *   3. No project membership -> stamp uid (single-tenant-per-user fallback,
+ *      matching the claim mint; owner access still works).
+ *   4. Member of MULTIPLE distinct tenants -> needs-review. Never guess: a
+ *      wrong stamp would expose the profile to the wrong company.
+ *
+ * @param {Array<{id: string, tenantId?: unknown}>} users
+ * @param {Record<string, string[]>} projectTenantsByUid
+ * @returns {{ stamps: Array<{id: string, tenantId: string}>, needsReview: string[], skipped: number }}
+ */
+function planUserTenantStamps(users, projectTenantsByUid) {
+  const stamps = [];
+  const needsReview = [];
+  let skipped = 0;
+  for (const u of users) {
+    const uid = typeof u.id === 'string' ? u.id : '';
+    if (!uid) {
+      needsReview.push(String(u.id));
+      continue;
+    }
+    if (typeof u.tenantId === 'string' && u.tenantId.length > 0) {
+      skipped += 1;
+      continue;
+    }
+    const candidates = Array.isArray(projectTenantsByUid[uid])
+      ? projectTenantsByUid[uid].filter((t) => typeof t === 'string' && t.length > 0)
+      : [];
+    const distinct = [...new Set(candidates)];
+    if (distinct.length > 1) {
+      needsReview.push(uid);
+      continue;
+    }
+    stamps.push({ id: uid, tenantId: distinct.length === 1 ? distinct[0] : uid });
+  }
+  return { stamps, needsReview, skipped };
+}
+
+/**
  * Select the Firestore database this backfill must target. Mirrors the
  * server.ts boot rule: production data lives in the NAMED database from
  * firebase-applet-config.json (`firestoreDatabaseId`), NOT "(default)".
@@ -119,7 +170,13 @@ function resolveBackfillDb(adminNs, cfg, emulatorHost, getFirestoreImpl) {
   return adminNs.firestore();
 }
 
-module.exports = { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfillDb };
+module.exports = {
+  planProjectStamps,
+  planClaimUpdate,
+  planTenantDataMoves,
+  planUserTenantStamps,
+  resolveBackfillDb,
+};
 
 // ---- CLI -------------------------------------------------------------------
 
@@ -150,7 +207,14 @@ async function main() {
   const snap = await db.collection('projects').get();
   const projects = snap.docs.map((d) => {
     const data = d.data() || {};
-    return { id: d.id, tenantId: data.tenantId, createdBy: data.createdBy };
+    return {
+      id: d.id,
+      tenantId: data.tenantId,
+      createdBy: data.createdBy,
+      members: Array.isArray(data.members)
+        ? data.members.filter((m) => typeof m === 'string' && m.length > 0)
+        : [],
+    };
   });
   const { stamps, needsReview, skipped } = planProjectStamps(projects);
 
@@ -188,9 +252,34 @@ async function main() {
   console.log(`[m1-backfill] data-moves: ${movesWithData.length} legacy namespace(s) with data`);
   for (const m of movesWithData) console.log(`  MOVE ${m.from}/{${m.subcols.join(',')}} → ${m.to} (copy, source retained)`);
 
+  // ---------- 4. user tenant stamps (legacy users/{uid} profiles) ----------
+  // A user can belong to one company tenant. Derive it from the projects they
+  // are a member/creator of; never guess when the memberships disagree.
+  const tenantByProjectId = new Map(finalTenants.map((t) => [t.id, t.tenantId]));
+  const projectTenantsByUid = {};
+  for (const p of projects) {
+    const tenantId = tenantByProjectId.get(p.id);
+    if (!tenantId) continue;
+    const uids = new Set([...(p.members || []), ...(p.createdBy ? [p.createdBy] : [])]);
+    for (const uid of uids) {
+      if (!projectTenantsByUid[uid]) projectTenantsByUid[uid] = [];
+      projectTenantsByUid[uid].push(tenantId);
+    }
+  }
+  const usersSnap = await db.collection('users').get();
+  const users = usersSnap.docs.map((d) => {
+    const data = d.data() || {};
+    return { id: d.id, tenantId: data.tenantId };
+  });
+  const userPlan = planUserTenantStamps(users, projectTenantsByUid);
+  console.log(`[m1-backfill] users: ${users.length} total — ${userPlan.stamps.length} to stamp, ${userPlan.skipped} already stamped, ${userPlan.needsReview.length} needs-review`);
+  for (const s of userPlan.stamps) console.log(`  STAMP users/${s.id} → tenantId=${s.tenantId}`);
+  for (const uid of userPlan.needsReview) console.log(`  ⚠ NEEDS-REVIEW users/${uid} (multiple distinct project tenants — resolve manually, NOT guessed)`);
+
+  const needsReviewAll = [...needsReview, ...userPlan.needsReview];
   if (!LIVE) {
     console.log('[m1-backfill] DRY-RUN — nothing written. Re-run with --live to execute.');
-    return needsReview.length > 0 ? 2 : 0;
+    return needsReviewAll.length > 0 ? 2 : 0;
   }
 
   // ---------- execute ----------
@@ -203,6 +292,13 @@ async function main() {
   }
   for (const c of claimPlans) {
     await admin.auth().setCustomUserClaims(c.uid, c.claims);
+  }
+  for (let i = 0; i < userPlan.stamps.length; i += BATCH_LIMIT) {
+    const batch = db.batch();
+    for (const s of userPlan.stamps.slice(i, i + BATCH_LIMIT)) {
+      batch.update(db.collection('users').doc(s.id), { tenantId: s.tenantId });
+    }
+    await batch.commit();
   }
   let docsCopied = 0;
   for (const m of movesWithData) {
@@ -224,16 +320,17 @@ async function main() {
     details: {
       projectsStamped: stamps.length,
       claimsMinted: claimPlans.length,
+      usersStamped: userPlan.stamps.length,
       namespacesHealed: movesWithData.length,
       docsCopied,
-      needsReview,
+      needsReview: needsReviewAll,
     },
     userId: 'script:backfill-m1',
     userEmail: null,
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
   });
-  console.log(`[m1-backfill] LIVE done: ${stamps.length} stamped, ${claimPlans.length} claims, ${docsCopied} docs copied. Audit logged.`);
-  return needsReview.length > 0 ? 2 : 0;
+  console.log(`[m1-backfill] LIVE done: ${stamps.length} projects, ${claimPlans.length} claims, ${userPlan.stamps.length} users, ${docsCopied} docs copied. Audit logged.`);
+  return needsReviewAll.length > 0 ? 2 : 0;
 }
 
 if (require.main === module) {
