@@ -32,6 +32,10 @@ import {
   type LinkedNodeKind,
 } from '../../services/photoEvidence/photoEvidenceEngine.js';
 import { PhotoEvidenceAdapter, type PhotoEvidenceFirestoreDb } from '../../services/photoEvidence/photoEvidenceFirestoreAdapter.js';
+import {
+  PhotoEvidenceStorageError,
+  verifyUploadedEvidenceBytes,
+} from '../services/photoEvidenceStorage.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -126,6 +130,10 @@ router.post(
         contentHash: body.contentHash,
         linkages: body.linkages,
       });
+      // Do not persist metadata for bytes we have not seen. The client
+      // computes the hash before uploading, but only the server can prove that
+      // the object at the content-addressed path is the object it claims to be.
+      await verifyUploadedEvidenceBytes(artifact, projectId);
       const adapter = new PhotoEvidenceAdapter(
         // [Hy3-audit] Resolves [Audit-2026-08-31] PhotoEvidenceAdapter —
         // merge read-then-set puede perder linkages concurrentes. The
@@ -151,7 +159,7 @@ router.post(
         req,
         'photoEvidence.record',
         'photoEvidence',
-        { artifactId: artifact.id, linkageKeys },
+        { artifactId: artifact.id, linkageKeys, bytesVerified: true },
         { projectId },
       );
       return res.status(201).json({ artifact });
@@ -162,6 +170,16 @@ router.post(
           code: err.code,
           detail: err.message,
         });
+      }
+      if (err instanceof PhotoEvidenceStorageError) {
+        logger.warn?.('photoEvidence.record.storage_rejected', {
+          code: err.code,
+          projectId,
+        });
+        if (err.code === 'evidence_storage_unavailable') {
+          captureRouteError(err, 'photoEvidence.record.storage');
+        }
+        return res.status(err.httpStatus).json({ error: err.code });
       }
       logger.error?.('photoEvidence.record.error', err);
       captureRouteError(err, 'photoEvidence.record');

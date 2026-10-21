@@ -21,6 +21,30 @@ const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
 }));
 
+// The router now proves the uploaded bytes. These tests exercise the HTTP
+// contract and failure mapping; `photoEvidenceStorage.test.ts` proves the real
+// download/hash logic with an injected byte source.
+const S = vi.hoisted(() => ({
+  verify: vi.fn(async () => undefined),
+}));
+
+vi.mock('../../server/services/photoEvidenceStorage.js', () => {
+  class PhotoEvidenceStorageError extends Error {
+    readonly code: string;
+    readonly httpStatus: number;
+    constructor(code: string, httpStatus: number, message: string) {
+      super(message);
+      this.name = 'PhotoEvidenceStorageError';
+      this.code = code;
+      this.httpStatus = httpStatus;
+    }
+  }
+  return {
+    verifyUploadedEvidenceBytes: S.verify,
+    PhotoEvidenceStorageError,
+  };
+});
+
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
   return adminMock(() => H.db!);
@@ -88,6 +112,8 @@ function seedMemberProject() {
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  S.verify.mockReset();
+  S.verify.mockResolvedValue(undefined);
 });
 
 describe('POST /:projectId/photo-evidence (record)', () => {
@@ -156,6 +182,11 @@ describe('POST /:projectId/photo-evidence (record)', () => {
     expect(res.body.artifact.linkages).toEqual([{ nodeKind: 'incident', nodeId: 'inc-1' }]);
     // Caller uid wins over the body uid (defensive against client tampering).
     expect(res.body.artifact.capturedByUid).toBe('u1');
+    // The server independently proved the bytes before persisting metadata.
+    expect(S.verify).toHaveBeenCalledWith(
+      expect.objectContaining({ id: HASH, byteSize: 1024 }),
+      PROJECT,
+    );
 
     // Actually persisted to Firestore at the tenant-scoped collection.
     const stored = H.db!._dump()[`${COL}/${HASH}`] as {
@@ -207,6 +238,48 @@ describe('POST /:projectId/photo-evidence (record)', () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toBe('invalid_payload');
     expect(res.body.code).toBe('invalid_capture_date');
+  });
+
+  it('422 and no metadata when the uploaded bytes do not match the declared hash', async () => {
+    seedMemberProject();
+    const { PhotoEvidenceStorageError } = await import(
+      '../../server/services/photoEvidenceStorage.js'
+    );
+    S.verify.mockRejectedValueOnce(
+      new PhotoEvidenceStorageError(
+        'evidence_hash_mismatch',
+        422,
+        'mismatch',
+      ),
+    );
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/photo-evidence`)
+      .set(member)
+      .send(validRecordBody());
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('evidence_hash_mismatch');
+    expect(H.db!._dump()[`${COL}/${HASH}`]).toBeUndefined();
+  });
+
+  it('503 when Storage cannot verify the bytes, without persisting metadata', async () => {
+    seedMemberProject();
+    const { PhotoEvidenceStorageError } = await import(
+      '../../server/services/photoEvidenceStorage.js'
+    );
+    S.verify.mockRejectedValueOnce(
+      new PhotoEvidenceStorageError(
+        'evidence_storage_unavailable',
+        503,
+        'down',
+      ),
+    );
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/photo-evidence`)
+      .set(member)
+      .send(validRecordBody());
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('evidence_storage_unavailable');
+    expect(H.db!._dump()[`${COL}/${HASH}`]).toBeUndefined();
   });
 });
 
