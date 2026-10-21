@@ -240,6 +240,7 @@ Configure these under **Repo → Settings → Secrets and variables → Actions*
 | `ANDROID_KEYSTORE_PASSWORD` | Store password from the `keytool` prompt |
 | `KEY_ALIAS` | Alias used in `keytool` (default: `praeventio`) |
 | `KEY_PASSWORD` | Key password from the `keytool` prompt |
+| `ANDROID_CERT_SHA256` | Play App Signing certificate SHA-256 fingerprint (colon-separated). This is the certificate the installed app presents; the upload keystore fingerprint is not a substitute. The release build fails closed without it. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Output of `base64 -i play-service-account.json \| tr -d '\n'` |
 
 The workflow decodes both base64 secrets back to files (`release.keystore`, `play-service-account.json`) inside the runner only.

@@ -70,14 +70,17 @@ Apple's `swcutil` only fetches AASA over HTTPS. Local dev (`http://10.0.2.2:5173
 
 ### 3.2 Pre-store-build checklist
 1. **Build the signed APK / AAB** with the production keystore. See [`mobile-build-runbook.md`](./mobile-build-runbook.md) §3 for the keystore creation flow.
-2. **Extract the SHA-256 fingerprint** from the production keystore:
+2. **Get the Play App Signing certificate fingerprint** from Play Console → Setup → App signing. This is the certificate the installed app presents; the upload keystore fingerprint is **not** enough when Google re-signs the AAB. If you also distribute a sideloaded APK signed with the upload key, include both fingerprints.
+3. **Provide the fingerprint to the build** (do not hand-edit the committed JSON as the source of truth):
    ```bash
-   keytool -list -v -keystore release.keystore -alias praeventio | grep SHA256
-   # Output:
-   #   SHA256: 14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:...
+   # Local release build
+   ANDROID_CERT_SHA256="<SHA256_FROM_PLAY_CONSOLE>" \
+   REQUIRE_ANDROID_CERT=1 \
+   npm run build
    ```
-   (If you also distribute via Play App Signing, repeat for the upload key AND grab the Play-managed signing fingerprint from Play Console → Setup → App signing.)
-3. **Replace `REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD`** in [`assetlinks.json`](../public/.well-known/assetlinks.json) with the colon-separated fingerprint (exactly as `keytool` prints it). The field is an array — add multiple entries if you ship from multiple keystores.
+   - GitHub Actions: set the repository secret `ANDROID_CERT_SHA256`. `mobile-release.yml` (AAB), `deploy.yml` (Express image) and `cloudbuild.yaml` pass it to the build and **fail closed** if it is missing or malformed.
+   - The `prebuild` hook (`scripts/render-well-known.mjs`) regenerates `public/.well-known/assetlinks.json` with the supplied fingerprint. The committed file is a reference only; a build with no fingerprint writes an honest empty array, which never verifies.
+   - The Express runtime image (`Dockerfile.api`) copies `public/.well-known/*`, `robots.txt` and `sitemap.xml` because `server.ts` serves those from `public/`, not `dist/`. Without that copy the endpoint 404s even when the file exists in the bundle.
 4. **Add the intent filter** in `android/app/src/main/AndroidManifest.xml`. Inside the existing `<activity android:name=".MainActivity" ...>` block, add:
    ```xml
    <intent-filter android:autoVerify="true">
@@ -116,6 +119,10 @@ Apple's `swcutil` only fetches AASA over HTTPS. Local dev (`http://10.0.2.2:5173
 | Auth / cookies | Public, no auth | Public, no auth |
 
 The Vite dev server also serves `public/` automatically, so dev round-trips work for shape verification (`curl http://localhost:5173/.well-known/assetlinks.json`). For Universal Link verification you still need HTTPS — see §2.3.
+
+**Runtime image check:** `server.ts` resolves `public/.well-known/assetlinks.json` (and the AASA, `robots.txt`, `sitemap.xml`) from `process.cwd()/public`. `Dockerfile.api` must therefore copy those four paths from the build stage; copying only `dist/` leaves the explicit handlers returning 404. The contract test `src/__tests__/contracts/androidAssetLinksDelivery.test.ts` pins this pair and also guards against copying the whole `public/` tree (500+ MB of 3D models).
+
+If the deploy is missing `ANDROID_CERT_SHA256`, the image build fails before Cloud Run deploy. That is intentional: an empty fingerprint produces a green deploy that can never verify App Links, which is harder to detect than a failed build.
 
 ---
 

@@ -60,10 +60,24 @@ jobs:
             exit 1
           fi
           if grep -q "REPLACE_WITH" "$FILE"; then
-            echo "found_placeholder=true" >> "$GITHUB_OUTPUT"
+            PLACEHOLDER=true
           else
-            echo "found_placeholder=false" >> "$GITHUB_OUTPUT"
+            PLACEHOLDER=false
           fi
+          # An empty/garbage fingerprint array is just as broken as a
+          # placeholder: Android App Links never verify without a valid cert.
+          FP_COUNT=$(jq '[.[].target.sha256_cert_fingerprints[]?] | length' "$FILE")
+          if [ "$FP_COUNT" -eq 0 ]; then
+            PLACEHOLDER=true
+            echo "::warning file=$FILE::no sha256_cert_fingerprints declared"
+          fi
+          BAD_FP=$(jq -r '.[].target.sha256_cert_fingerprints[]?' "$FILE" \
+            | grep -Ev '^[0-9A-F]{2}(:[0-9A-F]{2}){31}$' || true)
+          if [ -n "$BAD_FP" ]; then
+            PLACEHOLDER=true
+            echo "::warning file=$FILE::fingerprint is not 32 colon-separated hex bytes: $BAD_FP"
+          fi
+          echo "found_placeholder=$PLACEHOLDER" >> "$GITHUB_OUTPUT"
 
       - name: Inspect apple-app-site-association
         id: ios
@@ -95,7 +109,7 @@ jobs:
           if [ "$IS_RELEASE" = "true" ]; then
             FAIL=0
             if [ "$ANDROID" = "true" ]; then
-              echo "::error file=public/.well-known/assetlinks.json::assetlinks.json still contains REPLACE_WITH_* placeholder — refusing to release. Run scripts/fill-android-assetlinks.mjs first."
+              echo "::error file=public/.well-known/assetlinks.json::assetlinks.json has no valid Android signing fingerprint — refusing to release. Set the ANDROID_CERT_SHA256 secret (Play App Signing certificate) for the build; the build regenerates the served file. If you keep the committed reference, replace its fingerprint with the Play App Signing value."
               FAIL=1
             fi
             if [ "$IOS" = "true" ]; then

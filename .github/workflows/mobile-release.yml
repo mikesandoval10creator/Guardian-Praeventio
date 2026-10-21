@@ -17,6 +17,10 @@ name: Mobile Release (Android + iOS — Fastlane)
 #   ANDROID_KEYSTORE_PASSWORD               — store password
 #   KEY_ALIAS                               — alias inside the keystore (default: praeventio)
 #   KEY_PASSWORD                            — key password
+#   ANDROID_CERT_SHA256                     — Play App Signing certificate SHA-256 (colon-separated).
+#                                             This is what the installed app presents; the upload
+#                                             keystore fingerprint is not a substitute. Without it
+#                                             the build fails closed instead of shipping empty App Links.
 #   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 — Play Console service-account JSON, base64 encoded
 #
 # See docs/mobile-build-runbook.md §6 for the one-time keystore generation
@@ -67,9 +71,10 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
           IOS_MATCH_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
-          for variable in ANDROID_KS FIREBASE_JSON STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for variable in ANDROID_KS FIREBASE_JSON STORE_PASSWORD KEY_ALIAS KEY_PASSWORD ANDROID_CERT_SHA256; do
             if [ -z "${!variable}" ]; then
               echo "::error::Required Android release input $variable is missing"
               exit 1
@@ -105,6 +110,12 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          # The association file is generated at build time. Use the Play App
+          # Signing certificate fingerprint (not the upload keystore) because
+          # Google re-signs the installed app. REQUIRE_ANDROID_CERT=1 makes a
+          # missing value fail the build instead of shipping empty App Links.
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
+          REQUIRE_ANDROID_CERT: '1'
 
       - uses: actions/setup-java@v6
         with:

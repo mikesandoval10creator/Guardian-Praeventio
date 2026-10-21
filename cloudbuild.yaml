@@ -20,6 +20,10 @@ substitutions:
   _REGION:   "southamerica-west1"
   _REPO:     "praeventio"
   _NODE_TAG: "20-alpine"
+  # Play App Signing certificate SHA-256, colon-separated (public data). Pass
+  # with --substitutions=_ANDROID_CERT_SHA256=... . Empty fails the build: the
+  # image must never serve an assetlinks.json without a fingerprint.
+  _ANDROID_CERT_SHA256: ""
 
 # Tag images with $COMMIT_SHA when triggered, otherwise with $BUILD_ID.
 images:
@@ -71,6 +75,9 @@ steps:
     name: "node:${_NODE_TAG}"
     entrypoint: "npm"
     args: ["run", "build"]
+    env:
+      - "ANDROID_CERT_SHA256=${_ANDROID_CERT_SHA256}"
+      - "REQUIRE_ANDROID_CERT=1"
     waitFor: ["typecheck", "test"]
 
   # ── 5. Build API image ──────────────────────────────────────────────────
@@ -82,6 +89,8 @@ steps:
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${COMMIT_SHA}"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
       - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+      - "--build-arg=ANDROID_CERT_SHA256=${_ANDROID_CERT_SHA256}"
+      - "--build-arg=REQUIRE_ANDROID_CERT=1"
       - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
       - "--label=org.opencontainers.image.source=https://github.com/mikesandoval10creator/Guardian-Praeventio"
       - "."
@@ -96,6 +105,8 @@ steps:
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
       - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
+      - "--build-arg=ANDROID_CERT_SHA256=${_ANDROID_CERT_SHA256}"
+      - "--build-arg=REQUIRE_ANDROID_CERT=1"
       - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
       - "--label=org.opencontainers.image.source=https://github.com/mikesandoval10creator/Guardian-Praeventio"
       - "."
