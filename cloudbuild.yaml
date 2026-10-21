@@ -8,7 +8,11 @@
 # Trigger:
 #   gcloud builds submit \
 #     --config=cloudbuild.yaml \
-#     --substitutions=_LOCATION=southamerica-west1,_REGION=southamerica-west1
+#     --substitutions=_LOCATION=southamerica-west1,_REGION=southamerica-west1,_ANDROID_CERT_SHA256=<play-app-signing-sha256>
+#
+# _ANDROID_CERT_SHA256 is the Play App Signing certificate SHA-256
+# (colon-separated). The build fails closed if it is empty or malformed; an
+# empty assetlinks.json would deploy green but never verify Android App Links.
 #
 # Default region: southamerica-west1 (Santiago, Chile) — matches project
 # data-residency anchor.
