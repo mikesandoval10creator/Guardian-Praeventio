@@ -38,6 +38,7 @@ jobs:
       - name: Release guard regressions
         run: |
           node --test scripts/__tests__/android-release.test.cjs
+          node --test scripts/__tests__/android-artifact.test.cjs
           python3 scripts/__tests__/test_android_16kb.py
       - name: Build web bundle
         run: npm run build
@@ -54,3 +55,16 @@ jobs:
         # APK compression exceeded the project's 1536 MB development heap in CI.
         # Bound parallelism so packaging and Robolectric leave room for the OS.
         run: node scripts/run-gradle.cjs assembleDebug testDebugUnitTest --no-daemon --stacktrace --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g
+
+      - name: Guard the packaged APK against AdMob
+        # Scans the built DEX + binary manifest, so a transitive ads dependency
+        # cannot silently return after the source-level removal.
+        run: node scripts/check-android-artifact.cjs
+
+      - name: Upload debug APK for artifact inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: praeventio-guard-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 3
