@@ -1,7 +1,7 @@
 # M-1 — Aislamiento multi-tenant del modelo `/projects` (diseño de seguridad)
 
 **Fecha:** 2026-07-01 · **Estado:** FASE 1+2 IMPLEMENTADAS (esta rama / PR #1163) · fase 3 (enforcement de reglas) PENDIENTE.
-**Fase 1** = stamping (onboarding/ProjectContext) + preservación de claims en set-role. **Fase 2** = backfill: `node scripts/backfill-project-tenantid.cjs` (dry-run por defecto; `--live` ejecuta) — estampa `tenantId=createdBy`, acuña el claim `tenantId=uid` preservando claims existentes, y sana los namespaces legacy `tenants/{projectId}` copiando sus subcolecciones al namespace definitivo. Convención confirmada por el fundador 2026-07-02: **tenantId = createdBy**. La fase 3 (endurecer get/list/update/delete + master gate + query admin del cliente + anti-spoof `incoming().tenantId == request.auth.uid`) se despliega DESPUÉS de correr el backfill en producción — ver §6.
+**Fase 1** = stamping (onboarding/ProjectContext) + preservación de claims en set-role. **Fase 2** = backfill: `node scripts/backfill-project-tenantid.cjs` (dry-run por defecto; `--live` ejecuta) — estampa `tenantId=createdBy`, acuña el claim `tenantId=uid` preservando claims existentes, estampa `users/{uid}.tenantId` con el tenant de la empresa cuando la membresía es única (ambigüedad → needs-review), y sana los namespaces legacy `tenants/{projectId}` copiando sus subcolecciones al namespace definitivo. Convención confirmada por el fundador 2026-07-02: **tenantId = createdBy**. La fase 3 (endurecer get/list/update/delete + master gate + query admin del cliente + anti-spoof `incoming().tenantId == request.auth.uid`) se despliega DESPUÉS de correr el backfill en producción — ver §6.
 **Vulnerabilidad:** fuga cross-tenant — roles GLOBALES admin/gerente/supervisor cruzan la frontera de tenant en `/projects/{id}` (get, list, update, delete y todas las subcolecciones vía el master gate).
 
 ---
@@ -75,7 +75,7 @@ allow list: if isEmailVerified() && (
 - **create** (380): `incoming().tenantId == request.auth.uid` (con tenantId===uid, el cliente no puede forjar un tenant ajeno).
 - **Servidor:** `onboarding.ts:249` agregar `tenantId: uid` (1 línea, el valor ya está en scope). `ProjectContext.tsx:225-230 y 211-217` agregar `tenantId: user.uid`.
 - **admin.ts:353 (CRÍTICO):** hoy `setCustomUserClaims(uid,{role})` **PISA todos los claims**. Cambiar a `{...existingClaims, role}` — si no, un cambio de rol borra el `tenantId`.
-- **Migración** (`scripts/backfill-project-tenantid.cjs`, Admin-SDK, idempotente, `--dry-run`, audit_log): `tenantId = createdBy` para cada doc sin tenantId (docs sin createdBy → reporte manual, no adivinar). + job para setear claim `tenantId=uid` a todos los usuarios.
+- **Migración** (`scripts/backfill-project-tenantid.cjs`, Admin-SDK, idempotente, `--dry-run`, audit_log): `tenantId = createdBy` para cada doc sin tenantId (docs sin createdBy → reporte manual, no adivinar). + job para setear claim `tenantId=uid` a todos los usuarios. + `users/{uid}.tenantId` derivado del tenant de empresa cuando la membresía es única; usuarios en varios tenants → needs-review (nunca adivinar, sería fuga de PII entre empresas).
 
 ---
 

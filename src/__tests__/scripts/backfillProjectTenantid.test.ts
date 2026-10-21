@@ -12,9 +12,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
-import { getFirestore } from 'firebase-admin/firestore';
 const require_ = createRequire(import.meta.url);
-const { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfillDb } = require_(
+const { planProjectStamps, planClaimUpdate, planTenantDataMoves, planUserTenantStamps, resolveBackfillDb } = require_(
   '../../../scripts/backfill-project-tenantid.cjs',
 ) as {
   planProjectStamps: (
@@ -27,6 +26,10 @@ const { planProjectStamps, planClaimUpdate, planTenantDataMoves, resolveBackfill
   planTenantDataMoves: (
     resolved: Array<{ id: string; tenantId: string }>,
   ) => Array<{ projectId: string; from: string; to: string }>;
+  planUserTenantStamps: (
+    users: Array<{ id: string; tenantId?: unknown }>,
+    projectTenantsByUid: Record<string, string[]>,
+  ) => { stamps: Array<{ id: string; tenantId: string }>; needsReview: string[]; skipped: number };
   resolveBackfillDb: (
     adminNs: { app: () => unknown; firestore: () => unknown },
     cfg: { firestoreDatabaseId?: unknown },
@@ -97,6 +100,57 @@ describe('planTenantDataMoves', () => {
         { id: 'uid-b', tenantId: 'uid-b' }, // tenant == id → nothing to heal
       ]),
     ).toEqual([{ projectId: 'p1', from: 'tenants/p1', to: 'tenants/uid-a' }]);
+  });
+});
+
+describe('planUserTenantStamps', () => {
+  it('stamps a legacy worker with the company tenant of their single project', () => {
+    const plan = planUserTenantStamps(
+      [{ id: 'worker-1' }],
+      { 'worker-1': ['company-tenant'] },
+    );
+    expect(plan.stamps).toEqual([{ id: 'worker-1', tenantId: 'company-tenant' }]);
+    expect(plan.needsReview).toEqual([]);
+  });
+
+  it('skips users that already have a non-empty tenantId', () => {
+    const plan = planUserTenantStamps(
+      [{ id: 'worker-1', tenantId: 'company-tenant' }],
+      { 'worker-1': ['other-tenant'] },
+    );
+    expect(plan.stamps).toEqual([]);
+    expect(plan.skipped).toBe(1);
+  });
+
+  it('falls back to uid when the user belongs to no project (owner access still works)', () => {
+    const plan = planUserTenantStamps([{ id: 'lonely-1' }], {});
+    expect(plan.stamps).toEqual([{ id: 'lonely-1', tenantId: 'lonely-1' }]);
+  });
+
+  it('NEVER guesses when the user belongs to multiple distinct tenants', () => {
+    const plan = planUserTenantStamps(
+      [{ id: 'multi-1' }],
+      { 'multi-1': ['tenant-a', 'tenant-b', 'tenant-a'] },
+    );
+    expect(plan.stamps).toEqual([]);
+    expect(plan.needsReview).toEqual(['multi-1']);
+  });
+
+  it('ignores duplicate memberships in the same tenant', () => {
+    const plan = planUserTenantStamps(
+      [{ id: 'worker-1' }],
+      { 'worker-1': ['tenant-a', 'tenant-a'] },
+    );
+    expect(plan.stamps).toEqual([{ id: 'worker-1', tenantId: 'tenant-a' }]);
+    expect(plan.needsReview).toEqual([]);
+  });
+
+  it('treats a non-string tenantId as missing', () => {
+    const plan = planUserTenantStamps(
+      [{ id: 'worker-1', tenantId: 42 }],
+      { 'worker-1': ['tenant-a'] },
+    );
+    expect(plan.stamps).toEqual([{ id: 'worker-1', tenantId: 'tenant-a' }]);
   });
 });
 
