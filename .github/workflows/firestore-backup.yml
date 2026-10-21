@@ -14,12 +14,12 @@ name: Firestore daily backup
 # more conservative window during DST. Manual dispatch is exposed via
 # workflow_dispatch for ad-hoc backups (e.g. before a risky migration).
 #
-# Required repository secrets:
-#   WIF_PROVIDER         — workload identity provider resource name
-#   WIF_SERVICE_ACCOUNT  — service account email with roles/datastore.importExportAdmin
-#                          and roles/storage.objectAdmin on the backup bucket
-#   GCP_PROJECT          — praeventio-541ad
-#   BACKUP_BUCKET        — praeventio-backups (no gs:// prefix)
+# No repository secrets required. The WIF provider, service account, project
+# and bucket are public infrastructure identifiers (never credentials) and are
+# pinned here for the same reason deploy.yml pins them: a missing repo secret
+# silently disabled the daily backup. The service account
+# github-guardian-deploy@praeventio-541ad.iam.gserviceaccount.com must hold
+# roles/datastore.importExportAdmin and roles/storage.objectAdmin on the bucket.
 #
 # Retention is enforced by Object Lifecycle Management on the bucket
 # itself (30 days Standard → Coldline → 365 days). See DR_RUNBOOK §3.1.
@@ -37,6 +37,10 @@ on:
 permissions:
   contents: read
   id-token: write
+
+env:
+  PROJECT_ID: praeventio-541ad
+  BACKUP_BUCKET: praeventio-backups
 
 jobs:
   backup:
@@ -58,8 +62,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/565212386989/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-guardian-deploy@praeventio-541ad.iam.gserviceaccount.com
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -83,8 +87,8 @@ jobs:
         run: |
           set -euo pipefail
           gcloud firestore export \
-            "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
-            --project="${{ secrets.GCP_PROJECT }}"
+            "gs://${{ env.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
+            --project="${{ env.PROJECT_ID }}"
 
       - name: Write manifest
         run: |
@@ -94,22 +98,22 @@ jobs:
             "schemaVersion": 1,
             "source": "github-actions/firestore-backup.yml",
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "project": "${{ secrets.GCP_PROJECT }}",
-            "outputUriPrefix": "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}",
+            "project": "${{ env.PROJECT_ID }}",
+            "outputUriPrefix": "gs://${{ env.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}",
             "runId": "${{ github.run_id }}",
             "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           }
           EOF
           gsutil cp /tmp/manifest.json \
-            "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/manifest.json"
+            "gs://${{ env.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/manifest.json"
 
       - name: Verify export integrity
         env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT }}
-          GCS_BACKUP_BUCKET: gs://${{ secrets.BACKUP_BUCKET }}
+          GCP_PROJECT_ID: ${{ env.PROJECT_ID }}
+          GCS_BACKUP_BUCKET: gs://${{ env.BACKUP_BUCKET }}
         run: |
           node scripts/test-backup-integrity.cjs \
-            --backup-uri="gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
+            --backup-uri="gs://${{ env.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
             --max-age-hours=2
 
       - name: Notify on failure
