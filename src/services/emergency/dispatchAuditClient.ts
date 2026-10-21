@@ -22,8 +22,6 @@ export type DispatchAuditEventType =
 
 export interface DispatchAuditPayload {
   projectId: string;
-  /** Omit when the affected worker is not identified. */
-  workerUid?: string;
   eventType: DispatchAuditEventType;
   regionCode: string;
   includedMedicalFields: string[];

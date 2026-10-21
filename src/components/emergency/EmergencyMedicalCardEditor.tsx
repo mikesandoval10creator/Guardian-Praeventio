@@ -8,7 +8,7 @@
 // Educational/non-diagnostic: this only records data the worker enters — no
 // inference, no diagnosis (ADR 0012).
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HeartPulse, Check, AlertCircle } from 'lucide-react';
 import { logger } from '../../utils/logger';
@@ -28,6 +28,18 @@ export function EmergencyMedicalCardEditor() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+
+  // Timers that dismiss the save/error banner. Clear them on unmount: a late
+  // setState after the worker navigates away is a real leak (and a CI gate).
+  const savedTimer = useRef<number | null>(null);
+  const errorTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+      if (errorTimer.current !== null) window.clearTimeout(errorTimer.current);
+    },
+    [],
+  );
 
   // Seed local form from the persisted card once it loads.
   if (!loading && !hydrated) {
@@ -49,11 +61,19 @@ export function EmergencyMedicalCardEditor() {
     try {
       await saveCard({ bloodType, allergies: allergies.trim() || undefined, shareConsent });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
+      savedTimer.current = window.setTimeout(() => {
+        setSaved(false);
+        savedTimer.current = null;
+      }, 2500);
     } catch (err) {
       logger.error('EmergencyMedicalCardEditor: save failed', err instanceof Error ? err : new Error(String(err)));
       setSaveError(true);
-      setTimeout(() => setSaveError(false), 5000);
+      if (errorTimer.current !== null) window.clearTimeout(errorTimer.current);
+      errorTimer.current = window.setTimeout(() => {
+        setSaveError(false);
+        errorTimer.current = null;
+      }, 5000);
     }
   };
 

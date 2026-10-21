@@ -1,8 +1,36 @@
 // @vitest-environment jsdom
 // src/components/shared/Sheet.test.tsx
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+
+// framer-motion starts real animation promises in jsdom and leaves them
+// pending after unmount (the async-leak gate flags them). The sheet's
+// behavior under test (dialog semantics, Escape, close) does not need motion.
+vi.mock('framer-motion', () => {
+  type PassProps = React.HTMLAttributes<HTMLDivElement> & {
+    children?: React.ReactNode;
+    initial?: unknown;
+    animate?: unknown;
+    exit?: unknown;
+    transition?: unknown;
+  };
+  const Pass = ({
+    children,
+    initial: _initial,
+    animate: _animate,
+    exit: _exit,
+    transition: _transition,
+    ...rest
+  }: PassProps) => <div {...rest}>{children}</div>;
+  return {
+    motion: new Proxy({}, { get: () => Pass }),
+    AnimatePresence: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  };
+});
+
 import Sheet from './Sheet';
+
+afterEach(cleanup);
 
 describe('Sheet', () => {
   it('no renderiza contenido cuando isOpen=false', () => {

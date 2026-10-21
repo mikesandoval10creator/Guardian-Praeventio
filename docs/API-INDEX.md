@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**208 routers montados · 758 rutas detectadas.**
+**208 routers montados · 760 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -178,11 +178,13 @@ clave ver `docs/api-routes.md`.
 - `POST /api/emergency/sos`
 - `POST /api/emergency/notify-brigada`
 - `POST /api/emergency/delivery`
+- `POST /api/emergency/dispatch-summary`
 
 ### `src/server/routes/emergency.ts` → `/api/emergency`
 - `POST /api/emergency/sos`
 - `POST /api/emergency/notify-brigada`
 - `POST /api/emergency/delivery`
+- `POST /api/emergency/dispatch-summary`
 
 ### `src/server/routes/evacuationHeadcount.ts` → `/api/evacuation`
 - `POST /api/evacuation/start`

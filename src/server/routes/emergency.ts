@@ -967,7 +967,6 @@ router.post(
 // and medical field values are deliberately NOT accepted.
 const dispatchSummaryAuditSchema = z.object({
   projectId: z.string().min(1).max(200),
-  workerUid: z.string().min(1).max(200).optional(),
   eventType: z.enum([
     'manDown',
     'sos',
@@ -1008,7 +1007,9 @@ router.post(
       'medical_emergency_dispatch',
       'emergency',
       {
-        workerUid: input.workerUid ?? null,
+        // No workerUid here: the client does not know the affected worker and
+        // an unverified uid in an audit row would be a false assertion. The
+        // actor (caller) is stamped from the token by auditServerEvent.
         eventType: input.eventType,
         regionCode: input.regionCode,
         includedMedicalFields: input.includedMedicalFields,
