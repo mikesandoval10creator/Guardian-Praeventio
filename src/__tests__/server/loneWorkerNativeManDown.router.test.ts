@@ -24,7 +24,10 @@ vi.mock("../../server/middleware/verifyAuth.js", () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header("x-test-uid");
     if (!uid) return void res.status(401).json({ error: "unauthorized" });
-    (req as Request & { user: Record<string, unknown> }).user = { uid };
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      name: "Juan Pérez",
+    };
     next();
   },
 }));
@@ -84,6 +87,89 @@ describe("native ManDown foreground capability", () => {
       H.db!._dump()[`projects/${PROJECT}/lone_worker_sessions/${SESSION}`];
     expect(stored.nativeManDownCapabilityHash).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(stored)).not.toContain(res.body.capability);
+  });
+
+  it("attaches the native heartbeat's last known location and the worker name to the alert", async () => {
+    H.db!._seed(`projects/${PROJECT}/lone_worker_sessions/${SESSION}`, {
+      id: SESSION,
+      workerUid: UID,
+      status: "active",
+      startedAt: "2026-08-13T15:00:00.000Z",
+      checkInIntervalMin: 15,
+      checkIns: [],
+      lastKnownLocation: {
+        lat: -33.45,
+        lng: -70.66,
+        at: "2026-08-13T15:04:00.000Z",
+      },
+    });
+    const cap = await request(app())
+      .post(`${base}/native-mandown-capability`)
+      .set("x-test-uid", UID)
+      .send({});
+
+    const eventId = "77777777-7777-4777-8777-777777777777";
+    const res = await request(app())
+      .post(`${base}/native-man-down`)
+      .set("x-mandown-capability", cap.body.capability)
+      .send({
+        clientEventId: eventId,
+        kind: "impact",
+        occurredAt: new Date().toISOString(),
+        accelerationMps2: 28,
+      });
+
+    expect(res.status).toBe(202);
+    const event =
+      H.db!._dump()[`projects/${PROJECT}/mandown_events/${eventId}`];
+    expect(event).toMatchObject({
+      workerId: UID,
+      workerName: "Juan Pérez",
+      status: "active",
+      trigger: "impact",
+      location: "-33.45000, -70.66000",
+      lat: -33.45,
+      lng: -70.66,
+      locationCapturedAt: "2026-08-13T15:04:00.000Z",
+      locationSource: "session_last_known",
+    });
+  });
+
+  it("never invents a location from a malformed heartbeat, but still records the alert", async () => {
+    H.db!._seed(`projects/${PROJECT}/lone_worker_sessions/${SESSION}`, {
+      id: SESSION,
+      workerUid: UID,
+      status: "active",
+      startedAt: "2026-08-13T15:00:00.000Z",
+      checkInIntervalMin: 15,
+      checkIns: [],
+      lastKnownLocation: { lat: 999, lng: "not-a-number", at: "not-a-date" },
+    });
+    const cap = await request(app())
+      .post(`${base}/native-mandown-capability`)
+      .set("x-test-uid", UID)
+      .send({});
+
+    const eventId = "88888888-8888-4888-8888-888888888888";
+    const res = await request(app())
+      .post(`${base}/native-man-down`)
+      .set("x-mandown-capability", cap.body.capability)
+      .send({
+        clientEventId: eventId,
+        kind: "inactivity",
+        occurredAt: new Date().toISOString(),
+        inactivityMs: 30_000,
+      });
+
+    expect(res.status).toBe(202);
+    const event =
+      H.db!._dump()[`projects/${PROJECT}/mandown_events/${eventId}`];
+    expect(event).toMatchObject({ status: "active", trigger: "inactivity" });
+    expect(event).not.toHaveProperty("location");
+    expect(event).not.toHaveProperty("lat");
+    expect(event).not.toHaveProperty("lng");
+    expect(event).not.toHaveProperty("locationCapturedAt");
+    expect(event).not.toHaveProperty("locationSource");
   });
 
   it("rejects another project member from minting a worker capability", async () => {

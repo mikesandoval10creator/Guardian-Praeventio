@@ -117,6 +117,28 @@ describe('ManDownSupervisorWidget — writer/reader schema alignment', () => {
     expect(screen.getByText('ACK')).toBeTruthy();
   });
 
+  it('shows how old the native last-known location is, instead of implying it is the fall instant', () => {
+    render(<ManDownSupervisorWidget />);
+    const capturedAt = new Date(Date.now() - 130_000).toISOString();
+    act(() => {
+      h.snapshotCb?.({
+        docs: [
+          writerShapedDoc({
+            location: '-33.45000, -70.66000',
+            locationCapturedAt: capturedAt,
+            locationSource: 'session_last_known',
+          }),
+        ],
+      });
+    });
+    const location = screen.getByText('-33.45000, -70.66000');
+    expect(location).toBeTruthy();
+    expect(screen.getByText('· hace 2 min')).toBeTruthy();
+    expect(location.closest('p')?.getAttribute('title')).toBe(
+      'Última ubicación reportada por el servicio nativo',
+    );
+  });
+
   it('renders nothing when there are no events (avoids an empty red panel)', () => {
     const { container } = render(<ManDownSupervisorWidget />);
     act(() => {
