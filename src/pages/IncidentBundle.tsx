@@ -29,6 +29,7 @@ import {
 // F.19 wire-up: render photo evidence linked to this incident.
 import { usePhotoEvidenceByNode } from '../hooks/usePhotoEvidence';
 import { PhotoEvidenceCard } from '../components/photoEvidence/PhotoEvidenceCard';
+import { PhotoEvidenceUploader } from '../components/photoEvidence/PhotoEvidenceUploader';
 import { Camera } from 'lucide-react';
 import { logger } from '../utils/logger';
 
@@ -51,7 +52,7 @@ export function IncidentBundle() {
   // F.19: photos linked to the incident render as their own section. The
   // bundle endpoint's `evidence` array is the high-level manifest shape;
   // photo-evidence is the concrete byte-backed feed for fiscalizadores.
-  const { data: photoEvidence } = usePhotoEvidenceByNode(
+  const { data: photoEvidence, refetch: refetchPhotoEvidence } = usePhotoEvidenceByNode(
     projectId,
     incidentId ? 'incident' : null,
     incidentId ?? null,
@@ -212,6 +213,15 @@ export function IncidentBundle() {
         <IncidentEvidenceBundleCard
           manifest={data.manifest}
           onExport={handleExport}
+        />
+      )}
+
+      {data && !error && (
+        <PhotoEvidenceUploader
+          projectId={selectedProject.id}
+          nodeKind="incident"
+          nodeId={incidentId}
+          onUploaded={() => refetchPhotoEvidence()}
         />
       )}
 
