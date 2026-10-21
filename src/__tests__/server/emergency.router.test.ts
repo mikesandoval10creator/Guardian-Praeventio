@@ -1078,3 +1078,66 @@ describe('POST /api/emergency/delivery', () => {
     });
   });
 });
+
+describe('POST /api/emergency/dispatch-summary', () => {
+  const URL = '/api/emergency/dispatch-summary';
+  const body = {
+    projectId: 'p1',
+    eventType: 'other',
+    regionCode: 'CL',
+    includedMedicalFields: [],
+    summaryLength: 412,
+    generatedAt: '2026-10-21T10:00:00.000Z',
+  };
+
+  it('rejects a caller who is not a project member', async () => {
+    seedProject(H.db!, 'p1', { createdBy: 'u2', members: ['u2'] });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send(body);
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('forbidden');
+  });
+
+  it('writes a server-sourced medical_emergency_dispatch audit row', async () => {
+    seedProject(H.db!, 'p1', { createdBy: 'u1', members: ['u1'] });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send(body);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ accepted: true, audited: true });
+
+    const entry = [...H.db!._store.entries()].find(([key]) =>
+      key.startsWith('audit_logs/'),
+    );
+    expect(entry).toBeDefined();
+    expect(entry![1]).toMatchObject({
+      action: 'medical_emergency_dispatch',
+      module: 'emergency',
+      projectId: 'p1',
+      userId: 'u1',
+      source: 'server',
+      details: {
+        eventType: 'other',
+        regionCode: 'CL',
+        includedMedicalFields: [],
+        summaryLength: 412,
+        generatedAt: '2026-10-21T10:00:00.000Z',
+      },
+    });
+    // The summary text and medical values are never accepted or stored.
+    expect(JSON.stringify(entry![1])).not.toContain('summaryText');
+  });
+
+  it('rejects malformed metadata before writing an audit row', async () => {
+    seedProject(H.db!, 'p1', { createdBy: 'u1', members: ['u1'] });
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ ...body, summaryLength: -1 });
+    expect(res.status).toBe(400);
+  });
+});

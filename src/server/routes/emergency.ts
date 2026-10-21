@@ -36,6 +36,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 
 // Sprint 22 Bucket AA — request-scoped tracing on the SOS path. Emergency
 // notifications are CRITICAL to correlate end-to-end (push fan-out
@@ -954,6 +955,73 @@ router.post(
       });
       return res.status(503).json({ error: 'emergency_delivery_unavailable' });
     }
+  },
+);
+
+// POST /api/emergency/dispatch-summary — server-side audit for the
+// human-in-the-loop dispatch summary. The client builds the text locally
+// (it includes consented medical fields and must not be persisted), but the
+// FACT that a supervisor generated it for a call belongs in audit_logs.
+//
+// The body contains only structured, non-secret metadata. The summary text
+// and medical field values are deliberately NOT accepted.
+const dispatchSummaryAuditSchema = z.object({
+  projectId: z.string().min(1).max(200),
+  workerUid: z.string().min(1).max(200).optional(),
+  eventType: z.enum([
+    'manDown',
+    'sos',
+    'fall',
+    'gas_alert',
+    'evacuation',
+    'cardiac',
+    'other',
+  ]),
+  regionCode: z.string().length(2),
+  includedMedicalFields: z.array(z.string().min(1).max(50)).max(20).default([]),
+  summaryLength: z.number().int().min(1).max(20_000),
+  generatedAt: z.string().datetime().optional(),
+});
+
+type DispatchSummaryAuditInput = z.infer<typeof dispatchSummaryAuditSchema>;
+
+router.post(
+  '/dispatch-summary',
+  verifyAuth,
+  validate(dispatchSummaryAuditSchema),
+  async (req, res) => {
+    const input = req.body as DispatchSummaryAuditInput;
+    const callerUid = req.user!.uid;
+    const db = getFirestore();
+
+    try {
+      await assertProjectMember(callerUid, input.projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    const audited = await auditServerEvent(
+      req,
+      'medical_emergency_dispatch',
+      'emergency',
+      {
+        workerUid: input.workerUid ?? null,
+        eventType: input.eventType,
+        regionCode: input.regionCode,
+        includedMedicalFields: input.includedMedicalFields,
+        summaryLength: input.summaryLength,
+        generatedAt: input.generatedAt ?? null,
+        // NEVER store the summary or any medical value.
+      },
+      { projectId: input.projectId },
+    );
+
+    // Audit failure must not block the emergency UI (the helper logs and
+    // captures it). The caller can see `audited:false` for observability.
+    return res.json({ accepted: true, audited });
   },
 );
 

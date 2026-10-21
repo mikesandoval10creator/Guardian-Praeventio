@@ -4,7 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EmergencyAuthorityCallPanel } from './EmergencyAuthorityCallPanel';
 import { DispatchSummary } from './DispatchSummary';
-import { formatDispatchSummary } from '../../services/emergency/dispatchSummary';
+import {
+  formatDispatchSummary,
+  type DispatchSummaryInput,
+} from '../../services/emergency/dispatchSummary';
+import { auditDispatchSummary } from '../../services/emergency/dispatchAuditClient';
 import { 
   AlertTriangle, 
   Users, 
@@ -124,6 +128,37 @@ export function EmergencyDashboard() {
     { id: 'map', label: 'Mapa Evacuación', icon: MapPin },
   ];
 
+  // Single source for the human-readable dispatch summary. Identity and
+  // worker coordinates stay unknown until the incident/worker source is
+  // wired; never substitute the viewing supervisor or project centroid.
+  const dispatchSummaryInput: DispatchSummaryInput = {
+    projectId: selectedProject?.id ?? 'unknown',
+    projectName: selectedProject?.name ?? 'Proyecto sin nombre',
+    workerUid: 'unknown',
+    workerFullName: 'No identificado',
+    detectedAt:
+      emergencyStartMs != null ? new Date(emergencyStartMs) : new Date(),
+    eventType: 'other',
+    eventNotes:
+      'Identidad y ubicación del trabajador no confirmadas en este panel. Confirmar por radio/verbal antes de informar al despacho.',
+    regionCode: selectedProject?.country ?? 'CL',
+  };
+  const dispatchSummary = formatDispatchSummary(dispatchSummaryInput);
+
+  const openAuthorityPanel = () => {
+    setShowAuthorityPanel(true);
+    // Record that a human generated a dispatch package. Non-blocking: the
+    // audit sink must never prevent the call panel from opening.
+    void auditDispatchSummary({
+      projectId: dispatchSummaryInput.projectId,
+      eventType: dispatchSummaryInput.eventType,
+      regionCode: dispatchSummaryInput.regionCode,
+      includedMedicalFields: [],
+      summaryLength: dispatchSummary.length,
+      generatedAt: new Date().toISOString(),
+    });
+  };
+
   return (
     <div className="space-y-8">
       {/* Active Emergency Banner */}
@@ -176,7 +211,7 @@ export function EmergencyDashboard() {
                 alarm to real authorities has consequences. */}
             <button
               type="button"
-              onClick={() => setShowAuthorityPanel(true)}
+              onClick={openAuthorityPanel}
               data-testid="request-external-support"
               className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
@@ -354,20 +389,7 @@ export function EmergencyDashboard() {
                 adicional (suscripción a /workers/{uid}); por ahora
                 el summary se genera con lo que tenemos (proyecto,
                 coords, tipo de evento activo). Sigue como follow-up. */}
-            <DispatchSummary
-              summary={formatDispatchSummary({
-                projectId: selectedProject?.id ?? 'unknown',
-                projectName: selectedProject?.name ?? 'Proyecto sin nombre',
-                // Never label the viewing supervisor as the affected worker.
-                workerUid: 'unknown',
-                workerFullName: 'No identificado',
-                detectedAt: new Date(),
-                eventType: 'other',
-                eventNotes:
-                  'Identidad y ubicación del trabajador no confirmadas en este panel. Confirmar por radio/verbal antes de informar al despacho.',
-                regionCode: selectedProject?.country ?? 'CL',
-              })}
-            />
+            <DispatchSummary summary={dispatchSummary} />
             <button
               type="button"
               onClick={() => setShowAuthorityPanel(false)}
