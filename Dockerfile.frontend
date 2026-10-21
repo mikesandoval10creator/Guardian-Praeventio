@@ -16,6 +16,12 @@ COPY package.json package-lock.json* ./
 RUN npm ci --legacy-peer-deps
 
 COPY . .
+
+ARG ANDROID_CERT_SHA256
+ARG REQUIRE_ANDROID_CERT=1
+ENV ANDROID_CERT_SHA256=${ANDROID_CERT_SHA256} \
+    REQUIRE_ANDROID_CERT=${REQUIRE_ANDROID_CERT}
+
 RUN npm run build
 
 # ── Stage 2: nginx runtime ───────────────────────────────────────────────────

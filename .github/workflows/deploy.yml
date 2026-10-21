@@ -88,13 +88,29 @@ jobs:
             echo "Artifact Registry repo 'praeventio' already exists."
           fi
 
+      - name: Require Android App Links signing fingerprint
+        env:
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          SHA="$(printf '%s' "$ANDROID_CERT_SHA256" | tr -d '[:space:]' | tr 'a-f' 'A-F')"
+          if ! printf '%s' "$SHA" | grep -Eq '^[0-9A-F]{2}(:[0-9A-F]{2}){31}$'; then
+            echo "::error::ANDROID_CERT_SHA256 is missing or malformed. Set the repository secret to the Play App Signing SHA-256 fingerprint (Play Console -> Setup -> App signing). Without it the image serves an empty assetlinks.json and Android App Links never verify."
+            exit 1
+          fi
+
       - name: Build and push Docker image
         env:
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
         run: |
           # H17: usar Dockerfile.api (runtime moderno) en vez del legado Dockerfile (monolito API+frontend)
+          # The association fingerprint is public, but pass it through an env
+          # var so it is not echoed as part of the docker command.
           docker build \
             -f Dockerfile.api \
+            --build-arg ANDROID_CERT_SHA256="${ANDROID_CERT_SHA256}" \
+            --build-arg REQUIRE_ANDROID_CERT=1 \
             -t ${{ env.IMAGE }}:${SHA} \
             -t ${{ env.IMAGE }}:latest \
             .

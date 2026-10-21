@@ -19,6 +19,7 @@ Configure under **Repo → Settings → Secrets and variables → Actions**.
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password from `keytool` |
 | `KEY_ALIAS` | alias used in `keytool` (default `praeventio`) |
 | `KEY_PASSWORD` | key password from `keytool` |
+| `ANDROID_CERT_SHA256` | Play App Signing certificate SHA-256 (colon-separated), from Play Console → Setup → App signing. This is what the installed app presents; the upload key fingerprint is not enough. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` | `base64 -i play-service-account.json \| tr -d '\n'` |
 
 ### 1.2 iOS (8 secrets — new in Sprint 30)
