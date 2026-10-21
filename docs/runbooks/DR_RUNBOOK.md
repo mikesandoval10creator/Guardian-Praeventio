@@ -63,7 +63,9 @@ la reconciliación la regenera desde la fuente del proveedor.
     cron `0 7 * * *` UTC = **03:00–04:00 America/Santiago** según DST.
     Se ejecuta vía Workload Identity Federation con la SA `github-guardian-deploy`
     (rol `roles/datastore.importExportAdmin` + `roles/storage.objectAdmin`
-    sobre el bucket de backups). Manual dispatch disponible para snapshots
+    sobre el bucket de backups). No requiere secretos de repositorio: el
+    provider, la SA, el proyecto y el bucket son identificadores públicos
+    fijados en el workflow. Manual dispatch disponible para snapshots
     pre-migración (input `label`).
   - **Cloud Scheduler** (fallback) — invoca `scripts/backup-firestore.cjs`
     como Cloud Run job. Mismo bucket de destino. Nos da independencia del

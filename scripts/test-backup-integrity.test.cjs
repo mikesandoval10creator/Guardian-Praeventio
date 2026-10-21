@@ -123,16 +123,28 @@ test('daily workflow verifies the exact export after writing its manifest', () =
     path.join(__dirname, '..', '.github', 'workflows', 'firestore-backup.yml'),
     'utf8',
   );
-  assert.match(workflow, /actions\/setup-node@v6/);
-  assert.match(workflow, /node-version: '20'/);
+  assert.match(workflow, /actions\/setup-node@v7/);
+  assert.match(workflow, /node-version: "22"/);
   assert.match(workflow, /npm ci --ignore-scripts/);
+  // The daily backup must not depend on repository secrets: a missing secret
+  // silently disabled it (google-github-actions/auth rejects an empty input).
+  // Provider/SA/project/bucket are public identifiers, pinned here like deploy.yml.
+  assert.doesNotMatch(workflow, /secrets\.(WIF_PROVIDER|WIF_SERVICE_ACCOUNT|GCP_PROJECT|BACKUP_BUCKET)/);
+  assert.match(
+    workflow,
+    /workload_identity_provider: projects\/565212386989\/locations\/global\/workloadIdentityPools\/github-pool\/providers\/github-provider/,
+  );
+  assert.match(
+    workflow,
+    /service_account: github-guardian-deploy@praeventio-541ad\.iam\.gserviceaccount\.com/,
+  );
   const manifestIndex = workflow.indexOf('- name: Write manifest');
   const verifyIndex = workflow.indexOf('- name: Verify export integrity');
   assert.ok(manifestIndex >= 0, 'workflow must write the manifest');
   assert.ok(verifyIndex > manifestIndex, 'exact verification must run after manifest creation');
   assert.match(
     workflow,
-    /node scripts\/test-backup-integrity\.cjs[\s\S]*--backup-uri="gs:\/\/\$\{\{ secrets\.BACKUP_BUCKET \}\}\/firestore\/\$\{\{ steps\.folder\.outputs\.folder \}\}"/,
+    /node scripts\/test-backup-integrity\.cjs[\s\S]*--backup-uri="gs:\/\/\$\{\{ env\.BACKUP_BUCKET \}\}\/firestore\/\$\{\{ steps\.folder\.outputs\.folder \}\}"/,
   );
 
   const packageJson = JSON.parse(
