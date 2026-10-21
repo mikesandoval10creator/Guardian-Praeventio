@@ -14,6 +14,11 @@
 // nivel si ya fue emitido. Solo escala cuando cambia el nivel.
 
 import { logger } from '../../utils/logger.js';
+import {
+  claimEscalationMarker,
+  markEscalationDelivered,
+  markEscalationWithoutNotifier,
+} from './escalationMarker.js';
 
 import type { Firestore, QuerySnapshot } from 'firebase-admin/firestore';
 import {
@@ -91,25 +96,56 @@ export async function runLoneWorkerEscalationCron(
   for (const doc of snap.docs) {
     try {
       const session = doc.data() as LoneWorkerSession;
-      const decision = decideEscalation(session, now());
+      const evalNow = now();
+      const decision = decideEscalation(session, evalNow);
       if (!decision) continue;
 
       const key = idempotencyKey(doc.id, decision);
 
-      // Check if this exact (session, level, day) already emitted
+      // The marker is the idempotency boundary. It includes the worker's
+      // last-known location (when the session has it) so the responder feed
+      // shows WHERE the worker is, not just which session escalated.
       const escalationDocRef = deps.db
         .collection(collectionPath)
         .doc(doc.id)
         .collection('escalations')
         .doc(key);
+      const markerPayload = {
+        sessionId: doc.id,
+        level: decision.level,
+        message: decision.message,
+        triggeredAtIso: decision.triggeredAt,
+        lastKnownLocation: decision.lastKnownLocation ?? null,
+      };
 
-      const existing = await escalationDocRef.get();
-      if (existing.exists) {
+      // [P0][VIDA] Claim BEFORE the external notification. The previous
+      // read-then-write let two overlapping sweeps both notify before either
+      // wrote the marker, paging the same supervisor/brigade twice for one
+      // worker. A failed delivery keeps the claim with `notified:false`; a
+      // later sweep re-claims it after the short lease and retries.
+      let claim: Awaited<ReturnType<typeof claimEscalationMarker>>;
+      try {
+        claim = await claimEscalationMarker({
+          db: deps.db,
+          markerRef: escalationDocRef,
+          payload: markerPayload,
+          now: evalNow,
+        });
+      } catch (e) {
+        logger.warn?.('lone_worker_cron.marker_claim_failed', {
+          sessionId: doc.id,
+          level: decision.level,
+          err: String(e),
+        });
+        result.errors += 1;
+        continue;
+      }
+      if (claim !== 'claimed') {
         result.escalationsSkippedIdempotent += 1;
         continue;
       }
 
-      // Emit notifications based on level
+      // Emit notifications based on level.
       const notifyHook =
         decision.level === 'supervisor'
           ? deps.notifySupervisor
@@ -117,9 +153,9 @@ export async function runLoneWorkerEscalationCron(
             ? deps.notifyBrigade
             : deps.notifyEmergency;
 
-      // PR #482 codex P1 (round 2): si notify falla, NO persistir el marker
-      // idempotente. Vidas dependen — el próximo run (cada 5 min) debe
-      // reintentar hasta que alguien sea efectivamente notificado.
+      // PR #482 codex P1 (round 2): if notify fails, leave the claim
+      // un-delivered. Vidas dependen: the next run (every 5 min, or after
+      // the claim lease) must retry until someone is actually notified.
       if (notifyHook) {
         try {
           await notifyHook(doc.id, decision);
@@ -138,14 +174,23 @@ export async function runLoneWorkerEscalationCron(
       // (when the session has it) so the responder feed — readable by project
       // members via the recursive master gate — shows WHERE the worker is, not
       // just which session escalated.
-      await escalationDocRef.set({
-        sessionId: doc.id,
-        level: decision.level,
-        message: decision.message,
-        triggeredAtIso: decision.triggeredAt,
-        lastKnownLocation: decision.lastKnownLocation ?? null,
-        notified: Boolean(notifyHook),
-      });
+      try {
+        if (notifyHook) {
+          await markEscalationDelivered(escalationDocRef, markerPayload, now());
+        } else {
+          // No delivery channel configured. Record it explicitly instead of
+          // pretending the escalation was delivered, and stop re-claiming it.
+          await markEscalationWithoutNotifier(escalationDocRef, markerPayload, now());
+        }
+      } catch (e) {
+        logger.warn?.('lone_worker_cron.marker_write_failed', {
+          sessionId: doc.id,
+          level: decision.level,
+          err: String(e),
+        });
+        result.errors += 1;
+        continue;
+      }
 
       result.escalationsEmitted += 1;
       result.byLevel[decision.level] += 1;

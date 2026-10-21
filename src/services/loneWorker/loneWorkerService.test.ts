@@ -87,6 +87,27 @@ describe('deriveLoneWorkerStatus', () => {
     expect(deriveLoneWorkerStatus(s, NOW)).toBe('overdue_critical');
   });
 
+  it('un startedAt materialmente en el futuro falla a overdue_critical (no se lee como active)', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() + 30 * 60_000).toISOString(),
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('overdue_critical');
+  });
+
+  it('un check-in materialmente en el futuro falla a overdue_critical', () => {
+    const s = session({
+      checkIns: [{ at: new Date(NOW.getTime() + 30 * 60_000).toISOString(), status: 'ok' }],
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('overdue_critical');
+  });
+
+  it('un desfase pequeno (dentro de la tolerancia) sigue siendo active', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() + 60_000).toISOString(),
+    });
+    expect(deriveLoneWorkerStatus(s, NOW)).toBe('active');
+  });
+
   it('ended si tiene endedAt', () => {
     const s = session({ endedAt: NOW.toISOString() });
     expect(deriveLoneWorkerStatus(s, NOW)).toBe('ended');

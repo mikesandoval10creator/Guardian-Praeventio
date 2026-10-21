@@ -3,6 +3,7 @@ import {
   runManDownEscalationCron,
   type ManDownEscalationInfo,
 } from './runManDownEscalation.js';
+import { DEFAULT_MAN_DOWN_CONFIG } from '../../services/loneWorker/manDownTimer.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // Fake Firestore (minimal flat mandown_events shape)
@@ -106,10 +107,13 @@ function buildDb(opts: {
       const txn: FakeTxn = {
         async get(ref: { path?: string }) {
           const k = ref.path!;
+          const seeded = opts.events.some((e) =>
+            e.existingKeys?.some((kk) => k.endsWith(`/escalations/${kk}`)),
+          );
+          const data = markerExistence.get(k) ?? (seeded ? { notified: true } : undefined);
           return {
-            exists:
-              markerExistence.has(k) ||
-              Boolean(opts.events.some((e) => e.existingKeys?.some((kk) => k.endsWith(`/escalations/${kk}`)))),
+            exists: data !== undefined,
+            data: () => data as Record<string, unknown> | undefined,
           };
         },
         create(ref: { path?: string }, data: unknown) {
@@ -121,10 +125,18 @@ function buildDb(opts: {
           }
           markerExistence.set(k, data);
         },
-        set(ref: { path?: string }, data: unknown) {
+        set(
+          ref: { path?: string },
+          data: Record<string, unknown>,
+          options?: { merge?: boolean },
+        ) {
           const k = ref.path!;
-          markerExistence.set(k, data);
-          writes.push({ path: k, data });
+          const previous = options?.merge
+            ? (markerExistence.get(k) as Record<string, unknown> | undefined) ?? {}
+            : {};
+          const next = { ...previous, ...data };
+          markerExistence.set(k, next);
+          writes.push({ path: k, data: next });
         },
       };
       try {
@@ -138,9 +150,16 @@ function buildDb(opts: {
 }
 
 interface FakeTxn {
-  get(ref: { path?: string }): Promise<{ exists: boolean }>;
+  get(ref: { path?: string }): Promise<{
+    exists: boolean;
+    data: () => Record<string, unknown> | undefined;
+  }>;
   create(ref: { path?: string }, data: unknown): void;
-  set(ref: { path?: string }, data: unknown): void;
+  set(
+    ref: { path?: string },
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): void;
 }
 
 const NOW = () => new Date('2026-05-12T12:00:00Z');
@@ -232,10 +251,9 @@ describe('runManDownEscalationCron', () => {
     expect(writes).toHaveLength(1);
   });
 
-  // [POST-FIX CONTRACT] notify failure now persists the marker anyway
-  // (with notified:false) so a racing sweep cannot double-page. The next
-  // sweep will see exists=true and skip, so this level will NOT be retried
-  // for the rest of the day. The other levels proceed independently.
+  // [POST-FIX CONTRACT] notify failure persists the claim with notified:false
+  // so a racing sweep cannot double-page. After the short claim lease a later
+  // sweep may retry the same level; the other levels proceed independently.
   it('notify failure for one level → marker persists with notified:false, other levels proceed', async () => {
     const { db, writes } = buildDb({ events: [activeEvent({ elapsedSec: 600 })] });
     // Fail only the supervisor page; brigade + emergency must still go out.
@@ -254,6 +272,42 @@ describe('runManDownEscalationCron', () => {
     expect((supervisorWrite!.data as { notified?: boolean }).notified).toBe(false);
     // Two remaining marker writes (brigade + emergency).
     expect(writes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('notify failure -> retries the level after the claim lease', async () => {
+    let current = new Date('2026-05-12T12:00:00Z');
+    const { db } = buildDb({ events: [activeEvent({ elapsedSec: 120 })] });
+    const notify = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('FCM down'))
+      .mockResolvedValue(undefined);
+    // Keep the brigade/emergency thresholds far away so this test observes
+    // only the supervisor level being retried.
+    const config = {
+      ...DEFAULT_MAN_DOWN_CONFIG,
+      level1ToLevel2Sec: 3_600,
+      level2ToLevel3Sec: 3_600,
+    };
+
+    const first = await runManDownEscalationCron({
+      db,
+      now: () => current,
+      config,
+      notify,
+    });
+    expect(first.errors).toBe(1);
+    expect(first.escalationsEmitted).toBe(0);
+
+    current = new Date(current.getTime() + 3 * 60_000);
+    const retry = await runManDownEscalationCron({
+      db,
+      now: () => current,
+      config,
+      notify,
+    });
+    expect(retry.errors).toBe(0);
+    expect(retry.escalationsEmitted).toBe(1);
+    expect(notify).toHaveBeenCalledTimes(2);
   });
 
   // [POST-FIX CONTRACT] marker write failure (post-claim, post-notify) now
