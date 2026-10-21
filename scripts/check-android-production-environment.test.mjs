@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const workflow = yaml.load(readFileSync(new URL('../.github/workflows/mobile-release.yml', import.meta.url), 'utf8'));
+const workflow = load(readFileSync(new URL('../.github/workflows/mobile-release.yml', import.meta.url), 'utf8'));
 
 test('production verifies required reviewers before candidate preparation and again before upload', () => {
   for (const jobName of ['preflight', 'android-production-upload']) {
