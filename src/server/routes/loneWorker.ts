@@ -315,13 +315,58 @@ type NativeManDownPayload = z.infer<typeof nativeManDownSchema>;
 
 type NativeSessionRecord = {
   workerUid?: unknown;
+  workerName?: unknown;
   status?: unknown;
   endedAt?: unknown;
+  lastKnownLocation?: unknown;
   nativeManDownCapabilityHash?: unknown;
   nativeManDownCapabilityExpiresAt?: unknown;
   nativeLoneWorkerCapabilityHash?: unknown;
   nativeLoneWorkerCapabilityExpiresAt?: unknown;
 };
+
+type SessionLocation = { lat: number; lng: number; at: string };
+
+/**
+ * Reads the location last persisted by the Android lone-worker heartbeat.
+ * A malformed value is treated as "no location": it must never block a
+ * ManDown alert, and the server must never invent coordinates.
+ */
+function readSessionLocation(value: unknown): SessionLocation | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  const { lat, lng, at } = candidate;
+  if (
+    typeof lat !== "number" ||
+    !Number.isFinite(lat) ||
+    lat < -90 ||
+    lat > 90 ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lng) ||
+    lng < -180 ||
+    lng > 180 ||
+    typeof at !== "string" ||
+    !Number.isFinite(Date.parse(at))
+  ) {
+    return null;
+  }
+  return { lat, lng, at };
+}
+
+/**
+ * Human-readable value consumed by `ManDownSupervisorWidget`. Coordinates are
+ * deliberately formatted here, server-side, so every client displays the same
+ * value and no client has to guess the shape.
+ */
+function formatSessionLocation(location: SessionLocation): string {
+  return `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`;
+}
+
+function readWorkerName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 160) : null;
+}
 
 class NativeManDownError extends Error {
   constructor(
@@ -389,6 +434,7 @@ router.post(
     const db = getFirestore();
     const sessionRef = sessionDocRef(db, projectId, sessionId);
     const capability = crypto.randomBytes(32).toString("base64url");
+    const workerName = readWorkerName(req.user?.name);
     const expiresAt = new Date(
       Date.now() + NATIVE_MANDOWN_CAPABILITY_TTL_MS,
     ).toISOString();
@@ -407,6 +453,10 @@ router.post(
           nativeManDownCapabilityExpiresAt: expiresAt,
           nativeManDownCapabilityIssuedAt:
             FieldValue.serverTimestamp(),
+          // Persist the identity once, while the request is authenticated. The
+          // native ingest is capability-authenticated only and must not need a
+          // second privileged read on the emergency path.
+          ...(workerName ? { workerName } : {}),
         });
       });
     } catch (err) {
@@ -485,8 +535,21 @@ router.post(
 
     let workerUid = "";
     let duplicate = false;
+    const accepted: {
+      workerName: string | null;
+      location: {
+        label: string;
+        lat: number;
+        lng: number;
+        capturedAt: string;
+      } | null;
+    } = { workerName: null, location: null };
     try {
       await db.runTransaction(async (tx) => {
+        // A transaction callback may retry. Never leak a value computed by a
+        // failed attempt into the committed event.
+        accepted.workerName = null;
+        accepted.location = null;
         const [sessionSnap, existingEvent] = await Promise.all([
           tx.get(sessionRef),
           tx.get(eventRef),
@@ -528,6 +591,24 @@ router.post(
           duplicate = true;
           return;
         }
+
+        // The Android ManDown service deliberately owns only the sensor and
+        // escalation countdown; it does not request a location foreground
+        // service type. The sibling native lone-worker service already samples
+        // location and persists it on this same session. Reuse that value so a
+        // supervisor gets the last known position without weakening ManDown
+        // startup when location permission is denied.
+        const sessionLocation = readSessionLocation(session.lastKnownLocation);
+        if (sessionLocation) {
+          accepted.location = {
+            label: formatSessionLocation(sessionLocation),
+            lat: sessionLocation.lat,
+            lng: sessionLocation.lng,
+            capturedAt: sessionLocation.at,
+          };
+        }
+        accepted.workerName = readWorkerName(session.workerName);
+
         tx.create(eventRef, {
           projectId,
           sessionId,
@@ -538,6 +619,16 @@ router.post(
           trigger: body.kind,
           triggeredAt: FieldValue.serverTimestamp(),
           occurredAt: body.occurredAt,
+          ...(accepted.workerName ? { workerName: accepted.workerName } : {}),
+          ...(accepted.location
+            ? {
+                location: accepted.location.label,
+                lat: accepted.location.lat,
+                lng: accepted.location.lng,
+                locationCapturedAt: accepted.location.capturedAt,
+                locationSource: "session_last_known",
+              }
+            : {}),
           ...(body.accelerationMps2 !== undefined
             ? { accelerationMps2: body.accelerationMps2 }
             : {}),
@@ -557,6 +648,10 @@ router.post(
             workerUid,
             kind: body.kind,
             source: "android_foreground_service",
+            hasLocation: accepted.location !== null,
+            ...(accepted.location
+              ? { locationSource: "session_last_known" }
+              : {}),
           },
           userId: workerUid,
           projectId,
@@ -588,17 +683,20 @@ router.post(
     // levels if a transient push failure occurs here.
     try {
       const { sendToProjectSupervisors } = await import("./emergency.js");
+      const pushData: Record<string, string> = {
+        projectId,
+        eventId: eventRef.id,
+        type: "man_down",
+        workerUid,
+      };
+      if (accepted.workerName) pushData.workerName = accepted.workerName;
+      if (accepted.location) pushData.location = accepted.location.label;
       await sendToProjectSupervisors(
         projectId,
         {
           title: "Alerta Man Down detectada",
           body: "El monitoreo nativo detectó una posible caída o inmovilidad.",
-          data: {
-            projectId,
-            eventId: eventRef.id,
-            type: "man_down",
-            workerUid,
-          },
+          data: pushData,
         },
         db,
         getMessaging(),

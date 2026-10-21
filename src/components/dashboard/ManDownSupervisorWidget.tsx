@@ -16,6 +16,9 @@ import { analytics } from '../../services/analytics';
 //     filter matched nothing.
 //   - `location` is a free-form GPS string (e.g. "-33.45, -70.66" or an error
 //     message), NOT a `{ lat, lng }` object.
+//   - Native ManDown events may also carry `locationCapturedAt` +
+//     `locationSource: 'session_last_known'`: the Android ManDown service
+//     reuses the position last sampled by the native lone-worker heartbeat.
 type TimestampLike = { toDate: () => Date } | Date | null | undefined;
 
 interface ManDownEvent {
@@ -28,6 +31,8 @@ interface ManDownEvent {
   acknowledgedByName?: string;
   acknowledgedAt?: TimestampLike;
   location?: string;
+  locationCapturedAt?: string;
+  locationSource?: string;
 }
 
 function toDate(v: TimestampLike): Date {
@@ -41,6 +46,23 @@ function toDate(v: TimestampLike): Date {
 
 function fmt(v: TimestampLike): string {
   return toDate(v).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * The native ManDown event reuses the last position sampled by the Android
+ * lone-worker heartbeat. That position can be seconds or minutes old, so the
+ * supervisor must see its age instead of assuming it is the fall instant.
+ */
+function fmtLocationAge(value?: string): string | null {
+  if (!value) return null;
+  const capturedMs = Date.parse(value);
+  if (!Number.isFinite(capturedMs)) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - capturedMs) / 60_000));
+  if (minutes < 1) return 'ahora';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `hace ${hours} h`;
+  return `hace ${Math.floor(hours / 24)} d`;
 }
 
 export function ManDownSupervisorWidget() {
@@ -121,41 +143,54 @@ export function ManDownSupervisorWidget() {
       <div className="p-3 flex flex-col gap-2">
         {/* Pending events */}
         <AnimatePresence initial={false}>
-          {pending.map((ev) => (
-            <motion.div
-              key={ev.id}
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              className="flex items-start gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50"
-            >
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5 animate-pulse" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <User className="w-3 h-3 text-red-400 shrink-0" />
-                  <span className="text-[12px] font-semibold text-red-700 dark:text-red-300 truncate">
-                    {ev.workerName ?? ev.workerId}
-                  </span>
-                  <span className="text-[10px] text-red-400 ml-auto shrink-0 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {fmt(ev.triggeredAt)}
-                  </span>
-                </div>
-                {ev.location && (
-                  <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">
-                    {ev.location}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => acknowledge(ev.id)}
-                disabled={acking === ev.id}
-                className="shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 transition-colors"
+          {pending.map((ev) => {
+            const locationAge = fmtLocationAge(ev.locationCapturedAt);
+            return (
+              <motion.div
+                key={ev.id}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                className="flex items-start gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50"
               >
-                {acking === ev.id ? '…' : 'ACK'}
-              </button>
-            </motion.div>
-          ))}
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <User className="w-3 h-3 text-red-400 shrink-0" />
+                    <span className="text-[12px] font-semibold text-red-700 dark:text-red-300 truncate">
+                      {ev.workerName ?? ev.workerId}
+                    </span>
+                    <span className="text-[10px] text-red-400 ml-auto shrink-0 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {fmt(ev.triggeredAt)}
+                    </span>
+                  </div>
+                  {ev.location && (
+                    <p
+                      className="text-[10px] text-red-500 dark:text-red-400 mt-0.5"
+                      title={
+                        ev.locationSource === 'session_last_known'
+                          ? 'Última ubicación reportada por el servicio nativo'
+                          : undefined
+                      }
+                    >
+                      <span>{ev.location}</span>
+                      {locationAge && (
+                        <span className="ml-1 opacity-70">· {locationAge}</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => acknowledge(ev.id)}
+                  disabled={acking === ev.id}
+                  className="shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 transition-colors"
+                >
+                  {acking === ev.id ? '…' : 'ACK'}
+                </button>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
 
         {/* Recent acknowledged */}
