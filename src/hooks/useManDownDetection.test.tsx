@@ -75,6 +75,10 @@ vi.mock('../services/driving/commuteSession', () => ({
 }));
 
 import { useManDownDetection } from './useManDownDetection';
+import {
+  __resetNativeManDownStateForTests,
+  setNativeManDownActive,
+} from '../services/mobile/nativeManDownState';
 import { useSensorBus } from '../services/sensorBus/sensorBus';
 import {
   MANDOWN_COUNTDOWN_DEFAULT_S,
@@ -116,6 +120,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   // The hook publishes/consumes the real singleton sensor bus — isolate tests.
   useSensorBus.getState().reset();
+  __resetNativeManDownStateForTests();
   // Reset shared state to defaults each test.
   h.state.acceleration = { x: null, y: null, z: null };
   h.state.project = { id: 'p1', name: 'Mina X', settings: {} };
@@ -156,6 +161,28 @@ describe('useManDownDetection — lifecycle', () => {
     act(() => result.current.startDetection());
     expect(result.current.isActive).toBe(true);
     expect(h.startListening).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start the WebView detector when the native FGS owns ManDown', () => {
+    setNativeManDownActive(true);
+    const { result } = renderHook(() => useManDownDetection());
+    expect(result.current.nativeManDownActive).toBe(true);
+    act(() => result.current.startDetection());
+    expect(result.current.isActive).toBe(false);
+    expect(h.startListening).not.toHaveBeenCalled();
+  });
+
+  it('stops the WebView detector if native monitoring becomes authoritative', () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    expect(result.current.isActive).toBe(true);
+    expect(h.startListening).toHaveBeenCalledTimes(1);
+
+    act(() => setNativeManDownActive(true));
+
+    expect(result.current.nativeManDownActive).toBe(true);
+    expect(result.current.isActive).toBe(false);
+    expect(h.stopListening).toHaveBeenCalledTimes(1);
   });
 
   it('stopDetection deactivates + stops sensor listening', () => {

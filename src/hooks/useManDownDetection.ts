@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useRiskEngine } from './useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -19,6 +19,10 @@ import {
   MANDOWN_COUNTDOWN_CRITICAL_S,
 } from '../services/sensorBus/manDownCorrelation';
 import { getBatterySnapshot } from '../services/battery/batteryAdvisor';
+import {
+  isNativeManDownActive,
+  subscribeNativeManDownActive,
+} from '../services/mobile/nativeManDownState';
 
 // Republish battery evidence one minute before the correlation window closes so
 // a downed worker's battery state stays fresh for the engine. Module-scoped: it
@@ -44,6 +48,17 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   // Stores the Firestore mandown_events doc so acknowledgeAlert() can update it
   const mandownEventRef = useRef<{ projectId: string; docId: string } | null>(null);
+
+  // Android's native foreground service is the authoritative detector while a
+  // lone-worker session is active. It keeps sampling when the WebView is
+  // suspended. `FallDetectionMonitor` already yields to it; this manual
+  // detector must yield too, otherwise a single fall can raise TWO emergencies
+  // (and stopping the WebView Motion listener can tear down the native one).
+  const nativeManDownActive = useSyncExternalStore(
+    subscribeNativeManDownActive,
+    isNativeManDownActive,
+    () => false,
+  );
 
   // Pre-warmed AudioContext (must be created from a user gesture for mobile autoplay policy).
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -192,6 +207,17 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   };
 
   const startDetection = () => {
+    // The native Android FGS already owns ManDown for this lone-worker session.
+    // Starting the WebView detector would double-alert on one fall and can stop
+    // the native motion listener. Read the module store (not the render value)
+    // so a start fired in the same tick as the native handshake still yields.
+    if (isNativeManDownActive()) {
+      logger.warn(
+        'useManDownDetection: start ignored because native Android ManDown owns detection',
+      );
+      return;
+    }
+
     // Pre-warm shared AudioContext from this user gesture so the sensor-driven
     // alarm later has an unblocked context (Chrome/Safari autoplay policy).
     try {
@@ -223,6 +249,31 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     if (countdownRef.current) clearInterval(countdownRef.current);
     stopAlarmLoop();
   };
+
+  // If native detection becomes authoritative while the manual detector is
+  // running, stop the WebView sampler. Keep the teardown explicit (rather than
+  // calling stopDetection) so the effect has stable dependencies and cannot
+  // re-run on every render.
+  useEffect(() => {
+    if (!nativeManDownActive || !isActive) return;
+    setIsActive(false);
+    setIsAlerting(false);
+    stopListening();
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+    if (alarmTimeoutRef.current) clearTimeout(alarmTimeoutRef.current);
+    alarmIntervalRef.current = null;
+    alarmTimeoutRef.current = null;
+    try {
+      navigator.vibrate?.(0);
+    } catch {
+      // Best-effort silence; never break the safety transition.
+    }
+    logger.warn(
+      'useManDownDetection: yielding to native Android ManDown foreground service',
+    );
+  }, [nativeManDownActive, isActive, stopListening]);
 
   const cancelCountdown = () => {
     setIsAlerting(false);
@@ -516,6 +567,8 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     isActive,
     isAlerting,
     countdown,
+    /** True when the native Android FGS, not this WebView hook, owns ManDown. */
+    nativeManDownActive,
     startDetection,
     stopDetection,
     cancelCountdown,

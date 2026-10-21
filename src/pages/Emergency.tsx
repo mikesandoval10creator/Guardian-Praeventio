@@ -77,7 +77,7 @@ export function Emergency() {
   // B1 — on a confirmed man-down, triggerEmergency enqueues the durable
   // emergency-delivery packet; the server persists it, fans out the push and
   // returns an explicit ACK. The local alarm still switches immediately.
-  const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } =
+  const { isActive, isAlerting, countdown, nativeManDownActive, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } =
     useManDownDetection({
       onManDownConfirmed: () => {
         // A confirmed man-down = an unresponsive worker. Raise the TriageBeacon
@@ -89,6 +89,10 @@ export function Emergency() {
         if (selectedProject?.id) void triggerEmergency('fall', selectedProject.id);
       },
     });
+  // Native Android ManDown (lone-worker FGS) is the authority while a session
+  // is active. Reflect it as "protected" without pretending the WebView hook is
+  // sampling; `startDetection` refuses and the hook stops the WebView sampler.
+  const manDownActive = isActive || nativeManDownActive;
   const isOnline = useOnlineStatus();
   const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
 
@@ -460,31 +464,41 @@ export function Emergency() {
               
               {/* Man Down Control Panel */}
               <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all shadow-sm ${
-                isActive ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-surface border-default-token'
+                manDownActive ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-surface border-default-token'
               }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shrink-0 ${
-                      isActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-elevated text-muted-token'
+                      manDownActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-elevated text-muted-token'
                     }`}>
                       <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
                       <h3 className="text-base sm:text-lg font-bold text-primary-token leading-tight">{t('emergency_page.man_down.panel_title')}</h3>
                       <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">
-                        {isActive ? t('emergency_page.man_down.monitoring_active') : t('emergency_page.man_down.system_off')}
+                        {nativeManDownActive
+                          ? t('emergency_page.man_down.native_monitoring')
+                          : isActive
+                            ? t('emergency_page.man_down.monitoring_active')
+                            : t('emergency_page.man_down.system_off')}
                       </p>
                     </div>
                   </div>
                   <button
-                    onClick={isActive ? stopDetection : startDetection}
+                    onClick={nativeManDownActive ? undefined : isActive ? stopDetection : startDetection}
+                    disabled={nativeManDownActive}
+                    aria-disabled={nativeManDownActive}
                     className={`w-full sm:w-14 h-12 sm:h-14 rounded-xl sm:rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 ${
                       isActive ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                    }`}
+                    } ${nativeManDownActive ? 'cursor-default opacity-90' : ''}`}
                   >
                     <Power className="w-5 h-5 sm:w-6 sm:h-6" />
                     <span className="sm:hidden font-bold uppercase tracking-widest text-xs">
-                      {isActive ? t('emergency_page.btn.deactivate') : t('emergency_page.btn.activate')}
+                      {nativeManDownActive
+                        ? t('emergency_page.man_down.native_active')
+                        : isActive
+                          ? t('emergency_page.btn.deactivate')
+                          : t('emergency_page.btn.activate')}
                     </span>
                   </button>
                 </div>
@@ -492,15 +506,23 @@ export function Emergency() {
                   <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-subtle-token">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.sensors_status')}</p>
                     <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
-                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">{isActive ? t('emergency_page.man_down.connected') : t('emergency_page.man_down.inactive')}</span>
+                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${manDownActive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
+                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">
+                        {manDownActive ? t('emergency_page.man_down.connected') : t('emergency_page.man_down.inactive')}
+                      </span>
                     </div>
                   </div>
                   <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-subtle-token">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.last_motion')}</p>
                     <div className="flex items-center gap-2">
                       <Clock className="w-3 h-3 text-muted-token" />
-                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">{isActive ? t('emergency_page.man_down.one_sec_ago') : '--:--'}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">
+                        {nativeManDownActive
+                          ? t('emergency_page.man_down.native_sensor')
+                          : isActive
+                            ? t('emergency_page.man_down.one_sec_ago')
+                            : '--:--'}
+                      </span>
                     </div>
                   </div>
                 </div>
