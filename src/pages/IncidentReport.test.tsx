@@ -147,6 +147,19 @@ describe('<IncidentReport /> — B.1 offline outbox', () => {
     expect(screen.queryByTestId('incident-queued-banner')).not.toBeInTheDocument();
   });
 
+  it('storage failure: keeps the typed report and never claims it was queued', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    enqueueMock.mockRejectedValue(new DOMException('Injected storage failure', 'UnknownError'));
+
+    render(<IncidentReport />);
+    fillAndSubmit('Reporte que debe permanecer escrito');
+
+    await waitFor(() => expect(screen.getByTestId('incident-error-banner')).toBeInTheDocument());
+    expect(screen.queryByTestId('incident-queued-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('incident-success-banner')).not.toBeInTheDocument();
+    expect(document.getElementById('incident-description')).toHaveValue('Reporte que debe permanecer escrito');
+  });
+
   it('queue saturated: surfaces the failure honestly (never pretends it stored)', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     enqueueMock.mockResolvedValue(false);
