@@ -1,11 +1,7 @@
 import { del, get } from 'idb-keyval';
 import { randomId } from '../../utils/randomId';
 import { logger } from '../../utils/logger';
-import {
-  deleteEncrypted,
-  getEncrypted,
-  setEncrypted,
-} from '../security/encryptedKvStore';
+import { deleteEncrypted, getEncrypted, setEncrypted } from '../security/encryptedKvStore';
 import {
   QUEUE_SCHEMA_VERSION,
   resolveCurrentQueueIdentity,
@@ -187,7 +183,10 @@ function isSyncOperation(value: unknown): value is SyncOperation {
   if (!recordValue(value) || !isQueueIdentity(value)) return false;
   return (
     typeof value.id === 'string' &&
-    (value.type === 'create' || value.type === 'update' || value.type === 'delete' || value.type === 'set') &&
+    (value.type === 'create' ||
+      value.type === 'update' ||
+      value.type === 'delete' ||
+      value.type === 'set') &&
     typeof value.collection === 'string' &&
     recordValue(value.data) &&
     (value.queueClass === 'generic' || value.queueClass === 'life_safety') &&
@@ -322,12 +321,14 @@ export class OfflineSyncStateMachine {
         storedOperations.forEach((operation, index) => {
           if (isSyncOperation(operation)) this.operations.set(operation.id, operation);
           else {
-            invalid.push(this.makeQuarantineRecord({
-              source: 'encrypted_queue_invalid',
-              legacyId: legacyId(operation, index),
-              reason: 'invalid_envelope',
-              payload: operation,
-            }));
+            invalid.push(
+              this.makeQuarantineRecord({
+                source: 'encrypted_queue_invalid',
+                legacyId: legacyId(operation, index),
+                reason: 'invalid_envelope',
+                payload: operation,
+              }),
+            );
           }
         });
         if (invalid.length > 0) {
@@ -407,7 +408,9 @@ export class OfflineSyncStateMachine {
   }
 
   heldOperations(): SyncOperation[] {
-    return Array.from(this.operations.values()).filter((operation) => Boolean(operation.holdReason));
+    return Array.from(this.operations.values()).filter((operation) =>
+      Boolean(operation.holdReason),
+    );
   }
 
   quarantinedEntries(): LegacyQuarantineRecord[] {
@@ -493,7 +496,11 @@ export class OfflineSyncStateMachine {
     return id;
   }
 
-  async syncNow(): Promise<{ succeeded: number; failed: number; held: number }> {
+  async syncNow(): Promise<{
+    succeeded: number;
+    failed: number;
+    held: number;
+  }> {
     await this.readyPromise;
     if (this.isSyncing || !this.onlineGetter()) return { succeeded: 0, failed: 0, held: 0 };
     if (this.operations.size === 0) {
@@ -512,27 +519,30 @@ export class OfflineSyncStateMachine {
     const operations = Array.from(this.operations.values());
 
     for (const original of operations) {
+      // A prior await may have replaced or purged this snapshot revision.
+      if (this.operations.get(original.id) !== original) continue;
       if (original.deadLettered) continue;
       if (!currentIdentity) {
-        this.operations.set(original.id, { ...original, holdReason: 'identity_unavailable' });
+        this.operations.set(original.id, {
+          ...original,
+          holdReason: 'identity_unavailable',
+        });
         held += 1;
         continue;
       }
       if (!identitiesMatch(original, currentIdentity)) {
-        this.operations.set(original.id, { ...original, holdReason: 'identity_mismatch' });
+        this.operations.set(original.id, {
+          ...original,
+          holdReason: 'identity_mismatch',
+        });
         held += 1;
         continue;
       }
 
-      const operation = original.holdReason
-        ? { ...original, holdReason: undefined }
-        : original;
+      const operation = original.holdReason ? { ...original, holdReason: undefined } : original;
       this.operations.set(operation.id, operation);
 
-      if (
-        operation.queueClass === 'generic' &&
-        now - operation.createdAt > this.retentionMs
-      ) {
+      if (operation.queueClass === 'generic' && now - operation.createdAt > this.retentionMs) {
         this.operations.set(operation.id, {
           ...operation,
           deadLettered: true,
@@ -548,9 +558,15 @@ export class OfflineSyncStateMachine {
 
       try {
         await this.executor(operation);
-        this.operations.delete(operation.id);
+        // ACK only the revision that was sent, never a newer queued edit.
+        if (this.operations.get(operation.id) === operation) {
+          this.operations.delete(operation.id);
+        }
         succeeded += 1;
       } catch (error) {
+        failed += 1;
+        // A stale failure must not overwrite a replacement or resurrect a purge.
+        if (this.operations.get(operation.id) !== operation) continue;
         const updated: SyncOperation = {
           ...operation,
           attempts: operation.attempts + 1,
@@ -569,7 +585,6 @@ export class OfflineSyncStateMachine {
             type: operation.type,
           });
         } else this.operations.set(operation.id, updated);
-        failed += 1;
       }
     }
 
@@ -591,10 +606,13 @@ export class OfflineSyncStateMachine {
         minWait = Math.min(minWait, Math.max(0, due - timerNow));
       }
       if (this.retryTimer) clearTimeout(this.retryTimer);
-      this.retryTimer = setTimeout(() => {
-        this.retryTimer = null;
-        void this.syncNow();
-      }, Math.max(Number.isFinite(minWait) ? minWait : 30_000, 250));
+      this.retryTimer = setTimeout(
+        () => {
+          this.retryTimer = null;
+          void this.syncNow();
+        },
+        Math.max(Number.isFinite(minWait) ? minWait : 30_000, 250),
+      );
     }
     return { succeeded, failed, held };
   }
