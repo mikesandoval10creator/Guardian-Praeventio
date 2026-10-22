@@ -28,7 +28,7 @@ import {
   type OutboxEntry,
   type OutboxEvent,
 } from '../sync/genericOutboxEngine';
-import { get, set } from 'idb-keyval';
+import { get, update } from 'idb-keyval';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { randomId } from '../../utils/randomId';
 import { logger } from '../../utils/logger';
@@ -52,15 +52,9 @@ export interface IncidentReportPayload {
 const STORAGE_KEY = 'praeventio:incident-outbox:v1';
 
 async function loadAll(): Promise<OutboxEntry<IncidentReportPayload>[]> {
-  try {
-    const raw = await get<OutboxEntry<IncidentReportPayload>[]>(STORAGE_KEY);
-    return Array.isArray(raw) ? raw : [];
-  } catch (err) {
-    // IndexedDB unavailable (private mode / quota) — degrade to empty rather
-    // than crashing the flush loop. Logged, never silent.
-    logger.warn('incidentOutbox: IndexedDB load failed', { err: String(err) });
-    return [];
-  }
+  // A failed read is not an empty queue: propagate it so callers retain input.
+  const raw = await get<OutboxEntry<IncidentReportPayload>[]>(STORAGE_KEY);
+  return Array.isArray(raw) ? raw : [];
 }
 
 /** Durable adapter over idb-keyval (exported for integration tests). */
@@ -68,19 +62,27 @@ export function createIndexedDbIncidentAdapter(): OutboxAdapter<IncidentReportPa
   return {
     listEntries: loadAll,
     async saveEntry(entry) {
-      const all = await loadAll();
-      const idx = all.findIndex(
-        (e) => e.event.clientEventId === entry.event.clientEventId,
+      // A single readwrite transaction protects reports from other instances.
+      await update<OutboxEntry<IncidentReportPayload>[] | undefined>(
+        STORAGE_KEY,
+        (current) => {
+          const all = Array.isArray(current) ? current : [];
+          const idx = all.findIndex(
+            (e) => e.event.clientEventId === entry.event.clientEventId,
+          );
+          if (idx >= 0) all[idx] = entry;
+          else all.push(entry);
+          return all;
+        },
       );
-      if (idx >= 0) all[idx] = entry;
-      else all.push(entry);
-      await set(STORAGE_KEY, all);
     },
     async deleteEntry(clientEventId) {
-      const all = await loadAll();
-      await set(
+      await update<OutboxEntry<IncidentReportPayload>[] | undefined>(
         STORAGE_KEY,
-        all.filter((e) => e.event.clientEventId !== clientEventId),
+        (current) =>
+          (Array.isArray(current) ? current : []).filter(
+            (e) => e.event.clientEventId !== clientEventId,
+          ),
       );
     },
   };
