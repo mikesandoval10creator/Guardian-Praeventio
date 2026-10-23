@@ -142,21 +142,63 @@ export async function enqueueIncidentReport(
   payload: IncidentReportPayload,
   opts?: { clientEventId?: string; occurredAt?: string },
 ): Promise<boolean> {
-  registerIncidentFlushOnReconnect();
-  return engine().enqueue({
+  const accepted = await engine().enqueue({
     clientEventId: opts?.clientEventId ?? `inc-${randomId()}`,
     kind: 'incident',
     priority: 'normal',
     payload,
     occurredAt: opts?.occurredAt ?? payload.ts,
   });
+  // Do not let an initial drain observe an empty queue before storage commits.
+  if (accepted) registerIncidentFlushOnReconnect();
+  return accepted;
 }
 
-/** Process the queue once (sends due entries, retries/dead-letters failures). */
+let _retryTimer: ReturnType<typeof setTimeout> | null = null;
+let _retryGeneration = 0;
+
+function isOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine !== false;
+}
+
+function cancelIncidentRetry(): void {
+  _retryGeneration += 1;
+  if (_retryTimer !== null) clearTimeout(_retryTimer);
+  _retryTimer = null;
+}
+
+/** Arm one wake-up from durable state; stale async reads cannot replace it. */
+async function scheduleIncidentRetry(): Promise<void> {
+  cancelIncidentRetry();
+  const generation = _retryGeneration;
+  if (typeof window === 'undefined' || !isOnline()) return;
+
+  let nextRetryAt: number | undefined;
+  try {
+    nextRetryAt = (await engine().stats()).nextRetryReadyAt;
+  } catch (err) {
+    // A failed storage read is not an empty queue. Recover without a hot loop.
+    logger.warn('incidentOutbox: retry scheduling read failed', { err: String(err) });
+    nextRetryAt = Date.now() + 60_000;
+  }
+  if (generation !== _retryGeneration || !isOnline()) return;
+  if (nextRetryAt === undefined || !Number.isFinite(nextRetryAt)) return;
+
+  _retryTimer = setTimeout(() => {
+    _retryTimer = null;
+    if (!isOnline()) return;
+    flushIncidentReports().catch((err) =>
+      logger.warn('incidentOutbox: scheduled flush failed', { err: String(err) }),
+    );
+  }, Math.min(60_000, Math.max(250, nextRetryAt - Date.now())));
+}
+
+/** Send due entries, then schedule the next durable retry (not just reconnect). */
 export function flushIncidentReports(): ReturnType<
   GenericOutboxEngine<IncidentReportPayload>['flush']
 > {
-  return engine().flush();
+  cancelIncidentRetry();
+  return engine().flush().finally(scheduleIncidentRetry);
 }
 
 /** Reports that exhausted retries and remain undelivered (UI escalation). */
@@ -183,6 +225,7 @@ export function registerIncidentFlushOnReconnect(): void {
   }
   if (_reconnectArmed) return;
   _reconnectArmed = true;
+  window.addEventListener('offline', cancelIncidentRetry);
   window.addEventListener('online', () => {
     flushIncidentReports().catch((err) =>
       logger.warn('incidentOutbox: flush on reconnect failed', { err: String(err) }),
