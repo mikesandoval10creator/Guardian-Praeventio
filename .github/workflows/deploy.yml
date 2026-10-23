@@ -44,6 +44,10 @@ jobs:
           # workflow_run → the SHA CI validated; workflow_dispatch → main HEAD.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v3
@@ -107,7 +111,7 @@ jobs:
           # H17: usar Dockerfile.api (runtime moderno) en vez del legado Dockerfile (monolito API+frontend)
           # The association fingerprint is public, but pass it through an env
           # var so it is not echoed as part of the docker command.
-          docker build \
+          docker build --pull \
             -f Dockerfile.api \
             --build-arg ANDROID_CERT_SHA256="${ANDROID_CERT_SHA256}" \
             --build-arg REQUIRE_ANDROID_CERT=1 \

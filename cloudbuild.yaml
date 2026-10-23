@@ -23,7 +23,7 @@ substitutions:
   _LOCATION: "southamerica-west1"
   _REGION:   "southamerica-west1"
   _REPO:     "praeventio"
-  _NODE_TAG: "20-alpine"
+  _NODE_TAG: "22.23.4-alpine"
   # Play App Signing certificate SHA-256, colon-separated (public data). Pass
   # with --substitutions=_ANDROID_CERT_SHA256=... . Empty fails the build: the
   # image must never serve an assetlinks.json without a fingerprint.
@@ -89,6 +89,7 @@ steps:
     name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
+      - "--pull"
       - "--file=Dockerfile.api"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${COMMIT_SHA}"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
@@ -105,6 +106,7 @@ steps:
     name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
+      - "--pull"
       - "--file=Dockerfile.frontend"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
