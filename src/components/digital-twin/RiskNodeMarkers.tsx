@@ -31,6 +31,7 @@ import { logger } from '../../utils/logger';
 
 interface RiskNodeDoc {
   id: string;
+  projectId?: string;
   title: string;
   description?: string;
   severity?: string;
@@ -108,7 +109,7 @@ export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElem
         snap.forEach((d) => {
           arr.push({ id: d.id, ...(d.data() as Omit<RiskNodeDoc, 'id'>) });
         });
-        setNodes(arr);
+        setNodes(arr.filter((node) => node.projectId === projectId));
       },
       (err) => {
         // Cuando el índice tenantId+projectId+createdAt no existe todavía,

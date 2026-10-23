@@ -44,6 +44,7 @@ import {
   OperationType,
 } from "../services/firebase";
 import { boundingBox, haversineMeters } from "../utils/haversine";
+import { filterProjectNodes } from "../services/zettelkasten/knowledgeBoundary";
 
 export interface GeoQueryOptions {
   /** Project the user is currently working in (multi-tenant scope). */
@@ -97,8 +98,10 @@ export function useGeoAnchoredNodes(
   const [fromCache, setFromCache] = useState(false);
   const [hasPendingWrites, setHasPendingWrites] = useState(false);
   const subRef = useRef<(() => void) | null>(null);
+  const subscriptionGeneration = useRef(0);
 
   useEffect(() => {
+    const generation = ++subscriptionGeneration.current;
     // Tear down previous subscription before swapping in a new one — a
     // bare `useEffect` cleanup would still race when projectId flips.
     if (subRef.current) {
@@ -130,15 +133,17 @@ export function useGeoAnchoredNodes(
       const unsub = onSnapshot(
         q,
         (snap) => {
+          if (generation !== subscriptionGeneration.current) return;
           setFromCache(snap.metadata?.fromCache ?? false);
           setHasPendingWrites(snap.metadata?.hasPendingWrites ?? false);
           const next = snap.docs.map(
             (d) => ({ id: d.id, ...d.data() }) as RiskNode,
           );
-          setRawDocs(next);
+          setRawDocs(filterProjectNodes(next, projectId));
           setLoading(false);
         },
         (err) => {
+          if (generation !== subscriptionGeneration.current) return;
           handleFirestoreError(err, OperationType.LIST, "nodes");
           setError(err as Error);
           setLoading(false);
