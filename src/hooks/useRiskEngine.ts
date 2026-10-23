@@ -56,7 +56,9 @@ export const useRiskEngine = () => {
         };
       }) as RiskNode[];
 
-      setFetchedNodes(newNodes);
+      // Firestore is the authority, but keep a strict client-side boundary too:
+      // stale/malformed snapshots must never leak nodes from another project.
+      setFetchedNodes(newNodes.filter(node => node.projectId === selectedProject.id));
       setError(null);
       setLoading(false);
     }, (err) => {
