@@ -59,6 +59,7 @@ function makeNodeDoc(
   return {
     id,
     data: () => ({
+      projectId: "p1",
       tags,
       metadata: geo ? { geo } : {},
       title: `n-${id}`,
@@ -191,5 +192,43 @@ describe("useGeoAnchoredNodes", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.fromCache).toBe(true);
     expect(result.current.hasPendingWrites).toBe(false);
+  });
+
+  it("drops a stale snapshot emitted after the project changes", async () => {
+    const subscriptions: SnapCb[] = [];
+    onSnapshotMock.mockImplementation((_q, ok) => {
+      subscriptions.push(ok);
+      return () => {};
+    });
+
+    const { result, rerender } = renderHook(
+      ({ projectId }: { projectId: string }) =>
+        useGeoAnchoredNodes({
+          projectId,
+          center: { lat: 0, lng: 0 },
+          radiusM: 1000,
+        }),
+      { initialProps: { projectId: "p1" } },
+    );
+
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    rerender({ projectId: "p2" });
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+
+    act(() => {
+      subscriptions[0]({ docs: [makeNodeDoc("stale", { lat: 0, lng: 0 })] });
+      const current = makeNodeDoc("current", { lat: 0, lng: 0 });
+      subscriptions[1]({
+        docs: [
+          {
+            ...current,
+            data: () => ({ ...current.data(), projectId: "p2" }),
+          },
+        ],
+      });
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.nodes.map((node) => node.id)).toEqual(["current"]);
   });
 });
