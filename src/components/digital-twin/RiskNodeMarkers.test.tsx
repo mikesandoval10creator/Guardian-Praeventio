@@ -71,6 +71,7 @@ describe('RiskNodeMarkers', () => {
           {
             id: 'n-1',
             data: {
+              projectId: 'proj-1',
               title: 'Riesgo eléctrico',
               severity: 'high',
               coordinates: { lat: -33.45, lng: -70.6 },
@@ -84,5 +85,34 @@ describe('RiskNodeMarkers', () => {
       <RiskNodeMarkers tenantId="tenant-1" projectId="proj-1" />,
     );
     expect(container.querySelectorAll('[data-testid="marker"]').length).toBe(1);
+  });
+
+  it('does not render a marker from a stale or malformed project document', () => {
+    onSnapshotMock.mockImplementation((_q, cb) => {
+      cb(
+        makeSnap([
+          {
+            id: 'foreign',
+            data: {
+              projectId: 'proj-2',
+              title: 'Otro proyecto',
+              coordinates: { lat: -33.45, lng: -70.6 },
+            },
+          },
+          {
+            id: 'missing-project',
+            data: {
+              title: 'Legacy sin proyecto',
+              coordinates: { lat: -33.45, lng: -70.6 },
+            },
+          },
+        ]),
+      );
+      return () => undefined;
+    });
+    const { container } = render(
+      <RiskNodeMarkers tenantId="tenant-1" projectId="proj-1" />,
+    );
+    expect(container.querySelectorAll('[data-testid="marker"]').length).toBe(0);
   });
 });
