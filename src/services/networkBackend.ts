@@ -34,6 +34,32 @@ const hasUsableEmbedding = (value: unknown): value is number[] =>
   Array.from(value).every((entry) => typeof entry === 'number' && Number.isFinite(entry));
 
 /**
+ * Keep persisted graph edges inside the exact project scope of the node.
+ * Admin SDK writes bypass Firestore rules, so validating only the caller's
+ * membership is insufficient: a payload can otherwise persist links to a
+ * different project (or from a project into the global graph).
+ */
+const resolveProjectConnections = async (
+  db: ReturnType<typeof getFirestore>,
+  nodeId: string,
+  connections: unknown,
+  projectId: string,
+): Promise<string[]> => {
+  if (!Array.isArray(connections)) return [];
+
+  const uniqueIds = Array.from(new Set(
+    connections.filter((value): value is string => typeof value === 'string' && value !== nodeId),
+  ));
+  const allowed: string[] = [];
+  for (const targetId of uniqueIds) {
+    const target = await db.collection('nodes').doc(targetId).get();
+    const targetProjectId = target.data()?.projectId;
+    if (target.exists && targetProjectId === projectId) allowed.push(targetId);
+  }
+  return allowed;
+};
+
+/**
  * Upserts a safety node to Firestore and, when a valid vector is supplied,
  * to the vector store. Vector generation is an asynchronous enrichment path
  * and never gates durable persistence of a user-reported finding.
@@ -65,6 +91,10 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
     await assertProjectMember(authorUid, canonicalProjectId, db);
   }
 
+  const requestedConnections = Array.isArray(nodeData.connections)
+    ? nodeData.connections.filter((value: unknown): value is string => typeof value === 'string')
+    : [];
+
   // Embeddings arrive through the separate asynchronous enrichment path.
   // The durable sync endpoint must never call an external model or wait for
   // semantic indexing; malformed/missing vectors are simply omitted.
@@ -73,6 +103,12 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   }
 
   const nodeId = nodeData.id || db.collection('nodes').doc().id;
+  nodeData.connections = await resolveProjectConnections(
+    db,
+    nodeId,
+    nodeData.connections,
+    canonicalProjectId,
+  );
   const nodeRef = db.collection('nodes').doc(nodeId);
 
   // 2. Save to Firestore (Nodes collection)
@@ -122,11 +158,10 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
         const targetProjectId =
           typeof targetData?.projectId === 'string' ? targetData.projectId : null;
         // B14 — the back-link is an Admin-SDK write into ANOTHER node. Never
-        // write into a node that belongs to a DIFFERENT specific project, or a
-        // member of project A could graft links into project B's graph (and
-        // poison its auto-connect / RAG context). Same-project and community
-        // ('global') targets are allowed.
-        if (targetProjectId && targetProjectId !== 'global' && targetProjectId !== canonicalProjectId) {
+        // write into a node outside the exact project scope, or a member of
+        // project A could graft links into project B's graph (or the global
+        // graph) and poison its auto-connect / RAG context.
+        if (targetProjectId !== canonicalProjectId) {
           logger.warn('[NetworkBackend] cross-project backlink blocked', {
             nodeId,
             targetId,
@@ -192,7 +227,7 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
         // (avoid surfacing stale suggestions to the UI) and that map to a
         // real candidate. The model occasionally hallucinates ids.
         const candidateIdSet = new Set(recentNodes.map((n: any) => n.id));
-        const alreadyConnected = new Set<string>(Array.isArray(nodeData.connections) ? nodeData.connections : []);
+        const alreadyConnected = new Set<string>(requestedConnections);
         connectionSuggestions = (Array.isArray(candidateIds) ? candidateIds : [])
           .filter((id: any) => typeof id === 'string' && candidateIdSet.has(id) && !alreadyConnected.has(id));
       }
