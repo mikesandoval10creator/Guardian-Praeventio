@@ -4,7 +4,7 @@
 #   docker run --rm -v "$PWD:/repo" -w /repo praeventio-loadtest \
 #       bash loadtest/run.sh
 
-FROM node:22.23.4-bookworm
+FROM node:24.22.1-bookworm
 
 # Java for the Firebase Firestore emulator.
 RUN apt-get update \

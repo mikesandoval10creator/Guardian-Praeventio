@@ -23,7 +23,7 @@ substitutions:
   _LOCATION: "southamerica-west1"
   _REGION:   "southamerica-west1"
   _REPO:     "praeventio"
-  _NODE_TAG: "22.23.4-alpine"
+  _NODE_TAG: "24.22.1-alpine"
   # Play App Signing certificate SHA-256, colon-separated (public data). Pass
   # with --substitutions=_ANDROID_CERT_SHA256=... . Empty fails the build: the
   # image must never serve an assetlinks.json without a fingerprint.

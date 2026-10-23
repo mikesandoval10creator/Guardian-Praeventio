@@ -7,11 +7,11 @@ const { test } = require('node:test');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const minimum = '22.23.4';
+const minimum = '24.22.1';
 
 test('package installs reject vulnerable and unsupported Node release lines', () => {
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(pkg.engines?.node, '^22.23.4 || ^24.22.1 || ^26.12.1');
+  assert.equal(pkg.engines?.node, '^24.22.1 || ^26.12.1');
   assert.deepEqual(JSON.parse(read('package-lock.json')).packages[''].engines, pkg.engines);
   assert.match(read('.npmrc'), /^engine-strict=true$/m);
 });
@@ -45,7 +45,7 @@ test('every setup-node job selects an exact patched runtime', () => {
 
 test('Cloud Build defaults to the patched Node line and refreshes base images', () => {
   const config = read('cloudbuild.yaml');
-  assert.match(config, /_NODE_TAG:\s*"22\.23\.4-alpine"/);
+  assert.match(config, /_NODE_TAG:\s*"24\.22\.1-alpine"/);
   assert.equal((config.match(/- "--pull"/g) || []).length, 2);
   assert.match(read('.github/workflows/deploy.yml'), /docker build --pull/);
 });
@@ -56,7 +56,7 @@ test('runtime policy regression checks execute in CI', () => {
 
 test('executing Node is patched and Brotli round-trips and rejects invalid input', () => {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
-  const floor = { 22: [23, 4], 24: [22, 1], 26: [12, 1] }[major];
+  const floor = { 24: [22, 1], 26: [12, 1] }[major];
   assert.ok(floor && (minor > floor[0] || (minor === floor[0] && patch >= floor[1])), process.version);
   const { brotliCompressSync, brotliDecompressSync } = require('node:zlib');
   const payload = Buffer.from('Guardian — reporte de incidente sintético. '.repeat(128));
