@@ -456,6 +456,29 @@ describe('syncNodeToNetwork — project membership enforcement (B14)', () => {
     expect(fakeAdmin.docs.get('nodes/targetB')?.connections).toEqual([]);
   });
 
+  it('persists only same-project edges and never links a project node to global scope', async () => {
+    fakeAdmin.docs.set('nodes/same-project', { id: 'same-project', projectId: 'p1', connections: [] });
+    fakeAdmin.docs.set('nodes/global-node', { id: 'global-node', projectId: 'global', connections: [] });
+    fakeAdmin.docs.set('nodes/other-project', { id: 'other-project', projectId: 'p2', connections: [] });
+
+    await syncNodeToNetwork(
+      {
+        id: 'scoped-node',
+        title: 'T',
+        description: 'D',
+        type: 'Riesgo',
+        projectId: 'p1',
+        connections: ['same-project', 'global-node', 'other-project', 'missing-node'],
+      },
+      'author-uid',
+    );
+
+    expect(fakeAdmin.docs.get('nodes/scoped-node')?.connections).toEqual(['same-project']);
+    expect(fakeAdmin.docs.get('nodes/same-project')?.connections).toEqual({ __arrayUnion: ['scoped-node'] });
+    expect(fakeAdmin.docs.get('nodes/global-node')?.connections).toEqual([]);
+    expect(fakeAdmin.docs.get('nodes/other-project')?.connections).toEqual([]);
+  });
+
   it('canonicalizes a non-specific projectId (empty / non-string) to global, no membership check, no corruption', async () => {
     const r1 = await syncNodeToNetwork(
       { id: 'e1', title: 'T', description: 'D', type: 'Riesgo', projectId: '', embedding: [0.1] },
