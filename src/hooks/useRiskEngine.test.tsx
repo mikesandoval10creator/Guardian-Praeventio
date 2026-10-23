@@ -246,6 +246,19 @@ describe('useRiskEngine — mutators (offline queue)', () => {
     expect(h.sync.enqueueDelete).toHaveBeenCalledWith('a');
   });
 
+  it('does not mutate a node outside the selected project', async () => {
+    const { result } = renderHook(() => useRiskEngine());
+    emitSnapshot([
+      docOf('foreign', { projectId: 'p2', title: 'Foreign', connections: [], tags: [], updatedAt: '1' }),
+    ]);
+    await act(async () => {
+      await result.current.updateNode('foreign', { title: 'tampered' });
+      await result.current.deleteNode('foreign');
+    });
+    expect(h.sync.enqueueUpdate).not.toHaveBeenCalled();
+    expect(h.sync.enqueueDelete).not.toHaveBeenCalled();
+  });
+
   it('updateNode dispatches a sync-conflict event on a stale expectedUpdatedAt', async () => {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     const { result } = renderHook(() => useRiskEngine());

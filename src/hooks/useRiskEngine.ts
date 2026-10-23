@@ -267,7 +267,9 @@ export const useRiskEngine = () => {
   }, [user, nodes, selectedProject]);
 
   const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>, expectedUpdatedAt?: string) => {
-    if (!user) return;
+    if (!user || !selectedProject) return;
+    const currentNode = nodes.find(node => node.id === id);
+    if (!currentNode || currentNode.projectId !== selectedProject.id) return;
 
     // Concurrent edit detection: compare caller's version against live in-memory node
     if (expectedUpdatedAt) {
@@ -294,10 +296,12 @@ export const useRiskEngine = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `nodes/${id}`);
     }
-  }, [user, fetchedNodes]);
+  }, [user, fetchedNodes, nodes, selectedProject]);
 
   const deleteNode = useCallback(async (id: string) => {
-    if (!user) return;
+    if (!user || !selectedProject) return;
+    const targetNode = nodes.find(node => node.id === id);
+    if (!targetNode || targetNode.projectId !== selectedProject.id) return;
     try {
       // Cascade: scrub the deleted id from every neighbor's `connections` so
       // the array doesn't grow toward the 200-edge rules cap with dangling
@@ -315,7 +319,7 @@ export const useRiskEngine = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `nodes/${id}`);
     }
-  }, [user, nodes]);
+  }, [user, nodes, selectedProject]);
 
   const getConnectedNodes = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
