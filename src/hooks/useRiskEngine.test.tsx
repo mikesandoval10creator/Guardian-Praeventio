@@ -70,7 +70,7 @@ import { useRiskEngine } from './useRiskEngine';
 import { NodeType } from '../types';
 
 function docOf(id: string, data: Record<string, unknown>) {
-  return { id, data: () => data };
+  return { id, data: () => ({ projectId: 'p1', ...data }) };
 }
 function emitSnapshot(docs: Array<{ id: string; data: () => Record<string, unknown> }>) {
   act(() => {
@@ -142,6 +142,16 @@ describe('useRiskEngine — queries', () => {
     expect(result.current.searchNodes('prexor').map((n) => n.id)).toEqual(['n2']);
     expect(result.current.searchNodes('')).toHaveLength(2);
   });
+
+  it('filters foreign nodes from a stale snapshot even when the query callback includes them', () => {
+    const { result } = renderHook(() => useRiskEngine());
+    emitSnapshot([
+      docOf('local', { title: 'Local', connections: [], tags: [], updatedAt: '2' }),
+      docOf('foreign', { projectId: 'p2', title: 'Foreign', connections: [], tags: [], updatedAt: '1' }),
+    ]);
+    expect(result.current.nodes.map((node) => node.id)).toEqual(['local']);
+  });
+
 
   it('getGraphData builds de-duplicated links from connections', () => {
     const { result } = renderHook(() => useRiskEngine());
@@ -234,6 +244,19 @@ describe('useRiskEngine — mutators (offline queue)', () => {
     expect(h.sync.enqueueUpdate).toHaveBeenCalledWith('b', expect.objectContaining({ connections: [] }));
     // ...then a is deleted.
     expect(h.sync.enqueueDelete).toHaveBeenCalledWith('a');
+  });
+
+  it('does not mutate a node outside the selected project', async () => {
+    const { result } = renderHook(() => useRiskEngine());
+    emitSnapshot([
+      docOf('foreign', { projectId: 'p2', title: 'Foreign', connections: [], tags: [], updatedAt: '1' }),
+    ]);
+    await act(async () => {
+      await result.current.updateNode('foreign', { title: 'tampered' });
+      await result.current.deleteNode('foreign');
+    });
+    expect(h.sync.enqueueUpdate).not.toHaveBeenCalled();
+    expect(h.sync.enqueueDelete).not.toHaveBeenCalled();
   });
 
   it('updateNode dispatches a sync-conflict event on a stale expectedUpdatedAt', async () => {

@@ -56,7 +56,9 @@ export const useRiskEngine = () => {
         };
       }) as RiskNode[];
 
-      setFetchedNodes(newNodes);
+      // Firestore is the authority, but keep a strict client-side boundary too:
+      // stale/malformed snapshots must never leak nodes from another project.
+      setFetchedNodes(newNodes.filter(node => node.projectId === selectedProject.id));
       setError(null);
       setLoading(false);
     }, (err) => {
@@ -75,11 +77,13 @@ export const useRiskEngine = () => {
       .filter(action => action.data?.createNode && action.data?.nodeData)
       .map(action => ({
         ...action.data.nodeData,
+        projectId: selectedProject?.id ?? action.data.nodeData.projectId,
         id: `pending-${action.timestamp}`, // Temporary ID
         createdAt: new Date(action.timestamp).toISOString(),
         updatedAt: new Date(action.timestamp).toISOString(),
         isPendingSync: true
-      } as RiskNode));
+      } as RiskNode))
+      .filter(node => !selectedProject?.id || node.projectId === selectedProject.id);
 
     // We also need to handle updates to nodes if any
     const pendingUpdates = pendingActions
@@ -106,9 +110,11 @@ export const useRiskEngine = () => {
       syncOperations.filter(op => op.type === 'delete').map(op => op.id)
     );
 
+    const projectId = selectedProject?.id;
     const syncNewNodes = syncOperations
       .filter(op => op.type === 'set')
-      .map(op => ({ ...op.data, isPendingSync: true } as RiskNode));
+      .map(op => ({ ...op.data, projectId: projectId ?? op.data?.projectId, isPendingSync: true } as RiskNode))
+      .filter(node => !projectId || node.projectId === projectId);
 
     const mergedNodes = fetchedNodes
       .filter(node => !pendingDeletes.has(node.id) && !syncDeletes.has(node.id))
@@ -126,7 +132,7 @@ export const useRiskEngine = () => {
     return [...pendingNodes, ...syncNewNodes, ...mergedNodes].sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-  }, [fetchedNodes, pendingActions, syncOperations]);
+  }, [fetchedNodes, pendingActions, syncOperations, selectedProject]);
 
   useEffect(() => {
     matrixSyncManager.setNodesProvider(() => nodes);
@@ -179,7 +185,7 @@ export const useRiskEngine = () => {
   }, [fetchedNodes, user]);
 
   const addNode = useCallback(async (nodeData: Omit<RiskNode, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user) return null;
+    if (!user || !selectedProject) return null;
     
     let enrichedData = { ...nodeData };
     
@@ -193,6 +199,7 @@ export const useRiskEngine = () => {
     
     const newNode: RiskNode = {
       ...enrichedData,
+      projectId: selectedProject.id,
       tags: Array.isArray(enrichedData.tags) ? enrichedData.tags : [],
       connections: Array.isArray(enrichedData.connections) ? enrichedData.connections : [],
       id,
@@ -227,7 +234,7 @@ export const useRiskEngine = () => {
       handleFirestoreError(error, OperationType.CREATE, `nodes/${id}`);
       return null;
     }
-  }, [user]);
+  }, [user, selectedProject]);
 
   const addConnection = useCallback(async (id1: string, id2: string) => {
     if (!user) return;
@@ -235,7 +242,8 @@ export const useRiskEngine = () => {
     const node1 = nodes.find(n => n.id === id1);
     const node2 = nodes.find(n => n.id === id2);
     
-    if (!node1 || !node2) return;
+    if (!node1 || !node2 || !selectedProject) return;
+    if (node1.projectId !== selectedProject.id || node2.projectId !== selectedProject.id) return;
 
     const now = new Date().toISOString();
 
@@ -256,10 +264,12 @@ export const useRiskEngine = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'nodes');
     }
-  }, [user, nodes]);
+  }, [user, nodes, selectedProject]);
 
   const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>, expectedUpdatedAt?: string) => {
-    if (!user) return;
+    if (!user || !selectedProject) return;
+    const currentNode = nodes.find(node => node.id === id);
+    if (!currentNode || currentNode.projectId !== selectedProject.id) return;
 
     // Concurrent edit detection: compare caller's version against live in-memory node
     if (expectedUpdatedAt) {
@@ -286,10 +296,12 @@ export const useRiskEngine = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `nodes/${id}`);
     }
-  }, [user, fetchedNodes]);
+  }, [user, fetchedNodes, nodes, selectedProject]);
 
   const deleteNode = useCallback(async (id: string) => {
-    if (!user) return;
+    if (!user || !selectedProject) return;
+    const targetNode = nodes.find(node => node.id === id);
+    if (!targetNode || targetNode.projectId !== selectedProject.id) return;
     try {
       // Cascade: scrub the deleted id from every neighbor's `connections` so
       // the array doesn't grow toward the 200-edge rules cap with dangling
@@ -307,7 +319,7 @@ export const useRiskEngine = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `nodes/${id}`);
     }
-  }, [user, nodes]);
+  }, [user, nodes, selectedProject]);
 
   const getConnectedNodes = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
@@ -330,6 +342,7 @@ export const useRiskEngine = () => {
 
     nodes.forEach(node => {
       node.connections.forEach(targetId => {
+        if (!nodes.some(target => target.id === targetId && target.projectId === selectedProject?.id)) return;
         const linkId = [node.id, targetId].sort().join('-');
         if (!processed.has(linkId)) {
           links.push({ source: node.id, target: targetId });
@@ -347,7 +360,7 @@ export const useRiskEngine = () => {
       })),
       links
     };
-  }, [nodes]);
+  }, [nodes, selectedProject]);
 
   return {
     nodes,
