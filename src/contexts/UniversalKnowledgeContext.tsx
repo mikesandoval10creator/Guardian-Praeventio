@@ -9,6 +9,10 @@ import {
   createGraphNode,
   migrateGraphNodes,
 } from '../services/zettelkasten/graphMutations';
+import {
+  buildProjectEdges,
+  filterProjectNodes,
+} from '../services/zettelkasten/knowledgeBoundary';
 
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
@@ -132,9 +136,10 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     // The same `where('projectId','==',selectedProject.id)` filter is
     // already used by `useRiskEngine.ts:36` for the per-project graph
     // view, so the data shape is consistent across the two consumers.
+    const activeProjectId = selectedProject.id;
     const q = query(
       collection(db, 'nodes'),
-      where('projectId', '==', selectedProject.id),
+      where('projectId', '==', activeProjectId),
       orderBy('updatedAt', 'desc'),
     );
 
@@ -148,7 +153,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       // reader gets a fast path. The persist runs in `requestIdleCallback`
       // (or a microtask fallback) — it MUST NOT block the UI.
       const upgradesPending: { id: string; node: any }[] = [];
-      const newNodes = snapshot.docs.map(doc => {
+      const snapshotNodes = snapshot.docs.map(doc => {
         const data = doc.data();
         const raw = {
           id: doc.id,
@@ -162,6 +167,9 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
         }
         return raw as RiskNode;
       });
+      // Keep the boundary local to this subscription as well as in Firestore.
+      // A queued/stale snapshot must not repopulate the newly selected project.
+      const newNodes = filterProjectNodes(snapshotNodes, activeProjectId);
 
       setNodes(newNodes);
       setLoading(false);
@@ -173,7 +181,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
           // verifies membership and computes the pure migrations itself.
           void migrateGraphNodes(
             upgradesPending.map(({ id }) => id),
-            selectedProject.id,
+            activeProjectId,
           ).catch((err) => {
             logger.warn('Lazy schema upgrade queue failed', {
               nodeIds: upgradesPending.map(({ id }) => id),
@@ -228,33 +236,26 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   }, [nodes]);
 
   const graph = useMemo<KnowledgeGraph>(() => {
-    const edgeSet = new Set<string>();
-    const edges: { from: string; to: string }[] = [];
-    nodes.forEach(node => {
-      node.connections.forEach(toId => {
-        const key = [node.id, toId].sort().join('--');
-        if (!edgeSet.has(key)) {
-          edgeSet.add(key);
-          edges.push({ from: node.id, to: toId });
-        }
-      });
-    });
-    return { nodes, edges };
+    return { nodes, edges: buildProjectEdges(nodes) };
   }, [nodes]);
 
   const createNode = useCallback(async (data: Omit<RiskNode, 'id'>): Promise<string> => {
     if (!user) throw new Error('User must be authenticated to create nodes');
     if (!selectedProject) throw new Error('A project must be selected to create nodes');
 
-    const nodeId = await createGraphNode(data, selectedProject.id);
+    // The project is selected by the provider, never by an arbitrary caller.
+    // Do not allow a stale/foreign projectId nested in the node payload to
+    // cross the mutation boundary.
+    const { projectId: _ignoredProjectId, ...projectData } = data;
+    const nodeId = await createGraphNode(projectData, selectedProject.id);
     const now = new Date().toISOString();
     // Preserve Firestore SDK's previous latency-compensated UX while the
     // server-authoritative operation drains from the offline queue.
     setNodes((current) => [{
-      ...data,
+      ...projectData,
       id: nodeId,
       projectId: selectedProject.id,
-      metadata: { ...data.metadata, authorId: user.uid },
+      metadata: { ...projectData.metadata, authorId: user.uid },
       createdAt: now,
       updatedAt: now,
       isPendingSync: true,
@@ -265,6 +266,12 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   const createEdge = useCallback(async (fromId: string, toId: string): Promise<void> => {
     if (!selectedProject) throw new Error('A project must be selected to connect nodes');
     if (fromId === toId) throw new Error('A node cannot connect to itself');
+    const projectNodeIds = new Set(
+      filterProjectNodes(nodes, selectedProject.id).map((node) => node.id),
+    );
+    if (!projectNodeIds.has(fromId) || !projectNodeIds.has(toId)) {
+      throw new Error('Both nodes must belong to the selected project');
+    }
 
     await connectGraphNodes(fromId, toId, selectedProject.id);
     setNodes((current) => current.map((node) => {
@@ -276,7 +283,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       }
       return node;
     }));
-  }, [selectedProject]);
+  }, [nodes, selectedProject]);
 
   const stats = useMemo(() => {
     const nodesByType: Record<string, number> = {};
