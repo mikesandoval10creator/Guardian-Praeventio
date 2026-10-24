@@ -61,6 +61,7 @@ export type RetrievalSource =
  */
 export type SourceAdapter = (
   query: RetrievalQuery,
+  signal?: AbortSignal,
 ) => Promise<ResilientNode[] | null>;
 
 export interface RetrievalSources {
@@ -117,14 +118,15 @@ async function trySource(
 > {
   if (!adapter) return { error: 'no adapter', source };
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const controller = new AbortController();
   try {
-    const timeoutP = new Promise<never>((_, rej) => {
-      timeoutHandle = setTimeout(
-        () => rej(new Error(`${source}: timeout ${opts.timeoutMs}ms`)),
-        opts.timeoutMs,
-      );
+    const result = await new Promise<ResilientNode[] | null>((resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`${source}: timeout ${opts.timeoutMs}ms`));
+      }, opts.timeoutMs);
+      adapter(query, controller.signal).then(resolve, reject);
     });
-    const result = await Promise.race([adapter(query), timeoutP]);
     if (timeoutHandle) clearTimeout(timeoutHandle);
     if (!result) return { error: 'returned null', source };
     if (result.length === 0) return { error: 'empty result', source };

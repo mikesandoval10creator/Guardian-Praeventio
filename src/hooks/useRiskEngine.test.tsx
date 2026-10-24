@@ -27,6 +27,7 @@ const h = vi.hoisted(() => ({
   },
   enrichNodeData: vi.fn(async (n: unknown) => n),
   generateEmbeddingsBatch: vi.fn(async (_t?: unknown) => [[] as number[]]),
+  connectGraphNodes: vi.fn(async (_from?: string, _to?: string, _project?: string) => {}),
   handleFirestoreError: vi.fn(),
 }));
 
@@ -66,6 +67,10 @@ vi.mock('../services/geminiService', () => ({
   autoConnectNodes: vi.fn(),
 }));
 
+vi.mock('../services/zettelkasten/graphMutations', () => ({
+  connectGraphNodes: (from: string, to: string, project: string) => h.connectGraphNodes(from, to, project),
+}));
+
 import { useRiskEngine } from './useRiskEngine';
 import { NodeType } from '../types';
 
@@ -94,6 +99,7 @@ beforeEach(() => {
   h.sync.enqueueDelete.mockReset();
   h.enrichNodeData.mockReset().mockImplementation(async (n: unknown) => n);
   h.generateEmbeddingsBatch.mockReset().mockResolvedValue([[]]);
+  h.connectGraphNodes.mockReset().mockResolvedValue(undefined);
   h.handleFirestoreError.mockReset();
 });
 afterEach(() => {
@@ -228,7 +234,8 @@ describe('useRiskEngine — mutators (offline queue)', () => {
     await act(async () => {
       await result.current.addConnection('a', 'b');
     });
-    expect(h.sync.enqueueUpdate).toHaveBeenCalledTimes(2);
+    expect(h.connectGraphNodes).toHaveBeenCalledWith('a', 'b', 'p1');
+    expect(h.sync.enqueueUpdate).not.toHaveBeenCalled();
   });
 
   it('deleteNode cascades: scrubs the id from neighbors then enqueues the delete', async () => {

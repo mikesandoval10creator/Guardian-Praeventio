@@ -85,12 +85,15 @@ export function IncidentInvestigation() {
           title: `[Lección Aprendida] ${analysis.globalRiskLesson.title}`,
           description: analysis.globalRiskLesson.description,
           tags: ['Lección Aprendida', 'Global', 'IA'],
-          projectId: 'global', // Make it visible to all projects
+          // Keep the lesson in the originating project until a server-authorized
+          // publication flow exists for cross-project/global knowledge.
+          projectId: selectedProject.id,
           connections: [investigationNode.id],
           metadata: {
             source: 'Incident Investigation',
             originalIncident: incidentTitle,
-            criticidad: 'Alta' // Default to high for lessons learned
+            criticidad: 'Alta',
+            scope: 'global-pending-publication',
           }
         });
       }

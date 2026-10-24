@@ -8,6 +8,7 @@ import { usePendingActions } from './usePendingActions';
 import { matrixSyncManager } from '../services/syncManager';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+import { connectGraphNodes } from '../services/zettelkasten/graphMutations';
 
 export const useRiskEngine = () => {
   const [fetchedNodes, setFetchedNodes] = useState<RiskNode[]>([]);
@@ -245,22 +246,11 @@ export const useRiskEngine = () => {
     if (!node1 || !node2 || !selectedProject) return;
     if (node1.projectId !== selectedProject.id || node2.projectId !== selectedProject.id) return;
 
-    const now = new Date().toISOString();
-
     try {
-      if (!node1.connections.includes(id2)) {
-        matrixSyncManager.enqueueUpdate(id1, {
-          connections: [...node1.connections, id2],
-          updatedAt: now
-        });
-      }
-      
-      if (!node2.connections.includes(id1)) {
-        matrixSyncManager.enqueueUpdate(id2, {
-          connections: [...node2.connections, id1],
-          updatedAt: now
-        });
-      }
+      // Keep every graph mutation on the canonical Zettelkasten writer.
+      // The server preserves the legacy untyped connection projection while
+      // preventing this hook from bypassing zettelkasten_edges.
+      await connectGraphNodes(id1, id2, selectedProject.id);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'nodes');
     }

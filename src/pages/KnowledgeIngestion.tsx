@@ -10,6 +10,7 @@ import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { useProject } from '../contexts/ProjectContext';
 
 export function KnowledgeIngestion() {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function KnowledgeIngestion() {
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
+  const { selectedProject } = useProject();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,7 +42,7 @@ export function KnowledgeIngestion() {
   };
 
   const handleProcess = async () => {
-    if (!text.trim() || !isOnline) return;
+    if (!text.trim() || !isOnline || !selectedProject) return;
     
     setIsProcessing(true);
     setResult(null);
@@ -57,8 +59,14 @@ export function KnowledgeIngestion() {
           description: node.content,
           type: NodeType.NORMATIVE,
           tags: ['master-node', 'manual-prevencion', ...node.tags],
-          metadata: { source: 'manual-ingestion', isMasterNode: true },
-          projectId: 'global', // Global knowledge
+          metadata: {
+            source: 'manual-ingestion',
+            isMasterNode: true,
+            scope: 'global-pending-publication',
+          },
+          // Keep ingestion tenant/project-scoped until a server-authorized
+          // publication flow exists for genuinely global knowledge.
+          projectId: selectedProject.id,
           connections: []
         });
         addedCount++;

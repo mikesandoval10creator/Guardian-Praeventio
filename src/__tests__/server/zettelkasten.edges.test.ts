@@ -159,6 +159,26 @@ describe('POST /api/zettelkasten/edges (real router)', () => {
     expect(edges).toContainEqual({ source: riskDoc, target: eppDoc, type: 'requires' });
   });
 
+  it('keeps typed edges when an endpoint has no description', async () => {
+    const riskDoc = seedNode('risk1', { description: '' });
+    const controlDoc = seedNode('ctrl1', { title: '' });
+    H.db!._seed('tenants/t1/zettelkasten_edges/e-missing-display', {
+      id: 'e-missing-display', fromNodeId: 'ctrl1', toNodeId: 'risk1', type: 'mitigates', tenantId: 't1',
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: riskDoc, description: '' }),
+      expect.objectContaining({ id: controlDoc, title: '' }),
+    ]));
+    expect(res.body.edges).toContainEqual({ source: controlDoc, target: riskDoc, type: 'mitigates' });
+  });
+
   it('drops an edge whose endpoint is not a node of this project', async () => {
     const riskDoc = seedNode('risk1');
     expect(riskDoc).toBe('t1_p1_risk1'); // sanity: the composite id shape

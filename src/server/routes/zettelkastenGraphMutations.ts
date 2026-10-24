@@ -14,6 +14,7 @@ import {
 } from '../../services/migration/registry.js';
 import { logger } from '../../utils/logger.js';
 import { NodeType } from '../../types/index.js';
+import { EDGE_TYPES, buildEdge, type EdgeType } from '../../services/zettelkasten/edges.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
 
@@ -47,6 +48,8 @@ const connectGraphNodesSchema = z.object({
   projectId: z.string().regex(GRAPH_ID),
   fromId: z.string().regex(GRAPH_ID),
   toId: z.string().regex(GRAPH_ID),
+  /** Optional during compatibility migration; supplied values are canonical edges. */
+  type: z.enum(EDGE_TYPES).optional(),
 }).refine((body) => body.fromId !== body.toId, {
   message: 'fromId and toId must differ',
   path: ['toId'],
@@ -55,6 +58,7 @@ const connectGraphNodesSchema = z.object({
 class GraphNodeScopeError extends Error {}
 class GraphNodeConflictError extends Error {}
 class GraphConnectionLimitError extends Error {}
+class GraphTenantScopeError extends Error {}
 
 async function requireProjectMember(
   uid: string,
@@ -235,7 +239,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
     async (req, res) => {
       const uid = req.user?.uid;
       if (!uid) return res.status(401).json({ error: 'unauthorized' });
-      const { projectId, fromId, toId } = req.body as z.infer<typeof connectGraphNodesSchema>;
+      const { projectId, fromId, toId, type } = req.body as z.infer<typeof connectGraphNodesSchema>;
 
       try {
         await requireProjectMember(uid, projectId);
@@ -249,7 +253,12 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
         const changed = await db.runTransaction(async (txn) => {
           const fromRef = db.collection('nodes').doc(fromId);
           const toRef = db.collection('nodes').doc(toId);
-          const [fromSnap, toSnap] = await Promise.all([txn.get(fromRef), txn.get(toRef)]);
+          const projectRef = db.collection('projects').doc(projectId);
+          const [fromSnap, toSnap, projectSnap] = await Promise.all([
+            txn.get(fromRef),
+            txn.get(toRef),
+            txn.get(projectRef),
+          ]);
           const from = fromSnap.data() as Record<string, unknown> | undefined;
           const to = toSnap.data() as Record<string, unknown> | undefined;
           if (!fromSnap.exists || !toSnap.exists || from?.projectId !== projectId || to?.projectId !== projectId) {
@@ -268,21 +277,42 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
           const now = new Date().toISOString();
           if (fromChanged) txn.update(fromRef, { connections: fromConnections, updatedAt: now });
           if (toChanged) txn.update(toRef, { connections: toConnections, updatedAt: now });
-          return fromChanged || toChanged;
+
+          if (type) {
+            const project = projectSnap.data() as Record<string, unknown> | undefined;
+            const tenantId = project?.tenantId;
+            if (!projectSnap.exists || typeof tenantId !== 'string' || tenantId.length === 0) {
+              throw new GraphTenantScopeError('project tenant is missing');
+            }
+            const edge = buildEdge({
+              fromNodeId: fromId,
+              toNodeId: toId,
+              type: type as EdgeType,
+              tenantId,
+              createdBy: uid,
+              projectId,
+              createdAt: now,
+            });
+            txn.set(db.collection(`tenants/${tenantId}/zettelkasten_edges`).doc(edge.id), edge, { merge: true });
+          }
+          return { changed: fromChanged || toChanged, canonical: Boolean(type) };
         });
 
-        if (changed) {
+        if (changed.changed || changed.canonical) {
           await auditGraphMutation(
             req,
             'zettelkasten.graph.nodes.connect',
-            { fromId, toId },
+            { fromId, toId, ...(type ? { type, canonical: true } : {}) },
             projectId,
           );
         }
-        return res.json({ connected: true });
+        return res.json({ connected: true, ...(type ? { canonical: true } : {}) });
       } catch (err) {
         if (err instanceof GraphNodeScopeError) {
           return res.status(404).json({ error: 'node_not_found' });
+        }
+        if (err instanceof GraphTenantScopeError) {
+          return res.status(404).json({ error: 'tenant_not_found' });
         }
         if (err instanceof GraphConnectionLimitError) {
           return res.status(409).json({ error: 'connection_limit' });

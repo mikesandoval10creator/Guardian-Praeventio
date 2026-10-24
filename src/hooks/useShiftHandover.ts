@@ -5,6 +5,7 @@
 // of the client input.
 
 import { apiAuthHeaders } from "../lib/apiAuth";
+import { saveShift } from "../services/shiftHandover/shiftHandoverStore";
 import type {
   ShiftRecord,
   ShiftHandoverNote,
@@ -121,19 +122,14 @@ export async function summarizeShiftApi(
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Aliases + stubs expected by orphan UI consumers (rescue-450 PR #501)
-// ──────────────────────────────────────────────────────────────────────
+// Compatibility API for the adaptive panel.
 //
-// `src/components/shiftHandover/ShiftHandoverPanel.tsx` and
-// `src/components/shiftHandover/ShiftHandoverHistoryList.tsx` are NOT
-// mounted in any route yet — they were wired ahead of the API surface
-// being finalised. The exports below let typecheck pass; real impl
-// (especially `fetchShiftHandoverHistory` which needs a new GET endpoint
-// and `addShiftHandoverDiscrepancy` which needs a new POST endpoint) is
-// tracked in TODO §13 + `docs/stubs-inventory.md`.
+// The panel uses a richer submit shape than the individual HTTP mutators.
+// These functions now orchestrate the real endpoints and persist each
+// successful state through the canonical project-scoped Firestore store.
 
 /**
- * Quality breakdown produced by the future `GET /api/sprint-k/{projectId}/
+ * Quality breakdown produced by the `GET /api/sprint-k/{projectId}/
  * shift-handover/history` endpoint. Computed server-side from the shift's
  * note count, urgent severity flags, and acknowledged status.
  */
@@ -145,7 +141,7 @@ export interface ShiftHandoverQuality {
 }
 
 /**
- * Historical handover record returned by the future history endpoint.
+ * Historical handover record returned by the history endpoint.
  * Wraps the underlying `ShiftRecord` with derived quality metrics so the
  * UI doesn't need to recompute on every render.
  */
@@ -180,54 +176,75 @@ export async function fetchShiftHandoverHistory(
 }
 
 /**
- * Stub — `ShiftHandoverPanel.tsx` calls this as
- * `createShiftHandover(projectId, { id, kind, startedAt, ... }, idempotencyKey)`,
- * which is a richer signature than {@link startShiftApi}. Until the
- * panel is mounted in a route, the stub just echoes a minimal shift
- * with the provided id so the optimistic UI path completes. Tracked
- * TODO §13.
+ * Creates the shift through the real lifecycle endpoints, then persists each
+ * successful state in the same project-scoped collection used by the page.
  */
 export async function createShiftHandover(
-  _projectId: string,
+  projectId: string,
   input: {
     id: string;
     kind: ShiftKind;
     startedAt: string;
     supervisorUid: string;
-    // `at` is server-stamped in the real endpoint, so the panel passes
-    // entries without it — we accept the relaxed shape here for parity.
     logEntries: Array<Omit<ShiftLogEntry, "at"> & { at?: string }>;
     handoverNotes: ShiftHandoverNote[];
   },
   _idempotencyKey: string,
 ): Promise<ShiftPayload> {
-  return {
-    shift: {
-      id: input.id,
-      projectId: _projectId,
-      kind: input.kind,
-      startedAt: input.startedAt,
-      supervisorUid: input.supervisorUid,
-      logEntries: input.logEntries as ShiftLogEntry[],
-      handoverNotes: input.handoverNotes,
-    } as ShiftRecord,
-  };
+  let current = (await startShiftApi(projectId, {
+    id: input.id,
+    kind: input.kind,
+  })).shift;
+  await saveShift(projectId, current);
+
+  for (const entry of input.logEntries) {
+    const { authorUid: _authorUid, at: _at, ...serverEntry } = entry;
+    current = (await logShiftEntryApi(projectId, {
+      shift: current,
+      entry: serverEntry,
+    })).shift;
+    await saveShift(projectId, current);
+  }
+
+  for (const note of input.handoverNotes) {
+    current = (await addShiftNoteApi(projectId, {
+      shift: current,
+      note,
+    })).shift;
+    await saveShift(projectId, current);
+  }
+
+  current = (await endShiftApi(projectId, { shift: current })).shift;
+  await saveShift(projectId, current);
+  return { shift: current };
 }
 
 /**
- * Stub — `ShiftHandoverPanel.tsx` calls this as
- * `acknowledgeShiftHandover(projectId, shiftId, { notes? }, idempotencyKey)`.
- * The existing {@link acknowledgeShiftApi} takes `{ shift, notes? }`
- * instead of `(shiftId, opts)`, so we can't simple-alias. Stub returns
- * an empty-but-typed payload. Tracked TODO §13.
+ * Acknowledges a concrete shift through the authenticated endpoint and
+ * persists the server-stamped acknowledgement. The string overload remains
+ * for older callers and resolves the record from the real history endpoint.
  */
 export async function acknowledgeShiftHandover(
-  _projectId: string,
-  shiftId: string,
-  _opts: { notes?: string },
+  projectId: string,
+  shiftOrId: ShiftRecord | string,
+  opts: { notes?: string },
   _idempotencyKey: string,
 ): Promise<ShiftPayload> {
-  return { shift: { id: shiftId } as ShiftRecord };
+  const shift = typeof shiftOrId === "string"
+    ? (await fetchShiftHandoverHistory(projectId, { days: 3650 })).shifts
+        .find((entry) => entry.shift.id === shiftOrId)?.shift
+    : shiftOrId;
+
+  if (!shift) {
+    throw new Error("shift_not_found");
+  }
+
+  const current = (await acknowledgeShiftApi(projectId, {
+    shift,
+    notes: opts.notes,
+  })).shift;
+  await saveShift(projectId, current);
+  return { shift: current };
 }
 
 /**

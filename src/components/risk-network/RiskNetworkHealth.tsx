@@ -20,7 +20,7 @@ export function RiskNetworkHealth() {
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
   const { selectedProject } = useProject();
   const { addConnection } = useRiskEngine();
-  const { edges: zkEdges, loading: edgesLoading } = useZkEdges(selectedProject?.id);
+  const { edges: zkEdges, loading: edgesLoading, error: edgesError } = useZkEdges(selectedProject?.id);
   const [analyzing, setAnalyzing] = useState(false);
   const [insights, setInsights] = useState<OfflineHealthInsights | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -32,23 +32,36 @@ export function RiskNetworkHealth() {
     const riskNodes = nodes.filter((n) => n.type === NodeType.RISK);
     if (riskNodes.length === 0) return [];
 
-    // Construir mapa: nodeId → Set<connectedIds> (bidireccional)
     const controlNodeIds = new Set(
       nodes.filter((n) => n.type === NodeType.CONTROL).map((n) => n.id),
     );
+    const riskNodeIds = new Set(riskNodes.map((r) => r.id));
     const riskIdsWithControl = new Set<string>();
 
-    for (const risk of riskNodes) {
-      // ¿El riesgo tiene un CONTROL en sus connections?
-      const hasControl = risk.connections?.some((cid) => controlNodeIds.has(cid));
-      if (hasControl) riskIdsWithControl.add(risk.id);
-    }
+    if (!edgesLoading && !edgesError) {
+      // La fuente semántica es zettelkasten_edges: sólo una arista tipada
+      // CONTROL --mitigates--> RISK cuenta como control vigente. No inferimos
+      // semántica desde connections[], que es una proyección legacy sin tipo.
+      for (const edge of zkEdges) {
+        if (
+          edge.type === 'mitigates' &&
+          controlNodeIds.has(edge.fromNodeId) &&
+          riskNodeIds.has(edge.toNodeId)
+        ) {
+          riskIdsWithControl.add(edge.toNodeId);
+        }
+      }
+    } else {
+      // Fallback explícito sólo cuando el store semántico está cargando o
+      // falló; evita ocultar riesgos si la consulta canónica está degradada.
+      for (const risk of riskNodes) {
+        const hasControl = risk.connections?.some((cid) => controlNodeIds.has(cid));
+        if (hasControl) riskIdsWithControl.add(risk.id);
+      }
 
-    // También: ¿algún CONTROL tiene este riesgo en sus connections?
-    for (const ctrl of nodes.filter((n) => n.type === NodeType.CONTROL)) {
-      for (const cid of ctrl.connections ?? []) {
-        if (riskNodes.some((r) => r.id === cid)) {
-          riskIdsWithControl.add(cid);
+      for (const ctrl of nodes.filter((n) => n.type === NodeType.CONTROL)) {
+        for (const cid of ctrl.connections ?? []) {
+          if (riskNodeIds.has(cid)) riskIdsWithControl.add(cid);
         }
       }
     }
@@ -57,7 +70,7 @@ export function RiskNetworkHealth() {
       riskNodes.map((r) => ({ id: r.id, title: r.title, type: r.type, metadata: r.metadata })),
       riskIdsWithControl,
     );
-  }, [nodes]);
+  }, [nodes, zkEdges, edgesLoading, edgesError]);
 
   const analyzeHealth = async () => {
     if (nodes.length === 0 || !isOnline) return;

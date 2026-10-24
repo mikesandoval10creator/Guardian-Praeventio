@@ -123,9 +123,19 @@ describe('retrieveResilient', () => {
     ]);
   });
 
-  it('timeout cae al siguiente source', async () => {
-    const slowMem: SourceAdapter = () =>
-      new Promise((res) => setTimeout(() => res([node('m1')]), 5000));
+  it('timeout cae al siguiente source y cancela el adapter anterior', async () => {
+    const slowMem: SourceAdapter = (_query, signal) =>
+      new Promise((res, reject) => {
+        const timer = setTimeout(() => res([node('m1')]), 5000);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new Error('aborted'));
+          },
+          { once: true },
+        );
+      });
     const r = await retrieveResilient(
       { keyword: 'sos' },
       { memory: slowMem, indexeddb: ok([node('fast')]) },

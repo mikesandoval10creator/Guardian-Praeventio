@@ -7,18 +7,20 @@
 //   • Form para registrar estado: kind del turno, log entries (pendientes
 //     con followUp), notas por categoría canónica (incidentes, EPP,
 //     equipos, etc), severidad.
-//   • Submit → POST /create + transición a "pending acknowledgement".
+//   • Submit → ciclo real start → log-entry → add-note → end, con persistencia
+//     project-scoped tras cada estado.
 //
 // Modo 2 — Entrante (acknowledge):
 //   • Recibe un `shift` cerrado pero sin `acknowledgedByUid`.
 //   • Muestra todo lo que el saliente registró (log + notas).
 //   • Campo de notas del entrante + botón "Acusar recibo".
-//   • Submit → POST /:hoId/acknowledge.
+//   • Submit → POST /:projectId/shift-handover/acknowledge con el registro
+//     completo y persistencia server-stamped.
 //
 // Modo 3 — Entrante (discrepancia post-ack):
 //   • El shift ya tiene `acknowledgedByUid` igual al currentUid.
 //   • Permite agregar una discrepancia detectada después del acuse.
-//   • Submit → POST /:hoId/add-discrepancy.
+//   • Submit → POST /:projectId/shift-handover/:shiftId/discrepancy.
 //
 // Tailwind + teal + dark mode. data-testid en raíz y submit para tests.
 
@@ -212,7 +214,7 @@ export function ShiftHandoverPanel({
       const idk = `ho-ack-${shift.id}-${Date.now()}`;
       const res = await acknowledgeShiftHandover(
         projectId,
-        shift.id,
+        shift,
         { notes: ackNotes.trim() || undefined },
         idk,
       );

@@ -255,6 +255,37 @@ describe('POST /graph/connections (real zettelkasten router)', () => {
     );
   });
 
+  it('typed connection writes the canonical tenant edge and keeps the reciprocal UI cache', async () => {
+    H.db!._seed('nodes/control-1', {
+      ...nodeInput, type: 'Control', projectId: 'p1', connections: [],
+      metadata: { authorId: 'u1' },
+    });
+    H.db!._seed('nodes/risk-1', {
+      ...nodeInput, type: 'Riesgo', projectId: 'p1', connections: [],
+      metadata: { authorId: 'u1' },
+    });
+
+    const res = await request(buildApp())
+      .post(CONNECTION_URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1', fromId: 'control-1', toId: 'risk-1', type: 'mitigates' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ connected: true, canonical: true });
+    expect(H.db!._dump()['nodes/control-1'].connections).toEqual(['risk-1']);
+    expect(H.db!._dump()['nodes/risk-1'].connections).toEqual(['control-1']);
+    const edgeEntries = Object.entries(H.db!._dump()).filter(([key]) => key.startsWith('tenants/t1/zettelkasten_edges/'));
+    expect(edgeEntries).toHaveLength(1);
+    expect(edgeEntries[0][1]).toMatchObject({
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      inverseType: 'mitigated_by',
+      tenantId: 't1',
+      projectId: 'p1',
+      createdBy: 'u1',
+    });
+  });
   it('rejects a cross-project endpoint without mutating either node', async () => {
     H.db!._seed('nodes/risk-1', { ...nodeInput, projectId: 'p1', connections: [] });
     H.db!._seed('nodes/p2-node', { ...nodeInput, projectId: 'p2', connections: [] });

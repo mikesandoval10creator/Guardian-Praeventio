@@ -95,17 +95,39 @@ describe('Universal Knowledge graph mutation queue', () => {
     });
   });
 
-  it('connectGraphNodes canonicalizes the pair so retries dedupe', async () => {
+  it('connectGraphNodes canonicalizes untyped pairs so retries dedupe', async () => {
     await connectGraphNodes('z-node', 'a-node', 'p1');
     expect(H.enqueue).toHaveBeenCalledWith({
       type: 'set',
       collection: ZETTELKASTEN_GRAPH_SYNC_COLLECTION,
       data: {
-        id: 'connection:p1:a-node:z-node',
+        id: 'connection:p1:a-node:z-node:untyped',
         endpoint: '/api/zettelkasten/graph/connections',
         body: { projectId: 'p1', fromId: 'z-node', toId: 'a-node' },
       },
     });
+  });
+
+  it('queues typed connections as canonical edge mutations without changing direction', async () => {
+    await connectGraphNodes('control-1', 'risk-1', 'p1', 'mitigates');
+    expect(H.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        id: 'connection:p1:control-1:risk-1:mitigates',
+        body: { projectId: 'p1', fromId: 'control-1', toId: 'risk-1', type: 'mitigates' },
+      }),
+    }));
+  });
+
+  it('keeps opposite typed directions as separate offline operations', async () => {
+    await connectGraphNodes('control-1', 'risk-1', 'p1', 'mitigates');
+    await connectGraphNodes('risk-1', 'control-1', 'p1', 'mitigates');
+
+    expect(H.enqueue).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({ id: 'connection:p1:control-1:risk-1:mitigates' }),
+    }));
+    expect(H.enqueue).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: expect.objectContaining({ id: 'connection:p1:risk-1:control-1:mitigates' }),
+    }));
   });
 });
 

@@ -11,7 +11,7 @@
 //   - Retorna { edges, loading, error }.
 //   - Si el fetch falla → fallback a edges=[] (comportamiento legacy sigue).
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ZkEdge } from '../services/zettelkasten/edges';
 import { apiAuthHeaderOrThrow } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
@@ -33,8 +33,9 @@ export function useZkEdges(projectId?: string | null): {
   const [edges, setEdges] = useState<ZkEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const requestSequence = useRef(0);
 
-  const fetchEdges = useCallback(async (pid: string) => {
+  const fetchEdges = useCallback(async (pid: string, sequence: number) => {
     setLoading(true);
     setError(undefined);
 
@@ -63,30 +64,43 @@ export function useZkEdges(projectId?: string | null): {
       const data = (await res.json()) as { edges?: ZkEdge[] };
       const aristas = Array.isArray(data.edges) ? data.edges : [];
 
-      setEdges(aristas);
+      if (requestSequence.current === sequence) {
+        setEdges(aristas);
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Request cancelado — no seteamos error, es operacional.
         return;
       }
+      if (requestSequence.current !== sequence) return;
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('useZkEdges fetch failed', { projectId: pid, error: msg });
       setError(msg);
       setEdges([]);
     } finally {
       clearTimeout(timeoutId);
-      setLoading(false);
+      if (requestSequence.current === sequence) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    const sequence = ++requestSequence.current;
+
     if (!projectId) {
       setEdges([]);
+      setError(undefined);
       setLoading(false);
       return;
     }
-    fetchEdges(projectId);
+
+    // Clear the previous project's graph immediately. An older response may
+    // still resolve after a project switch, so only the current sequence can
+    // publish data or loading/error state.
+    setEdges([]);
+    void fetchEdges(projectId, sequence);
   }, [projectId, fetchEdges]);
 
   return { edges, loading, error };
-}
+}

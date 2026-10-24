@@ -1,4 +1,25 @@
 {
+  "academic": {
+    "actions": {
+      "processing": "Processing with Gemini...",
+      "extract": "Extract knowledge",
+      "saved": "Saved",
+      "saving": "Saving...",
+      "saveZettel": "Save to Zettelkasten"
+    },
+    "errors": {
+      "textFileOnly": "TXT or Markdown files are supported for now; PDF extraction requires a dedicated PDF reader.",
+      "file": "The file could not be read.",
+      "processing": "Error processing the text. Please try again.",
+      "save": "The knowledge could not be saved to Zettelkasten."
+    },
+    "source": {
+      "title": "Source text (paper / article)",
+      "uploadText": "Upload TXT/Markdown",
+      "description": "Paste the abstract or conclusions of a scientific paper about safety, ergonomics, or occupational health.",
+      "placeholder": "Example: The study shows that cognitive fatigue in heavy machinery operators increases after 6 hours of continuous work..."
+    }
+  },
   "airQuality": {
     "sourceMeasured": "Sensor reading",
     "sourceEstimated": "Model estimate; no sensor reading connected."

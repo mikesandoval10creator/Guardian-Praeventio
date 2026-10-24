@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Upload, FileText, Loader2, Brain, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,9 @@ import { extractAcademicSummary } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import { logger } from '../utils/logger';
 import { humanErrorMessage } from '../lib/humanError';
+import { useProject } from '../contexts/ProjectContext';
+import { useRiskEngine } from '../hooks/useRiskEngine';
+import { NodeType } from '../types';
 
 
 export function AcademicProcessor() {
@@ -15,11 +18,32 @@ export function AcademicProcessor() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { selectedProject } = useProject();
+  const { addNode } = useRiskEngine();
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!/\.(txt|md)$/i.test(file.name)) {
+      setError(t('academic.errors.textFileOnly', 'Por ahora se admiten archivos TXT o Markdown; la extracción PDF requiere un lector PDF dedicado.'));
+      event.target.value = '';
+      return;
+    }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => setTextInput(String(reader.result ?? ''));
+    reader.onerror = () => setError(t('academic.errors.file', 'No se pudo leer el archivo.'));
+    reader.readAsText(file);
+    event.target.value = '';
+  };
 
   const handleProcess = async () => {
     if (!textInput.trim()) return;
-
     setIsProcessing(true);
+    setSaved(false);
     setError(null);
     try {
       const summary = await extractAcademicSummary(textInput);
@@ -29,6 +53,35 @@ export function AcademicProcessor() {
       setError(t('academic.errors.processing', 'Error al procesar el texto. Por favor, intenta de nuevo.'));
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!result || !selectedProject || isSaving) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const node = await addNode({
+        type: NodeType.DOCUMENT,
+        title: 'Resumen académico extraído',
+        description: result,
+        tags: ['académico', 'IA', 'fuente-científica'],
+        metadata: {
+          source: 'AcademicProcessor',
+          sourceTextLength: textInput.length,
+          generatedAt: new Date().toISOString(),
+          provenance: 'user-provided-text',
+        },
+        projectId: selectedProject.id,
+        connections: [],
+      });
+      if (!node) throw new Error('No se pudo encolar el nodo académico');
+      setSaved(true);
+    } catch (err) {
+      logger.error(err);
+      setError(t('academic.errors.save', 'No se pudo guardar el conocimiento en Zettelkasten.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -53,9 +106,12 @@ export function AcademicProcessor() {
               <FileText className="w-5 h-5 text-violet-500" />
               {t('academic.source.title', 'Texto Fuente (Paper / Artículo)')}
             </h2>
-            <Button variant="secondary" className="text-xs py-1 px-3">
-              <Upload className="w-3 h-3 mr-2" /> {t('academic.source.uploadPdf', 'Subir PDF')}
-            </Button>
+            <>
+              <Button variant="secondary" className="text-xs py-1 px-3" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-3 h-3 mr-2" /> {t('academic.source.uploadText', 'Cargar TXT/Markdown')}
+              </Button>
+              <input ref={fileInputRef} type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={handleFileUpload} />
+            </>
           </div>
 
           <p className="text-xs text-secondary-token mb-4">
@@ -122,8 +178,9 @@ export function AcademicProcessor() {
               </div>
 
               <div className="pt-6 border-t border-default-token flex justify-end">
-                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white">
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> {t('academic.actions.saveZettel', 'Guardar en Zettelkasten')}
+                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white" onClick={handleSave} disabled={isSaving || saved || !selectedProject}>
+                  {saved ? <CheckCircle2 className="w-4 h-4 mr-2" /> : isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  {saved ? t('academic.actions.saved', 'Guardado') : isSaving ? t('academic.actions.saving', 'Guardando...') : t('academic.actions.saveZettel', 'Guardar en Zettelkasten')}
                 </Button>
               </div>
             </div>

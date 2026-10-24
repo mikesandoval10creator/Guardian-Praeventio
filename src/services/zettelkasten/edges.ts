@@ -309,13 +309,29 @@ export async function createEdge(
 export async function deleteEdge(
   store: EdgeStore,
   input: {
+    /** Prefer the persisted id when deleting a weighted or time-bounded edge. */
+    edgeId?: string;
     fromNodeId: string;
     toNodeId: string;
     type: EdgeType;
     tenantId: string;
+    weight?: number;
+    validFrom?: string;
+    validUntil?: string;
   },
 ): Promise<void> {
-  const id = computeEdgeId(input.fromNodeId, input.toNodeId, input.type);
+  // The default id is only correct for the default edge (weight=1, no
+  // validity bounds). Content addressing includes temporal/weight fields, so
+  // callers deleting a customized edge must pass its persisted id or the same
+  // identity fields used when it was created.
+  const id = input.edgeId ?? computeEdgeId(
+    input.fromNodeId,
+    input.toNodeId,
+    input.type,
+    input.weight,
+    input.validFrom,
+    input.validUntil,
+  );
   await store.deleteEdgeById(id, input.tenantId);
 }
 
