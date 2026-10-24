@@ -1,4 +1,25 @@
 {
+  "academic": {
+    "actions": {
+      "processing": "Procesando con Gemini...",
+      "extract": "Extraer conocimiento",
+      "saved": "Guardado",
+      "saving": "Guardando...",
+      "saveZettel": "Guardar en Zettelkasten"
+    },
+    "errors": {
+      "textFileOnly": "Por ahora se admiten archivos TXT o Markdown; la extracción PDF requiere un lector PDF dedicado.",
+      "file": "No se pudo leer el archivo.",
+      "processing": "Error al procesar el texto. Por favor, intenta de nuevo.",
+      "save": "No se pudo guardar el conocimiento en Zettelkasten."
+    },
+    "source": {
+      "title": "Texto fuente (paper / artículo)",
+      "uploadText": "Cargar TXT/Markdown",
+      "description": "Pega el abstract o las conclusiones de un paper científico sobre seguridad, ergonomía o salud ocupacional.",
+      "placeholder": "Ej: El estudio demuestra que la fatiga cognitiva en operadores de maquinaria pesada aumenta después de 6 horas de turno continuo..."
+    }
+  },
   "airQuality": {
     "sourceMeasured": "Lectura de sensor",
     "sourceEstimated": "Estimación del modelo; sin lectura de sensor conectada."
