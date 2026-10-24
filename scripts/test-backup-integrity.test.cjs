@@ -124,7 +124,7 @@ test('daily workflow verifies the exact export after writing its manifest', () =
     'utf8',
   );
   assert.match(workflow, /actions\/setup-node@v7/);
-  assert.match(workflow, /node-version: "22"/);
+  assert.match(workflow, /node-version: "24\.22\.1"/);
   assert.match(workflow, /npm ci --ignore-scripts/);
   // The daily backup must not depend on repository secrets: a missing secret
   // silently disabled it (google-github-actions/auth rejects an empty input).

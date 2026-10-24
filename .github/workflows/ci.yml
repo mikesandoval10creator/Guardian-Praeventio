@@ -80,7 +80,10 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
+
+      - name: Verify patched Node runtime policy
+        run: node --test scripts/node-runtime-security.test.cjs
 
       - name: Verify src/types/roles.ts and firestore.rules agree
         run: node scripts/verify-roles-sync.cjs
@@ -95,7 +98,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
       - name: Test evidence generation
         run: npm run test:readiness-matrix
       - name: Check both generated reports
@@ -119,7 +122,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Install dependencies
@@ -141,7 +144,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Install dependencies
@@ -214,7 +217,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Install dependencies
@@ -286,7 +289,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
 
       - name: Validate env shape (test mode tolerates placeholders)
         run: node scripts/validate-env.cjs --mode test
@@ -304,7 +307,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - uses: actions/setup-java@v6
@@ -353,7 +356,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - uses: actions/setup-java@v6
@@ -401,7 +404,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
 
       - name: Stage diff and run medical guard
         env:
@@ -431,7 +434,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Install dependencies
@@ -478,7 +481,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Install dependencies
