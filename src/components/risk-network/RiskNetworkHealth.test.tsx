@@ -45,6 +45,7 @@ const __mocks = {
     },
   ] as any[],
   nodesLoading: false,
+  controlledRiskIds: [] as string[],
 };
 
 vi.mock('../../hooks/useZkEdges', () => ({
@@ -56,7 +57,9 @@ vi.mock('../../hooks/useZkEdges', () => ({
 }));
 
 vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({ projectId: __mocks.projectId }),
+  useProject: () => ({
+    selectedProject: __mocks.projectId ? { id: __mocks.projectId } : undefined,
+  }),
 }));
 
 vi.mock('../../contexts/UniversalKnowledgeContext', () => ({
@@ -75,7 +78,10 @@ vi.mock('../../hooks/useOnlineStatus', () => ({
 }));
 
 vi.mock('../../services/zettelkasten/riskOrchestrator', () => ({
-  detectUncontrolledRisks: vi.fn(() => []),
+  detectUncontrolledRisks: vi.fn((_risks, controlledIds: Set<string>) => {
+    __mocks.controlledRiskIds = [...controlledIds];
+    return [];
+  }),
 }));
 
 import { RiskNetworkHealth } from '../../components/risk-network/RiskNetworkHealth';
@@ -86,6 +92,7 @@ describe('§ZK-5 PR-3c RiskNetworkHealth consumer', () => {
     __mocks.projectId = 'test-project';
     __mocks.edgesLoading = false;
     __mocks.fetchError = undefined;
+    __mocks.controlledRiskIds = [];
   });
 
   it('renderiza sin aristas ZkEdge (fallback legacy)', async () => {
@@ -142,5 +149,36 @@ describe('§ZK-5 PR-3c RiskNetworkHealth consumer', () => {
 
     // NOTA: la lógica de aplicación del peso al healthScore se valida en
     // graphAnalytics.weight.test.ts. Este test es smoke del consumidor.
+  });
+
+  it('sólo cuenta mitigates CONTROL → RISK y no una conexión legacy genérica', async () => {
+    __mocks.nodes = [
+      ...__mocks.nodes,
+      {
+        id: 'c1',
+        type: 'Control' as any,
+        title: 'Control 1',
+        description: '',
+        tags: [],
+        metadata: {},
+        connections: ['r1'],
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ];
+    __mocks.zkEdges = [buildEdge({
+      fromNodeId: 'c1',
+      toNodeId: 'r1',
+      type: 'mitigates',
+      tenantId: 'test-project',
+      createdBy: 'system',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })];
+
+    render(<RiskNetworkHealth />);
+
+    await waitFor(() => {
+      expect(__mocks.controlledRiskIds).toContain('r1');
+    });
   });
 });

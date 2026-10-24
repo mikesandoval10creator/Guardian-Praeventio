@@ -738,7 +738,9 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
         typeof data?.id === 'string' && data.id.length > 0 ? data.id : doc.id;
       const title = typeof data?.title === 'string' ? data.title : '';
       const description = typeof data?.description === 'string' ? data.description : '';
-      if (!title || !description) continue;
+      // Missing display text must not remove a node from topology. The
+      // explorer can render an empty label/description, while dropping the
+      // node would silently hide every typed edge attached to it.
       safeNodesByZkId.set(zkId, { id: doc.id, title, description, connections: [] });
       rawConnectionsByZkId.set(
         zkId,

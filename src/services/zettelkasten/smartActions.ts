@@ -18,6 +18,8 @@
 // Determinístico — sin LLM. Output es lista de acciones sugeridas
 // que el supervisor APRUEBA o DESCARTA (regla: nunca auto-aplicar).
 
+import type { EdgeType } from './edges';
+
 export type SmartActionKind =
   | 'create-worker-epp-connection'
   | 'suggest-normatives-for-project'
@@ -57,7 +59,7 @@ export interface ProposedMutation {
   payload?: Record<string, unknown>;
   edgeFromId?: string;
   edgeToId?: string;
-  edgeKind?: string;
+  edgeKind?: EdgeType;
 }
 
 // Mapping cargo → EPP típico (referencial DS 594 + Mutual de Seguridad).
@@ -133,7 +135,7 @@ export function detectWorkersWithoutEpp(
           operation: 'create_edge' as const,
           edgeFromId: w.id,
           edgeToId: eppKind,
-          edgeKind: 'requires_epp',
+          edgeKind: 'requires',
         })),
         detectedAt: nowIso,
         confidence: w.cargo ? 0.85 : 0.55, // mayor confianza si tiene cargo
@@ -164,21 +166,21 @@ export function detectProjectsWithoutNormatives(
       proposedMutations: [
         {
           operation: 'create_edge',
-          edgeFromId: p.id,
-          edgeToId: 'ley_16744',
-          edgeKind: 'applies_normative',
+          edgeFromId: 'ley_16744',
+          edgeToId: p.id,
+          edgeKind: 'regulates',
         },
         {
           operation: 'create_edge',
-          edgeFromId: p.id,
-          edgeToId: 'ds_44_2024',
-          edgeKind: 'applies_normative',
+          edgeFromId: 'ds_44_2024',
+          edgeToId: p.id,
+          edgeKind: 'regulates',
         },
         {
           operation: 'create_edge',
-          edgeFromId: p.id,
-          edgeToId: 'ds_594',
-          edgeKind: 'applies_normative',
+          edgeFromId: 'ds_594',
+          edgeToId: p.id,
+          edgeKind: 'regulates',
         },
       ],
       detectedAt: nowIso,
@@ -258,7 +260,7 @@ export function detectWorkersWithoutMandatoryTraining(
           operation: 'create_edge' as const,
           edgeFromId: w.id,
           edgeToId: t,
-          edgeKind: 'requires_training',
+          edgeKind: 'requires',
         })),
         detectedAt: nowIso,
         confidence: 0.9,
