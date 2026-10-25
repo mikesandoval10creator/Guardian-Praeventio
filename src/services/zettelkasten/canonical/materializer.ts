@@ -431,6 +431,8 @@ export function parseCanonicalNodePath(path: string): {
   const m = path.match(/^nodes\/(.+)$/);
   if (!m) return null;
   const parts = m[1].split('_');
+  // Encoded delimiters keep newly materialized paths unambiguous. Unescaped
+  // paths retain the historical structural interpretation for compatibility.
   if (parts.length === 2) {
     const projectId = decodeCanonicalPathSegment(parts[0]);
     const zkNodeId = decodeCanonicalPathSegment(parts[1]);
@@ -441,11 +443,7 @@ export function parseCanonicalNodePath(path: string): {
     const projectId = decodeCanonicalPathSegment(parts[1]);
     const zkNodeId = decodeCanonicalPathSegment(parts.slice(2).join('_'));
     if (tenantId === null || projectId === null || zkNodeId === null) return null;
-    return {
-      tenantId,
-      projectId,
-      zkNodeId,
-    };
+    return { tenantId, projectId, zkNodeId };
   }
   return null;
 }
