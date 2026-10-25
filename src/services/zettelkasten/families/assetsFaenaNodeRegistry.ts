@@ -3,15 +3,15 @@
 
 import type { FamilyNodeSpec } from './climateNodeRegistry';
 
-const ROW = (id: string, description: string, source: string, producer = 'src/pages/Equipment.tsx', consumers: readonly string[] = ['src/pages/RiskNetwork.tsx']): FamilyNodeSpec => ({
+const ROW = (id: string, description: string, source: string, producer = 'src/server/routes/equipment.ts', consumers: readonly string[] = ['src/pages/RiskNetwork.tsx']): FamilyNodeSpec => ({
   id, description, producerHint: producer, consumerHints: consumers, source,
 });
 
 const SENSOR = (id: string, description: string, source: string): FamilyNodeSpec =>
-  ROW(id, description, source, 'src/services/sensorIngest.ts', ['src/services/zettelkasten/climateRiskCoupling.ts', 'src/pages/RiskNetwork.tsx']);
+  ROW(id, description, source, 'src/services/sensorBus/publishSensorEvent.ts', ['src/services/zettelkasten/climateRiskCoupling.ts', 'src/pages/RiskNetwork.tsx']);
 
 const SITE = (id: string, description: string, source: string): FamilyNodeSpec =>
-  ROW(id, description, source, 'src/pages/Sites.tsx', ['src/pages/EmergenciaAvanzada.tsx', 'src/pages/RiskNetwork.tsx']);
+  ROW(id, description, source, 'src/services/siteBook/siteBookService.ts', ['src/pages/EmergenciaAvanzada.tsx', 'src/pages/RiskNetwork.tsx']);
 
 export const ASSETS_FAENA_NODES: ReadonlyArray<FamilyNodeSpec> = [
   // gruas (4)
