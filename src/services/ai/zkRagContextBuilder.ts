@@ -253,7 +253,12 @@ export async function buildZkRagContext(
   if (query.contextUid) {
     try {
       const seedNode = await adapter.getNode(query.tenantId, query.contextUid);
-      if (seedNode) seeds.set(seedNode.id, seedNode);
+      if (
+        seedNode
+        && (!query.contextProjectId || seedNode.projectId === query.contextProjectId)
+      ) {
+        seeds.set(seedNode.id, seedNode);
+      }
     } catch {
       // Same isolation guard.
       return emptyContext(query, keywords);
@@ -266,7 +271,12 @@ export async function buildZkRagContext(
     collected.set(seed.id, seed);
     if (collected.size >= maxNodes) break;
     try {
-      const sub = await adapter.expandSubgraph(query.tenantId, seed.id, maxDepth);
+      const sub = await adapter.expandSubgraph(
+        query.tenantId,
+        seed.id,
+        maxDepth,
+        query.contextProjectId,
+      );
       for (const n of sub) {
         if (collected.has(n.id)) continue;
         collected.set(n.id, n);
