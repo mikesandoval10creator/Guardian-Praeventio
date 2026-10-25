@@ -581,7 +581,6 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
               source: 'daily-climate-scan',
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
             },
-            { merge: true },
           );
         }
         await batch.commit();
