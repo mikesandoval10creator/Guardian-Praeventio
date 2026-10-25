@@ -293,7 +293,10 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
               projectId,
               createdAt: now,
             });
-            txn.set(db.collection(`tenants/${tenantId}/zettelkasten_edges`).doc(edge.id), edge, { merge: true });
+            const edgePayload = Object.fromEntries(
+              Object.entries(edge).filter(([, value]) => value !== undefined),
+            );
+            txn.set(db.collection(`tenants/${tenantId}/zettelkasten_edges`).doc(edge.id), edgePayload);
           }
           return { changed: fromChanged || toChanged, canonical: Boolean(type) };
         });

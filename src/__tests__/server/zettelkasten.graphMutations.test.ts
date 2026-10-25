@@ -51,6 +51,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { computeEdgeId } from '../../services/zettelkasten/edges.js';
 
 function buildApp() {
   const app = express();
@@ -286,6 +287,39 @@ describe('POST /graph/connections (real zettelkasten router)', () => {
       createdBy: 'u1',
     });
   });
+  it('replaces stale optional metadata when rewriting an existing typed edge', async () => {
+    H.db!._seed('nodes/control-1', {
+      ...nodeInput, type: 'Control', projectId: 'p1', connections: [],
+      metadata: { authorId: 'u1' },
+    });
+    H.db!._seed('nodes/risk-1', {
+      ...nodeInput, type: 'Riesgo', projectId: 'p1', connections: [],
+      metadata: { authorId: 'u1' },
+    });
+    const edgeId = computeEdgeId('control-1', 'risk-1', 'mitigates');
+    H.db!._seed(`tenants/t1/zettelkasten_edges/${edgeId}`, {
+      id: edgeId,
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      inverseType: 'mitigated_by',
+      tenantId: 't1',
+      projectId: 'stale-project',
+      createdBy: 'old-user',
+      decayHalfLifeMs: 86_400_000,
+    });
+
+    const res = await request(buildApp())
+      .post(CONNECTION_URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1', fromId: 'control-1', toId: 'risk-1', type: 'mitigates' });
+
+    expect(res.status).toBe(200);
+    const stored = H.db!._dump()[`tenants/t1/zettelkasten_edges/${edgeId}`];
+    expect(stored).toMatchObject({ projectId: 'p1', createdBy: 'u1' });
+    expect(stored).not.toHaveProperty('decayHalfLifeMs');
+  });
+
   it('rejects a cross-project endpoint without mutating either node', async () => {
     H.db!._seed('nodes/risk-1', { ...nodeInput, projectId: 'p1', connections: [] });
     H.db!._seed('nodes/p2-node', { ...nodeInput, projectId: 'p2', connections: [] });
