@@ -387,16 +387,36 @@ export function dematerializeNode(node: CanonicalNode): RiskNodePayload {
  * Path canónico para el doc materializado. Convención:
  *   nodes/{tenantId}_{projectId}_{zkNodeId}
  * Cuando no hay tenantId (legacy): nodes/{projectId}_{zkNodeId}.
+ *
+ * Los segmentos se escapan antes de unirlos. El separador `_` forma parte
+ * del formato histórico, por lo que permitirlo sin escape produciría
+ * colisiones entre tenants/proyectos (por ejemplo `a_b/c/d` y `a/b_c/d`).
+ * Los segmentos simples conservan el formato legacy para no mover
+ * innecesariamente documentos existentes.
  */
+function encodeCanonicalPathSegment(value: string): string {
+  // encodeURIComponent no escapa `_`; lo hacemos explícitamente porque `_`
+  // es el delimitador del formato de paths.
+  return encodeURIComponent(value).replaceAll('_', '%5F');
+}
+
+function decodeCanonicalPathSegment(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
 export function canonicalNodePath(input: {
   tenantId?: string;
   projectId: string;
   zkNodeId: string;
 }): string {
   if (input.tenantId) {
-    return `nodes/${input.tenantId}_${input.projectId}_${input.zkNodeId}`;
+    return `nodes/${encodeCanonicalPathSegment(input.tenantId)}_${encodeCanonicalPathSegment(input.projectId)}_${encodeCanonicalPathSegment(input.zkNodeId)}`;
   }
-  return `nodes/${input.projectId}_${input.zkNodeId}`;
+  return `nodes/${encodeCanonicalPathSegment(input.projectId)}_${encodeCanonicalPathSegment(input.zkNodeId)}`;
 }
 
 /**
@@ -412,13 +432,19 @@ export function parseCanonicalNodePath(path: string): {
   if (!m) return null;
   const parts = m[1].split('_');
   if (parts.length === 2) {
-    return { projectId: parts[0], zkNodeId: parts[1] };
+    const projectId = decodeCanonicalPathSegment(parts[0]);
+    const zkNodeId = decodeCanonicalPathSegment(parts[1]);
+    return projectId === null || zkNodeId === null ? null : { projectId, zkNodeId };
   }
   if (parts.length >= 3) {
+    const tenantId = decodeCanonicalPathSegment(parts[0]);
+    const projectId = decodeCanonicalPathSegment(parts[1]);
+    const zkNodeId = decodeCanonicalPathSegment(parts.slice(2).join('_'));
+    if (tenantId === null || projectId === null || zkNodeId === null) return null;
     return {
-      tenantId: parts[0],
-      projectId: parts[1],
-      zkNodeId: parts.slice(2).join('_'),
+      tenantId,
+      projectId,
+      zkNodeId,
     };
   }
   return null;

@@ -169,6 +169,16 @@ function buildFirestoreEdgeStore(): EdgeStore {
       const snap = await q.get();
       return snap.docs.map((d) => d.data() as ZkEdge);
     },
+    async listByProject(tenantId, projectId, limit) {
+      let q: FirebaseFirestore.Query = col(tenantId).where(
+        'projectId',
+        '==',
+        projectId,
+      );
+      if (typeof limit === 'number' && limit > 0) q = q.limit(limit);
+      const snap = await q.get();
+      return snap.docs.map((d) => d.data() as ZkEdge);
+    },
   };
 }
 

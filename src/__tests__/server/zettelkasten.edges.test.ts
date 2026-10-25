@@ -1,6 +1,7 @@
 // Real-router supertest for POST /api/zettelkasten/edges (Alpha41 ZK-5).
 // Mounts the ACTUAL zettelkasten router and drives the real edge stack —
-// buildEdgeStore (shared Firestore adapter) -> listByTenant -> the id
+// buildEdgeStore (shared Firestore adapter) -> project-scoped listByProject
+// plus the bounded listByTenant compatibility scan -> the id
 // reconciliation — through the reusable fakeFirestore.
 //
 // The bug ZK-5 closes: an edge references the **zkNodeId** (the canonical
@@ -196,6 +197,31 @@ describe('POST /api/zettelkasten/edges (real router)', () => {
     expect(res.body.edges).toEqual([]);
   });
 
+  it('does not expose a stamped edge from another project sharing node ids', async () => {
+    const riskDoc = seedNode('risk1');
+    const controlDoc = seedNode('ctrl1');
+    H.db!._seed('tenants/t1/zettelkasten_edges/e-cross-project', {
+      id: 'e-cross-project',
+      fromNodeId: 'ctrl1',
+      toNodeId: 'risk1',
+      type: 'mitigates',
+      tenantId: 't1',
+      projectId: 'p2',
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: riskDoc }),
+      expect.objectContaining({ id: controlDoc }),
+    ]));
+    expect(res.body.edges).toEqual([]);
+  });
+
   it('excludes RUT-bearing nodes and edges attached to them from the client DTO', async () => {
     const safeDoc = seedNode('safe', { connections: ['private'] });
     const privateDoc = seedNode('private', {
@@ -218,6 +244,55 @@ describe('POST /api/zettelkasten/edges (real router)', () => {
     ]));
     expect(res.body.edges).toEqual([]);
     expect(JSON.stringify(res.body)).not.toContain('12.345.678-9');
+  });
+
+  it('prefers the project-scoped edge when a legacy scan has the same id', async () => {
+    const riskDoc = seedNode('risk1');
+    const controlDoc = seedNode('ctrl1');
+    H.db!._seed('tenants/t1/zettelkasten_edges/same-id', {
+      id: 'same-id', fromNodeId: 'ctrl1', toNodeId: 'risk1', type: 'mitigates',
+      tenantId: 't1', projectId: 'p1',
+    });
+    // The fake tenant scan may also return a legacy representation of the
+    // same id; it must not overwrite the project-scoped representation.
+    H.db!._seed('tenants/t1/zettelkasten_edges/same-id-legacy', {
+      id: 'same-id', fromNodeId: 'risk1', toNodeId: 'ctrl1', type: 'causes', tenantId: 't1',
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.edges).toEqual([
+      { source: controlDoc, target: riskDoc, type: 'mitigates' },
+    ]);
+  });
+
+  it('does not lose a project edge behind the bounded tenant legacy scan', async () => {
+    const riskDoc = seedNode('risk1');
+    const controlDoc = seedNode('ctrl1');
+    for (let i = 0; i < 5000; i += 1) {
+      H.db!._seed(`tenants/t1/zettelkasten_edges/legacy-${i}`, {
+        id: `legacy-${i}`, fromNodeId: 'missing-a', toNodeId: 'missing-b',
+        type: 'related_to', tenantId: 't1',
+      });
+    }
+    H.db!._seed('tenants/t1/zettelkasten_edges/project-edge-after-limit', {
+      id: 'project-edge-after-limit', fromNodeId: 'ctrl1', toNodeId: 'risk1',
+      type: 'mitigates', tenantId: 't1', projectId: 'p1',
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.edges).toContainEqual({
+      source: controlDoc, target: riskDoc, type: 'mitigates',
+    });
   });
 
   it('project with no edges -> empty list', async () => {

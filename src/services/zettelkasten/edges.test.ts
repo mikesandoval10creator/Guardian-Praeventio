@@ -213,6 +213,28 @@ describe('createEdge + getRelatedNodes', () => {
     expect(fromB).toHaveLength(0);
   });
 
+  it('applies the optional project fence without dropping legacy unscoped edges', async () => {
+    await createEdge(store, {
+      fromNodeId: 'risk-1',
+      toNodeId: 'epp-p1',
+      type: 'requires',
+      tenantId: 't1',
+      projectId: 'p1',
+      createdBy: 'u',
+    });
+    await createEdge(store, {
+      fromNodeId: 'risk-1',
+      toNodeId: 'epp-p2',
+      type: 'requires',
+      tenantId: 't1',
+      projectId: 'p2',
+      createdBy: 'u',
+    });
+
+    const related = await getRelatedNodes(store, 'risk-1', 't1', { projectId: 'p1' });
+    expect(related.map((item) => item.nodeId)).toEqual(['epp-p1']);
+  });
+
   it('deleteEdge remueve por id content-addressed', async () => {
     await createEdge(store, {
       fromNodeId: 'risk-1',

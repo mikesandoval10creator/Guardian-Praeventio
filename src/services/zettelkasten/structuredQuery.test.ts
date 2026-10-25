@@ -223,6 +223,26 @@ describe('runStructuredQuery', () => {
     expect(matches).toHaveLength(0);
   });
 
+  it('honors the project fence when node ids are shared inside one tenant', async () => {
+    const store = buildInMemoryStore();
+    await createEdge(store, {
+      fromNodeId: 'c1',
+      toNodeId: 'r1',
+      type: 'mitigates',
+      tenantId: TENANT,
+      projectId: 'project-other',
+      createdBy: 'test',
+    });
+    const matches = await runStructuredQuery(
+      store,
+      nodes,
+      parsePatternQuery('(:Control)-[:mitigates]->(:Riesgo)'),
+      TENANT,
+      'project-current',
+    );
+    expect(matches).toHaveLength(0);
+  });
+
   it('ignores edges pointing at nodes missing from the local set (dangling)', async () => {
     const store = buildInMemoryStore();
     await createEdge(store, {

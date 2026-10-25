@@ -174,22 +174,7 @@ router.post(
     // `zettelkastenWriteSchema` is the single source of truth. `validateNode`
     // stays: it enforces the ID_REGEX on idempotencyKey and other per-node
     // invariants the Zod schema's .passthrough() does not cover.
-    const { projectId, nodes } = req.body as {
-      projectId: string;
-      nodes: Array<{
-        title: string;
-        content?: string;
-        description: string;
-        type: string;
-        severity: string;
-        metadata: Record<string, unknown>;
-        connections: string[];
-        references: string[];
-        tags?: string[];
-        idempotencyKey: string;
-        [k: string]: unknown;
-      }>;
-    };
+    const { projectId, nodes } = req.validated as z.infer<typeof zettelkastenWriteSchema>;
 
     for (let i = 0; i < nodes.length; i++) {
       const v: ValidationOk | ValidationFail = validateNode(nodes[i], i);
@@ -349,7 +334,7 @@ router.post(
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
-    const { query, projectId, topK } = req.body as z.infer<typeof nlQuerySchema>;
+    const { query, projectId, topK } = req.validated as z.infer<typeof nlQuerySchema>;
 
     try {
       await assertProjectMember(callerUid, projectId, getFirestore());
@@ -445,7 +430,7 @@ router.post(
     if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
     const { projectId, riskType, industryPrefix, riskNodeId, assignedWorkers } =
-      req.body as z.infer<typeof riskControlsSuggestSchema>;
+      req.validated as z.infer<typeof riskControlsSuggestSchema>;
 
     try {
       await assertProjectMember(callerUid, projectId, getFirestore());
@@ -489,7 +474,7 @@ router.post(
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
-    const { projectId, nodeId, topK } = req.body as z.infer<
+    const { projectId, nodeId, topK } = req.validated as z.infer<
       typeof backlinksSchema
     >;
 
@@ -524,6 +509,7 @@ router.post(
       const store = buildEdgeStore(db);
       const related = await getRelatedNodes(store, nodeId, tenantId, {
         direction: 'both',
+        projectId,
       });
       return res.json({
         nodeId,
@@ -570,7 +556,7 @@ router.post(
     const callerUid = req.user?.uid;
     if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
-    const { projectId, pattern, limit } = req.body as z.infer<
+    const { projectId, pattern, limit } = req.validated as z.infer<
       typeof structuredQuerySchema
     >;
 
@@ -633,6 +619,7 @@ router.post(
         nodes,
         { ...parsed, limit: limit ?? parsed.limit },
         tenantId,
+        projectId,
       );
 
       const pick = (n: QueryableNode) => ({
@@ -684,7 +671,7 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
   const callerUid = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
-  const { projectId } = req.body as z.infer<typeof edgesSchema>;
+  const { projectId } = req.validated as z.infer<typeof edgesSchema>;
   const db = getFirestore();
 
   try {
@@ -756,9 +743,28 @@ router.post('/edges', verifyAuth, validate(edgesSchema), async (req, res) => {
     }
 
     const store = buildEdgeStore(db);
-    const all = await store.listByTenant(tenantId, EDGES_SCAN_LIMIT);
+    // Project-scoped edges are queried directly so a large tenant-wide result
+    // cannot hide valid edges behind EDGES_SCAN_LIMIT. Keep the bounded tenant
+    // scan only for legacy edges that have no projectId.
+    const [projectEdges, tenantEdges] = await Promise.all([
+      typeof store.listByProject === 'function'
+        ? store.listByProject(tenantId, projectId)
+        : Promise.resolve([]),
+      store.listByTenant(tenantId, EDGES_SCAN_LIMIT),
+    ]);
+    const edgesById = new Map(projectEdges.map((edge) => [edge.id, edge]));
+    for (const edge of tenantEdges) {
+      // A legacy scan can contain the same document id as the direct
+      // project-scoped query (for example during a migration or in a fake
+      // adapter that returns a broader view). Never let the compatibility
+      // path overwrite the authoritative project-scoped record.
+      if (!edge.projectId && !edgesById.has(edge.id)) edgesById.set(edge.id, edge);
+    }
 
-    const edges = all.flatMap((e) => {
+    const edges = Array.from(edgesById.values()).flatMap((e) => {
+      // Legacy edges may omit projectId, but a stamped edge must never cross
+      // the requested project even when node ids happen to collide.
+      if (e.projectId && e.projectId !== projectId) return [];
       const source = safeNodesByZkId.get(e.fromNodeId)?.id;
       const target = safeNodesByZkId.get(e.toNodeId)?.id;
       // Do not expose edges outside this project or attached to PII-protected nodes.

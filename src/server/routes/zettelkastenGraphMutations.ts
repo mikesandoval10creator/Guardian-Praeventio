@@ -103,7 +103,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
     async (req, res) => {
       const uid = req.user?.uid;
       if (!uid) return res.status(401).json({ error: 'unauthorized' });
-      const { projectId, nodeId, node } = req.body as z.infer<typeof createGraphNodeSchema>;
+      const { projectId, nodeId, node } = req.validated as z.infer<typeof createGraphNodeSchema>;
 
       try {
         await requireProjectMember(uid, projectId);
@@ -167,7 +167,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
     async (req, res) => {
       const uid = req.user?.uid;
       if (!uid) return res.status(401).json({ error: 'unauthorized' });
-      const { projectId, nodeIds } = req.body as z.infer<typeof migrateGraphNodesSchema>;
+      const { projectId, nodeIds } = req.validated as z.infer<typeof migrateGraphNodesSchema>;
       const uniqueIds = Array.from(new Set(nodeIds)).sort();
 
       try {
@@ -239,7 +239,7 @@ export function registerZettelkastenGraphMutationRoutes(router: Router): void {
     async (req, res) => {
       const uid = req.user?.uid;
       if (!uid) return res.status(401).json({ error: 'unauthorized' });
-      const { projectId, fromId, toId, type } = req.body as z.infer<typeof connectGraphNodesSchema>;
+      const { projectId, fromId, toId, type } = req.validated as z.infer<typeof connectGraphNodesSchema>;
 
       try {
         await requireProjectMember(uid, projectId);

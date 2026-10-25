@@ -361,6 +361,8 @@ export async function getRelatedNodes(
   opts: {
     viaType?: EdgeType;
     direction?: 'outgoing' | 'incoming' | 'both';
+    /** Optional project fence; legacy unscoped edges remain compatible. */
+    projectId?: string;
   } = {},
 ): Promise<RelatedNode[]> {
   const direction = opts.direction ?? 'both';
@@ -369,6 +371,7 @@ export async function getRelatedNodes(
   if (direction === 'outgoing' || direction === 'both') {
     const out = await store.findOutgoing(nodeId, tenantId, opts.viaType);
     for (const e of out) {
+      if (opts.projectId && e.projectId && e.projectId !== opts.projectId) continue;
       results.push({
         nodeId: e.toNodeId,
         via: e.type,
@@ -381,6 +384,7 @@ export async function getRelatedNodes(
   if (direction === 'incoming' || direction === 'both') {
     const inc = await store.findIncoming(nodeId, tenantId, opts.viaType);
     for (const e of inc) {
+      if (opts.projectId && e.projectId && e.projectId !== opts.projectId) continue;
       results.push({
         nodeId: e.fromNodeId,
         via: e.inverseType,
