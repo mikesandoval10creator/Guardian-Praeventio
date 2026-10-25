@@ -1,12 +1,9 @@
 // Praeventio Guard — Sprint 11.
 //
-// POST /api/zettelkasten/nodes — server-side persistence for the 15
-// Bernoulli-driven Zettelkasten node generators that fire client-side
-// inside HazmatStorageDesigner, StructuralCalculator, VisionAnalyzer y
-// BioAnalysis. Antes del Sprint 11 estos nodos se emitían sólo a
-// `logger.info` (commit d121b9e); ahora cada llamada aterriza en
-// `zettelkasten_nodes/{nodeId}` con su par `audit_logs/{...}` para
-// trazabilidad.
+// POST /api/zettelkasten/nodes — server-side persistence for the
+// Bernoulli-driven and workflow Zettelkasten node generators that fire
+// client-side inside HazmatStorageDesigner, StructuralCalculator, VisionAnalyzer,
+// BioAnalysis and the incident/maintenance flows.
 //
 // Membership y validación reutilizan el patrón de audit.ts:
 //   • verifyAuth â†’ uid del token (no del body)

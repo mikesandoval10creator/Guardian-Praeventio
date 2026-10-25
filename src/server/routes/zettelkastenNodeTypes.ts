@@ -33,4 +33,17 @@ export const VALID_ZK_NODE_TYPES: ReadonlySet<string> = new Set([
   // and BioAnalysis (`buildEppInspectionNode`). The image never leaves the
   // device; only the classification + métricas are persisted.
   'epp_inspection',
+  // Rescue-450 — equipment horometer maintenance flow.
+  'horometro-reading',
+  'maintenance-threshold-reached',
+  'maintenance-task-created',
+  'maintenance-task-completed',
+  // Incident-Lesson-Training PDCA flow.
+  'incident-reported',
+  'investigation-opened',
+  'root-cause-identified',
+  'lesson-published',
+  'microtraining-assigned',
+  'microtraining-completed',
+  'incident-investigation-closed',
 ]);
