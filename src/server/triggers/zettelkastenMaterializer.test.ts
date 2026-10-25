@@ -282,7 +282,7 @@ describe('processSnapshotDoc', () => {
       return 'tA';
     });
     expect(r?.ok).toBe(true);
-    expect(writes[0].path).toBe('nodes/tA_p1_safety-learning_p1_2026-09-08');
+    expect(writes[0].path).toBe('nodes/tA_p1_safety-learning%5Fp1%5F2026-09-08');
   });
 
   it('rechaza tenant/project mismatch y payload inválido sin escribir', async () => {
