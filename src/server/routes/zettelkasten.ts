@@ -236,7 +236,6 @@ router.post(
             createdAt: FieldValue.serverTimestamp(),
             idempotencyKey: node.idempotencyKey,
           },
-          { merge: true },
         );
 
         // §2.15 — dual-write canonical. El materializer es función pura
@@ -266,7 +265,9 @@ router.post(
             projectId,
             zkNodeId: node.idempotencyKey,
           });
-          await db.doc(canonicalPath).set(canonical, { merge: true });
+          // The canonical node is a complete projection. Replace it so fields
+          // removed from the source cannot survive a later dual-write.
+          await db.doc(canonicalPath).set(canonical);
         } catch (canonicalErr) {
           logger.warn('zettelkasten_canonical_dual_write_failed', {
             zkNodeId: node.idempotencyKey,

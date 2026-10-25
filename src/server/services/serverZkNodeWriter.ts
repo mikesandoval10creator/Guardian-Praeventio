@@ -127,7 +127,7 @@ export async function serverCreateNodeOnce(
     });
     await db
       .doc(canonicalNodePath({ tenantId, projectId, zkNodeId: id }))
-      .set(canonical, { merge: true });
+      .set(canonical);
   } catch (err) {
     logger.warn?.('serverCreateNodeOnce.canonical_dual_write_failed', {
       nodeId: id,
@@ -228,7 +228,6 @@ export async function serverWriteNodes(
           createdAt: FieldValue.serverTimestamp(),
           idempotencyKey: id,
         },
-        { merge: true },
       );
 
     // 2. Canonical dual-write — best-effort, NEVER blocks the flow (mirrors
@@ -244,7 +243,7 @@ export async function serverWriteNodes(
       });
       await db
         .doc(canonicalNodePath({ tenantId, projectId, zkNodeId: id }))
-        .set(canonical, { merge: true });
+        .set(canonical);
     } catch (err) {
       logger.warn?.('serverWriteNodes.canonical_dual_write_failed', {
         zkNodeId: id,

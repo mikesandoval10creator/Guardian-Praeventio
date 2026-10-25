@@ -54,7 +54,7 @@ describe('materializeOne', () => {
     expect(r.path).toBe('nodes/tA_p1_zk-1');
     expect(writes).toHaveLength(1);
     expect(writes[0].path).toBe('nodes/tA_p1_zk-1');
-    expect(writes[0].opts).toEqual({ merge: true });
+    expect(writes[0].opts).toBeUndefined();
   });
 
   it('payload inválido → ok:false sin write', async () => {
