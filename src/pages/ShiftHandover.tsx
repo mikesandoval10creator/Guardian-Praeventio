@@ -20,7 +20,6 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
-  CheckCircle2,
   Sun,
   Moon,
   ArrowDownToLine,
@@ -29,6 +28,7 @@ import {
 import { useFirebase } from "../contexts/FirebaseContext";
 import { useProject } from "../contexts/ProjectContext";
 import { ShiftQualityCard } from "../components/shiftHandover/ShiftQualityCard";
+import { ShiftHandoverPanel } from "../components/shiftHandover/ShiftHandoverPanel";
 import { ShiftHandoverHistoryList } from "../components/shiftHandover/ShiftHandoverHistoryList";
 import { SupervisorBriefingCard } from "../components/meetingPack/SupervisorBriefingCard";
 import { buildSupervisorBriefingPack } from "../services/meetingPack/meetingPackBuilder";
@@ -37,7 +37,6 @@ import {
   logEntry,
   addHandoverNote,
   endShift,
-  acknowledgeHandover,
   type ShiftRecord,
   type ShiftKind,
   type HandoverCategory,
@@ -100,7 +99,6 @@ export function ShiftHandover() {
   const [noteSeverity, setNoteSeverity] = useState<
     "info" | "attention" | "urgent"
   >("info");
-  const [ackNotes, setAckNotes] = useState("");
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -236,32 +234,6 @@ export function ShiftHandover() {
     }
   }, [myActiveShift, selectedProject]);
 
-  const handleAcknowledge = useCallback(async () => {
-    if (!pendingAck || !user || !selectedProject) return;
-    try {
-      const acked = acknowledgeHandover(
-        pendingAck,
-        user.uid,
-        ackNotes.trim() || undefined,
-      );
-      await patchShift(selectedProject.id, pendingAck.id, {
-        acknowledgedByUid: acked.acknowledgedByUid,
-        acknowledgedAt: acked.acknowledgedAt,
-        acknowledgmentNotes: acked.acknowledgmentNotes,
-      });
-      setAckNotes("");
-      setFeedback(
-        t("shift_handover.feedback.ack_ok", {
-          defaultValue: "Handover de {{id}} confirmado.",
-          id: pendingAck.id.slice(0, 12),
-        }),
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setFeedback(msg);
-    }
-  }, [pendingAck, user, selectedProject, ackNotes]);
-
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -323,27 +295,20 @@ export function ShiftHandover() {
                 {pendingBriefingPack && (
                   <SupervisorBriefingCard pack={pendingBriefingPack} />
                 )}
-                <textarea
-                  value={ackNotes}
-                  onChange={(e) => setAckNotes(e.target.value)}
-                  rows={2}
-                  placeholder={t(
-                    "shift_handover.pending_ack.notes_placeholder",
-                    "Notas opcionales del supervisor entrante (qué priorizás del handover)…",
-                  )}
-                  className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
+                <ShiftHandoverPanel
+                  projectId={selectedProject.id}
+                  currentUid={user?.uid ?? ""}
+                  currentRole="supervisor"
+                  shift={pendingAck}
+                  onShiftUpdated={(next) => {
+                    setShifts((current) =>
+                      current.map((existing) =>
+                        existing.id === next.id ? next : existing,
+                      ),
+                    );
+                  }}
+                  onError={(message) => setFeedback(message)}
                 />
-                <button
-                  type="button"
-                  onClick={handleAcknowledge}
-                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {t(
-                    "shift_handover.pending_ack.confirm",
-                    "Confirmar recepción del turno",
-                  )}
-                </button>
               </section>
             )}
 
