@@ -37,6 +37,33 @@ describe('buildEdgeStore', () => {
     expect(stored).not.toHaveProperty('decayHalfLifeMs');
   });
 
+  it('round-trips every semantic edge field through directional queries', async () => {
+    const db = createFakeFirestore();
+    const store = buildEdgeStore(db as unknown as Firestore);
+    const edge = buildEdge({
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 'tenant-1',
+      projectId: 'project-1',
+      createdBy: 'user-1',
+      createdAt: '2026-02-03T04:05:06.000Z',
+      weight: 0.73,
+      validFrom: '2026-02-01T00:00:00.000Z',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      decayFn: 'exp',
+      decayHalfLifeMs: 86_400_000,
+    });
+
+    await store.saveEdge(edge);
+
+    await expect(store.findOutgoing(edge.fromNodeId, edge.tenantId)).resolves.toEqual([edge]);
+    await expect(store.findIncoming(edge.toNodeId, edge.tenantId)).resolves.toEqual([edge]);
+    await expect(
+      store.findOutgoing(edge.fromNodeId, edge.tenantId, edge.type),
+    ).resolves.toEqual([edge]);
+  });
+
   it('keeps project listing scoped while tenant listing includes legacy edges', async () => {
     const db = createFakeFirestore();
     const store = buildEdgeStore(db as unknown as Firestore);
