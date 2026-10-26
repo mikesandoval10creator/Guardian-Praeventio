@@ -247,6 +247,26 @@ describe('canonicalNodePath / parseCanonicalNodePath', () => {
   it('parse non-nodes path → null', () => {
     expect(parseCanonicalNodePath('users/abc')).toBeNull();
   });
+
+  it('escapa delimitadores y evita colisiones entre scopes', () => {
+    const first = canonicalNodePath({ tenantId: 'a_b', projectId: 'c', zkNodeId: 'd' });
+    const second = canonicalNodePath({ tenantId: 'a', projectId: 'b_c', zkNodeId: 'd' });
+    expect(first).not.toBe(second);
+    expect(parseCanonicalNodePath(first)).toEqual({
+      tenantId: 'a_b',
+      projectId: 'c',
+      zkNodeId: 'd',
+    });
+    expect(parseCanonicalNodePath(canonicalNodePath({
+      tenantId: 'tenant/x',
+      projectId: 'project_y',
+      zkNodeId: 'node/z',
+    }))).toEqual({
+      tenantId: 'tenant/x',
+      projectId: 'project_y',
+      zkNodeId: 'node/z',
+    });
+  });
 });
 
 describe('materializeBatch', () => {

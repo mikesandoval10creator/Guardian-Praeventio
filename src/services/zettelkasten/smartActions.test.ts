@@ -30,7 +30,7 @@ describe('detectWorkersWithoutEpp', () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('create-worker-epp-connection');
     expect(actions[0]?.priority).toBe('high');
-    expect(actions[0]?.rationale).toContain('DS 594');
+    expect(actions[0]?.proposedMutations.every((m) => m.edgeKind === 'requires')).toBe(true);
   });
 
   it('sugiere EPP típico del cargo', () => {
@@ -71,8 +71,8 @@ describe('detectProjectsWithoutNormatives', () => {
     const actions = detectProjectsWithoutNormatives(snap, NOW);
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('suggest-normatives-for-project');
-    expect(actions[0]?.proposedMutations.some((m) => m.edgeToId === 'ley_16744')).toBe(true);
-    expect(actions[0]?.proposedMutations.some((m) => m.edgeToId === 'ds_44_2024')).toBe(true);
+    expect(actions[0]?.proposedMutations.some((m) => m.edgeToId === 'p-1' && m.edgeFromId === 'ley_16744' && m.edgeKind === 'regulates')).toBe(true);
+    expect(actions[0]?.proposedMutations.some((m) => m.edgeToId === 'p-1' && m.edgeFromId === 'ds_44_2024' && m.edgeKind === 'regulates')).toBe(true);
   });
 
   it('proyecto con normativa → 0', () => {
@@ -144,7 +144,7 @@ describe('detectWorkersWithoutMandatoryTraining', () => {
     const actions = detectWorkersWithoutMandatoryTraining(snap, NOW);
     expect(actions).toHaveLength(1);
     expect(actions[0]?.rationale).toContain('DS 54');
-    expect(actions[0]?.priority).toBe('high');
+    expect(actions[0]?.proposedMutations.every((m) => m.edgeKind === 'requires')).toBe(true);
   });
 
   it('worker con todas las capacitaciones → 0', () => {

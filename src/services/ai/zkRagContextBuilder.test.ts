@@ -185,6 +185,7 @@ describe('buildZkRagContext', () => {
     // should appear as seeds; the EPP should arrive via BFS expansion.
     expect(ids).toContain('node-risk-1');
     expect(ids).toContain('node-epp-1');
+    expect(ids).not.toContain('node-norm-1');
     expect(ctx.groundingNodeIds.has('node-risk-1')).toBe(true);
   });
 
@@ -268,6 +269,30 @@ describe('buildZkRagContext', () => {
     const idsB = ctxB.relevantNodes.map((n) => n.id);
     expect(idsB).toContain('node-other-1');
     expect(idsB).not.toContain('node-trab-1');
+  });
+
+  it('does not admit a contextUid from another project', async () => {
+    const crossProjectNode = makeNode({
+      id: 'node-cross-project',
+      type: 'Normativa',
+      title: 'DS 594 fuera del proyecto',
+      description: 'No debe entrar como contexto forzado',
+      tags: ['normativa'],
+      projectId: 'proj-sur',
+    });
+    const adapter = new FakeReadAdapter({
+      'tenant-a': [...TENANT_A_NODES, crossProjectNode],
+    });
+    const ctx = await buildZkRagContext(
+      {
+        question: 'soldador',
+        tenantId: 'tenant-a',
+        contextProjectId: 'proj-norte',
+        contextUid: 'node-cross-project',
+      },
+      adapter,
+    );
+    expect(ctx.relevantNodes.map((n) => n.id)).not.toContain('node-cross-project');
   });
 
   it('returns empty (not throws) when adapter denies tenant access', async () => {

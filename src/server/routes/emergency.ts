@@ -331,7 +331,16 @@ router.post('/sos', verifyAuth, sosLimiter, idempotencyKey(), async (req, res) =
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    throw err;
+    logger.error('sos_membership_check_failed', {
+      uid: callerUid,
+      projectId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    captureRouteError(err, 'emergency.sos.membership', { projectId });
+    return res.status(500).json({
+      error: 'sos_failed',
+      details: process.env.NODE_ENV === 'production' ? undefined : err instanceof Error ? err.message : String(err),
+    });
   }
 
   try {
@@ -557,7 +566,16 @@ router.post(
       if (err instanceof ProjectMembershipError) {
         return res.status(err.httpStatus).json({ error: 'forbidden' });
       }
-      throw err;
+      logger.error('notify_brigada_membership_check_failed', {
+        uid: callerUid,
+        projectId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      captureRouteError(err, 'emergency.notify_brigada.membership', { projectId });
+      return res.status(500).json({
+        error: 'notify_brigada_failed',
+        details: process.env.NODE_ENV === 'production' ? undefined : err instanceof Error ? err.message : String(err),
+      });
     }
 
     try {

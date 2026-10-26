@@ -10,7 +10,7 @@
 
 import type { FamilyNodeSpec } from './climateNodeRegistry';
 
-const ROW = (id: string, description: string, source: string, producer = 'src/pages/Compliance.tsx', consumers: readonly string[] = ['src/pages/RiskNetwork.tsx']): FamilyNodeSpec => ({
+const ROW = (id: string, description: string, source: string, producer = 'src/server/routes/compliance.ts', consumers: readonly string[] = ['src/pages/RiskNetwork.tsx']): FamilyNodeSpec => ({
   id, description, producerHint: producer, consumerHints: consumers, source,
 });
 
@@ -27,18 +27,18 @@ export const WORKFLOW_COMPLIANCE_NODES: ReadonlyArray<FamilyNodeSpec> = [
   ROW('simulacro-rescate-confinado', 'Simulacro de rescate en espacio confinado.', 'OSHA-1910-146'),
   ROW('simulacro-derrame-quimico', 'Simulacro de derrame quimico.', 'DS-43'),
   ROW('simulacro-medevac', 'Simulacro de evacuacion medica.', 'Ley-16744'),
-  ROW('permit-trabajo-altura', 'Permiso de trabajo en altura.', 'DS-594', 'src/pages/Permits.tsx'),
-  ROW('permit-trabajo-caliente', 'Permiso de trabajo en caliente.', 'NFPA-51B', 'src/pages/Permits.tsx'),
-  ROW('permit-espacio-confinado', 'Permiso de trabajo en espacio confinado.', 'OSHA-1910-146', 'src/pages/Permits.tsx'),
-  ROW('permit-electrico-bt', 'Permiso de trabajo electrico baja tension.', 'NCh-Elec-4', 'src/pages/Permits.tsx'),
-  ROW('permit-electrico-mt-at', 'Permiso de trabajo electrico media/alta tension.', 'NCh-Elec-4', 'src/pages/Permits.tsx'),
-  ROW('permit-izaje-critico', 'Permiso de izaje critico.', 'ASME-B30', 'src/pages/Permits.tsx'),
-  ROW('permit-excavacion', 'Permiso de excavacion.', 'OSHA-1926-651', 'src/pages/Permits.tsx'),
-  ROW('permit-buceo', 'Permiso de buceo industrial.', 'DS-752', 'src/pages/Permits.tsx'),
-  ROW('permit-radiografia', 'Permiso de radiografia industrial.', 'DS-3', 'src/pages/Permits.tsx'),
-  ROW('permit-trabajo-nocturno', 'Permiso de trabajo nocturno.', 'Ley-20949', 'src/pages/Permits.tsx'),
-  ROW('permit-aislamiento-loto', 'Permiso de aislamiento de energias (LOTO).', 'OSHA-1910-147', 'src/pages/Permits.tsx'),
-  ROW('matriz-iper', 'Matriz IPER de riesgos.', 'ISO-45001', 'src/pages/IperMatrix.tsx'),
+  ROW('permit-trabajo-altura', 'Permiso de trabajo en altura.', 'DS-594', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-trabajo-caliente', 'Permiso de trabajo en caliente.', 'NFPA-51B', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-espacio-confinado', 'Permiso de trabajo en espacio confinado.', 'OSHA-1910-146', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-electrico-bt', 'Permiso de trabajo electrico baja tension.', 'NCh-Elec-4', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-electrico-mt-at', 'Permiso de trabajo electrico media/alta tension.', 'NCh-Elec-4', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-izaje-critico', 'Permiso de izaje critico.', 'ASME-B30', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-excavacion', 'Permiso de excavacion.', 'OSHA-1926-651', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-buceo', 'Permiso de buceo industrial.', 'DS-752', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-radiografia', 'Permiso de radiografia industrial.', 'DS-3', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-trabajo-nocturno', 'Permiso de trabajo nocturno.', 'Ley-20949', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('permit-aislamiento-loto', 'Permiso de aislamiento de energias (LOTO).', 'OSHA-1910-147', 'src/services/workPermits/permitLifecycleAdvisor.ts'),
+  ROW('matriz-iper', 'Matriz IPER de riesgos.', 'ISO-45001', 'src/pages/MatrizIper.tsx'),
   ROW('matriz-aspectos-ambientales', 'Matriz de aspectos e impactos ambientales.', 'ISO-14001'),
   ROW('matriz-legal-aplicable', 'Matriz de legislacion aplicable.', 'ISO-45001'),
   ROW('procedimiento-trabajo-seguro', 'Procedimiento de trabajo seguro (PTS).', 'ISO-45001'),

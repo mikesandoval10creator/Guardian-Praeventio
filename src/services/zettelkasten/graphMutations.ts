@@ -1,4 +1,5 @@
 import type { RiskNode } from '../../types';
+import type { EdgeType } from './edges';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { randomId } from '../../utils/randomId';
 import { offlineSync, type SyncOperation } from '../sync/syncStateMachine';
@@ -70,12 +71,19 @@ export async function connectGraphNodes(
   fromId: string,
   toId: string,
   projectId: string,
+  type?: EdgeType,
 ): Promise<void> {
-  const pair = [fromId, toId].sort();
+  // Untyped connections are reciprocal legacy links, so their queue key may
+  // be pair-canonicalized. Typed edges are directional; preserving the input
+  // order prevents A→B and B→A from overwriting each other while offline.
+  const connectionKey = type
+    ? `${fromId}:${toId}`
+    : [fromId, toId].sort().join(':');
+  const typeKey = type ?? 'untyped';
   await enqueueGraphMutation({
-    id: `connection:${projectId}:${pair[0]}:${pair[1]}`,
+    id: `connection:${projectId}:${connectionKey}:${typeKey}`,
     endpoint: '/api/zettelkasten/graph/connections',
-    body: { projectId, fromId, toId },
+    body: { projectId, fromId, toId, ...(type ? { type } : {}) },
   });
 }
 

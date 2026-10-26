@@ -114,14 +114,14 @@ export const OHS_NORMATIVA_NODES: ReadonlyArray<FamilyNodeSpec> = [
   ...TRUNKS.map<FamilyNodeSpec>((t) => ({
     id: t.id,
     description: t.title,
-    producerHint: 'src/services/zettelkasten/normaRegistry.ts',
+    producerHint: 'src/server/routes/normatives.ts',
     consumerHints: ['src/pages/RiskNetwork.tsx', 'src/services/orchestratorService.ts'],
     source: t.source,
   })),
   ...ARTICLES.map<FamilyNodeSpec>((a) => ({
     id: a.id,
     description: a.title,
-    producerHint: 'src/services/zettelkasten/normaRegistry.ts',
+    producerHint: 'src/server/routes/normatives.ts',
     consumerHints: ['src/pages/RiskNetwork.tsx', 'src/pages/Audits.tsx'],
     source: a.source,
   })),

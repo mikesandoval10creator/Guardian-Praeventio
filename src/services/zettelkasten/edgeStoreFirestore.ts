@@ -17,10 +17,18 @@ export const EDGE_PATH = (tid: string): string =>
 export function buildEdgeStore(db: Firestore): EdgeStore {
   return {
     async saveEdge(edge: ZkEdge) {
+      // Replace the document instead of merging it. Optional edge fields are
+      // mutable metadata (for example projectId and decay parameters) but are
+      // deliberately excluded from the content-addressed id. A merge would
+      // therefore preserve stale values when an idempotent upsert clears or
+      // changes one of those fields, causing project leakage or wrong weights.
+      const payload = Object.fromEntries(
+        Object.entries(edge).filter(([, value]) => value !== undefined),
+      );
       await db
         .collection(EDGE_PATH(edge.tenantId))
         .doc(edge.id)
-        .set(edge, { merge: true });
+        .set(payload);
     },
     async deleteEdgeById(id: string, tenantId: string) {
       await db.collection(EDGE_PATH(tenantId)).doc(id).delete();

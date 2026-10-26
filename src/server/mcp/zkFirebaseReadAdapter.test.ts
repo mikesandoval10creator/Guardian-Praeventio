@@ -344,6 +344,18 @@ describe('zkFirebaseReadAdapter — expandSubgraph', () => {
     expect(ids).toEqual(['n1', 'n2', 'n3', 'n4']);
   });
 
+  it('projectId fences root and traversal — no cruza a otro proyecto', async () => {
+    const fs = makeFakeFirestore(seed);
+    const adapter = createZkFirebaseReadAdapter({
+      firestore: fs,
+      accessibleTenants: [tenantA],
+    });
+    const r = await adapter.expandSubgraph(tenantA, 'n1', 2, 'p1');
+    const ids = r.map((n) => n.id).sort();
+    expect(ids).toEqual(['n1', 'n2', 'n3']);
+    expect(r.every((n) => n.projectId === 'p1')).toBe(true);
+  });
+
   it('depth capado a 5 (anti-runaway)', async () => {
     const fs = makeFakeFirestore(seed);
     const adapter = createZkFirebaseReadAdapter({

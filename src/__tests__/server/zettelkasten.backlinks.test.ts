@@ -115,6 +115,10 @@ describe('POST /api/zettelkasten/backlinks (real router)', () => {
     H.db!._seed('tenants/t1/zettelkasten_edges/e2', {
       id: 'e2', fromNodeId: 'worker1', toNodeId: 'nodeX', type: 'requires', tenantId: 't1',
     });
+    H.db!._seed('tenants/t1/zettelkasten_edges/e3', {
+      id: 'e3', fromNodeId: 'otherProjectNode', toNodeId: 'nodeX', type: 'causes',
+      tenantId: 't1', projectId: 'p2',
+    });
     const res = await request(buildApp())
       .post(URL)
       .set('x-test-uid', 'u1')

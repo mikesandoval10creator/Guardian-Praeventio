@@ -309,13 +309,29 @@ export async function createEdge(
 export async function deleteEdge(
   store: EdgeStore,
   input: {
+    /** Prefer the persisted id when deleting a weighted or time-bounded edge. */
+    edgeId?: string;
     fromNodeId: string;
     toNodeId: string;
     type: EdgeType;
     tenantId: string;
+    weight?: number;
+    validFrom?: string;
+    validUntil?: string;
   },
 ): Promise<void> {
-  const id = computeEdgeId(input.fromNodeId, input.toNodeId, input.type);
+  // The default id is only correct for the default edge (weight=1, no
+  // validity bounds). Content addressing includes temporal/weight fields, so
+  // callers deleting a customized edge must pass its persisted id or the same
+  // identity fields used when it was created.
+  const id = input.edgeId ?? computeEdgeId(
+    input.fromNodeId,
+    input.toNodeId,
+    input.type,
+    input.weight,
+    input.validFrom,
+    input.validUntil,
+  );
   await store.deleteEdgeById(id, input.tenantId);
 }
 
@@ -345,6 +361,8 @@ export async function getRelatedNodes(
   opts: {
     viaType?: EdgeType;
     direction?: 'outgoing' | 'incoming' | 'both';
+    /** Optional project fence; legacy unscoped edges remain compatible. */
+    projectId?: string;
   } = {},
 ): Promise<RelatedNode[]> {
   const direction = opts.direction ?? 'both';
@@ -353,6 +371,7 @@ export async function getRelatedNodes(
   if (direction === 'outgoing' || direction === 'both') {
     const out = await store.findOutgoing(nodeId, tenantId, opts.viaType);
     for (const e of out) {
+      if (opts.projectId && e.projectId && e.projectId !== opts.projectId) continue;
       results.push({
         nodeId: e.toNodeId,
         via: e.type,
@@ -365,6 +384,7 @@ export async function getRelatedNodes(
   if (direction === 'incoming' || direction === 'both') {
     const inc = await store.findIncoming(nodeId, tenantId, opts.viaType);
     for (const e of inc) {
+      if (opts.projectId && e.projectId && e.projectId !== opts.projectId) continue;
       results.push({
         nodeId: e.fromNodeId,
         via: e.inverseType,

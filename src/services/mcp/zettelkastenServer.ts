@@ -86,6 +86,7 @@ export interface ZkReadAdapter {
     tenantId: string,
     rootNodeId: string,
     depth: number,
+    projectId?: string,
   ): Promise<ZkNodeRef[]>;
 }
 
@@ -133,6 +134,7 @@ export const MCP_TOOLS: McpTool[] = [
         tenantId: { type: 'string' },
         rootNodeId: { type: 'string' },
         depth: { type: 'number', description: 'Max depth (cap 3)' },
+        projectId: { type: 'string', description: 'Optional project fence for the traversal' },
       },
       required: ['tenantId', 'rootNodeId'],
     },
@@ -325,9 +327,13 @@ async function dispatchTool(
       }
       const rawDepth = typeof args.depth === 'number' ? args.depth : 1;
       const depth = Math.min(3, Math.max(1, Math.floor(rawDepth)));
-      const nodes = await ctx.adapter.expandSubgraph(tid, root, depth);
+      const projectId = typeof args.projectId === 'string' && args.projectId.length > 0
+        ? args.projectId
+        : undefined;
+      const nodes = await ctx.adapter.expandSubgraph(tid, root, depth, projectId);
       return {
         depth,
+        ...(projectId ? { projectId } : {}),
         count: nodes.length,
         nodes,
         citations: nodes.map((n) => `(zk:${n.id})`),

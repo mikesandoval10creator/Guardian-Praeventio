@@ -180,7 +180,7 @@ export function createZkFirebaseReadAdapter(
       return result.docs.map(snapshotToNode);
     },
 
-    async expandSubgraph(tenantId, rootNodeId, depth) {
+    async expandSubgraph(tenantId, rootNodeId, depth, projectId) {
       assertTenantAllowed(tenantId);
       if (!isFirestoreNodeId(rootNodeId)) throw new Error('zkFirebase: invalid node ID');
       const cappedDepth = Math.max(0, Math.min(depth, 5));
@@ -200,6 +200,7 @@ export function createZkFirebaseReadAdapter(
         const snap = await ref.get();
         if (!snap.exists) continue;
         const node = snapshotToNode(snap);
+        if (projectId !== undefined && node.projectId !== projectId) continue;
         visited.set(id, node);
 
         if (depthLeft > 0) {

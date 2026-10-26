@@ -50,7 +50,8 @@ import {
   makeServerCreateNodeOnce,
   makeServerWriteNodes,
 } from '../services/serverZkNodeWriter.js';
-import type { EdgeStore, ZkEdge } from '../../services/zettelkasten/edges.js';
+import type { EdgeStore } from '../../services/zettelkasten/edges.js';
+import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import {
@@ -126,51 +127,6 @@ function callerCanSignEpp(req: import('express').Request): boolean {
 // Firestore-backed EdgeStore adapter (DI shape from edges.ts).
 // Per-tenant collection `tenants/{tenantId}/zettelkasten_edges/{edgeId}`.
 // ────────────────────────────────────────────────────────────────────────
-
-function buildFirestoreEdgeStore(): EdgeStore {
-  const db = getFirestore();
-  function col(tenantId: string) {
-    return db.collection(`tenants/${tenantId}/zettelkasten_edges`);
-  }
-  return {
-    async saveEdge(edge: ZkEdge) {
-      await col(edge.tenantId).doc(edge.id).set(edge, { merge: true });
-    },
-    async deleteEdgeById(id, tenantId) {
-      await col(tenantId).doc(id).delete();
-    },
-    async findOutgoing(nodeId, tenantId, type) {
-      let q: FirebaseFirestore.Query = col(tenantId).where(
-        'fromNodeId',
-        '==',
-        nodeId,
-      );
-      if (type) q = q.where('type', '==', type);
-      const snap = await q.get();
-      return snap.docs.map((d) => d.data() as ZkEdge);
-    },
-    async findIncoming(nodeId, tenantId, type) {
-      let q: FirebaseFirestore.Query = col(tenantId).where(
-        'toNodeId',
-        '==',
-        nodeId,
-      );
-      if (type) q = q.where('type', '==', type);
-      const snap = await q.get();
-      return snap.docs.map((d) => d.data() as ZkEdge);
-    },
-    // ZK-5 — required by the EdgeStore contract. NOTE: this whole object is a
-    // duplicate of `buildEdgeStore` (services/zettelkasten/edgeStoreFirestore),
-    // which exists precisely so routes share ONE materialization. Collapsing
-    // this copy into it is a separate cleanup.
-    async listByTenant(tenantId, limit) {
-      let q: FirebaseFirestore.Query = col(tenantId);
-      if (typeof limit === 'number' && limit > 0) q = q.limit(limit);
-      const snap = await q.get();
-      return snap.docs.map((d) => d.data() as ZkEdge);
-    },
-  };
-}
 
 // ────────────────────────────────────────────────────────────────────────
 // Schemas
@@ -663,7 +619,7 @@ router.post(
           createdBy: callerUid,
           createdByEmail: req.user?.email ?? null,
         }),
-        edgeStore: buildFirestoreEdgeStore(),
+        edgeStore: buildEdgeStore(getFirestore()),
         tenantId,
         createdBy: callerUid,
       };
@@ -975,7 +931,7 @@ router.post(
             createdBy: callerUid,
             createdByEmail: req.user?.email ?? null,
           }),
-          edgeStore: buildFirestoreEdgeStore(),
+          edgeStore: buildEdgeStore(getFirestore()),
           tenantId,
           createdBy: callerUid,
         };
@@ -1136,7 +1092,7 @@ router.get(
           createdBy: callerUid,
           createdByEmail: req.user?.email ?? null,
         }),
-        edgeStore: buildFirestoreEdgeStore(),
+        edgeStore: buildEdgeStore(getFirestore()),
         tenantId,
         createdBy: callerUid,
       };

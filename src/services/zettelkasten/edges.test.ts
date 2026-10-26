@@ -213,6 +213,28 @@ describe('createEdge + getRelatedNodes', () => {
     expect(fromB).toHaveLength(0);
   });
 
+  it('applies the optional project fence without dropping legacy unscoped edges', async () => {
+    await createEdge(store, {
+      fromNodeId: 'risk-1',
+      toNodeId: 'epp-p1',
+      type: 'requires',
+      tenantId: 't1',
+      projectId: 'p1',
+      createdBy: 'u',
+    });
+    await createEdge(store, {
+      fromNodeId: 'risk-1',
+      toNodeId: 'epp-p2',
+      type: 'requires',
+      tenantId: 't1',
+      projectId: 'p2',
+      createdBy: 'u',
+    });
+
+    const related = await getRelatedNodes(store, 'risk-1', 't1', { projectId: 'p1' });
+    expect(related.map((item) => item.nodeId)).toEqual(['epp-p1']);
+  });
+
   it('deleteEdge remueve por id content-addressed', async () => {
     await createEdge(store, {
       fromNodeId: 'risk-1',
@@ -228,6 +250,29 @@ describe('createEdge + getRelatedNodes', () => {
       type: 'requires',
       tenantId: 't1',
     });
+    expect(store._all()).toHaveLength(0);
+  });
+
+  it('deleteEdge removes a weighted/time-bounded edge when given its persisted id', async () => {
+    const edge = await createEdge(store, {
+      fromNodeId: 'control-1',
+      toNodeId: 'risk-1',
+      type: 'mitigates',
+      tenantId: 't1',
+      createdBy: 'u',
+      weight: 0.85,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: '2027-01-01T00:00:00.000Z',
+    });
+
+    await deleteEdge(store, {
+      edgeId: edge.id,
+      fromNodeId: edge.fromNodeId,
+      toNodeId: edge.toNodeId,
+      type: edge.type,
+      tenantId: edge.tenantId,
+    });
+
     expect(store._all()).toHaveLength(0);
   });
 

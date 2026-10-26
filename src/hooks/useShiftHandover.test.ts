@@ -12,6 +12,13 @@ vi.mock("../lib/apiAuth", () => ({
   apiAuthHeaders: vi.fn(async () => ({ Authorization: "Bearer test-token" })),
 }));
 
+const { saveShiftMock } = vi.hoisted(() => ({
+  saveShiftMock: vi.fn(async () => undefined),
+}));
+vi.mock("../services/shiftHandover/shiftHandoverStore", () => ({
+  saveShift: saveShiftMock,
+}));
+
 import {
   startShiftApi,
   logShiftEntryApi,
@@ -29,6 +36,8 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  saveShiftMock.mockReset();
+  saveShiftMock.mockResolvedValue(undefined);
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => {
@@ -215,41 +224,62 @@ describe("useShiftHandover — history fetch real", () => {
   });
 });
 
-describe("useShiftHandover orphan-UI stubs (aun pendientes de endpoints nuevos)", () => {
-  it("createShiftHandover echoes a minimal shift built from the input (no fetch)", async () => {
+describe("useShiftHandover compatibility API", () => {
+  it("createShiftHandover uses the real lifecycle and persists each state", async () => {
+    fetchMock
+      .mockResolvedValueOnce(okJson({ shift: { id: "s9", kind: "night", logEntries: [], handoverNotes: [] } }))
+      .mockResolvedValueOnce(okJson({ shift: { id: "s9", logEntries: [{ text: "hi" }], handoverNotes: [] } }))
+      .mockResolvedValueOnce(okJson({ shift: { id: "s9", logEntries: [{ text: "hi" }], handoverNotes: [{ text: "note" }] } }))
+      .mockResolvedValueOnce(okJson({ shift: { id: "s9", endedAt: "2026-06-01T08:00:00.000Z" } }));
+
     const out = await createShiftHandover(
       "p1",
       {
         id: "s9",
-        kind: "night" as never,
+        kind: "night",
         startedAt: "2026-06-01T00:00:00.000Z",
         supervisorUid: "sup-1",
-        logEntries: [{ kind: "note", text: "hi" }] as never,
-        handoverNotes: [{ text: "note" }] as never,
+        logEntries: [{ authorUid: "sup-1", authorRole: "supervisor", text: "hi", requiresFollowUp: false }],
+        handoverNotes: [{ category: "observation", text: "note", severity: "info" }],
       },
       "idem-key-1",
     );
-    expect(out.shift).toMatchObject({
-      id: "s9",
-      projectId: "p1",
-      kind: "night",
-      startedAt: "2026-06-01T00:00:00.000Z",
-      supervisorUid: "sup-1",
-      logEntries: [{ kind: "note", text: "hi" }],
-      handoverNotes: [{ text: "note" }],
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    expect(out.shift).toMatchObject({ id: "s9", endedAt: "2026-06-01T08:00:00.000Z" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(saveShiftMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/sprint-k/p1/shift-handover/start",
+      "/api/sprint-k/p1/shift-handover/log-entry",
+      "/api/sprint-k/p1/shift-handover/add-note",
+      "/api/sprint-k/p1/shift-handover/end",
+    ]);
   });
 
-  it("acknowledgeShiftHandover returns a typed shell carrying the shiftId (no fetch)", async () => {
-    const out = await acknowledgeShiftHandover(
-      "p1",
-      "s5",
-      { notes: "ok" },
-      "idem-key-2",
-    );
-    expect(out.shift).toMatchObject({ id: "s5" });
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("acknowledgeShiftHandover resolves the shift and calls the real endpoint", async () => {
+    fetchMock
+      .mockResolvedValueOnce(okJson({ shifts: [{ shift: { id: "s5", endedAt: "2026-06-01T08:00:00.000Z" }, quality: {} }] }))
+      .mockResolvedValueOnce(okJson({ shift: { id: "s5", acknowledgedByUid: "incoming" } }));
+
+    const out = await acknowledgeShiftHandover("p1", "s5", { notes: "ok" }, "idem-key-2");
+
+    expect(out.shift).toMatchObject({ id: "s5", acknowledgedByUid: "incoming" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/sprint-k/p1/shift-handover/acknowledge");
+    expect(JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string)).toEqual({
+      shift: { id: "s5", endedAt: "2026-06-01T08:00:00.000Z" },
+      notes: "ok",
+    });
+    expect(saveShiftMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("acknowledgeShiftHandover fails closed when the shift is not in history", async () => {
+    fetchMock.mockResolvedValueOnce(okJson({ shifts: [] }));
+    await expect(
+      acknowledgeShiftHandover("p1", "missing", {}, "idem-key-4"),
+    ).rejects.toThrow("shift_not_found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(saveShiftMock).not.toHaveBeenCalled();
   });
 
   it("addShiftHandoverDiscrepancy → POST discrepancy with text+idempotencyKey", async () => {

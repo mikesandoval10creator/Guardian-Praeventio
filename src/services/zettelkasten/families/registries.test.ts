@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Integrity tests for the 8 family registries.
 
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
   ALL_FAMILY_NODES,
@@ -84,6 +86,12 @@ describe('Zettelkasten v2 family registries', () => {
       .filter((n) => !n.description || !n.producerHint)
       .map((n) => n.id);
     expect(violations).toEqual([]);
+  });
+
+  it('points every producer hint at a tracked source file', () => {
+    const uniqueHints = [...new Set(ALL_FAMILY_NODES.map((node) => node.producerHint))];
+    const missing = uniqueHints.filter((hint) => !existsSync(resolve(process.cwd(), hint)));
+    expect(missing).toEqual([]);
   });
 
   it('every node has at least one consumer hint', () => {

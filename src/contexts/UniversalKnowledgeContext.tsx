@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { RiskNode, EnvironmentContext } from '../types';
+import type { EdgeType } from '../services/zettelkasten/edges';
 import { db, collection, onSnapshot, query, orderBy, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
 import { useProject } from './ProjectContext';
@@ -42,7 +43,7 @@ interface UniversalKnowledgeContextType {
     avgConnections: string;
   };
   createNode: (data: Omit<RiskNode, 'id'>) => Promise<string>;
-  createEdge: (fromId: string, toId: string) => Promise<void>;
+  createEdge: (fromId: string, toId: string, type?: EdgeType) => Promise<void>;
 }
 
 const UniversalKnowledgeContext = createContext<UniversalKnowledgeContextType | undefined>(undefined);
@@ -125,17 +126,12 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       return undefined;
     }
 
-    // Round 14 Task 4: scope the subscription to the active project.
-    //
-    // Previously this query loaded every node the user could read across
-    // every project in their org, then `projectClusters` re-bucketed them
-    // by `projectId` on the client. That worked for a few hundred nodes
-    // but doesn't scale, and it leaked node titles from one project into
-    // the global graph rendering for users who multitask across projects.
-    //
-    // The same `where('projectId','==',selectedProject.id)` filter is
-    // already used by `useRiskEngine.ts:36` for the per-project graph
-    // view, so the data shape is consistent across the two consumers.
+    // Scope the subscription to the active project. Global knowledge is not
+    // included from the top-level `nodes` collection until it has an explicit
+    // publication model with tenant authorization. Querying `projectId in
+    // [active, global]` would fail the Firestore list rule for `global` and
+    // could turn a project graph into an authorization/error boundary.
+    // This also keeps the data shape consistent with useRiskEngine.ts.
     const activeProjectId = selectedProject.id;
     const q = query(
       collection(db, 'nodes'),
@@ -263,7 +259,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     return nodeId;
   }, [user, selectedProject]);
 
-  const createEdge = useCallback(async (fromId: string, toId: string): Promise<void> => {
+  const createEdge = useCallback(async (fromId: string, toId: string, type?: EdgeType): Promise<void> => {
     if (!selectedProject) throw new Error('A project must be selected to connect nodes');
     if (fromId === toId) throw new Error('A node cannot connect to itself');
     const projectNodeIds = new Set(
@@ -273,7 +269,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       throw new Error('Both nodes must belong to the selected project');
     }
 
-    await connectGraphNodes(fromId, toId, selectedProject.id);
+    await connectGraphNodes(fromId, toId, selectedProject.id, type);
     setNodes((current) => current.map((node) => {
       if (node.id === fromId) {
         return { ...node, connections: Array.from(new Set([...node.connections, toId])), isPendingSync: true };

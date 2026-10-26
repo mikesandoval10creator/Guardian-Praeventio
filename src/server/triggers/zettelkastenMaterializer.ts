@@ -266,7 +266,7 @@ export function normalizeZkNodeFirestoreDoc(data: unknown): NormalizeZkNodeResul
 /**
  * Materialize a single normalized document and write the canonical path.
  * Repeated calls with the same identity are idempotent because the target
- * path is deterministic and the write uses merge semantics.
+ * path is deterministic and the write replaces the canonical representation.
  */
 export async function materializeOne(
   firestore: MaterializerFirestore,
@@ -300,7 +300,10 @@ export async function materializeOne(
       projectId: input.projectId,
       zkNodeId: input.zkNodeId,
     });
-    await firestore.doc(path).set(node, { merge: true });
+    // `node` is the complete canonical representation. A merge would retain
+    // optional fields from an older materialization (for example a stale
+    // tenant, source type, or public flag).
+    await firestore.doc(path).set(node);
     return { ok: true, path };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -262,6 +262,7 @@ export async function runStructuredQuery(
   nodes: QueryableNode[],
   query: StructuredGraphQuery,
   tenantId: string,
+  projectId?: string,
 ): Promise<GraphQueryMatch[]> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const fromClauses = query.where.filter((c) => c.target === 'from');
@@ -279,6 +280,7 @@ export async function runStructuredQuery(
     const related = await getRelatedNodes(store, seed.id, tenantId, {
       viaType: query.edge.type,
       direction: query.edge.direction,
+      projectId,
     });
     for (const rel of related) {
       const other = byId.get(rel.nodeId);

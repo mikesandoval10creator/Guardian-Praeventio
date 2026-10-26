@@ -137,6 +137,32 @@ describe('POST /api/zettelkasten/nodes', () => {
     expect(fs.store.get('zettelkasten_nodes/eppnode00000000a')).toBeDefined();
   });
 
+  it.each([
+    'horometro-reading',
+    'maintenance-threshold-reached',
+    'maintenance-task-created',
+    'maintenance-task-completed',
+    'incident-reported',
+    'investigation-opened',
+    'root-cause-identified',
+    'lesson-published',
+    'microtraining-assigned',
+    'microtraining-completed',
+    'incident-investigation-closed',
+  ])('accepts the canonical %s flow node type', async (type) => {
+    const node = validNode({
+      type,
+      idempotencyKey: `flow-${type}`,
+    });
+    const res = await request(handle.app)
+      .post('/api/zettelkasten/nodes')
+      .set('Authorization', 'Bearer test:uid-A:a@test.com')
+      .send({ projectId: 'proj-A', nodes: [node] });
+    expect(res.status).toBe(200);
+    expect(res.body.ids).toEqual([`flow-${type}`]);
+    expect(fs.store.get(`zettelkasten_nodes/flow-${type}`)).toBeDefined();
+  });
+
   it('is idempotent: re-POSTing same idempotencyKey returns same ids and does not duplicate', async () => {
     await request(handle.app)
       .post('/api/zettelkasten/nodes')
