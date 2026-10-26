@@ -46,4 +46,8 @@ export const VALID_ZK_NODE_TYPES: ReadonlySet<string> = new Set([
   'microtraining-assigned',
   'microtraining-completed',
   'incident-investigation-closed',
+  // Climate/environment producer contract.
+  'CLIMATE_RISK',
+  'venturi-warning',
+  'windload-warning',
 ]);

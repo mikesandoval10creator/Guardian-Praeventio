@@ -62,7 +62,12 @@ export type RiskNodeType =
   | 'maintenance-threshold-reached'
   | 'maintenance-task-created'
   | 'maintenance-task-completed'
-  | IncidentLessonTrainingNodeType;
+  | IncidentLessonTrainingNodeType
+  // Climate/environment producer contract. These values are shared by the
+  // climate coupling generator, the validator allowlist, and persistence.
+  | 'CLIMATE_RISK'
+  | 'venturi-warning'
+  | 'windload-warning';
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */

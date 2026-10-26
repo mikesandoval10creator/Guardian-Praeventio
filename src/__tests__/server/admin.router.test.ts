@@ -69,6 +69,9 @@ import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { replicateCriticalData } from '../../server/jobs/firestoreCriticalReplicate.js';
 import { runWeeklyDigest } from '../../server/jobs/weeklyDigest.js';
 import { runDailyClimateRiskScan } from '../../server/jobs/dailyClimateRiskScan.js';
+import type { ClimateRiskAssessment } from '../../services/zettelkasten/climateRiskCoupling';
+import type { RiskNodePayload } from '../../services/zettelkasten/types';
+import { nodeIdFor } from '../../services/zettelkasten/persistence/writeNode';
 import { resetQuota, topTenantsByUsage } from '../../services/observability/quotaTracker.js';
 
 function buildApp() {
@@ -452,6 +455,78 @@ describe('POST /api/admin/jobs/climate-scan', () => {
     const deps = vi.mocked(runDailyClimateRiskScan).mock.calls[0][0];
     expect(typeof (deps as unknown as Record<string, unknown>).listActiveProjects).toBe('function');
     expect(typeof (deps as unknown as Record<string, unknown>).audit).toBe('function');
+  });
+
+  it('climate persistence replaces stale fields instead of merging them', async () => {
+    vi.mocked(runDailyClimateRiskScan).mockResolvedValueOnce({} as never);
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/climate-scan')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(200);
+
+    const deps = vi.mocked(runDailyClimateRiskScan).mock.calls[0][0] as unknown as {
+      persistNodes: (
+        assessments: ClimateRiskAssessment[],
+        projectId: string,
+      ) => Promise<{ ok: boolean; ids?: string[] }>;
+    };
+    const projectId = 'project-climate-1';
+    const assessment: ClimateRiskAssessment = {
+      projectId,
+      forecast: {
+        date: new Date('2026-05-04T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 70,
+      },
+      riskFactors: ['falling-objects'],
+      recommendedControls: ['Asegurar materiales sueltos.'],
+      riskNodePayload: {
+        title: 'Riesgo climático: vientos fuertes',
+        description: 'Carga de viento sobre estructura.',
+        type: 'CLIMATE_RISK',
+        metadata: {
+          conditionCode: 'windy',
+          temperatureC: 14,
+          windKmh: 70,
+          forecastDateISO: '2026-05-04T00:00:00.000Z',
+          riskFactors: ['falling-objects'],
+        },
+        connections: [projectId],
+      },
+    };
+    const proxy: RiskNodePayload = {
+      type: 'CLIMATE_RISK',
+      title: assessment.riskNodePayload.title,
+      description: assessment.riskNodePayload.description,
+      severity: 'medium',
+      metadata: {
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 70,
+        precipMm: null,
+        forecastDateISO: '2026-05-04T00:00:00.000Z',
+        riskFactors: 'falling-objects',
+      },
+      connections: [projectId],
+      references: ['NCh 432'],
+    };
+    const id = await nodeIdFor(proxy, projectId);
+    H.db!._seed(`zettelkasten_nodes/${id}`, {
+      staleField: 'must-disappear',
+      type: 'legacy-type',
+    });
+
+    const result = await deps.persistNodes([assessment], projectId);
+
+    expect(result).toEqual({ ok: true, ids: [id] });
+    const saved = H.db!._store.get(`zettelkasten_nodes/${id}`)!;
+    expect(saved).toMatchObject({
+      type: 'CLIMATE_RISK',
+      projectId,
+      source: 'daily-climate-scan',
+    });
+    expect(saved).not.toHaveProperty('staleField');
   });
 });
 

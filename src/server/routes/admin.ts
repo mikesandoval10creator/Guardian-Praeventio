@@ -607,7 +607,6 @@ router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (
               source: 'daily-climate-scan',
               createdAt: FieldValue.serverTimestamp(),
             },
-            { merge: true },
           );
         }
         await batch.commit();
