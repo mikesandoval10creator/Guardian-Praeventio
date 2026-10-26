@@ -33,4 +33,8 @@ export const VALID_ZK_NODE_TYPES: ReadonlySet<string> = new Set([
   // and BioAnalysis (`buildEppInspectionNode`). The image never leaves the
   // device; only the classification + métricas are persisted.
   'epp_inspection',
+  // Climate/environment producer contract.
+  'CLIMATE_RISK',
+  'venturi-warning',
+  'windload-warning',
 ]);

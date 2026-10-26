@@ -6,6 +6,14 @@ import {
   generateWindloadRiskNode,
   type ClimateForecastDay,
 } from './climateRiskCoupling';
+import type { RiskNodeType } from './types';
+import { VALID_ZK_NODE_TYPES } from '../../server/routes/zettelkastenNodeTypes';
+
+const CANONICAL_CLIMATE_NODE_TYPES = [
+  'CLIMATE_RISK',
+  'venturi-warning',
+  'windload-warning',
+] as const satisfies readonly RiskNodeType[];
 
 describe('assessClimateRisk', () => {
   it('1) rainy + outdoor + electrical work => slippery-surface + electrical-hazard', () => {
@@ -237,5 +245,11 @@ describe('buildClimateRiskNodes', () => {
     ]);
     expect(out[0].recommendedControls.length).toBeGreaterThan(0);
     expect(out[0].recommendedControls.some(c => /[áéíóúñ]|piso|lluvia|EPP/i.test(c))).toBe(true);
+  });
+
+  it('canonical climate types are accepted by the ZK validator', () => {
+    for (const type of CANONICAL_CLIMATE_NODE_TYPES) {
+      expect(VALID_ZK_NODE_TYPES.has(type)).toBe(true);
+    }
   });
 });
