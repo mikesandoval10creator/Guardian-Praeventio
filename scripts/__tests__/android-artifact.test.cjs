@@ -133,6 +133,6 @@ test('CI runs the packaged APK guard and uploads the artifact', () => {
   );
 
   assert.match(workflow, /node scripts\/check-android-artifact\.cjs/);
-  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /actions\/upload-artifact@v7/);
   assert.match(workflow, /app-debug\.apk/);
 });
