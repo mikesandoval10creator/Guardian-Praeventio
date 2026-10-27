@@ -25,6 +25,8 @@ export interface UsgsFetchOptions {
   minMagnitude?: number;
   /** ventana hacia atrás (default 24h). */
   sinceHours?: number;
+  /** Cancela la petición cuando el consumidor agota su deadline. */
+  signal?: AbortSignal;
 }
 
 interface CacheEntry {
@@ -65,6 +67,7 @@ export class UsgsEarthquakeAdapter {
         const resp = await this.httpClient(url, {
           method: 'GET',
           headers: { Accept: 'application/geo+json, application/json' },
+          signal: opts.signal,
         });
         if (resp.status >= 500 && resp.status < 600) {
           throw new Error(`USGS upstream ${resp.status}`);

@@ -84,9 +84,16 @@ describe('checkSismoEnriched', () => {
   it('3) USGS fetch timeout => severity caution + warn log + blockOperation false', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     // adapter that hangs forever — withTimeout will reject.
-    const fetchRecentEarthquakes = vi
-      .fn()
-      .mockImplementation(() => new Promise(() => {}));
+    const fetchRecentEarthquakes = vi.fn().mockImplementation(
+      ({ signal }: { signal?: AbortSignal }) =>
+        new Promise<never>((_, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
     pushUsgsAdapter({ fetchRecentEarthquakes });
     pushDeviceLocation({ lat: -33.45, lon: -70.66 });
 
