@@ -45,7 +45,6 @@ import type { Express, Request, Response, NextFunction } from 'express';
 export const CORS_ALLOWED_ORIGINS: readonly string[] = [
   'https://app.praeventio.net',
   'https://praeventio.net',
-  'https://www.praeventio.net',
   'https://staging.praeventio.net',
   // Mobile / desktop shells
   'capacitor://localhost',

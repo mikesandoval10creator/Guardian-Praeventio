@@ -124,13 +124,13 @@ function resolveFirestoreEmulator(): { host: string; port: number } | null {
   // http://127.0.0.1:57335). The SPA in dev has no `process` and the
   // `MODE === 'test'` gate is for Vitest only. So when the browser's
   // hostname is localhost/127.0.0.1 AND the page is NOT production
-  // (no `app.praeventio.net`/`www.praeventio.net` host), default to
+  // (no `app.praeventio.net` host), default to
   // localhost:8080. This lets the dev server use the Firestore emulator
   // without forcing `vite --mode test` (which would also change the
   // build target to test and is not what we want during a manual
   // exploration session).
   //
-  // Production SAFETY: `app.praeventio.net` and `www.praeventio.net` are
+  // Production SAFETY: `app.praeventio.net` is
   // NOT in this whitelist. Even if a hacker manages to inject
   // `window.location.hostname = 'localhost'` via XSS, the only thing
   // they would accomplish is redirecting their OWN browser session
