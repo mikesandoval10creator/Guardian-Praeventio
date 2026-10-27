@@ -188,9 +188,8 @@ async function postChatCompletions(
   request: SelfHostedChatRequest,
   fetchImpl: typeof fetch,
   includeResponseFormat: boolean,
+  signal: AbortSignal,
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
@@ -198,23 +197,22 @@ async function postChatCompletions(
       method: 'POST',
       headers,
       body: JSON.stringify(buildBody(config, request, includeResponseFormat)),
-      signal: controller.signal,
+      signal,
     });
   } catch (err) {
     // Abort (our timeout) vs network failure — both map to typed errors with
     // NO endpoint details in the message.
-    if (controller.signal.aborted || (err as { name?: string } | null)?.name === 'AbortError') {
+    if (signal.aborted || (err as { name?: string } | null)?.name === 'AbortError') {
       throw new SelfHostedProviderError('selfhosted_timeout');
     }
     throw new SelfHostedProviderError('selfhosted_unreachable');
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 /**
  * Single-completion call against the configured OpenAI-compatible endpoint.
- * Throws `SelfHostedProviderError` only — never a raw fetch/JSON error.
+ * One deadline covers headers, body consumption, and the optional JSON-mode retry.
+ * Throws `SelfHostedProviderError` only — never a raw fetch/JSON/stream error.
  */
 export async function selfHostedChat(
   request: SelfHostedChatRequest,
@@ -223,48 +221,54 @@ export async function selfHostedChat(
   const config = options.config !== undefined ? options.config : getSelfHostedConfig();
   if (!config) throw new SelfHostedProviderError('selfhosted_not_configured');
   const fetchImpl = options.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
 
-  let res = await postChatCompletions(config, request, fetchImpl, true);
-
-  // Tolerant JSON-mode: a server that doesn't implement response_format
-  // typically rejects with 400. Retry once without it; the prompt + tolerant
-  // extraction still get us JSON from compliant models.
-  if (!res.ok && res.status === 400 && request.jsonMode) {
-    res = await postChatCompletions(config, request, fetchImpl, false);
-  }
-
-  if (!res.ok) {
-    throw new SelfHostedProviderError('selfhosted_http_error', res.status);
-  }
-
-  let payload: unknown;
   try {
-    payload = await res.json();
-  } catch {
+    let res = await postChatCompletions(config, request, fetchImpl, true, controller.signal);
+
+    // Tolerant JSON-mode: retry once without response_format, sharing the
+    // original deadline. Release the discarded body before reusing the pool.
+    if (!res.ok && res.status === 400 && request.jsonMode) {
+      await res.body?.cancel();
+      res = await postChatCompletions(config, request, fetchImpl, false, controller.signal);
+    }
+
+    if (!res.ok) {
+      await res.body?.cancel();
+      throw new SelfHostedProviderError('selfhosted_http_error', res.status);
+    }
+
+    const payload: unknown = await res.json();
+    const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices;
+    const content = choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+      throw new SelfHostedProviderError('selfhosted_bad_response');
+    }
+
+    const usage = (payload as {
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    })?.usage;
+
+    return {
+      text: content,
+      model: config.model,
+      usage: usage
+        ? {
+            promptTokens: typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : undefined,
+            outputTokens:
+              typeof usage.completion_tokens === 'number' ? usage.completion_tokens : undefined,
+          }
+        : undefined,
+    };
+  } catch (err) {
+    if (controller.signal.aborted) throw new SelfHostedProviderError('selfhosted_timeout');
+    // Preserve only errors constructed here, not a stream error spoofing the name.
+    if (err instanceof SelfHostedProviderError) throw err;
     throw new SelfHostedProviderError('selfhosted_bad_response');
+  } finally {
+    clearTimeout(timer);
   }
-
-  const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices;
-  const content = choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    throw new SelfHostedProviderError('selfhosted_bad_response');
-  }
-
-  const usage = (payload as {
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
-  })?.usage;
-
-  return {
-    text: content,
-    model: config.model,
-    usage: usage
-      ? {
-          promptTokens: typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : undefined,
-          outputTokens:
-            typeof usage.completion_tokens === 'number' ? usage.completion_tokens : undefined,
-        }
-      : undefined,
-  };
 }
 
 /**

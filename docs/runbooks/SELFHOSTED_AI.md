@@ -67,6 +67,25 @@ ladder runs directly, else 503. The self-hosted circuit breaker uses its own
 key (`selfhosted`) — 5 failures/60 s opens it for 5 min with half-open
 probes — fully isolated from the Gemini breaker.
 
+`AI_SELFHOSTED_TIMEOUT_MS` is one end-to-end deadline for a completion call:
+receiving headers does not stop it. It covers response-body consumption and the
+optional retry without `response_format` (the retry does not get a fresh budget).
+A stalled body aborts with the sanitized `selfhosted_timeout` code, returning
+control to the dispatcher so its existing fallback policy can run. Discarded
+HTTP-error bodies are canceled; the timer is cleared on every settled path.
+
+Regression coverage uses a synthetic loopback HTTP server, not a real model or
+credentials:
+
+```bash
+npm test -- src/services/ai/selfHostedProvider.timeout.test.ts
+```
+
+The test verifies headers-before-timeout, stalled body, successful completion,
+dispatch failure metrics and Gemini-breaker isolation, shared retry deadline,
+timer/stream cleanup, and sanitized stream errors. It does not demonstrate a
+production endpoint, deployment, physical-device behavior, or a full UI flow.
+
 ## 5. Observe
 
 - `GET /api/admin/circuit-state` → breaker states (`gemini`, `selfhosted`)
