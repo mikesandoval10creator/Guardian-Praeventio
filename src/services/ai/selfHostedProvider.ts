@@ -228,12 +228,16 @@ export async function selfHostedChat(
 
   // Tolerant JSON-mode: a server that doesn't implement response_format
   // typically rejects with 400. Retry once without it; the prompt + tolerant
-  // extraction still get us JSON from compliant models.
+  // extraction still get us JSON from compliant models. Explicitly release the
+  // discarded response body before retrying so Node's undici pool and Vitest's
+  // async-leak detector do not retain an unconsumed upstream stream.
   if (!res.ok && res.status === 400 && request.jsonMode) {
+    await res.body?.cancel();
     res = await postChatCompletions(config, request, fetchImpl, false);
   }
 
   if (!res.ok) {
+    await res.body?.cancel();
     throw new SelfHostedProviderError('selfhosted_http_error', res.status);
   }
 

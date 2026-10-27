@@ -20,6 +20,13 @@ vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+// The badge path is on-device and does not use authenticated HTTP. Mocking
+// this boundary keeps the test from booting Firebase Auth through jsdom's
+// Document.cookie implementation.
+vi.mock('../../lib/apiAuth', () => ({
+  apiAuthHeaders: vi.fn(async () => ({})),
+}));
+
 const { OfflineSyncStateMachine } = await import('../../services/sync/syncStateMachine');
 const { SyncQueueIndicator } = await import('./SyncQueueIndicator');
 

@@ -110,14 +110,21 @@ describe('resilientRead', () => {
   });
 
   it('timeout per attempt: read tarda más → fallback dispara', async () => {
+    const pendingReads: Array<(value: string) => void> = [];
     const slowRead: () => Promise<string> = () =>
-      new Promise((res) => setTimeout(() => res('tarde'), 5000));
+      new Promise((resolve) => {
+        pendingReads.push(resolve);
+      });
     const fallback = async () => 'cache';
     const r = await resilientRead(slowRead, {
       sleep: fastSleep,
       perAttemptTimeoutMs: 50,
       fallback,
     });
+    // A real provider would cancel the underlying operation through its own
+    // transport. Resolve this test double explicitly so the rejected race does
+    // not leave an intentionally pending promise behind.
+    pendingReads.forEach((resolve) => resolve('tarde'));
     expect(r.value).toBe('cache');
     expect(r.attempts.every((a) => a.error?.includes('timeout'))).toBe(true);
   });

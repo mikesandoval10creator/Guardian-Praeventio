@@ -24,6 +24,12 @@ import type { SpiReportResponse, UseSpiReport } from '../hooks/useSpiReport';
 import { buildSafetyMetricsReport } from '../services/safetyMetrics/osha';
 import { computeOperationalPressure } from '../services/orgMetrics/organizationalMetrics';
 
+vi.mock('../lib/apiAuth', () => ({
+  // This page test exercises mocked metrics hooks, not authenticated HTTP.
+  // Keep Firebase Auth/tough-cookie out of jsdom's import path.
+  apiAuthHeaders: vi.fn(async () => ({})),
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_k: string, fallback?: string | Record<string, unknown>) =>

@@ -10,9 +10,13 @@ export async function clearFirestoreProject(
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const response = await fetcher(url, { method: 'DELETE' });
-    if (response.ok) return;
+    if (response.ok) {
+      await response.body?.cancel();
+      return;
+    }
 
     if (response.status === 409 && attempt < maxAttempts) {
+      await response.body?.cancel();
       await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
       continue;
     }

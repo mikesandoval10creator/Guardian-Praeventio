@@ -109,15 +109,26 @@ export async function resilientRead<T>(
 
   for (let i = 1; i <= maxAttempts; i++) {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let settleTimeout: (() => void) | null = null;
+    const cleanupTimeout = () => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      // A cleared timer does not settle the Promise created for the race.
+      // Resolve it as part of cleanup so async-leak detection can observe a
+      // fully settled promise after the read wins the race.
+      settleTimeout?.();
+      timeoutHandle = null;
+      settleTimeout = null;
+    };
     try {
-      const timeoutP = new Promise<never>((_, rej) => {
+      const timeoutP = new Promise<never>((resolve, reject) => {
+        settleTimeout = () => resolve(undefined as never);
         timeoutHandle = setTimeout(
-          () => rej(new Error(`resilientRead: timeout ${perAttemptTimeoutMs}ms`)),
+          () => reject(new Error(`resilientRead: timeout ${perAttemptTimeoutMs}ms`)),
           perAttemptTimeoutMs,
         );
       });
       const value = await Promise.race([read(), timeoutP]);
-      if (timeoutHandle) clearTimeout(timeoutHandle);
+      cleanupTimeout();
       attempts.push({ attempt: i, elapsedMs: now() - startedAt });
       return {
         value,
@@ -126,7 +137,7 @@ export async function resilientRead<T>(
         latencyMs: now() - startedAt,
       };
     } catch (err) {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
+      cleanupTimeout();
       lastErr = err;
       attempts.push({
         attempt: i,

@@ -15,8 +15,8 @@ describe('clearFirestoreProject', () => {
   });
 
   it('fails closed with the emulator response after bounded conflict retries', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response('active transaction', { status: 409, statusText: 'Conflict' }),
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(new Response('active transaction', { status: 409, statusText: 'Conflict' })),
     );
 
     await expect(clearFirestoreProject(url, fetcher)).rejects.toThrow(

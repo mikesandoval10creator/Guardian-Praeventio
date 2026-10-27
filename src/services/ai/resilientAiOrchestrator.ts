@@ -315,8 +315,13 @@ async function tryTier(
 ): Promise<{ result: TierAdapterResult; tier: AiTier } | { error: string }> {
   if (!adapter) return { error: `${tier}: no adapter` };
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  let settleTimeout: () => void = () => undefined;
   try {
-    const timeoutP = new Promise<never>((_, reject) => {
+    // Settle the timeout promise during cleanup as well as clearing its timer.
+    // Clearing the timer alone leaves the losing Promise.race branch pending,
+    // which Vitest correctly reports as an async leak.
+    const timeoutP = new Promise<null>((resolve, reject) => {
+      settleTimeout = () => resolve(null);
       timeoutHandle = setTimeout(
         () => reject(new Error(`${tier}: timeout after ${opts.timeoutMs}ms`)),
         opts.timeoutMs,
@@ -324,12 +329,13 @@ async function tryTier(
     });
     const adapterP = adapter(query);
     const result = await Promise.race([adapterP, timeoutP]);
-    if (timeoutHandle) clearTimeout(timeoutHandle);
     if (!result) return { error: `${tier}: returned null` };
     return { result, tier };
   } catch (err) {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
     return { error: `${tier}: ${err instanceof Error ? err.message : String(err)}` };
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    settleTimeout?.();
   }
 }
 

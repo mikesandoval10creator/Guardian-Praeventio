@@ -14,6 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { CuadrillasDashboard } from './CuadrillasDashboard';
 import type { Crew, Process } from '../types/organic';
 
@@ -22,6 +23,22 @@ vi.mock('react-i18next', () => ({
     t: (_k: string, fallback?: string | Record<string, unknown>) =>
       typeof fallback === 'string' ? fallback : _k,
   }),
+}));
+
+vi.mock('framer-motion', () => ({
+  // The assertions cover dashboard wiring, not animation behavior. Avoid
+  // motion-dom's unresolved animation promises under Vitest leak detection.
+  motion: {
+    div: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+  },
+}));
+
+// The dashboard assertions do not exercise authenticated HTTP. Keep the
+// imported sync-status boundary from eagerly booting Firebase Auth in jsdom.
+vi.mock('../lib/apiAuth', () => ({
+  apiAuthHeaders: vi.fn(async () => ({})),
 }));
 
 let mockSelectedProject: { id: string; name: string; startDate?: string; endDate?: string; status?: string } | null =

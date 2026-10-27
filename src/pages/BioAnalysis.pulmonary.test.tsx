@@ -73,6 +73,12 @@ vi.mock('../components/shared/PremiumFeatureGuard', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_k: string, d?: string) => d ?? _k }),
 }));
+vi.mock('framer-motion', () => ({
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  motion: {
+    div: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  },
+}));
 
 import { render, cleanup } from '@testing-library/react';
 import { BioAnalysis } from './BioAnalysis';
