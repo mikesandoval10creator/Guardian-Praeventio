@@ -438,9 +438,10 @@ router.post(
   }
 
   // Sprint 22 (Bucket X): circuit + quota gate before any Gemini I/O.
-  // Tenant id derives from req.user.uid as a stable per-account bucket;
-  // tier comes from the JWT custom claim populated by the billing layer.
-  const tenantId: string = req.user?.uid ?? 'unknown';
+  // Tenant id derives from the verified JWT tenantId claim when present;
+  // uid remains a compatibility fallback for legacy single-account tokens.
+  // Tier comes from the JWT custom claim populated by the billing layer.
+  const tenantId: string = req.user?.tenantId ?? req.user?.uid ?? 'unknown';
   const tier: string = req.user?.tier ?? req.user?.subscriptionTier ?? 'bronze';
   try {
     await assertGeminiAllowed(tenantId, tier);
@@ -712,7 +713,7 @@ router.post('/gemini', verifyAuth,
   // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
   // single chokepoint for 100+ Gemini RPCs — guarding here covers them
   // all without touching individual handlers in geminiBackend.ts.
-  const tenantId: string = req.user?.uid ?? 'unknown';
+  const tenantId: string = req.user?.tenantId ?? req.user?.uid ?? 'unknown';
   const tier: string = req.user?.tier ?? req.user?.subscriptionTier ?? 'bronze';
 
   // ── AI provider layer (self-hosted | Gemini) ────────────────────────────
@@ -752,7 +753,7 @@ router.post('/gemini', verifyAuth,
       }
     }
     if (!selfHostedBlocked) {
-      const attempt = await dispatchSelfHostedAction(action, callArgs);
+      const attempt = await dispatchSelfHostedAction(action, callArgs, { tenantId });
       if (attempt.status === 'ok') {
         res.json({ result: attempt.text });
         // Same flat accounting as the Gemini path, at zero cost: the
@@ -1007,7 +1008,7 @@ router.post(
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
 
-    const tenantId: string = req.user?.uid ?? 'unknown';
+    const tenantId: string = req.user?.tenantId ?? req.user?.uid ?? 'unknown';
     const tier: string =
       req.user?.tier ?? req.user?.subscriptionTier ?? 'bronze';
     try {
