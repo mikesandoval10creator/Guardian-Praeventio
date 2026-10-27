@@ -110,13 +110,15 @@ export async function resilientRead<T>(
   for (let i = 1; i <= maxAttempts; i++) {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     try {
-      const timeoutP = new Promise<never>((_, rej) => {
+      // One completion Promise: clearing a timer must not leave a losing
+      // timeout Promise permanently pending after a successful/failed read.
+      const value = await new Promise<T>((resolve, reject) => {
         timeoutHandle = setTimeout(
-          () => rej(new Error(`resilientRead: timeout ${perAttemptTimeoutMs}ms`)),
+          () => reject(new Error(`resilientRead: timeout ${perAttemptTimeoutMs}ms`)),
           perAttemptTimeoutMs,
         );
+        Promise.resolve(read()).then(resolve, reject);
       });
-      const value = await Promise.race([read(), timeoutP]);
       if (timeoutHandle) clearTimeout(timeoutHandle);
       attempts.push({ attempt: i, elapsedMs: now() - startedAt });
       return {

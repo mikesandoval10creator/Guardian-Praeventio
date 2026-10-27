@@ -316,20 +316,21 @@ async function tryTier(
   if (!adapter) return { error: `${tier}: no adapter` };
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   try {
-    const timeoutP = new Promise<never>((_, reject) => {
+    // A single completion Promise avoids an orphaned timeout branch. This
+    // bounds waiting; it does not cancel work in adapters without an abort API.
+    const result = await new Promise<TierAdapterResult | null>((resolve, reject) => {
       timeoutHandle = setTimeout(
         () => reject(new Error(`${tier}: timeout after ${opts.timeoutMs}ms`)),
         opts.timeoutMs,
       );
+      Promise.resolve(adapter(query)).then(resolve, reject);
     });
-    const adapterP = adapter(query);
-    const result = await Promise.race([adapterP, timeoutP]);
-    if (timeoutHandle) clearTimeout(timeoutHandle);
     if (!result) return { error: `${tier}: returned null` };
     return { result, tier };
   } catch (err) {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
     return { error: `${tier}: ${err instanceof Error ? err.message : String(err)}` };
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
