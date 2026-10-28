@@ -135,6 +135,54 @@ export async function seedProject(
   return { projectId: projectRef.id, crewId: crewRef.id, cleanup };
 }
 
+export interface SeedGraphNodeSpec {
+  /** Firestore doc id for the `nodes` document. */
+  id: string;
+  title: string;
+  /** NodeType value (e.g. 'Riesgo'). Defaults to 'Riesgo'. */
+  type?: string;
+  /** Target node ids for `connections` (the graph edges source). */
+  connections?: string[];
+  tags?: string[];
+  description?: string;
+}
+
+/**
+ * Seed `nodes` collection docs matching the `useRiskEngine` query shape
+ * (`where('projectId','==',…)`, `orderBy('updatedAt','desc')`, links built
+ * from `connections`). Writes via the admin SDK (rules bypassed), mirroring
+ * `seedProject`. The consumer that reads these docs is the KnowledgeGraph
+ * canvas on `/risk-network`.
+ */
+export async function seedGraphNodes(
+  projectId: string,
+  specs: SeedGraphNodeSpec[],
+): Promise<{ cleanup: () => Promise<void> }> {
+  ensureAdmin();
+  const db = getFirestore();
+  const refs = [];
+  for (const spec of specs) {
+    const ref = db.collection('nodes').doc(spec.id);
+    await ref.set({
+      projectId,
+      title: spec.title,
+      description: spec.description ?? `Nodo E2E ${spec.title}`,
+      type: spec.type ?? 'Riesgo',
+      tags: spec.tags ?? ['e2e'],
+      metadata: {},
+      connections: spec.connections ?? [],
+      isPublic: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    refs.push(ref);
+  }
+  const cleanup = async (): Promise<void> => {
+    for (const ref of refs) await ref.delete();
+  };
+  return { cleanup };
+}
+
 /**
  * Tear down ALL projects created by the emulator session — used in
  * `globalTeardown` for a fresh slate. Skips silently if no docs.
