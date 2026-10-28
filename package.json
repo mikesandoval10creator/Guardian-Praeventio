@@ -79,7 +79,7 @@
     "proximity:build": "cd packages/capacitor-proximity && npx tsc -p tsconfig.json",
     "battery-optimization:build": "cd packages/capacitor-battery-optimization && npx tsc -p tsconfig.json",
     "layout-wasm:build": "node scripts/build-force-graph-wasm.mjs",
-    "test:layout-wasm": "node --test scripts/__tests__/force-graph-wasm-distribution.test.cjs",
+    "test:layout-wasm": "node --test scripts/__tests__/force-graph-wasm-distribution.test.cjs scripts/__tests__/force-graph-wasm-memory-bound.test.cjs",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
     "cap:build:android": "npm run build && npx cap sync android",

@@ -55,16 +55,25 @@ imports):
 
 | Export | Firma | Semántica |
 |---|---|---|
-| `memory` | `WebAssembly.Memory` | memoria lineal (crece bajo demanda; el límite duro por instancia es gate pendiente) |
-| `graph_alloc(len: usize) -> *mut u8` | reserva `len` bytes para la entrada JSON |
-| `graph_free(ptr, len)` | libera un bloque reservado por `graph_alloc` |
+| `memory` | `WebAssembly.Memory` | memoria lineal con **máximo duro de 32 MiB** (1024 páginas) impuesto por la VM |
+| `graph_alloc(len: usize) -> *mut u8` | reserva `len` bytes para la entrada JSON; devuelve **null** si `len` supera el cap de 8 MiB |
+| `graph_free(ptr, len)` | libera un bloque reservado por `graph_alloc` (el caller solo libera punteros no nulos) |
 | `graph_layout(ptr, len) -> u64` | ejecuta la simulación sobre el JSON en `ptr..ptr+len`; devuelve `(length << 32) \| address` del JSON de salida en memoria lineal |
 
 Entrada: `{nodes:[{id,x?,y?,z?}],links:[{source,target}],iterations?,dim?}`.
-Salida: `[{id,x,y,z?}]` en el mismo orden de `nodes`. Contratos de error y
-límites del loader experimental (2 MiB entrada, 8 MiB salida, 128 MiB memoria)
-residen en el adapter del laboratorio; la aplicación productiva y su factory
-son el gate de adopción.
+Salida: `[{id,x,y,z?}]` en el mismo orden de `nodes`.
+
+## Límites duros (por módulo, no por loader)
+
+| Límite | Mecanismo | Semántica de fallo |
+|---|---|---|
+| Memoria lineal ≤ 32 MiB (33554432 bytes) | `--max-memory` en `.cargo/config.toml` (sección Memory del wasm) | `memory.grow` lanza `RangeError` (límite de la VM, imposible exceder); una asignación interna OOM aborta con **trampa** (`RuntimeError`) que el caller debe capturar y mapear a `layout.error` |
+| Entrada ≤ 8 MiB (`MAX_INPUT_BYTES`) | check en `graph_alloc` | devuelve `null` (0) sin asignar; el caller reporta `input_limit` sin tocar memoria |
+| Salida ≤ 8 MiB | contención del loader/adaptor experimental | `output_limit` (el módulo todavía no autolimita la salida) |
+
+Contratos de error y límites adicionales del loader experimental (2 MiB
+entrada, 8 MiB salida, 128 MiB memoria externa) residen en el adapter del
+laboratorio; la aplicación productiva y su factory son el gate de adopción.
 
 ## Auditoría de licencias
 
@@ -75,10 +84,10 @@ distribución binaria.
 
 ## Gates de adopción pendientes
 
-1. ~~Fuente/build/asset reproducible + auditoría de licencias~~ (este slice;
-   la revisión independiente de la auditoría continúa pendiente).
-2. Límite duro de memoria por instancia (hoy: contención vía loader, no por el
-   módulo).
+1. ~~Fuente/build/asset reproducible + auditoría de licencias~~ (revisión
+   independiente de la auditoría continúa pendiente).
+2. ~~Límite duro de memoria por instancia~~ (32 MiB por la VM + cap de entrada
+   de 8 MiB; ver «Límites duros»).
 3. E2E del consumidor/canvas bajo CSP y bundling desplegados.
 4. Revisión independiente del código y de la evidencia.
 5. Rollback operacional con flag/versionado probado y mediciones
