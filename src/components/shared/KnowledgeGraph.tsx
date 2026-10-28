@@ -3,10 +3,7 @@ import ForceGraph2D, { ForceGraphMethods, NodeObject, LinkObject } from 'react-f
 import type { ForceGraphMethods as ForceGraphMethods3D } from 'react-force-graph-3d';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
-import type {
-  ForceGraphPosition,
-  ForceGraphResponse,
-} from '../../workers/forceGraphWorker';
+import { createForceGraphLayoutClient, type ForceGraphLayoutClient } from '../../workers/forceGraphClient';
 
 /**
  * Sprint 29 Bucket BB — H22 / H19.
@@ -93,9 +90,11 @@ const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
  */
 interface KnowledgeGraphProps {
   controlledSelectedId?: string | null;
+  /** Explicit opt-in seam; the default client remains TypeScript. */
+  layoutClient?: ForceGraphLayoutClient;
 }
 
-export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {}) {
+export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLayoutClient }: KnowledgeGraphProps = {}) {
   const { nodes, getGraphData, loading } = useRiskEngine();
   const graphRef = useRef<ForceGraphMethods<RiskNode, Record<string, unknown>>>(null);
   // The 3D ref keeps `unknown` rather than `any` for the renderer
@@ -236,46 +235,28 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
   // coordinates. Below the threshold we do nothing — the inline
   // simulation that the library runs is fast enough.
   //
-  // The worker is created lazily on the first heavy graph and reused
-  // across re-renders; we tear it down on unmount. We don't recreate
-  // it per `graphData` change because that would race the react-force-
-  // graph mount and we'd lose the seed positions.
-  const workerRef = useRef<Worker | null>(null);
-  useEffect(() => {
-    return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    };
-  }, []);
+  // Each request owns its worker; superseding a graph cancels its compute
+  // and cannot deliver old positions to the next graph's listener.
+  const defaultLayoutClient = useMemo(() => createForceGraphLayoutClient(), []);
+  const layoutClient = suppliedLayoutClient ?? defaultLayoutClient;
 
   useEffect(() => {
     const total = graphData.nodes.length;
     if (total < WORKER_THRESHOLD) return undefined;
     if (typeof Worker === 'undefined') return undefined;
 
-    let cancelled = false;
-    let worker = workerRef.current;
-    try {
-      if (!worker) {
-        worker = new Worker(
-          new URL('../../workers/forceGraphWorker.ts', import.meta.url),
-          { type: 'module' },
-        );
-        workerRef.current = worker;
-      }
-    } catch (e) {
-      // Worker construction can fail in test/jsdom; we silently
-      // fall back to the inline simulation.
-      logger.warn('forceGraphWorker unavailable, falling back inline', e);
-      return undefined;
-    }
-
-    const onMessage = (event: MessageEvent<ForceGraphResponse>) => {
-      if (cancelled) return;
-      const data = event.data;
-      if (!data || data.type !== 'simulate.done') return;
-      const byId = new Map<string, ForceGraphPosition>();
-      for (const p of data.payload.positions) byId.set(p.id, p);
+    const controller = new AbortController();
+    void layoutClient.simulate({
+      nodes: (graphData.nodes as RFGNode[]).map((n) => ({ id: String(n.id ?? '') })),
+      links: graphData.links.map((l) => ({
+        source: linkEndpointId(l.source as string | RFGNode),
+        target: linkEndpointId(l.target as string | RFGNode),
+      })),
+      iterations: 80,
+      dim: is3D ? 3 : 2,
+    }, { signal: controller.signal }).then(({ positions }) => {
+      if (controller.signal.aborted) return;
+      const byId = new Map(positions.map((p) => [p.id, p]));
       // Mutate the runtime nodes in place — react-force-graph reads
       // x/y/z directly off the same objects we passed in.
       for (const n of graphData.nodes as RFGNode[]) {
@@ -287,27 +268,12 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
           (n as { z?: number }).z = seed.z ?? 0;
         }
       }
-    };
-    worker.addEventListener('message', onMessage);
-
-    worker.postMessage({
-      type: 'simulate',
-      payload: {
-        nodes: (graphData.nodes as RFGNode[]).map((n) => ({ id: String(n.id ?? '') })),
-        links: graphData.links.map((l) => ({
-          source: linkEndpointId(l.source as string | RFGNode),
-          target: linkEndpointId(l.target as string | RFGNode),
-        })),
-        iterations: 80,
-        dim: is3D ? 3 : 2,
-      },
+    }).catch(() => {
+      // Rendering retains its own inline simulation if precompute fails.
+      if (!controller.signal.aborted) logger.warn('Graph layout unavailable; retaining inline simulation');
     });
-
-    return () => {
-      cancelled = true;
-      worker?.removeEventListener('message', onMessage);
-    };
-  }, [graphData, is3D]);
+    return () => controller.abort();
+  }, [graphData, is3D, layoutClient]);
 
   // ── Sprint 29 Bucket BB H22 ─ frustum culling.
   //
