@@ -7,9 +7,9 @@ Every event in this catalog has a 1:1 entry in the YAML manifest. Cardinality is
 
 Common properties (sent on every event, see TRACKING_PLAN §4.8) are not repeated per row: `event_version`, `app_version`, `app_env`, `app_mode`, `user_id_hash`, `project_id`, `locale`, `device_class`, `online`, `timestamp_iso`, `sample_rate`. The `Required props` and `Optional props` columns list event-specific additions only.
 
-Total: **46 events** across **12 surfaces**.
+Total: **47 events** across **12 surfaces**.
 
-Counts by class: lifecycle 29, engagement 11, safety_critical 9, commerce 4.
+Counts by class: lifecycle 30, engagement 11, safety_critical 9, commerce 4.
 
 ---
 
@@ -118,6 +118,7 @@ Counts by class: lifecycle 29, engagement 11, safety_critical 9, commerce 4.
 | `app.opened` | engagement | App boot. Includes cold/warm discriminator. | `boot_kind` | `last_open_delta_seconds` | platform | 1.0.0 |
 | `app.backgrounded` | engagement | Page went `visibilityState=hidden` for ≥ 3 s. |  | `foreground_duration_seconds` | platform | 1.0.0 |
 | `app.mode.switched` | engagement | `useAppMode().setMode(...)` called or auto-trigger fired. | `from_mode`, `to_mode`, `trigger_kind` |  | platform | 1.0.0 |
+| `graph.layout.engine_served` | lifecycle | Layout precompute completed; reports which engine (and version) served it. | `engine`, `node_count` | `engine_version`, `fallback_reason` | platform | 1.0.0 |
 
 ## Health Vault professional funnel (7)
 

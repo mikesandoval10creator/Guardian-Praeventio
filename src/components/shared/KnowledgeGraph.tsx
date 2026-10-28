@@ -254,8 +254,15 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
       })),
       iterations: 80,
       dim: is3D ? 3 : 2,
-    }, { signal: controller.signal }).then(({ positions }) => {
+    }, { signal: controller.signal }).then((result) => {
+      const { positions, engine, engineVersion, fallbackReason } = result;
       if (controller.signal.aborted) return;
+      analytics.track('graph.layout.engine_served', {
+        engine,
+        engine_version: engineVersion,
+        ...(fallbackReason ? { fallback_reason: fallbackReason } : {}),
+        node_count: graphData.nodes.length,
+      });
       const byId = new Map(positions.map((p) => [p.id, p]));
       // Mutate the runtime nodes in place — react-force-graph reads
       // x/y/z directly off the same objects we passed in.

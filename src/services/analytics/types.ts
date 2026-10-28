@@ -127,7 +127,10 @@ export type EventName =
   | 'health.professional.provisional_approved'
   | 'health.professional.officially_verified'
   | 'health.share.recipient_confirmed'
-  | 'health.share.session_started';
+  | 'health.share.session_started'
+  // Graph layout engine telemetry (Etapa B/Rust gate item 8 — ops health).
+  // Appended per contract: never reordered.
+  | 'graph.layout.engine_served';
 
 /**
  * Common props attached to every event.
@@ -162,6 +165,14 @@ export interface CommonProperties {
 // ---------------------------------------------------------------------------
 // Per-event properties — required + optional shape from the catalog.
 // ---------------------------------------------------------------------------
+
+/** Graph layout engine telemetry — which engine/version served a precompute. */
+export interface GraphLayoutEngineServedProperties extends CommonProperties {
+  engine: 'wasm' | 'typescript';
+  engine_version?: string;
+  fallback_reason?: string;
+  node_count: number;
+}
 
 /** Auth providers supported in v1 (property-glossary "Auth-specific"). */
 export type AuthProvider = 'google' | 'webauthn' | 'email_link';
@@ -762,6 +773,7 @@ export interface HealthShareFunnelProperties extends CommonProperties {
  * row of the catalog at compile time.
  */
 export interface EventPropertiesMap {
+  'graph.layout.engine_served': GraphLayoutEngineServedProperties;
   'auth.user.signed_up': AuthUserSignedUpProperties;
   'project.created': ProjectCreatedProperties;
   'project.member.invited': ProjectMemberInvitedProperties;
