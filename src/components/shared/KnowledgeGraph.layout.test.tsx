@@ -3,6 +3,7 @@ import React from "react";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeType, type RiskNode } from "../../types";
+import { analytics } from "../../services/analytics";
 const state = vi.hoisted(() => ({ graph: { nodes: [] as unknown[], links: [] as unknown[] } }));
 vi.mock("../../hooks/useRiskEngine", () => ({
   useRiskEngine: () => ({
@@ -24,6 +25,7 @@ vi.mock("framer-motion", () => ({
 }));
 import { KnowledgeGraph } from "./KnowledgeGraph";
 type SeedNode = RiskNode & { x?: number; y?: number };
+const fakeEngineInfo = () => ({ defaultEngine: "typescript" as const, wasmEnabled: false, versions: {} });
 function graph(prefix: string) {
   return {
     nodes: Array.from({ length: 200 }, (_, i): SeedNode => ({
@@ -84,7 +86,7 @@ describe("KnowledgeGraph layout lifecycle", () => {
         engine: "wasm",
         positions: (state.graph.nodes as SeedNode[]).map((n) => ({ id: n.id, x: 41, y: 42 })),
       });
-    const view = render(<KnowledgeGraph layoutClient={{ simulate }} />);
+    const view = render(<KnowledgeGraph layoutClient={{ simulate, engineInfo: fakeEngineInfo }} />);
     expect(simulate).toHaveBeenCalledOnce();
     expect(TestWorker.instances).toHaveLength(0);
     await act(async () => {});
@@ -112,5 +114,18 @@ describe("KnowledgeGraph layout lifecycle", () => {
     });
     expect(next.nodes[0].x).toBe(12);
     expect(next.nodes[0].y).toBe(13);
+  });
+  it("emits engine version telemetry through the analytics adapter", async () => {
+    const simulate = vi.fn().mockResolvedValue({
+      engine: "wasm",
+      engineVersion: "wasm-sha-1",
+      positions: (state.graph.nodes as SeedNode[]).map((n) => ({ id: n.id, x: 1, y: 2 })),
+    });
+    render(<KnowledgeGraph layoutClient={{ simulate, engineInfo: fakeEngineInfo }} />);
+    await act(async () => {});
+    expect(vi.mocked(analytics.track)).toHaveBeenCalledWith(
+      "graph.layout.engine_served",
+      expect.objectContaining({ engine: "wasm", engine_version: "wasm-sha-1" }),
+    );
   });
 });

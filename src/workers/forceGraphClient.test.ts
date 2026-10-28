@@ -216,4 +216,63 @@ describe("force graph client engine selection", () => {
     expect(result.engine).toBe("wasm");
     expect(wasm.terminate).toHaveBeenCalledOnce();
   });
+  it("carries engine version telemetry on every result path", async () => {
+    vi.stubGlobal("Worker", Transport);
+    const wasm = new Transport();
+    const client = createForceGraphLayoutClient({
+      wasmEnabled: true,
+      createWasmWorker: () => wasm as unknown as Worker,
+      engineVersions: { wasm: "wasm-sha-1", typescript: "ts-build-1" },
+    });
+    const r = await client.simulate(payload, { signal: new AbortController().signal });
+    expect(r.engine).toBe("wasm");
+    expect(r.engineVersion).toBe("wasm-sha-1");
+    const tsClient = createForceGraphLayoutClient({
+      createTypeScriptWorker: () => new Transport() as unknown as Worker,
+      engineVersions: { wasm: "wasm-sha-1", typescript: "ts-build-1" },
+    });
+    const r2 = await tsClient.simulate(payload, { signal: new AbortController().signal });
+    expect(r2.engine).toBe("typescript");
+    expect(r2.engineVersion).toBe("ts-build-1");
+  });
+  it("reports fallback results with the fallback engine version", async () => {
+    vi.stubGlobal("Worker", Transport);
+    const failing = new Transport();
+    failing.postMessage = vi.fn(() =>
+      queueMicrotask(() =>
+        failing.onmessage?.({ data: { type: "simulate.error", payload: { message: "boom" } } } as MessageEvent),
+      ),
+    );
+    const client = createForceGraphLayoutClient({
+      wasmEnabled: true,
+      createWasmWorker: () => failing as unknown as Worker,
+      createTypeScriptWorker: () => new Transport() as unknown as Worker,
+      engineVersions: { wasm: "wasm-sha-1", typescript: "ts-build-1" },
+    });
+    const r = await client.simulate(payload, { signal: new AbortController().signal });
+    expect(r.engine).toBe("typescript");
+    // El cliente sanea los mensajes del worker (sin exponer detalles internos):
+    // el fallbackReason es el código genérico, nunca el mensaje crudo.
+    expect(r.fallbackReason).toBe("layout_worker_failed");
+    expect(JSON.stringify(r)).not.toContain("boom");
+    expect(r.engineVersion).toBe("ts-build-1");
+  });
+  it("exposes engine info for health and telemetry", () => {
+    const client = createForceGraphLayoutClient({
+      wasmEnabled: true,
+      createWasmWorker: () => new Transport() as unknown as Worker,
+      engineVersions: { wasm: "wasm-sha-1", typescript: "ts-build-1" },
+    });
+    expect(client.engineInfo()).toEqual({
+      defaultEngine: "typescript",
+      wasmEnabled: true,
+      versions: { wasm: "wasm-sha-1", typescript: "ts-build-1" },
+    });
+    const bare = createForceGraphLayoutClient();
+    expect(bare.engineInfo()).toEqual({
+      defaultEngine: "typescript",
+      wasmEnabled: false,
+      versions: {},
+    });
+  });
 });

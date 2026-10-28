@@ -472,6 +472,15 @@ events:
     firstVersion: 1.0.0
     piiRisk: low
 
+  - name: graph.layout.engine_served
+    class: lifecycle
+    description: Layout precompute completed; reports which engine (and version) served it.
+    requiredProps: [engine, node_count]
+    optionalProps: [engine_version, fallback_reason]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
   # =================== Health Vault professional funnel (7) ===================
   - name: health.professional.onboarding_started
     class: lifecycle

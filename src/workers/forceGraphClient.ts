@@ -4,10 +4,19 @@ type Payload = ForceGraphRequest["payload"];
 export interface ForceGraphLayoutResult {
   positions: ForceGraphPosition[];
   engine: "typescript" | "wasm";
+  /** Deployment identity of the engine that produced this result (asset hash / build id). */
+  engineVersion?: string;
   fallbackReason?: string;
+}
+export interface ForceGraphEngineInfo {
+  defaultEngine: "typescript";
+  wasmEnabled: boolean;
+  versions: { wasm?: string; typescript?: string };
 }
 export interface ForceGraphLayoutClient {
   simulate(payload: Payload, options: { signal: AbortSignal }): Promise<ForceGraphLayoutResult>;
+  /** Health/telemetry surface: which engines can serve and which versions they carry. */
+  engineInfo(): ForceGraphEngineInfo;
 }
 export interface ForceGraphClientOptions {
   wasmEnabled?: boolean;
@@ -15,6 +24,8 @@ export interface ForceGraphClientOptions {
   createTypeScriptWorker?: () => Worker;
   wasmDeadlineMs?: number;
   typescriptDeadlineMs?: number;
+  /** Engine version identities (e.g. wasm asset sha256, worker build id) for telemetry. */
+  engineVersions?: { wasm?: string; typescript?: string };
 }
 function abortError(): Error {
   const error = new Error("Layout request cancelled");
@@ -127,6 +138,11 @@ export function createForceGraphLayoutClient(
     });
   }
   return {
+    engineInfo: () => ({
+      defaultEngine: "typescript",
+      wasmEnabled: Boolean(options.wasmEnabled && options.createWasmWorker),
+      versions: { ...options.engineVersions },
+    }),
     async simulate(input, { signal }) {
       if (signal.aborted) throw abortError();
       if (active) throw new Error("layout_busy");
@@ -147,6 +163,7 @@ export function createForceGraphLayoutClient(
           try {
             return {
               engine: "wasm",
+              engineVersion: options.engineVersions?.wasm,
               positions: await execute(options.createWasmWorker, payload, signal, wasmDeadline),
             };
           } catch (e) {
@@ -157,6 +174,7 @@ export function createForceGraphLayoutClient(
         if (signal.aborted) throw abortError();
         return {
           engine: "typescript",
+          engineVersion: options.engineVersions?.typescript,
           positions: await execute(createTypeScriptWorker, payload, signal, tsDeadline),
           ...(fallbackReason ? { fallbackReason } : {}),
         };
