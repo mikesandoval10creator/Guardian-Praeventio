@@ -110,23 +110,29 @@ describe('resilientRead', () => {
   });
 
   it('timeout per attempt: read tarda más → fallback dispara', async () => {
-    const pendingReads: Array<(value: string) => void> = [];
-    const slowRead: () => Promise<string> = () =>
-      new Promise((resolve) => {
-        pendingReads.push(resolve);
+    vi.useFakeTimers();
+    try {
+      const slowRead: () => Promise<string> = () =>
+        new Promise((res) => setTimeout(() => res('tarde'), 5000));
+      const fallback = async () => 'cache';
+      const pending = resilientRead(slowRead, {
+        sleep: fastSleep,
+        perAttemptTimeoutMs: 50,
+        fallback,
       });
-    const fallback = async () => 'cache';
-    const r = await resilientRead(slowRead, {
-      sleep: fastSleep,
-      perAttemptTimeoutMs: 50,
-      fallback,
-    });
-    // A real provider would cancel the underlying operation through its own
-    // transport. Resolve this test double explicitly so the rejected race does
-    // not leave an intentionally pending promise behind.
-    pendingReads.forEach((resolve) => resolve('tarde'));
-    expect(r.value).toBe('cache');
-    expect(r.attempts.every((a) => a.error?.includes('timeout'))).toBe(true);
+      await vi.advanceTimersByTimeAsync(150);
+      const r = await pending;
+      expect(r.value).toBe('cache');
+      expect(r.attempts).toHaveLength(3);
+      expect(r.attempts.every((a) => a.error?.includes('timeout'))).toBe(true);
+      // The API bounds waiting, not cancellation of the supplied read.
+      // Finish every synthetic late read instead of abandoning its Promise.
+      await vi.runAllTimersAsync();
+      expect(r.value).toBe('cache');
+    } finally {
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
   it('maxAttempts custom', async () => {

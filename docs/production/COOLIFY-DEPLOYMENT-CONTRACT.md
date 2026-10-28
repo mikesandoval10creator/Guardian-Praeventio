@@ -4,7 +4,25 @@
 > Este documento inventaría el estado del repositorio; no provisiona infraestructura,
 > no contiene credenciales y no autoriza un despliegue.
 
-## Estado verificado
+## Vigencia y dependencia del plan — 2026-10-27
+
+El orden canónico actualizado está en
+[`PLAN-COOLIFY-HYBRID.md`](PLAN-COOLIFY-HYBRID.md): bloques A/C para base y contrato,
+D para datos/auth, E para gateway/MCP y F para staging. Las referencias a Slice 0/1
+de este documento pertenecen a la numeración inicial, no cambian ese orden.
+
+Snapshot documental actual: rama `fix/recover-technical-debt-20261027`,
+HEAD `5417fae4d6d61220dca75d6b3ad9d28d9f900ce3`. Antes de esta edición el checkout
+de M estaba limpio; eso no resuelve los cinco conflictos del worktree de
+integración ni acredita que #1874 esté integrado. Preservar el checkout de C.
+
+El inventario siguiente conserva el resultado de la inspección inicial; sus
+comandos y hallazgos requieren revalidación al implementar. Esta actualización no
+construyó imágenes, probó backend/proxy, configuró DNS ni provisionó Coolify/VPS.
+La evaluación aislada Rust/WASM puede adelantarse sin depender de un servicio
+remoto ni obligar a desplegar Rust/Go; sus gates no sustituyen los de este contrato.
+
+## Estado histórico verificado — base inicial `c11b4308`
 
 - Workspace: `M:/Guardian Praeventio/repo-live`.
 - Rama: `main`.

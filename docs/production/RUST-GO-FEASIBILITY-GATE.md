@@ -2,11 +2,37 @@
 
 Estado: **evaluación previa al despliegue; no autoriza migración ni despliegue**.
 
+## Actualización vigente — 2026-10-27
+
+Este gate se subordina al orden de
+[`PLAN-COOLIFY-HYBRID.md`](PLAN-COOLIFY-HYBRID.md). Snapshot documental:
+`5417fae4d6d61220dca75d6b3ad9d28d9f900ce3`, rama
+`fix/recover-technical-debt-20261027`; la base `c11b4308` que aparece abajo es histórica.
+
+- Daniel autorizó instalar Rust y Go en Larry, mensaje 761601 del 26 de octubre.
+  La restricción inicial de instalación quedó superada por ese permiso, no por
+  una inferencia de este documento. No hace falta reinstalar lo disponible.
+- Comprobación física: `rustc 1.99.1`, `cargo 1.99.1` y
+  `go version go1.27.3 windows/amd64`, mediante rutas absolutas de toolchain.
+- Se conservaron fixtures compartidos 100/1.000/10.000 y mediciones TypeScript.
+  El prototipo Rust inspeccionado carga y valida JSON, enlaces y posiciones;
+  todavía no contiene la dinámica equivalente del worker.
+- El probe WASM histórico acredita toolchain, no equivalencia del motor. La
+  tolerancia numérica y el beneficio mínimo de adopción siguen por fijar.
+- Próximo slice técnico: tras reconciliar la base compartida, implementar la
+  dinámica equivalente de `forceGraphWorker.ts` en Rust, respetar contrato 2D/3D,
+  comparar invariantes y tolerancia y medir el algoritmo real por Worker/WASM.
+  TypeScript sigue como referencia/fallback; Go instalado no implica servicio Go.
+
+Esta actualización es documental: no inicia la implementación ni cambia el
+algoritmo productivo. El histórico y sus mediciones se conservan a continuación,
+con su alcance original; no son una nueva ejecución contra el snapshot actual.
+
 ## Objetivo
 
 Determinar si Rust/WASM o Go deben entrar antes del despliegue híbrido sin reemplazar TypeScript por preferencia tecnológica. Toda adopción debe ser aislada, medible, reversible y mantener un fallback TypeScript.
 
-## Evidencia verificada
+## Evidencia histórica — auditoría inicial, anterior a la instalación
 
 - Repositorio: `M:/Guardian Praeventio/repo-live`.
 - Rama: `main`.
@@ -15,8 +41,9 @@ Determinar si Rust/WASM o Go deben entrar antes del despliegue híbrido sin reem
 - `graphify update . --no-cluster`: `34.392` nodos y `80.710` aristas.
 - Graphify identifica `src/workers/forceGraphWorker.ts` como dependiente de `KnowledgeGraph.tsx` y `forceGraphWorker.test.ts`.
 - El worker usa simulación síncrona con ticks manuales y detiene el timer de d3; su contrato ya es message-based y puede aislarse.
-- Rust no está instalado en el entorno de auditoría: `rustc` y `cargo` no encontrados.
-- Go no está instalado en el entorno de auditoría: `go` no encontrado.
+- En aquella consulta inicial no se encontraron `rustc` ni `cargo`; ese resultado
+  no describe la disponibilidad actual comprobada en el addendum.
+- En aquella consulta inicial no se encontró `go`; actualmente está instalado.
 
 ## Línea base TypeScript
 
@@ -80,7 +107,8 @@ Errores:
 
 ### Gate para adelantar Rust/WASM
 
-No se incorpora código Rust todavía. Primero se requiere:
+Antes de adoptar Rust en la ruta productiva se requiere lo siguiente. La
+implementación aislada equivalente sí forma parte de la evaluación acordada:
 
 1. fixture compartido para 100, 1.000 y 10.000 nodos;
 2. implementación Rust equivalente, sin cambiar el algoritmo de referencia;
@@ -99,7 +127,9 @@ No se incorpora código Rust todavía. Primero se requiere:
 9. rollback por feature flag;
 10. beneficio mínimo previamente acordado, no solo benchmark sintético.
 
-La medición actual justifica **preparar el contrato y el benchmark ahora**, no afirmar todavía que Rust mejora el producto.
+La medición histórica justificó preparar el contrato y el benchmark. Esa
+preparación ya avanzó: el siguiente paso es la dinámica equivalente y su
+comparación, no afirmar todavía que Rust mejora el producto.
 
 ## Candidatos Go
 
@@ -127,11 +157,23 @@ Go puede entrar después como servicio independiente cuando exista:
 
 ## Decisión provisional
 
-- **Rust/WASM:** adelantar ahora la fase de contrato, fixtures y benchmark sobre `forceGraphWorker`; no adelantar aún la migración productiva.
+- **Rust/WASM:** continuar la evaluación aislada sobre `forceGraphWorker` desde
+  los fixtures existentes hacia la implementación equivalente y benchmark;
+  no adelantar aún la migración productiva.
 - **Go:** no adelantar implementación todavía; mantenerlo como candidato para un worker/adapter operacional después de estabilizar el contrato y medir la necesidad.
 - **TypeScript:** sigue siendo la fuente de verdad y fallback para el vertical slice.
 - **Coolify:** no se bloquea por la evaluación, pero ningún servicio Rust/Go entra a staging hasta pasar sus gates.
 
 ## Próxima acción autorizada
 
-Construir un benchmark reproducible del contrato del worker y, solo si Rust/Cargo se habilitan explícitamente en el entorno, implementar un prototipo WASM aislado. No instalar toolchains, no tocar producción y no reemplazar rutas existentes durante esta fase.
+La instrucción inicial condicionaba el prototipo a habilitar toolchains y
+prohibía instalarlos sin permiso. El permiso posterior de Daniel y la instalación
+comprobada resuelven esa condición; no autorizan por extensión más instalaciones,
+producción ni sustitución de rutas existentes.
+
+La continuación técnica acordada es implementar el algoritmo equivalente aislado,
+no otra prueba de carga de fixtures. Reutilizar la misma carga y registrar
+versión/hash de TypeScript, fixtures y Rust; validar 2D/3D, errores, determinismo,
+invariantes y tolerancia explícita. Medir carga WASM, cálculo, transferencias,
+serialización, memoria y p50/p95/p99 antes de decidir adopción. El punto de
+entrada operativo y la reconciliación previa están en los bloques A/B del plan.

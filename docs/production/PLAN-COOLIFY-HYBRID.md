@@ -1,8 +1,70 @@
 # Plan de producción híbrida — Guardian Praeventio
 
-**Estado:** decisión inicial autorizada; implementación por slices verificables.
-**Fecha:** 2026-10-26
-**Commit base inspeccionado:** `c11b4308`
+**Estado:** plan reconciliado con los acuerdos de Daniel; ejecución funcional pendiente de retomar.
+**Creado:** 2026-10-26 · **Actualizado:** 2026-10-27
+**Base histórica:** `c11b4308`; no representa el HEAD actual.
+**Snapshot de esta actualización documental:** rama `fix/recover-technical-debt-20261027`, HEAD `5417fae4d6d61220dca75d6b3ad9d28d9f900ce3`.
+
+## Continuidad y alcance vigente
+
+Este es el plan canónico de evolución híbrida, no un backlog alternativo a Notion.
+La actualización reconcilia las conversaciones de Larry del 22–26 de octubre y
+los documentos existentes; no inicia implementación, instala herramientas, crea
+infraestructura, fusiona PRs ni autoriza producción por sí sola. Las propuestas
+siguen siendo propuestas hasta su implementación y verificación.
+
+- **Workspace de desarrollo:** `M:/Guardian Praeventio/repo-live`. Preservar el
+  checkout de C y el trabajo conjunto existente; no usar `reset --hard`, `clean`
+  ni sincronizaciones destructivas para recuperar contexto.
+- **Dirección:** arquitectura híbrida y reversible, Zettelkasten como tejido causal,
+  gateway LLM/MCP, digital twin/AR operativo y adopción incremental de lenguajes.
+  No reiniciar una planificación genérica ni relegar Rust a después de Coolify.
+- **Orden inmediato:** reconciliar la base de integración pendiente y después
+  retomar la implementación equivalente Rust del worker. Los pasos técnicos y
+  criterios de salida se definen en «Orden de ejecución vigente».
+- **Herramientas:** Vite+ debe usarse en los comandos reales; REA, Graphify, Notion
+  y Obsidian conservan sus funciones complementarias. Sus instalaciones o notas
+  no prueban disponibilidad ni cobertura end-to-end.
+
+### Estado de partida, no certificado de producto completo
+
+| Frente | Evidencia recuperada y comprobada el 2026-10-27 | Trabajo que sigue pendiente |
+|---|---|---|
+| Base compartida | #1874 publicado en borrador, `DIRTY`, sin checks reportados; cinco archivos sin resolver en el worktree de integración | Reconciliar con los cambios ya fusionados sin perder nuestras correcciones; gates y CI del SHA resultante |
+| Zettelkasten y clima | #1866 y #1867 `MERGED` | Validar los productores/consumidores restantes y sus recorridos reales; no repetir arreglos antiguos ni declarar convergencia global |
+| Vite+ | #1868 `MERGED`; adopción inicial integrada | Usarlo en cada slice y verificar runner, runtime y gates actuales; conservar comparación explícita con el runner anterior cuando corresponda |
+| Resiliencia | #1872 y #1873 `MERGED` | Reconciliar su solapamiento con #1874; merge no equivale a cero leaks ni a cancelación de cualquier adapter |
+| Rust y Go | Instalación autorizada por Daniel el 26 de octubre; `rustc/cargo 1.99.1`, `go1.27.3 windows/amd64` comprobados por ruta absoluta | Implementar equivalencia Rust del algoritmo, no reinstalar toolchains ni confundir un probe con el motor terminado |
+| Comparación del grafo | Fixtures compartidos 100/1.000/10.000 y mediciones TypeScript conservados; prototipo Rust inspeccionado carga y valida los fixtures | Dinámica equivalente, tolerancia numérica, WASM real y medición end-to-end; pool productivo aún no acreditado |
+| Gateway LLM/MCP | Adapters y resolver backend parciales documentados en `LOCAL-WORK-CONTINUITY.md` | Almacén seguro de claves, aislamiento completo, cuotas/fallback y MCP multiusuario autenticado; no declararlos terminados |
+| Coolify, datos y auth | Contrato inicial documentado | Fuente de verdad de imágenes/pipeline, backend/proxy real, adapters, staging, restauración y rollback; despliegue no acreditado |
+| Digital twin/AR/CAD | Línea de evolución acordada y referencia ArtCraft identificada | Revalidar capacidades existentes y cerrar un recorrido operacional, con licencias y criterios funcionales |
+| SEO y medición | Incluidos en este plan | Verificación técnica y consentimiento antes de activar servicios o solicitar indexación |
+
+Los estados GitHub son un corte temporal, no una orden automática de merge. En la
+revisión también seguían abiertos #1869, #1870 y #1871, `CLEAN`, cada uno con 37
+checks `SUCCESS`; deberán revisarse contra su SHA y base actuales antes de actuar.
+Notion no se volvió a consultar durante esta reconciliación: no hay conteo nuevo
+ni tickets cerrados por esta actualización.
+
+### Trazabilidad de acuerdos y documentos
+
+- Larry: sesión `20261025_223434_4b8e7776`; mensajes 750758/750927
+  (híbrido y dominios), 751740 (REA/Graphify/Notion), 759152/759385
+  (ArtCraft y técnicas gráficas), 759844 (presencia web), 760517
+  (adelantar evaluación Rust/Go) y 761601 (instalación autorizada).
+- El punto de continuación recuperado en la respuesta 762109 es implementar la
+  dinámica equivalente Rust y comparar con TypeScript, no volver a empezar el
+  benchmark. La propuesta de motor espacial anterior no sustituye ese slice.
+- [`COOLIFY-DEPLOYMENT-CONTRACT.md`](COOLIFY-DEPLOYMENT-CONTRACT.md): contrato
+  operacional y condiciones antes de desplegar; conserva inventario histórico.
+- [`RUST-GO-FEASIBILITY-GATE.md`](RUST-GO-FEASIBILITY-GATE.md): contratos,
+  equivalencia, benchmark, fallback y autorización posterior de toolchains.
+- [`LOCAL-WORK-CONTINUITY.md`](LOCAL-WORK-CONTINUITY.md): trabajo compartido,
+  evidencia local y límites; sus resultados históricos no certifican otro SHA.
+- Intención de producto: `ZETTELKASTEN_V2_SPEC.md`,
+  `docs/SPRINT_K_REFORMULATED.md`, `docs/specs/` y ADR aplicable, contrastados
+  siempre con código actual, evidencia de Obsidian y ticket canónico de Notion.
 
 ## Decisiones
 
@@ -185,80 +247,169 @@ La ruta activa no debe depender de Vertex AI ni de cuotas de Google. El gateway 
 
 El repositorio ya contiene `@modelcontextprotocol/sdk`, un servidor MCP stdio de Zettelkasten y una capa self-hosted OpenAI-compatible. El trabajo pendiente es convertirlo en una superficie operativa segura y no asumir que el MCP stdio existente equivale a un gateway HTTP multiusuario.
 
-## Orden de ejecución
+## Orden de ejecución vigente
 
-### Slice 0 — base limpia y contrato de despliegue
+Este orden sustituye la secuencia inicial del 26 de octubre: la evaluación
+Rust/WASM se adelanta al despliegue, y Zettelkasten no se pospone íntegramente
+hasta después de producción. La numeración anterior se conserva solo como
+referencia: Slice 0 → A/C; Slice 1 → F; Slice 1.5 → G; Slice 2 → D;
+Slice 3 → E; Slice 4 → B/H; Slice 5 → D/H.
 
-- sincronizar `main` con `origin/main`;
-- resolver el checkout real y documentar la evidencia de workspace;
-- inventariar Dockerfiles, comandos de build/start y variables de entorno;
-- eliminar ambigüedades de dominio;
-- documentar el contrato Coolify sin tocar credenciales;
-- consultar Notion para alcance y estado, Graphify para impacto y relaciones, y REA cuando se requiera evidencia de runtime o artefactos;
-- definir staging y producción separados.
+La actualización de este plan es el paso documental solicitado ahora. La
+implementación comenzará después, siguiendo estos criterios y el alcance vigente.
 
-### Slice 1 — Coolify mínimo reproducible
+### A — Reconciliar la base compartida, sin perder avances
 
-- provisionar VPS separado de cualquier equipo de desarrollo;
-- firewall, usuario administrativo sin root directo, actualizaciones y SSH endurecido;
-- instalar Coolify;
-- desplegar primero landing/app sin datos reales;
-- configurar `praeventio.net` y `app.praeventio.net` en Squarebox;
-- validar TLS, health checks, logs y rollback.
+- Releer el diff y estado remoto de #1874 y los cambios ya integrados por
+  #1872/#1873; resolver semánticamente los cinco conflictos del worktree de
+  integración, sin elegir indiscriminadamente una versión.
+- Preservar nuestras correcciones de tenant-routing, HTTP, deadlines, tests,
+  tooling y arquitectura; no tratarlas como cambios ajenos descartables.
+- Revisar los PRs abiertos para evitar duplicación o solapamiento; no hacer
+  merges en lote basados en un estado verde anterior.
+- Validar primero regresiones focales y la vertical afectada; después typecheck,
+  lint, suite aplicable, revisión adversarial y CI del SHA resultante.
+- Reconciliar evidencia y tickets cuando corresponda. Exit 0 no demuestra cero
+  leaks; no presentar una suite histórica como prueba de una nueva resolución.
 
-### Slice 1.5 — presencia web medible y rastreable
+**Salida:** base reconciliada y revisable, sin conflictos, con evidencia del SHA
+actual y preservación comprobada de los contratos. No implica producción lista.
 
-- auditar y corregir SEO técnico de la landing pública;
-- verificar `robots.txt`, sitemap, canonical, títulos, descripciones y datos
-  estructurados desde el build servido;
-- implementar el gate de consentimiento y el adapter de Analytics sin PII;
-- definir eventos de conversión públicos y separar sus propiedades de los datos
-  operacionales de Guardian;
-- preparar, sin publicar todavía, el checklist de Perfil de Negocio de Google;
-- verificar Search Console e indexación solo cuando los gates de producción estén
-  satisfechos;
-- conservar evidencia de cada verificación y no tratar "solicitar indexación" como
-  prueba de que Google ya indexó la página.
+### B — Retomar Rust/WASM: dinámica equivalente del worker
 
-### Slice 2 — persistencia y auth sin Google pagado
+- Reutilizar los fixtures compartidos y resultados conservados de 100, 1.000 y
+  10.000 nodos. Repetir una línea base solo si cambió el código, el fixture o el
+  entorno de medición; conservar versión/hash para una comparación reproducible.
+- Implementar en Rust la dinámica equivalente de `forceGraphWorker.ts`, no una
+  aproximación, un contador ni solo validación de JSON. Respetar el contrato 2D/3D,
+  inicialización, iteraciones, errores y determinismo del algoritmo de referencia.
+- Acordar y documentar tolerancia numérica y beneficio mínimo antes de decidir
+  adopción; no inventar un umbral retrospectivo para hacer ganar al candidato.
+- Comparar invariantes y resultados en fixtures compartidos, incluidos errores,
+  ejecuciones repetidas e independencia entre trabajos.
+- Compilar el algoritmo real a WASM y medir por separado cálculo, carga inicial,
+  serialización/deserialización, transferencia, memoria, p50/p95/p99 y tamaño.
+- Comparar el recorrido real Worker/WASM, no solo Rust nativo contra JS; conservar
+  TypeScript como referencia y fallback, sin cambiar todavía la ruta productiva.
 
-- producir matriz Firestore → backend destino;
-- elegir persistencia según consultas reales, no por preferencia tecnológica;
-- implementar adapter y migración de prueba;
-- validar aislamiento multi-tenant;
-- probar backup, restauración y pérdida de nodo;
-- ejecutar smoke tests con datos sintéticos.
+**Salida:** comparativa reproducible y veredicto adoptar/ajustar/no adoptar.
+Compilar un probe WASM o cargar fixtures no satisface este criterio.
 
-### Slice 3 — gateway LLM + MCP
+### C — Contrato operacional y ejecución acotada
 
-- extraer un `LlmProvider` estable;
-- migrar una acción de IA a la vez fuera de Vertex/Gemini;
-- crear gateway interno autenticado;
-- conectar MCP con identidad y tenant explícitos;
-- mantener MCP Zettelkasten read-only inicialmente;
-- probar límites, revocación, auditoría y fuga de claves.
+- Cerrar el contrato Coolify existente: Dockerfile canónico, workflow, variables,
+  clasificación de `firebase-applet-config.json`, comandos y puertos.
+- Probar imágenes, API real `/api/health`, proxy `/api/*`, headers/CORS y deep links
+  con datos sintéticos; un preview estático no prueba funcionamiento del backend.
+- Donde el worker requiera ejecución concurrente, definir y probar pool acotado,
+  cola, backpressure, cancelación/expiración y límites de entrada/salida/memoria.
+  Medir tiempo en cola separado del cálculo y contención bajo carga; no convertir
+  la concurrencia de un benchmark en promesa multiusuario del backend.
+- Conservar fallback y rollback por feature flag/versionado si B justifica adoptar
+  un motor nuevo; no añadir Rust como servicio remoto si basta Worker/WASM.
 
-### Slice 4 — primer servicio Go/Rust
+**Salida:** contratos y pruebas de operación reproducibles. Un pool o despliegue
+no se considera implementado por estar descrito aquí.
 
-- elegir una deuda concreta respaldada por medición;
-- definir contrato JSON/HTTP/gRPC/WASM;
-- implementar equivalencia TypeScript;
-- comparar resultados en fixtures reales anonimizados;
-- añadir métricas, fallback y rollback;
-- desplegar como servicio independiente en Coolify.
+### D — Datos, autenticación y convergencia Zettelkasten
 
-### Slice 5 — Zettelkasten, AR y producto
+- Clasificar cada dependencia real de Firebase/Firestore y su disponibilidad;
+  elegir backend por consultas/contratos, sin borrar adapters ni asumir que Coolify
+  sustituye identidad, reglas, persistencia, storage, colas o notificaciones.
+- Construir adapters y migraciones de prueba reversibles con backup, restauración,
+  pérdida de nodo y aislamiento multi-tenant comprobables.
+- Seguir por vertical: productor → tipo runtime/allowlist → API autorizada →
+  persistencia/materialización → consumidor → lectura observable.
+- Validar aristas tipadas/inversas, backlinks, consultas, RAG/KnowledgeBase,
+  obsolescencia, sincronización offline y cambio de proyecto/tenant. Un catálogo
+  con rutas existentes no demuestra emisión ni consumo de sus tipos.
+- Tratar Sprint K como funciones de sus dominios. Preservar proyecciones legacy
+  justificadas y completar integración, no borrar capacidades para simplificar.
 
-Después de estabilizar el camino de producción:
+**Salida:** recorridos concretos con evidencia y tickets reconciliados, sin
+atribuir cobertura global a un conjunto de tests focalizados.
 
-- mantener el ciclo Notion → implementación → tests/CI → evidencia → reconciliación;
-- actualizar Graphify después de cambios que alteren relaciones del sistema;
-- usar REA para validar comportamiento observable cuando el análisis estático no sea suficiente;
-- fortalecer materialización, consultas y navegación Zettelkasten;
-- separar procesamiento pesado de AR/photogrammetry;
-- evaluar Rust para procesamiento determinista o WASM;
-- evaluar Go para jobs y sincronización;
-- priorizar features que aumenten valor para los primeros clientes.
+### E — Gateway LLM y MCP operativo seguro
+
+- Estabilizar `LlmProvider` y migrar una acción a la vez fuera de Vertex/Gemini,
+  conservando compatibilidad y degradación segura.
+- Implementar custodia de claves backend-only, cifrado en reposo, rotación y
+  revocación; probar aislamiento de credenciales y circuitos por tenant/usuario.
+- Añadir cuotas/coste, métricas redactadas, límites y fallback verificables.
+- Conectar MCP con autenticación, autorización, tenant/proyecto explícitos,
+  auditoría y rate limiting; Zettelkasten inicialmente read-only.
+- Probar errores, abuso, fuga de claves y aislamiento. Escrituras MCP requieren
+  autorización y reversión; no son parte del permiso read-only.
+
+**Salida:** una vertical IA/MCP verificable sin dependencia de Vertex ni autoridad
+LLM sobre vida-safety; un resolver por entorno no acredita el gateway completo.
+
+### F — Coolify/staging y ruta híbrida desplegable
+
+- Confirmar VPS separado y alcance autorizado antes de provisionar, incurrir en
+  costes o modificar DNS; verificar proveedor real, no asumirlo por el nombre.
+- Endurecer SSH/firewall/actualizaciones y separar secretos, datos y servicios de
+  staging/producción. Mantener Google/servicios externos donde aporten valor.
+- Desplegar landing/app/API con datos sintéticos, dominios canónicos y TLS; probar
+  health/readiness, logs, métricas, deep links, recuperación y rollback.
+- Si auth/datos/IA aún no están resueltos, etiquetar la capacidad del entorno con
+  precisión: una landing o shell en staging no es la aplicación completa operativa.
+
+**Salida:** staging con read-back y recuperación probados. La promoción a producción
+requiere autorización y todos los gates; no la habilita el final de un slice.
+
+### G — Presencia web y medición, sin adelantar publicación
+
+- Ejecutar el bloque de SEO/consentimiento de este plan: metadata, canonical,
+  sitemap/robots, rutas públicas/privadas y assets desde el build servido.
+- Preparar Analytics sin PII, eventos mínimos de conversión y opt-out; activar
+  propiedades reales solo con titularidad, consentimiento y entorno confirmados.
+- Preparar Perfil de Negocio con información verificable; Search Console y
+  solicitud de indexación solo cuando corresponda. Solicitar no equivale a indexar.
+
+**Salida:** evidencia técnica y de privacidad, separada de métricas operacionales
+y de vida-safety. Este frente no desplaza la integración ni el slice B pendiente.
+
+### H — Digital twin/AR/CAD y servicios políglotas incrementales
+
+- Construir sobre los componentes existentes, no crear otro motor paralelo.
+  Revalidar cada hallazgo histórico antes de modificarlo.
+- Separar documento/escena canónica → motor espacial determinista → render.
+  Modelo versionado, coordenadas/unidades explícitas y comandos serializables
+  permiten validación, auditoría, replay, undo/redo y sincronización offline.
+- Cerrar una vertical: cargar faena → colocar/mover objeto de seguridad → validar
+  contra geometría → mostrar findings → persistir → recargar/leer en el ámbito
+  autorizado. Probar conflictos y pérdida de red, no solo la escena visible.
+- Evaluar geometría, snapping, distancias, colisiones, rutas, carga por niveles de
+  detalle y partición espacial; WebGPU/WASM/CPU/GPU se eligen por soporte, memoria
+  y medición, con fallback WebGL/TypeScript cuando corresponda.
+- Estudiar [ArtCraft](https://getartcraft.com/apps) como referencia de separación
+  motor/interfaz y superficies UI/CLI/MCP; revisar licencia y dependencias antes
+  de reutilizar código. No asumir que noticias o demos acreditan interoperabilidad.
+- Mantener CAD/DWG y photogrammetry como adapters aislados con formatos, licencias,
+  límites y tests explícitos; no declarar conversión real donde solo hay un stub.
+- Rust puede ampliar el núcleo computacional si B y el caso espacial lo justifican.
+  Go queda disponible para un worker/adapter con necesidad medida: contrato
+  versionado, idempotencia, tenant, health, métricas, staging y rollback; no
+  reemplaza `server.ts` por preferencia tecnológica.
+
+**Salida:** capacidad operacional end-to-end medida. El motor espacial o LLM no
+se convierte por sí solo en autoridad de seguridad ni de bloqueo del trabajador.
+
+### Disciplina transversal de cada slice
+
+1. Consultar ticket canónico de Notion y evidencia histórica de Obsidian/spec/ADR;
+   usar Graphify para impacto y REA cuando aporte evidencia de artefacto/runtime.
+2. Leer el flujo real y reproducir el defecto antes de cambiarlo.
+3. Implementar un cambio acotado; ejecutar tests mediante Vite+ y gates actuales,
+   incluida revisión adversarial y búsqueda de fallos hermanos.
+4. Conservar comandos, SHA, resultados y límites. Actualizar Graphify si cambian
+   relaciones; no inflar cobertura ni crear otro backlog documental.
+5. PR y merge squash solo con CI vigente, alcance revisado y `CLEAN`, nunca
+   `--admin`; tras merge, reconciliar Notion por evidencia y read-back.
+6. Distinguir local, CI, staging, producción y Android físico/OEM. Ninguna capa
+   sustituye a la siguiente. No prometer producción mientras Alpha 41 tenga
+   pendientes fuera de los estados resueltos con evidencia.
 
 ## Gates de seguridad
 

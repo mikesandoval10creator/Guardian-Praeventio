@@ -95,19 +95,27 @@ describe('resilientAiOrchestrator.answer', () => {
   });
 
   it('timeout por tier: cae al siguiente', async () => {
-    let settleRead: (value: null) => void = () => undefined;
-    const slowSlm: TierAdapter = () =>
-      new Promise((resolve) => { settleRead = resolve; });
-    const adapters: OrchestratorAdapters = {
-      slm: slowSlm,
-      zettelkasten: ok('rápido ZK', 0.5),
-    };
-    const r = await answer(baseQuery, adapters, { tierTimeoutMs: 50 });
-    // The timeout must win while the adapter is pending; release this test-owned
-    // operation afterwards. This does not claim cancellation of real adapters.
-    settleRead(null);
-    expect(r.tier).toBe('zettelkasten');
-    expect(r.tierErrors[0]!.error).toContain('timeout');
+    vi.useFakeTimers();
+    try {
+      const slowSlm: TierAdapter = () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ text: 'tarde', confidence: 0.9 }), 5000),
+        );
+      const adapters: OrchestratorAdapters = {
+        slm: slowSlm,
+        zettelkasten: ok('rápido ZK', 0.5),
+      };
+      const pending = answer(baseQuery, adapters, { tierTimeoutMs: 50 });
+      await vi.advanceTimersByTimeAsync(50);
+      const r = await pending;
+      expect(r.tier).toBe('zettelkasten');
+      expect(r.tierErrors[0]!.error).toContain('timeout');
+      await vi.runAllTimersAsync();
+      expect(r.text).toBe('rápido ZK');
+    } finally {
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
   it('citations propagadas desde el adapter', async () => {
@@ -185,22 +193,31 @@ describe('answerEmergency', () => {
     ]);
   });
 
-  it('timeout default agresivo (3000ms)', async () => {
-    let settleRead: (value: null) => void = () => undefined;
-    const slow: TierAdapter = () =>
-      new Promise((resolve) => { settleRead = resolve; });
-    const adapters: OrchestratorAdapters = { slm: slow };
-    const start = Date.now();
-    const r = await answerEmergency(
-      { prompt: 'sos', domain: 'emergency' },
-      adapters,
-      { tierTimeoutMs: 50 }, // override aún más rápido para test
-    );
-    const elapsed = Date.now() - start;
-    settleRead(null);
-    expect(r.tier).toBe('canned');
-    // El test es indicativo — verifica que NO esperó los 10s del slow.
-    expect(elapsed).toBeLessThan(2000);
+  it('respeta el timeout de emergencia sin esperar al adapter tardío', async () => {
+    vi.useFakeTimers();
+    try {
+      const slow: TierAdapter = () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ text: 'tarde', confidence: 0.9 }), 10000),
+        );
+      const adapters: OrchestratorAdapters = { slm: slow };
+      const start = Date.now();
+      const pending = answerEmergency(
+        { prompt: 'sos', domain: 'emergency' },
+        adapters,
+        { tierTimeoutMs: 50 },
+      );
+      await vi.advanceTimersByTimeAsync(50);
+      const r = await pending;
+      const elapsed = Date.now() - start;
+      expect(r.tier).toBe('canned');
+      expect(elapsed).toBe(50);
+      await vi.runAllTimersAsync();
+      expect(r.tier).toBe('canned');
+    } finally {
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+    }
   });
 });
 
