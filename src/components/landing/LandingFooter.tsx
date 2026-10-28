@@ -33,18 +33,8 @@ export function LandingFooter() {
           </p>
           <ul className="list-none p-0 m-0" style={{ display: 'grid', gap: '0.55rem' }}>
             <li>
-              <a href="https://www.praeventio.net/historia" target="_blank" rel="noopener noreferrer" className="pv-btn-ghost" style={link}>
-                {t('landing.footer.link_history')}
-              </a>
-            </li>
-            <li>
-              <a href="https://www.praeventio.net/equipo" target="_blank" rel="noopener noreferrer" className="pv-btn-ghost" style={link}>
-                {t('landing.footer.link_team')}
-              </a>
-            </li>
-            <li>
               <a
-                href="https://www.praeventio.net"
+                href="https://praeventio.net/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="pv-btn-ghost inline-flex items-center"

@@ -17,8 +17,16 @@
  *      calls.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { parseForceGraphRequest, runSimulation } from './forceGraphWorker';
+
+// d3-timer schedules one host frame when forceSimulation is constructed.
+// runSimulation stops the simulation synchronously, but the already queued
+// frame is released by d3 on its next wake-up. Let that host resource settle
+// between tests instead of weakening Vitest's async-leak detection.
+afterEach(async () => {
+  await new Promise<void>((resolve) => setTimeout(resolve, 25));
+});
 
 describe('forceGraphWorker', () => {
   it('processes a valid simulate message and returns positions for every node', () => {

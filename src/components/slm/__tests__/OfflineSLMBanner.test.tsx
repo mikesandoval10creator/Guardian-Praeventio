@@ -2,9 +2,31 @@
 //
 // Sprint 20 — Bucket Lambda — T-1.5 — OfflineSLMBanner tests.
 
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
+
+vi.mock('framer-motion', () => {
+  const passthrough = ({
+    children,
+    ...props
+  }: { children?: ReactNode; [key: string]: unknown }) => {
+    const {
+      initial: _initial,
+      animate: _animate,
+      exit: _exit,
+      transition: _transition,
+      ...domProps
+    } = props;
+    return <div {...domProps}>{children}</div>;
+  };
+
+  return {
+    motion: { div: passthrough },
+    AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  };
+});
+
 import { OfflineSLMBanner, SLM_SHOW_QUEUE_EVENT } from '../OfflineSLMBanner';
 
 afterEach(() => {

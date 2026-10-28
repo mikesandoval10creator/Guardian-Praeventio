@@ -20,6 +20,12 @@ vi.mock('../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+// This test covers the on-device queue only; avoid eager Firebase Auth
+// initialization through the unused HTTP wrappers in useSyncStatus.
+vi.mock('../lib/apiAuth', () => ({
+  apiAuthHeaders: vi.fn(async () => ({})),
+}));
+
 const { OfflineSyncStateMachine } = await import('../services/sync/syncStateMachine');
 const { useSyncQueueStatus } = await import('./useSyncStatus');
 

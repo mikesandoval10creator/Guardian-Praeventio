@@ -282,16 +282,30 @@ const USGS_SINCE_MIN = 5;
 const USGS_RADIUS_KM = 200;
 const USGS_TIMEOUT_MS = 3_000;
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('USGS cross-check timeout')), ms);
+function withTimeout<T>(
+  p: Promise<T>,
+  ms: number,
+  onTimeout?: () => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      onTimeout?.();
+      // The abort path normally settles p. Still attach a rejection handler so
+      // a non-compliant adapter cannot create an unhandled rejection.
+      void p.catch(() => undefined);
+      reject(new Error('USGS cross-check timeout'));
+    }, ms);
+    void p.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
   });
-  try {
-    return await Promise.race([p, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 export async function checkSismoEnriched(
@@ -328,6 +342,7 @@ export async function checkSismoEnriched(
   }
 
   const sinceHours = USGS_SINCE_MIN / 60;
+  const controller = new AbortController();
   try {
     const events = await withTimeout(
       usgsAdapter.fetchRecentEarthquakes({
@@ -336,8 +351,10 @@ export async function checkSismoEnriched(
         radiusKm: USGS_RADIUS_KM,
         minMagnitude: USGS_MIN_MAG,
         sinceHours,
+        signal: controller.signal,
       }),
       opts.timeoutMs ?? USGS_TIMEOUT_MS,
+      () => controller.abort(),
     );
     if (events.length > 0) {
       return {
@@ -380,6 +397,8 @@ export async function checkSismoEnriched(
       matchedEvents: [],
       blockOperation: false,
     };
+  } finally {
+    controller.abort();
   }
 }
 

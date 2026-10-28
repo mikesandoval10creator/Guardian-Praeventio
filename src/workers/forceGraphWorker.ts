@@ -146,14 +146,17 @@ export function runSimulation(payload: ForceGraphRequest['payload']): ForceGraph
     if (s && t) simLinks.push({ source: s, target: t });
   }
 
-  const sim: Simulation<SimNode, SimulationLinkDatum<SimNode>> = forceSimulation(simNodes)
+  // Stop the timer immediately: this helper is synchronous and uses manual
+  // ticks, so it must never leave d3's asynchronous timer running.
+  const sim: Simulation<SimNode, SimulationLinkDatum<SimNode>> = forceSimulation(simNodes).stop();
+  sim
     .force('charge', forceManyBody().strength(-30))
     .force('link', forceLink<SimNode, SimulationLinkDatum<SimNode>>(simLinks).id((d) => d.id).distance(30))
     .force('center', forceCenter(0, 0))
-    .force('collide', forceCollide(6))
-    .stop();
+    .force('collide', forceCollide(6));
 
   for (let i = 0; i < iterations; i++) sim.tick();
+  sim.stop();
 
   // d3-force is 2D; for 3D we approximate by spreading the missing
   // axis around the simulated y. The KnowledgeGraph's force-graph-3d

@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
+import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) =>
+      React.createElement('div', props, children),
+  },
+}));
 
 vi.mock('../../hooks/useWakeLock', () => ({
   useWakeLock: () => ({ requestWakeLock: vi.fn(), releaseWakeLock: vi.fn() }),

@@ -6,13 +6,16 @@
 // what makes wiring it into AppProviders (off by default) behavior-neutral: the
 // geofence→SOS / tier-reactivity automation never starts until ops opts in.
 //
-// The test proves it by mocking NOTHING. If the disabled path touched any of
-// those context hooks, this bare render would throw "must be used within a
-// Provider". A clean render = the passthrough holds.
+// Firebase is mocked only to prevent eager auth initialisation from asking
+// jsdom for document.cookie during module evaluation. The test still provides
+// no React context providers; if the disabled path touched any of those
+// context hooks, this bare render would throw "must be used within a Provider".
 
 import React from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+vi.mock('../services/firebase', () => ({ auth: {}, db: {} }));
 
 import { SystemEngineProvider } from './SystemEngineProvider';
 

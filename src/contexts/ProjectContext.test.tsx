@@ -144,6 +144,7 @@ describe('ProjectProvider project selection reconciliation', () => {
     );
 
     act(() => harness.snapshotHandler?.(snapshot(project('a', 'Faena A'), project('b', 'Faena B'))));
+    await flushAsyncEffects();
     act(() => controller.select(project('b', 'Faena B')));
     await flushAsyncEffects();
 

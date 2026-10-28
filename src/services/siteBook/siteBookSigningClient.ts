@@ -141,6 +141,9 @@ export async function signSiteBookEntryWithWebAuthn(
     }),
   });
   if (!optionsRes.ok) {
+    // Consume the response body before throwing so fetch implementations can
+    // release the underlying stream cleanly (and callers retain the status).
+    await optionsRes.text();
     throw new Error(`sign_options_failed:${optionsRes.status}`);
   }
   const optionsData = (await optionsRes.json()) as SignOptionsResponse;
@@ -206,6 +209,7 @@ export async function signSiteBookEntryWithWebAuthn(
     }),
   });
   if (!verifyRes.ok) {
+    await verifyRes.text();
     throw new Error(`sign_verify_failed:${verifyRes.status}`);
   }
   const verifyData = (await verifyRes.json()) as SignVerifyResponse;

@@ -101,4 +101,23 @@ describe('UsgsEarthquakeAdapter', () => {
     const expected = new Date(fixedNow - 6 * 60 * 60 * 1000).toISOString();
     expect(url).toContain(`starttime=${encodeURIComponent(expected)}`);
   });
+
+  it('passes an abort signal to the HTTP client', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResp(sampleFc()));
+    const adapter = new UsgsEarthquakeAdapter({
+      httpClient: fetchMock as unknown as typeof fetch,
+    });
+    const controller = new AbortController();
+
+    await adapter.fetchRecentEarthquakes({
+      centerLat: 0,
+      centerLon: 0,
+      radiusKm: 100,
+      signal: controller.signal,
+    });
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      signal: controller.signal,
+    });
+  });
 });

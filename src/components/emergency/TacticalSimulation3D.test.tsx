@@ -34,6 +34,13 @@ vi.mock('@react-three/drei', () => ({
   Text: () => null,
 }));
 
+// Evita inicializar Firebase/i18n real durante este test de ErrorBoundary.
+// La importación eager de i18n crea recursos de entorno que jsdom no puede
+// cerrar limpiamente; aquí solo necesitamos el contrato `t` del boundary.
+vi.mock('../../i18n', () => ({
+  default: { t: (_key: string, fallback: string) => fallback },
+}));
+
 import { TacticalSimulation3D } from './TacticalSimulation3D.js';
 
 describe('TacticalSimulation3D — ErrorBoundary en Canvas WebGL', () => {
@@ -46,7 +53,7 @@ describe('TacticalSimulation3D — ErrorBoundary en Canvas WebGL', () => {
     // en lugar del full-screen error page, así que el padre sigue montado y
     // navegable.
     expect(
-      screen.getByText(/module temporarily inactive/i),
+      screen.getByText(/módulo temporalmente inactivo/i),
     ).toBeInTheDocument();
   });
 });

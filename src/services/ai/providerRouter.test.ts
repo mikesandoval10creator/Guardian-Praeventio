@@ -168,6 +168,47 @@ describe('dispatchSelfHostedAction', () => {
     expect(getAiProviderStats().selfhosted.failure).toBe(0);
   });
 
+  it('does not call the endpoint when the tenant resolver has no credential', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const fetchImpl = okFetch('must-not-be-used');
+    const resolve = vi.fn(() => null);
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl,
+      tenantId: 'tenant-without-credential',
+      credentialResolver: { resolve },
+    });
+    expect(resolve).toHaveBeenCalledWith('tenant-without-credential', 'selfhosted');
+    expect(result).toEqual({ status: 'failed', reason: 'not_configured' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('uses tenant credentials without requiring global provider configuration', async () => {
+    const fetchImpl = okFetch('tenant completion');
+    const resolve = vi.fn(() => ({
+      baseUrl: 'http://localhost:11434', model: 'tenant-model', timeoutMs: 1000,
+    }));
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl, tenantId: 'tenant-a', credentialResolver: { resolve },
+    });
+    expect(resolve).toHaveBeenCalledWith('tenant-a', 'selfhosted');
+    expect(result).toMatchObject({ status: 'ok', text: 'tenant completion' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('contains credential resolver failures without exposing secrets or invoking HTTP', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const fetchImpl = okFetch();
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl, tenantId: 'tenant-a',
+      credentialResolver: { resolve() { throw new Error('private credential store detail'); } },
+    });
+    expect(result).toMatchObject({ status: 'failed', reason: 'call_failed' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const { logger } = await import('../../utils/logger.js');
+    expect(JSON.stringify((logger.warn as ReturnType<typeof vi.fn>).mock.calls))
+      .not.toContain('private credential store detail');
+  });
+
   it('endpoint down → failed + breaker failure recorded on the selfhosted key', async () => {
     Object.assign(process.env, CONFIGURED);
     const result = await dispatchSelfHostedAction(action, args, { fetchImpl: downFetch() });
@@ -231,9 +272,10 @@ describe('provider metrics', () => {
 
   it('never logs prompt content — only provider/outcome/latency/action name', async () => {
     const { logger } = await import('../../utils/logger.js');
-    recordProviderCall('selfhosted', 'success', 42, 'getSafetyAdvice');
+    recordProviderCall('selfhosted', 'success', 42, 'getSafetyAdvice', 'tenant-a');
     const call = (logger.info as ReturnType<typeof vi.fn>).mock.calls.at(-1);
     expect(call?.[0]).toBe('[ai.provider] call');
     expect(JSON.stringify(call?.[1])).not.toMatch(/prompt|content/i);
+    expect(call?.[1]).toMatchObject({ tenant_id: 'tenant-a' });
   });
 });

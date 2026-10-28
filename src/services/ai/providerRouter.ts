@@ -36,6 +36,7 @@
 import { logger } from '../../utils/logger.js';
 import { geminiCircuit } from '../../server/middleware/geminiCircuit.js';
 import {
+  type SelfHostedConfig,
   getSelfHostedConfig,
   selfHostedChat,
   isSelfHostedProviderError,
@@ -45,6 +46,18 @@ import { SELF_HOSTED_ACTION_SPECS, hasSelfHostedActionSpec } from './selfHostedA
 export { hasSelfHostedActionSpec };
 
 export type AiProviderName = 'gemini' | 'selfhosted';
+
+/** Backend-only boundary for resolving provider credentials per tenant. */
+export interface LlmCredentialResolver {
+  resolve(tenantId: string, provider: AiProviderName): SelfHostedConfig | null;
+}
+
+/** Temporary compatibility resolver backed by the existing process environment. */
+export const envCredentialResolver: LlmCredentialResolver = {
+  resolve(_tenantId, provider) {
+    return provider === 'selfhosted' ? getSelfHostedConfig() : null;
+  },
+};
 
 /** Breaker key for the self-hosted endpoint — isolated from 'gemini'. */
 export const SELFHOSTED_CIRCUIT_KEY = 'selfhosted';
@@ -100,11 +113,18 @@ export function recordProviderCall(
   outcome: 'success' | 'failure',
   latencyMs: number,
   action?: string,
+  tenantId?: string,
 ): void {
   const stats = providerStats[provider];
   stats[outcome] += 1;
   stats.totalLatencyMs += Math.max(0, latencyMs);
-  logger.info('[ai.provider] call', { provider, outcome, latencyMs, action });
+  logger.info('[ai.provider] call', {
+    provider,
+    outcome,
+    latencyMs,
+    action,
+    ...(tenantId ? { tenant_id: tenantId } : {}),
+  });
 }
 
 export interface AiProviderStatsSnapshot {
@@ -141,11 +161,15 @@ export type SelfHostedDispatchResult =
   /** Feature off / action has no spec — caller proceeds with Gemini as today. */
   | { status: 'skipped'; reason: 'not_configured' | 'unsupported' }
   /** Attempted (or breaker-blocked) — caller runs the fallback chain. */
-  | { status: 'failed'; reason: 'circuit_open' | 'empty_response' | 'call_failed'; latencyMs?: number };
+  | { status: 'failed'; reason: 'circuit_open' | 'empty_response' | 'call_failed' | 'not_configured'; latencyMs?: number };
 
 export interface SelfHostedDispatchOptions {
   /** Injection point for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch;
+  /** Verified tenant identifier supplied by the authenticated route. */
+  tenantId?: string;
+  /** Credential boundary; defaults to the temporary env-backed resolver. */
+  credentialResolver?: LlmCredentialResolver;
 }
 
 /**
@@ -159,7 +183,9 @@ export async function dispatchSelfHostedAction(
   args: unknown[],
   options: SelfHostedDispatchOptions = {},
 ): Promise<SelfHostedDispatchResult> {
-  if (!getSelfHostedConfig()) return { status: 'skipped', reason: 'not_configured' };
+  if (!options.credentialResolver && !getSelfHostedConfig()) {
+    return { status: 'skipped', reason: 'not_configured' };
+  }
 
   const spec = SELF_HOSTED_ACTION_SPECS[action];
   if (!spec) {
@@ -178,26 +204,30 @@ export async function dispatchSelfHostedAction(
   }
 
   const startedAt = Date.now();
+  const tenantId = options.tenantId ?? 'unknown';
+  const credentialResolver = options.credentialResolver ?? envCredentialResolver;
   try {
+    const config = credentialResolver.resolve(tenantId, 'selfhosted');
+    if (!config) return { status: 'failed', reason: 'not_configured' };
     const request = await spec.build(args);
-    const response = await selfHostedChat(request, { fetchImpl: options.fetchImpl });
+    const response = await selfHostedChat(request, { fetchImpl: options.fetchImpl, config });
     const latencyMs = Date.now() - startedAt;
 
     if (!response.text || response.text.trim().length === 0) {
       // An empty completion is an upstream MISS — same contract as the
       // Gemini empty-response path: breaker failure + fallback chain.
       geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
-      recordProviderCall('selfhosted', 'failure', latencyMs, action);
+      recordProviderCall('selfhosted', 'failure', latencyMs, action, options.tenantId);
       return { status: 'failed', reason: 'empty_response', latencyMs };
     }
 
     geminiCircuit.recordSuccess(SELFHOSTED_CIRCUIT_KEY);
-    recordProviderCall('selfhosted', 'success', latencyMs, action);
+    recordProviderCall('selfhosted', 'success', latencyMs, action, options.tenantId);
     return { status: 'ok', text: response.text, latencyMs };
   } catch (err) {
     const latencyMs = Date.now() - startedAt;
     geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
-    recordProviderCall('selfhosted', 'failure', latencyMs, action);
+    recordProviderCall('selfhosted', 'failure', latencyMs, action, options.tenantId);
     logger.warn('[ai.provider] selfhosted_call_failed', {
       action,
       latencyMs,

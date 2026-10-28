@@ -8,9 +8,11 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// Minimal mocks so importing the page module (which reads db/auth at the top)
-// does not initialise Firebase. We only exercise the exported pure helper.
+// Minimal mocks so importing the page module (which reads db/auth and i18n at
+// the top) does not initialise Firebase or make jsdom inspect document.cookie.
+// We only exercise the exported pure helper.
 vi.mock('../services/firebase', () => ({ auth: {}, db: {} }));
+vi.mock('../i18n', () => ({ default: { t: (key: string) => key } }));
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   doc: vi.fn(),

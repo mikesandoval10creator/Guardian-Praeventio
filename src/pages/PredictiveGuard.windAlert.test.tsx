@@ -12,6 +12,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 
+import type { ReactNode } from 'react';
+
+vi.mock('framer-motion', () => {
+  const passthrough = ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => {
+    const {
+      initial: _initial,
+      animate: _animate,
+      exit: _exit,
+      transition: _transition,
+      ...domProps
+    } = props;
+    return <div {...domProps}>{children}</div>;
+  };
+
+  return {
+    motion: { circle: passthrough, div: passthrough, span: passthrough },
+    AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  };
+});
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
 }));

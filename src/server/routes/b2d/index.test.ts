@@ -24,6 +24,7 @@ import b2dRouter from './index.js';
 describe('B2D index router (smoke gate)', () => {
   const app = express();
   app.use('/api/b2d/v1', b2dRouter);
+  app.use((_req, res) => res.status(404).end());
 
   it('routes /climate/ping to the climate sub-router', async () => {
     const res = await request(app).get('/api/b2d/v1/climate/ping');
