@@ -1,0 +1,5 @@
+# Hard module memory bound: 32 MiB ceiling enforced at the VM level
+# (WebAssembly.Memory maximum; memory.grow fails and allocations abort with a
+# catchable trap instead of growing unbounded). Agreed adoption threshold.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=--max-memory=33554432"]

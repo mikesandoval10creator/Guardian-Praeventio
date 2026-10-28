@@ -347,10 +347,15 @@ fn simulate(p: Payload) -> Vec<Position> {
         .collect()
 }
 // Trusted research ABI only; callers own each allocation and must free it once.
-// Production integration still needs bounded input, typed errors and Worker isolation.
+// Bounded input: graph_alloc rejects requests above MAX_INPUT_BYTES with null.
+#[cfg(target_arch = "wasm32")]
+const MAX_INPUT_BYTES: usize = 8 * 1024 * 1024;
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn graph_alloc(len: usize) -> *mut u8 {
+    if len > MAX_INPUT_BYTES {
+        return std::ptr::null_mut();
+    }
     Box::into_raw(vec![0u8; len].into_boxed_slice()) as *mut u8
 }
 #[cfg(target_arch = "wasm32")]
