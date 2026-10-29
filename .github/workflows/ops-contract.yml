@@ -181,6 +181,28 @@ jobs:
 
       - name: Probes de runtime de la imagen API (env 100% sintético)
         run: |
+          # ADC SINTÉTICO (clave RSA generada en el momento, service-account JSON
+          # con formato real): emula la postura de producción (Workload Identity =
+          # ADC presente pero sin autorización real). SIN ADC el server arranca y
+          # luego muere con un unhandled rejection (google-auth NO_ADC_FOUND) desde
+          # las suscripciones de fondo — hallazgo documentado en
+          # docs/production/COOLIFY-DEPLOYMENT-CONTRACT.md; no es alcance de este
+          # slice cambiar el arranque del server.
+          openssl genrsa -out synthetic-sa-key.pem 2048
+          python3 - synthetic-sa-key.pem synthetic-sa.json <<'PY'
+          import json, sys
+          key = open(sys.argv[1]).read()
+          json.dump({
+              "type": "service_account",
+              "project_id": "ops-contract-synthetic",
+              "private_key_id": "ops-contract-synthetic-1",
+              "private_key": key,
+              "client_email": "synthetic@ops-contract-synthetic.iam.gserviceaccount.com",
+              "client_id": "000000000000000000001",
+              "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+              "token_uri": "https://oauth2.googleapis.com/token",
+          }, open(sys.argv[2], "w"), indent=2)
+          PY
           docker run -d --name ops-api -p 3000:3000 \
             -e SESSION_SECRET=ops-contract-synthetic-session-secret \
             -e APP_BASE_URL=https://app.praeventio.net \
@@ -191,6 +213,8 @@ jobs:
             -e 'COMPLIANCE_EVIDENCE_ATTESTATION_KEYS={"ops-contract-synthetic-1":"ops-contract-synthetic-attestation-secret-min-32-bytes"}' \
             -e WEBPAY_COMMERCE_CODE=SYNTHETIC-OPS-CONTRACT \
             -e WEBPAY_API_KEY=SYNTHETIC-OPS-CONTRACT-KEY \
+            -e GOOGLE_APPLICATION_CREDENTIALS=/app/ops-synthetic-sa.json \
+            -v "$PWD/synthetic-sa.json:/app/ops-synthetic-sa.json:ro" \
             guardian-api:ops-contract
           set +e
           bash scripts/ops-contract-probe.sh api http://127.0.0.1:3000 "$SYNTHETIC_ANDROID_CERT_SHA256"

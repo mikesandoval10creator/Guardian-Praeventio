@@ -192,10 +192,22 @@ server real). Es la lista que el despliegue (bloque F) DEBE satisfacer:
 | `COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID` + `COMPLIANCE_EVIDENCE_ATTESTATION_KEYS` | keyring JSON requerido (keyId `[A-Za-z0-9._-]{1,64}`, secreto ≥ 32 bytes) |
 | `WEBPAY_COMMERCE_CODE` + `WEBPAY_API_KEY` | requeridos en producción (sin ellos se caería silenciosamente a sandbox de Transbank) |
 | `E2E_MODE=1` | **PROHIBIDO** en producción (`must NEVER be enabled in production`, exit 1) |
+| ADC (`GOOGLE_APPLICATION_CREDENTIALS` / Workload Identity) | **REQUERIDO en runtime.** Sin ADC el server ARRANCA y luego muere con un `unhandled rejection` (`NO_ADC_FOUND` de google-auth vía las suscripciones de fondo — hallazgo de la primera corrida de CI, 2026-10-29). Con ADC presente (aunque sin autorización real) el proceso sobrevive y sirve el contrato completo. Pendiente de producto: fail-fast de ADC en el boot, mismo patrón que `kmsPreflight`/`webpayPreflight` |
 
 Env de prueba 100% sintético (sin secretos reales) documentado en el workflow
 `ops-contract.yml`. Las credenciales reales viven en Coolify/GCP, jamás en el
 repositorio.
+
+### Registro de la primera corrida de CI (2026-10-29, PR #1883)
+
+- `Dockerfile.api` construye en CI real (`EXIT=0`) — primera imagen del repo
+  construida con éxito, tras el fix de `vendor/` + scripts de postinstall.
+- Fail-closed de arranque #1 (sin `APP_BASE_URL`) y #2 (`E2E_MODE=1` en
+  producción): `exit 1` con mensaje literal, verificados dentro del contenedor.
+- Los probes de runtime descubrieron el crash sin ADC documentado arriba. La
+  corrección del probe (ADC sintético montado en el contenedor) fue verificada
+  contra el server real localmente: 8/8 PASS y proceso vivo tras los errores de
+  credenciales. Los probes CI usan esa misma postura.
 
 ## Nota VPS/contenedores en la nube (investigación FAZT/FAZTCode, 2026-10-29)
 
