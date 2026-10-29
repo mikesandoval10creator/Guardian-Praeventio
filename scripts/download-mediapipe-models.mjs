@@ -35,7 +35,7 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { rename, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
@@ -259,9 +259,13 @@ export async function main({ force = args.force, fetchImpl = fetch } = {}) {
 export { MODELS, sha256File };
 
 // Ejecutar solo si fue invocado como script (no cuando se importa en tests).
-const invokedAsScript =
-  import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` ||
-  import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`;
+// `pathToFileURL` codifica correctamente espacios/Unicode del path: el guard
+// anterior comparaba strings crudos y fallaba en silencio (exit 0 sin hacer
+// nada) cuando el repo vivía en una ruta con espacios (bug verificado 2026-10-28).
+export function isMainModule(importMetaUrl, argv1) {
+  return Boolean(argv1) && importMetaUrl === pathToFileURL(argv1).href;
+}
+const invokedAsScript = isMainModule(import.meta.url, process.argv[1]);
 
 if (invokedAsScript) {
   main()

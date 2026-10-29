@@ -258,6 +258,50 @@ Slice 3 → E; Slice 4 → B/H; Slice 5 → D/H.
 La actualización de este plan es el paso documental solicitado ahora. La
 implementación comenzará después, siguiendo estos criterios y el alcance vigente.
 
+### Marco de flujo y colocación de cómputo — 2026-10-29 (actualización)
+
+Lecciones medidas: el congelamiento local del 2026-10-28 (carga sostenida
+sobre 15,1 GB de RAM) y tres muertes del daemon de Docker Desktop durante
+builds. Regla nueva: **la máquina local es para trabajo ligero; el cómputo
+pesado vive en su capa correcta**.
+
+| Capa | Uso | No usar para |
+|---|---|---|
+| Máquina local | edición, tests pequeños, navegación, diseño | builds de imagen Docker, benchmarks pesados, agentes en paralelo |
+| **Upstash Box** (free 5 CPU-h/mes; PAYG $0,10/CPU-h) | bucles de desarrollo pesados: builds npm, tests multi-shard, benchmarks, agentes en paralelo (un box por stream) | builds de imagen Docker (los boxes NO corren Docker: runtimes node/python/go/ruby/rust sin docker-in-docker), datos de producción |
+| **GitHub Actions (CI)** | **builds de imagen + probes del contrato operacional** (evidencia reproducible en Linux en cada PR; workflow `ops-contract` implementado en `.github/workflows/ops-contract.yml`, 2026-10-29) | — |
+| VPS + Coolify (bloque F) | staging del producto | datos (Firestore/GCP es la autoridad) |
+| Firestore/GCP | datos y autenticación (autoridad) | — |
+
+Impacto inmediato: la evidencia del contrato de contenedores (build de
+`Dockerfile.api`, `/api/health`, CSP, CORS, deep links) se ejecuta en CI y
+deja de depender del Docker Desktop local — el builder local queda solo para
+inspección ligera.
+
+### Uso de las skills de ingeniería por etapa (mattpocock/skills, 2026-10-29)
+
+Respetar la designación oficial: **user-invoked** (las pide Daniel o el flujo
+las llama explícitamente: `to-spec`, `to-tickets`, `implement`,
+`implement-spec`, `wayfinder`, `triage`, `improve-codebase-architecture`,
+`grill-with-docs`, `retro`, `ask-matt`) vs **model-invoked** (las integro
+naturalmente al trabajar: `tdd`, `code-review`, `pr`, `diagnosing-bugs`,
+`research`, `prototype`, `domain-modeling`, `codebase-design`, `wizard`).
+
+| Etapa | Skills principales |
+|---|---|
+| C — contrato operacional | `implement`, `tdd`, `code-review`, `pr`, `container-ops-contract` |
+| D — datos/auth/Zettelkasten | `wayfinder` (mapa de tickets de decisión), `to-spec`/`to-tickets`, `domain-modeling` (glosario/ADR del dominio de riesgos), `implement-spec`, `diagnosing-bugs`, `triage` |
+| E — gateway LLM/MCP | `research`, `prototype`, `codebase-design`, `tdd` |
+| F — VPS/Coolify staging | `wizard` (provisionamiento guiado humano), checklist FAZT del contrato |
+| G — presencia web | `writing-for-agents`, `research` |
+| H — digital twin/AR | `prototype`, `codebase-design`, `domain-modeling` |
+| Transversal | `retro` al cierre de sesiones grandes, `grilling` en decisiones de plan, `handoff` para continuidad |
+
+Paso de integración pendiente (propuesto, no ejecutado): correr
+`setup-matt-pocock-skills` **una vez en el repo de Guardian** para alinear
+labels del tracker y layout de GLOSSARY/ADR — modifica configuración del
+repo, por lo que espera su revisión.
+
 ### A — Reconciliar la base compartida, sin perder avances
 
 - Releer el diff y estado remoto de #1874 y los cambios ya integrados por
@@ -410,6 +454,92 @@ se convierte por sí solo en autoridad de seguridad ni de bloqueo del trabajador
 6. Distinguir local, CI, staging, producción y Android físico/OEM. Ninguna capa
    sustituye a la siguiente. No prometer producción mientras Alpha 41 tenga
    pendientes fuera de los estados resueltos con evidencia.
+
+## Sistema de trabajo Guardian — repaso integral (2026-10-29)
+
+Consolidación de meses de operación: qué herramienta manda para qué, el ciclo
+estándar de trabajo y las lecciones que ya costaron fallas reales. Un bucle
+futuro (Larry o Jupiter) trabaja con este estándar.
+
+### 1. Mapa de capacidades de Hermes (318 skills, 23 categorías)
+
+| Capa | Skills de referencia | Rol |
+|---|---|---|
+| **Guardian específico** (24) | `dev-guardian-mission`, `guardian-ci-gates`, `guardian-ci-diagnostics`, `guardian-pr-reconciliation`, `guardian-evidence-debt-loop`, `guardian-notion-stale-detection`, `cross-validate-ticket-reality`, `read-guardian-code`, `obsidian-guardian-vault`, `vida-safety-checker`, `firestore-rules-validator`, `mesh-battle-tester`, `billing-iap-validator`, `graphify-navigate`, `guardian-graphify-discovery`, `guardian-threat-model`, `play-store-readiness` | Operación diaria del producto |
+| **Ingeniería nueva** (`mattpocock`, 38) | mapeo por etapa en la sección anterior | Flujo spec → tickets → implementación → revisión |
+| **Desarrollo/Calidad** | `test-driven-development`, `systematic-debugging`, `adversarial-diff-review`, `codebase-reconnaissance`, `evidence-authoritative-claim`, `systematic-bug-hunting`, `windows-host-diagnostics`, `test-suite-runtime-reliability` | Disciplina de código y verificación |
+| **GitHub/CI** | `github-pr-safety`, `github-pr-workflow`, `guardian-preresolved-flake-fix` | PRs y merges |
+| **Infraestructura** | `container-ops-contract`, `upstash-box-devloops`, `claude-code-as-hermes-model`, `hermes-config-troubleshoot` | Cómputo, modelos, configuración |
+| **Conocimiento** | `obsidian`, `obsidian-guardian-vault`, `polymath-graph-synthesizer`, `notion`, `jupiter-kanban`, `jupiter-lab` | Memoria externa y tracking |
+| **Decisiones** | `jev-system-one-orchestration`, `qwenpaw-adversarial-verify`, `qwenpaw-completion-audit` | Juicios tipados y cierre honesto |
+| **QwenPaw** (49) | índice en `qwenpaw-trigger-patterns` | Disciplina transversal (loops, costos, pitfalls Windows) |
+
+Activación: `auto-skill-scanner` sugiere por mensaje; se carga por relevancia
+real. Skills de terceros solo tras `qwenpaw-skill-scanner` limpio.
+
+### 2. Verdad del tracking: Notion vs Kanban (decisión cerrada)
+
+| Sistema | Domina | Regla |
+|---|---|---|
+| **Notion (Alpha 41)** | Tickets de Guardian — fuente de verdad operativa | Consulta SIEMPRE live: filtrar por property `Status` (no texto), `page_size=100`, paginar todo, filtrar en cliente. IDs cacheados prohibidos. Cerrar solo con correspondencia inequívoca. |
+| **Kanban Jupiter-Lab** (`jupiter-kanban`) | Investigaciones y vida (horizonte 90 días) | Vive en `D:/Obsidian/Jupiter-Lab/04-Kanban/`. Notion NO entra en ese tablero (regla de la propia skill) — no cruzar los dos. |
+| **Mission log** (dev-missions) | Evidencia ejecutable de sesiones (SHAs, rutas, logs) | Lo que hago, con prueba literal; no es un tablero de tickets. |
+| **Obsidian vault** | Conocimiento acumulado (ledger hash-backed) | Taxonomía `obsidian-guardian-vault`; la lectura histórica jamás se descarta. |
+
+Consecuencia: **no se crea un kanban paralelo para Guardian** — duplicaría la
+fuente de verdad que este plan prohíbe. La coherencia Notion↔código se
+sostiene con `guardian-notion-stale-detection` (al abrir bucles) y
+`cross-validate-ticket-reality` (al reconciliar).
+
+### 3. Ciclo estándar de un slice de trabajo
+
+1. **Entrada**: ticket Notion (consulta live) o plan canónico. Si el trabajo
+   es enorme → `wayfinder` (mapa de tickets de decisión) antes de tocar código.
+2. **Aislamiento**: worktree propio, rama con fecha. Trampa conocida: los
+   worktrees nuevos NO heredan `node_modules` — instalar con
+   `npm install --engine-strict=false` (node local 24.15.0 < piso
+   `^24.22.1 || ^26.12.1`; CI es la autoridad) y verificar bins antes de `tsc`.
+3. **Implementación**: TDD en seams acotados; `codebase-design` para
+   interfaces; `diagnosing-bugs`/`systematic-debugging` para bugs duros.
+4. **Verificación**: `code-review` (ejes Standards + Spec) o
+   `adversarial-diff-review`; `qwenpaw-completion-audit` antes de decir
+   "listo"; nunca `| tail` que enmascara exit codes (usar `> log; echo EXIT=$?`).
+5. **PR**: body con formato `pr` (summary visual + evidencia before/after +
+   merge-danger call). CI: watcher con SHA verificado; si rojo →
+   `guardian-ci-diagnostics` (flake vs código propio vs SHA obsoleto).
+6. **Merge**: solo CI verde + `MERGEABLE` + `CLEAN` + diff íntegro → squash
+   (sin `--admin`) y read-back `state=MERGED` + SHA.
+7. **Cierre**: reconciliar Notion (solo correspondencia inequívoca) →
+   refresh Graphify (post-merge) → mission log con rutas/SHAs.
+
+### 4. Graphify: cuándo y cómo
+
+- **Antes de un cambio con impacto amplio**: `graphify-navigate` — pregunta de
+  código convertida en consulta reproducible, validando nodos contra archivos.
+- **Tras cada merge que toque >10 LOC de código**: `graphify update .` en el
+  checkout, guardando el "Built from" commit como evidencia (`dev-graphify-update`).
+- **Descubrimiento de deuda**: `guardian-graphify-discovery` (sobre todo con CI
+  caído o para rachas de tickets).
+- **Export del grafo**: SIEMPRE RAW. Proyectar solo `nodes,edges,relationship`
+  descarta nodos marcados `project: false` — un export "corrupto" del
+  2026-10-22 era en realidad una proyección (98% menos datos).
+
+### 5. Lecciones duras (ya costaron fallas — no repetir)
+
+| Lección | Origen |
+|---|---|
+| Docker Desktop no sostiene builds pesados (3 muertes del daemon en dos días) → builds de imagen y probes de contrato en CI | 2026-10-28/29 |
+| `vendor/*.tgz` y `postinstall` deben existir/evitarse en TODOS los stages multi-stage o el build muere en etapa tardía (`vendor/xlsx` ENOENT) | contrato de despliegue |
+| Node local < piso `engines` + `engine-strict=true` rompe builds locales → `--engine-strict=false` local, CI manda | Dockerfile.api |
+| Worktree nuevo = `node_modules` incompleto (junction compartido, `.bin` vacío) → `npm rebuild` + verificar bins antes de `tsc` | PR #1879 |
+| `| tail` y pipes enmascaran exit codes → escribir a log y leer `EXIT=$?` | bucle deuda |
+| Un comentario propio puede envenenar asserts de tests que escanean texto | `ops-contract.test.cjs` |
+| Watchers de CI pueden quedar con rollups viejos → estado autoritativo = `gh pr view --json statusCheckRollup` consultado fresh | PR #1882 |
+| Nada de subagentes en modelos no autorizados (solo MiMo 2.6) | instrucción de Daniel 2026-10-28 |
+| "Media" en una ruta NO significa contenido multimedia → jamás gatear estado por un path que contenga "media" | bug 2026-10-21 |
+| `computer_use` con pantalla cambiante no debe abrir apps a ciegas; leer la ventana antes de tocar | bug 2026-10-22 |
+| Dockerfile monolítico deprecado; canónico = `Dockerfile.api` + `Dockerfile.frontend` | contrato de despliegue |
+| Releases publicados jamás se reescriben (regla durable de Daniel) | skill `qwenpaw-anti-rejection-patterns` |
 
 ## Gates de seguridad
 

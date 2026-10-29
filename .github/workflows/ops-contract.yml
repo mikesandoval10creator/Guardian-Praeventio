@@ -1,0 +1,251 @@
+name: Ops Contract
+
+# Contrato operacional ejecutable — Etapa C (PLAN-COOLIFY-HYBRID.md).
+#
+# La evidencia de builds de imagen y probes del contrato vive AQUÍ (CI Linux),
+# no en el Docker Desktop local (3 muertes del daemon en builds pesados,
+# 2026-10-28/29). Dos capas:
+#   1. contract-asserts: guards ejecables baratos (node --test, sin npm install)
+#      + fail-closed del generador de deep links (sin cert → exit ≠ 0).
+#   2. image-probes: builds REALES de Dockerfile.api y Dockerfile.frontend +
+#      probes de runtime (/api/health coherente, CSP, CORS, deep links) contra
+#      los contenedores levantados, con env 100% sintético (ver tabla en
+#      docs/production/COOLIFY-DEPLOYMENT-CONTRACT.md → "Contrato de arranque").
+#
+# El fingerprint Android del build es SINTÉTICO (etiquetado): valida el wiring
+# de render-well-known.mjs de extremo a extremo sin tocar el keystore real.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-contract.yml'
+      - 'Dockerfile'
+      - 'Dockerfile.api'
+      - 'Dockerfile.frontend'
+      - '.dockerignore'
+      - 'nginx.conf'
+      - 'server.ts'
+      - 'src/server/**'
+      - 'src/services/slm/registry.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'firebase-applet-config.json'
+      - 'public/.well-known/**'
+      - 'vite.config.*'
+      - 'scripts/render-well-known.mjs'
+      - 'scripts/download-mediapipe-models.mjs'
+      - 'scripts/prepackage-slm-models.mjs'
+      - 'scripts/patch-artillery.mjs'
+      - 'scripts/patch-stryker-vitest5.cjs'
+      - 'scripts/__tests__/ops-contract.test.cjs'
+      - 'scripts/__tests__/download-mediapipe-guard.test.mjs'
+      - 'scripts/ops-contract-probe.sh'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-contract.yml'
+      - 'Dockerfile'
+      - 'Dockerfile.api'
+      - 'Dockerfile.frontend'
+      - '.dockerignore'
+      - 'nginx.conf'
+      - 'server.ts'
+      - 'src/server/**'
+      - 'src/services/slm/registry.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'firebase-applet-config.json'
+      - 'public/.well-known/**'
+      - 'vite.config.*'
+      - 'scripts/render-well-known.mjs'
+      - 'scripts/download-mediapipe-models.mjs'
+      - 'scripts/prepackage-slm-models.mjs'
+      - 'scripts/patch-artillery.mjs'
+      - 'scripts/patch-stryker-vitest5.cjs'
+      - 'scripts/__tests__/ops-contract.test.cjs'
+      - 'scripts/__tests__/download-mediapipe-guard.test.mjs'
+      - 'scripts/ops-contract-probe.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-contract-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  # Fingerprint SINTÉTICO (32 pares hex colon-separated, formato real
+  # validado por scripts/render-well-known.mjs). NO es un cert real.
+  SYNTHETIC_ANDROID_CERT_SHA256: 'FE:ED:FA:CE:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB'
+
+jobs:
+  contract-asserts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+      - name: Contrato ejecutable (ops-contract + mediapipe guard)
+        run: |
+          node --test scripts/__tests__/ops-contract.test.cjs scripts/__tests__/download-mediapipe-guard.test.mjs > contract-asserts.log 2>&1
+          echo "EXIT=$?"
+          cat contract-asserts.log
+      - name: Fail-closed de deep links (sin cert → exit ≠ 0, sin escrituras)
+        run: |
+          set +e
+          REQUIRE_ANDROID_CERT=1 node scripts/render-well-known.mjs > render-failclosed.log 2>&1
+          EXIT=$?
+          set -e
+          echo "EXIT=$EXIT"
+          cat render-failclosed.log
+          test "$EXIT" -ne 0
+          grep -q 'REQUIRE_ANDROID_CERT está activo (release fail-closed)' render-failclosed.log
+          # fail-closed = además NO escribe archivos
+          git status --porcelain public/.well-known > well-known-status.txt
+          test ! -s well-known-status.txt
+          echo "sin escrituras en public/.well-known (fail-closed verificado)"
+
+  image-probes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+
+      - name: Cache de modelos de prebuild (mediapipe + SLM)
+        uses: actions/cache@v4
+        with:
+          path: public/models
+          key: ops-models-${{ hashFiles('scripts/download-mediapipe-models.mjs', 'scripts/prepackage-slm-models.mjs', 'src/services/slm/registry.ts') }}
+
+      - name: Pre-carga de assets de prebuild en host (idempotente por SHA)
+        run: |
+          set +e
+          node scripts/download-mediapipe-models.mjs > prebuild-assets.log 2>&1
+          E1=$?
+          node scripts/prepackage-slm-models.mjs --model=qwen-2.5-0.5b >> prebuild-assets.log 2>&1
+          E2=$?
+          set -e
+          echo "EXIT mediapipe=$E1 slm=$E2"
+          tail -20 prebuild-assets.log
+          test "$E1" -eq 0
+          test "$E2" -eq 0
+          # Verificación física de presencia antes del build (nunca silent-no-op)
+          test -s public/models/mediapipe/pose_landmarker_lite.task
+          find public/models -type f | sort
+
+      - name: Build real de Dockerfile.api (sin pipes; EXIT literal)
+        run: |
+          set +e
+          docker build -f Dockerfile.api \
+            --build-arg ANDROID_CERT_SHA256="$SYNTHETIC_ANDROID_CERT_SHA256" \
+            -t guardian-api:ops-contract . > build-api.log 2>&1
+          EXIT=$?
+          set -e
+          echo "EXIT=$EXIT"
+          tail -25 build-api.log
+          test "$EXIT" -eq 0
+
+      - name: Fail-closed de arranque #1 (producción sin APP_BASE_URL → exit ≠ 0)
+        run: |
+          set +e
+          docker run --rm guardian-api:ops-contract > boot-failclosed-1.log 2>&1
+          EXIT=$?
+          set -e
+          echo "EXIT=$EXIT"
+          tail -15 boot-failclosed-1.log
+          test "$EXIT" -ne 0
+          grep -q 'APP_BASE_URL/APP_URL unset' boot-failclosed-1.log
+
+      - name: Fail-closed de arranque #2 (E2E_MODE=1 en producción → exit ≠ 0)
+        run: |
+          set +e
+          docker run --rm \
+            -e SESSION_SECRET=ops-contract-synthetic-session-secret \
+            -e APP_BASE_URL=https://app.praeventio.net \
+            -e WEBAUTHN_RP_ID=app.praeventio.net \
+            -e E2E_MODE=1 \
+            guardian-api:ops-contract > boot-failclosed-2.log 2>&1
+          EXIT=$?
+          set -e
+          echo "EXIT=$EXIT"
+          tail -15 boot-failclosed-2.log
+          test "$EXIT" -ne 0
+          grep -q 'must NEVER be enabled in production' boot-failclosed-2.log
+
+      - name: Probes de runtime de la imagen API (env 100% sintético)
+        run: |
+          docker run -d --name ops-api -p 3000:3000 \
+            -e SESSION_SECRET=ops-contract-synthetic-session-secret \
+            -e APP_BASE_URL=https://app.praeventio.net \
+            -e WEBAUTHN_RP_ID=app.praeventio.net \
+            -e KMS_ADAPTER=cloud-kms \
+            -e KMS_KEY_RESOURCE_NAME=projects/ops-contract-synthetic/locations/global/keyRings/synthetic/cryptoKeys/synthetic \
+            -e COMPLIANCE_EVIDENCE_ATTESTATION_CURRENT_KEY_ID=ops-contract-synthetic-1 \
+            -e 'COMPLIANCE_EVIDENCE_ATTESTATION_KEYS={"ops-contract-synthetic-1":"ops-contract-synthetic-attestation-secret-min-32-bytes"}' \
+            -e WEBPAY_COMMERCE_CODE=SYNTHETIC-OPS-CONTRACT \
+            -e WEBPAY_API_KEY=SYNTHETIC-OPS-CONTRACT-KEY \
+            guardian-api:ops-contract
+          set +e
+          bash scripts/ops-contract-probe.sh api http://127.0.0.1:3000 "$SYNTHETIC_ANDROID_CERT_SHA256"
+          PROBE_EXIT=$?
+          set -e
+          docker logs ops-api > api-server.log 2>&1
+          docker rm -f ops-api > /dev/null
+          echo "PROBE_EXIT=$PROBE_EXIT"
+          test "$PROBE_EXIT" -eq 0
+
+      - name: Build real de Dockerfile.frontend (capas npm ci compartidas)
+        run: |
+          set +e
+          docker build -f Dockerfile.frontend \
+            --build-arg ANDROID_CERT_SHA256="$SYNTHETIC_ANDROID_CERT_SHA256" \
+            -t guardian-frontend:ops-contract . > build-frontend.log 2>&1
+          EXIT=$?
+          set -e
+          echo "EXIT=$EXIT"
+          tail -25 build-frontend.log
+          test "$EXIT" -eq 0
+
+      - name: Probes de runtime de la imagen frontend (nginx estático)
+        run: |
+          docker run -d --name ops-fe -p 8080:8080 guardian-frontend:ops-contract
+          set +e
+          bash scripts/ops-contract-probe.sh frontend http://127.0.0.1:8080 "$SYNTHETIC_ANDROID_CERT_SHA256"
+          PROBE_EXIT=$?
+          set -e
+          docker logs ops-fe > frontend-server.log 2>&1
+          docker rm -f ops-fe > /dev/null
+          echo "PROBE_EXIT=$PROBE_EXIT"
+          test "$PROBE_EXIT" -eq 0
+
+      - name: Resumen de evidencia
+        if: always()
+        run: |
+          for f in ops-contract-evidence-*.json; do
+            [ -e "$f" ] || continue
+            echo "### $f" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Publicar evidencia literal
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-contract-evidence
+          path: |
+            build-*.log
+            prebuild-assets.log
+            boot-failclosed-*.log
+            api-server.log
+            frontend-server.log
+            ops-contract-evidence-*.json
+          if-no-files-found: warn
