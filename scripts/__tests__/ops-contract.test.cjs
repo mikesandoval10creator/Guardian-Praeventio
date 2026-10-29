@@ -133,3 +133,22 @@ test('ops-contract CI workflow wires the canonical images and runtime probes', (
   assert.match(probe, /frame-ancestors 'none'/);
   assert.match(probe, /Access-Control-Allow-Origin/);
 });
+
+test('every nginx location with its own add_header keeps the security headers', () => {
+  // NGINX GOTCHA (hallazgo de CI ops-contract, 2026-10-29): un location que
+  // declara su PROPIO add_header resetea la herencia de los headers del server
+  // block. Sin este guard, el shell SPA (/ → /index.html) y los assets se
+  // servían SIN CSP/X-Frame-Options/nosniff mientras el probe del server-level
+  // parecía correcto.
+  const nginx = read('nginx.conf');
+  const blocks = nginx
+    .split(/(?=^\s*location\b)/m)
+    .filter((b) => /^\s*location\b/.test(b));
+  assert.ok(blocks.length >= 4, 'nginx.conf debe declarar los locations del contrato');
+  for (const block of blocks) {
+    if (!block.includes('add_header')) continue;
+    assert.match(block, /Content-Security-Policy/, 'location con add_header propio debe repetir CSP');
+    assert.match(block, /X-Content-Type-Options/, 'location con add_header propio debe repetir nosniff');
+    assert.match(block, /X-Frame-Options/, 'location con add_header propio debe repetir X-Frame-Options');
+  }
+});

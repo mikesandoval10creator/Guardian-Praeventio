@@ -208,6 +208,12 @@ repositorio.
   corrección del probe (ADC sintético montado en el contenedor) fue verificada
   contra el server real localmente: 8/8 PASS y proceso vivo tras los errores de
   credenciales. Los probes CI usan esa misma postura.
+- Los probes del frontend descubrieron un segundo defecto real: `GET /` servía
+  el shell SPA (200, 8019 bytes) **sin CSP/X-Frame-Options/nosniff** porque el
+  `location ~* \.html$` de `nginx.conf` declara su propio `add_header` y nginx
+  resetea la herencia de headers por location. Corregido repitiendo el set de
+  seguridad en cada location con `add_header` propio, con guard de regresión en
+  `ops-contract.test.cjs`. La re-corrida de CI lo verifica con el probe real.
 
 ## Nota VPS/contenedores en la nube (investigación FAZT/FAZTCode, 2026-10-29)
 
