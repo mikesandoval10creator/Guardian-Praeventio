@@ -128,4 +128,34 @@ describe("KnowledgeGraph layout lifecycle", () => {
       expect.objectContaining({ engine: "wasm", engine_version: "wasm-sha-1" }),
     );
   });
+  it("contains layout client failure as state and seeds nothing (inline simulation retained)", async () => {
+    const simulate = vi.fn().mockRejectedValue(new Error("wasm_layout_failed"));
+    const view = render(<KnowledgeGraph layoutClient={{ simulate, engineInfo: fakeEngineInfo }} />);
+    expect(simulate).toHaveBeenCalledOnce();
+    await act(async () => {});
+    // Rollback containment (runbook contract): the precompute failure is
+    // swallowed as state — nodes stay unseeded and the consumer keeps its
+    // inline simulation instead of crashing.
+    expect((state.graph.nodes[0] as SeedNode).x).toBeUndefined();
+    expect((state.graph.nodes[0] as SeedNode).y).toBeUndefined();
+    const signal = simulate.mock.calls[0][1].signal as AbortSignal;
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+  });
+  it("rollback drill: removing the injected client restores the default engine path", async () => {
+    const failing = vi.fn().mockRejectedValue(new Error("wasm_layout_failed"));
+    const first = render(<KnowledgeGraph layoutClient={{ simulate: failing, engineInfo: fakeEngineInfo }} />);
+    await act(async () => {});
+    expect(TestWorker.instances).toHaveLength(0);
+    first.unmount();
+    // Rollback operacional: sin factory inyectada, la ruta base (worker
+    // TypeScript por defecto) vuelve a servir el layout completo.
+    render(<KnowledgeGraph />);
+    expect(TestWorker.instances).toHaveLength(1);
+    await act(async () => {
+      TestWorker.instances[0].reply(state.graph.nodes as SeedNode[], 7);
+    });
+    expect((state.graph.nodes[0] as SeedNode).x).toBe(7);
+    expect((state.graph.nodes[0] as SeedNode).y).toBe(8);
+  });
 });
