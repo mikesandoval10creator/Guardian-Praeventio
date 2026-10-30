@@ -29,6 +29,7 @@ import { logger, runWithRequestContext } from "./src/utils/logger.js";
 import { initTracing, getActiveTraceId } from "./src/services/observability/tracing.js";
 import { validateKmsBootConfig } from "./src/server/kmsPreflight.js";
 import { validateWebpayBootConfig } from "./src/server/webpayPreflight.js";
+import { validateAdcBootConfig } from "./src/server/adcPreflight.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
 // src/server/routes/billing.ts in Round 17 R2 Phase 2 split. `isAdminRole`
@@ -554,6 +555,26 @@ for (const warning of _webpayPreflight.warnings) {
 }
 if (!_webpayPreflight.ok) {
   for (const error of _webpayPreflight.errors) {
+    console.error(`[boot] FATAL: ${error}`);
+  }
+  process.exit(1);
+}
+
+// Discovery 2026-10-29 (ticket 409aa66d-..., PR #1883 image probes): without
+// any ADC the server boots and then dies with an unhandled rejection
+// (google-auth NO_ADC_FOUND) from the background subscriptions. ADC is a
+// runtime requirement of every firebase-admin path (applicationDefault()).
+// This preflight mirrors the kms/webpay contract: at boot, if NODE_ENV=production
+// and no ADC is resolvable (env var pointing at a well-formed key file, or a
+// GCP-managed runtime providing Workload Identity), the process exits 1 with a
+// FATAL log instead of crashing later from a background listener. It checks
+// presence/shape only — it never fetches tokens.
+const _adcPreflight = validateAdcBootConfig(process.env);
+for (const warning of _adcPreflight.warnings) {
+  console.warn(`[boot] WARNING: ${warning}`);
+}
+if (!_adcPreflight.ok) {
+  for (const error of _adcPreflight.errors) {
     console.error(`[boot] FATAL: ${error}`);
   }
   process.exit(1);
