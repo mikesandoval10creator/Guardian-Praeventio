@@ -48,10 +48,11 @@ is present whenever the base URL is set.
 
 ## 3. Choose which actions to migrate
 
-- **Migrate first**: high-volume / simple text actions. Wired today:
-  `getSafetyAdvice`, `getChatResponse`, `queryBCN` (the prompt specs live in
-  `selfHostedActions.ts`; an action listed in env WITHOUT a spec silently
-  keeps using Gemini and logs `selfhosted_unsupported_action`).
+- **Migrate incrementally**: six current prompt specs: `getSafetyAdvice`,
+  `getChatResponse`, `queryBCN`, `calculateStructuralLoad`, `designHazmatStorage`,
+  `evaluateMinsalCompliance`. A selected action WITHOUT a spec is an explicit
+  miss: internal baseline/canned if available, otherwise 503. It never silently
+  authorizes Gemini. Model quality/guardrails must be evaluated per action.
 - **Keep on Gemini until evaluated**: legal-critical and structured-JSON
   actions (`auditLegalGap`, `generateEmergencyPlan*`, DIAT/SUSESO docs).
   Use the escape hatch `AI_PROVIDER_ACTIONS_GEMINI=...` if you flip
@@ -61,11 +62,25 @@ is present whenever the base URL is set.
 
 ## 4. Failure behavior (automatic)
 
-`selfhosted fails` → retry on Gemini (`AI_SELFHOSTED_FALLBACK_GEMINI=1`,
-default) → existing degraded ladder (RAG → canned). With fallback `=0` the
-ladder runs directly, else 503. The self-hosted circuit breaker uses its own
-key (`selfhosted`) — 5 failures/60 s opens it for 5 min with half-open
-probes — fully isolated from the Gemini breaker.
+**Default: do not switch provider.** Failure, an open breaker, missing config
+or an unsupported selected action uses the existing deterministic emergency
+baseline, or the internal canned tier for the three wired text actions, else
+an honest 503. Canned output carries its existing fallback disclaimer; it is
+not a replacement for generated analysis. The no-switch fallback skips normative
+RAG because its embedding implementation can still contact Google.
+
+Only `AI_SELFHOSTED_FALLBACK_GEMINI=1` explicitly authorizes retrying through the
+legacy Gemini path. Absent/empty/0/mistyped values do not. The explicit
+`AI_PROVIDER_ACTIONS_GEMINI` list remains an operator escape hatch.
+
+The self-hosted breaker uses its own key (`selfhosted`) — 5 failures/60 s opens
+it for 5 min with half-open probes — isolated from the Gemini breaker.
+
+**Remaining boundary:** successful self-hosted prompt builders using normative
+RAG can still depend on external embeddings; this change does not migrate that
+retrieval implementation. Nor does it remove the legacy provider for actions
+not selected for migration. MCP client-owned inference is documented separately
+in `docs/mcp/README.md`. No global provider independence is claimed here.
 
 `AI_SELFHOSTED_TIMEOUT_MS` is one end-to-end deadline for a completion call:
 receiving headers does not stop it. It covers response-body consumption and the
@@ -95,6 +110,11 @@ production endpoint, deployment, physical-device behavior, or a full UI flow.
 
 ## 6. Rollback
 
-Unset `AI_SELFHOSTED_BASE_URL` (or `AI_SELFHOSTED_MODEL`) and restart —
-everything routes to Gemini again, exactly as before the feature existed.
-No data migration, no code change.
+Rollback requires an explicit routing decision: add the intended actions to
+`AI_PROVIDER_ACTIONS_GEMINI`, or remove their selfhosted selection and restore
+the legacy default. Merely unsetting BASE_URL/MODEL does **not** authorize
+another provider. No data migration is involved.
+
+This is a compatibility escape hatch, not a deployment instruction or default
+authorization to incur Gemini cost. Provider/model configuration remains
+server-side; do not put credentials in frontend build variables.

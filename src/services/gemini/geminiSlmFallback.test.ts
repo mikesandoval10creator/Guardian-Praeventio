@@ -51,6 +51,14 @@ describe('geminiSlmFallback — server-side Gemini->degraded ladder', () => {
     expect(fb!.text.toLowerCase()).toContain('epp');
   });
 
+  it.each(['getChatResponse', 'getSafetyAdvice', 'queryBCN'])('internal-only fallback never invokes external retrieval: %s', async action => {
+    H.safeQuery.mockRejectedValue(new Error('must not contact the embedding provider'));
+    const fb = await geminiSlmFallback(action, ['consulta de prueba'], { allowRag: false });
+    expect(fb?.tier).toBe('canned');
+    expect(fb?.text).toContain('[Respuesta de respaldo');
+    expect(H.safeQuery).not.toHaveBeenCalled();
+  });
+
   it('getChatResponse: a RAG outage (safeNormativeQuery throws) degrades to canned, never throws', async () => {
     H.safeQuery.mockRejectedValue(new Error('vector_store down'));
     const fb = await geminiSlmFallback('getChatResponse', ['¿Cómo investigo un incidente?', 'ctx']);
