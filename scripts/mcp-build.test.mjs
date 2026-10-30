@@ -100,3 +100,43 @@ test('compiled MCP uses the client model over real stdio without server LLM cred
     await transport.close();
   }
 });
+
+// Real compiled server + stdio; corpus and project rows are controlled fixtures.
+// NO sampling capability: the user's host receives a prepared prompt, not a
+// fabricated model answer and not a request to a server-selected provider.
+test('compiled MCP prepares actions and searches native law over stdio without sampling', { timeout: 15000 }, async () => {
+  const serverModule = new URL('../dist-mcp/services/mcp/zettelkastenStdioAdapter.js', import.meta.url).href;
+  const nativeModule = new URL('../dist-mcp/services/rag/nativeNormativeContext.js', import.meta.url).href;
+  const childScript = `
+    import assert from 'node:assert/strict';
+    import { startStdioMcpServer } from ${JSON.stringify(serverModule)};
+    import { createNormativeRetriever } from ${JSON.stringify(nativeModule)};
+    assert.equal(process.env.GEMINI_API_KEY, undefined);
+    assert.equal(process.env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
+    globalThis.fetch = async () => { throw new Error('Unexpected server provider request'); };
+    const zk = { listAccessibleTenants: async () => ['t1'], getNode: async () => null, expandSubgraph: async () => [],
+      listNodes: async () => [{ id: 'n1', tenantId: 't1', projectId: 'p1', type: 'NOTE', title: 'Project fixture',
+        description: 'ruido ocupacional', tags: [], connections: [] }] };
+    const retrieveNormative = createNormativeRetriever(async () => [{ id: 'law-1234-chunk-0',
+      data: { lawId: '1234', title: 'Law fixture', content: 'Texto controlado sobre ruido ocupacional.' } }]);
+    await startStdioMcpServer({ zk, samplingProjects: [{ tenantId: 't1', projectId: 'p1' }], retrieveNormative });
+  `;
+  const env = { PATH: dirname(process.execPath), ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) };
+  const transport = new StdioClientTransport({ command: process.execPath,
+    args: ['--input-type=module', '-e', childScript], env, stderr: 'pipe' });
+  const client = new Client({ name: 'host-without-sampling', version: '1' }, { capabilities: {} });
+  try {
+    await client.connect(transport);
+    assert.equal((await client.listPrompts()).prompts.length, 6);
+    const prepared = await client.getPrompt({ name: 'guardian.getChatResponse', arguments: {
+      tenantId: 't1', projectId: 'p1', input: JSON.stringify(['ruido ocupacional', '', [], 1, 'medicina']),
+    } });
+    assert.match(prepared.messages[0].content.text, /NUNCA emitas un diagnóstico/);
+    assert.match(prepared.messages[0].content.text, /Project fixture/);
+    assert.match(prepared.messages[0].content.text, /law-1234-chunk-0/);
+    const result = await client.callTool({ name: 'legal.searchNormative', arguments: { tenantId: 't1', query: 'ruido ocupacional' } });
+    assert.equal(result.isError, false);
+    assert.equal(JSON.parse(result.content[0].text).method, 'lexical');
+    assert.equal(JSON.parse(result.content[0].text).matches[0].id, 'law-1234-chunk-0');
+  } finally { await client.close(); await transport.close(); }
+});

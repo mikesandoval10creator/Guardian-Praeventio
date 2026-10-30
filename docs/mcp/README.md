@@ -58,6 +58,86 @@ MCP no convierte automáticamente todos los protocolos de inferencia en uno solo
 escribir al Zettelkasten — el contrato es enforced en `MCP_TOOLS`
 de `src/services/mcp/zettelkastenServer.ts`.
 
+## Acciones delegables mediante MCP prompts
+
+Además del sampling opcional, el servidor implementa `prompts/list` y
+`prompts/get`. **No requieren sampling**: Guardian prepara los mensajes con
+los builders compartidos; el host MCP del usuario decide si los presenta o
+los ejecuta con su propio modelo. No son respuestas generadas, no seleccionan
+proveedor y no migran automáticamente los botones de la interfaz web.
+
+El mismo opt-in `PRAEVENTIO_MCP_SAMPLING_PROJECTS` autoriza compartir contexto
+para estos prompts; el nombre de la variable se conserva por compatibilidad.
+Sin pares autorizados la lista está vacía y `prompts/get` rechaza la petición.
+Cada llamada revalida tenant/proyecto antes de preparar hasta 12 registros de contexto,
+excluye metadata/conexiones/embeddings, aplica redacción a campos de texto
+y conserva los identificadores literales. La redacción **no anonimiza** nombres
+ni garantiza ausencia de datos sensibles: revisión/aprobación del host requerida.
+
+Los argumentos MCP son strings. `input` es un array JSON de argumentos:
+
+| Prompt | `input` (contrato posicional) |
+|---|---|
+| `guardian.getChatResponse` | `[mensaje, contextoIgnorado?, historial?, detalle1a3?, dominio?]` |
+| `guardian.queryBCN` | `[consulta]` |
+| `guardian.getSafetyAdvice` | `[{temp?, uv?, airQuality?}]` |
+| `guardian.calculateStructuralLoad` | `[estructura, cargas]` |
+| `guardian.designHazmatStorage` | `[tipoAlmacenamiento, volumenPositivo, clasePeligro]` |
+| `guardian.evaluateMinsalCompliance` | `[protocolo, contexto?, industria?]` |
+
+Ejemplo `prompts/get` (IDs ilustrativos, no credenciales):
+
+```json
+{"name":"guardian.queryBCN","arguments":{"tenantId":"tenant-mineria-x","projectId":"project-x","input":"[\"ruido ocupacional\"]"}}
+```
+
+El contexto de chat se construye desde el proyecto autorizado; nunca se acepta
+el slot legacy de contexto como evidencia de otro proyecto. Historial: máximo
+8 mensajes, roles user/assistant/model; entradas tipadas y acotadas. Toda
+salida preparada es **SOLO CONSULTIVO**: no diagnostica, no certifica capacidad
+estructural ni cumplimiento, no autoriza trabajos y no dispara emergencias.
+El resultado de un modelo externo no se ingiere ni persiste en este recorrido.
+El host sigue siendo responsable de respetar esas instrucciones y de la
+revisión del profesional competente; el texto del prompt no prueba seguridad
+semántica de un modelo.
+
+### Recuperación normativa interna
+
+`legal.searchNormative(tenantId, query)` no necesita LLM ni sampling. Requiere
+un tenant de la whitelist y devuelve extractos existentes de `vector_store`
+mediante recuperación léxica determinista. El launcher la conecta; una factoría
+embebida debe inyectar `retrieveNormative` para anunciar esta tool.
+
+- Lee por rango de IDs `law-*`, proyecta solo campos necesarios (sin embedding)
+  y limita a 201 documentos para detectar recorte; considera los primeros 200
+  candidatos, devuelve como máximo 3 coincidencias por defecto.
+- Exige ID `law-<lawId>-chunk-<n>` consistente y rechaza cualquier fila con
+  `nodeId`, `projectId` o `tenantId`, aunque tenga apariencia normativa.
+- Solo acepta chunks de hasta 1200 caracteres (el indexador existente usa 1000);
+  no devuelve un prefijo que pueda omitir la evidencia que produjo el match.
+- Devuelve IDs, extractos literales, términos coincidentes y `method: lexical`.
+  `sourceStatus: indexed-unverified`: la URL BCN se deriva del ID, **no** prueba
+  verificación web, autoría, actualidad o validez jurídica. La frontera de
+  confianza sigue incluyendo al indexador y sus permisos de escritura.
+- `scanLimited` advierte corpus recortado; un no-match no demuestra que la norma
+  no exista. Esta búsqueda acotada **no equivale al recall vectorial** ni a una
+  búsqueda completa del corpus. No genera fragmentos ni números legales.
+- Sin coincidencias o con almacén no disponible se declara ausencia de evidencia; no
+  hay fallback oculto a embeddings, Gemini o Vertex. Firestore permanece como
+  almacenamiento existente, con su coste normal de lecturas.
+
+Los builders selfhosted de chat, BCN y MINSAL usan esta misma recuperación
+interna en lugar de generar embeddings para preparar contexto. La ingesta
+legacy (`indexLaw`), otros consumidores de RAG y la UI aún pueden depender de
+Google; este cambio no anuncia su retirada global.
+
+`prompts/get` y `legal.searchNormative` comparten un presupuesto local de seis
+intentos/minuto y una operación simultánea por proceso, separado del sampling.
+No es cuota distribuida ni autenticación individual. No añade cancelación
+remota al SDK Firestore: cancelar una solicitud del host no prueba que la
+lectura ya enviada al almacén se haya abortado. No desplegar como servicio
+HTTP multiusuario bajo este contrato stdio administrado.
+
 ## Citation policy
 
 El server inyecta `ZK_CITATION_POLICY` como `instructions` del

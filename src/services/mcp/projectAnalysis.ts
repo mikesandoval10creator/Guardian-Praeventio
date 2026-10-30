@@ -55,23 +55,27 @@ function validScope(value: unknown): value is string {
     && value.length <= 200 && !value.includes('/') && value !== '.' && value !== '..';
 }
 
-export async function analyzeProjectWithClient(args: Record<string, unknown>, deps: ProjectAnalysisDeps) {
-  const { tenantId, projectId, question } = args;
-  if (!validScope(tenantId) || !validScope(projectId) || typeof question !== 'string'
-    || !question.trim() || question.length > 1000) throw new Error('mcp_sampling_invalid_arguments');
+export async function readAuthorizedProjectContext(tenantId: string, projectId: string,
+  deps: Pick<ProjectAnalysisDeps, 'zk' | 'allowedProjects'>) {
+  if (!validScope(tenantId) || !validScope(projectId)) throw new Error('mcp_sampling_invalid_arguments');
   if (!deps.allowedProjects.some(p => p.tenantId === tenantId && p.projectId === projectId)) {
     throw new Error('mcp_sampling_project_not_allowed');
   }
   const allowedTenants = await deps.zk.listAccessibleTenants();
   if (!allowedTenants.includes(tenantId)) throw new Error('mcp_sampling_tenant_not_allowed');
   const nodes = await deps.zk.listNodes(tenantId, { projectId, limit: 12 });
-  // Defense in depth: filter stale/foreign/legacy snapshots, and never send
-  // metadata, embeddings, tags or connections to the model.
-  const context = nodes.filter(n => n.projectId === projectId
+  return nodes.filter(n => n.projectId === projectId
     && (n.tenantId === undefined || n.tenantId === tenantId)
     && n.id.length > 0 && n.id.length <= 1500 && !/[()\s]/.test(n.id)).slice(0, 12)
     .map(n => ({ id: n.id, type: n.type.slice(0, 100),
       title: n.title.slice(0, 200), description: n.description.slice(0, 1000) }));
+}
+
+export async function analyzeProjectWithClient(args: Record<string, unknown>, deps: ProjectAnalysisDeps) {
+  const { tenantId, projectId, question } = args;
+  if (!validScope(tenantId) || !validScope(projectId) || typeof question !== 'string'
+    || !question.trim() || question.length > 1000) throw new Error('mcp_sampling_invalid_arguments');
+  const context = await readAuthorizedProjectContext(tenantId, projectId, deps);
   if (!context.length) return { source: 'project-records' as const, advisory: true,
     contextNodeIds: [] as string[], text: 'No hay registros del proyecto en el contexto disponible.', sampled: false };
   let response: ProjectSamplingResult;

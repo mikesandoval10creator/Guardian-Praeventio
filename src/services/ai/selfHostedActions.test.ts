@@ -9,25 +9,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const H = vi.hoisted(() => ({
-  searchRelevantContext: vi.fn(async (_query: string) => 'CONTEXTO-RAG-DS594'),
+  searchRelevantContext: vi.fn(async (_query: string) => ({ method: 'lexical' as const, scanLimited: false,
+    matches: [{ id: 'law-1234-chunk-0', lawId: '1234', title: 'CONTEXTO-RAG-DS594', excerpt: 'Corpus fixture',
+      sourceUrl: 'https://www.bcn.cl/leychile/navegar?idNorma=1234', matchedTerms: ['consulta'] }] })),
   redact: vi.fn((prompt: string, _action: string) => prompt.replace(/12\.345\.678-K/g, '[RUT]')),
 }));
 
-vi.mock('../ragService.js', () => ({
-  searchRelevantContext: (query: string) => H.searchRelevantContext(query),
+vi.mock('../../server/rag/publicLawReader.js', () => ({
+  retrieveNativeNormative: (query: string) => H.searchRelevantContext(query),
 }));
 vi.mock('../gemini/_shared.js', () => ({
   redactPromptForVertex: (prompt: string, action: string) => H.redact(prompt, action),
 }));
 // chat.ts pulls @google/genai + Sentry; only its pure helper is needed here.
-vi.mock('../gemini/chat.js', () => ({
+vi.mock('./asesorDomain.js', () => ({
   asesorDomainFocus: (domain: string) => `ENFOQUE-MOCK:${domain}`,
 }));
 
 import { SELF_HOSTED_ACTION_SPECS } from './selfHostedActions.js';
 
 beforeEach(() => {
-  H.searchRelevantContext.mockClear().mockResolvedValue('CONTEXTO-RAG-DS594');
+  H.searchRelevantContext.mockClear().mockResolvedValue({ method: 'lexical', scanLimited: false,
+    matches: [{ id: 'law-1234-chunk-0', lawId: '1234', title: 'CONTEXTO-RAG-DS594', excerpt: 'Corpus fixture',
+      sourceUrl: 'https://www.bcn.cl/leychile/navegar?idNorma=1234', matchedTerms: ['consulta'] }] });
   H.redact.mockClear();
 });
 
