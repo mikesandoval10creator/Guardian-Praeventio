@@ -109,6 +109,43 @@ See [the DFD](./data-flow-diagram.md) for the visual.
 | 6 | Third-party processors | Express -> Transbank, Sentry, Resend, Play | Vendor-specific secrets, signed callbacks |
 | 7 | Observability | Errors -> Sentry SaaS | Server `sentryInstrumentation.ts` redacts; client `lib/sentry.ts` `redactPii` |
 
+### MCP operator-to-client boundary (implementation delta)
+
+The stdio server is an operator-managed read-only process, **not** a new HTTP
+multi-user identity boundary. The operator tenant whitelist and explicit
+project context opt-in gate the six shared action prompts. Each get checks
+scope before retrieving project records; existing tenant scoping in the data
+adapter remains. Prompt preparation works without sampling, but it does not
+execute an LLM or grant the host permission to mutate Guardian.
+
+- **Disclosure / prompt injection:** project text and indexed law excerpts are
+  untrusted data. Minimized project fields and text redaction reduce exposure;
+  names and other sensitive details can remain. Operator opt-in is not proof
+  of regulatory consent. Host/user approval is still required. Instructions
+  and advisory labels do not prove semantic compliance by an external model.
+- **Source tampering:** native legal retrieval reads only canonical `law-*`
+  candidates, excludes project/tenant/node-bearing rows, and preserves literal
+  IDs/excerpts. `indexed-unverified` is explicit: index-writer privileges,
+  authenticity, currency, web provenance and legal validity remain trust
+  assumptions, not properties inferred from a generated URL or lexical match.
+- **Cost / availability:** prompt and legal-tool calls share six attempts per
+  minute and one concurrent operation per process. Public-law reads cap at
+  201 candidates, omit embeddings and report a truncated scan. This is not a
+  distributed quota, complete-corpus search, or remote Firestore cancellation.
+- **Safety / elevation:** medical, legal, engineering and emergency material
+  stays consultative and requires competent professional review. Prepared
+  prompts do not authorize work, certify capacity/compliance, diagnose, write
+  records or trigger life-safety actions. No returned model output is ingested
+  by this path. This delta does not validate the legacy generation UI.
+- **Credentials:** model selection and API credentials remain in the user's
+  host. Guardian adds no inference credential vault or mandatory provider.
+  Firestore read-only credentials remain the existing separate storage concern.
+
+Local negative protocol tests cover foreign scope, disabled opt-in, malformed
+arguments, arbitrary action names, error redaction and session read budget;
+compiled stdio tests use controlled data, not production IAM or real inference.
+CI, deployment and live corpus provenance/recall are separate acceptance levels.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

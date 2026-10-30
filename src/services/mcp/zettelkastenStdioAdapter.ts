@@ -18,6 +18,8 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
   EmptyResultSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   MCP_TOOLS,
@@ -28,6 +30,8 @@ import {
 } from './zettelkastenServer.js';
 
 import { analyzeProjectWithClient, PROJECT_ANALYSIS_TOOL, type SamplingProject } from './projectAnalysis.js';
+import { ACTION_PROMPTS, LEGAL_SEARCH_TOOL, prepareActionPrompt, searchNormativeForMcp } from './actionPrompts.js';
+import type { NormativeRetriever } from '../rag/nativeNormativeContext.js';
 
 export interface StdioAdapterConfig {
   serverName?: string;
@@ -36,6 +40,8 @@ export interface StdioAdapterConfig {
   zk: ZkReadAdapter;
   /** Operator opt-in for sharing these projects with the client's own model. */
   samplingProjects?: readonly SamplingProject[];
+  /** Bounded public-law retrieval, with no inference or embedding dependency. */
+  retrieveNormative?: NormativeRetriever;
 }
 
 /**
@@ -53,6 +59,7 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
       capabilities: {
         tools: {},
         resources: {},
+        prompts: {},
       },
       // Citation policy va en el server-side instructions para que el
       // cliente LLM siempre cite nodos en sus respuestas.
@@ -66,9 +73,36 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
   let windowStartedAt = Date.now();
   let windowCalls = 0;
 
+  // Prepared prompts do not require client sampling. Context sharing still
+  // requires the same explicit operator project opt-in. Public retrieval has
+  // a separate session-local read ceiling shared with prompts/get.
+  let contextBusy = false;
+  let contextWindow = Date.now();
+  let contextCalls = 0;
+  async function withContextBudget<T>(fn: () => Promise<T>): Promise<T> {
+    if (Date.now() - contextWindow >= 60_000) { contextWindow = Date.now(); contextCalls = 0; }
+    if (contextBusy || contextCalls >= 6) throw new Error('mcp_prompt_rate_limited');
+    contextBusy = true; contextCalls++;
+    try { return await fn(); } finally { contextBusy = false; }
+  }
+  const promptDeps = () => ({ zk: config.zk, allowedProjects: config.samplingProjects ?? [],
+    retrieveNormative: config.retrieveNormative });
+  const safeContextError = (error: unknown) => error instanceof Error
+    && /^mcp_(?:prompt|sampling)_[a-z_]+$/.test(error.message) ? error.message : 'mcp_prompt_unavailable';
+
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: config.samplingProjects?.length ? ACTION_PROMPTS : [],
+  }));
+  server.setRequestHandler(GetPromptRequestSchema, async request => {
+    if (!config.samplingProjects?.length) throw new Error('mcp_prompt_not_enabled');
+    try { return await withContextBudget(() => prepareActionPrompt(request.params.name, request.params.arguments ?? {}, promptDeps())); }
+    catch (error) { throw new Error(safeContextError(error), { cause: error }); }
+  });
+
   // ── tools/list ─────────────────────────────────────────────────────────
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: samplingEnabled() ? [...MCP_TOOLS, PROJECT_ANALYSIS_TOOL] : MCP_TOOLS,
+    tools: [...MCP_TOOLS, ...(config.retrieveNormative ? [LEGAL_SEARCH_TOOL] : []),
+      ...(samplingEnabled() ? [PROJECT_ANALYSIS_TOOL] : [])],
   }));
 
   // Codex P2 fix (PR #263, 2026-05-15): poblar allowedTenantIds desde el
@@ -88,6 +122,12 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
 
   // ── tools/call ─────────────────────────────────────────────────────────
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    if (request.params.name === LEGAL_SEARCH_TOOL.name) {
+      try {
+        const result = await withContextBudget(() => searchNormativeForMcp(request.params.arguments ?? {}, promptDeps()));
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], isError: result.reason === 'store_unavailable' };
+      } catch (error) { return { content: [{ type: 'text' as const, text: safeContextError(error) }], isError: true }; }
+    }
     if (request.params.name === PROJECT_ANALYSIS_TOOL.name) {
       const failure = (code: string) => ({ content: [{ type: 'text' as const, text: code }], isError: true });
       if (!samplingEnabled()) return failure('mcp_sampling_not_enabled');
