@@ -18,6 +18,10 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ libc6-compat
 
 COPY package.json package-lock.json* ./
+# Vendored dependency (xlsx -> file:vendor/*.tgz): npm ci resolves it from
+# disk, so the tarball must exist before the install or the stage dies ENOENT.
+COPY vendor/ ./vendor/
+COPY scripts/patch-artillery.mjs scripts/patch-stryker-vitest5.cjs ./scripts/
 # Production deps only, but `tsx` is a devDependency that the runtime needs
 # (the API runs as `tsx server.ts` — no compiled JS entrypoint exists). We
 # therefore install prod deps deterministically and then add `tsx` on top.
@@ -33,6 +37,8 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ libc6-compat
 
 COPY package.json package-lock.json* ./
+COPY vendor/ ./vendor/
+COPY scripts/patch-artillery.mjs scripts/patch-stryker-vitest5.cjs ./scripts/
 RUN npm ci --legacy-peer-deps
 
 COPY . .

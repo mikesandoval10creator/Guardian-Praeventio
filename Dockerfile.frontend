@@ -13,6 +13,8 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ libc6-compat
 
 COPY package.json package-lock.json* ./
+COPY vendor/ ./vendor/
+COPY scripts/patch-artillery.mjs scripts/patch-stryker-vitest5.cjs ./scripts/
 RUN npm ci --legacy-peer-deps
 
 COPY . .
