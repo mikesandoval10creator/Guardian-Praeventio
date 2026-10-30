@@ -146,6 +146,33 @@ arguments, arbitrary action names, error redaction and session read budget;
 compiled stdio tests use controlled data, not production IAM or real inference.
 CI, deployment and live corpus provenance/recall are separate acceptance levels.
 
+**Typed-relation read delta (`zk.listEdges`):** the operator must additionally
+set `PRAEVENTIO_MCP_TYPED_EDGES=1`; tenant/project context allowlists still apply.
+The SDK-only tool is hidden without the reader/allowlist and shares the local
+context budget. Admin SDK bypasses rules: the reader itself queries tenant
+edges with a project predicate before its limit and checks both endpoint
+documents in that tenant/project. It rejects malformed/contradictory stored
+records without inferring types from adjacency or materializing inverses.
+
+- **Disclosure / spoofing:** output is an allowlisted relation projection,
+  excluding creator IDs, arbitrary metadata and node text. Original relation
+  and endpoint IDs remain potentially sensitive, not anonymized. A conflicting
+  endpoint tenant stamp fails closed; absent legacy stamps are trusted only by
+  the tenant collection plus required project match. No global-store fallback.
+- **Availability:** at most 51 edge candidates, 100 distinct endpoint reads,
+  and 64 KiB UTF-8 JSON payload before MCP envelope. Local budget remains six
+  attempts/minute, one operation; no distributed quotas or remote SDK abort.
+  A failed read is an error, not an empty successful graph.
+- **Integrity / safety:** weights, dates, type and inverse labels are stored
+  values, not real-world causal or barrier-effectiveness evidence. Bounded,
+  omitted/truncated results do not prove a complete graph. No writes, model
+  calls, inverse creation, emergency activation or automatic decision authority.
+- **Residual:** operator/service-account compromise, host retention, individual
+  consent/revocation, production IAM/corpus, historical-store convergence and
+  HTTP multiuser exposure remain outside this read-only stdio proof. Regression
+  gates: `typedEdgesReader.test.ts`, `typedEdges.protocol.test.ts` and the actual
+  compiled-reader/SDK/stdio fixture in `scripts/mcp-build.test.mjs`.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

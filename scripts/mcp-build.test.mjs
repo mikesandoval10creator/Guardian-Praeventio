@@ -140,3 +140,58 @@ test('compiled MCP prepares actions and searches native law over stdio without s
     assert.equal(JSON.parse(result.content[0].text).matches[0].id, 'law-1234-chunk-0');
   } finally { await client.close(); await transport.close(); }
 });
+
+// SDK + actual compiled edge reader/tenant adapter, real process and stdio.
+// Identity policy and stored documents are explicit fixtures, not production IAM.
+test('compiled MCP exposes only opted-in project typed relations without inference', { timeout: 15000 }, async () => {
+  const serverModule = new URL('../dist-mcp/services/mcp/zettelkastenStdioAdapter.js', import.meta.url).href;
+  const readerModule = new URL('../dist-mcp/server/mcp/typedEdgesReader.js', import.meta.url).href;
+  const adapterModule = new URL('../dist-mcp/server/mcp/zkFirebaseReadAdapter.js', import.meta.url).href;
+  const contractModule = new URL('../dist-mcp/services/mcp/typedEdges.js', import.meta.url).href;
+  const childScript = `
+    import { startStdioMcpServer } from ${JSON.stringify(serverModule)};
+    import { createTypedEdgesReader } from ${JSON.stringify(readerModule)};
+    import { createZkFirebaseReadAdapter } from ${JSON.stringify(adapterModule)};
+    import { typedEdgesOptIn } from ${JSON.stringify(contractModule)};
+    globalThis.fetch = async () => { throw new Error('Unexpected provider request'); };
+    const docs = {
+      'tenants/t1/zettelkasten_nodes/n1': {tenantId:'t1',projectId:'p1'},
+      'tenants/t1/zettelkasten_nodes/n2': {tenantId:'t1',projectId:'p1'},
+      'tenants/t1/zettelkasten_nodes/foreign': {tenantId:'t1',projectId:'p2'},
+      'tenants/t1/zettelkasten_edges/e1': {id:'e1',tenantId:'t1',projectId:'p1',fromNodeId:'n1',toNodeId:'n2',type:'mitigates',inverseType:'mitigated_by',weight:0.8,createdBy:'private-worker'},
+      'tenants/t1/zettelkasten_edges/e2': {id:'e2',tenantId:'t1',projectId:'p1',fromNodeId:'n1',toNodeId:'foreign',type:'requires',inverseType:'required_by'},
+    };
+    function collection(path, filters = [], cap = Infinity) {
+      if(!path.startsWith('tenants')) throw new Error('unexpected global read');
+      return {
+        doc(id) { const p=path+'/'+id; return {id,get:async()=>({id,exists:!!docs[p],data:()=>docs[p]}),collection:name=>collection(p+'/'+name)}; },
+        where(field,op,value) {if(op!=='==')throw new Error('unexpected query');return collection(path,[...filters,[field,value]],cap);},
+        limit(n) {return collection(path,filters,n);},
+        async get(){return {docs:Object.entries(docs).filter(([p,d])=>p.startsWith(path+'/')&&!p.slice(path.length+1).includes('/')&&filters.every(([f,v])=>d[f]===v)).slice(0,cap).map(([p,d])=>({id:p.split('/').at(-1),exists:true,data:()=>d}))};},
+      };
+    }
+    const firestore={collection}; const allowedProjects=[{tenantId:'t1',projectId:'p1'}];
+    await startStdioMcpServer({zk:createZkFirebaseReadAdapter({firestore,accessibleTenants:['t1']}),samplingProjects:allowedProjects,
+      readEdges:typedEdgesOptIn(process.env.PRAEVENTIO_MCP_TYPED_EDGES)?createTypedEdgesReader({firestore,accessibleTenants:['t1'],allowedProjects}):undefined});
+  `;
+  for (const flag of ['0', '1']) {
+    const transport = new StdioClientTransport({ command: process.execPath,
+      args: ['--input-type=module','-e',childScript], stderr:'pipe', env: {
+        PATH: dirname(process.execPath), ...(process.env.SystemRoot ? {SystemRoot:process.env.SystemRoot}:{}),
+        PRAEVENTIO_MCP_TYPED_EDGES:flag,
+      } });
+    const client = new Client({name:'typed-edge-stdio-fixture',version:'1'},{capabilities:{}});
+    try {
+      await client.connect(transport);
+      assert.equal((await client.listTools()).tools.some(t=>t.name==='zk.listEdges'),flag==='1');
+      const result=await client.callTool({name:'zk.listEdges',arguments:{tenantId:'t1',projectId:'p1'}});
+      if(flag==='0') {assert.equal(result.isError,true);continue;}
+      assert.equal(result.isError,false);
+      const data=JSON.parse(result.content[0].text);
+      assert.deepEqual(data.edges,[{id:'e1',fromNodeId:'n1',toNodeId:'n2',type:'mitigates',inverseType:'mitigated_by',weight:0.8}]);
+      assert.equal(data.omitted,1); assert.equal(data.bounded,true);
+      assert.doesNotMatch(JSON.stringify(data),/private-worker|foreign/);
+      assert.equal((await client.callTool({name:'zk.listEdges',arguments:{tenantId:'t1',projectId:'p2'}})).isError,true);
+    } finally {await client.close();await transport.close();}
+  }
+});

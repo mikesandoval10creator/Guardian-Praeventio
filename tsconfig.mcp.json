@@ -13,6 +13,7 @@
   },
   "include": [
     "src/server/mcp/zkFirebaseReadAdapter.ts",
+    "src/server/mcp/typedEdgesReader.ts",
     "src/server/rag/publicLawReader.ts",
     "src/services/mcp/zettelkastenStdioAdapter.ts"
   ]

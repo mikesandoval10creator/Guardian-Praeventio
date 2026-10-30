@@ -48,6 +48,8 @@ import { createZkFirebaseReadAdapter } from '../dist-mcp/server/mcp/zkFirebaseRe
 import { startStdioMcpServer } from '../dist-mcp/services/mcp/zettelkastenStdioAdapter.js';
 import { parseSamplingProjects } from '../dist-mcp/services/mcp/projectAnalysis.js';
 import { retrieveNativeNormative } from '../dist-mcp/server/rag/publicLawReader.js';
+import { createTypedEdgesReader } from '../dist-mcp/server/mcp/typedEdgesReader.js';
+import { typedEdgesOptIn } from '../dist-mcp/services/mcp/typedEdges.js';
 
 function readTenants() {
   const raw = process.env.PRAEVENTIO_MCP_TENANTS;
@@ -116,6 +118,9 @@ async function main() {
     zk,
     samplingProjects,
     retrieveNormative: retrieveNativeNormative,
+    readEdges: typedEdgesOptIn(process.env.PRAEVENTIO_MCP_TYPED_EDGES)
+      ? createTypedEdgesReader({ firestore, accessibleTenants: tenants, allowedProjects: samplingProjects })
+      : undefined,
   });
 
   // Log a stderr para no contaminar el stdio transport (stdout).
