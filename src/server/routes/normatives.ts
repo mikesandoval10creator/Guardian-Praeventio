@@ -23,6 +23,9 @@
 // API from here.
 
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+import { retrieveNativeNormative } from '../rag/publicLawReader.js';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -113,6 +116,32 @@ const BASELINE_NORMATIVES: readonly SeedNormative[] = [
 ] as const;
 
 const normativesRouter = Router();
+
+// Experimental, opt-in public corpus lookup shared with MCP. No tenant/project
+// records are read; no model, embeddings, writes or provider fallback. The local
+// per-UID bucket is an abuse bound, not a distributed billing quota.
+const normativeSearchLimiter = rateLimit({
+  windowMs: 60_000, limit: 6,
+  keyGenerator: req => req.user!.uid,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'rate_limited' },
+});
+const searchSchema = z.object({ query: z.string().max(2000).trim().min(4) }).strict();
+normativesRouter.post('/search', verifyAuth, normativeSearchLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const parsed = searchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_payload' });
+  try {
+    const result = await retrieveNativeNormative(parsed.data.query);
+    if (result.reason === 'store_unavailable') {
+      return res.status(503).json({ error: 'normative_store_unavailable' });
+    }
+    return res.json(result);
+  } catch {
+    // Neither the query nor storage SDK errors may enter logs or responses.
+    return res.status(503).json({ error: 'normative_store_unavailable' });
+  }
+});
 
 // POST /api/normatives/seed — audited, idempotent baseline seed.
 normativesRouter.post('/seed', verifyAuth, async (req, res) => {

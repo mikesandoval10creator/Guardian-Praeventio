@@ -23,6 +23,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { NativeNormativeSearch } from '../components/normativa/NativeNormativeSearch';
 
 interface Normative {
   id: string;
@@ -61,26 +62,30 @@ export function Normatives() {
   const [industryProtocols, setIndustryProtocols] = useState<any[]>([]);
   const [loadingProtocols, setLoadingProtocols] = useState(false);
   const isOnline = useOnlineStatus();
+  const protocolRequest = React.useRef(0);
+  const activeProjectId = selectedProject?.id;
+
+  useEffect(() => {
+    protocolRequest.current++;
+    setIndustryProtocols([]);
+    setLoadingProtocols(false);
+    return () => { protocolRequest.current++; };
+  }, [activeProjectId, selectedProject?.industry]);
 
   const loadIndustryProtocols = async () => {
     if (!selectedProject?.industry || !isOnline) return;
+    const request = ++protocolRequest.current;
     setLoadingProtocols(true);
     try {
-      // Use Gemini to suggest specific normatives for the industry
+      // Legacy generation is explicit opt-in, never invoked on page mount/search.
       const suggestions = await suggestNormativesWithAI(selectedProject.industry);
-      setIndustryProtocols(suggestions);
+      if (request === protocolRequest.current) setIndustryProtocols(suggestions);
     } catch (error) {
       logger.error('Error loading industry protocols', { error });
     } finally {
-      setLoadingProtocols(false);
+      if (request === protocolRequest.current) setLoadingProtocols(false);
     }
   };
-
-  React.useEffect(() => {
-    if (selectedProject?.industry && isOnline) {
-      loadIndustryProtocols();
-    }
-  }, [selectedProject?.industry, isOnline]);
 
   const seedNormatives = async () => {
     setIsSeeding(true);
@@ -179,6 +184,8 @@ export function Normatives() {
         <Iso45001Catalog />
       </div>
 
+      <NativeNormativeSearch key={activeProjectId ?? 'no-project'} projectId={activeProjectId} online={isOnline} />
+
       {/* Search & Filters */}
       <div className="flex flex-col md:flex-row gap-3 mb-8">
         <div className="flex-1 relative">
@@ -226,8 +233,9 @@ export function Normatives() {
               <ShieldCheck className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Protocolos Dinámicos: {selectedProject.industry}</h2>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Normativas específicas detectadas para tu rubro</p>
+              <h2 className="text-lg font-bold text-primary-token">Sugerencias IA heredada: {selectedProject.industry}</h2>
+              <p className="text-xs text-secondary-token">Opcional. Puede usar Gemini según la configuración del servidor; no forma parte de la búsqueda interna ni de MCP. Requiere revisión profesional.</p>
+              <button type="button" onClick={loadIndustryProtocols} disabled={!isOnline || loadingProtocols} className="mt-2 rounded border px-4 py-2 disabled:opacity-50">Solicitar sugerencias IA heredada</button>
             </div>
           </div>
           
