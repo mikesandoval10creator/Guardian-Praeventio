@@ -138,6 +138,45 @@ remota al SDK Firestore: cancelar una solicitud del host no prueba que la
 lectura ya enviada al almacén se haya abortado. No desplegar como servicio
 HTTP multiusuario bajo este contrato stdio administrado.
 
+## Consulta normativa desde la interfaz web
+
+La página **Normativas** ofrece una búsqueda interna **experimental y opt-in**
+de extractos con el mismo recuperador que `legal.searchNormative`. No ejecuta
+MCP desde el navegador: `POST /api/normatives/search` requiere `verifyAuth`,
+acepta exclusivamente `{ "query": "DS 44" }` (4–2000 caracteres, sin IDs de
+tenant/proyecto) y lee únicamente el corpus público indexado. No consulta
+registros del proyecto, no escribe datos ni usa LLM/embeddings/fallback Google.
+La protección adicional es de seis intentos por minuto por UID y proceso,
+además del límite global del API; no es una cuota distribuida. La consulta va
+en el body, no en la URL; no se registra su texto y la respuesta es `no-store`.
+
+La UI diferencia extractos, ausencia de coincidencias y fallo del almacén
+(HTTP 503). Conserva IDs y textos, avisa de procedencia/vigencia no verificadas
+y recorte del índice. Las URLs BCN se derivan del `lawId`, no se validan en la
+web. Sin conexión sigue disponible la biblioteca local; esta búsqueda no funciona
+offline. Cancelación/deadline de 20 segundos en el cliente no acredita aborto
+remoto de una lectura Firestore ya enviada.
+
+**Preparar solicitud MCP** muestra un objeto `prompts/get` revisable para
+`guardian.queryBCN`. Requiere proyecto seleccionado y un tenant que el usuario
+introduce explícitamente; no se adivina el tenant a partir del ID del proyecto.
+Es solo preparación manual: no hay transporte MCP, inferencia, envío ni copia
+automática al portapapeles. El usuario adapta/copia los argumentos en su host,
+cuyo soporte para prompts debe comprobar. La UI no prueba que ese host esté
+conectado, que el scope esté autorizado ni que el modelo haya respondido.
+
+Al ejecutar la solicitud en el host, el servidor MCP conserva sus checks de
+tenant/proyecto y opt-in del operador. Puede preparar registros del proyecto
+para compartirlos con el modelo; la UI lo advierte y requiere revisión del
+contexto en el host. Preparar IDs no concede acceso ni sustituye consentimiento.
+No introducir claves ni datos personales en estos campos.
+
+Abrir la página ya no dispara sugerencias generativas por industria. La capacidad
+anterior se conserva bajo **Solicitar sugerencias IA heredada**, con aviso de
+posible uso de Gemini según routing; las respuestas atrasadas se descartan al
+cambiar de proyecto. Sincronizar/ingerir la biblioteca y otras funciones legacy
+siguen fuera de la independencia demostrada por esta búsqueda.
+
 ## Citation policy
 
 El server inyecta `ZK_CITATION_POLICY` como `instructions` del

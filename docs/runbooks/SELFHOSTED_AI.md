@@ -76,11 +76,15 @@ legacy Gemini path. Absent/empty/0/mistyped values do not. The explicit
 The self-hosted breaker uses its own key (`selfhosted`) — 5 failures/60 s opens
 it for 5 min with half-open probes — isolated from the Gemini breaker.
 
-**Remaining boundary:** successful self-hosted prompt builders using normative
-RAG can still depend on external embeddings; this change does not migrate that
-retrieval implementation. Nor does it remove the legacy provider for actions
-not selected for migration. MCP client-owned inference is documented separately
-in `docs/mcp/README.md`. No global provider independence is claimed here.
+**Current retrieval boundary:** successful self-hosted builders for chat, BCN
+and MINSAL now share the deterministic lexical public-law retriever with MCP,
+without query-time embeddings (`src/server/rag/publicLawReader.ts`). Its scan is
+bounded and provenance is `indexed-unverified`; no vector-recall equivalence or
+legal currency is asserted. Corpus ingestion and other legacy RAG consumers can
+still use Google. The no-switch failure tier above remains internal-only.
+This does not remove the legacy provider for actions not selected for migration.
+MCP client-owned inference and the opt-in normative UI are documented in
+`docs/mcp/README.md`. No global provider independence is claimed here.
 
 `AI_SELFHOSTED_TIMEOUT_MS` is one end-to-end deadline for a completion call:
 receiving headers does not stop it. It covers response-body consumption and the
