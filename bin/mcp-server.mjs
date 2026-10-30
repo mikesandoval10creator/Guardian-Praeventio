@@ -46,6 +46,7 @@ import process from 'node:process';
 // Clientes que invocan este archivo directamente deben compilar primero.
 import { createZkFirebaseReadAdapter } from '../dist-mcp/server/mcp/zkFirebaseReadAdapter.js';
 import { startStdioMcpServer } from '../dist-mcp/services/mcp/zettelkastenStdioAdapter.js';
+import { parseSamplingProjects } from '../dist-mcp/services/mcp/projectAnalysis.js';
 
 function readTenants() {
   const raw = process.env.PRAEVENTIO_MCP_TENANTS;
@@ -98,6 +99,7 @@ function initAdmin() {
 
 async function main() {
   const tenants = readTenants();
+  const samplingProjects = parseSamplingProjects(process.env.PRAEVENTIO_MCP_SAMPLING_PROJECTS, tenants);
   const app = initAdmin();
   const firestore = getFirestore(app);
 
@@ -111,6 +113,7 @@ async function main() {
     serverName: process.env.PRAEVENTIO_MCP_NAME ?? 'praeventio-zettelkasten',
     serverVersion: process.env.PRAEVENTIO_MCP_VERSION ?? '1.0.0',
     zk,
+    samplingProjects,
   });
 
   // Log a stderr para no contaminar el stdio transport (stdout).

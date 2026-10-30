@@ -12,7 +12,47 @@ Read-only por contrato:
 - `zk.listNodes(tenantId, { projectId?, type?, severity?, limit? })` —
   lista con filtros
 - `zk.expandSubgraph(tenantId, rootNodeId, depth)` — BFS limitado
-  (depth max 5, nodos max 200)
+  (depth max 3, nodos max 200)
+
+### Análisis con el modelo del usuario (MCP sampling)
+
+`zk.analyzeProject(tenantId, projectId, question)` solicita una generación al
+**cliente MCP**, no a un proveedor configurado en Guardian. El cliente elige
+modelo, endpoint y credenciales (o un modelo local sin API key). Guardian no
+recibe esa clave y este recorrido no importa Gemini/Vertex ni usa un fallback
+a esos proveedores. Requiere un cliente que anuncie `sampling`; configurar un
+servidor MCP en un cliente no demuestra por sí solo soporte de sampling.
+
+Está **apagado por defecto**. El operador habilita pares concretos de
+`tenantId`/`projectId`, además de la whitelist de tenants existente:
+
+```bash
+export PRAEVENTIO_MCP_SAMPLING_PROJECTS='[{"tenantId":"tenant-mineria-x","projectId":"project-x"}]'
+```
+
+El cliente debe permitir al usuario revisar/aprobar el intercambio y elegir
+su modelo según su propia política. No se debe habilitar aprobación automática
+de contenido sensible. El opt-in del operador es configuración de acceso, no
+prueba de consentimiento regulatorio ni autenticación individual.
+
+- Solo lectura y salida `advisory: true`; no activa decisiones ni certifica seguridad.
+- Máximo 12 registros del proyecto; títulos/descripciones acotados, sin metadata,
+  embeddings ni conexiones. Los nodos sin proyecto o con scope ajeno se excluyen.
+- Cada solicitud pide como máximo 768 tokens de salida, `includeContext: none`,
+  deadline de sampling 30 s, una generación simultánea y seis intentos por minuto
+  por proceso MCP. El coste real y la aprobación pertenecen al cliente del usuario;
+  estos límites no son una cuota global distribuida.
+- Se rechazan respuestas vacías, no textuales, excesivas o con citas inexistentes
+  en el contexto. Verificar IDs **no demuestra la veracidad** de la interpretación.
+- Sin contexto, devuelve un resultado explícito sin invocar el modelo. Si el cliente
+  rechaza la generación o no ofrece sampling, no cambia a otro proveedor.
+- Las tres tools de lectura anteriores siguen disponibles sin sampling.
+
+**Alcance:** integración stdio administrada por un operador con cuenta de datos
+read-only. No es aún un endpoint MCP HTTP multiusuario ni una pantalla BYOK web.
+Las llamadas Gemini del resto de la aplicación no se eliminan con este slice.
+La configuración de proveedor y sus claves viven en el cliente MCP del usuario;
+MCP no convierte automáticamente todos los protocolos de inferencia en uno solo.
 
 **NO** se exponen tools de mutación. El MCP server NUNCA puede
 escribir al Zettelkasten — el contrato es enforced en `MCP_TOOLS`
@@ -111,10 +151,10 @@ tenant, citando los node ids.
 - **Service Account principle of least privilege.** Solo
   `roles/datastore.viewer` — sin permisos de escritura ni de
   configuración.
-- **No PII exposure.** Los nodos del Zettelkasten son metadata de
-  seguridad (riesgos, EPP, normativas). NO contienen datos médicos
-  ni de identificación personal (esos viven en colecciones
-  separadas con encryption envelope KMS).
+- **Datos compartidos.** No se presupone que un nodo esté libre de datos personales:
+  títulos/descripciones pueden contenerlos. El operador debe autorizar el scope y
+  minimizar los datos; el usuario debe revisar la solicitud de sampling en su cliente.
+  No habilitar proyectos médicos ni aprobación automática de contenido sensible.
 - **Logs a stderr.** El stdio transport usa stdout — TODO log va a
   stderr para no contaminar el protocolo.
 

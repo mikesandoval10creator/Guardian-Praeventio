@@ -375,6 +375,16 @@ atribuir cobertura global a un conjunto de tests focalizados.
 
 ### E — Gateway LLM y MCP operativo seguro
 
+**Decisión de ejecución de Daniel (2026-10-30):** no esperar otra elección de
+proveedor para implementar. Resolver con lógica interna lo determinista; cuando
+una función necesite generación, permitir el modelo y las credenciales del
+usuario sin proveedor obligatorio ni fallback implícito a Gemini/Vertex.
+Primera vertical: análisis consultivo de registros de proyecto mediante MCP
+sampling (`zk.analyzeProject`), con opt-in tenant/proyecto, límites y cliente
+responsable del modelo/credenciales. Es independiente de la futura custodia BYOK
+web: las claves de este recorrido permanecen en el cliente MCP. La implementación
+de un slice no certifica la retirada global de Gemini ni el MCP multiusuario.
+
 - Estabilizar `LlmProvider` y migrar una acción a la vez fuera de Vertex/Gemini,
   conservando compatibilidad y degradación segura.
 - Implementar custodia de claves backend-only, cifrado en reposo, rotación y

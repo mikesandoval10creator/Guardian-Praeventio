@@ -17,6 +17,7 @@ import {
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  EmptyResultSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   MCP_TOOLS,
@@ -26,11 +27,15 @@ import {
   type ZkReadAdapter,
 } from './zettelkastenServer.js';
 
+import { analyzeProjectWithClient, PROJECT_ANALYSIS_TOOL, type SamplingProject } from './projectAnalysis.js';
+
 export interface StdioAdapterConfig {
   serverName?: string;
   serverVersion?: string;
   /** Adapter inyectado por el caller (lee de Firestore en runtime). */
   zk: ZkReadAdapter;
+  /** Operator opt-in for sharing these projects with the client's own model. */
+  samplingProjects?: readonly SamplingProject[];
 }
 
 /**
@@ -38,10 +43,7 @@ export interface StdioAdapterConfig {
  * hasta SIGINT. Returns el handle del server por si caller quiere
  * llamar `server.close()` explícito.
  */
-export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<Server> {
-  // Defer binding process.stdin/stdout until the CLI actually starts the
-  // transport; importing this adapter in Vitest must remain side-effect-free.
-  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server {
   const server = new Server(
     {
       name: config.serverName ?? 'praeventio-zettelkasten',
@@ -58,9 +60,15 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
     },
   );
 
+  const samplingEnabled = () => Boolean(config.samplingProjects?.length && server.getClientCapabilities()?.sampling);
+  // Session-local abuse ceiling: no background generation or unbounded fan-out.
+  let samplingBusy = false;
+  let windowStartedAt = Date.now();
+  let windowCalls = 0;
+
   // ── tools/list ─────────────────────────────────────────────────────────
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: MCP_TOOLS,
+    tools: samplingEnabled() ? [...MCP_TOOLS, PROJECT_ANALYSIS_TOOL] : MCP_TOOLS,
   }));
 
   // Codex P2 fix (PR #263, 2026-05-15): poblar allowedTenantIds desde el
@@ -79,7 +87,36 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
   };
 
   // ── tools/call ─────────────────────────────────────────────────────────
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    if (request.params.name === PROJECT_ANALYSIS_TOOL.name) {
+      const failure = (code: string) => ({ content: [{ type: 'text' as const, text: code }], isError: true });
+      if (!samplingEnabled()) return failure('mcp_sampling_not_enabled');
+      if (Date.now() - windowStartedAt >= 60_000) { windowStartedAt = Date.now(); windowCalls = 0; }
+      if (samplingBusy || windowCalls >= 6) return failure('mcp_sampling_rate_limited');
+      samplingBusy = true;
+      windowCalls++;
+      try {
+        const result = await analyzeProjectWithClient(request.params.arguments ?? {}, {
+          zk: config.zk,
+          allowedProjects: config.samplingProjects ?? [],
+          sample: async params => {
+            // SDK 1.32.1 ignores cancellation for outbound request id 0.
+            // Reserve that first id for a bounded, data-free liveness ping;
+            // sampling then has a cancellable id (regression-tested via SDK).
+            await server.request({ method: 'ping' }, EmptyResultSchema, { timeout: 5_000, signal: extra.signal });
+            return server.createMessage(params, { timeout: 30_000, signal: extra.signal });
+          },
+        });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], isError: false };
+      } catch (error) {
+        // Never echo a DB/SDK/provider error, context, keys or client response.
+        const code = error instanceof Error && /^mcp_sampling_[a-z_]+$/.test(error.message)
+          ? error.message : 'mcp_sampling_unavailable';
+        return failure(code);
+      } finally {
+        samplingBusy = false;
+      }
+    }
     const allowedTenantIds = await getAllowedTenants();
     const response = await handleMcpRequest(
       {
@@ -163,7 +200,13 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
     };
   });
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  return server;
+}
+
+export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<Server> {
+  // Keep importing this module free of stdin/stdout side effects.
+  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+  const server = createZettelkastenMcpServer(config);
+  await server.connect(new StdioServerTransport());
   return server;
 }
