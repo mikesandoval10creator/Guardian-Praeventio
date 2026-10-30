@@ -30,13 +30,14 @@
 //
 // Discovery 2026-10-29 (run 40971562065, api-server.log).
 
+import { existsSync, readFileSync } from "node:fs";
+
 export interface AdcBootConfigResult {
   ok: boolean;
   mode: 'production' | 'non-production';
   errors: string[];
   warnings: string[];
 }
-
 type AdcBootEnv = {
   NODE_ENV?: string;
   GOOGLE_APPLICATION_CREDENTIALS?: string;
@@ -61,10 +62,14 @@ const KNOWN_CRED_TYPES = new Set([
 ]);
 
 function defaultFileIO(): AdcBootFileIO {
-  // Lazy require keeps this module dependency-free for pure tests.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const fs = require('node:fs') as AdcBootFileIO;
-  return fs;
+  // Static ESM import (node:fs) — a lazy `require` is not available under the
+  // tsx/ESM loader the server and the full-stack harness boot with. The
+  // readFileSync wrapper pins the overload to the `(path) => string` shape
+  // this module uses (raw JSON text).
+  return {
+    existsSync: (path: string) => existsSync(path),
+    readFileSync: (path: string) => readFileSync(path, 'utf8'),
+  };
 }
 
 function validateCredentialFile(path: string, fileIO: AdcBootFileIO): string[] {
