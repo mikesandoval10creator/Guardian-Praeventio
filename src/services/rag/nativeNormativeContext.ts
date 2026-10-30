@@ -13,14 +13,15 @@ export type NormativeRetriever = (query: string) => Promise<NativeNormativeResul
 export const MAX_LAW_CHUNKS = 200;
 const STOP = new Set('de del la las el los un una unos unas en por para con que como qué cuál cuales y o a al es se su sus sobre según exige exigencias sanciones protocolo industria general ley ds decreto artículo'.normalize('NFD').replace(/\p{M}/gu, '').split(' '));
 function words(text: string): string[] {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+    .replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2').match(/[a-z0-9]+/g) ?? [];
 }
 export function searchPublicLawChunks(query: string, rows: readonly LawChunkRow[], limit = 3): NativeNormativeResult {
   if (typeof query !== 'string' || !query.trim() || query.length > 2000) {
     return { method: 'lexical', matches: [], scanLimited: false, reason: 'invalid_query' };
   }
-  const terms = [...new Set(words(query).filter(t => t.length >= 3 && !STOP.has(t)))].slice(0, 30);
   const decree = query.match(/\b(?:d\.?s\.?|decreto(?:\s+supremo)?)\s*(?:n[°ºo.]?\s*)?(\d+)\b/i)?.[1];
+  const terms = [...new Set(words(query).filter(t => (t.length >= 3 || t === decree) && !STOP.has(t)))].slice(0, 30);
   const scanLimited = rows.length > MAX_LAW_CHUNKS;
   const k = Number.isFinite(limit) ? Math.min(5, Math.max(1, Math.floor(limit))) : 3;
   const hits: Array<{ match: NormativeMatch; rank: number }> = [];

@@ -24,6 +24,10 @@ describe('native retrieval adversarial boundary', () => {
     const result = searchPublicLawChunks('DS 594', [row, { id: 'law-1235-chunk-0', data: { lawId: '1235', title: 'Otro documento', content: 'Medición de 594 unidades de ruido.' } }]);
     expect(result.matches.map(m => m.id)).toEqual(['law-1234-chunk-0']);
   });
+  it.each(['DS 44', 'DS44', 'D.S. 44'])('retains explicit two-digit decrees without changing source identity: %s', query => {
+    const candidate = { ...row, data: { ...row.data, title: 'Decreto Supremo 44 corpus fixture' } };
+    expect(searchPublicLawChunks(query, [candidate]).matches.map(m => m.id)).toEqual(['law-1234-chunk-0']);
+  });
   it('returns bounded candidates and never claims a complete corpus', () => {
     const rows = Array.from({ length: 220 }, (_, i) => ({ ...row, id: `law-1234-chunk-${i}` }));
     const result = searchPublicLawChunks('ruido ocupacional', rows, 100);
