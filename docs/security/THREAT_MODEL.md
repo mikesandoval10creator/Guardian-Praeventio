@@ -173,6 +173,30 @@ records without inferring types from adjacency or materializing inverses.
   gates: `typedEdgesReader.test.ts`, `typedEdges.protocol.test.ts` and the actual
   compiled-reader/SDK/stdio fixture in `scripts/mcp-build.test.mjs`.
 
+**Explicit typed sampling delta:** `zk.analyzeProject` only shares relations
+when the caller supplies boolean `includeTypedEdges: true` and the operator
+already enabled the reader/project. Tenant/project authorization precedes data
+reads. The consumer revalidates the reader envelope and each stored relation,
+retains only endpoints in the existing 12-node subset, strips metadata/creator
+and scope stamps, and never fetches extra context or infers missing relations.
+At most 13 edge candidates/24 endpoint reads are additional to the existing node
+query; failure is explicit, never silent node-only fallback or provider switch.
+
+- **Integrity:** returned node/edge citations must match the actually shared
+  IDs; malformed syntax mixed with valid citations fails closed. This does NOT
+  validate truth, causal reasoning, effective barrier strength or legal currency.
+  Stored labels/weights/dates remain untrusted advisory data, not instructions.
+- **Availability:** sampling parameters, including system prompt and escaped
+  data, cap at 64 KiB UTF-8 before the JSON-RPC envelope. Existing sampling
+  cancellation/deadline and separate six-attempt/minute single-analysis budget
+  remain; the deterministic context/read budget is a separate bucket, not one
+  global concurrency quota. Remote Firestore cancellation is not asserted.
+- **Residual:** model approval/retention and possible unsafe prose remain host
+  and professional-review concerns. No writes, automatic operational action,
+  production IAM, real commercial inference or browser integration demonstrated.
+  Gates: `projectAnalysis.typed.test.ts`, actual SDK sampling protocol, and
+  compiled stdio with the real reader/tenant adapter plus controlled fixtures.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

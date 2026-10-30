@@ -94,6 +94,51 @@ trabajo separado.
 Los fallos del almacén se devuelven como error, no éxito vacío; mensajes del
 SDK, paths, IDs rechazados y credenciales no se propagan al cliente.
 
+## Uso opcional en `zk.analyzeProject`
+
+El análisis mediante sampling puede incorporar estas relaciones **solo si el
+caller pide `includeTypedEdges: true`**, además del opt-in del operador y del
+scope autorizado ya descritos. Ausente/false conserva el recorrido node-only
+sin leer aristas; true sin reader habilitado devuelve error antes de leer nodos
+o llamar al modelo. No se activa automáticamente por habilitar `zk.listEdges`.
+
+```json
+{
+  "tenantId": "tenant-x",
+  "projectId": "project-x",
+  "question": "Describe únicamente las relaciones registradas y sus límites",
+  "includeTypedEdges": true
+}
+```
+
+Se reutiliza el reader con límite 12 (13 candidatos y hasta 24 lecturas de
+extremos), además de la lectura de hasta 12 nodos del análisis existente. Solo
+se comparten aristas válidas cuyos dos extremos estén en ese conjunto de nodos;
+no se cargan nodos adicionales para completar relaciones. La proyección repite
+validación runtime, omite creator/metadata y no envía tenant/project stamps al
+modelo. Scope/envelope contradictorio o fallo de storage aborta explícitamente,
+sin sampling node-only silencioso. Sin nodos no se leen aristas ni se genera.
+
+El mensaje incluye señales bounded/scanLimited/omitted y distingue registros
+almacenados de eficacia real. La respuesta conserva `contextEdgeIds` y esas
+señales cuando se pidió el contexto. Los fallos antes de sampling no devuelven
+un éxito degradado ni activan otro proveedor. El presupuesto es el **existente
+de sampling** (seis intentos/minuto, un análisis simultáneo), separado del de
+prompts/lecturas deterministas; no es un único límite global compartido.
+
+Los parámetros completos de sampling, incluidas instrucciones y el JSON
+escapado, tienen tope de 64 KiB UTF-8 antes del envelope JSON-RPC. La respuesta
+debe citar al menos un nodo compartido `(zk:ID)`; cualquier cita de relación
+`(zk-edge:ID)` debe pertenecer al conjunto realmente enviado. Citas de ambos
+tipos malformadas se rechazan incluso junto a otra válida, también en modo
+node-only. Esto comprueba sintaxis/pertenencia de identificadores, **no** la
+verdad de las afirmaciones, causalidad, eficacia ni calidad del razonamiento.
+
+El modelo/credenciales/aprobación continúan en el host; sin capacidad sampling
+esta tool no genera. No cambia `prompts/get`, la UI web, el transporte, ni el
+permiso de escritura. Las pruebas stdio usan una respuesta controlada del
+cliente, no inferencia comercial ni demostración de IAM/corpus productivos.
+
 ## Verificación reproducible
 
 ```bash

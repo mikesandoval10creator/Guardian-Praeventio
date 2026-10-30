@@ -143,7 +143,7 @@ test('compiled MCP prepares actions and searches native law over stdio without s
 
 // SDK + actual compiled edge reader/tenant adapter, real process and stdio.
 // Identity policy and stored documents are explicit fixtures, not production IAM.
-test('compiled MCP exposes only opted-in project typed relations without inference', { timeout: 15000 }, async () => {
+test('compiled MCP exposes relations and explicitly shares them with client sampling', { timeout: 15000 }, async () => {
   const serverModule = new URL('../dist-mcp/services/mcp/zettelkastenStdioAdapter.js', import.meta.url).href;
   const readerModule = new URL('../dist-mcp/server/mcp/typedEdgesReader.js', import.meta.url).href;
   const adapterModule = new URL('../dist-mcp/server/mcp/zkFirebaseReadAdapter.js', import.meta.url).href;
@@ -180,12 +180,26 @@ test('compiled MCP exposes only opted-in project typed relations without inferen
         PATH: dirname(process.execPath), ...(process.env.SystemRoot ? {SystemRoot:process.env.SystemRoot}:{}),
         PRAEVENTIO_MCP_TYPED_EDGES:flag,
       } });
-    const client = new Client({name:'typed-edge-stdio-fixture',version:'1'},{capabilities:{}});
+    const client = new Client({name:'typed-edge-stdio-fixture',version:'1'},{capabilities:{sampling:{}}});
+    let sampled=0;
+    client.setRequestHandler(CreateMessageRequestSchema, async request => {
+      sampled++;
+      const body=JSON.parse(request.params.messages[0].content.text);
+      assert.deepEqual(body.typedRelations.edges,[{id:'e1',fromNodeId:'n1',toNodeId:'n2',type:'mitigates',inverseType:'mitigated_by',weight:0.8}]);
+      assert.equal(body.typedRelations.omitted,1);
+      assert.equal(body.typedRelations.tenantId,undefined);
+      assert.equal(body.typedRelations.projectId,undefined);
+      assert.doesNotMatch(JSON.stringify(body),/private-worker|foreign/);
+      return {role:'assistant',model:'controlled-user-fixture',content:{type:'text',text:'Stored relation (zk:n1) (zk-edge:e1)'}};
+    });
     try {
       await client.connect(transport);
       assert.equal((await client.listTools()).tools.some(t=>t.name==='zk.listEdges'),flag==='1');
       const result=await client.callTool({name:'zk.listEdges',arguments:{tenantId:'t1',projectId:'p1'}});
-      if(flag==='0') {assert.equal(result.isError,true);continue;}
+      const analyzed=await client.callTool({name:'zk.analyzeProject',arguments:{tenantId:'t1',projectId:'p1',question:'Describe recorded relations',includeTypedEdges:true}});
+      if(flag==='0') {assert.equal(result.isError,true);assert.equal(analyzed.isError,true);assert.equal(sampled,0);continue;}
+      assert.equal(analyzed.isError,false);assert.equal(sampled,1);
+      assert.deepEqual(JSON.parse(analyzed.content[0].text).contextEdgeIds,['e1']);
       assert.equal(result.isError,false);
       const data=JSON.parse(result.content[0].text);
       assert.deepEqual(data.edges,[{id:'e1',fromNodeId:'n1',toNodeId:'n2',type:'mitigates',inverseType:'mitigated_by',weight:0.8}]);

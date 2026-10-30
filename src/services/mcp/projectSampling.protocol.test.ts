@@ -8,14 +8,17 @@ import type { ZkReadAdapter } from './zettelkastenServer.js';
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
 const projects = [{ tenantId: 't1', projectId: 'p1' }];
-async function connect(sampling = true, enabled = true) {
+async function connect(sampling = true, enabled = true, typed = false) {
   const zk: ZkReadAdapter = {
     listAccessibleTenants: async () => ['t1'], getNode: async () => null,
     listNodes: async () => [{ id: 'n1', type: 'NOTE', title: 'Observation', description: 'Verified record',
-      projectId: 'p1', tenantId: 't1', tags: [], connections: [] }],
+      projectId: 'p1', tenantId: 't1', tags: [], connections: [] },
+      { id: 'n2', type: 'NOTE', title: 'Control', description: 'Stored control', projectId: 'p1', tenantId: 't1', tags: [], connections: [] }],
     expandSubgraph: async () => [],
   };
-  const server = moduleUnderTest.createZettelkastenMcpServer({ zk, samplingProjects: enabled ? projects : [] });
+  const readEdges = vi.fn(async () => ({ source: 'stored-typed-edges' as const, tenantId: 't1', projectId: 'p1', bounded: true as const, scanLimited: false, omitted: 0,
+    edges: [{ id: 'e1', fromNodeId: 'n1', toNodeId: 'n2', type: 'mitigates' as const, inverseType: 'mitigated_by', weight: 0.8 }] }));
+  const server = moduleUnderTest.createZettelkastenMcpServer({ zk, samplingProjects: enabled ? projects : [], ...(typed ? { readEdges } : {}) });
   const client = new Client({ name: 'controlled-user-client', version: '1.0' }, { capabilities: sampling ? { sampling: {} } : {} });
   const onSampling = vi.fn(async (_request: CreateMessageRequest) => ({ role: 'assistant' as const,
     model: 'user-selected-test-model', content: { type: 'text' as const, text: 'Verified record (zk:n1)' } }));
@@ -25,10 +28,20 @@ async function connect(sampling = true, enabled = true) {
   cleanup.push(() => server.close());
   await client.connect(clientTransport);
   cleanup.push(() => client.close());
-  return { client, onSampling };
+  return { client, onSampling, readEdges };
 }
 
 describe('MCP SDK client-owned model vertical', () => {
+  it('shares typed relations only when operator and caller opt in through the actual SDK', async () => {
+    const { client, onSampling, readEdges } = await connect(true, true, true);
+    onSampling.mockResolvedValueOnce({role:'assistant',model:'user-selected-test-model',content:{type:'text',text:'Stored relation (zk:n1) (zk-edge:e1)'}});
+    const result = await client.callTool({ name:'zk.analyzeProject', arguments:{tenantId:'t1',projectId:'p1',question:'Describe relations',includeTypedEdges:true} });
+    expect(result.isError).toBe(false); expect(JSON.stringify(result)).toContain('contextEdgeIds');
+    expect(readEdges).toHaveBeenCalledExactlyOnceWith({tenantId:'t1',projectId:'p1',limit:12});
+    const content=onSampling.mock.calls[0][0].params.messages[0].content;
+    if (Array.isArray(content) || content.type !== 'text') throw new Error('Expected one controlled text message');
+    expect(JSON.parse(content.text).typedRelations.edges[0].id).toBe('e1');
+  });
   it('negotiates sampling and returns the client response through tools/call without a server model', async () => {
     const { client, onSampling } = await connect();
     const tools = await client.listTools();

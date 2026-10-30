@@ -166,6 +166,7 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
         const result = await analyzeProjectWithClient(request.params.arguments ?? {}, {
           zk: config.zk,
           allowedProjects: config.samplingProjects ?? [],
+          readEdges: edgeReader,
           sample: async params => {
             // SDK 1.32.1 ignores cancellation for outbound request id 0.
             // Reserve that first id for a bounded, data-free liveness ping;
