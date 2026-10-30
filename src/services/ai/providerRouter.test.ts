@@ -1,7 +1,7 @@
 // Unit tests for the per-action AI provider router.
 //
 // Contract under test:
-//   • absent self-hosted config → 'gemini' for every action (today's behavior),
+//   • explicit routing survives missing config; unmigrated actions stay legacy,
 //   • action-list routing + precedence (gemini escape hatch > selfhosted list
 //     > AI_PROVIDER_DEFAULT),
 //   • dispatchSelfHostedAction: happy path, unsupported-action skip,
@@ -77,14 +77,16 @@ function downFetch() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('resolveProvider', () => {
-  it("absent config → 'gemini' for EVERY action, even if lists/default say otherwise", () => {
+  it('honors an explicit selfhosted selection even if its config is missing', () => {
     const env = {
       AI_PROVIDER_DEFAULT: 'selfhosted',
       AI_PROVIDER_ACTIONS_SELFHOSTED: 'getChatResponse,queryBCN',
     };
-    expect(resolveProvider('getChatResponse', env)).toBe('gemini');
-    expect(resolveProvider('queryBCN', env)).toBe('gemini');
-    expect(resolveProvider('whatever', env)).toBe('gemini');
+    expect(resolveProvider('getChatResponse', env)).toBe('selfhosted');
+    expect(resolveProvider('queryBCN', env)).toBe('selfhosted');
+    expect(resolveProvider('whatever', env)).toBe('selfhosted');
+    expect(resolveProvider('legacy', {})).toBe('gemini');
+    expect(resolveProvider('legacy', { AI_PROVIDER_ACTIONS_SELFHOSTED: 'getChatResponse' })).toBe('gemini');
   });
 
   it("configured but no lists/default → 'gemini' (opt-in only)", () => {
@@ -117,10 +119,12 @@ describe('resolveProvider', () => {
 });
 
 describe('selfHostedFallsBackToGemini', () => {
-  it("defaults ON; only the explicit '0' disables it", () => {
-    expect(selfHostedFallsBackToGemini({})).toBe(true);
+  it.each([undefined, '', '0', 'true', 'yes', '2'])('defaults OFF unless the flag is exactly 1: %s', flag => {
+    expect(selfHostedFallsBackToGemini({ AI_SELFHOSTED_FALLBACK_GEMINI: flag })).toBe(false);
+  });
+  it('allows only explicit opt-in, with surrounding whitespace', () => {
     expect(selfHostedFallsBackToGemini({ AI_SELFHOSTED_FALLBACK_GEMINI: '1' })).toBe(true);
-    expect(selfHostedFallsBackToGemini({ AI_SELFHOSTED_FALLBACK_GEMINI: '0' })).toBe(false);
+    expect(selfHostedFallsBackToGemini({ AI_SELFHOSTED_FALLBACK_GEMINI: ' 1 ' })).toBe(true);
   });
 });
 

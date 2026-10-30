@@ -63,11 +63,10 @@ import {
   AI_MODEL_IMAGE_GENERATION,
 } from '../../config/aiModels.js';
 // AI provider layer — per-action routing to a self-hosted OpenAI-compatible
-// endpoint (vLLM/Ollama). Without AI_SELFHOSTED_* config, resolveProvider()
-// returns 'gemini' for every action and the legacy path below runs unchanged.
+// endpoint (vLLM/Ollama). Explicit routing is honored even when config is
+// unavailable; only actions not selected for migration retain the legacy path.
 import {
   resolveProvider,
-  hasSelfHostedActionSpec,
   dispatchSelfHostedAction,
   selfHostedFallsBackToGemini,
   recordProviderCall,
@@ -718,20 +717,18 @@ router.post('/gemini', verifyAuth,
 
   // ── AI provider layer (self-hosted | Gemini) ────────────────────────────
   // Same chokepoint rationale as Bucket X: routing here covers every
-  // whitelisted RPC without touching 80+ handler call sites. With no
-  // AI_SELFHOSTED_* config this whole block is skipped (resolveProvider()
-  // → 'gemini') and the legacy path below runs byte-identical.
+  // whitelisted RPC without touching 80+ handler call sites. Actions not
+  // selected for selfhosted routing retain the legacy path; configuration
+  // missing after an explicit selection must not switch the provider.
   //
   // Chain for a selfhosted-routed action:
   //   ok                          → 200 { result } (accounted at costUsd 0)
-  //   fails / breaker open        → AI_SELFHOSTED_FALLBACK_GEMINI != '0'
-  //                                 (default): legacy Gemini path below,
-  //                                 which carries its own degraded ladder;
-  //                                 fallback OFF: ladder (RAG → canned),
-  //                                 else 503.
+  //   not served for any reason   → ONLY explicit fallback flag '1' permits
+  //                                 legacy Gemini; otherwise deterministic
+  //                                 baseline / internal canned tier / 503.
   // The self-hosted breaker uses its OWN key ('selfhosted') so a broken
   // local model never trips the Gemini breaker, and vice versa.
-  if (!isNetworkSync && resolveProvider(action) === 'selfhosted' && hasSelfHostedActionSpec(action)) {
+  if (!isNetworkSync && resolveProvider(action) === 'selfhosted') {
     let selfHostedBlocked = false;
     try {
       // Per-tenant quota is provider-agnostic (abuse ceiling); the circuit
@@ -768,16 +765,20 @@ router.post('/gemini', verifyAuth,
         });
         return undefined;
       }
-      // 'skipped' (config raced off / spec missing) keeps the Gemini path
-      // silently; 'failed' enters the configured fallback chain below.
-      if (attempt.status === 'failed') selfHostedBlocked = true;
+      // Missing config/spec is not permission to switch the user's provider.
+      selfHostedBlocked = true;
     }
     if (selfHostedBlocked && !selfHostedFallsBackToGemini()) {
-      // Gemini fallback disabled — run the degraded ladder (RAG → canned)
-      // directly so the worker still gets a real answer when possible.
+      // Preserve the existing life-safety baseline independently of any model.
+      const deterministicFallback = CIRCUIT_OPEN_FALLBACKS[action];
+      if (deterministicFallback) {
+        return res.json({ result: deterministicFallback(callArgs), degraded: true });
+      }
+      // No cross-provider consent: use the internal canned tier, not normative
+      // RAG whose embedding implementation may still contact Google.
       if (hasServerSlmFallback(action)) {
         try {
-          const fb = await geminiSlmFallback(action, callArgs);
+          const fb = await geminiSlmFallback(action, callArgs, { allowRag: false });
           if (fb) {
             return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
           }

@@ -9,17 +9,16 @@
 // chokepoint for all whitelisted RPCs — consults this module per request.
 //
 // RESOLUTION (per action name):
-//   1. No self-hosted config (AI_SELFHOSTED_BASE_URL / AI_SELFHOSTED_MODEL
-//      absent) → 'gemini' for EVERYTHING. Today's behavior, byte-identical.
-//   2. Action listed in AI_PROVIDER_ACTIONS_GEMINI (escape hatch) → 'gemini'.
-//   3. Action listed in AI_PROVIDER_ACTIONS_SELFHOSTED → 'selfhosted'.
-//   4. Otherwise AI_PROVIDER_DEFAULT ('gemini' unless set to 'selfhosted').
+//   1. Action listed in AI_PROVIDER_ACTIONS_GEMINI (explicit escape hatch).
+//   2. Action listed in AI_PROVIDER_ACTIONS_SELFHOSTED → 'selfhosted'.
+//   3. Otherwise AI_PROVIDER_DEFAULT ('gemini' unless set to 'selfhosted').
+// Configuration availability never overrides an explicit routing selection.
 //
 // FAILURE CHAIN for a self-hosted attempt:
-//   selfhosted fails/breaker-open
-//     → AI_SELFHOSTED_FALLBACK_GEMINI != '0' (default ON): legacy Gemini path
-//       (which carries its own degraded ladder)
-//     → fallback OFF: degraded ladder directly (RAG → canned), else 503.
+//   selfhosted fails/breaker-open/not-configured/unsupported
+//     → ONLY AI_SELFHOSTED_FALLBACK_GEMINI='1': explicit legacy opt-in
+//     → otherwise: existing deterministic baseline or internal canned tier,
+//       else honest 503. No implicit external embedding/RAG fallback.
 //
 // BREAKER ISOLATION: the self-hosted provider records outcomes on its OWN key
 // (`selfhosted`) of the shared keyed breaker (`geminiCircuit`), giving it the
@@ -78,15 +77,16 @@ export function resolveProvider(
   action: string,
   env: NodeJS.ProcessEnv = process.env,
 ): AiProviderName {
-  if (!getSelfHostedConfig(env)) return 'gemini';
+  // Routing expresses operator intent; incomplete configuration must not
+  // silently authorize sending the request to a different provider.
   if (parseActionList(env.AI_PROVIDER_ACTIONS_GEMINI).has(action)) return 'gemini';
   if (parseActionList(env.AI_PROVIDER_ACTIONS_SELFHOSTED).has(action)) return 'selfhosted';
   return env.AI_PROVIDER_DEFAULT?.trim() === 'selfhosted' ? 'selfhosted' : 'gemini';
 }
 
-/** Default ON: a failed self-hosted call retries on Gemini before the ladder. */
+/** Default OFF: switching providers requires an explicit operator opt-in. */
 export function selfHostedFallsBackToGemini(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.AI_SELFHOSTED_FALLBACK_GEMINI?.trim() !== '0';
+  return env.AI_SELFHOSTED_FALLBACK_GEMINI?.trim() === '1';
 }
 
 // ── In-process per-provider call counters ───────────────────────────────────
@@ -158,7 +158,7 @@ export function __resetProviderStatsForTests(): void {
 
 export type SelfHostedDispatchResult =
   | { status: 'ok'; text: string; latencyMs: number }
-  /** Feature off / action has no spec — caller proceeds with Gemini as today. */
+  /** Config/spec unavailable — caller applies the explicit fallback policy. */
   | { status: 'skipped'; reason: 'not_configured' | 'unsupported' }
   /** Attempted (or breaker-blocked) — caller runs the fallback chain. */
   | { status: 'failed'; reason: 'circuit_open' | 'empty_response' | 'call_failed' | 'not_configured'; latencyMs?: number };
@@ -190,7 +190,7 @@ export async function dispatchSelfHostedAction(
   const spec = SELF_HOSTED_ACTION_SPECS[action];
   if (!spec) {
     // Misconfiguration (action routed to selfhosted without a prompt spec):
-    // keep Gemini behavior rather than fabricating a prompt. Anti-stub #13.
+    // do not fabricate a prompt; the caller must enforce fallback consent.
     logger.warn('[ai.provider] selfhosted_unsupported_action', { action });
     return { status: 'skipped', reason: 'unsupported' };
   }

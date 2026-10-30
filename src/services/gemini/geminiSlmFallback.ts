@@ -121,11 +121,14 @@ export interface GeminiServerFallbackResult {
  * The ladder is restricted to ['zettelkasten'] (RAG) — if RAG can't verify a
  * match, the orchestrator's built-in last-resort canned tier fires with the
  * FALLBACK_DISCLAIMER prefix. We deliberately do NOT include the 'gemini' tier
- * here: we are already in the path where Gemini failed.
+ * here: we are already in the path where Gemini failed. Callers without
+ * external-provider authorization pass allowRag=false to use only the internal
+ * canned tier, since normative retrieval may require external embeddings.
  */
 export async function geminiSlmFallback(
   action: string,
   args: unknown[],
+  options: { allowRag?: boolean } = {},
 ): Promise<GeminiServerFallbackResult | null> {
   const spec = SERVER_SLM_FALLBACK_ACTIONS[action];
   if (!spec) return null;
@@ -137,7 +140,7 @@ export async function geminiSlmFallback(
     const resp = await answer(
       { prompt: prompt || ' ', domain },
       { zettelkasten: ragTierAdapter },
-      { allowedTiers: ['zettelkasten'], tierTimeoutMs: 3000 },
+      { allowedTiers: options.allowRag === false ? [] : ['zettelkasten'], tierTimeoutMs: 3000 },
     );
     // `answer` ALWAYS resolves with a usable text (canned last-resort), so a
     // non-empty result is guaranteed; guard defensively anyway.

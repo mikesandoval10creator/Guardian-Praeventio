@@ -268,8 +268,8 @@ async function buildEvaluateMinsalCompliance(args: unknown[]): Promise<SelfHoste
 
 /**
  * Registry: action name → request builder. ONLY actions present here can be
- * served by the self-hosted provider; everything else keeps using Gemini even
- * when listed in `AI_PROVIDER_ACTIONS_SELFHOSTED`.
+ * served by the self-hosted provider. Missing specs are explicit misses;
+ * the route applies consent-gated fallback, never a fabricated prompt.
  */
 export const SELF_HOSTED_ACTION_SPECS: Readonly<Record<string, SelfHostedActionSpec>> = {
   getChatResponse: { build: buildGetChatResponse },

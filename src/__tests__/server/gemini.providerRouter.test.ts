@@ -6,8 +6,8 @@
 //   • no AI_SELFHOSTED_* config → legacy Gemini dispatch, fetch NEVER touched,
 //   • routed action + endpoint up → 200 served by the self-hosted provider,
 //     Gemini handler NOT called,
-//   • routed action + endpoint down → automatic fallback onto the legacy
-//     Gemini handler (AI_SELFHOSTED_FALLBACK_GEMINI default ON),
+//   • routed action + endpoint down → internal fallback by default; Gemini
+//     generation requires AI_SELFHOSTED_FALLBACK_GEMINI=1 explicitly,
 //   • fallback disabled → degraded ladder (RAG → canned) result,
 //   • breaker isolation visible at the route: self-hosted failures do not
 //     touch the 'gemini' breaker key.
@@ -116,7 +116,7 @@ beforeEach(() => {
   H.chatHandler.mockReset().mockResolvedValue('respuesta-gemini');
   H.slmFallback.mockReset().mockResolvedValue({ text: 'respuesta-ladder', tier: 'zettelkasten', confidence: 0.8 });
 
-  fetchMock.mockReset().mockResolvedValue(
+  fetchMock.mockReset().mockImplementation(async () =>
     new Response(
       JSON.stringify({ choices: [{ message: { content: 'respuesta-selfhosted' } }] }),
       { status: 200 },
@@ -182,8 +182,9 @@ describe('POST /api/gemini — provider layer (self-hosted routing)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('endpoint DOWN → automatic fallback onto the legacy Gemini handler (default chain)', async () => {
+  it('endpoint DOWN + explicit legacy fallback opt-in → Gemini handler', async () => {
     enableSelfHosted();
+    process.env.AI_SELFHOSTED_FALLBACK_GEMINI = '1';
     fetchMock.mockRejectedValue(new TypeError('connect ECONNREFUSED'));
     const res = await send();
     expect(res.status).toBe(200);
@@ -220,14 +221,69 @@ describe('POST /api/gemini — provider layer (self-hosted routing)', () => {
     expect(JSON.stringify(res.body)).not.toContain('ECONNREFUSED');
   });
 
-  it('open SELF-HOSTED breaker → skips the endpoint and serves via Gemini (chain, not 503)', async () => {
+  it('open SELF-HOSTED breaker + explicit fallback opt-in → Gemini', async () => {
     enableSelfHosted();
+    process.env.AI_SELFHOSTED_FALLBACK_GEMINI = '1';
     for (let i = 0; i < geminiCircuit.THRESHOLD; i++) {
       geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
     }
     const res = await send();
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ result: 'respuesta-gemini' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('default failure policy uses only the internal ladder, never the legacy Gemini handler', async () => {
+    enableSelfHosted();
+    fetchMock.mockRejectedValue(new Error('PRIVATE_UPSTREAM_DETAIL'));
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(H.chatHandler).not.toHaveBeenCalled();
+    expect(H.slmFallback).toHaveBeenCalledWith('getChatResponse', ['hola', 'ctx'], { allowRag: false });
+    expect(H.assertAllowed).not.toHaveBeenCalledWith('u1', 'bronze');
+    expect(JSON.stringify(res.body)).not.toContain('PRIVATE_UPSTREAM_DETAIL');
+  });
+
+  it('missing config for an explicitly selected action does not silently authorize Gemini', async () => {
+    process.env.AI_PROVIDER_ACTIONS_SELFHOSTED = 'getChatResponse';
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(H.chatHandler).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('unsupported but selected action is unavailable, not silently dispatched to Gemini', async () => {
+    enableSelfHosted();
+    process.env.AI_PROVIDER_ACTIONS_SELFHOSTED = 'generateEmergencyScenario';
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'generateEmergencyScenario', args: [] });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('selfhosted_unavailable');
+    expect(H.assertAllowed).not.toHaveBeenCalledWith('u1', 'bronze');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves the deterministic emergency plan when the selected model cannot serve it', async () => {
+    process.env.AI_PROVIDER_ACTIONS_SELFHOSTED = 'generateEmergencyPlanJSON';
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'generateEmergencyPlanJSON', args: ['incendio', 'sitio de prueba', 'DS 594'] });
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(res.body.result.generadoSinIA).toBe(true);
+    expect(res.body.result.accionesInmediatas.length).toBeGreaterThan(0);
+    expect(H.assertAllowed).not.toHaveBeenCalledWith('u1', 'bronze');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a blocked selfhosted gate also respects default no-switch policy', async () => {
+    enableSelfHosted();
+    H.assertAllowed.mockRejectedValueOnce(Object.assign(new Error('blocked'), { code: 'gemini_circuit_open' }));
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(H.chatHandler).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -256,8 +312,9 @@ describe('POST /api/gemini — provider layer (self-hosted routing)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('empty self-hosted completion → upstream miss → falls back to the Gemini handler', async () => {
+  it('empty self-hosted completion + explicit fallback opt-in → Gemini', async () => {
     enableSelfHosted();
+    process.env.AI_SELFHOSTED_FALLBACK_GEMINI = '1';
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ choices: [{ message: { content: '   ' } }] }), { status: 200 }),
     );
