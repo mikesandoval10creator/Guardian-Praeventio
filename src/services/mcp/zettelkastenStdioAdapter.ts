@@ -32,6 +32,7 @@ import {
 import { analyzeProjectWithClient, PROJECT_ANALYSIS_TOOL, type SamplingProject } from './projectAnalysis.js';
 import { ACTION_PROMPTS, LEGAL_SEARCH_TOOL, prepareActionPrompt, searchNormativeForMcp } from './actionPrompts.js';
 import type { NormativeRetriever } from '../rag/nativeNormativeContext.js';
+import { TYPED_EDGES_TOOL, typedEdgesInput, type TypedEdgesReader } from './typedEdges.js';
 
 export interface StdioAdapterConfig {
   serverName?: string;
@@ -42,6 +43,8 @@ export interface StdioAdapterConfig {
   samplingProjects?: readonly SamplingProject[];
   /** Bounded public-law retrieval, with no inference or embedding dependency. */
   retrieveNormative?: NormativeRetriever;
+  /** Explicit operator opt-in, read-only typed relations. Hidden when absent. */
+  readEdges?: TypedEdgesReader;
 }
 
 /**
@@ -68,6 +71,9 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
   );
 
   const samplingEnabled = () => Boolean(config.samplingProjects?.length && server.getClientCapabilities()?.sampling);
+  const edgeReader = config.readEdges;
+  const edgeProjects = config.samplingProjects?.map(p => ({ ...p })) ?? [];
+  const edgesEnabled = () => Boolean(edgeReader && edgeProjects.length);
   // Session-local abuse ceiling: no background generation or unbounded fan-out.
   let samplingBusy = false;
   let windowStartedAt = Date.now();
@@ -102,6 +108,7 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
   // ── tools/list ─────────────────────────────────────────────────────────
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [...MCP_TOOLS, ...(config.retrieveNormative ? [LEGAL_SEARCH_TOOL] : []),
+      ...(edgesEnabled() ? [TYPED_EDGES_TOOL] : []),
       ...(samplingEnabled() ? [PROJECT_ANALYSIS_TOOL] : [])],
   }));
 
@@ -122,6 +129,26 @@ export function createZettelkastenMcpServer(config: StdioAdapterConfig): Server 
 
   // ── tools/call ─────────────────────────────────────────────────────────
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    if (request.params.name === TYPED_EDGES_TOOL.name) {
+      try {
+        if (!edgeReader || !edgeProjects.length) throw new Error('mcp_edges_not_enabled');
+        const result = await withContextBudget(async () => {
+          const input = typedEdgesInput.safeParse(request.params.arguments ?? {});
+          if (!input.success) throw new Error('mcp_edges_invalid_arguments');
+          const { tenantId, projectId } = input.data;
+          if (!(await getAllowedTenants()).has(tenantId)
+            || !edgeProjects.some(p => p.tenantId === tenantId && p.projectId === projectId)) {
+            throw new Error('mcp_edges_scope_not_allowed');
+          }
+          return edgeReader(input.data);
+        });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], isError: false };
+      } catch (error) {
+        const message = error instanceof Error && /^mcp_(?:edges|prompt)_[a-z_]+$/.test(error.message)
+          ? error.message : 'mcp_edges_unavailable';
+        return { content: [{ type: 'text' as const, text: message }], isError: true };
+      }
+    }
     if (request.params.name === LEGAL_SEARCH_TOOL.name) {
       try {
         const result = await withContextBudget(() => searchNormativeForMcp(request.params.arguments ?? {}, promptDeps()));

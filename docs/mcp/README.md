@@ -13,6 +13,8 @@ Read-only por contrato:
   lista con filtros
 - `zk.expandSubgraph(tenantId, rootNodeId, depth)` — BFS limitado
   (depth max 3, nodos max 200)
+- `zk.listEdges(tenantId, projectId, limit?)` — relaciones tipadas almacenadas,
+  solo con opt-in explícito; [contrato, límites y configuración](TYPED_RELATIONS.md).
 
 ### Análisis con el modelo del usuario (MCP sampling)
 
