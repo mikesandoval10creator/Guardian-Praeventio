@@ -3,7 +3,11 @@ import { apiAuthHeaders } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
 import type { SafetyVisualSpec, SafetyVisualResult } from './gemini/imageGen';
 
-const callGeminiAPI = async (action: string, args: any[]) => {
+export interface GeminiCallOptions { readonly signal?: AbortSignal }
+
+const callGeminiAPI = async (action: string, args: any[], options: GeminiCallOptions = {}) => {
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) throw new DOMException('Solicitud cancelada.', 'AbortError');
   try {
     // Plan v2 B3 — usar apiAuthHeaders() en lugar de construir Bearer
     // manualmente, para que el path E2E (MODE=test) inyecte el header
@@ -15,20 +19,24 @@ const callGeminiAPI = async (action: string, args: any[]) => {
       ...(await apiAuthHeaders()),
     };
 
+    if (callerSignal?.aborted) throw new DOMException('Solicitud cancelada.', 'AbortError');
     const response = await fetch('/api/gemini', {
       method: 'POST',
       headers,
       body: JSON.stringify({ action, args }),
+      ...(callerSignal ? { signal: callerSignal } : {}),
     });
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
     }
     const data = await response.json();
+    if (callerSignal?.aborted) throw new DOMException('Solicitud cancelada.', 'AbortError');
     if (data.error) {
       throw new Error(data.error);
     }
     return data.result;
   } catch (error) {
+    if (callerSignal?.aborted) throw new DOMException('Solicitud cancelada.', 'AbortError');
     logger.error(`Error calling Gemini API for ${action}:`, error);
     throw error;
   }
@@ -38,7 +46,7 @@ export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[]
 // B4 — generate a safety poster / procedure-step illustration (see gemini/imageGen).
 export const generateSafetyVisual = async (spec: SafetyVisualSpec): Promise<SafetyVisualResult> => callGeminiAPI('generateSafetyVisual', [spec]);
 export const autoConnectNodes = async (newNode: any, existingNodes: any[]): Promise<string[]> => callGeminiAPI('autoConnectNodes', [newNode, existingNodes]);
-export const semanticSearch = async (query: string, nodes: any[], topK: number = 3, projectId?: string): Promise<any[]> => callGeminiAPI('semanticSearch', [query, nodes, topK, projectId]);
+export const semanticSearch = async (query: string, nodes: any[], topK: number = 3, projectId?: string, options?: GeminiCallOptions): Promise<any[]> => callGeminiAPI('semanticSearch', [query, nodes, topK, projectId], options);
 export const analyzeFastCheck = async (observation: string) => callGeminiAPI('analyzeFastCheck', [observation]);
 export const predictGlobalIncidents = async (context: string, envContext: string) => callGeminiAPI('predictGlobalIncidents', [context, envContext]);
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => callGeminiAPI('analyzeRiskWithAI', [description, nodesContext, industry]);
@@ -55,7 +63,7 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
 export const enrichNodeData = async (nodeData: any) => callGeminiAPI('enrichNodeData', [nodeData]);
 export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string) => callGeminiAPI('analyzeRootCauses', [riskTitle, riskDescription, context]);
 export const queryBCN = async (query: string) => callGeminiAPI('queryBCN', [query]);
-export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1, domain: string = 'general') => callGeminiAPI('getChatResponse', [message, context, history, detailLevel, domain]);
+export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1, domain: string = 'general', options?: GeminiCallOptions) => callGeminiAPI('getChatResponse', [message, context, history, detailLevel, domain], options);
 
 /**
  * Coach IA por dominio — deriva el dominio del Asesor desde el pathname actual,

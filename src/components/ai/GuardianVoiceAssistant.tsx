@@ -1,5 +1,6 @@
 import { randomId } from '../../utils/randomId';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Volume2, VolumeX, X, MessageSquare, Loader2, ShieldCheck, Sparkles, Send, WifiOff, Ear } from 'lucide-react';
 import { processAudioWithAI, generateActionPlan } from '../../services/geminiService';
@@ -21,6 +22,9 @@ const SpeechRecognition: SpeechRecognitionCtor | undefined =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
+type TextQueryOwner = { controller: AbortController; deadline?: ReturnType<typeof setTimeout>; delay?: ReturnType<typeof setTimeout>; localResponse?: string };
+const TEXT_QUERY_TIMEOUT_MS = 45_000;
+
 export function GuardianVoiceAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -30,6 +34,18 @@ export function GuardianVoiceAssistant() {
   const [response, setResponse] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
+  const [textNotice, setTextNotice] = useState('');
+  const captureEpoch = useRef(0);
+  const activeText = useRef<TextQueryOwner | null>(null);
+  const cancelTextQuery = useCallback((updateUI = true) => {
+    const owner = activeText.current;
+    if (!owner) return;
+    activeText.current = null;
+    clearTimeout(owner.deadline);
+    clearTimeout(owner.delay);
+    owner.controller.abort();
+    if (updateUI) setIsProcessing(false);
+  }, []);
   const [onlineStatus, setOnlineStatus] = useState(isOnline());
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [isListeningWakeWord, setIsListeningWakeWord] = useState(false);
@@ -43,7 +59,19 @@ export function GuardianVoiceAssistant() {
   const { addNode, addConnection, nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+  const { pathname } = useLocation();
   const { noiseLevel, startListening: startNoiseListening, stopListening: stopNoiseListening } = useAmbientNoise();
+
+  // Retire text ownership synchronously at committed identity/context changes.
+  useLayoutEffect(() => {
+    captureEpoch.current += 1;
+    cancelTextQuery();
+    setResponse('');
+    setTextInput('');
+    setTextNotice('');
+    setPendingPrompt(null);
+  }, [selectedProject?.id, user?.uid, pathname, cancelTextQuery]);
+  useLayoutEffect(() => () => { captureEpoch.current += 1; cancelTextQuery(false); }, [cancelTextQuery]);
 
   // Start ambient noise listening when assistant is open
   useEffect(() => {
@@ -158,49 +186,79 @@ export function GuardianVoiceAssistant() {
   };
 
   const handleProcessText = async () => {
-    if (!textInput.trim()) return;
+    if (isProcessing || isRecording || activeText.current || !textInput.trim()) return;
     
     const query = textInput;
     setTextInput('');
     setIsProcessing(true);
     setResponse('');
+    setTextNotice('');
 
+    const owner: TextQueryOwner = { controller: new AbortController() };
+    activeText.current = owner;
+    const owns = () => activeText.current === owner && !owner.controller.signal.aborted;
+    const finish = () => {
+      if (!owns()) return;
+      clearTimeout(owner.deadline);
+      clearTimeout(owner.delay);
+      activeText.current = null;
+      setIsProcessing(false);
+    };
+    owner.deadline = setTimeout(() => {
+      if (!owns()) return;
+      cancelTextQuery();
+      setResponse(owner.localResponse ?? '');
+      setTextNotice(owner.localResponse !== undefined
+        ? 'Respuesta local disponible; el guardado pendiente no se ha confirmado.'
+        : 'Tiempo de espera agotado. El trabajo remoto puede continuar.');
+    }, TEXT_QUERY_TIMEOUT_MS);
     if (!onlineStatus) {
-      setTimeout(async () => {
-        const offlineRes = getOfflineResponse(query, nodes);
-        setResponse(offlineRes);
-        await savePendingOfflineQuery(query);
-        setIsProcessing(false);
+      owner.delay = setTimeout(async () => {
+        if (!owns()) return;
+        try {
+          const offlineRes = getOfflineResponse(query, nodes);
+          owner.localResponse = offlineRes;
+          setResponse(offlineRes);
+          await savePendingOfflineQuery(query);
+        } catch {
+          if (!owns()) return;
+          logger.error('assistant_text_offline_failed');
+          if (owner.localResponse === undefined) setResponse('No se pudo obtener la respuesta local.');
+          else setTextNotice('Respuesta local disponible; no se pudo guardar la consulta pendiente.');
+        } finally { finish(); }
       }, 800);
       return;
     }
-
     try {
       if (onlineStatus) {
         // Use geminiService for online text processing
         const { getChatResponse, semanticSearch, detectAsesorDomain } = await import('../../services/geminiService');
+        if (!owns()) return;
         
         // Get top 5 most relevant nodes, scoped to the current project
-        const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id);
+        const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id, { signal: owner.controller.signal });
+        if (!owns()) return;
         const context = relevantNodes.length > 0 
           ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
           : "Usuario consultando al Guardián AI."; 
         
         // Coach IA por dominio — el Asesor se especializa según la ruta actual.
         const domain = detectAsesorDomain(
-          typeof window !== 'undefined' ? window.location.pathname : '',
+          pathname,
         );
-        const aiResponse = await getChatResponse(query, context, [], 1, domain);
+        const aiResponse = await getChatResponse(query, context, [], 1, domain, { signal: owner.controller.signal });
+        if (!owns()) return;
         setResponse(aiResponse);
       } else {
         const offlineRes = getOfflineResponse(query, nodes);
         setResponse(offlineRes);
       }
     } catch (err) {
+      if (!owns()) return;
       logger.error('Error processing text:', err);
       setResponse("Hubo un error al procesar tu solicitud.");
     } finally {
-      setIsProcessing(false);
+      finish();
     }
   };
 
@@ -212,8 +270,15 @@ export function GuardianVoiceAssistant() {
       return;
     }
 
+    const epoch = captureEpoch.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (epoch !== captureEpoch.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      // Native voice owns the shared processing surface once capture is granted.
+      cancelTextQuery();
       setCameraPermissionDenied(false);
       mediaRecorder.current = new MediaRecorder(stream);
       audioChunks.current = [];
@@ -389,7 +454,8 @@ export function GuardianVoiceAssistant() {
                 </div>
               </div>
               <button 
-                onClick={() => setIsOpen(false)}
+                onClick={() => { captureEpoch.current += 1; cancelTextQuery(); setIsOpen(false); }}
+                aria-label="Cerrar asistente Guardián"
                 className="p-1 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
@@ -421,10 +487,12 @@ export function GuardianVoiceAssistant() {
                 </div>
               )}
 
+              {textNotice && <p role="status" className="mb-3 text-xs text-zinc-500">{textNotice}</p>}
               {isProcessing ? (
                 <div className="py-8">
                   <Loader2 className={`w-12 h-12 animate-spin mb-4 ${onlineStatus ? 'text-emerald-500' : 'text-amber-500'}`} />
                   <p className="text-sm text-zinc-400">Analizando tu consulta...</p>
+                  {activeText.current && <button type="button" onClick={() => { cancelTextQuery(); setResponse(''); setTextNotice('Espera detenida. El trabajo remoto puede continuar.'); }} className="mt-3 text-sm underline">Detener espera</button>}
                 </div>
               ) : response ? (
                 <div className="space-y-4 w-full text-left">
@@ -503,7 +571,8 @@ export function GuardianVoiceAssistant() {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { if (isOpen) { captureEpoch.current += 1; cancelTextQuery(); } setIsOpen(!isOpen); }}
+        aria-label={isOpen ? 'Cerrar asistente Guardián' : 'Abrir asistente Guardián'}
         className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all relative ${
           isOpen ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white' : onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
         }`}
