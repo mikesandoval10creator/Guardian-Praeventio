@@ -53,6 +53,12 @@ describe('authenticated application → actual MCP SDK bridge',()=>{
   const h=fixture();try{vi.stubEnv('PRAEVENTIO_MCP_APP_DISABLED','1');expect((await h.call({projectId:'p1',action:'catalog'})).status).toBe(503);}finally{vi.unstubAllEnvs();}
   expect((await h.call({projectId:'p1',action:'preparePrompt',name:'guardian.queryBCN',input:JSON.stringify(['字'.repeat(11000)]),contextApproved:true})).status).toBe(400);expect(h.reads).toEqual([]);
  });
+ it('holds the slot while a real SDK tool callback outlives client timeout',async()=>{
+  const h=fixture();let release:()=>void=()=>undefined;const gate=new Promise<void>(resolve=>{release=resolve;});
+  h.retrieve.mockImplementationOnce(async()=>{await gate;return{method:'lexical',matches:[],scanLimited:false,reason:'no_match'};});
+  try{expect((await h.call({projectId:'p1',action:'searchNormative',query:'DS 44'})).status).toBe(503);expect((await h.call({projectId:'p1',action:'catalog'})).status).toBe(429);}finally{release();}
+  await new Promise(resolve=>setTimeout(resolve,25));expect((await h.call({projectId:'p1',action:'catalog'})).status).toBe(200);
+ });
  it('keeps a stalled authorization busy after the real deadline until work settles',async()=>{
   let release:()=>void=()=>undefined;const gate=new Promise<void>(resolve=>{release=resolve;});const h=fixture(gate);
   try{const r=await h.call({projectId:'p1',action:'catalog'});expect(r.status).toBe(503);expect(r.body.error).toBe('mcp_deadline');expect((await h.call({projectId:'p1',action:'catalog'})).status).toBe(429);}finally{release();}

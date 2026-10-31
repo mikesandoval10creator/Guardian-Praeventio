@@ -27,23 +27,34 @@ export async function authorizeAppMcp(db:AdminFirestoreLike,uid:string,projectId
 export async function invokeAppMcp(input:AppMcpRequest,scope:{tenantId:string;projectId:string},db:AdminFirestoreLike,retrieveNormative:NormativeRetriever,signal:AbortSignal){
  signal.throwIfAborted();
  const base=createZkFirebaseReadAdapter({firestore:db,accessibleTenants:[scope.tenantId]});
+ const session=new AbortController();
+ const pending=new Set<Promise<unknown>>();
+ function track<T>(read:()=>Promise<T>):Promise<T>{
+  session.signal.throwIfAborted();
+  const work=read();pending.add(work);
+  return work.then(value=>{pending.delete(work);return value;},error=>{pending.delete(work);throw error;});
+ }
  const allowedProjects=[scope];
  const zk={
   listAccessibleTenants:async()=>[scope.tenantId],
   getNode:async()=>{throw new Error('unsupported_app_operation');},
   expandSubgraph:async()=>{throw new Error('unsupported_app_operation');},
-  listNodes:async()=>{
+  listNodes:()=>track(async()=>{
    const rows=await readAuthorizedProjectContext(scope.tenantId,scope.projectId,{zk:base,allowedProjects});
    return rows.map(row=>({...row,tenantId:scope.tenantId,projectId:scope.projectId,tags:[],connections:[]}));
-  },
+  }),
  };
- const server=createZettelkastenMcpServer({zk,samplingProjects:allowedProjects,retrieveNormative,
-  readEdges:createTypedEdgesReader({firestore:db,accessibleTenants:[scope.tenantId],allowedProjects})});
+ const edgeReader=createTypedEdgesReader({firestore:db,accessibleTenants:[scope.tenantId],allowedProjects});
+ const server=createZettelkastenMcpServer({zk,samplingProjects:allowedProjects,
+  retrieveNormative:query=>track(()=>retrieveNormative(query)),readEdges:args=>track(()=>edgeReader(args))});
  const client=new Client({name:'guardian-app-read-only',version:'1'},{capabilities:{}});
  const [a,b]=InMemoryTransport.createLinkedPair();
- const options={signal,timeout:12_000};
+ const relayAbort=()=>session.abort();
+ signal.addEventListener('abort',relayAbort,{once:true});
+ if(signal.aborted)session.abort();
+ const options={signal:session.signal,timeout:12_000};
  try{
-  await server.connect(b);signal.throwIfAborted();await client.connect(a,options);signal.throwIfAborted();
+  await server.connect(b);session.signal.throwIfAborted();await client.connect(a,options);session.signal.throwIfAborted();
   let result:unknown;
   if(input.action==='catalog'){
    const tools=await client.listTools(undefined,options);const prompts=await client.listPrompts(undefined,options);
@@ -59,7 +70,7 @@ export async function invokeAppMcp(input:AppMcpRequest,scope:{tenantId:string;pr
    if(!checked.success)throw new AppMcpError('mcp_invalid_result',502);
    result=JSON.parse(checked.data.content[0].text);
   }
-  signal.throwIfAborted();
+  session.signal.throwIfAborted();
   if(new TextEncoder().encode(JSON.stringify(result)).byteLength>256*1024)throw new AppMcpError('mcp_result_too_large',502);
   return{protocol:'mcp-sdk' as const,mode:'internal-read-only' as const,action:input.action,
    projection:{nodeLimit:12,adjacency:'omitted',tags:'omitted'},result};
@@ -69,5 +80,11 @@ export async function invokeAppMcp(input:AppMcpRequest,scope:{tenantId:string;pr
   // source content, paths, credentials or responses in logs/errors.
   if(error instanceof Error&&error.message.includes('mcp_prompt_invalid_arguments'))throw new AppMcpError('mcp_invalid_prompt_input',400);
   throw new AppMcpError('mcp_operation_failed',503);
- }finally{await Promise.allSettled([client.close(),server.close()]);}
+ }finally{
+  session.abort();signal.removeEventListener('abort',relayAbort);
+  await Promise.allSettled([client.close(),server.close()]);
+  // SDK cancellation rejects the client promise, not an already-running store
+  // callback. Keep the route's capacity slot until those callbacks truly settle.
+  await Promise.allSettled([...pending]);
+ }
 }
