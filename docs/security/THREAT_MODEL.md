@@ -269,6 +269,24 @@ Verification: pure compiler/registry tests, mounted panel payload tests, all six
 actual Normatives form→HTTP→SDK→builder→visible prepared-message flows with
 explicit fixture identities/storage. No full-app/real-corpus/model claim.
 
+**LLM HTTP payload/cancellation delta:** the existing self-hosted completion
+client replaces unbounded `res.json()` with a reader accepting <=256KiB decoded
+UTF-8 HTTP JSON (including unused envelope/metadata). Oversized declared length
+is rejected before pulling; actual bytes remain authoritative for chunked/gzip
+or absent/false lengths. The crossing chunk can be received, never appended.
+Malformed UTF-8/oversize use existing sanitized `selfhosted_bad_response`, not
+partial/fabricated text, new error content, provider choice or inference.
+Reader locks are released; cancellation/read/error-body cleanup waits use the
+existing one-shot controller deadline, including the optional HTTP400 JSON-mode
+retry. A stalled cleanup cannot turn into late success or a new retry. No claim
+that abort stops remote compute/billing; no absolute JS-heap/transport-buffer,
+distributed quota, caller HTTP-disconnect or model quality guarantee. No keys,
+URLs from the browser, new listeners/routes or env bypass knobs introduced.
+Gates: adversarial real Streams plus actual loopback HTTP for boundary Unicode,
+chunked cutoff/socket closure, gzip decoded overflow and real production action
+dispatcher failure1/success0/Gemini counters0 with fixed metadata-only error log.
+Request schemas and normal typed error/fallback policy remain unchanged.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 
