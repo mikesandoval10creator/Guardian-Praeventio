@@ -50,6 +50,23 @@ prueba de consentimiento regulatorio ni autenticación individual.
   rechaza la generación o no ofrece sampling, no cambia a otro proveedor.
 - Las tres tools de lectura anteriores siguen disponibles sin sampling.
 
+**Minimización del texto:** el contexto autorizado compartido por sampling y
+prompts MCP aplica el redactor canónico a `type`, título y descripción **antes**
+de sus cortes de longitud. La pregunta de sampling se minimiza antes de enviar
+los parámetros al cliente. Evita que un token cortado en esta frontera deje un
+fragmento identificador sin reconocer. La redacción es campo por campo, nunca
+sobre el JSON completo: IDs de nodos/aristas y citas conservan su valor literal,
+y no se mutan los registros originales del adaptador.
+
+El redactor reconoce formas de RUT chileno, email, móvil chileno, números
+card-like y algunos prefijos de claves; no prueba que un valor sea un secreto
+activo ni cubre nombres, texto médico reidentificable, secretos arbitrarios o
+identificadores ya truncados aguas arriba. **No es anonimización ni garantía de
+ausencia de PII.** Los IDs preservados pueden ser sensibles; consentimiento,
+revisión del host, retención y políticas de terceros siguen siendo requisitos
+separados. No se registran los textos ni se introduce una llamada externa para
+esta minimización. La prueba de stdio usa únicamente datos sintéticos.
+
 **Alcance:** integración stdio administrada por un operador con cuenta de datos
 read-only. No es aún un endpoint MCP HTTP multiusuario ni una pantalla BYOK web.
 Las llamadas Gemini del resto de la aplicación no se eliminan con este slice.
