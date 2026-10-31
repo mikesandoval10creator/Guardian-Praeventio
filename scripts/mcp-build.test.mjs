@@ -155,7 +155,7 @@ test('compiled MCP exposes relations and explicitly shares them with client samp
     import { typedEdgesOptIn } from ${JSON.stringify(contractModule)};
     globalThis.fetch = async () => { throw new Error('Unexpected provider request'); };
     const docs = {
-      'tenants/t1/zettelkasten_nodes/n1': {tenantId:'t1',projectId:'p1'},
+      'tenants/t1/zettelkasten_nodes/n1': {tenantId:'t1',projectId:'p1',title:'Report privacy.fixture@example.test',description:'Synthetic RUT 12.345.678-9'},
       'tenants/t1/zettelkasten_nodes/n2': {tenantId:'t1',projectId:'p1'},
       'tenants/t1/zettelkasten_nodes/foreign': {tenantId:'t1',projectId:'p2'},
       'tenants/t1/zettelkasten_edges/e1': {id:'e1',tenantId:'t1',projectId:'p1',fromNodeId:'n1',toNodeId:'n2',type:'mitigates',inverseType:'mitigated_by',weight:0.8,createdBy:'private-worker'},
@@ -189,6 +189,8 @@ test('compiled MCP exposes relations and explicitly shares them with client samp
       assert.equal(body.typedRelations.omitted,1);
       assert.equal(body.typedRelations.tenantId,undefined);
       assert.equal(body.typedRelations.projectId,undefined);
+      assert.equal(body.records.find(n=>n.id==='n1').title,'Report [EMAIL_REDACTED]');
+      assert.equal(body.records.find(n=>n.id==='n1').description,'Synthetic RUT [RUT_REDACTED]');
       assert.doesNotMatch(JSON.stringify(body),/private-worker|foreign/);
       return {role:'assistant',model:'controlled-user-fixture',content:{type:'text',text:'Stored relation (zk:n1) (zk-edge:e1)'}};
     });

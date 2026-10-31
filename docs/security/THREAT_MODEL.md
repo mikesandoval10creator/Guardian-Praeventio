@@ -197,6 +197,23 @@ query; failure is explicit, never silent node-only fallback or provider switch.
   Gates: `projectAnalysis.typed.test.ts`, actual SDK sampling protocol, and
   compiled stdio with the real reader/tenant adapter plus controlled fixtures.
 
+**Sampling free-text minimization delta:** shared authorized project context
+redacts known PII-shaped patterns in type/title/description before its length
+cuts; client-sampling question is also redacted before constructing outbound
+parameters. This uses the same pure redactor as MCP prompts, not another model
+or key. Field-level projection preserves literal node/edge IDs and citations,
+does not mutate adapter records and avoids corrupting identifiers by redacting
+the whole JSON string. Scope, budgets, approval and output validation remain.
+
+The heuristic covers known RUT/email/CL mobile/card-like/API-key-prefix forms,
+not names, arbitrary secrets, already-truncated upstream identifiers or all
+reidentification risk. Preserved IDs may contain PII. This is minimization,
+NOT anonymization or legal/host-retention compliance. No raw-text telemetry,
+production IAM or real inference is added. Gates include truncation-crossing
+tokens, sensitive-shaped literal citation IDs, Unicode/no-PII controls and
+canonical pattern categories in `projectAnalysis.privacy.test.ts`, plus actual
+SDK and compiled real-reader/stdio fixtures with synthetic sensitive text.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

@@ -8,10 +8,10 @@ import type { ZkReadAdapter } from './zettelkastenServer.js';
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
 const projects = [{ tenantId: 't1', projectId: 'p1' }];
-async function connect(sampling = true, enabled = true, typed = false) {
+async function connect(sampling = true, enabled = true, typed = false, recordText?: string) {
   const zk: ZkReadAdapter = {
     listAccessibleTenants: async () => ['t1'], getNode: async () => null,
-    listNodes: async () => [{ id: 'n1', type: 'NOTE', title: 'Observation', description: 'Verified record',
+    listNodes: async () => [{ id: 'n1', type: 'NOTE', title: recordText ?? 'Observation', description: recordText ?? 'Verified record',
       projectId: 'p1', tenantId: 't1', tags: [], connections: [] },
       { id: 'n2', type: 'NOTE', title: 'Control', description: 'Stored control', projectId: 'p1', tenantId: 't1', tags: [], connections: [] }],
     expandSubgraph: async () => [],
@@ -32,6 +32,16 @@ async function connect(sampling = true, enabled = true, typed = false) {
 }
 
 describe('MCP SDK client-owned model vertical', () => {
+  it('minimizes synthetic sensitive text across the actual SDK request', async () => {
+    const {client,onSampling}=await connect(true,true,true,'Report privacy.fixture@example.test RUT 12.345.678-9');
+    const result=await client.callTool({name:'zk.analyzeProject',arguments:{tenantId:'t1',projectId:'p1',question:'Contact privacy.fixture@example.test',includeTypedEdges:true}});
+    expect(result.isError).toBe(false);
+    const content=onSampling.mock.calls[0][0].params.messages[0].content;
+    if(Array.isArray(content)||content.type!=='text')throw new Error('Expected controlled text');
+    const body=JSON.parse(content.text);expect(body.question).toContain('[EMAIL_REDACTED]');
+    expect(body.records[0].title).toContain('[RUT_REDACTED]');expect(body.typedRelations.edges[0].id).toBe('e1');
+    expect(content.text).not.toMatch(/privacy\.fixture@example\.test|12\.345\.678-9/);
+  });
   it('shares typed relations only when operator and caller opt in through the actual SDK', async () => {
     const { client, onSampling, readEdges } = await connect(true, true, true);
     onSampling.mockResolvedValueOnce({role:'assistant',model:'user-selected-test-model',content:{type:'text',text:'Stored relation (zk:n1) (zk-edge:e1)'}});
