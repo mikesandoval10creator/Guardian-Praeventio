@@ -79,6 +79,7 @@ import projectHealthRouter from "./src/server/routes/projectHealth.js";
 // para BunkerManager offline. Lazy data fetch + cache 1h.
 import { bcnRouter } from "./src/server/routes/bcn.js";
 import normativesRouter from "./src/server/routes/normatives.js";
+import mcpAppRouter from "./src/server/routes/mcpApp.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -1126,6 +1127,8 @@ app.use('/api/tier-downgrade', tierDowngradeRouter);
 // Replaces the client `addDoc` seed that wrote the public legal-library
 // metadata without an audit_logs row (CLAUDE.md #3). Admin-gated, idempotent.
 app.use('/api/normatives', normativesRouter);
+// Authenticated application bridge to internal MCP SDK; not a public MCP HTTP transport.
+app.use('/api/mcp', mcpAppRouter);
 
 // Round 19 R2 Phase 4 split — gamification (points/leaderboard/check-medals)
 // + AI Safety Coach (coach/chat with assertProjectMemberFromBody guard)

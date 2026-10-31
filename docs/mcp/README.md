@@ -1,5 +1,10 @@
 # Praeventio Guardian — MCP Server
 
+**Desde la aplicación:** Normativas y Base de conocimiento incorporan un
+[puente MCP interno autenticado](APP_BRIDGE.md) con catálogo, consultas por SDK
+y los seis prompts revisables. Es ejecución de herramientas, no inferencia ni
+un endpoint MCP HTTP público. El recorrido stdio de esta guía se conserva.
+
 El proyecto expone su Zettelkasten **read-only** vía **Model Context
 Protocol** (MCP) para que Claude Desktop, Gemini CLI, ChatGPT MCP y
 otros clientes puedan consultar el grafo de conocimiento del tenant.

@@ -214,6 +214,45 @@ tokens, sensitive-shaped literal citation IDs, Unicode/no-PII controls and
 canonical pattern categories in `projectAnalysis.privacy.test.ts`, plus actual
 SDK and compiled real-reader/stdio fixtures with synthetic sensitive text.
 
+**Application → internal MCP bridge delta:** authenticated
+`POST /api/mcp/project` is a fixed application dispatcher, NOT public MCP HTTP,
+remote stdio spawning or a user-URL connector. Per-request real SDK sessions
+have no sampling/model capabilities and expose only catalog, minimized project
+records, stored typed relations, native legal search and six prepared prompts.
+Unknown fields/tools/URLs/tenant overrides are rejected before resource reads.
+
+- Identity is verified by existing Firebase middleware. Current project
+  membership and canonical tenant come from the SAME project snapshot, without
+  a stale positive membership claim shortcut. Missing tenant is409, explicit
+  contradictory tenant claim/foreign membership403; no tenant inference or
+  legacy migration. Current project creation server-stamps tenant from owner.
+- Internal adapter projects at most12 nodes, omits tags/adjacency (empty arrays
+  are omission, not proof of no links), and retains literal IDs. `getNode`/BFS
+  are not accepted by the bridge; legacy stdio is unchanged. Typed reader
+  independently checks edge endpoints. Prompt preparation requires explicit
+  context review, not automatic third-party sharing or operational action.
+- Known text patterns are minimized, not anonymized. Rendering is plain text;
+  no HTML/tool-output execution or secret-entry fields. Audit attempts include
+  operation/scope, never prompt/query/result text; best-effort failure is
+  explicit in API/UI. Business graph data is read-only; audit metadata writes
+  still occur through the standard sink.
+- Separate application budget:6 attempts/minute per verified UID,1 pending job
+  per UID/4 per router-process, fresh SDK sessions cannot reset it. Input
+  logical JSON32KiB and result256KiB before their envelopes. `no-store` precedes
+  auth/limit inside the router. HTTP deadline15s after auth/validation, SDK12s,
+  UI20s including client-auth wait; abort closes sessions, but remote Firestore
+  cancellation is not promised. Pending work retains its slot until settled.
+- Default surface is authenticated, project-member-only and button-driven; a
+  literal server `PRAEVENTIO_MCP_APP_DISABLED=1` kill switch denies data access
+  without removing native/offline features or existing stdio. No new public
+  listener, provider, credentials, writes to nodes/edges or automatic model use.
+- Residual: no distributed quota, proof of live IAM/corpus/host-retention,
+  remote-host auth, revocation linearizability, complete graph/safety truth or
+  production/deployment acceptance. Stalled storage can occupy bounded slots.
+  Details/rollback: [`../mcp/APP_BRIDGE.md`](../mcp/APP_BRIDGE.md). Gates:
+  real SDK route tests + mounted UI tests + Chromium actual Normatives page
+  through HTTP/SDK/readers, replacing only explicit identity/data/shell fixtures.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

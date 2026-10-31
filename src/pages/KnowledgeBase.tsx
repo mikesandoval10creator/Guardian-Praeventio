@@ -48,6 +48,7 @@ import {
 } from '../hooks/useKnowledgeBase';
 import { logger } from '../utils/logger';
 import { humanErrorMessage } from '../lib/humanError';
+import { McpProjectPanel } from '../components/mcp/McpProjectPanel';
 
 
 type TLite = (key: string, fallback?: string) => string;
@@ -247,6 +248,7 @@ export function KnowledgeBase() {
       </header>
 
       {/* Toolbar: búsqueda + filtros por categoría */}
+      <McpProjectPanel projectId={projectId ?? undefined} online={isOnline} />
       <div
         className="flex flex-col gap-3 rounded-2xl border border-default-token bg-surface p-3"
         data-testid="knowledge-base-toolbar"

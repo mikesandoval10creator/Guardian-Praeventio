@@ -24,6 +24,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { NativeNormativeSearch } from '../components/normativa/NativeNormativeSearch';
+import { McpProjectPanel } from '../components/mcp/McpProjectPanel';
 
 interface Normative {
   id: string;
@@ -185,6 +186,7 @@ export function Normatives() {
       </div>
 
       <NativeNormativeSearch key={activeProjectId ?? 'no-project'} projectId={activeProjectId} online={isOnline} />
+      <McpProjectPanel projectId={activeProjectId} online={isOnline} />
 
       {/* Search & Filters */}
       <div className="flex flex-col md:flex-row gap-3 mb-8">
