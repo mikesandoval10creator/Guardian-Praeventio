@@ -35,13 +35,35 @@ No anuncia sampling: no ejecuta un modelo ni cambia de proveedor.
   no acreditan vigencia, origen ni validez jurídica.
 - **Preparar mensaje**: `prompts/get` con los seis builders canónicos de chat,
   BCN, asesoría ambiental, análisis estructural consultivo, materiales peligrosos
-  y MINSAL. Requiere confirmar revisión del contexto y argumentos JSON válidos.
+  y MINSAL. El modo guiado ofrece campos por acción y construye el array JSON;
+  no requiere escribirlo. Requiere confirmar la revisión del contexto.
   El panel muestra el mensaje resultante; el usuario puede revisarlo/copiarlo
   manualmente a su host. **No es una respuesta generada.** La aprobación no
   sustituye consentimiento legal ni políticas de retención del host/modelo.
 
-Los campos estructurales/materiales/cantidades los completa el usuario. Los
-formatos mostrados son ejemplos editables, no mediciones del proyecto.
+Los campos estructurales/materiales/cantidades los completa el usuario. No se
+precargan preguntas, cantidades ni mediciones. Temperatura/UV vacíos se omiten;
+cero escrito se conserva. Se rechazan textos numéricos no decimales, infinitos
+y valores fuera de los rangos del contrato. Calidad de aire es una observación,
+no un sensor verificado. En materiales peligrosos, la plantilla heredada sigue
+etiquetando toneladas/litros: el usuario declara la unidad en el tipo de
+almacenamiento; no se elige ni convierte una unidad ni se valida una clase NCh.
+
+El panel muestra **Argumentos que se enviarán** antes de preparar. **Editar JSON
+avanzado** conserva acceso a argumentos opcionales e historial explícito del
+contrato legado. Volver al formulario indica que descarta el JSON manual y
+reinicia campos; cambiar acción/proyecto limpia datos y confirmación. Cada
+edición/movimiento de modo revoca la aprobación y descarta respuestas pendientes.
+No se guarda un historial oculto ni se genera contexto en el navegador.
+
+La validación usa el mismo módulo puro `actionPromptInputs.ts` en servidor y
+cliente, extraído sin modificar las seis schemas existentes. No importa SDKs,
+proveedores, autenticación ni almacenamiento. El servidor conserva la autoridad:
+validar en la UI no concede permisos. También se comparte el presupuesto del
+JSON HTTP completo (32 KiB UTF-8, incluido el array anidado escapado), separado
+del límite de 16000 caracteres del argumento. Un texto válido por schema puede
+exceder ese presupuesto; la UI entonces bloquea antes de fetch y explica el
+motivo. Es preparación consultiva, nunca un cálculo/certificación operacional.
 
 ## Contrato HTTP acotado
 

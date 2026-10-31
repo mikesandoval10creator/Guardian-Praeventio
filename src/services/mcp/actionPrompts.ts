@@ -1,24 +1,10 @@
 // MCP prompt preparation, not inference: the user's host owns model/API keys.
-import { z } from 'zod';
+import { actionPromptInputSchemas as schemas, parseActionPromptInput, MCP_PROMPT_INPUT_MAX_CHARS } from './actionPromptInputs.js';
 import { createActionPromptSpecs } from '../ai/actionPromptSpecs.js';
 import { redactPii } from '../observability/piiRedactor.js';
 import { formatNormativeContext, type NormativeRetriever } from '../rag/nativeNormativeContext.js';
 import { readAuthorizedProjectContext, type ProjectAnalysisDeps } from './projectAnalysis.js';
 
-const text = z.string().min(1).max(3000);
-const optionalText = z.string().max(4000).optional();
-const schemas = {
-  getChatResponse: z.tuple([text, optionalText,
-    z.array(z.object({ role: z.enum(['user', 'assistant', 'model']), content: text }).strict()).max(8).optional(),
-    z.number().int().min(1).max(3).optional(), z.enum(['general', 'sst', 'ergonomia', 'medicina', 'emergencias']).optional()]),
-  queryBCN: z.tuple([z.string().min(4).max(2000)]),
-  getSafetyAdvice: z.tuple([z.object({ temp: z.number().min(-100).max(100).optional(),
-    uv: z.number().min(0).max(30).optional(),
-    airQuality: z.union([z.number().min(0).max(1000), z.string().max(100)]).optional() }).strict()]),
-  calculateStructuralLoad: z.tuple([text, text]),
-  designHazmatStorage: z.tuple([text, z.number().positive().max(1e9), text]),
-  evaluateMinsalCompliance: z.tuple([text, optionalText, z.string().max(300).optional()]),
-};
 export const ACTION_PROMPTS = Object.keys(schemas).map(action => ({
   name: `guardian.${action}`,
   description: `${action}: prepara contexto y la plantilla existente; el cliente ejecuta su modelo. Solo consultivo, sin writes ni inferencia en Guardian.`,
@@ -47,10 +33,10 @@ export async function prepareActionPrompt(name: string, input: Record<string, st
   const action = name.startsWith('guardian.') ? name.slice('guardian.'.length) : '';
   if (!Object.prototype.hasOwnProperty.call(schemas, action)
     || Object.keys(input).some(k => !['tenantId', 'projectId', 'input'].includes(k))
-    || typeof input.input !== 'string' || input.input.length > 16000) throw new Error('mcp_prompt_invalid_arguments');
-  let args: unknown[];
-  try { args = schemas[action as keyof typeof schemas].parse(JSON.parse(input.input)); }
-  catch { throw new Error('mcp_prompt_invalid_arguments'); }
+    || typeof input.input !== 'string' || input.input.length > MCP_PROMPT_INPUT_MAX_CHARS) throw new Error('mcp_prompt_invalid_arguments');
+  const parsed = parseActionPromptInput(name, input.input);
+  if (!parsed) throw new Error('mcp_prompt_invalid_arguments');
+  let args: unknown[] = parsed;
   const rawRecords = await readAuthorizedProjectContext(input.tenantId, input.projectId, deps);
   const records = rawRecords.map(r => ({ ...r, title: clean(r.title), description: clean(r.description) }));
   args = cleanValue(args) as unknown[];

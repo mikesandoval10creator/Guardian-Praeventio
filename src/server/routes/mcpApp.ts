@@ -4,7 +4,7 @@ import {getFirestore} from 'firebase-admin/firestore';
 import {verifyAuth} from '../middleware/verifyAuth.js';
 import {auditServerEvent} from '../middleware/auditLog.js';
 import {ProjectMembershipError} from '../../services/auth/projectMembership.js';
-import {appMcpRequest} from '../../services/mcp/appBridgeContract.js';
+import {appMcpRequest,withinAppMcpBudget} from '../../services/mcp/appBridgeContract.js';
 import {retrieveNativeNormative} from '../rag/publicLawReader.js';
 import type {NormativeRetriever} from '../../services/rag/nativeNormativeContext.js';
 import type {AdminFirestoreLike} from '../mcp/zkFirebaseReadAdapter.js';
@@ -26,7 +26,7 @@ export function createMcpAppRouter(deps:{getDb:()=>AdminFirestoreLike;retrieveNo
   if(process.env.PRAEVENTIO_MCP_APP_DISABLED==='1')return res.status(503).json({error:'mcp_app_disabled'});
   if(!req.is('application/json'))return res.status(415).json({error:'json_required'});
   const parsed=appMcpRequest.safeParse(req.body);
-  if(!parsed.success||new TextEncoder().encode(JSON.stringify(req.body)).byteLength>32*1024)return res.status(400).json({error:'invalid_mcp_request'});
+  if(!parsed.success||!withinAppMcpBudget(req.body))return res.status(400).json({error:'invalid_mcp_request'});
   const uid=req.user?.uid;if(!uid)return res.status(401).json({error:'unauthorized'});
   const release=takeSlot(active,uid);
   if(!release)return res.status(429).json({error:'mcp_busy'});

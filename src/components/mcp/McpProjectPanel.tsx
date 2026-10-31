@@ -2,7 +2,10 @@ import React,{useEffect,useId,useRef,useState} from 'react';
 import {z} from 'zod';
 
 import {humanErrorMessage} from '../../lib/humanError';
-import {APP_MCP_PROMPTS,type AppMcpRequest} from '../../services/mcp/appBridgeContract';
+import {APP_MCP_PROMPTS,withinAppMcpBudget,type AppMcpRequest} from '../../services/mcp/appBridgeContract';
+import {parseActionPromptInput,MCP_PROMPT_INPUT_MAX_CHARS} from '../../services/mcp/actionPromptInputs';
+import {compilePromptForm,emptyPromptFields} from './promptForm';
+import {McpPromptFields} from './McpPromptFields';
 const envelope=z.object({protocol:z.literal('mcp-sdk'),mode:z.literal('internal-read-only'),action:z.string(),result:z.unknown(),auditRecorded:z.boolean()});
 const catalogSchema=z.object({tools:z.array(z.object({name:z.string()})).max(3),prompts:z.array(z.object({name:z.enum(APP_MCP_PROMPTS)})).max(6)});
 const labels:Record<typeof APP_MCP_PROMPTS[number],string>={
@@ -11,11 +14,11 @@ const labels:Record<typeof APP_MCP_PROMPTS[number],string>={
  'guardian.designHazmatStorage':'Almacenamiento de materiales peligrosos', 'guardian.evaluateMinsalCompliance':'Revisión MINSAL consultiva',
 };
 const signatures:Record<typeof APP_MCP_PROMPTS[number],string>={
- 'guardian.getChatResponse':'["pregunta"]', 'guardian.queryBCN':'["consulta normativa"]',
+ 'guardian.getChatResponse':'["pregunta", "", [], 1, "general"] (historial y detalle opcionales)', 'guardian.queryBCN':'["consulta normativa"]',
  'guardian.getSafetyAdvice':'[{"temp": valor, "uv": valor}] (campos opcionales; sin mediciones usa [{}])',
- 'guardian.calculateStructuralLoad':'["material", "geometría y condiciones"]',
- 'guardian.designHazmatStorage':'["material", cantidad_numérica, "condiciones"]',
- 'guardian.evaluateMinsalCompliance':'["situación a revisar"]',
+ 'guardian.calculateStructuralLoad':'["elemento", "especificaciones y condiciones"]',
+ 'guardian.designHazmatStorage':'["tipo de almacenamiento y unidad", cantidad_numérica, "clase de sustancia"]',
+ 'guardian.evaluateMinsalCompliance':'["protocolo", "observaciones opcionales", "sector opcional"]',
 };
 export function McpProjectPanel(props:{projectId?:string;online:boolean}){
  return <McpSession key={props.projectId??'no-project'} {...props}/>;
@@ -23,14 +26,18 @@ export function McpProjectPanel(props:{projectId?:string;online:boolean}){
 function McpSession({projectId,online}:{projectId?:string;online:boolean}){
  const id=useId();const [catalog,setCatalog]=useState<z.infer<typeof catalogSchema>|null>(null);
  const [query,setQuery]=useState('');const [prompt,setPrompt]=useState<typeof APP_MCP_PROMPTS[number]>('guardian.queryBCN');
- const [input,setInput]=useState('["DS 44"]');const [approved,setApproved]=useState(false);
+ const [fields,setFields]=useState(emptyPromptFields);const [manualJson,setManualJson]=useState(false);
+ const [jsonDraft,setJsonDraft]=useState('[]');const [approved,setApproved]=useState(false);
  const [result,setResult]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [auditWarning,setAuditWarning]=useState(false);
  const current=useRef<AbortController|null>(null);
  const deadline=useRef<ReturnType<typeof setTimeout>|null>(null);
  const cancel=()=>{if(deadline.current!==null)clearTimeout(deadline.current);deadline.current=null;current.current?.abort();current.current=null;setBusy(false);setResult('');setError('');setAuditWarning(false);};
  useEffect(()=>()=>{if(deadline.current!==null)clearTimeout(deadline.current);deadline.current=null;current.current?.abort();current.current=null;},[]);
  useEffect(()=>{if(!online){if(deadline.current!==null)clearTimeout(deadline.current);deadline.current=null;current.current?.abort();current.current=null;setBusy(false);setCatalog(null);setResult('');setApproved(false);}},[online]);
- let validInput=false;try{validInput=input.length<=16000&&Array.isArray(JSON.parse(input));}catch{/* User edits an incomplete JSON array. */}
+ const form=compilePromptForm(prompt,fields);
+ const input=manualJson?jsonDraft:form.ok?form.input:'';
+ const withinBudget=withinAppMcpBudget({projectId,action:'preparePrompt',name:prompt,input,contextApproved:true});
+ const validInput=parseActionPromptInput(prompt,input)!==null&&withinBudget;
  const enabled=Boolean(projectId&&online&&!busy);const ready=enabled&&Boolean(catalog);
  async function run(payload:AppMcpRequest){
   if(!enabled)return;
@@ -83,12 +90,19 @@ function McpSession({projectId,online}:{projectId?:string;online:boolean}){
   <details><summary>Preparar mensajes con contexto del proyecto</summary>
    <p>Esto prepara un mensaje; no genera una respuesta del modelo. Revisa el contexto antes de copiarlo manualmente a tu host/modelo. Puede incluir registros e identificadores sensibles. La minimización no anonimiza.</p>
    <label htmlFor={`${id}-prompt`}>Acción MCP</label>
-   <select id={`${id}-prompt`} value={prompt} onChange={e=>{const value=z.enum(APP_MCP_PROMPTS).parse(e.target.value);cancel();setPrompt(value);setApproved(false);setInput(value==='guardian.queryBCN'?'["DS 44"]':value==='guardian.getChatResponse'?'["Resume los registros disponibles"]':'[]');}} className="block rounded border p-2 bg-surface">
+   <select id={`${id}-prompt`} value={prompt} onChange={e=>{const value=z.enum(APP_MCP_PROMPTS).parse(e.target.value);cancel();setPrompt(value);setApproved(false);setFields(emptyPromptFields());setManualJson(false);setJsonDraft('[]');}} className="block rounded border p-2 bg-surface">
     {(catalog?.prompts??APP_MCP_PROMPTS.map(name=>({name}))).map(p=><option key={p.name} value={p.name}>{labels[p.name]}</option>)}
    </select>
-   <p>Formato: {signatures[prompt]}. Los ejemplos son editables; completa tus datos antes de preparar.</p>
-   <label htmlFor={`${id}-input`}>Argumentos JSON del prompt</label>
-   <textarea id={`${id}-input`} value={input} maxLength={16000} rows={4} onChange={e=>{cancel();setInput(e.target.value);setApproved(false);}} className="block w-full rounded border p-2 bg-surface"/>
+   <p>Completa tus datos; no se inventan mediciones. Cambiar acción limpia los campos y la confirmación.</p>
+   {!manualJson?<><McpPromptFields name={prompt} values={fields} onChange={next=>{cancel();setFields(next);setApproved(false);}}/>
+    <button type="button" onClick={()=>{cancel();setApproved(false);setJsonDraft(form.ok?form.input:'[]');setManualJson(true);}}>Editar JSON avanzado</button></>:<>
+    <p>Formato avanzado: {signatures[prompt]}. El contexto de chat se resuelve en el servidor.</p>
+    <label htmlFor={`${id}-input`}>Argumentos JSON del prompt</label>
+    <textarea id={`${id}-input`} value={jsonDraft} maxLength={MCP_PROMPT_INPUT_MAX_CHARS} rows={4} onChange={e=>{cancel();setJsonDraft(e.target.value);setApproved(false);}} className="block w-full rounded border p-2 bg-surface"/>
+    <button type="button" onClick={()=>{cancel();setApproved(false);setFields(emptyPromptFields());setManualJson(false);}}>Volver a formulario (descartar JSON manual)</button></>}
+   {!validInput&&<p>{!withinBudget?'La solicitud completa supera 32 KiB en UTF-8. Reduce el texto o historial; contar caracteres no basta.':manualJson?'Revisa el formato y los límites de los argumentos JSON.':form.ok?'Revisa los límites de la solicitud.':form.error}</p>}
+   <label htmlFor={`${id}-preview`}>Argumentos que se enviarán</label>
+   <textarea id={`${id}-preview`} readOnly value={input} rows={3} className="block w-full rounded border p-2 bg-surface"/>
    <label className="block"><input type="checkbox" checked={approved} onChange={e=>{cancel();setApproved(e.target.checked);}}/> Confirmo que quiero preparar y revisar el contexto de este proyecto; no enviarlo automáticamente a un modelo.</label>
    <button type="button" disabled={!ready||!approved||!validInput} onClick={()=>projectId&&run({projectId,action:'preparePrompt',name:prompt,input,contextApproved:true})} className="rounded border p-2 disabled:opacity-50">Preparar mensaje mediante MCP</button>
   </details>

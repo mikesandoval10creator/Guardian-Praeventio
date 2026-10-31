@@ -253,6 +253,22 @@ Unknown fields/tools/URLs/tenant overrides are rejected before resource reads.
   real SDK route tests + mounted UI tests + Chromium actual Normatives page
   through HTTP/SDK/readers, replacing only explicit identity/data/shell fixtures.
 
+**Guided MCP input delta:** the six input schemas are extracted unchanged into
+pure `actionPromptInputs.ts`, shared by the server and UI without provider/SDK
+imports. Guided fields emit the existing positional arrays; no model action,
+new argument, permission, storage write or template change. Missing measurements
+are omitted, not coerced to0; decimal/finite/range validation precedes preparing.
+Chat emits explicit empty context/history slots rather than JSONnull holes;
+server still replaces context. Advanced JSON/history remains available, with
+per-edit/action/project/mode approval reset and visible exact argument preview.
+The same full decoded HTTP JSON32KiB budget is checked server-side and before
+fetch (UTF-8/nested escaping, not input-character count). Client validation is
+not an authorization boundary. Hazardous-material units/class remain a declared
+legacy limitation; fields do not certify engineering/medical/legal truth.
+Verification: pure compiler/registry tests, mounted panel payload tests, all six
+actual Normatives form→HTTP→SDK→builder→visible prepared-message flows with
+explicit fixture identities/storage. No full-app/real-corpus/model claim.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 
