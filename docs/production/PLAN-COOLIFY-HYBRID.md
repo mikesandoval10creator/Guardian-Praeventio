@@ -415,6 +415,14 @@ de un slice no certifica la retirada global de Gemini ni el MCP multiusuario.
   reales contrastan cierre y POST normal, y evitan iniciar Google si su cuota
   pendiente termina después del cierre. No cancelan almacenamiento ya iniciado,
   legacy Gemini en curso ni garantizan detener cobro remoto; no añaden UI.
+- El consumidor de texto `GuardianVoiceAssistant` añade «Detener espera», señal
+  compartida búsqueda/chat y ownership de consultas: cierre, desmontaje,
+  proyecto/UID/ruta y deadline UI 45s descartan resultados/finalizadores antiguos.
+  El retraso offline es cancelable sin encolar trabajo nuevo tras el cierre;
+  respuestas locales calculadas se conservan si falla o tarda el guardado.
+  Chromium prueba widget/cliente/API/proveedor HTTP reales con datos/identidad
+  fixture. No migra el Asesor resiliente, custodia, permisos/voz ni cola global;
+  semanticSearch legacy todavía puede depender de embeddings Google.
 - Siguen abiertos custodia BYOK multiusuario, rotación/revocación, aislamiento y
   cuotas/coste distribuidos, host/conectividad real y aceptación con modelos y
   datos autorizados. Nada de lo anterior habilita staging/producción o certifica

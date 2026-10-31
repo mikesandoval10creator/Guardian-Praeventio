@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 // ── Mocks (hoisted-safe pattern) ────────────────────────────────────
 
@@ -79,7 +80,7 @@ describe('GuardianVoiceAssistant — finally-fix verification', () => {
   });
 
   it('smoke: component mounts without crashing', () => {
-    const { container } = render(<GuardianVoiceAssistant />);
+    const { container } = render(<MemoryRouter><GuardianVoiceAssistant /></MemoryRouter>);
     expect(container).toBeTruthy();
   });
 

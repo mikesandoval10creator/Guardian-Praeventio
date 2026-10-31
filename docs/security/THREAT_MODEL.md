@@ -305,6 +305,28 @@ deadline/caller errors, reused options, reader-release race and listener cleanup
 No claim of remote cancellation/billing, cost accounting, canceling already-started
 Firestore/legacy Gemini/persistence, new UI, production IAM or inference quality.
 
+**Text-query UI lifecycle delta:** the existing voice widget's keyboard-text
+consumer owns a signal/45s budget started before auth, never serialized with RPC
+arguments. Pre/post-auth and post-JSON checks sanitize caller abort without raw
+reason logging. Text ownership is retired on explicit wait-stop, both panel
+closes, unmount or committed project/UID/pathname change; late results/errors and
+finally blocks cannot seed or release a new consumer. This is a UI boundary, not
+a replacement for backend identity/membership. Deferred offline work is canceled
+before creating a new pending query; already-started persistence is not undone.
+Local advice survives failed/unconfirmed saving, without a false persisted claim.
+An in-scope microphone grant transfers busy-state ownership away from retired
+text. A capture epoch rejects/stops a delayed granted stream after close,
+committed identity/context change or unmount, before it can retire a newer text
+owner or create a recorder. This does not audit every voice callback or rewrite
+voice generation/incident/plan persistence/consent policy.
+Chromium verifies actual widget/service/API/dispatcher/client/fetch with HTTP
+provider fixtures, including pre-auth stall and causal late-finalizer/new-request
+ordering. Auth/quota/corpus/semanticSearch/voice are fixtures. Existing legacy
+semanticSearch Google dependency, global offline pending queue scope and voice
+privacy/operational-write authorization are not closed by this change; no new
+provider/key/URL, model quality, paid inference, Android/OEM or remote billing-stop
+claim. Default resilient AsesorChat and durable sync paths are unchanged.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

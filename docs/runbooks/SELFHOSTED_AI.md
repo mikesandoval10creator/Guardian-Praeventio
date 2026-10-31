@@ -180,10 +180,57 @@ with no fallback, JSON write, success-accounting or false health failure; a live
 completed POST succeeds. A separate controlled-quota probe proves a Google
 fallback is not started if the client closes while its gate is pending.
 Identity, quota/data/legacy handlers are explicit fixtures, not real Firebase
-IAM or a paid model. This is not a new UI cancel button or full-browser proof.
+IAM or a paid model. That HTTP-only proof does not exercise the UI; the text
+consumer's browser contract is described separately below.
 Already-started Firestore/context/quota reads may still settle; guards prevent
 new inference afterward. Already-running legacy Gemini or durable sync writes
 are not canceled here. Local abort does not prove remote compute/billing stopped.
+
+### Keyboard-text consumer: owned waiting and transport cancellation
+
+`GuardianVoiceAssistant` now exposes **Detener espera** for a text query only.
+Its single AbortController is passed separately from serialized RPC arguments
+to `semanticSearch` (fifth parameter) and `getChatResponse` (sixth parameter).
+`GeminiCallOptions.signal` is snapshotted before authentication; pre-aborted calls
+do not authenticate, an abort during auth prevents fetch, and an abort during
+JSON completion cannot become late success. Abort reasons are not logged or
+returned; other RPCs, including durable sync, stay opt-out and keep their payloads.
+
+A text owner starts a 45,000ms UI deadline before import/auth/first RPC. Cancel or
+expiry releases the UI without waiting for an uncooperative promise. Every await,
+error and finalizer checks ownership; a retired result cannot overwrite or
+release a newer query. Both close controls, unmount, committed project/UID/pathname
+changes invalidate text ownership. The React Router pathname also defines the
+domain; clearing the visible draft/result is not server-side authorization.
+
+The owned 800ms offline delay is canceled before execution on retirement, so a
+closed/canceled delayed query does not newly enter the pending queue. Normal
+local advice and persistence remain. If a write already began, cancellation does
+not undo it; if it fails or exceeds the UI budget, computed local advice is kept
+with an honest failed/unconfirmed-save notice. No queue entries are deleted.
+An in-scope microphone grant retires text ownership before the existing voice
+path owns the shared busy state. A grant arriving after close/scope/unmount is
+stopped before recorder creation and cannot cancel a newer text owner. This
+handoff guard is not a full voice-permission/privacy audit; already-running voice
+work is unchanged. The stop-wait button never advertises cancellation of voice
+processing or its operational writes.
+
+```bash
+npm run test:ci -- src/services/geminiService.cancel.test.ts src/components/ai/GuardianVoiceAssistant.text.test.tsx src/components/ai/GuardianVoiceAssistant.test.tsx
+```
+
+Scoped Chromium proof mounts the actual widget and client service, then executes
+the real API/router/dispatcher/self-hosted client/global fetch against loopback.
+It proves stop → upstream close before EOF, a later live visible reply, project
+change, deadline while auth is held, and an old auth finalizer not releasing a new
+query. Browser cases use fixture auth/quota/corpus/semantic retrieval and disabled
+voice hooks; not production IAM, a paid model, microphone/consent or Android.
+The existing `semanticSearch` legacy path can still invoke Google embeddings in
+production; fixture retrieval and client cancellation do **not** prove provider
+independence, remote billing stop or cancellation of already-running Google.
+This widget is distinct from the default resilient SLM AsesorChat; no BYOK/gateway,
+global offline-queue scope migration or voice privacy/write authorization is
+claimed here. Existing persisted work and provider policy are not changed.
 
 ## 5. Observe
 
