@@ -287,6 +287,24 @@ chunked cutoff/socket closure, gzip decoded overflow and real production action
 dispatcher failure1/success0/Gemini counters0 with fixed metadata-only error log.
 Request schemas and normal typed error/fallback policy remain unchanged.
 
+**Self-hosted caller-lifecycle delta:** only self-hosted-selected AI RPCs bind
+backend-owned request-aborted/premature-response-close state; normal incoming
+body `close` is not cancellation. Scope/allowlist/auth, durable sync and live
+deterministic baselines are unchanged. An optional caller signal is snapshotted
+and relayed to the existing provider deadline controller with sanitized
+`selfhosted_cancelled`, no arbitrary reason. Listeners/timers are disposed on
+settlement; late reader completion cannot become success. Dispatcher cancellation
+is terminal, neither vendor success nor failure, with metadata-only event and
+no health-breaker poisoning. Route blocks fallback/response/quota-success for an
+aborted attempt and rechecks before opted-in legacy invocation after quota/import
+await. No cancellation RPC/ID capability, client keys/URLs or provider changes.
+Real HTTP probes cover API disconnect → actual upstream close, zero JSON writes,
+zero fallback/success outcome and normal request completion. Controlled probes
+cover pending context, repeated cancellations + later live success, split
+deadline/caller errors, reused options, reader-release race and listener cleanup.
+No claim of remote cancellation/billing, cost accounting, canceling already-started
+Firestore/legacy Gemini/persistence, new UI, production IAM or inference quality.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

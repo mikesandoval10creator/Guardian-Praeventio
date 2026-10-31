@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { bindCallerCancellation } from '../middleware/callerCancellation.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
 import { redactPromptForVertex } from '../../services/gemini/pii.js';
@@ -723,18 +724,25 @@ router.post('/gemini', verifyAuth,
   //
   // Chain for a selfhosted-routed action:
   //   ok                          → 200 { result } (accounted at costUsd 0)
-  //   not served for any reason   → ONLY explicit fallback flag '1' permits
+  //   cancelled / caller closed  → terminal; no fallback or success accounting
+  //   otherwise not served       → ONLY explicit fallback flag '1' permits
   //                                 legacy Gemini; otherwise deterministic
   //                                 baseline / internal canned tier / 503.
   // The self-hosted breaker uses its OWN key ('selfhosted') so a broken
   // local model never trips the Gemini breaker, and vice versa.
-  if (!isNetworkSync && resolveProvider(action) === 'selfhosted') {
+  const selectedSelfHosted = !isNetworkSync && resolveProvider(action) === 'selfhosted';
+  const callerStopped = () => selectedSelfHosted && (req.aborted || res.destroyed || res.writableEnded);
+  if (selectedSelfHosted) {
+    const caller = bindCallerCancellation(req, res);
+    try {
+    if (caller.signal.aborted) return undefined;
     let selfHostedBlocked = false;
     try {
       // Per-tenant quota is provider-agnostic (abuse ceiling); the circuit
       // gate runs on the ISOLATED selfhosted key, NOT the gemini key.
       await assertGeminiAllowed(tenantId, tier, SELFHOSTED_CIRCUIT_KEY);
     } catch (err: any) {
+      if (caller.signal.aborted) return undefined;
       if (err?.code === 'gemini_quota_exceeded') {
         return res.status(429).json({
           error: 'quota_exceeded',
@@ -749,8 +757,13 @@ router.post('/gemini', verifyAuth,
         throw err;
       }
     }
+    if (caller.signal.aborted) return undefined;
     if (!selfHostedBlocked) {
-      const attempt = await dispatchSelfHostedAction(action, callArgs, { tenantId });
+      const attempt = await dispatchSelfHostedAction(action, callArgs, { tenantId, signal: caller.signal });
+      if (caller.signal.aborted || attempt.status === 'cancelled') {
+        if (!res.destroyed && !res.writableEnded) res.status(499).json({ error: 'ai_request_cancelled' });
+        return undefined;
+      }
       if (attempt.status === 'ok') {
         res.json({ result: attempt.text });
         // Same flat accounting as the Gemini path, at zero cost: the
@@ -779,6 +792,7 @@ router.post('/gemini', verifyAuth,
       if (hasServerSlmFallback(action)) {
         try {
           const fb = await geminiSlmFallback(action, callArgs, { allowRag: false });
+          if (caller.signal.aborted) return undefined;
           if (fb) {
             return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
           }
@@ -792,6 +806,7 @@ router.post('/gemini', verifyAuth,
     }
     // selfHostedBlocked && fallback enabled → continue into the legacy
     // Gemini path below (gate + dispatch + its own ladder).
+    } finally { caller.dispose(); }
   }
 
   // Observability: per-call provider/latency/outcome (no prompt content).
@@ -801,6 +816,7 @@ router.post('/gemini', verifyAuth,
     // Durable Firestore writes are not AI calls, regardless of provider/quota.
     if (!isNetworkSync) await assertGeminiAllowed(tenantId, tier);
   } catch (err: any) {
+    if (callerStopped()) return undefined;
     if (err?.code === 'gemini_circuit_open') {
       // Life-safety carve-out: serve the deterministic fallback instead of 503
       // so a worker in an emergency still gets a usable plan during the outage.
@@ -823,6 +839,7 @@ router.post('/gemini', verifyAuth,
 
   try {
     const geminiBackend = await import('../../services/geminiBackend.js');
+    if (callerStopped()) return undefined;
     if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
       const result = await tracedAsync(
         'gemini.dispatch',
