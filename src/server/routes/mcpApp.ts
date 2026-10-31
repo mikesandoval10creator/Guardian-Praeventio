@@ -10,6 +10,14 @@ import type {NormativeRetriever} from '../../services/rag/nativeNormativeContext
 import type {AdminFirestoreLike} from '../mcp/zkFirebaseReadAdapter.js';
 import {AppMcpError,authorizeAppMcp,invokeAppMcp} from '../mcp/appMcpBridge.js';
 
+// Process-local resource accounting, not a mutation of business data. Keep it
+// separate from the HTTP handler's persistence/audit boundary.
+function takeSlot(active:Set<string>,uid:string){
+ if(active.has(uid)||active.size>=4)return null;
+ active.add(uid);
+ return()=>{active.delete(uid);};
+}
+
 export function createMcpAppRouter(deps:{getDb:()=>AdminFirestoreLike;retrieveNormative:NormativeRetriever;audit:typeof auditServerEvent}={getDb:()=>getFirestore(),retrieveNormative:retrieveNativeNormative,audit:auditServerEvent}){
  const router=Router();const active=new Set<string>();
  const limiter=rateLimit({windowMs:60_000,limit:6,keyGenerator:req=>req.user?.uid??'invalid',standardHeaders:true,legacyHeaders:false,message:{error:'mcp_rate_limited'}});
@@ -20,8 +28,8 @@ export function createMcpAppRouter(deps:{getDb:()=>AdminFirestoreLike;retrieveNo
   const parsed=appMcpRequest.safeParse(req.body);
   if(!parsed.success||new TextEncoder().encode(JSON.stringify(req.body)).byteLength>32*1024)return res.status(400).json({error:'invalid_mcp_request'});
   const uid=req.user?.uid;if(!uid)return res.status(401).json({error:'unauthorized'});
-  if(active.has(uid)||active.size>=4)return res.status(429).json({error:'mcp_busy'});
-  active.add(uid);
+  const release=takeSlot(active,uid);
+  if(!release)return res.status(429).json({error:'mcp_busy'});
   const controller=new AbortController();
   const onClose=()=>{if(!res.writableEnded)controller.abort();};res.on('close',onClose);
   let abortListener:()=>void=()=>undefined;
@@ -35,7 +43,7 @@ export function createMcpAppRouter(deps:{getDb:()=>AdminFirestoreLike;retrieveNo
    controller.signal.throwIfAborted();
    const auditRecorded=await auditRead(deps.audit,req,parsed.data.action,scope.projectId);
    return{...result,auditRecorded};
-  })().finally(()=>active.delete(uid));
+  })().finally(release);
   try{
    const result=await Promise.race([work,deadline]);
    if(!res.destroyed)return res.json(result);

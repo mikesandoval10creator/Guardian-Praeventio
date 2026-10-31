@@ -76,6 +76,7 @@ function McpSession({projectId,online}:{projectId?:string;online:boolean}){
    <button type="button" disabled={!ready} onClick={()=>projectId&&run({projectId,action:'listRecords'})} className="rounded border p-2 disabled:opacity-50">Ver registros por MCP</button>
    <button type="button" disabled={!ready} onClick={()=>projectId&&run({projectId,action:'listRelations'})} className="rounded border p-2 disabled:opacity-50">Ver relaciones por MCP</button>
   </div>
+  <p>Registros: hasta 12, sin etiquetas ni adyacencia. Los arrays vacíos de esa proyección no prueban ausencia de enlaces; consulta las relaciones almacenadas por separado.</p>
   <label htmlFor={`${id}-query`}>Consulta MCP normativa</label>
   <input id={`${id}-query`} value={query} maxLength={2000} onChange={e=>{cancel();setQuery(e.target.value);}} className="block w-full rounded border p-2 bg-surface" placeholder="Por ejemplo: DS 44"/>
   <button type="button" disabled={!ready||query.trim().length<4} onClick={()=>projectId&&run({projectId,action:'searchNormative',query:query.trim()})} className="rounded border p-2 disabled:opacity-50">Consultar normativa por MCP</button>
