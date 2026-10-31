@@ -124,8 +124,9 @@ exact byte boundary, chunked oversize socket closure before EOF, compressed
 response with small Content-Length, failure metrics without false success or
 Gemini counters, and metadata-only error logging. Controlled Stream tests cover
 split UTF-8, false headers, early cancellation, reader release and hung cleanup.
-They do not invoke a commercial model or demonstrate full application/UI,
-production IAM/corpus, caller/browser-disconnect wiring or remote-stop billing.
+These budget-only tests do not invoke a commercial model or demonstrate full
+application/UI, production IAM/corpus or remote-stop billing. Caller disconnect
+wiring is covered separately below.
 
 Regression coverage uses a synthetic loopback HTTP server, not a real model or
 credentials:
@@ -138,6 +139,51 @@ The test verifies headers-before-timeout, stalled body, successful completion,
 dispatch failure metrics and Gemini-breaker isolation, shared retry deadline,
 timer/stream cleanup, and sanitized stream errors. It does not demonstrate a
 production endpoint, deployment, physical-device behavior, or a full UI flow.
+
+### Caller cancellation for selected self-hosted RPCs
+
+`SelfHostedCallOptions.signal` and `SelfHostedDispatchOptions.signal` accept a
+backend-owned AbortSignal. `/api/gemini` binds it for self-hosted-selected AI
+actions before quota lookup: incoming `aborted` or a premature **response** close
+aborts it. Normal `req.close` means request-body completion, not cancellation;
+successful response completion must not abort. Existing closed states are checked
+on binding. Request/response listeners are disposed in `finally` on every exit.
+
+The provider snapshots that signal, relays abort to its original deadline
+controller and removes the listener on settlement, including reused options.
+Pre-aborted calls do not fetch. Caller abort is the sanitized
+`selfhosted_cancelled`, distinct from the unchanged `selfhosted_timeout`; the
+reason is never sent or logged. It cannot become a late successful DTO after
+reader release or trigger a JSON-mode retry. The 256KiB bound remains in force.
+
+The dispatcher returns terminal `{status:'cancelled'}`: not success, not vendor
+failure, no breaker penalty or reset. In-flight cancellations get only the fixed
+metadata event `selfhosted_cancelled`. No new public health-counter schema or
+billing ledger is implied. Normal live success and real timeout/outage retain
+their original metrics. No success quota outcome is emitted for a canceled
+self-hosted attempt; admission quotas/rate limits are not bypassed or changed.
+
+The route does not invoke canned/RAG/Gemini fallback for cancellation, even with
+the cross-provider fallback flag on. It also rechecks caller state before
+starting an opted-in legacy call after its quota/import await. A closed socket
+gets no JSON write; an internally canceled result on a still-writable connection
+has the defensive 499 `{error:'ai_request_cancelled'}` response. Live requests
+retain their deterministic life-safety baselines and sync-write paths.
+
+```bash
+npm run test:ci -- src/services/ai/selfHostedProvider.cancel.test.ts src/services/ai/providerRouter.cancel.test.ts src/server/middleware/callerCancellation.test.ts src/__tests__/server/gemini.providerRouter.test.ts
+```
+
+API tests use the real Express route/dispatcher/client/fetch against loopback
+HTTP: a real client disconnect closes the deliberately unfinished provider body,
+with no fallback, JSON write, success-accounting or false health failure; a live
+completed POST succeeds. A separate controlled-quota probe proves a Google
+fallback is not started if the client closes while its gate is pending.
+Identity, quota/data/legacy handlers are explicit fixtures, not real Firebase
+IAM or a paid model. This is not a new UI cancel button or full-browser proof.
+Already-started Firestore/context/quota reads may still settle; guards prevent
+new inference afterward. Already-running legacy Gemini or durable sync writes
+are not canceled here. Local abort does not prove remote compute/billing stopped.
 
 ## 5. Observe
 

@@ -409,6 +409,12 @@ de un slice no certifica la retirada global de Gemini ni el MCP multiusuario.
   Las sondas de HTTP loopback prueban límite exacto, exceso chunked/comprimido y
   fallo tipado en el dispatcher sin éxito ficticio. No son un modelo real ni un
   benchmark de memoria total; el chunk que cruza el límite puede llegar a leerse.
+- La cancelación del caller se propaga para RPCs elegidas self-hosted: cierre
+  HTTP prematuro → señal backend → dispatcher → fetch/lector del proveedor.
+  Es terminal, no un fallo de salud ni permiso para otro proveedor. Tests HTTP
+  reales contrastan cierre y POST normal, y evitan iniciar Google si su cuota
+  pendiente termina después del cierre. No cancelan almacenamiento ya iniciado,
+  legacy Gemini en curso ni garantizan detener cobro remoto; no añaden UI.
 - Siguen abiertos custodia BYOK multiusuario, rotación/revocación, aislamiento y
   cuotas/coste distribuidos, host/conectividad real y aceptación con modelos y
   datos autorizados. Nada de lo anterior habilita staging/producción o certifica

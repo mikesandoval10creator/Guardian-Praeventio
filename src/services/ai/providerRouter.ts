@@ -157,6 +157,8 @@ export function __resetProviderStatsForTests(): void {
 // ── Self-hosted dispatch ─────────────────────────────────────────────────────
 
 export type SelfHostedDispatchResult =
+  /** Terminal caller cancellation, never permission for another provider. */
+  | { status: 'cancelled' }
   | { status: 'ok'; text: string; latencyMs: number }
   /** Config/spec unavailable — caller applies the explicit fallback policy. */
   | { status: 'skipped'; reason: 'not_configured' | 'unsupported' }
@@ -164,6 +166,7 @@ export type SelfHostedDispatchResult =
   | { status: 'failed'; reason: 'circuit_open' | 'empty_response' | 'call_failed' | 'not_configured'; latencyMs?: number };
 
 export interface SelfHostedDispatchOptions {
+  signal?: AbortSignal;
   /** Injection point for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch;
   /** Verified tenant identifier supplied by the authenticated route. */
@@ -177,12 +180,16 @@ export interface SelfHostedDispatchOptions {
  * self-hosted breaker bookkeeping and per-call observability. NEVER throws —
  * the dispatcher's behavior on failure (fallback chain) must not depend on
  * error plumbing.
+ * Caller cancellation is terminal, neutral to provider health and is NOT
+ * permission to run another provider or fabricate a degraded success.
  */
 export async function dispatchSelfHostedAction(
   action: string,
   args: unknown[],
   options: SelfHostedDispatchOptions = {},
 ): Promise<SelfHostedDispatchResult> {
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) return { status: 'cancelled' };
   if (!options.credentialResolver && !getSelfHostedConfig()) {
     return { status: 'skipped', reason: 'not_configured' };
   }
@@ -205,12 +212,19 @@ export async function dispatchSelfHostedAction(
 
   const startedAt = Date.now();
   const tenantId = options.tenantId ?? 'unknown';
+  const cancelled = (): SelfHostedDispatchResult => {
+    logger.info('[ai.provider] selfhosted_cancelled', { action, latencyMs: Date.now() - startedAt, tenant_id: tenantId });
+    return { status: 'cancelled' };
+  };
   const credentialResolver = options.credentialResolver ?? envCredentialResolver;
   try {
     const config = credentialResolver.resolve(tenantId, 'selfhosted');
+    if (callerSignal?.aborted) return cancelled();
     if (!config) return { status: 'failed', reason: 'not_configured' };
     const request = await spec.build(args);
-    const response = await selfHostedChat(request, { fetchImpl: options.fetchImpl, config });
+    if (callerSignal?.aborted) return cancelled();
+    const response = await selfHostedChat(request, { fetchImpl: options.fetchImpl, config, signal: callerSignal });
+    if (callerSignal?.aborted) return cancelled();
     const latencyMs = Date.now() - startedAt;
 
     if (!response.text || response.text.trim().length === 0) {
@@ -225,6 +239,7 @@ export async function dispatchSelfHostedAction(
     recordProviderCall('selfhosted', 'success', latencyMs, action, options.tenantId);
     return { status: 'ok', text: response.text, latencyMs };
   } catch (err) {
+    if (callerSignal?.aborted) return cancelled();
     const latencyMs = Date.now() - startedAt;
     geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
     recordProviderCall('selfhosted', 'failure', latencyMs, action, options.tenantId);

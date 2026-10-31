@@ -49,6 +49,7 @@ export interface SelfHostedConfig {
 export type SelfHostedErrorCode =
   | 'selfhosted_not_configured'
   | 'selfhosted_timeout'
+  | 'selfhosted_cancelled'
   | 'selfhosted_unreachable'
   | 'selfhosted_http_error'
   | 'selfhosted_bad_response';
@@ -142,6 +143,8 @@ export interface SelfHostedChatResponse {
 }
 
 export interface SelfHostedCallOptions {
+  /** Backend-owned caller cancellation; never sourced from request JSON. */
+  signal?: AbortSignal;
   /** Injection point for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch;
   /** Pre-resolved config (tests). Defaults to `getSelfHostedConfig()`. */
@@ -261,10 +264,15 @@ export async function selfHostedChat(
   request: SelfHostedChatRequest,
   options: SelfHostedCallOptions = {},
 ): Promise<SelfHostedChatResponse> {
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) throw new SelfHostedProviderError('selfhosted_cancelled');
   const config = options.config !== undefined ? options.config : getSelfHostedConfig();
   if (!config) throw new SelfHostedProviderError('selfhosted_not_configured');
   const fetchImpl = options.fetchImpl ?? fetch;
   const controller = new AbortController();
+  // Do not forward caller.reason: it can contain sensitive arbitrary data.
+  const abortCaller = () => controller.abort();
+  callerSignal?.addEventListener('abort', abortCaller, { once: true });
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
@@ -293,6 +301,7 @@ export async function selfHostedChat(
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     })?.usage;
 
+    if (callerSignal?.aborted) throw new SelfHostedProviderError('selfhosted_cancelled');
     return {
       text: content,
       model: config.model,
@@ -305,12 +314,14 @@ export async function selfHostedChat(
         : undefined,
     };
   } catch (err) {
+    if (callerSignal?.aborted) throw new SelfHostedProviderError('selfhosted_cancelled');
     if (controller.signal.aborted) throw new SelfHostedProviderError('selfhosted_timeout');
     // Preserve only errors constructed here, not a stream error spoofing the name.
     if (err instanceof SelfHostedProviderError) throw err;
     throw new SelfHostedProviderError('selfhosted_bad_response');
   } finally {
     clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', abortCaller);
   }
 }
 

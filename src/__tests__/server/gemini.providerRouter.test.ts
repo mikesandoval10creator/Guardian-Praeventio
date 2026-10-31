@@ -19,6 +19,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+import {createServer,request as httpRequest,type Server,type ServerResponse} from 'node:http';
 
 const H = vi.hoisted(() => ({
   assertAllowed: vi.fn(),
@@ -78,11 +79,14 @@ vi.mock('../../services/ragService.js', () => ({
 
 import geminiRouter from '../../server/routes/gemini.js';
 import { geminiCircuit } from '../../server/middleware/geminiCircuit.js';
-import { __resetProviderStatsForTests, SELFHOSTED_CIRCUIT_KEY } from '../../services/ai/providerRouter.js';
+import { __resetProviderStatsForTests, SELFHOSTED_CIRCUIT_KEY,getAiProviderStats } from '../../services/ai/providerRouter.js';
+import {logger} from '../../utils/logger.js';
+import * as providerRouting from '../../services/ai/providerRouter.js';
 
-function buildApp() {
+function buildApp(probe?: (res: Response) => void) {
   const app = express();
   app.use(express.json());
+  if (probe) app.use((_req, res, next) => { probe(res); next(); });
   app.use('/api', geminiRouter);
   return app;
 }
@@ -144,6 +148,40 @@ const send = (app = buildApp()) =>
   request(app).post('/api/gemini').set(uid).send({ action: 'getChatResponse', args: ['hola', 'ctx'] });
 
 describe('POST /api/gemini — provider layer (self-hosted routing)', () => {
+  it('treats an internal cancelled result as terminal on a still-writable connection',async()=>{
+    enableSelfHosted();process.env.AI_SELFHOSTED_FALLBACK_GEMINI='1';const dispatch=vi.spyOn(providerRouting,'dispatchSelfHostedAction').mockResolvedValueOnce({status:'cancelled'});
+    try{const res=await send();expect(res.status).toBe(499);expect(res.body).toEqual({error:'ai_request_cancelled'});expect(fetchMock).not.toHaveBeenCalled();expect(H.chatHandler).not.toHaveBeenCalled();expect(H.slmFallback).not.toHaveBeenCalled();expect(H.record).not.toHaveBeenCalled();}
+    finally{dispatch.mockRestore();}
+  });
+  it('keeps a normal completed POST alive through real HTTP provider completion',async()=>{
+    vi.unstubAllGlobals();let path='';const upstream=createServer((req,res)=>{path=req.url??'';req.resume();req.once('end',()=>{res.writeHead(200,{'Content-Type':'application/json',Connection:'close'});res.end('{"choices":[{"message":{"content":"respuesta-sintetica"}}]}');});});await new Promise<void>(resolve=>upstream.listen(0,'127.0.0.1',resolve));const address=upstream.address();if(!address||typeof address==='string')throw new Error('No fixture listener');enableSelfHosted();process.env.AI_SELFHOSTED_BASE_URL=`http://127.0.0.1:${address.port}`;process.env.AI_PROVIDER_ACTIONS_SELFHOSTED='getSafetyAdvice';
+    try{const res=await request(buildApp()).post('/api/gemini').set(uid).send({action:'getSafetyAdvice',args:[{temp:0,uv:0}]});expect(res.status).toBe(200);expect(res.body).toEqual({result:'respuesta-sintetica'});expect(path).toBe('/v1/chat/completions');expect(H.record).toHaveBeenCalledOnce();expect(getAiProviderStats().selfhosted).toMatchObject({success:1,failure:0});}
+    finally{upstream.closeAllConnections();await new Promise<void>(resolve=>upstream.close(()=>resolve()));}
+  });
+  it('does not start an opted-in Google fallback if the caller closes during its quota lookup',async()=>{
+    enableSelfHosted();process.env.AI_SELFHOSTED_FALLBACK_GEMINI='1';fetchMock.mockResolvedValueOnce(new Response('fixture failure',{status:503}));let release:()=>void=()=>undefined;const gate=new Promise<void>(resolve=>{release=resolve;});H.assertAllowed.mockResolvedValueOnce(undefined).mockImplementationOnce(()=>gate);let closed=false;
+    const server=createServer(buildApp(res=>res.once('close',()=>{closed=true;})));await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();if(!address||typeof address==='string')throw new Error('No fixture listener');
+    const body=JSON.stringify({action:'getChatResponse',args:['fixture','context']});const client=httpRequest(`http://127.0.0.1:${address.port}/api/gemini`,{method:'POST',headers:{...uid,'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},res=>res.resume());client.on('error',()=>undefined);client.end(body);
+    try{await vi.waitFor(()=>expect(H.assertAllowed).toHaveBeenCalledTimes(2));client.destroy();await vi.waitFor(()=>expect(closed).toBe(true));release();await new Promise<void>(resolve=>setImmediate(resolve));expect(H.chatHandler).not.toHaveBeenCalled();expect(H.slmFallback).not.toHaveBeenCalled();expect(H.record).not.toHaveBeenCalled();}
+    finally{release();client.destroy();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  });
+  it('propagates a real API client disconnect to the actual upstream HTTP body without fallback',async()=>{
+    vi.unstubAllGlobals();vi.mocked(logger.info).mockClear();let upstreamResponse:ServerResponse|undefined;let closedBeforeEnd=false;
+    const upstream=createServer((req,res)=>{req.resume();upstreamResponse=res;res.writeHead(200,{'Content-Type':'application/json'});res.once('close',()=>{closedBeforeEnd=!res.writableEnded;});res.write('{"choices":[{"message":{"content":"fixture');});
+    const writes:unknown[]=[];const api=createServer(buildApp(res=>{const json=res.json.bind(res);res.json=(body:unknown)=>{writes.push(body);return json(body);};}));
+    const listen=async(server:Server)=>{await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();if(!address||typeof address==='string')throw new Error('No fixture listener');return`http://127.0.0.1:${address.port}`;};
+    const base=await listen(upstream);const apiBase=await listen(api);enableSelfHosted();process.env.AI_SELFHOSTED_BASE_URL=base;process.env.AI_SELFHOSTED_TIMEOUT_MS='10000';process.env.AI_PROVIDER_ACTIONS_SELFHOSTED='getSafetyAdvice';process.env.AI_SELFHOSTED_FALLBACK_GEMINI='1';
+    const body=JSON.stringify({action:'getSafetyAdvice',args:[{temp:0,uv:0}]});const client=httpRequest(apiBase+'/api/gemini',{method:'POST',headers:{...uid,'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},res=>res.resume());client.on('error',()=>undefined);client.end(body);
+    try{
+      await vi.waitFor(()=>expect(upstreamResponse).toBeDefined());client.destroy();await vi.waitFor(()=>expect(closedBeforeEnd).toBe(true));
+      await vi.waitFor(()=>expect(vi.mocked(logger.info).mock.calls.some(([message])=>message==='[ai.provider] selfhosted_cancelled')).toBe(true));
+      expect(writes).toEqual([]);expect(H.assertAllowed).toHaveBeenCalledOnce();expect(H.chatHandler).not.toHaveBeenCalled();expect(H.slmFallback).not.toHaveBeenCalled();expect(H.record).not.toHaveBeenCalled();expect(getAiProviderStats().selfhosted).toMatchObject({success:0,failure:0});
+    }finally{
+      client.destroy();upstreamResponse?.end('"}}]}');
+      try{await vi.waitFor(()=>expect(vi.mocked(logger.info).mock.calls.some(([message])=>message==='[ai.provider] selfhosted_cancelled'||message==='[ai.provider] call')).toBe(true));}
+      finally{api.closeAllConnections();upstream.closeAllConnections();await Promise.all([api,upstream].map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))));}
+    }
+  });
   it('NO config → legacy Gemini dispatch, self-hosted endpoint never contacted (byte-identical)', async () => {
     const res = await send();
     expect(res.status).toBe(200);
