@@ -395,6 +395,25 @@ de un slice no certifica la retirada global de Gemini ni el MCP multiusuario.
 - Probar errores, abuso, fuga de claves y aislamiento. Escrituras MCP requieren
   autorización y reversión; no son parte del permiso read-only.
 
+**Progreso incremental de E (no cierra la etapa):**
+
+- PR #1892 integró el puente interno app → API autenticada → SDK MCP, con
+  membresía/tenant, auditoría de metadatos, cuota local y cupos conservados hasta
+  terminar callbacks de almacenamiento. No es MCP HTTP público ni un modelo.
+- PR #1893 integró formularios guiados para las seis preparaciones, manteniendo
+  JSON avanzado y schemas compartidas sin modificar. Preparar mensajes no es
+  ejecutar inferencia ni demostrar calidad del modelo.
+- El contrato del adaptador OpenAI-compatible se endurece en
+  `selfHostedProvider.ts`: JSON HTTP aceptado hasta 256 KiB UTF-8 decodificados,
+  contando envelope/metadata, y limpieza/cancelación dentro del mismo deadline.
+  Las sondas de HTTP loopback prueban límite exacto, exceso chunked/comprimido y
+  fallo tipado en el dispatcher sin éxito ficticio. No son un modelo real ni un
+  benchmark de memoria total; el chunk que cruza el límite puede llegar a leerse.
+- Siguen abiertos custodia BYOK multiusuario, rotación/revocación, aislamiento y
+  cuotas/coste distribuidos, host/conectividad real y aceptación con modelos y
+  datos autorizados. Nada de lo anterior habilita staging/producción o certifica
+  verdad semántica/vida-safety. El modo anterior de consultas sin modelo continúa.
+
 **Salida:** una vertical IA/MCP verificable sin dependencia de Vertex ni autoridad
 LLM sobre vida-safety; un resolver por entorno no acredita el gateway completo.
 

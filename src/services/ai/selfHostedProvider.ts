@@ -209,6 +209,49 @@ async function postChatCompletions(
   }
 }
 
+export const MAX_SELFHOSTED_RESPONSE_BYTES = 256 * 1024;
+
+/** Cleanup/read waits share the call deadline even if a custom stream ignores abort. */
+function withinDeadline<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener('abort', abort);
+      reject(new SelfHostedProviderError('selfhosted_timeout'));
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    work.then(value => { signal.removeEventListener('abort', abort); resolve(value); },
+      error => { signal.removeEventListener('abort', abort); reject(error); });
+    if (signal.aborted) abort();
+  });
+}
+
+/** Bound decoded response bytes before JSON parsing; never keep an oversized chunk. */
+async function readBoundedResponse(response: Response, signal: AbortSignal): Promise<unknown> {
+  const declared = response.headers.get('Content-Length');
+  if (declared && /^\d+$/.test(declared) && Number(declared) > MAX_SELFHOSTED_RESPONSE_BYTES) {
+    if (response.body) await withinDeadline(response.body.cancel(), signal);
+    throw new SelfHostedProviderError('selfhosted_bad_response');
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new SelfHostedProviderError('selfhosted_bad_response');
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let bytes = 0;
+  let text = '';
+  let complete = false;
+  try {
+    while (true) {
+      const { done, value } = await withinDeadline(reader.read(), signal);
+      if (done) { complete = true; break; }
+      bytes += value.byteLength;
+      if (bytes > MAX_SELFHOSTED_RESPONSE_BYTES) throw new SelfHostedProviderError('selfhosted_bad_response');
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } finally {
+    try { if (!complete) await withinDeadline(reader.cancel(), signal); } finally { reader.releaseLock(); }
+  }
+}
+
 /**
  * Single-completion call against the configured OpenAI-compatible endpoint.
  * One deadline covers headers, body consumption, and the optional JSON-mode retry.
@@ -230,16 +273,16 @@ export async function selfHostedChat(
     // Tolerant JSON-mode: retry once without response_format, sharing the
     // original deadline. Release the discarded body before reusing the pool.
     if (!res.ok && res.status === 400 && request.jsonMode) {
-      await res.body?.cancel();
+      if (res.body) await withinDeadline(res.body.cancel(), controller.signal);
       res = await postChatCompletions(config, request, fetchImpl, false, controller.signal);
     }
 
     if (!res.ok) {
-      await res.body?.cancel();
+      if (res.body) await withinDeadline(res.body.cancel(), controller.signal);
       throw new SelfHostedProviderError('selfhosted_http_error', res.status);
     }
 
-    const payload: unknown = await res.json();
+    const payload: unknown = await readBoundedResponse(res, controller.signal);
     const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices;
     const content = choices?.[0]?.message?.content;
     if (typeof content !== 'string') {

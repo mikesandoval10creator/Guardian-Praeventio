@@ -92,6 +92,40 @@ optional retry without `response_format` (the retry does not get a fresh budget)
 A stalled body aborts with the sanitized `selfhosted_timeout` code, returning
 control to the dispatcher so its existing fallback policy can run. Discarded
 HTTP-error bodies are canceled; the timer is cleared on every settled path.
+Cancellation/read cleanup waits also share that deadline: a non-cooperative
+stream cancel cannot block forever or authorize a retry after expiration. This
+bounds local waiting; it does not prove remote generation or billing stopped.
+
+**Response budget:** the client accepts at most **256 KiB of decoded UTF-8 HTTP
+JSON**, including the entire completion envelope/metadata, before `JSON.parse`.
+The chunk crossing the cap may be read to detect overflow, but is never appended.
+A declared Content-Length above the cap is rejected before reading;
+small/missing/invalid declarations do not bypass the actual byte counter. Gzip
+responses are checked after fetch decompression. Oversized chunks are not
+appended, the reader is canceled and its lock released; oversize/invalid UTF-8
+produce the existing sanitized `selfhosted_bad_response` (or `selfhosted_timeout`
+if cleanup exhausts the call deadline). No output-driven retry, provider switch,
+new error code, credential or environment-variable bypass is introduced.
+
+This is a payload bound, not an exact bound on JS heap, transport/decompression
+buffers or remote compute. It does not replace max_output_tokens, distributed
+quotas or cost controls. Exactly-at-limit valid JSON/Unicode remains supported.
+No migration or provider change is needed; reverting the code removes this guard
+without changing routing or stored data.
+
+Additional tests:
+
+```bash
+npm run test:ci -- src/services/ai/selfHostedProvider.bounds.test.ts src/services/ai/selfHostedProvider.bounds.http.test.ts
+```
+
+The HTTP tests call the actual client/dispatcher against loopback fixtures:
+exact byte boundary, chunked oversize socket closure before EOF, compressed
+response with small Content-Length, failure metrics without false success or
+Gemini counters, and metadata-only error logging. Controlled Stream tests cover
+split UTF-8, false headers, early cancellation, reader release and hung cleanup.
+They do not invoke a commercial model or demonstrate full application/UI,
+production IAM/corpus, caller/browser-disconnect wiring or remote-stop billing.
 
 Regression coverage uses a synthetic loopback HTTP server, not a real model or
 credentials:
