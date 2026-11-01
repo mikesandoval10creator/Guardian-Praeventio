@@ -73,21 +73,35 @@ volumen falso sino el **volumen real sin triage por severidad**.
 469, **201 son REALES** (el defecto descrito sigue presente en el código actual),
 **212 son DRIFT** (el archivo existe pero la línea cambió o el caso ya está
 cubierto) y **56 no son comparables** (la spec no trae código verbatim). Por
-subsistema: `emergency/` concentra 113 hallazgos, `mesh/` 20, `sensorBus/` 2, y el
-resto se reparte entre hooks, servicios, rutas y librerías. Confirmación manual
-de dos hallazgos «REAL» por muestreo: el mock de
-`src/components/emergency/GeofenceAlert.test.tsx` solo devuelve
+subsistema, según el artefacto de evidencia: `emergency/` 34, `mesh/` 10,
+`sensorBus/` 2 y el resto 155; 19 de los 201 vienen marcados como
+`vida_safety`. Confirmación manual de dos hallazgos «REAL» por muestreo: el mock
+de `src/components/emergency/GeofenceAlert.test.tsx` solo devuelve
 `permissionState: 'granted'` y nunca `'unavailable'`, y
 `src/services/emergency/sosOutbox.indexeddb.ts` documenta en su propio encabezado
 el uso de *«unencrypted idb-keyval»*. Es decir: **quedan 201 defectos con
-evidencia de archivo y línea, 113 de ellos en el frente de vida-safety**, que es
-el trabajo real que sigue. El detalle por ticket queda en
+evidencia de archivo y línea**, 19 de ellos de vida-safety y 34 en el frente
+`emergency/`, que es el trabajo real que sigue. El detalle por ticket queda en
 `C:/Users/Usuario/AppData/Local/hermes/cache/scratch/hy3-content-revalidation.json`
 (469 registros) y no se promueve a este documento ni al ledger.
 
+**Agrupamiento para no abrir 201 PRs sueltos.** Los 201 hallazgos reales se
+concentran en **97 archivos distintos**, y 51 de esos archivos tienen un solo
+hallazgo. Los de mayor densidad: `compliance/cloudKmsComplianceSigner.ts` (7),
+`compliance/complianceSignature.ts` (6), `pricingSimulator/PricingSimulatorPanel.tsx`
+(6), `ergonomics/AIPostureAnalysisModal.tsx` (6), `hazmat/hazmatInventory.ts` (5),
+`jobs/runComplianceSnapshot.ts` (5), `compliance/Ds67Builder.tsx` (5),
+`pricingCalculator/pricingCalculator.ts` (5), `pricingCalculator/TierComparatorWidget.tsx`
+(5), `billingService.ts` (5). **Estrategia:** agrupar por archivo los de densidad
+≥ 3 (un slice, un PR, un test) y tratar los 51 huérfanos como un lote de
+higiene posterior. En `emergency/` el archivo más denso es
+`IncidentInvestigation.tsx` (4), seguido de `sosOutbox.ts` (3),
+`EvacuationGridMap.tsx` (3), `EmergencySquadManager.tsx` (3) y
+`EmergencyPlanGenerator.tsx` (3).
+
 **Prioridad de ataque:** primero `emergency/`, `mesh/`, `sensorBus/`,
-`loneWorker/`, `firestore.rules` y permisos. Cada lote es un slice con test y
-CI, agrupando tickets que tocan el mismo archivo para no abrir 201 PRs sueltos.
+`loneWorker/`, `firestore.rules` y permisos; después compliance/pricing por
+densidad de archivo. Cada lote es un slice con test y CI.
 
 Los estados GitHub son un corte temporal, no una orden automática de merge. No
 se volvió a consultar el estado de #1869, #1870 y #1871 en esta actualización; no
