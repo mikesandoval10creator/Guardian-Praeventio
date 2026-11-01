@@ -327,6 +327,26 @@ privacy/operational-write authorization are not closed by this change; no new
 provider/key/URL, model quality, paid inference, Android/OEM or remote billing-stop
 claim. Default resilient AsesorChat and durable sync paths are unchanged.
 
+**Opt-in local context delta:** the text widget can bypass its auxiliary semantic
+RPC using experimental lexical selection over an already-loaded client snapshot.
+Exact project filtering precedes a500-unique-candidate budget,64 query terms,
+positive lexical matches/title3-description1 and deterministic literal-ID ties.
+Only ID/title/description/type are projected; recognized PII is redacted before
+Unicode-safe field cuts. Oversized raw fields are omitted whole before regex
+work; oversized IDs are omitted rather than rewritten. Complete JSON (metadata
+included) is capped at4000 UTF-16 units/5 records; partial coverage, limits and
+truncation reach the model, including empty projections. This is not server
+identity/membership, a full graph scan, legal truth or prompt-injection resistance.
+Literal IDs, names and unrecognized secrets may remain sensitive; downstream
+prompt redaction still applies. Existing caller-ownership/cancel/deadline guards
+remain active. No hidden semantic retry on empty/error. Enter/server retrieval,
+voice/offline/persistence and provider policy are preserved. The mode is explicit
+experimental opt-in because corpus-recall equivalence is unproved; “local” is
+not on-device inference or no outbound data. Chromium observes actual model HTTP
+messages from real helper/widget/client/route/builders with mixed-project fixture
+records; auth/quota/legal corpus/legacy retrieval/voice are fixtures. No global
+Google independence, BYOK/consent compliance, Android or production claim.
+
 Every finding in [`STRIDE_findings.md`](./STRIDE_findings.md) is anchored
 to one of these boundaries.
 

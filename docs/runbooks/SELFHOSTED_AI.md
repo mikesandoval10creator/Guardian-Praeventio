@@ -232,6 +232,64 @@ This widget is distinct from the default resilient SLM AsesorChat; no BYOK/gatew
 global offline-queue scope migration or voice privacy/write authorization is
 claimed here. Existing persisted work and provider policy are not changed.
 
+### Experimental opt-in: lexical context from the client snapshot
+
+The widget offers **Consultar con contexto local (experimental)** as a separate
+online action requiring an active project. It selects context locally and calls
+`getChatResponse` directly: no auxiliary `semanticSearch` RPC, including when
+there are no matches or generation fails. Enter and the existing send control
+keep server retrieval, labeled as potentially using external embeddings. This
+is an additional opt-in, not a default retrieval migration: representative
+corpus/recall evidence is still missing and lexical matches are not equivalent
+to semantic retrieval. Offline help/pending writes, audio and durable sync stay
+on their existing paths.
+
+`localProjectTextContext` processes at most500 unique eligible records **after**
+exact project filtering, with at most64 normalized query terms, title3/description1
+literal-token weights and deterministic literal-ID ties. It returns at most5
+positive lexical matches, never a fabricated prefix for no-match. The client
+snapshot is not a complete server read or membership authority. Foreign/unscoped
+records are excluded; first same-project duplicate ID wins. No snapshot mutation,
+network calls, logs or persistence in this helper.
+
+Only ID/title/description/type are projected. Existing heuristic `redactPii`
+runs before title200/description600/type80 UTF-16 cuts, without ending on a split
+high surrogate. Text fields over16,384 code units are omitted whole before regex
+processing; IDs over1500 are omitted whole, never cut/normalized. Literal IDs
+within this client projection may still be sensitive, and the existing backend
+prompt redactor still applies downstream. Names/medical details/arbitrary
+secrets are not guaranteed anonymized or legally authorized by this heuristic.
+Query text over16,384 is not tokenized; term/candidate/field/record omissions set
+the projection's truncated flag. Limits are not a hard CPU/heap cap for the
+already-loaded snapshot or synchronous JavaScript scan.
+
+The complete valid JSON context is <=4000 UTF-16 code units, including metadata,
+escaping and records. An over-budget record is skipped whole, not clipped into
+invalid JSON or an invented ID. The model receives explicit
+`coverage: partial-client-snapshot`, candidate/record limits and truncation even
+when records are empty; empty must not be read as proof that risks/records do not
+exist. UI also states limited/experimental coverage. Cancellation/deadline/scope
+ownership from the text consumer remains in force across helper import and model.
+
+```bash
+npm run test:ci -- src/components/ai/textQueryContext.test.ts src/components/ai/GuardianVoiceAssistant.text.test.tsx
+```
+
+Chromium tests the real helper/widget/client/API/prompt-builder/dispatcher/fetch
+chain with mixed-project record fixtures. The provider HTTP observer asserts the
+correct record marker/ID arrives in actual model messages and foreign/creator
+metadata does not. Local calls have no semantic RPC; a later Enter query still
+uses its explicit legacy retrieval. Cancellation, project switch, stalled auth
+and a newer pending query are exercised on the new local action. Identity,
+quota, legal corpus and legacy retrieval remain fixtures; no live model/IAM,
+Android, corpus recall equivalence or deployment proof.
+
+“Local” describes **context selection**, not inference on-device or no egress:
+the question and selected context still go to the backend-configured model,
+which may itself be Gemini. Native legal retrieval/provider policy are unchanged.
+No BYOK custody, new consent authorization, global Google independence, MCP-host
+integration, billing-stop or safety/legal certification is claimed.
+
 ## 5. Observe
 
 - `GET /api/admin/circuit-state` → breaker states (`gemini`, `selfhosted`)

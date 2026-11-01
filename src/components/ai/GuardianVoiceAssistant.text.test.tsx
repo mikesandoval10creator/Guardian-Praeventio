@@ -6,10 +6,10 @@ import {MemoryRouter,useNavigate} from 'react-router-dom';
 const H=vi.hoisted(()=>({
  chat:vi.fn(async(..._args:[string,string,unknown[]?,number?,string?,{signal?:AbortSignal}?])=>'fixture-response'),
  search:vi.fn(async(..._args:[string,unknown[],number?,string?,{signal?:AbortSignal}?]):Promise<unknown[]>=>[]),
- audio:vi.fn(),plan:vi.fn(),addNode:vi.fn(),error:vi.fn(),start:vi.fn(),stop:vi.fn(),offline:vi.fn(()=> 'respuesta-local'),save:vi.fn(async(_query:string)=>undefined),project:'project-a',uid:'user-a',online:true,
+ audio:vi.fn(),plan:vi.fn(),addNode:vi.fn(),error:vi.fn(),start:vi.fn(),stop:vi.fn(),offline:vi.fn(()=> 'respuesta-local'),save:vi.fn(async(_query:string)=>undefined),project:'project-a',uid:'user-a',online:true,nodes:[] as unknown[],
 }));
 vi.mock('../../services/geminiService',()=>({getChatResponse:H.chat,semanticSearch:H.search,detectAsesorDomain:()=> 'sst',processAudioWithAI:H.audio,generateActionPlan:H.plan}));
-vi.mock('../../hooks/useRiskEngine',()=>({useRiskEngine:()=>({nodes:[],addNode:H.addNode,addConnection:vi.fn()})}));
+vi.mock('../../hooks/useRiskEngine',()=>({useRiskEngine:()=>({nodes:H.nodes,addNode:H.addNode,addConnection:vi.fn()})}));
 vi.mock('../../hooks/useAmbientNoise',()=>({useAmbientNoise:()=>({noiseLevel:30,startListening:H.start,stopListening:H.stop})}));
 vi.mock('../../contexts/ProjectContext',()=>({useProject:()=>({selectedProject:{id:H.project}})}));
 vi.mock('../../contexts/FirebaseContext',()=>({useFirebase:()=>({user:{uid:H.uid}})}));
@@ -25,9 +25,26 @@ function NavigationProbe(){const navigate=useNavigate();return <button onClick={
 const ui=()=> <MemoryRouter initialEntries={['/risks']}><NavigationProbe/><GuardianVoiceAssistant/></MemoryRouter>;
 function open(view:ReturnType<typeof render>){const button=view.container.querySelector('.fixed > button');if(!button)throw new Error('Missing assistant trigger');fireEvent.click(button);}
 function send(query='consulta-fixture'){const input=screen.getByPlaceholderText('O escribe tu consulta aquí...');fireEvent.change(input,{target:{value:query}});fireEvent.keyDown(input,{key:'Enter',code:'Enter'});}
-beforeEach(()=>{vi.clearAllMocks();H.chat.mockReset().mockResolvedValue('fixture-response');H.search.mockReset().mockResolvedValue([]);H.audio.mockReset();H.save.mockReset().mockResolvedValue(undefined);H.offline.mockReset().mockReturnValue('respuesta-local');H.project='project-a';H.uid='user-a';H.online=true;});
+beforeEach(()=>{vi.clearAllMocks();H.chat.mockReset().mockResolvedValue('fixture-response');H.search.mockReset().mockResolvedValue([]);H.audio.mockReset();H.save.mockReset().mockResolvedValue(undefined);H.offline.mockReset().mockReturnValue('respuesta-local');H.project='project-a';H.uid='user-a';H.online=true;H.nodes=[];});
 afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();});
 describe('owned text-query UI lifecycle (not voice processing)',()=>{
+ it('does not retry local empty retrieval through the external semantic path',async()=>{
+  const view=render(ui());open(view);fireEvent.change(screen.getByPlaceholderText('O escribe tu consulta aquí...'),{target:{value:'altura'}});fireEvent.click(screen.getByRole('button',{name:'Consultar con contexto local (experimental)'}));await screen.findByText('fixture-response');expect(H.search).not.toHaveBeenCalled();expect(JSON.parse(H.chat.mock.calls[0][1]).records).toEqual([]);expect(screen.getByRole('status').textContent).toContain('0 registros');
+ });
+ it('does not retry a local generation failure through semantic retrieval',async()=>{
+  H.chat.mockRejectedValueOnce(new Error('controlled-failure'));const view=render(ui());open(view);fireEvent.change(screen.getByPlaceholderText('O escribe tu consulta aquí...'),{target:{value:'altura'}});fireEvent.click(screen.getByRole('button',{name:'Consultar con contexto local (experimental)'}));await screen.findByText('Hubo un error al procesar tu solicitud.');expect(H.search).not.toHaveBeenCalled();expect(H.chat).toHaveBeenCalledOnce();
+ });
+ it('retires an old local response without releasing a new local query',async()=>{
+  let releaseA:(v:string)=>void=()=>undefined,releaseB:(v:string)=>void=()=>undefined;const a=new Promise<string>(r=>{releaseA=r;}),b=new Promise<string>(r=>{releaseB=r;});H.chat.mockReturnValueOnce(a).mockReturnValueOnce(b);const view=render(ui());open(view);const local=()=>{fireEvent.change(screen.getByPlaceholderText('O escribe tu consulta aquí...'),{target:{value:'altura'}});fireEvent.click(screen.getByRole('button',{name:'Consultar con contexto local (experimental)'}));};local();
+  try{await waitFor(()=>expect(H.chat).toHaveBeenCalledTimes(1));fireEvent.click(screen.getByRole('button',{name:'Detener espera'}));expect(H.chat.mock.calls[0][5]?.signal?.aborted).toBe(true);local();await waitFor(()=>expect(H.chat).toHaveBeenCalledTimes(2));await act(async()=>{releaseA('late-local');await a;});expect(screen.getByText('Analizando tu consulta...')).toBeTruthy();expect(screen.queryByText('late-local')).toBeNull();await act(async()=>{releaseB('fresh-local');await b;});expect(screen.getByText('fresh-local')).toBeTruthy();expect(H.search).not.toHaveBeenCalled();}
+  finally{await act(async()=>{releaseA('cleanup');releaseB('cleanup');await Promise.all([a,b]);});}
+ });
+ it('does not start local-model work without a selected project',()=>{
+  H.project='';const view=render(ui());open(view);fireEvent.change(screen.getByPlaceholderText('O escribe tu consulta aquí...'),{target:{value:'altura'}});const button=screen.getByRole('button',{name:'Consultar con contexto local (experimental)'});expect(button.hasAttribute('disabled')).toBe(true);fireEvent.click(button);expect(H.chat).not.toHaveBeenCalled();expect(H.search).not.toHaveBeenCalled();expect(screen.getByText(/Selecciona un proyecto/)).toBeTruthy();
+ });
+ it('sends experimental local context directly to chat without semantic retrieval',async()=>{
+  H.nodes=[{id:'record-local',projectId:'project-a',title:'Altura',description:'context-fixture-local',type:'risk'}];const view=render(ui());open(view);fireEvent.change(screen.getByPlaceholderText('O escribe tu consulta aquí...'),{target:{value:'altura'}});fireEvent.click(screen.getByRole('button',{name:'Consultar con contexto local (experimental)'}));await screen.findByText('fixture-response');expect(H.search).not.toHaveBeenCalled();expect(H.chat).toHaveBeenCalledOnce();const context=JSON.parse(H.chat.mock.calls[0][1]);expect(context.records[0].id).toBe('record-local');expect(context.records[0].description).toBe('context-fixture-local');expect(screen.getByRole('status').textContent).toContain('experimental');
+ });
  it.each(['project','close','unmount'])('does not let a stale microphone grant after %s retire the new text owner',async(boundary)=>{
   const descriptor=Object.getOwnPropertyDescriptor(navigator,'mediaDevices');const trackStop=vi.fn(),stream={getTracks:()=>[{stop:trackStop}]};let grant:(value:typeof stream)=>void=()=>undefined;const permission=new Promise<typeof stream>(resolve=>{grant=resolve;});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:()=>permission}});const recorders:RecorderFixture[]=[];class RecorderFixture{stream=stream;state='inactive';onstop?:()=>void;constructor(){recorders.push(this);}start(){this.state='recording';}stop(){if(this.state!=='recording')return;this.state='inactive';this.onstop?.();}}vi.stubGlobal('MediaRecorder',RecorderFixture);H.audio.mockResolvedValue({text:'cleanup-audio'});
   let release:(value:string)=>void=()=>undefined;const text=new Promise<string>(resolve=>{release=resolve;});H.chat.mockReturnValueOnce(text);let view=render(ui());open(view);const mic=view.container.querySelector('svg.lucide-mic')?.closest('button');if(!mic)throw new Error('Missing mic control');fireEvent.mouseDown(mic);

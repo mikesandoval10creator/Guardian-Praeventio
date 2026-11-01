@@ -423,6 +423,14 @@ de un slice no certifica la retirada global de Gemini ni el MCP multiusuario.
   Chromium prueba widget/cliente/API/proveedor HTTP reales con datos/identidad
   fixture. No migra el Asesor resiliente, custodia, permisos/voz ni cola global;
   semanticSearch legacy todavía puede depender de embeddings Google.
+- El mismo widget añade una acción **opt-in experimental** de contexto léxico
+  local, sin la preconsulta `semanticSearch`, manteniendo Enter/búsqueda del
+  servidor. Proyección del caché cliente, filtrada por proyecto, redactada y
+  limitada; no reemplaza autorización, un escaneo completo ni recall semántico.
+  La pregunta y selección siguen llegando al modelo configurado. Chromium
+  verifica marcadores de los registros hasta mensajes HTTP reales del proveedor
+  fixture, ausencia de preconsulta y conservación del recorrido anterior.
+  No se cambia el default ni se acredita independencia global de Google/BYOK.
 - Siguen abiertos custodia BYOK multiusuario, rotación/revocación, aislamiento y
   cuotas/coste distribuidos, host/conectividad real y aceptación con modelos y
   datos autorizados. Nada de lo anterior habilita staging/producción o certifica
