@@ -67,9 +67,27 @@ ruta contra el checkout de `main`: **434 (92.5%) apuntan a archivos que existen*
 nombre de archivo (`file:296`) que se resuelve por el encabezado de sesión.
 **Conclusión: el backlog Hy3 no está mayoritariamente muerto** —corrige la
 estimación del ~35% de archivos fantasma del 23-ago— y el problema no es el
-volumen falso sino el **volumen real sin triage por severidad**. La existencia
-del archivo no prueba que el defecto siga presente: falta revalidación por
-contenido antes de atacar cada ticket.
+volumen falso sino el **volumen real sin triage por severidad**.
+
+**Segunda pasada — clasificación por contenido** (no solo existencia): de esos
+469, **201 son REALES** (el defecto descrito sigue presente en el código actual),
+**212 son DRIFT** (el archivo existe pero la línea cambió o el caso ya está
+cubierto) y **56 no son comparables** (la spec no trae código verbatim). Por
+subsistema: `emergency/` concentra 113 hallazgos, `mesh/` 20, `sensorBus/` 2, y el
+resto se reparte entre hooks, servicios, rutas y librerías. Confirmación manual
+de dos hallazgos «REAL» por muestreo: el mock de
+`src/components/emergency/GeofenceAlert.test.tsx` solo devuelve
+`permissionState: 'granted'` y nunca `'unavailable'`, y
+`src/services/emergency/sosOutbox.indexeddb.ts` documenta en su propio encabezado
+el uso de *«unencrypted idb-keyval»*. Es decir: **quedan 201 defectos con
+evidencia de archivo y línea, 113 de ellos en el frente de vida-safety**, que es
+el trabajo real que sigue. El detalle por ticket queda en
+`C:/Users/Usuario/AppData/Local/hermes/cache/scratch/hy3-content-revalidation.json`
+(469 registros) y no se promueve a este documento ni al ledger.
+
+**Prioridad de ataque:** primero `emergency/`, `mesh/`, `sensorBus/`,
+`loneWorker/`, `firestore.rules` y permisos. Cada lote es un slice con test y
+CI, agrupando tickets que tocan el mismo archivo para no abrir 201 PRs sueltos.
 
 Los estados GitHub son un corte temporal, no una orden automática de merge. No
 se volvió a consultar el estado de #1869, #1870 y #1871 en esta actualización; no
