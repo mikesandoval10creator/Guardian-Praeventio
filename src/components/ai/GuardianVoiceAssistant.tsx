@@ -185,8 +185,9 @@ export function GuardianVoiceAssistant() {
     setPendingPrompt(null);
   };
 
-  const handleProcessText = async () => {
+  const handleProcessText = async (mode: 'legacy' | 'local' = 'legacy') => {
     if (isProcessing || isRecording || activeText.current || !textInput.trim()) return;
+    if (mode === 'local' && !selectedProject?.id) { setTextNotice('Selecciona un proyecto para usar contexto local.'); return; }
     
     const query = textInput;
     setTextInput('');
@@ -235,12 +236,21 @@ export function GuardianVoiceAssistant() {
         const { getChatResponse, semanticSearch, detectAsesorDomain } = await import('../../services/geminiService');
         if (!owns()) return;
         
-        // Get top 5 most relevant nodes, scoped to the current project
-        const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id, { signal: owner.controller.signal });
-        if (!owns()) return;
-        const context = relevantNodes.length > 0 
-          ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
-          : "Usuario consultando al Guardián AI."; 
+        let context: string;
+        if (mode === 'local') {
+          const { localProjectTextContext } = await import('./textQueryContext');
+          if (!owns()) return;
+          const local = localProjectTextContext(query, nodes, selectedProject?.id);
+          if (!owns()) return;
+          context = local.context;
+          setTextNotice(`Contexto local experimental: ${local.selectedCount} registros en una selección limitada. No es búsqueda semántica ni una revisión completa.`);
+        } else {
+          const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id, { signal: owner.controller.signal });
+          if (!owns()) return;
+          context = relevantNodes.length > 0
+            ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
+            : "Usuario consultando al Guardián AI.";
+        }
         
         // Coach IA por dominio — el Asesor se especializa según la ruta actual.
         const domain = detectAsesorDomain(
@@ -540,7 +550,8 @@ export function GuardianVoiceAssistant() {
                       className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50"
                     />
                     <button
-                      onClick={handleProcessText}
+                      onClick={() => handleProcessText()}
+                      aria-label={onlineStatus ? 'Consultar con búsqueda del servidor' : 'Consultar sin conexión'}
                       disabled={!textInput.trim()}
                       className={`p-2 rounded-xl flex items-center justify-center transition-colors ${
                         textInput.trim() ? (onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white') : 'bg-zinc-100 dark:bg-white/5 text-zinc-500'
@@ -549,6 +560,11 @@ export function GuardianVoiceAssistant() {
                       <Send className="w-5 h-5" />
                     </button>
                   </div>
+                  {onlineStatus && <>
+                    {!selectedProject?.id && <p className="text-xs text-zinc-500 mt-2">Selecciona un proyecto para usar contexto local.</p>}
+                    <button type="button" onClick={() => handleProcessText('local')} disabled={!textInput.trim() || !selectedProject?.id} className="w-full mt-3 py-2 text-xs underline disabled:opacity-40">Consultar con contexto local (experimental)</button>
+                    <p className="mt-2 text-[11px] text-zinc-500">Enviar o Enter usa búsqueda del servidor, que puede usar embeddings externos. La opción local evita esa búsqueda; la pregunta y el contexto seleccionado se envían igualmente al modelo configurado.</p>
+                  </>}
                 </div>
               )}
             </div>
