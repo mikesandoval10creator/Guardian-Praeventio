@@ -122,6 +122,20 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Install pinned Rust toolchain for experimental layout
+        run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-unknown-unknown
+
+      - name: Fetch locked Rust dependencies (network stage only)
+        working-directory: wasm/force-graph-layout
+        run: cargo fetch --locked
+
+      - name: Build and verify experimental WASM (not activated)
+        run: |
+          npm run layout-wasm:build
+          npm run test:layout-wasm
+        env:
+          LAYOUT_WASM_REQUIRED: '1'
+
       - name: Install Firebase tools (emulator)
         run: npm install -g firebase-tools@13
 
@@ -161,6 +175,7 @@ jobs:
         run: npx cross-env E2E_FULL_STACK=1 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GOOGLE_CLOUD_PROJECT=demo-test E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod playwright test --project=chromium
         env:
           CI: 'true'
+          LAYOUT_WASM_REQUIRED: '1'
 
       - name: Upload Playwright HTML report on failure
         if: failure()

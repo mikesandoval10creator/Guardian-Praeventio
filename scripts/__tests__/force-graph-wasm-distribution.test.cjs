@@ -86,6 +86,6 @@ test('package.json wires the build and contract-test commands', () => {
   assert.equal(pkg.scripts['layout-wasm:build'], 'node scripts/build-force-graph-wasm.mjs');
   assert.equal(
     pkg.scripts['test:layout-wasm'],
-    'node --test scripts/__tests__/force-graph-wasm-distribution.test.cjs scripts/__tests__/force-graph-wasm-memory-bound.test.cjs',
+    'node --test scripts/__tests__/force-graph-wasm-distribution.test.cjs scripts/__tests__/force-graph-wasm-memory-bound.test.cjs scripts/__tests__/layout-wasm-gate.test.cjs',
   );
 });
