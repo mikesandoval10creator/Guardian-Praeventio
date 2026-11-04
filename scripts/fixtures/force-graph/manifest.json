@@ -1,0 +1,34 @@
+{
+  "provenance": "Shared deterministic graph inputs from force-graph-rust-parity-20261027 lab; byte-identical inputs, not stored results or a frozen algorithm reference.",
+  "absoluteTolerance": 1e-06,
+  "relativeTolerance": 1e-09,
+  "fixtures": [
+    {
+      "file": "fixtures-100.json",
+      "sha256": "b6461d3ef43f7ed0b0bc02beb153fe12823aeef59cb8d8505e0886c49c30b157",
+      "sizeBytes": 5649,
+      "nodes": 100,
+      "links": 99,
+      "iterations": 60,
+      "dim": 2
+    },
+    {
+      "file": "fixtures-1000.json",
+      "sha256": "9dc58eae0477d38e836bf081de129de151950785122fee8e329af1bdffa7ea03",
+      "sizeBytes": 59301,
+      "nodes": 1000,
+      "links": 999,
+      "iterations": 60,
+      "dim": 2
+    },
+    {
+      "file": "fixtures-10000.json",
+      "sha256": "63abe81793f7e375ba88ac9f04d1b5127c8e1794f9bf32aa38175fba9fc9f420",
+      "sizeBytes": 622825,
+      "nodes": 10000,
+      "links": 9999,
+      "iterations": 60,
+      "dim": 2
+    }
+  ]
+}
