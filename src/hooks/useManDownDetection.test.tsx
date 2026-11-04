@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
+import { createElement, StrictMode } from 'react';
 
 const h = vi.hoisted(() => ({
   state: {
@@ -91,13 +92,14 @@ function publishToBus(
   kind: 'fall' | 'ble_proximity' | 'inactivity' | 'battery',
   severity: 'info' | 'warning' | 'critical',
   workerUid = 'u1',
+  projectId = 'p1',
 ) {
   useSensorBus.getState().publishReading({
     readingId: `test-${kind}-${Date.now()}-${Math.random()}`,
     kind,
     severity,
     workerUid,
-    projectId: 'p1',
+    projectId,
     at: new Date().toISOString(),
   });
 }
@@ -284,13 +286,126 @@ describe('useManDownDetection — acknowledge', () => {
 });
 
 describe('useManDownDetection — sensorBus correlation (TODO.md §16.2.1)', () => {
+  it.each(['cancel', 'stop', 'native', 'unmount'] as const)('%s still clears an origin-pinned countdown after switching sites', async (action) => {
+    const { result, rerender, unmount } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(31);
+    h.state.project = { id: 'p2', name: 'Other site', settings: {} };
+    rerender();
+    act(() => {
+      if (action === 'cancel') result.current.cancelCountdown();
+      else if (action === 'stop') result.current.stopDetection();
+      else if (action === 'native') setNativeManDownActive(true);
+      else unmount();
+    });
+    await tickSeconds(10);
+    expect(h.triggerEmergency).not.toHaveBeenCalled();
+    expect(h.addDoc).not.toHaveBeenCalled();
+  });
+
+  it('accepts fresh same-project corroboration after a context switch', async () => {
+    const { result, rerender } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(1);
+    h.state.project = { id: 'p2', name: 'Other site', settings: {} };
+    rerender();
+    act(() => {
+      publishToBus('fall', 'critical', 'u1', 'p2');
+      publishToBus('ble_proximity', 'warning', 'u1', 'p2');
+    });
+    await tickSeconds(30);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_CRITICAL_S);
+    await tickSeconds(5);
+    expect(h.triggerEmergency).toHaveBeenCalledWith('man_down', 'p2');
+  });
+
+  it('dispatches a countdown expiry once under React StrictMode replay', async () => {
+    const { result } = renderHook(() => useManDownDetection(), {
+      wrapper: ({ children }) => createElement(StrictMode, null, children),
+    });
+    act(() => result.current.startDetection());
+    await tickSeconds(42);
+    expect(h.triggerEmergency).toHaveBeenCalledTimes(1);
+    expect(h.addDoc).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not postpone physical inactivity when switching projects before suspicion', async () => {
+    const { result, rerender } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(20);
+    h.state.project = { id: 'p2', name: 'Other site', settings: {} };
+    rerender();
+    await tickSeconds(11);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+    await tickSeconds(10);
+    expect(h.triggerEmergency).toHaveBeenCalledWith('man_down', 'p2');
+  });
+
+  it('does not reuse old evidence when switching away and back while detection is active', async () => {
+    const { result, rerender } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    act(() => {
+      publishToBus('fall', 'critical');
+      publishToBus('ble_proximity', 'warning');
+    });
+    await tickSeconds(1);
+    h.state.project = { id: 'p2', name: 'Other site', settings: {} };
+    rerender();
+    await tickSeconds(1);
+    h.state.project = { id: 'p1', name: 'Mina X', settings: {} };
+    rerender();
+    await tickSeconds(29);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+  });
+
+  it('preserves a running countdown and dispatches only to its original project after a selection change', async () => {
+    const { result, rerender } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    h.state.project = { id: 'p2', name: 'Other site', settings: {} };
+    rerender();
+    await tickSeconds(10);
+    expect(h.triggerEmergency).toHaveBeenCalledTimes(1);
+    expect(h.triggerEmergency).toHaveBeenCalledWith('man_down', 'p1');
+    expect(h.addDoc.mock.calls.find((call) => call[1]?.workerId)?.[1]?.projectId).toBe('p1');
+  });
+
+  it('uses the active project even with complete corroboration and other-project readings on the bus', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    act(() => {
+      publishToBus('fall', 'critical', 'u1', 'other');
+      publishToBus('fall', 'critical');
+      publishToBus('ble_proximity', 'warning');
+    });
+    await tickSeconds(31);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_CRITICAL_S);
+  });
+
+  it('never shortens the countdown using an impact from another project', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    act(() => {
+      publishToBus('fall', 'critical', 'u1', 'other');
+      publishToBus('ble_proximity', 'warning');
+    });
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+    act(() => result.current.cancelCountdown());
+    expect(h.triggerEmergency).not.toHaveBeenCalled();
+  });
+
   it('publishes the sustained-immobility evidence to the bus when the alert raises', async () => {
     const { result } = renderHook(() => useManDownDetection());
     act(() => result.current.startDetection());
-    expect(useSensorBus.getState().readings.get('u1::inactivity')).toBeUndefined();
+    expect(useSensorBus.getState().readings.get(JSON.stringify(['p1', 'u1', 'inactivity']))).toBeUndefined();
     await tickSeconds(31);
     expect(result.current.isAlerting).toBe(true);
-    const r = useSensorBus.getState().readings.get('u1::inactivity');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'u1', 'inactivity']));
     expect(r).toBeDefined();
     expect(r?.severity).toBe('warning');
     expect(r?.projectId).toBe('p1');
@@ -355,7 +470,7 @@ describe('useManDownDetection — sensorBus correlation (TODO.md §16.2.1)', () 
       await act(async () => {
         result.current.startDetection();
       });
-      const batt = useSensorBus.getState().readings.get('u1::battery');
+      const batt = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'u1', 'battery']));
       expect(batt).toBeDefined();
       expect(batt?.severity).toBe('critical');
       expect(batt?.value).toBe(0.05);

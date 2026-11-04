@@ -44,7 +44,7 @@ import { useSensorBus } from '../services/sensorBus/sensorBus';
 import { LOCAL_DEVICE_UID } from '../services/sensorBus/manDownCorrelation';
 
 function busReading(kind: 'ble_proximity') {
-  return useSensorBus.getState().readings.get(`${LOCAL_DEVICE_UID}::${kind}`);
+  return useSensorBus.getState().readings.get(JSON.stringify([LOCAL_DEVICE_UID, LOCAL_DEVICE_UID, kind]));
 }
 
 beforeEach(() => {

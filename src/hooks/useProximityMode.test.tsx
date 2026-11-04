@@ -94,7 +94,7 @@ describe('useProximityMode — engine wiring', () => {
     expect(result.current.policy.fallDetectionMultiplier).toBe(1.0);
     expect(result.current.policy.suppressAccidentalTaps).toBe(false);
     // No transition happened → nothing on the bus.
-    expect(useSensorBus.getState().readings.get('w1::device_mode')).toBeUndefined();
+    expect(useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']))).toBeUndefined();
   });
 
   it('proximity near + face-down accel → face_down mode, warning published to the bus', async () => {
@@ -113,7 +113,7 @@ describe('useProximityMode — engine wiring', () => {
     expect(result.current.policy.promptManualCheckin).toBe(true);
     expect(result.current.policy.fallDetectionMultiplier).toBe(2.0);
 
-    const r = useSensorBus.getState().readings.get('w1::device_mode');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']));
     expect(r).toBeDefined();
     expect(r?.severity).toBe('warning');
     expect(r?.projectId).toBe('p1');
@@ -141,7 +141,7 @@ describe('useProximityMode — engine wiring', () => {
     expect(result.current.policy.suppressAccidentalTaps).toBe(true);
     expect(result.current.policy.fallDetectionMultiplier).toBe(1.3);
 
-    const r = useSensorBus.getState().readings.get('w1::device_mode');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']));
     expect(r?.severity).toBe('info');
     expect(r?.meta).toMatchObject({ mode: 'in_pocket' });
   });
@@ -174,14 +174,14 @@ describe('useProximityMode — engine wiring', () => {
       result.current.pushAccelSample(sampleMs2(1.0, { y: -0.95 }));
       fake.emit('near');
     });
-    expect(useSensorBus.getState().readings.get('w1::device_mode')?.severity).toBe('warning');
+    expect(useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']))?.severity).toBe('warning');
 
     act(() => {
       fake.emit('far');
     });
 
     expect(result.current.modeState.currentMode).toBe('normal');
-    const r = useSensorBus.getState().readings.get('w1::device_mode');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']));
     expect(r?.severity).toBe('info');
     expect(r?.meta).toMatchObject({ mode: 'normal' });
   });
@@ -197,14 +197,14 @@ describe('useProximityMode — engine wiring', () => {
       result.current.pushAccelSample(sampleMs2(1.0, { y: -0.95 }));
       fake.emit('near');
     });
-    const first = useSensorBus.getState().readings.get('w1::device_mode');
+    const first = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']));
     expect(first?.meta).toMatchObject({ mode: 'face_down' });
 
     act(() => {
       // Same face-down evidence again → same mode → no new bus reading.
       result.current.pushAccelSample(sampleMs2(1.0, { y: -0.95 }));
     });
-    const second = useSensorBus.getState().readings.get('w1::device_mode');
+    const second = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'device_mode']));
     expect(second?.readingId).toBe(first?.readingId);
     // Stickiness: enteredAt is preserved across re-classification.
     expect(result.current.modeState.currentMode).toBe('face_down');

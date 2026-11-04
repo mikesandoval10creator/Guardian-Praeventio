@@ -190,7 +190,7 @@ describe('FallDetectionMonitor — proximity carry-mode consumer (D1 wiring)', (
     await waitFor(() => expect(capturedThreshold).toBeCloseTo(25 / 1.3, 2));
 
     // The transition also reached the central bus (established §16.2.1 pattern).
-    const r = useSensorBus.getState().readings.get('user_test_001::device_mode');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['proj_test_001', 'user_test_001', 'device_mode']));
     expect(r).toBeDefined();
     expect(r?.severity).toBe('info');
     expect(r?.meta).toMatchObject({ mode: 'in_pocket' });
@@ -213,7 +213,7 @@ describe('FallDetectionMonitor — proximity carry-mode consumer (D1 wiring)', (
       capturedOnFallDetected?.();
     });
 
-    const fall = useSensorBus.getState().readings.get('user_test_001::fall');
+    const fall = useSensorBus.getState().readings.get(JSON.stringify(['proj_test_001', 'user_test_001', 'fall']));
     expect(fall).toBeDefined();
     expect(fall?.meta).toMatchObject({ deviceMode: 'in_pocket' });
   });
