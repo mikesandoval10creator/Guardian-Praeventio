@@ -205,13 +205,13 @@ describe('FallDetectionMonitor — H6 SOS dispatcher wire-up', () => {
 
   it('publishes the impact to the sensorBus the moment the fall is detected (TODO.md §16.2.1)', () => {
     render(<FallDetectionMonitor />);
-    expect(useSensorBus.getState().readings.get('user_test_001::fall')).toBeUndefined();
+    expect(useSensorBus.getState().readings.get(JSON.stringify(['proj_test_001', 'user_test_001', 'fall']))).toBeUndefined();
 
     triggerFall();
 
     // Published BEFORE the user answers the modal — the correlation engine
     // needs the raw impact even if the worker later cancels.
-    const r = useSensorBus.getState().readings.get('user_test_001::fall');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['proj_test_001', 'user_test_001', 'fall']));
     expect(r).toBeDefined();
     expect(r?.severity).toBe('critical');
     expect(r?.projectId).toBe('proj_test_001');
