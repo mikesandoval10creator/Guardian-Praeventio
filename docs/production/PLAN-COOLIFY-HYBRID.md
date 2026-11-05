@@ -1,9 +1,9 @@
 # Plan de producción híbrida — Guardian Praeventio
 
-**Estado:** plan reconciliado con los acuerdos de Daniel; ejecución funcional pendiente de retomar.
-**Creado:** 2026-10-26 · **Actualizado:** 2026-10-27
+**Estado:** plan reconciliado con los acuerdos de Daniel; ejecución funcional en curso (Etapa E abierta).
+**Creado:** 2026-10-26 · **Actualizado:** 2026-11-01
 **Base histórica:** `c11b4308`; no representa el HEAD actual.
-**Snapshot de esta actualización documental:** rama `fix/recover-technical-debt-20261027`, HEAD `5417fae4d6d61220dca75d6b3ad9d28d9f900ce3`.
+**Snapshot de esta actualización documental:** `main` en `01c61cad` (PR #1897 integrado).
 
 ## Continuidad y alcance vigente
 
@@ -13,14 +13,22 @@ los documentos existentes; no inicia implementación, instala herramientas, crea
 infraestructura, fusiona PRs ni autoriza producción por sí sola. Las propuestas
 siguen siendo propuestas hasta su implementación y verificación.
 
-- **Workspace de desarrollo:** `M:/Guardian Praeventio/repo-live`. Preservar el
-  checkout de C y el trabajo conjunto existente; no usar `reset --hard`, `clean`
-  ni sincronizaciones destructivas para recuperar contexto.
+- **Workspace de desarrollo:** el checkout canónico de `main` es
+  `M:/Guardian Praeventio/wt-knowledge-graph-layout-20261027` (`01c61cad`, limpio,
+  Graphify en sync). `M:/Guardian Praeventio/repo-live` queda preservado y
+  **restaurado** (85 archivos de `packages/capacitor-*` y 4 documentos de
+  `docs/production/` que estaban borrados o editados por debajo de `main`);
+  su rama local `fix/recover-technical-debt-20261027` está superada: sus 6
+  commits ya entraron a `main` por el squash de #1874 y no aporta ningún archivo
+  exclusivo. Preservar el checkout de C y el trabajo conjunto existente; no usar
+  `reset --hard`, `clean` ni sincronizaciones destructivas para recuperar contexto.
 - **Dirección:** arquitectura híbrida y reversible, Zettelkasten como tejido causal,
   gateway LLM/MCP, digital twin/AR operativo y adopción incremental de lenguajes.
   No reiniciar una planificación genérica ni relegar Rust a después de Coolify.
-- **Orden inmediato:** reconciliar la base de integración pendiente y después
-  retomar la implementación equivalente Rust del worker. Los pasos técnicos y
+- **Orden inmediato (2026-11-01):** cerrar la **Etapa E** con la deuda técnica
+  verificada de Notion, decidir la **adopción del WASM** sobre la implementación
+  Rust ya existente, y dejar la **Etapa F** (staging/despliegue) para el final,
+  cuando Daniel pueda pagar la consola de Google. Los pasos técnicos y
   criterios de salida se definen en «Orden de ejecución vigente».
 - **Herramientas:** Vite+ debe usarse en los comandos reales; REA, Graphify, Notion
   y Obsidian conservan sus funciones complementarias. Sus instalaciones o notas
@@ -28,24 +36,76 @@ siguen siendo propuestas hasta su implementación y verificación.
 
 ### Estado de partida, no certificado de producto completo
 
-| Frente | Evidencia recuperada y comprobada el 2026-10-27 | Trabajo que sigue pendiente |
+**Reconciliación del 2026-11-01 contra `main` en `01c61cad`.** La tabla del
+27-oct quedó obsoleta en cuatro frentes; esta versión los corrige con evidencia
+verificada físicamente. El resto de la tabla se conserva como histórico.
+
+| Frente | Evidencia verificada el 2026-11-01 | Trabajo que sigue pendiente |
 |---|---|---|
-| Base compartida | #1874 publicado en borrador, `DIRTY`, sin checks reportados; cinco archivos sin resolver en el worktree de integración | Reconciliar con los cambios ya fusionados sin perder nuestras correcciones; gates y CI del SHA resultante |
-| Zettelkasten y clima | #1866 y #1867 `MERGED` | Validar los productores/consumidores restantes y sus recorridos reales; no repetir arreglos antiguos ni declarar convergencia global |
-| Vite+ | #1868 `MERGED`; adopción inicial integrada | Usarlo en cada slice y verificar runner, runtime y gates actuales; conservar comparación explícita con el runner anterior cuando corresponda |
-| Resiliencia | #1872 y #1873 `MERGED` | Reconciliar su solapamiento con #1874; merge no equivale a cero leaks ni a cancelación de cualquier adapter |
-| Rust y Go | Instalación autorizada por Daniel el 26 de octubre; `rustc/cargo 1.99.1`, `go1.27.3 windows/amd64` comprobados por ruta absoluta | Implementar equivalencia Rust del algoritmo, no reinstalar toolchains ni confundir un probe con el motor terminado |
-| Comparación del grafo | Fixtures compartidos 100/1.000/10.000 y mediciones TypeScript conservados; prototipo Rust inspeccionado carga y valida los fixtures | Dinámica equivalente, tolerancia numérica, WASM real y medición end-to-end; pool productivo aún no acreditado |
-| Gateway LLM/MCP | Adapters y resolver backend parciales documentados en `LOCAL-WORK-CONTINUITY.md` | Almacén seguro de claves, aislamiento completo, cuotas/fallback y MCP multiusuario autenticado; no declararlos terminados |
-| Coolify, datos y auth | Contrato inicial documentado | Fuente de verdad de imágenes/pipeline, backend/proxy real, adapters, staging, restauración y rollback; despliegue no acreditado |
+| Base compartida | **CERRADA.** #1874 integrado (`d2dfaa53`, 28-oct); `main` reconciliado. Las 3 ramas locales con trabajo aparente (`feat/go-dte-worker-20261028`, `feat/rust-engine-version-telemetry`, `test/graph-layout-rollback-drill-20261028`) tienen patch-id ya presente en `main`; `fix/debt-main-integration-20261027` no aporta **ningún** archivo exclusivo frente a `main` | Ninguno. Retirar ramas/worktrees redundantes solo con autorización expresa de Daniel |
+| Zettelkasten y clima | #1866 y #1867 `MERGED`; #1890 integró relaciones tipadas opt-in en el análisis del cliente | Validar productores/consumidores restantes y sus recorridos reales; no repetir arreglos antiguos ni declarar convergencia global |
+| Vite+ | #1868 `MERGED`; `npm run test:ci` (`vp test run`) es el runner canónico | Verificar runner, runtime y gates actuales en cada slice; conservar comparación explícita con el runner anterior cuando corresponda |
+| Resiliencia | #1872 y #1873 `MERGED`; #1874 reconcilió el solapamiento | Reconciliar su solapamiento con #1874; merge no equivale a cero leaks ni a cancelación de cualquier adapter |
+| Rust y Go | `rustc/cargo 1.99.1` y `go1.27.3 windows/amd64` en PATH. **El motor Rust YA IMPLEMENTA la dinámica equivalente**: `wasm/force-graph-layout/src/bin/force_graph_layout.rs` (quadtree/Barnes–Hut, carga repulsiva, enlaces con sesgo por grado, centrado, colisiones, enfriamiento, amortiguación, PRNG determinista), ABI estable, memoria dura 32 MiB por VM, cap de entrada 8 MiB, build reproducible `--locked --offline` con SHA-256. Laboratorio con **11 casos diferenciales** contra `runSimulation()` real y benchmark de Workers en Chromium (`labs/force-graph-rust-parity-20261027`, manifest hasheado) | **Solo la decisión, no la implementación.** Falta: benchmark comparativo Rust/WASM vs TypeScript en el repo con p50/p95/p99, tolerancia numérica explícita, beneficio mínimo acordado, revisión independiente y rollback probado |
+| Comparación del grafo | `scripts/benchmarks/force-graph-ts-baseline.ts` conserva la línea base TypeScript; fixtures 100/1.000/10.000 compartidos | El único baseline versionado en el repo es TypeScript. El comparativo Rust/WASM **no está commiteado**: es lo que falta para decidir |
+| Gateway LLM/MCP | Etapa E en ejecución: #1890–#1897 integrados (relaciones tipadas, minimización de texto, puente MCP autenticado, formularios guiados, límites HTTP, cancelación del caller, «Detener espera», contexto local opt-in) | Custodia BYOK multiusuario, rotación/revocación, aislamiento y cuotas/coste por tenant, host MCP externo, y **retirar la dependencia legacy de Google en la búsqueda semántica** (`semanticSearch` sigue pudiendo usar embeddings de Google) |
+| Coolify, datos y auth | Contrato operacional cerrado (decisiones 1/2/3 + guards ejecutables en `scripts/__tests__/ops-contract.test.cjs`, workflow `ops-contract.yml` con build real de imagen y probes de runtime en cada PR). **Despliegue BLOQUEADO**: el preflight `Preflight required Health Vault lookup secret` falla desde el 22-jul (#1322) | El secret `HEALTH_PROFESSIONAL_LOOKUP_KEYS` existe en GCP pero su contenido no es un keyring versionado JSON con claves ≥32 bytes; el bootstrap se niega a sobreescribir una versión inválida. Requiere consola de Google pagada → **Etapa F al final**, según Daniel |
 | Digital twin/AR/CAD | Línea de evolución acordada y referencia ArtCraft identificada | Revalidar capacidades existentes y cerrar un recorrido operacional, con licencias y criterios funcionales |
 | SEO y medición | Incluidos en este plan | Verificación técnica y consentimiento antes de activar servicios o solicitar indexación |
 
-Los estados GitHub son un corte temporal, no una orden automática de merge. En la
-revisión también seguían abiertos #1869, #1870 y #1871, `CLEAN`, cada uno con 37
-checks `SUCCESS`; deberán revisarse contra su SHA y base actuales antes de actuar.
-Notion no se volvió a consultar durante esta reconciliación: no hay conteo nuevo
-ni tickets cerrados por esta actualización.
+**Estado del ledger (Notion Alpha 41, consulta paginada del 2026-11-01):**
+1.854 tickets — **560 cerrados** (371 `Verified` + 114 `Merged` + 39 `Done` +
+32 `Ya-real (auditoría)` + 4 `Ya-real`) y **664 pendientes** (595 `Spec'd` +
+18 `In-progress` + 51 `Backlog`); 629 `Cancelled`.
+
+**Revalidación de los `Spec'd` contra `main` (2026-11-01):** de 595 pendientes,
+469 provienen de auditorías Hy3 (388 `[Hy3-audit]`, 65 `[Hy3-architect-oleada-1]`,
+16 `[Hy3-architect-oleada-2]`). El `FILE:LINE` vive en la propiedad `Spec` de
+Notion (386 de 469 lo traen explícito); verificando la existencia física de cada
+ruta contra el checkout de `main`: **434 (92.5%) apuntan a archivos que existen**,
+21 (4.5%) no tienen ruta extraíble y 14 (3.0%) citan una ruta relativa sin
+nombre de archivo (`file:296`) que se resuelve por el encabezado de sesión.
+**Conclusión: el backlog Hy3 no está mayoritariamente muerto** —corrige la
+estimación del ~35% de archivos fantasma del 23-ago— y el problema no es el
+volumen falso sino el **volumen real sin triage por severidad**.
+
+**Segunda pasada — clasificación por contenido** (no solo existencia): de esos
+469, **201 son REALES** (el defecto descrito sigue presente en el código actual),
+**212 son DRIFT** (el archivo existe pero la línea cambió o el caso ya está
+cubierto) y **56 no son comparables** (la spec no trae código verbatim). Por
+subsistema, según el artefacto de evidencia: `emergency/` 34, `mesh/` 10,
+`sensorBus/` 2 y el resto 155; 19 de los 201 vienen marcados como
+`vida_safety`. Confirmación manual de dos hallazgos «REAL» por muestreo: el mock
+de `src/components/emergency/GeofenceAlert.test.tsx` solo devuelve
+`permissionState: 'granted'` y nunca `'unavailable'`, y
+`src/services/emergency/sosOutbox.indexeddb.ts` documenta en su propio encabezado
+el uso de *«unencrypted idb-keyval»*. Es decir: **quedan 201 defectos con
+evidencia de archivo y línea**, 19 de ellos de vida-safety y 34 en el frente
+`emergency/`, que es el trabajo real que sigue. El detalle por ticket queda en
+`C:/Users/Usuario/AppData/Local/hermes/cache/scratch/hy3-content-revalidation.json`
+(469 registros) y no se promueve a este documento ni al ledger.
+
+**Agrupamiento para no abrir 201 PRs sueltos.** Los 201 hallazgos reales se
+concentran en **97 archivos distintos**, y 51 de esos archivos tienen un solo
+hallazgo. Los de mayor densidad: `compliance/cloudKmsComplianceSigner.ts` (7),
+`compliance/complianceSignature.ts` (6), `pricingSimulator/PricingSimulatorPanel.tsx`
+(6), `ergonomics/AIPostureAnalysisModal.tsx` (6), `hazmat/hazmatInventory.ts` (5),
+`jobs/runComplianceSnapshot.ts` (5), `compliance/Ds67Builder.tsx` (5),
+`pricingCalculator/pricingCalculator.ts` (5), `pricingCalculator/TierComparatorWidget.tsx`
+(5), `billingService.ts` (5). **Estrategia:** agrupar por archivo los de densidad
+≥ 3 (un slice, un PR, un test) y tratar los 51 huérfanos como un lote de
+higiene posterior. En `emergency/` el archivo más denso es
+`IncidentInvestigation.tsx` (4), seguido de `sosOutbox.ts` (3),
+`EvacuationGridMap.tsx` (3), `EmergencySquadManager.tsx` (3) y
+`EmergencyPlanGenerator.tsx` (3).
+
+**Prioridad de ataque:** primero `emergency/`, `mesh/`, `sensorBus/`,
+`loneWorker/`, `firestore.rules` y permisos; después compliance/pricing por
+densidad de archivo. Cada lote es un slice con test y CI.
+
+Los estados GitHub son un corte temporal, no una orden automática de merge. No
+se volvió a consultar el estado de #1869, #1870 y #1871 en esta actualización; no
+deben darse por cerrados ni abiertos sin releer su estado remoto.
 
 ### Trazabilidad de acuerdos y documentos
 
@@ -255,6 +315,29 @@ hasta después de producción. La numeración anterior se conserva solo como
 referencia: Slice 0 → A/C; Slice 1 → F; Slice 1.5 → G; Slice 2 → D;
 Slice 3 → E; Slice 4 → B/H; Slice 5 → D/H.
 
+### Orden revisado — 2026-11-01 (Daniel)
+
+Con A cerrada, C cerrada y E en ejecución, el orden real que se sigue es:
+
+1. **Deuda técnica de la Etapa E (Notion), con vida-safety primero.** No es
+   «abrir 664 tickets»: es revalidar por **contenido** (no solo por existencia
+   de archivo) y triagear por severidad. Los 434 tickets Hy3 que apuntan a
+   archivos reales se agrupan por subsistema; sepriorizan los que tocan
+   `emergency/`, `mesh/`, `sensorBus/`, `loneWorker/`, `firestore.rules` y
+   permisos. Cada lote es un slice con test y CI, no un mega-PR.
+2. **Etapa E — cierre de los pendientes nombrados.** Custodia BYOK multiusuario
+   con rotación/revocación, cuotas/coste por tenant, host MCP externo, y la
+   retirada de la dependencia legacy de Google en la búsqueda semántica. La
+   Etapa E **no se cierra** hasta que esos cuatro estén verificados; el
+   wayfinder `409aa66d-73fe-8146-994b-ee6894652bee` sigue `Spec'd` mientras tanto.
+3. **Etapa B — decisión de adopción del WASM.** El motor Rust ya está; falta el
+   benchmark comparativo commiteado, la tolerancia acordada y el veredicto. No
+   se activa el WASM en el producto sin que Daniel lo decida.
+4. **Etapa D — datos, autenticación y convergencia Zettelkasten.**
+5. **Etapa F — staging y despliegue.** Al final: requiere la consola de Google
+   pagada (decisión de Daniel del 2026-11-01). Antes de ese punto no se intenta
+   el deploy ni se toca el secret.
+
 La actualización de este plan es el paso documental solicitado ahora. La
 implementación comenzará después, siguiendo estos criterios y el alcance vigente.
 
@@ -321,23 +404,49 @@ actual y preservación comprobada de los contratos. No implica producción lista
 
 ### B — Retomar Rust/WASM: dinámica equivalente del worker
 
-- Reutilizar los fixtures compartidos y resultados conservados de 100, 1.000 y
-  10.000 nodos. Repetir una línea base solo si cambió el código, el fixture o el
-  entorno de medición; conservar versión/hash para una comparación reproducible.
-- Implementar en Rust la dinámica equivalente de `forceGraphWorker.ts`, no una
-  aproximación, un contador ni solo validación de JSON. Respetar el contrato 2D/3D,
-  inicialización, iteraciones, errores y determinismo del algoritmo de referencia.
-- Acordar y documentar tolerancia numérica y beneficio mínimo antes de decidir
-  adopción; no inventar un umbral retrospectivo para hacer ganar al candidato.
-- Comparar invariantes y resultados en fixtures compartidos, incluidos errores,
-  ejecuciones repetidas e independencia entre trabajos.
-- Compilar el algoritmo real a WASM y medir por separado cálculo, carga inicial,
-  serialización/deserialización, transferencia, memoria, p50/p95/p99 y tamaño.
-- Comparar el recorrido real Worker/WASM, no solo Rust nativo contra JS; conservar
-  TypeScript como referencia y fallback, sin cambiar todavía la ruta productiva.
+> **Reconciliación del 2026-11-01:** la premisa original de esta etapa («el
+> prototipo Rust todavía no contiene la dinámica equivalente del worker») ya no
+> se sostiene. El motor Rust **existe y está verificado**. Lo que falta es la
+> **decisión de adopción**, y la lista de abajo se ajusta a esa realidad sin
+> reescribir la evidencia histórica que la precede.
 
-**Salida:** comparativa reproducible y veredicto adoptar/ajustar/no adoptar.
-Compilar un probe WASM o cargar fixtures no satisface este criterio.
+- El motor Rust ya está implementado en `wasm/force-graph-layout/src/bin/force_graph_layout.rs`
+  con la dinámica equivalente de `forceGraphWorker.ts`: quadtree/Barnes–Hut,
+  carga repulsiva, enlaces con sesgo por grado, centrado, colisiones,
+  enfriamiento, amortiguación y generador determinista. Verificado con **11 casos
+  diferenciales** contra `runSimulation()` real y benchmark de Workers en
+  Chromium (`labs/force-graph-rust-parity-20261027`, `evidence-manifest.json`
+  hasheado).
+- El crate se distribuye de forma reproducible: fuente + `Cargo.lock` + pin de
+  toolchain, build `--release --locked --offline` contra `wasm32-unknown-unknown`,
+  asset versionado por SHA-256, y auditoría de licencias (d3-force y d3-quadtree
+  ISC; serde MIT/Apache-2.0). El módulo **no se commitea**: la fuente es la
+  fuente de verdad.
+- Límites duros ya impuestos por el módulo, no por el loader: memoria lineal
+  ≤ 32 MiB por VM, entrada ≤ 8 MiB, salida ≤ 8 MiB.
+- **Lo que falta para decidir (no para implementar):**
+  1. benchmark comparativo **Rust/WASM vs TypeScript commiteado en el repo**, con
+     p50/p95/p99, cálculo puro, serialización, transferencia JS/WASM, carga
+     inicial y memoria separados; hoy solo existe el baseline TypeScript
+     (`scripts/benchmarks/force-graph-ts-baseline.ts`);
+  2. tolerancia numérica explícita y beneficio mínimo **acordado antes** de medir
+     (nunca un umbral retrospectivo hecho para que gane el candidato);
+  3. revisión independiente del código y de la evidencia;
+  4. E2E del consumidor/canvas bajo CSP y bundling desplegados;
+  5. rollback operacional probado con mediciones representativas móvil/navegador.
+- **No activar en el producto sin decisión de Daniel.** El camino WASM está
+  deliberadamente apagado: `createForceGraphLayoutClient()` sin argumentos deja
+  `defaultEngine: "typescript"` y `wasmEnabled: false`, y un test del repo
+  asserta que la ruta de producto **no** está conectada al módulo WASM. El
+  rollback actual es quitar el `layoutClient` inyectado o `wasmEnabled: false`.
+- TypeScript sigue siendo la fuente de verdad y el fallback. No añadir Rust como
+  servicio remoto si basta Worker/WASM. Go no entra: no hay cuello de botella
+  medido que lo justifique.
+
+**Salida:** veredicto adoptar/ajustar/no adoptar, con comparativa reproducible y
+medición end-to-end. Compilar un probe WASM o cargar fixtures no satisface este
+criterio, y hoy la implementación ya satisface la parte difícil: lo que falta es
+la medición y la decisión.
 
 ### C — Contrato operacional y ejecución acotada
 
@@ -441,6 +550,31 @@ LLM sobre vida-safety; un resolver por entorno no acredita el gateway completo.
 
 ### F — Coolify/staging y ruta híbrida desplegable
 
+> **Bloqueo medido el 2026-11-01 (decisión de Daniel: esta etapa va al final).**
+> El workflow `deploy.yml` falla en su paso `Preflight required Health Vault
+> lookup secret` en **todos** los runs desde que el paso se añadió el 22-jul
+> (#1322); el último deploy verde fue el 6-jul. El diagnóstico es preciso y no
+> es de permisos: el paso `Authenticate to Google Cloud` pasa y CI **descarga** el
+> valor del secret, pero la validación de contenido lo rechaza —
+> `HEALTH_PROFESSIONAL_LOOKUP_KEYS must be versioned JSON with keys of at least
+> 32 bytes`. El secret existe en Secret Manager del proyecto `praeventio-541ad`
+> pero su contenido no es el keyring versionado que exige
+> `scripts/health-professional-lookup-keyring.cjs`
+> (`{"<version>": "<hex de 32 bytes>"}`).
+>
+> `scripts/bootstrap-health-professional-lookup-secret.cjs` **no puede** corregir
+> ese estado a propósito: se niega a sobreescribir una versión existente con
+> shape inválido. La corrección exige (a) crear una versión válida del keyring y
+> (b) el **reindex auditado** de los lookups de profesionales de salud, porque
+> `scripts/reindex-health-professional-lookups.ts` documenta que las claves
+> viejas se conservan hasta completar el reindex. Es vida-safety: la clave no
+> es un dato trivial y rotarla sin reindex rompe la búsqueda de profesionales.
+> No hay nada sirviendo en `praeventio.net` ni `app.praeventio.net`.
+>
+> Daniel decidió el 2026-11-01: la consola de Google todavía no se paga, así que
+> **esta etapa se deja para el final**. No se reescribe el contrato: el resto de
+> los requisitos de la etapa sigue igual.
+
 - Confirmar VPS separado y alcance autorizado antes de provisionar, incurrir en
   costes o modificar DNS; verificar proveedor real, no asumirlo por el nombre.
 - Endurecer SSH/firewall/actualizaciones y separar secretos, datos y servicios de
@@ -505,6 +639,51 @@ se convierte por sí solo en autoridad de seguridad ni de bloqueo del trabajador
 6. Distinguir local, CI, staging, producción y Android físico/OEM. Ninguna capa
    sustituye a la siguiente. No prometer producción mientras Alpha 41 tenga
    pendientes fuera de los estados resueltos con evidencia.
+
+### Cómo se genera el código y qué herramientas mandan (2026-11-01)
+
+**El motor.** Hermes (Larry) escribe el código directamente: lee el flujo real,
+escribe el diff, corre los gates del repo, abre el PR y deja que la CI decida.
+Los subagentes son una extensión de ese mismo criterio, no un sustituto: hoy
+usan **MiniMax-M3.1-Flash** vía `minimax-oauth` (pin explícito en `delegation`
+del perfil default y de Jupiter), y se usan para dos roles acotados —
+implementar **un** slice, o **intentar romper** el trabajo de otro en modo
+read-only. El implementador no se certifica a sí mismo.
+
+**Por qué no se añade un CLI de codificación al flujo.** Verificado el 2026-11-01
+en esta máquina:
+
+| Herramienta | Estado real | Veredicto |
+|---|---|---|
+| `opencode` v2.0.32 | instalado y **responde** (`OPENCODE_OK`); catálogo de 15 modelos; los `free` (`glm-5.3-flash-free`, `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`) responden | **Sí, como segunda opinión**, no como generador de código |
+| `claude` 2.1.220 (Claude Code) | instalado **sin sesión OAuth**: `api_error`, 0 tokens | No usable |
+| `codex` 0.145.0 | instalado, falla con `EOF while parsing a value` (credencial inválida) | No usable |
+| `sakana/fugu` vía opencode | `No active subscription` | No usable |
+| `rustc/cargo 1.99.1`, `go1.27.3` | en PATH, verificados | los que exige la Etapa B |
+
+El razonamiento, no la preferencia: **la calidad de este repo no la sube el
+modelo que escribe la línea, la sube la red de gates.** El repo tiene 1.885
+archivos de test para 2.181 productivos, 12 guards pre-commit ejecutables
+(`check-honesty-gate`, `check-user-facing-errors`, `check-connectivity-ratchet`,
+`check-any-ratchet`, `validate-i18n`, `precommit-stub-guard`, …), ~60 scripts de
+verificación (`verify:fresh`, `test:mutation:*`, `test:e2e:full`,
+`test:layout-wasm`, `ops-contract`), 21 workflows de CI y un green en ~7 minutos.
+Un segundo generador de código no sube esa red: agrega un segundo dialecto, y
+su resultado tiene que ser verificado por los mismos gates igual. El valor real
+de `opencode` es otro y es preciso: **es un motor distinto al del implementador**,
+así que sirve como revisor adversarial independiente, que es justamente el punto
+que un verificador del mismo motor no cubre.
+
+Reglas que se siguen:
+
+- `opencode` se usa **solo en revisión adversarial**, con modelo distinto al del
+  implementador, y nunca con escritura habilitada sobre el producto.
+- `claude -p` / `--permission-mode bypassPermissions` **no** se conecta al flujo
+  de vida-safety: sin iteración es single-shot, y el bypass sobre un repo que
+  gestiona datos de salud y reglas Firestore es exactamente el modo de fallo que
+  produce «terminó borrando cosas».
+- Un CLI externo no sustituye la evidencia: sigue mandando el read-back del
+  diff, los comandos observados y el CI del SHA.
 
 ## Sistema de trabajo Guardian — repaso integral (2026-10-29)
 
@@ -586,7 +765,7 @@ sostiene con `guardian-notion-stale-detection` (al abrir bucles) y
 | `| tail` y pipes enmascaran exit codes → escribir a log y leer `EXIT=$?` | bucle deuda |
 | Un comentario propio puede envenenar asserts de tests que escanean texto | `ops-contract.test.cjs` |
 | Watchers de CI pueden quedar con rollups viejos → estado autoritativo = `gh pr view --json statusCheckRollup` consultado fresh | PR #1882 |
-| Nada de subagentes en modelos no autorizados (solo MiMo 2.6) | instrucción de Daniel 2026-10-28 |
+| Nada de subagentes en modelos no autorizados (hoy: MiniMax-M3.1-Flash vía `minimax-oauth`, pin explícito en `delegation` de default y Jupiter) | instrucción de Daniel 2026-11-01 |
 | "Media" en una ruta NO significa contenido multimedia → jamás gatear estado por un path que contenga "media" | bug 2026-10-21 |
 | `computer_use` con pantalla cambiante no debe abrir apps a ciegas; leer la ventana antes de tocar | bug 2026-10-22 |
 | Dockerfile monolítico deprecado; canónico = `Dockerfile.api` + `Dockerfile.frontend` | contrato de despliegue |
