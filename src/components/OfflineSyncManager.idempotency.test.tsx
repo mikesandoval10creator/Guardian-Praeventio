@@ -38,6 +38,7 @@ vi.mock('../utils/pwa-offline', () => ({
 }));
 
 vi.mock('../services/firebase', () => ({
+  auth: { currentUser: { uid: 'current-user', getIdTokenResult: vi.fn(async () => ({ token: 'test-token', claims: { tenantId: 'current-tenant' } })) } },
   db: {},
   storage: {},
   handleFirestoreError: (err: unknown) => {
@@ -135,6 +136,28 @@ const stateMachineOp = (data: Record<string, unknown>): SyncOperation =>
     attempts: 0,
     createdAt: Date.now(),
   }) as SyncOperation;
+
+describe('Zettelkasten server-only batch replay', () => {
+  it('sends the persisted batch to the authenticated endpoint without client Firestore writes', async () => {
+    setDocCalls.length = 0;
+    pendingActions.length = 0;
+    const idempotencyKey = '0123456789abcdef';
+    const nodes = [{ title: 'Finding', description: 'Offline finding', type: 'finding', severity: 'low', metadata: {}, connections: [], references: [], idempotencyKey }];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, count: 1, ids: [idempotencyKey] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      render(<OfflineSyncManager />);
+      await flush();
+      await registeredExecutor!({ ...stateMachineOp({ projectId: 'project-1', nodes, localUpdatedAt: 'retained-envelope-only' }), collection: 'zettelkasten_nodes' });
+      expect(setDocCalls).toHaveLength(0);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/zettelkasten/nodes');
+      expect(JSON.parse(String(init.body))).toEqual({ projectId: 'project-1', nodes });
+      expect(init.headers).toMatchObject({ Authorization: 'Bearer test-token' });
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
 
 describe('OfflineSyncManager — one operation, one document', () => {
   beforeEach(() => {

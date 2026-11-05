@@ -7,6 +7,7 @@ import { db, storage, handleFirestoreError, OperationType } from '../services/fi
 import { updateDoc, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
+import { replayZettelkastenNodeBatch } from '../services/zettelkasten/persistence/replayNodeBatch';
 import {
   detectConflicts,
   partitionFields,
@@ -559,6 +560,10 @@ export function OfflineSyncManager() {
     // multiple times just overwrites the previous reference.
     offlineSync.setExecutor(async (op: SyncOperation) => {
       const collectionName = op.collection;
+      if (collectionName === 'zettelkasten_nodes') {
+        await replayZettelkastenNodeBatch(op);
+        return;
+      }
       if (collectionName === ZETTELKASTEN_GRAPH_SYNC_COLLECTION) {
         await executeGraphSyncOperation(op);
         return;

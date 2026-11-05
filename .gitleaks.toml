@@ -53,3 +53,18 @@ regexes = [
 ]
 # Empty regexTarget = "any rule matches this pattern"
 regexTarget = "match"
+
+# These two replay regressions use this public, deterministic node identifier,
+# not an authentication credential. Retain upstream generic-api-key detection;
+# ignore ONLY this exact extracted value AND either exact test path.
+[[rules]]
+id = "generic-api-key"
+  [[rules.allowlists]]
+  description = "Exact non-secret Zettelkasten node-ID fixture in two replay regressions"
+  condition = "AND"
+  regexTarget = "secret"
+  regexes = [ '''^0123456789abcdef$''' ]
+  paths = [
+    '''^src/components/OfflineSyncManager\.idempotency\.test\.tsx$''',
+    '''^src/services/zettelkasten/persistence/replayNodeBatch\.test\.ts$''',
+  ]

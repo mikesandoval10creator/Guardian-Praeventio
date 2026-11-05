@@ -336,8 +336,10 @@ jobs:
         # 2026-06-09: añadido `storage` al boot — `storageRules.rules.test.ts`
         # corre contra el Storage emulator (firebase.json :9199). Sin esto el
         # test falla con "storage emulator is not running". Mirror de
-        # `npm run test:rules` (package.json).
-        run: firebase emulators:exec --only firestore,storage --project praeventio-rules-test "npx vitest run --config vitest.rules.config.ts"
+        # `npm run test:rules` (package.json). Auth is also required for the
+        # real incident-caller/outbox replay regression (no auth bypass).
+        # Literal emulator names only; no event/PR input enters this command.
+        run: firebase emulators:exec --only firestore,storage,auth --project praeventio-rules-test "npx vitest run --config vitest.rules.config.ts"
 
   firestore-stores:
     # Plan 2026-05-23 §Fase C — tests de stores client-side (factory
