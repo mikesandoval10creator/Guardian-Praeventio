@@ -49,6 +49,13 @@ describe('project-scoped onboarding replay (unit SDK mocks)', () => {
     const op = action(); state.beforeTransaction = () => { state.metadata.set(metadataPath, { ...op.data.documentData as Record<string, unknown>, archived: true }); };
     await replayOnboardingUpload(op); expect(state.metadata.get(metadataPath)?.archived).toBe(true); expect(state.writes).not.toHaveBeenCalled();
   });
+  it.each(['name', 'type', 'archived'] as const)('rejects an incomplete remote %s instead of falsely acknowledging the PDF', async (field) => {
+    const op = action(); const incomplete = { ...op.data.documentData as Record<string, unknown> }; delete incomplete[field];
+    state.metadata.set(metadataPath, incomplete);
+    await expect(replayOnboardingUpload(op)).rejects.toThrow('existing_conflict');
+    expect(state.uploads).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  });
+
   it('refuses conflicting existing metadata without overwriting bytes', async () => {
     state.metadata.set(metadataPath, { storagePath: 'other/object.pdf' });
     await expect(replayOnboardingUpload(action())).rejects.toThrow('existing_conflict'); expect(state.uploads).not.toHaveBeenCalled();

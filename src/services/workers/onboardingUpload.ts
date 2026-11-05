@@ -42,6 +42,7 @@ export async function replayOnboardingUpload(action: OnboardingUpload): Promise<
   }
   function validateExisting(data: unknown) {
     if (!record(data) || data.storagePath !== path || data.projectId !== metadata?.projectId ||
+        data.name !== metadata?.name || data.type !== metadata?.type || typeof data.archived !== 'boolean' ||
         data.workerId !== metadata?.workerId || data.createdBy !== identity?.ownerUid || data.tenantId !== identity?.tenantId) {
       throw new Error('onboarding_upload_existing_conflict');
     }

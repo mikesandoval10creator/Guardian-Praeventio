@@ -7,7 +7,7 @@ import { deflateSync } from 'node:zlib';
 import { beforeAll, afterAll, expect, it, vi } from 'vitest';
 import { render, fireEvent, screen, waitFor, cleanup } from '@testing-library/react';
 import { initializeTestEnvironment, assertFails, type RulesTestEnvironment, type RulesTestContext } from '@firebase/rules-unit-testing';
-import { doc, collection, setDoc, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { doc, collection, setDoc, deleteDoc, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import { ref, uploadBytes, getBytes, listAll, type FirebaseStorage } from 'firebase/storage';
 import { openDB } from 'idb';
 import { verifiedToken } from './_harness';
@@ -121,6 +121,22 @@ it('runs the real modal/real PDF/IndexedDB queue/reconnect consumer and reads bo
   const [remaining] = await getPendingActions();
   const beforeRetry = await getBytes(ref(storageOf(actor), remaining.data.storagePath));
   expect(new Uint8Array(beforeRetry)).toEqual(new Uint8Array(await binary.arrayBuffer()));
+  // Fault-inject an incomplete remote row: it must not acknowledge the queue.
+  const badRemote = { ...remaining.data.documentData }; delete badRemote.name; delete badRemote.type;
+  const target = doc(dbOf(actor), remaining.collection, String(remaining.docId));
+  await setDoc(target, badRemote);
+  let conflictObserved = false;
+  const onConflict = (event: Event) => { const error = (event as CustomEvent<{ error: unknown }>).detail.error; if (error instanceof Error && error.message === 'onboarding_upload_existing_conflict') conflictObserved = true; };
+  window.addEventListener('sync-action-failed', onConflict);
+  try {
+    window.dispatchEvent(new CustomEvent('force-sync'));
+    await waitFor(() => expect(conflictObserved).toBe(true), { timeout: 30_000 });
+    expect(await getPendingActions()).toHaveLength(1);
+    expect((await getDoc(target)).data()).not.toHaveProperty('name');
+  } finally { window.removeEventListener('sync-action-failed', onConflict); }
+  // Restore the pre-fault fixture only. The application never physically deletes
+  // documents; the following production retry must create metadata itself.
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(dbOf(ctx), remaining.collection, String(remaining.docId))));
   window.dispatchEvent(new CustomEvent('force-sync'));
   await waitFor(async () => expect(await getPendingActions()).toHaveLength(0), { timeout: 30_000 });
   const committed = await getDocs(query(collection(dbOf(actor), 'projects', PID, 'workers', WID, 'documents'), where('archived', '==', false)));

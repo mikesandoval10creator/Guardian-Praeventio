@@ -10,7 +10,7 @@ export interface NativeBlobV1 {
 }
 const MAX_BYTES = 50 * 1024 * 1024;
 export async function encodeNativeBlob(blob: Blob): Promise<NativeBlobV1> {
-  if (blob.size > MAX_BYTES) throw new Error('native_binary_size_limit');
+  if (blob.size >= MAX_BYTES) throw new Error('native_binary_size_limit');
   const buffer = typeof blob.arrayBuffer === 'function'
     ? await blob.arrayBuffer()
     : await new Promise<ArrayBuffer>((resolve, reject) => {
@@ -32,7 +32,7 @@ export function decodeNativeBlob(value: unknown): Blob | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const data = value as Record<string, unknown>;
   if (data.version !== 1 || data.encoding !== 'base64' || !Number.isInteger(data.size) ||
-      typeof data.size !== 'number' || data.size < 0 || data.size > MAX_BYTES ||
+      typeof data.size !== 'number' || data.size < 0 || data.size >= MAX_BYTES ||
       typeof data.mime !== 'string' || data.mime.length > 255 || typeof data.base64 !== 'string' ||
       data.base64.length > Math.ceil(MAX_BYTES / 3) * 4 || data.base64.length % 4 !== 0 ||
       !/^[A-Za-z0-9+/]*={0,2}$/.test(data.base64)) return undefined;

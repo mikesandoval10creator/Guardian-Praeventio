@@ -15,9 +15,9 @@ describe('native SQLCipher JSON binary envelope', () => {
     const decoded = decodeNativeBlob(await encodeNativeBlob(new Blob(['%PDF-fixture'], { type: 'application/pdf' })));
     expect(decoded).toBeInstanceOf(Blob); expect(decoded).not.toBeInstanceOf(File);
   });
-  it('fails before reading an oversized source rather than allocating it', async () => {
+  it.each([50 * 1024 * 1024, 50 * 1024 * 1024 + 1])('fails before reading a source at or above the Storage limit (%s bytes)', async (size) => {
     const read = () => { throw new Error('must not read'); };
-    await expect(encodeNativeBlob({ size: 50 * 1024 * 1024 + 1, arrayBuffer: read } as unknown as Blob)).rejects.toThrow('size_limit');
+    await expect(encodeNativeBlob({ size, arrayBuffer: read } as unknown as Blob)).rejects.toThrow('size_limit');
   });
   it.each([null, {}, { version: 2 }, { version: 1, encoding: 'base64', size: 1, mime: 'application/pdf', base64: '%%==' }, { version: 1, encoding: 'base64', size: 99, mime: 'application/pdf', base64: 'QQ==' }, { version: 1, encoding: 'base64', size: 1, mime: 'application/pdf', base64: 'QQ===' }])('does not fabricate bytes from a malformed or unsupported payload', (value) => { expect(decodeNativeBlob(value)).toBeUndefined(); expect(decodeNativeFile(value)).toBeUndefined(); });
 });

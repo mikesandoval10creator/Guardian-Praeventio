@@ -25,7 +25,10 @@ Ticket: `40daa66d-73fe-8183-a6de-ce329aeda964`.
 - Storage commits before metadata. Failure retains the pending action; no physical
   delete is attempted. A retry reuses the same object/document paths. A transaction
   creates missing metadata without replacing an existing matching document;
-  conflicting remote metadata fails closed. Completed/archived records are not
+  conflicting remote metadata fails closed, including missing/mismatched name or
+  type and a non-boolean archive flag. An actual emulator case holds the pending
+  queue on an incomplete remote row instead of acknowledging it.
+  Completed/archived records are not
   rewritten and their bytes are not restored by repeated acknowledgements.
 - Already-online enqueue previously did not wake the mounted legacy consumer.
   A post-persistence `sync-upload-boundary-ready` signal now wakes it. Batch drains
@@ -36,7 +39,8 @@ Ticket: `40daa66d-73fe-8183-a6de-ce329aeda964`.
   Bunker `Blob`. A versioned Base64 envelope now retains bytes/MIME/filename/date
   in the existing SQLCipher JSON row, atomically with the action's identity.
   The adapter strips private binary fields before replay and reconstructs a File.
-  Bunker Blob values use the same codec. The codec is bounded to 50 MiB, matching
+  Bunker Blob values use the same codec. The codec requires strictly less than
+  50 MiB, matching
   this worker-document Storage boundary; it is not a claim of support for all
   larger generic file routes. An unavailable native store, identity change or
   oversized source fails instead of claiming persistence. Missing/malformed or
