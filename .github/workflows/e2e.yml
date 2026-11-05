@@ -122,6 +122,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Set up Python for offline license audit
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6, immutable action commit
+        with:
+          python-version: '3.12'
+
       - name: Install pinned Rust toolchain for experimental layout
         run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-unknown-unknown
 

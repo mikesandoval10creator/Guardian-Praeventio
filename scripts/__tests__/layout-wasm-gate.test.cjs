@@ -47,6 +47,13 @@ test('full-stack CI builds offline WASM and runs strict behavioral plus browser 
   assert.equal(fetch['working-directory'], 'wasm/force-graph-layout');
   assert.equal(fetch.run.trim(), 'cargo fetch --locked');
   const build = step('Build and verify experimental WASM (not activated)');
+  const python = lane.steps.find((s) => s.name === 'Set up Python for offline license audit');
+  assert.ok(python, 'required license audit needs an explicit Python runtime');
+  assert.equal(python.uses, 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1');
+  assert.equal(python.with['python-version'], '3.12');
+  assert.equal(python.if, undefined);
+  assert.notEqual(python['continue-on-error'], true);
+  assert.ok(lane.steps.indexOf(python) < lane.steps.indexOf(build));
   assert.equal(build.run.trim(), 'npm run layout-wasm:build\nnpm run test:layout-wasm');
   assert.equal(build.env.LAYOUT_WASM_REQUIRED, '1');
   const browser = step('Run Playwright full-stack tests');
