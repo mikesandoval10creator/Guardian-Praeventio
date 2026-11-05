@@ -3,8 +3,10 @@ import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacito
 import { openDB, IDBPDatabase } from 'idb';
 import { logger } from './logger';
 import { ensureSqliteEncryptionSecret } from './sqliteEncryption';
+import { encodeNativeBlob, decodeNativeBlob, decodeNativeFile } from './nativeBinary';
 import {
   isQueueIdentity,
+  queueIdentitiesMatch,
   resolveCurrentQueueIdentity,
   type QueueIdentity,
 } from '../services/sync/queueIdentity';
@@ -169,7 +171,11 @@ export const getCachedAIResponse = async (key: string) => {
 export const saveBunkerKnowledge = async (id: string, data: any) => {
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
-    if(db) await db.run('INSERT OR REPLACE INTO bunker_knowledge (id, data, timestamp) VALUES (?, ?, ?)', [id, JSON.stringify(data), Date.now()]);
+    if (!db) throw new Error('saveBunkerKnowledge: native store unavailable');
+    const nativeData = data?.blob instanceof Blob
+      ? { ...data, blob: { __nativeBlobV1: await encodeNativeBlob(data.blob) } }
+      : data;
+    await db.run('INSERT OR REPLACE INTO bunker_knowledge (id, data, timestamp) VALUES (?, ?, ?)', [id, JSON.stringify(nativeData), Date.now()]);
     return undefined;
   } else {
     const db = await getIDB();
@@ -182,7 +188,11 @@ export const getBunkerKnowledge = async (id: string) => {
     const db = await initSQLite();
     if(!db) return null;
     const res = await db.query('SELECT data FROM bunker_knowledge WHERE id = ?', [id]);
-    return res.values && res.values.length > 0 ? JSON.parse(res.values[0].data) : null;
+    if (!res.values?.length) return null;
+    const data = JSON.parse(res.values[0].data);
+    return data?.blob?.__nativeBlobV1
+      ? { ...data, blob: decodeNativeBlob(data.blob.__nativeBlobV1) }
+      : data;
   } else {
     const db = await getIDB();
     const result = await db.get(BUNKER_STORE_NAME, id);
@@ -239,30 +249,40 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
   if (!queueIdentity) {
     throw new Error('saveForSync: authenticated upload queue identity unavailable');
   }
+  if (action.queueIdentity && !queueIdentitiesMatch(action.queueIdentity, queueIdentity)) {
+    throw new Error('saveForSync: upload queue identity changed');
+  }
   const uploadAction: SyncAction = { ...syncAction, queueIdentity };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
+    if (!db) throw new Error('saveForSync: native upload store unavailable');
     if (db) {
-      // Persist the merged data (which already contains localUpdatedAt) AND
-      // the column copy so the conflict-detection code path on read-out has a
-      // reliable source even if `data` was ever stored without it.
+      const file = action.file;
+      const encodedFile = file ? await encodeNativeBlob(file) : undefined;
+      const currentIdentity = await resolveCurrentQueueIdentity();
+      if (!currentIdentity || !queueIdentitiesMatch(queueIdentity, currentIdentity)) {
+        throw new Error('saveForSync: upload queue identity changed');
+      }
+      // Binary bytes and identity commit in the same existing encrypted row.
       await db.run(
         'INSERT INTO pending_sync (docId, type, collection, data, timestamp, localUpdatedAt) VALUES (?, ?, ?, ?, ?, ?)',
         [
           action.docId,
           action.type,
           action.collection,
-          JSON.stringify({ ...syncAction.data, __queueIdentity: queueIdentity }),
+          JSON.stringify({ ...syncAction.data, __queueIdentity: queueIdentity, ...(encodedFile ? { __uploadFileV1: encodedFile } : {}) }),
           syncAction.timestamp,
           nowMs,
         ]
       );
     }
+    window.dispatchEvent(new CustomEvent('sync-upload-boundary-ready'));
     window.dispatchEvent(new CustomEvent('sync-actions-updated'));
     return undefined;
   } else {
     const db = await getIDB();
     const result = await db.add(STORE_NAME, uploadAction);
+    window.dispatchEvent(new CustomEvent('sync-upload-boundary-ready'));
     window.dispatchEvent(new CustomEvent('sync-actions-updated'));
     return result;
   }
@@ -304,7 +324,7 @@ export const getPendingActions = async (): Promise<SyncAction[]> => {
         parsedData && typeof parsedData === 'object' && !Array.isArray(parsedData)
           ? parsedData as Record<string, unknown>
           : {};
-      const { __queueIdentity, ...payloadData } = parsedRecord;
+      const { __queueIdentity, __uploadFileV1, ...payloadData } = parsedRecord;
       // Boundary conversion: epoch-ms (number) → ISO string, exactly once.
       // Prefer the JSON-payload value (closer to source-of-truth), fall back
       // to the column. We do NOT spread `row` directly into the result —
@@ -324,6 +344,7 @@ export const getPendingActions = async (): Promise<SyncAction[]> => {
         collection: row.collection,
         data: normalizedData,
         timestamp: row.timestamp,
+        file: row.type === 'upload' ? decodeNativeFile(__uploadFileV1) : undefined,
         localUpdatedAt: localUpdatedAtIso,
         ...(isQueueIdentity(__queueIdentity) ? { queueIdentity: __queueIdentity } : {}),
       } as SyncAction;
