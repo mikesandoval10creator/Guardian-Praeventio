@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { RiskNode } from '../types';
 import { logger } from '../utils/logger';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -8,6 +8,7 @@ import { updateDoc, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
 import { replayZettelkastenNodeBatch } from '../services/zettelkasten/persistence/replayNodeBatch';
+import { replayOnboardingUpload } from '../services/workers/onboardingUpload';
 import {
   detectConflicts,
   partitionFields,
@@ -57,10 +58,18 @@ export function OfflineSyncManager() {
   // Interrumpido" for every visitor — caught by the landing e2e suite).
   const projectCtx = useProjectOptional();
   const activeProjectId = projectCtx?.selectedProject?.id ?? null;
+  const uploadDrain = useRef<{ running: boolean; pending: (() => Promise<void>) | null }>({ running: false, pending: null });
 
   useEffect(() => {
+    let disposed = false;
     const handleSync = async (action: SyncAction) => {
       try {
+        if (action.type === 'upload' && !action.file) throw new Error('sync_upload_file_missing');
+        if (action.type === 'upload' && (action.data.onboardingUpload === 1 ||
+            (isRecord(action.data.documentData) && action.data.documentData.type === 'legal_onboarding'))) {
+          await replayOnboardingUpload(action);
+          return;
+        }
         let docId = '';
         let createNode = action.data.createNode;
         let nodeData = action.data.nodeData;
@@ -431,8 +440,8 @@ export function OfflineSyncManager() {
       }
     };
 
-    const runSync = async () => {
-      if (!isOnline) return;
+    const drainUploads = async () => {
+      if (!isOnline || disposed) return;
 
       const actions = await getPendingActions();
       if (actions.length === 0) return;
@@ -503,6 +512,7 @@ export function OfflineSyncManager() {
       window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: uploadActions.length } }));
 
       for (const action of uploadActions) {
+        if (disposed) break;
         try {
           await handleSync(action);
           if (action.id) await removeSyncedAction(action.id);
@@ -512,6 +522,19 @@ export function OfflineSyncManager() {
           logger.error('Failed to sync action', { action, error: err });
           window.dispatchEvent(new CustomEvent('sync-action-failed', { detail: { action, error: err } }));
         }
+      }
+    };
+
+    const runSync = async (): Promise<void> => {
+      if (!isOnline || disposed) return;
+      if (uploadDrain.current.running) { uploadDrain.current.pending = runSync; return; }
+      uploadDrain.current.running = true;
+      try { await drainUploads(); }
+      finally {
+        uploadDrain.current.running = false;
+        const pending = uploadDrain.current.pending;
+        uploadDrain.current.pending = null;
+        if (pending) void pending();
       }
     };
 
@@ -573,7 +596,16 @@ export function OfflineSyncManager() {
         // control keys stripped, so it does not matter which queue drains
         // first — both write one identical document.
         const { id: _id, createNode, nodeData, ...payload } = op.data;
-        const documentId = offlineOpDocId(collectionName, 'create', op.data);
+        let documentId = offlineOpDocId(collectionName, 'create', op.data);
+        // Worker onboarding allocates this ID before going offline. Preserve
+        // that reference; deriving another ID would orphan its queued PDFs.
+        if (/^projects\/[^/]+\/workers$/.test(collectionName) && op.data.id !== undefined) {
+          if (typeof op.data.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(op.data.id) ||
+              (op.data.projectId !== undefined && op.data.projectId !== collectionName.split('/')[1])) {
+            throw new Error('worker_create_scope_invalid');
+          }
+          documentId = op.data.id;
+        }
         await setDoc(
           doc(db, collectionName, documentId),
           payload,
@@ -741,10 +773,13 @@ export function OfflineSyncManager() {
     };
 
     window.addEventListener('force-sync', runSync);
+    window.addEventListener('sync-upload-boundary-ready', runSync);
     window.addEventListener('force-sync-single', handleSingleSync);
     window.addEventListener('sync-critical-conflict-resolved', handleManualResolution);
     return () => {
+      disposed = true;
       window.removeEventListener('force-sync', runSync);
+      window.removeEventListener('sync-upload-boundary-ready', runSync);
       window.removeEventListener('force-sync-single', handleSingleSync);
       window.removeEventListener('sync-critical-conflict-resolved', handleManualResolution);
     };

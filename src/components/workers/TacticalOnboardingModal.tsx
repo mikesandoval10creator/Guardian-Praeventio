@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, CheckCircle2, Loader2, PenTool, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { saveBunkerKnowledge, saveForSync } from '../../utils/pwa-offline';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, doc as documentRef } from '../../services/firebase';
+import { queueIdentitiesMatch, resolveCurrentQueueIdentity } from '../../services/sync/queueIdentity';
 import { logger } from '../../utils/logger';
 
 interface TacticalOnboardingModalProps {
@@ -12,6 +13,7 @@ interface TacticalOnboardingModalProps {
   onClose: () => void;
   workerData: {
     id?: string;
+    projectId?: string;
     name: string;
     role: string;
     rut?: string;
@@ -19,7 +21,10 @@ interface TacticalOnboardingModalProps {
 }
 
 export function TacticalOnboardingModal({ isOpen, onClose, workerData }: TacticalOnboardingModalProps) {
-  const { selectedProject } = useProject();
+  const packets = useRef(new Map<string, { createdAt: string; ids: Map<string, string>; blobs: Map<string, Blob> }>());
+  useEffect(() => {
+    if (!isOpen) { packets.current.clear(); setStep('intro'); setSvgPaths([]); setCurrentPath(''); }
+  }, [isOpen]);
   const [step, setStep] = useState<'intro' | 'sign' | 'generating' | 'success'>('intro');
   const [isDrawing, setIsDrawing] = useState(false);
   const [svgPaths, setSvgPaths] = useState<string[]>([]);
@@ -103,54 +108,86 @@ export function TacticalOnboardingModal({ isOpen, onClose, workerData }: Tactica
       { title: 'Pacto de Horas Extraordinarias', content: 'Acuerdo de Jornada Excepcional / Horas Extras...' }
     ];
 
+    // Keep the persisted worker/project snapshot even if the form context changes.
+    const worker = { ...workerData };
     try {
+      const { projectId, id: workerId } = worker;
+      if (!projectId || !workerId || projectId === 'global' || workerId === 'new' ||
+          !/^[A-Za-z0-9_-]{1,128}$/.test(projectId) || !/^[A-Za-z0-9_-]{1,128}$/.test(workerId)) {
+        throw new Error('onboarding_worker_scope_missing');
+      }
+      const identity = await resolveCurrentQueueIdentity();
+      if (!identity) throw new Error('onboarding_owner_unavailable');
+      const scope = JSON.stringify([identity.ownerUid, identity.tenantId, projectId, workerId, worker.name, worker.role, geometricSvgSignature, signatureDataUrl]);
+      let packet = packets.current.get(scope);
+      if (!packet) {
+        packet = { createdAt: new Date().toISOString(), ids: new Map(), blobs: new Map() };
+        packets.current.clear();
+        packets.current.set(scope, packet);
+      }
+      const metadataCollection = `projects/${projectId}/workers/${workerId}/documents`;
       for (const doc of docs) {
-        const pdf = new jsPDF();
-        pdf.setFontSize(16);
-        pdf.text(doc.title, 20, 20);
+        let documentId = packet.ids.get(doc.title);
+        if (!documentId) {
+          documentId = documentRef(collection(db, metadataCollection)).id;
+          packet.ids.set(doc.title, documentId);
+        }
+        let pdfBlob = packet.blobs.get(doc.title);
+        if (!pdfBlob) {
+          const pdf = new jsPDF();
+          pdf.setFontSize(16);
+          pdf.text(doc.title, 20, 20);
+          pdf.setFontSize(12);
+          pdf.text(`Trabajador: ${worker.name}`, 20, 40);
+          pdf.text(`Cargo: ${worker.role}`, 20, 50);
+          pdf.text(`Fecha: ${new Date(packet.createdAt).toLocaleDateString()}`, 20, 60);
+          pdf.text(doc.content, 20, 80);
+          pdf.text('Firma del Trabajador:', 20, 140);
+          pdf.addImage(signatureDataUrl, 'PNG', 20, 150, 80, 40);
+          pdfBlob = pdf.output('blob');
+          packet.blobs.set(doc.title, pdfBlob);
+        }
         
-        pdf.setFontSize(12);
-        pdf.text(`Trabajador: ${workerData.name}`, 20, 40);
-        pdf.text(`Cargo: ${workerData.role}`, 20, 50);
-        pdf.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 60);
-        
-        pdf.text(doc.content, 20, 80);
-        
-        // Add Signature
-        pdf.text('Firma del Trabajador:', 20, 140);
-        pdf.addImage(signatureDataUrl, 'PNG', 20, 150, 80, 40);
-        
-        const pdfBlob = pdf.output('blob');
-        
-        // Save to IndexedDB (Bunker) with Geometric SVG Signature metadata
-        await saveBunkerKnowledge(`doc_${workerData.name.replace(/\s+/g, '_')}_${doc.title.replace(/\s+/g, '_')}`, {
-          workerName: workerData.name,
+        const currentIdentity = await resolveCurrentQueueIdentity();
+        if (!currentIdentity || !queueIdentitiesMatch(identity, currentIdentity)) {
+          throw new Error('onboarding_owner_changed');
+        }
+        // IDs, not display names, prevent two same-named workers colliding.
+        await saveBunkerKnowledge(`onboarding/${identity.tenantId}/${identity.ownerUid}/${projectId}/${workerId}/${documentId}`, {
+          projectId, workerId, documentId, queueIdentity: identity,
+          workerName: worker.name,
           documentTitle: doc.title,
           blob: pdfBlob,
           geometricSignature: geometricSvgSignature,
-          date: new Date().toISOString()
+          date: packet.createdAt
         });
-        
-        // Queue for deferred sync to Cloud Storage
-        const file = new File([pdfBlob], `${doc.title.replace(/\s+/g, '_')}_${workerData.name.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
-        
+        const file = new File([pdfBlob], `${documentId}.pdf`, { type: 'application/pdf' });
+        const storagePath = `${metadataCollection}/${documentId}/${file.name}`;
         await saveForSync({
           type: 'upload',
-          collection: 'documents',
+          collection: metadataCollection,
+          docId: documentId,
+          queueIdentity: identity,
           data: {
-            storagePath: `projects/${selectedProject?.id || 'global'}/workers/${workerData.id || 'new'}/documents/${file.name}`,
+            onboardingUpload: 1,
+            storagePath,
             documentData: {
               title: doc.title,
-              workerId: workerData.id || 'new',
-              workerName: workerData.name,
-              projectId: selectedProject?.id || 'global',
+              name: file.name,
+              workerId,
+              workerName: worker.name,
+              projectId,
+              tenantId: identity.tenantId,
+              createdBy: identity.ownerUid,
+              storagePath,
+              archived: false,
               type: 'legal_onboarding',
               status: 'signed',
-              createdAt: new Date().toISOString(),
+              createdAt: packet.createdAt,
               geometricSignature: geometricSvgSignature
             }
           },
-          file: file
+          file
         });
       }
 
@@ -278,7 +315,7 @@ export function TacticalOnboardingModal({ isOpen, onClose, workerData }: Tactica
                   </div>
                   <h2 className="text-2xl font-black text-white mb-2">¡Onboarding Completado!</h2>
                   <p className="text-zinc-400 text-sm mb-8 text-center">
-                    Los documentos han sido generados, firmados y guardados en el Búnker local. Se sincronizarán automáticamente con Google Drive cuando haya conexión.
+                    Los documentos han sido generados, firmados y guardados en el Búnker local. Se sincronizarán con el almacenamiento del proyecto cuando haya conexión.
                   </p>
                   <button
                     onClick={onClose}
