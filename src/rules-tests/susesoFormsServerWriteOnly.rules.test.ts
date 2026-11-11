@@ -8,10 +8,11 @@
 //
 //   1. NO client create, for ANY caller. Not an unauthenticated caller, not
 //      a worker, not an admin/gerente, not a supervisor/prevencionista, not
-//      an occupational doctor, not a privileged caller of ANOTHER tenant,
-//      not a privileged caller with NO tenant binding at all, and not a
-//      payload that already carries a signature. The only creator of a
-//      SUSESO form is the authenticated server route
+//      an occupational doctor, not a worker of ANOTHER tenant, not a
+//      privileged caller of ANOTHER tenant, not a privileged caller with NO
+//      tenant binding at all, and not a payload that already carries a
+//      signature. The only creator of a SUSESO form is the authenticated
+//      server route
 //      (src/server/routes/suseso.ts → POST /api/suseso/form), which writes
 //      through the Admin SDK and derives the tenant from the verified token.
 //
@@ -272,6 +273,16 @@ describe('suseso_forms — server-write-only create (issue #1919)', () => {
           buildServerForm() as unknown as Record<string, unknown>,
         ),
       );
+    });
+
+    it('denies a WORKER of ANOTHER tenant writing into this tenant', async () => {
+      await assertFails(
+        setDoc(
+          formRef(clientDb(OTHER_WORKER_UID, { role: 'worker', tenantId: OTHER_TENANT }), TENANT, FORM_ID),
+          buildServerForm() as unknown as Record<string, unknown>,
+        ),
+      );
+      expect(await serverDocExists(TENANT, FORM_ID)).toBe(false);
     });
 
     it('denies an OPERARIO of the tenant', async () => {
