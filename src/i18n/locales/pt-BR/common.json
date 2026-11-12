@@ -5644,6 +5644,9 @@
     "medicalContext": "Dados médicos consentidos"
   },
   "suppliers": {
+    "form": {
+      "success": "Fornecedor cadastrado com sucesso."
+    },
     "ranking": {
       "allServices": "Todos os serviços"
     }

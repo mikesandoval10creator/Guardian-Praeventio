@@ -99,6 +99,7 @@ describe('mutations', () => {
       .set(uid)
       .send({ id: 's1', name: 'Proveedor X', taxId: '9-9', services: ['soldadura'] });
     expect(res.status).toBe(201);
+    expect(res.body.message).toBe('Proveedor registrado correctamente.');
     expect(res.body.supplier.legalName).toBe('Proveedor X');
     expect(H.db!._store.has(`${SUP}/s1`)).toBe(true);
   });
@@ -126,7 +127,11 @@ describe('mutations', () => {
       .send({ id: 's1', name: 'Proveedor sustituto', taxId: '9-9', services: ['soldadura'] });
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'supplier_duplicate_id' });
+    expect(res.body).toEqual({
+      error: 'supplier_duplicate_id',
+      message:
+        'Este proveedor ya está registrado en este proyecto. No se creó un registro duplicado ni se modificaron los datos existentes. Revisa el listado; si necesitas corregirlo, consulta con un administrador.',
+    });
     expect(H.db!._dump()[path]).toEqual(existing);
     expect(Object.values(H.db!._dump()).filter((doc) => doc.action === 'suppliers.create')).toHaveLength(0);
   });

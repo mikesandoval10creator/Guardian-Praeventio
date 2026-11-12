@@ -5644,6 +5644,9 @@
     "medicalContext": "Consented medical data"
   },
   "suppliers": {
+    "form": {
+      "success": "Supplier registered successfully."
+    },
     "ranking": {
       "allServices": "All services"
     }

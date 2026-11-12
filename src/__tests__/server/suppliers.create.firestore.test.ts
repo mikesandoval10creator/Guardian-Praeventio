@@ -57,7 +57,11 @@ describe('supplier create-only precondition against Firestore emulator', () => {
       409,
     ]);
     const conflict = responses.find((response) => response.status === 409)!;
-    expect(conflict.body).toEqual({ error: 'supplier_duplicate_id' });
+    expect(conflict.body).toEqual({
+      error: 'supplier_duplicate_id',
+      message:
+        'Este proveedor ya está registrado en este proyecto. No se creó un registro duplicado ni se modificaron los datos existentes. Revisa el listado; si necesitas corregirlo, consulta con un administrador.',
+    });
 
     const supplierDocs = await db.collection(SUPPLIERS_PATH).get();
     expect(supplierDocs.docs).toHaveLength(1);
