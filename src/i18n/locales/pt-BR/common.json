@@ -5059,7 +5059,19 @@
   },
   "residualRisk": {
     "acceptFormally": "Aceitar formalmente",
-    "acceptPrompt": "Motivo da aceitação formal (fica como comprovante interno):",
+    "acceptModal": {
+      "confirm": "Confirmar aceitação",
+      "description": "O motivo ficará registrado como comprovante interno da aceitação formal.",
+      "errorFallback": "Não foi possível confirmar o resultado da aceitação. Atualize a página e confira o status antes de tentar novamente.",
+      "errorForbidden": "Sua conta não tem permissão para registrar esta aceitação. Peça a uma pessoa autorizada para concluí-la.",
+      "errorNetwork": "Não foi possível conectar ao servidor. O resultado da aceitação não foi confirmado. Atualize o status antes de tentar novamente.",
+      "errorNotFound": "Não encontramos este risco no projeto. Atualize a lista e tente novamente; se ele continuar ausente, fale com um administrador.",
+      "errorServer": "Não foi possível confirmar se a aceitação foi salva. Atualize a página e confira o status do risco antes de tentar novamente.",
+      "placeholder": "Descreva por que este risco está sendo aceito…",
+      "reasonLabel": "Motivo da aceitação formal",
+      "submitting": "Salvando aceitação…",
+      "title": "Aceitar risco residual formalmente"
+    },
     "acceptancePending": "Pendente de aceitação formal pela gerência",
     "acceptanceRequired": "Risco residual alto: exige aceitação formal documentada",
     "acceptedBy": "Aceito formalmente por {{uid}} em {{date}}",
