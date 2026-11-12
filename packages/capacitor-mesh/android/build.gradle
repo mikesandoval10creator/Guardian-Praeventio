@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-// @praeventio/capacitor-mesh — Android module (Sprint 30 SCAFFOLD).
+// @praeventio/capacitor-mesh — Android module for the current BLE GATT transport.
 //
-// Sprint 31 will land:
-//   - real BluetoothLeAdvertiser / BluetoothLeScanner / BluetoothGattServer
-//   - JobScheduler hook for background scanning
-//   - foreground service for long-running advertising during emergencies
+// BLE advertiser/scanner/GATT code lives in MeshPlugin.kt. Wi-Fi Direct and a
+// dedicated foreground service are not implemented in this package; do not
+// infer either capability from the permissions declared in AndroidManifest.xml.
 
 ext {
     junitVersion = project.hasProperty('junitVersion') ? rootProject.ext.junitVersion : '4.13.2'

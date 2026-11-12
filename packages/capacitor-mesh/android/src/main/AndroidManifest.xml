@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   SPDX-License-Identifier: MIT
-  @praeventio/capacitor-mesh — Android manifest (Sprint 30 SCAFFOLD).
+  @praeventio/capacitor-mesh — Android manifest for the BLE GATT implementation.
 
-  Permissions match the BLE GATT advertising/scanning + Wi-Fi Direct
-  fallback the runtime will need in Sprint 31. Declared up-front so the
-  permission flow can be wired and tested before the native code lands.
+  BLE permissions below are used by MeshPlugin.kt. Wi-Fi Direct and a
+  dedicated foreground service are not implemented; their declarations are
+  reserved and do not assert those features are available.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -30,7 +30,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
 
-    <!-- Wi-Fi Direct fallback for chunks > 100 KB (Sprint 32). -->
+    <!-- Reserved for the planned Wi-Fi Direct fallback; no transport exists yet. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
@@ -38,7 +38,7 @@
         tools:targetApi="33"
         xmlns:tools="http://schemas.android.com/tools" />
 
-    <!-- Foreground service for long-running mesh during emergencies. -->
+    <!-- Reserved permission; this package currently registers no foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
         tools:targetApi="34"

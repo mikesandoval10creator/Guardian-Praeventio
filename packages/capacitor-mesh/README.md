@@ -1,10 +1,11 @@
 # @praeventio/capacitor-mesh
 
-Capacitor plugin SCAFFOLD for the Praeventio BLE / Wi-Fi Direct information
-relay mesh (ADR 0013).
+Capacitor plugin for the Praeventio BLE / Wi-Fi Direct mesh transport (ADR 0013).
 
-Status: **0.1.0-scaffold** — types + web simulator only. Native code is
-stubbed (logs only). Real BLE GATT stack lands in **Sprint 31**.
+Status: package version `0.1.0-scaffold` (not a production release). Android
+and iOS source include BLE GATT/CoreBluetooth implementations; Wi-Fi Direct
+fallback remains unimplemented. Native/device acceptance remains open; this is
+source-level status, not field-readiness evidence.
 
 ## Layers
 
@@ -18,41 +19,33 @@ The mesh is split in two halves on purpose:
    - 100% testable, no Capacitor, no native.
 2. **Transport plugin** (this package):
    - `definitions.ts` — `MeshPlugin` interface
-   - `web.ts` — `MeshWeb` simulator using `BroadcastChannel` for
-     local-multi-tab dev (no device required)
-   - `android/` — Kotlin `MeshPlugin.kt` STUB (logs + emits test events)
-   - `ios/` — Swift `Plugin.swift` STUB
-   - The real BLE GATT advertising/scanning is the Sprint 31 deliverable.
+   - `web.ts` — `MeshWeb` simulator using `BroadcastChannel` for local multi-tab
+     development only
+   - `android/` — Kotlin `MeshPlugin.kt` implements BLE advertising/scanning
+     and GATT transport with PRM1 framing
+   - `ios/` — Swift `Plugin.swift` implements CoreBluetooth peripheral/central
+     transport with PRM1 framing
+   - Wi-Fi Direct (`WifiP2pManager` / `MultipeerConnectivity`) is not
+     implemented; manifest/Info.plist declarations do not make it available.
 
-The wire between the two halves lives in
-`src/services/mesh/transportFacade.ts` (also in this PR).
+The wire between the two halves lives in `src/services/mesh/transportFacade.ts`.
 
-## Sprint 31 TODO
+## Remaining acceptance — native lab and Wi-Fi Direct fallback
 
-- Replace `MeshPlugin.kt` stub with real implementation:
-  - `BluetoothLeAdvertiser` advertising service UUID
-    `00001234-PRAE-VENTI-O123-456789ABCDEF`
-  - `BluetoothLeScanner` scanning with the same UUID filter, background
-    via `JobScheduler`
-  - `BluetoothGattServer` exposing the `mesh-data` characteristic
-    (READ + WRITE_NO_RESPONSE, 512-byte chunks)
-  - `BluetoothGatt` client connect on peer discovery
-  - Permission flow for `BLUETOOTH_SCAN` / `BLUETOOTH_ADVERTISE` /
-    `BLUETOOTH_CONNECT` / `ACCESS_FINE_LOCATION`
-- Replace `Plugin.swift` stub:
-  - `CBPeripheralManager` advertising
-  - `CBCentralManager` scanning with `AllowDuplicates`
-  - `CBService` + `CBMutableCharacteristic` for `mesh-data`
-  - `Info.plist` background modes `bluetooth-central` +
-    `bluetooth-peripheral`
-- Wire `notifyListeners('mesh:packet', packet)` from native discovery
-  callbacks (signature already defined in `definitions.ts`).
-- Sprint 32+: Wi-Fi Direct (`WifiP2pManager` Android,
-  `MultipeerConnectivity` iOS) for chunks > 100 KB.
+- **Physical BLE acceptance remains open** in the P0 Mesh BLE ticket. It needs
+  Android↔Android and Android↔iOS round-trip, effective MTU/wire-byte budget,
+  backpressure, loss/reordering, disconnect/reconnect, ACK/retry and delivery
+  measurements. `writeWithoutResponse` is local queue acceptance, not remote
+  receipt. Source presence and unit tests do not establish field readiness.
+- **Wi-Fi Direct is not implemented.** `WifiP2pManager` (Android) and
+  `MultipeerConnectivity` (iOS) remain planned; permission strings alone do
+  not implement the fallback.
+- The valid radio service UUID is derived in the native implementations; do
+  not pass the non-hex brand string directly to CoreBluetooth/GATT APIs.
 
 ## Local development
 
-The web simulator wires multiple tabs of the same origin via
-`BroadcastChannel('praeventio-mesh-${projectId}')`, so two tabs running
-`npm run dev` will exchange packets just like two phones would over BLE.
-This lets the engine and UI be exercised end-to-end without a device.
+The web simulator exchanges events between same-origin tabs using
+`BroadcastChannel('praeventio-mesh-${projectId}')`. It exercises the engine/UI
+path only; it does not emulate BLE radio, MTU, permissions, background behavior,
+or the Android/iOS transport.
