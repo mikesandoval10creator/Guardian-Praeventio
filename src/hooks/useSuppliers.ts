@@ -3,10 +3,10 @@
 // Migrados del monolito `useSprintK.ts` (2026-05-18) — directiva Sprint K
 // reformulation.
 
-import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
 import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { readJsonResponse } from '../lib/humanError';
 
 export type SupplierRiskLevel = 'low' | 'medium' | 'high';
 export type SupplierRiskFilter = SupplierRiskLevel | 'all';
@@ -120,11 +120,7 @@ export async function registerSupplier(
     },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { ok: true; supplier: SupplierView };
+  const data = await readJsonResponse<{ ok: true; supplier: SupplierView }>(res);
   return data.supplier;
 }
 
@@ -153,14 +149,10 @@ export async function recordSupplierIncident(
       body: JSON.stringify(payload),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as {
+  const data = await readJsonResponse<{
     ok: true;
     incident: SupplierIncidentRecord;
-  };
+  }>(res);
   return data.incident;
 }
 
@@ -191,13 +183,9 @@ export async function recordSupplierAudit(
       body: JSON.stringify(payload),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as {
+  const data = await readJsonResponse<{
     ok: true;
     audit: SupplierAuditRecord;
-  };
+  }>(res);
   return data.audit;
 }

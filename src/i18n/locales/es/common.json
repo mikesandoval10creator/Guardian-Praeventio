@@ -5059,7 +5059,19 @@
   },
   "residualRisk": {
     "acceptFormally": "Aceptar formalmente",
-    "acceptPrompt": "Razón de aceptación formal (queda como comprobante interno):",
+    "acceptModal": {
+      "confirm": "Confirmar aceptación",
+      "description": "El motivo quedará registrado como comprobante interno de la aceptación formal.",
+      "errorFallback": "No pudimos confirmar el resultado de la aceptación. Actualiza la página y revisa el estado antes de volver a intentarlo.",
+      "errorForbidden": "Tu cuenta no tiene permiso para registrar esta aceptación. Solicita a una persona autorizada que la complete.",
+      "errorNetwork": "No pudimos conectar con el servidor. El resultado de la aceptación no está confirmado. Actualiza el estado antes de volver a intentarlo.",
+      "errorNotFound": "No encontramos este riesgo en el proyecto. Actualiza la lista y vuelve a intentarlo; si sigue sin aparecer, consulta con un administrador.",
+      "errorServer": "No pudimos confirmar si la aceptación se guardó. Actualiza la página y revisa el estado antes de volver a intentarlo.",
+      "placeholder": "Describe por qué se acepta este riesgo…",
+      "reasonLabel": "Motivo de aceptación formal",
+      "submitting": "Guardando aceptación…",
+      "title": "Aceptar formalmente"
+    },
     "acceptancePending": "Pendiente de aceptación formal por gerencia",
     "acceptanceRequired": "Riesgo residual alto: requiere aceptación formal documentada",
     "acceptedBy": "Aceptado formalmente por {{uid}} el {{date}}",
@@ -5644,6 +5656,9 @@
     "medicalContext": "Datos médicos consentidos"
   },
   "suppliers": {
+    "form": {
+      "success": "Proveedor registrado correctamente."
+    },
     "ranking": {
       "allServices": "Todos los servicios"
     }

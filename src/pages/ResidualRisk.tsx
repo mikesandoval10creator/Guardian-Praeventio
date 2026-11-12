@@ -21,7 +21,7 @@
 
 import { randomId } from '../utils/randomId';
 import { humanErrorMessage } from '../lib/humanError';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertOctagon, WifiOff, Plus, X } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -40,6 +40,7 @@ import type {
   ControlEffectivenessLevel,
 } from '../services/residualRisk/residualRiskEngine';
 import { ResidualRiskCard } from '../components/residualRisk/ResidualRiskCard';
+import { ReasonModal } from '../components/changeMgmt/ReasonModal';
 import { logger } from '../utils/logger';
 
 interface RegisterFormProps {
@@ -254,9 +255,62 @@ export function ResidualRisk() {
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
   const [showForm, setShowForm] = useState(false);
+  const [acceptingRisk, setAcceptingRisk] = useState<StoredResidualRisk | null>(
+    null,
+  );
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const acceptanceRequestId = useRef(0);
+  const acceptanceInFlight = useRef(false);
 
   const risksResp = useResidualRisks(projectId);
   const suspiciousResp = useSuspiciousRisks(projectId);
+
+  useEffect(() => {
+    // A dialog belongs to the project that opened it. Never carry a pending
+    // signature or its error into a different project context.
+    acceptanceRequestId.current += 1;
+    acceptanceInFlight.current = false;
+    setAcceptingRisk(null);
+    setAccepting(false);
+    setAcceptError(null);
+  }, [projectId]);
+
+  const acceptanceErrorMessage = (error: unknown): string => {
+    const code = error instanceof Error ? error.message : '';
+    if (/failed to fetch|networkerror|network request failed/i.test(code)) {
+      return t(
+        'residualRisk.acceptModal.errorNetwork',
+        'No pudimos conectar con el servidor. El resultado no está confirmado; actualiza la página antes de volver a intentarlo.',
+      ) as string;
+    }
+    switch (code) {
+      case 'residual_risk_not_found':
+        return t(
+          'residualRisk.acceptModal.errorNotFound',
+          'No encontramos este riesgo en el proyecto. Actualiza la lista y vuelve a intentarlo; si sigue sin aparecer, consulta con un administrador.',
+        ) as string;
+      case 'forbidden':
+      case 'caller_lacks_residual_risk_acceptor_role':
+        return t(
+          'residualRisk.acceptModal.errorForbidden',
+          'Tu cuenta no tiene permiso para registrar esta aceptación. Solicita a una persona autorizada que la complete.',
+        ) as string;
+      case 'internal_error':
+      case 'http_500':
+        return t(
+          'residualRisk.acceptModal.errorServer',
+          'No pudimos confirmar si la aceptación se guardó. Actualiza la página y revisa el estado antes de volver a intentarlo.',
+        ) as string;
+      default:
+        return code
+          ? humanErrorMessage(code)
+          : (t(
+              'residualRisk.acceptModal.errorFallback',
+              'No pudimos confirmar el resultado de la aceptación. Actualiza la página y revisa el estado antes de volver a intentarlo.',
+            ) as string);
+    }
+  };
 
   const handleRegister = async (payload: ResidualRiskPayload) => {
     if (!projectId) return;
@@ -271,21 +325,43 @@ export function ResidualRisk() {
     }
   };
 
-  const handleAccept = async (risk: StoredResidualRisk) => {
-    if (!projectId) return;
-    const reason = window.prompt(
-      t(
-        'residualRisk.acceptPrompt',
-        'Razón de aceptación formal (queda como comprobante interno):',
-      ) as string,
-    );
-    if (!reason) return;
+  const requestAcceptance = (risk: StoredResidualRisk) => {
+    if (!projectId || acceptanceInFlight.current) return;
+    setAcceptError(null);
+    setAcceptingRisk(risk);
+  };
+
+  const cancelAcceptance = () => {
+    if (acceptanceInFlight.current) return;
+    acceptanceRequestId.current += 1;
+    setAcceptingRisk(null);
+    setAcceptError(null);
+  };
+
+  const confirmAcceptance = async (reason: string) => {
+    if (!projectId || !acceptingRisk || acceptanceInFlight.current) return;
+    const requestId = ++acceptanceRequestId.current;
+    const requestProjectId = projectId;
+    const riskId = acceptingRisk.id;
+    acceptanceInFlight.current = true;
+    setAccepting(true);
+    setAcceptError(null);
     try {
-      await acceptResidualRisk(projectId, risk.id, reason);
-      logger.info('residualRisk.accept.success', { id: risk.id });
+      await acceptResidualRisk(requestProjectId, riskId, reason.trim());
+      if (requestId !== acceptanceRequestId.current) return;
+      logger.info('residualRisk.accept.success', { id: riskId });
+      setAcceptingRisk(null);
+      setAcceptError(null);
       risksResp.refetch?.();
     } catch (err) {
+      if (requestId !== acceptanceRequestId.current) return;
       logger.error('residualRisk.accept.failed', err);
+      setAcceptError(acceptanceErrorMessage(err));
+    } finally {
+      if (requestId === acceptanceRequestId.current) {
+        acceptanceInFlight.current = false;
+        setAccepting(false);
+      }
     }
   };
 
@@ -433,7 +509,7 @@ export function ResidualRisk() {
                   }}
                   controls={r.currentControls}
                   stored={r}
-                  onRequestAcceptance={() => handleAccept(r)}
+                  onRequestAcceptance={() => requestAcceptance(r)}
                 />
                 {r.suspiciousReason && (
                   <p
@@ -482,12 +558,42 @@ export function ResidualRisk() {
                 }}
                 controls={r.currentControls}
                 stored={r}
-                onRequestAcceptance={() => handleAccept(r)}
+                onRequestAcceptance={() => requestAcceptance(r)}
               />
             ))
           )}
         </section>
       )}
+
+      <ReasonModal
+        open={acceptingRisk !== null}
+        title={t('residualRisk.acceptModal.title', 'Aceptar formalmente') as string}
+        description={t(
+          'residualRisk.acceptModal.description',
+          'El motivo quedará registrado como comprobante interno de la aceptación formal.',
+        ) as string}
+        reasonLabel={t(
+          'residualRisk.acceptModal.reasonLabel',
+          'Motivo de aceptación formal',
+        ) as string}
+        placeholder={t(
+          'residualRisk.acceptModal.placeholder',
+          'Describe por qué se acepta este riesgo…',
+        ) as string}
+        minLength={1}
+        confirmLabel={t(
+          'residualRisk.acceptModal.confirm',
+          'Confirmar aceptación',
+        ) as string}
+        busy={accepting}
+        busyLabel={t(
+          'residualRisk.acceptModal.submitting',
+          'Guardando aceptación…',
+        ) as string}
+        userMessage={acceptError}
+        onConfirm={confirmAcceptance}
+        onCancel={cancelAcceptance}
+      />
     </div>
   );
 }

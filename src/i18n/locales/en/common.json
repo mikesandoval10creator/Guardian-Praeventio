@@ -5059,7 +5059,19 @@
   },
   "residualRisk": {
     "acceptFormally": "Formally accept",
-    "acceptPrompt": "Reason for formal acceptance (kept as internal record):",
+    "acceptModal": {
+      "confirm": "Confirm acceptance",
+      "description": "The reason will be stored as an internal record of the formal acceptance.",
+      "errorFallback": "We couldn't confirm the acceptance result. Refresh the page and review its status before trying again.",
+      "errorForbidden": "Your account does not have permission to record this acceptance. Ask an authorized person to complete it.",
+      "errorNetwork": "We couldn't connect to the server. The acceptance result is unconfirmed. Refresh the status before trying again.",
+      "errorNotFound": "We couldn't find this risk in the project. Refresh the list and try again; if it is still missing, contact an administrator.",
+      "errorServer": "We couldn't confirm whether the acceptance was saved. Refresh the page and review the risk status before trying again.",
+      "placeholder": "Describe why this risk is being accepted…",
+      "reasonLabel": "Reason for formal acceptance",
+      "submitting": "Saving acceptance…",
+      "title": "Formally accept residual risk"
+    },
     "acceptancePending": "Pending formal acceptance by management",
     "acceptanceRequired": "High residual risk: requires documented formal acceptance",
     "acceptedBy": "Formally accepted by {{uid}} on {{date}}",
@@ -5644,6 +5656,9 @@
     "medicalContext": "Consented medical data"
   },
   "suppliers": {
+    "form": {
+      "success": "Supplier registered successfully."
+    },
     "ranking": {
       "allServices": "All services"
     }
