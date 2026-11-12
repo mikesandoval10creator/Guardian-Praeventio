@@ -278,9 +278,9 @@
 |---|---|---|---|---|---|---|---|---|
 | background-capability | `android/app/src/main/AndroidManifest.xml` | `fgs-location-health` | code-missing | unknown | unknown | unknown | unknown | unknown |
 | background-capability | `packages/capacitor-mandown/android/src/main/AndroidManifest.xml` | `fgs-mandown` | code-present | unknown | unknown | unknown | unknown | unknown |
-| background-capability | `android/app/src/main/AndroidManifest.xml` | `fcm-listener` | code-missing | unknown | unknown | unknown | unknown | unknown |
-| background-capability | `android/app/src/main/AndroidManifest.xml` | `workmanager-jobs` | code-missing | unknown | unknown | unknown | unknown | unknown |
-| background-capability | `android/app/src/main/AndroidManifest.xml` | `health-connect` | code-missing | unknown | unknown | unknown | unknown | unknown |
+| background-capability | `android/capacitor.settings.gradle` | `fcm-listener` | code-present | unknown | unknown | unknown | unknown | unknown |
+| background-capability | `packages/capacitor-mandown/android/src/main/java/com/praeventio/mandown/NativeManDownRetryWorker.java` | `workmanager-jobs` | code-present | unknown | unknown | unknown | unknown | unknown |
+| background-capability | `android/app/src/main/AndroidManifest.xml` | `health-connect` | code-present | unknown | unknown | unknown | unknown | unknown |
 | background-capability | `src/services/mobile/` | `geolocation` | code-missing | unknown | unknown | unknown | unknown | unknown |
 | background-capability | `packages/capacitor-mesh/` | `ble-mesh` | code-present | unknown | unknown | unknown | unknown | unknown |
 | background-capability | `src/services/mobile/batteryOptimization.ts` | `battery-optimization` | code-present | unknown | unknown | unknown | unknown | unknown |

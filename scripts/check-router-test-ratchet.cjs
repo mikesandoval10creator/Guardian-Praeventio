@@ -163,6 +163,25 @@ function main() {
   const liveSet = new Set(live);
   let failures = 0;
 
+  const expectedVerified = routers.length - live.length;
+  if (baseline.total_routers !== routers.length) {
+    failures += 1;
+    console.error(
+      `\n[router-test-ratchet] FAIL — baseline total_routers=${baseline.total_routers}, ` +
+        `but live route discovery found ${routers.length}. Review the inventory and regenerate ` +
+        'with `node scripts/check-router-test-ratchet.cjs --write`.',
+    );
+  }
+  if (baseline.verified !== expectedVerified || baseline.uncovered_count !== live.length) {
+    failures += 1;
+    console.error(
+      `\n[router-test-ratchet] FAIL — baseline counts do not match live coverage: ` +
+        `verified=${baseline.verified} (expected ${expectedVerified}), ` +
+        `uncovered_count=${baseline.uncovered_count} (expected ${live.length}). ` +
+        'Regenerate with `node scripts/check-router-test-ratchet.cjs --write`.',
+    );
+  }
+
   const added = live.filter((f) => !base.has(f));
   if (added.length) {
     failures += added.length;

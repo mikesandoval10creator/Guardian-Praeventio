@@ -15,8 +15,8 @@
 | --- | --- | --- |
 | Huérfanos (construido, sin montar) | 3 | `connectivity-ratchet` |
 | Componentes fantasma (importados, no renderizados) | 13 | `render-ratchet` |
-| Routers de backend | 205 | `router-test-ratchet` |
-| Routers con test conductual real | 205 | `router-test-ratchet` |
+| Routers de backend | 218 | `router-test-ratchet` |
+| Routers con test conductual real | 218 | `router-test-ratchet` |
 | Routers sin cobertura conductual | 0 | `router-test-ratchet` |
 | Usos de `as any` | 151 | `any-ratchet` |
 

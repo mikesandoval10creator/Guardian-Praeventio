@@ -76,12 +76,22 @@ test("collectBackgroundCapabilities declares 8 mobile capabilities", () => {
   }
 });
 
+test("reports native Health Connect, WorkManager, and FCM implementations as present", () => {
+  const statuses = new Map(collectBackgroundCapabilities(REPO_ROOT).map((cap) => [cap.id, cap.status]));
+  assert.equal(statuses.get("health-connect"), "code-present");
+  assert.equal(statuses.get("workmanager-jobs"), "code-present");
+  assert.equal(statuses.get("fcm-listener"), "code-present");
+  assert.equal(statuses.get("geolocation"), "code-missing");
+});
+
 test("renderMarkdown separates route and background-capability sections", () => {
   const routes = collectRouteDeclarations(REPO_ROOT);
   const caps = collectBackgroundCapabilities(REPO_ROOT);
+  const routeMatrix = buildRouteMatrix(routes);
+  const capabilityMatrix = buildBackgroundMatrix(caps);
   const md = renderMarkdown({
-    routes,
-    capabilities: caps,
+    routes: routeMatrix,
+    capabilities: capabilityMatrix,
     routeCount: routes.length,
     capabilityCount: caps.length,
   });
@@ -89,6 +99,7 @@ test("renderMarkdown separates route and background-capability sections", () => 
   assert.match(md, /## Background capabilities/);
   assert.match(md, /Source files scanned: 8 route files \+ 8 background capabilities\./);
   assert.match(md, /unknown/);
+  assert.doesNotMatch(md, /\bundefined\b/);
 });
 
 function withGeneratedFixture(check) {

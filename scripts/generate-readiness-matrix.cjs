@@ -69,20 +69,51 @@ const BACKGROUND_CAPABILITIES = [
   {
     id: "fcm-listener",
     label: "FCM push con listener en background",
-    evidencePaths: ["android/app/src/main/AndroidManifest.xml"],
-    requiredFragments: [/FirebaseMessagingService|FCMService/],
+    evidencePaths: [
+      "android/capacitor.settings.gradle",
+      "node_modules/@capacitor/push-notifications/android/src/main/AndroidManifest.xml",
+      "node_modules/@capacitor/push-notifications/android/src/main/java/com/capacitorjs/plugins/pushnotifications/MessagingService.java",
+      "src/hooks/usePushNotifications.ts",
+    ],
+    requiredFragments: [
+      /MessagingService/,
+      /extends FirebaseMessagingService/,
+      /com\.google\.firebase\.MESSAGING_EVENT/,
+      /capacitor-push-notifications/,
+      /PushNotifications\.addListener/,
+    ],
   },
   {
     id: "workmanager-jobs",
     label: "WorkManager para jobs diferidos (cola offline)",
-    evidencePaths: ["android/app/src/main/AndroidManifest.xml"],
-    requiredFragments: [/androidx\.work\.WorkManager|WorkManagerInitializer/],
+    evidencePaths: [
+      "packages/capacitor-mandown/android/src/main/java/com/praeventio/mandown/NativeManDownRetryWorker.java",
+      "packages/capacitor-lone-worker/android/src/main/java/com/praeventio/loneworker/NativeLoneWorkerRetryWorker.java",
+      "android/capacitor.settings.gradle",
+    ],
+    requiredFragments: [
+      /androidx\.work\.WorkManager/,
+      /OneTimeWorkRequest/,
+      /enqueueUniqueWork/,
+      /praeventio-capacitor-mandown/,
+      /praeventio-capacitor-lone-worker/,
+    ],
   },
   {
     id: "health-connect",
     label: "Integración Health Connect",
-    evidencePaths: ["android/app/src/main/AndroidManifest.xml"],
-    requiredFragments: [/androidx\.health\.connect|HEALTH_CONNECT_PERMISSION/],
+    evidencePaths: [
+      "android/app/src/main/AndroidManifest.xml",
+      "android/app/src/main/java/com/praeventio/guard/MainActivity.java",
+      "src/services/health/healthConnectAdapter.ts",
+    ],
+    requiredFragments: [
+      /android\.permission\.health\.READ_HEART_RATE/,
+      /android\.permission\.health\.READ_STEPS/,
+      /com\.google\.android\.apps\.healthdata/,
+      /registerForActivityResult/,
+      /HealthConnect\.requestHealthPermissions/,
+    ],
   },
   {
     id: "geolocation",
