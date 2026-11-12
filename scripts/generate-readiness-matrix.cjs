@@ -68,19 +68,20 @@ const BACKGROUND_CAPABILITIES = [
   },
   {
     id: "fcm-listener",
-    label: "FCM push con listener en background",
+    label: "FCM push vía integración nativa Capacitor",
+    // The CI evidence job is source-only; use locked dependency + native wiring, not node_modules.
     evidencePaths: [
       "android/capacitor.settings.gradle",
-      "node_modules/@capacitor/push-notifications/android/src/main/AndroidManifest.xml",
-      "node_modules/@capacitor/push-notifications/android/src/main/java/com/capacitorjs/plugins/pushnotifications/MessagingService.java",
+      "package.json",
+      "package-lock.json",
       "src/hooks/usePushNotifications.ts",
     ],
     requiredFragments: [
-      /MessagingService/,
-      /extends FirebaseMessagingService/,
-      /com\.google\.firebase\.MESSAGING_EVENT/,
       /capacitor-push-notifications/,
+      /@capacitor/,
+      /push-notifications/,
       /PushNotifications\.addListener/,
+      /PushNotifications\.register/,
     ],
   },
   {

@@ -2836,7 +2836,7 @@
     "kind": "background-capability",
     "surface": "fcm-listener",
     "sourceFile": "android/capacitor.settings.gradle",
-    "summary": "FCM push con listener en background",
+    "summary": "FCM push vía integración nativa Capacitor",
     "codePresence": "code-present",
     "missingFragments": [],
     "persistence": "unknown",

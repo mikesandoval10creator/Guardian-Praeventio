@@ -76,12 +76,41 @@ test("collectBackgroundCapabilities declares 8 mobile capabilities", () => {
   }
 });
 
-test("reports native Health Connect, WorkManager, and FCM implementations as present", () => {
+test("reports native Health Connect, WorkManager, and FCM integrations as present", () => {
   const statuses = new Map(collectBackgroundCapabilities(REPO_ROOT).map((cap) => [cap.id, cap.status]));
   assert.equal(statuses.get("health-connect"), "code-present");
   assert.equal(statuses.get("workmanager-jobs"), "code-present");
   assert.equal(statuses.get("fcm-listener"), "code-present");
   assert.equal(statuses.get("geolocation"), "code-missing");
+});
+
+test("FCM integration evidence is available without an installed node_modules tree", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "guardian-fcm-evidence-"));
+  try {
+    fs.mkdirSync(path.join(root, "android"), { recursive: true });
+    fs.mkdirSync(path.join(root, "src", "hooks"), { recursive: true });
+    fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+      dependencies: { "@capacitor/push-notifications": "^8.1.3" },
+    }));
+    fs.writeFileSync(path.join(root, "package-lock.json"), JSON.stringify({
+      packages: {
+        "": { dependencies: { "@capacitor/push-notifications": "^8.1.3" } },
+        "node_modules/@capacitor/push-notifications": { version: "8.1.3" },
+      },
+    }));
+    fs.writeFileSync(
+      path.join(root, "android", "capacitor.settings.gradle"),
+      "include ':capacitor-push-notifications'\\nproject(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')",
+    );
+    fs.writeFileSync(
+      path.join(root, "src", "hooks", "usePushNotifications.ts"),
+      "PushNotifications.addListener('pushNotificationReceived', handle); PushNotifications.register();",
+    );
+    const fcm = collectBackgroundCapabilities(root).find((cap) => cap.id === "fcm-listener");
+    assert.equal(fcm.status, "code-present", JSON.stringify(fcm));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("renderMarkdown separates route and background-capability sections", () => {
