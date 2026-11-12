@@ -108,6 +108,7 @@ export function SupplierQuality() {
   const [form, setForm] = useState<RegisterFormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [selected, setSelected] = useState<SupplierView | null>(null);
 
   const suppliers: SupplierView[] = useMemo(
@@ -136,18 +137,26 @@ export function SupplierQuality() {
     }
     setSubmitting(true);
     setSubmitError(null);
+    setSubmitSuccess(null);
     try {
       await registerSupplier(projectId, {
         name: form.name.trim(),
         taxId: form.taxId.trim(),
         services,
       });
+      setSubmitSuccess(
+        tr(
+          'suppliers.form.success',
+          'Proveedor registrado correctamente.',
+        ),
+      );
       logger.info('suppliers.register.success', { name: form.name.trim() });
       setForm(EMPTY_FORM);
       setShowForm(false);
       refetch();
     } catch (err) {
       logger.error('suppliers.register.failed', err);
+      setSubmitSuccess(null);
       setSubmitError(humanErrorMessage((err as Error).message || tr('suppliers.form.error', 'No se pudo registrar.')));
     } finally {
       setSubmitting(false);
@@ -227,13 +236,27 @@ export function SupplierQuality() {
         <button
           type="button"
           data-testid="suppliers-register-btn"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            setSubmitSuccess(null);
+            setSubmitError(null);
+            setShowForm((v) => !v);
+          }}
           className="ml-auto px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 flex items-center gap-1"
         >
           <Plus className="w-3 h-3" aria-hidden="true" />
           {tr('suppliers.register.cta', 'Nuevo proveedor')}
         </button>
       </div>
+
+      {submitSuccess && (
+        <p
+          className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400"
+          data-testid="suppliers-register-success"
+          role="status"
+        >
+          {submitSuccess}
+        </p>
+      )}
 
       {showForm && (
         <form
@@ -303,6 +326,7 @@ export function SupplierQuality() {
               onClick={() => {
                 setShowForm(false);
                 setSubmitError(null);
+                setSubmitSuccess(null);
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border border-default-token text-secondary-token hover:bg-surface"
             >
