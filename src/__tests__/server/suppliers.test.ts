@@ -103,6 +103,34 @@ describe('mutations', () => {
     expect(H.db!._store.has(`${SUP}/s1`)).toBe(true);
   });
 
+  it('POST rejects a duplicate id without changing the existing supplier or auditing a create', async () => {
+    const path = `${SUP}/s1`;
+    const existing = {
+      id: 's1',
+      legalName: 'Proveedor original',
+      taxId: '12.345.678-K',
+      services: ['soldadura', 'montaje'],
+      criticalRoles: ['mantenimiento'],
+      active: false,
+      registeredAt: '2025-02-03T10:11:12.000Z',
+      registeredByUid: 'original-registrar',
+      incidents: [{ id: 'incident-1', description: 'Near miss retained' }],
+      audits: [{ id: 'audit-1', notes: 'Audit retained' }],
+      retainedField: { source: 'legacy-metadata' },
+    };
+    H.db!._seed(path, existing);
+
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/suppliers')
+      .set(uid)
+      .send({ id: 's1', name: 'Proveedor sustituto', taxId: '9-9', services: ['soldadura'] });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'supplier_duplicate_id' });
+    expect(H.db!._dump()[path]).toEqual(existing);
+    expect(Object.values(H.db!._dump()).filter((doc) => doc.action === 'suppliers.create')).toHaveLength(0);
+  });
+
   it('POST incident appends to the supplier; 404 when missing', async () => {
     H.db!._seed(`${SUP}/s1`, { legalName: 'X', taxId: '1', services: [], incidents: [], audits: [] });
     const ok = await request(buildApp())
