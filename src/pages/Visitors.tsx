@@ -21,7 +21,7 @@
 // via i18n (`visitors.*`).
 
 import { randomId } from '../utils/randomId';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Users,
@@ -34,6 +34,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useActiveVisitors } from '../hooks/useActiveVisitors';
@@ -86,10 +87,46 @@ function fmtDateTime(iso: string | undefined): string {
   }
 }
 
-async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+interface VisitorRequest {
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+  assertCurrent: () => void;
+  release: () => void;
+}
+
+function useVisitorRequests(ownerUid: string) {
+  const mounted = useRef(false);
+  const pending = useRef(new Set<AbortController>());
+  useLayoutEffect(() => {
+    mounted.current = true;
+    const controllers = pending.current;
+    return () => {
+      mounted.current = false;
+      for (const controller of controllers) controller.abort();
+      controllers.clear();
+    };
+  }, []);
+  return (): VisitorRequest => {
+    if (!mounted.current || auth.currentUser?.uid !== ownerUid) throw new Error('visitor_context_expired');
+    const controller = new AbortController();
+    pending.current.add(controller);
+    const isCurrent = () => mounted.current && !controller.signal.aborted && auth.currentUser?.uid === ownerUid;
+    return {
+      signal: controller.signal,
+      isCurrent,
+      assertCurrent: () => { if (!isCurrent()) throw new Error('visitor_context_expired'); },
+      release: () => { pending.current.delete(controller); },
+    };
+  };
+}
+
+async function fetchJson<T>(url: string, init: RequestInit, request: VisitorRequest): Promise<T> {
+  request.assertCurrent();
+  const res = await fetch(url, { ...init, signal: request.signal });
+  request.assertCurrent();
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    request.assertCurrent();
     let parsed: { error?: string } = {};
     try {
       parsed = JSON.parse(text);
@@ -98,7 +135,20 @@ async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
     }
     throw new Error(parsed.error ?? `HTTP ${res.status}`);
   }
-  return (await res.json()) as T;
+  const body = (await res.json()) as T;
+  request.assertCurrent();
+  return body;
+}
+
+function ScopedCheckIn({ ownerUid, onSubmit, ...props }: {
+  ownerUid: string;
+  onSubmit: (payload: VisitorCheckInPayload, request: VisitorRequest) => Promise<void>;
+} & Omit<React.ComponentProps<typeof VisitorCheckInForm>, 'onSubmit'>) {
+  const beginRequest = useVisitorRequests(ownerUid);
+  return <VisitorCheckInForm {...props} onSubmit={async (payload) => {
+    const request = beginRequest();
+    try { await onSubmit(payload, request); } finally { request.release(); }
+  }} />;
 }
 
 function newIdempotencyKey(prefix: string): string {
@@ -242,6 +292,7 @@ function buildReason(
 // ────────────────────────────────────────────────────────────────────────
 
 interface InductionAckProps {
+  ownerUid: string;
   projectId: string;
   visitor: Visitor;
   inductions: InductionDoc[];
@@ -254,12 +305,14 @@ interface InductionAckProps {
 }
 
 function InductionAck({
+  ownerUid,
   projectId,
   visitor,
   inductions,
   onClose,
   onAcknowledged,
 }: InductionAckProps) {
+  const beginRequest = useVisitorRequests(ownerUid);
   const { t } = useTranslation();
   const [selectedInductionId, setSelectedInductionId] = useState<string>(
     inductions[0]?.id ?? '',
@@ -281,15 +334,11 @@ function InductionAck({
     if (!valid || submitting) return;
     setSubmitting(true);
     setError(null);
+    let request: VisitorRequest | undefined;
     try {
-      const user = auth.currentUser;
-      if (!user) {
-        setError(t('visitors.errors.noSession', 'Debes iniciar sesión.'));
-        setSubmitting(false);
-        return;
-      }
-      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      request = beginRequest();
       const authHeader = await apiAuthHeader();
+      request.assertCurrent();
       const result = await fetchJson<{
         ok: true;
         inductionVersionId: string;
@@ -305,7 +354,8 @@ function InductionAck({
           projectId,
           inductionVersionId: selectedInductionId,
         }),
-      });
+      }, request);
+      request.assertCurrent();
       logger.info('visitor.induction.ack', {
         projectId,
         visitorId: visitor.id,
@@ -314,11 +364,12 @@ function InductionAck({
       });
       onAcknowledged(visitor.id, result.inductionVersionId, result.inductedAt);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      if (!request?.isCurrent()) return;
+      setError(humanErrorMessage(err));
       logger.error('visitor_ack_failed', err);
     } finally {
-      setSubmitting(false);
+      if (request?.isCurrent()) setSubmitting(false);
+      request?.release();
     }
   };
 
@@ -454,6 +505,19 @@ function InductionAck({
 // ────────────────────────────────────────────────────────────────────────
 
 export function Visitors() {
+  const { selectedProject } = useProject();
+  const { user, isAuthReady } = useFirebase();
+  const { t } = useTranslation();
+  if (!user || !isAuthReady) {
+    return <div data-testid="visitors-session-empty" role="status">{t('visitors.errors.noSession', 'Debes iniciar sesión.')}</div>;
+  }
+  // Lists, forms, modals and hook instances belong to this actor/project.
+  // Clear them during render, before the next query can fail or paint data.
+  return <ProjectVisitors key={JSON.stringify([user.uid, selectedProject?.id ?? null])} ownerUid={user.uid} />;
+}
+
+function ProjectVisitors({ ownerUid }: { ownerUid: string }) {
+  const beginRequest = useVisitorRequests(ownerUid);
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
@@ -495,8 +559,8 @@ export function Visitors() {
   );
 
   useEffect(() => {
-    if (activeVisitorsData) setLocalVisitors(activeVisitorsData.visitors);
-  }, [activeVisitorsData]);
+    if (activeVisitorsData) setLocalVisitors(activeVisitorsData.visitors.filter((visitor) => visitor.projectId === projectId));
+  }, [activeVisitorsData, projectId]);
 
   useEffect(() => {
     if (visitorsError) {
@@ -505,6 +569,7 @@ export function Visitors() {
   }, [visitorsError]);
 
   const handleRegistered = (visitor: Visitor) => {
+    if (!visitor || visitor.projectId !== projectId) throw new Error('visitor_response_scope_invalid');
     setLocalVisitors((prev) => [visitor, ...prev]);
     setFormOpen(false);
     // Open the induction modal immediately for fast flow.
@@ -516,7 +581,7 @@ export function Visitors() {
   // organization→company map 1:1; kind/companion/notes compose the real reason.
   // The server stamps the host uid from the verified token and resolves the
   // tenant from the project — neither is trusted from the body (route #6/#19).
-  const handleCheckInSubmit = async (payload: VisitorCheckInPayload) => {
+  const handleCheckInSubmit = async (payload: VisitorCheckInPayload, request: VisitorRequest) => {
     if (!projectId) throw new Error('no_project');
     const user = auth.currentUser;
     if (!user) {
@@ -524,6 +589,7 @@ export function Visitors() {
     }
     // §2.20 (2026-05-23) — apiAuthHeader unified.
     const authHeader = await apiAuthHeader();
+    request.assertCurrent();
     const result = await fetchJson<{ ok: true; visitor: Visitor }>(
       '/api/visitors/check-in',
       {
@@ -541,7 +607,9 @@ export function Visitors() {
           reason: buildReason(payload, availableHosts),
         }),
       },
+      request,
     );
+    request.assertCurrent();
     handleRegistered(result.visitor);
   };
 
@@ -549,11 +617,11 @@ export function Visitors() {
     if (!projectId) return;
     setBusyId(visitorId);
     setError(null);
+    let request: VisitorRequest | undefined;
     try {
-      const user = auth.currentUser;
-      if (!user) return;
-      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      request = beginRequest();
       const authHeader = await apiAuthHeader();
+      request.assertCurrent();
       await fetchJson<{ ok: true; checkOutAt: string }>(
         `/api/visitors/${encodeURIComponent(visitorId)}/check-out`,
         {
@@ -565,14 +633,17 @@ export function Visitors() {
           },
           body: JSON.stringify({ projectId }),
         },
+        request,
       );
+      request.assertCurrent();
       setLocalVisitors((prev) => prev.filter((v) => v.id !== visitorId));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      if (!request?.isCurrent()) return;
+      setError(humanErrorMessage(err));
       logger.error('visitor_check_out_failed', err);
     } finally {
-      setBusyId(null);
+      if (request?.isCurrent()) setBusyId(null);
+      request?.release();
     }
   };
 
@@ -667,7 +738,8 @@ export function Visitors() {
       )}
 
       {formOpen && projectId && (
-        <VisitorCheckInForm
+        <ScopedCheckIn
+          ownerUid={ownerUid}
           availableHosts={availableHosts}
           onSubmit={handleCheckInSubmit}
           onCancel={() => setFormOpen(false)}
@@ -723,6 +795,7 @@ export function Visitors() {
 
       {ackVisitor && projectId && (
         <InductionAck
+          ownerUid={ownerUid}
           projectId={projectId}
           visitor={ackVisitor}
           inductions={inductions}
