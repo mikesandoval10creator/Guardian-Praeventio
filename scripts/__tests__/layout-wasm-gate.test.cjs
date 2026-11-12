@@ -49,7 +49,7 @@ test('full-stack CI builds offline WASM and runs strict behavioral plus browser 
   const build = step('Build and verify experimental WASM (not activated)');
   const python = lane.steps.find((s) => s.name === 'Set up Python for offline license audit');
   assert.ok(python, 'required license audit needs an explicit Python runtime');
-  assert.equal(python.uses, 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1');
+  assert.equal(python.uses, 'actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0');
   assert.equal(python.with['python-version'], '3.12');
   assert.equal(python.if, undefined);
   assert.notEqual(python['continue-on-error'], true);
