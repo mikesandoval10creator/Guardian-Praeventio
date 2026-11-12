@@ -384,7 +384,15 @@ router.post(
         incidents: [],
         audits: [],
       };
-      await docRef.set(supplier, { merge: false });
+      try {
+        await docRef.create(supplier);
+      } catch (err) {
+        const code = (err as { code?: number | string } | null)?.code;
+        if (code === 6 || code === 'ALREADY_EXISTS' || code === 'already-exists') {
+          return res.status(409).json({ error: 'supplier_duplicate_id' });
+        }
+        throw err;
+      }
       await auditServerEvent(req, 'suppliers.create', 'suppliers', { projectId, supplierId: docRef.id }, { projectId });
       return res
         .status(201)
