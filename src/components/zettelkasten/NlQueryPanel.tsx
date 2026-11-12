@@ -249,6 +249,12 @@ export const NlQueryPanel: React.FC = () => {
   const identityPresent = Boolean(user);
   // An absent readiness flag is unknown, not an authenticated-ready grant.
   const identityReady = identityPresent && isAuthReady === true;
+  // Firebase can keep isAuthReady=true while changing accounts. ProjectContext
+  // keeps the old selectedProject until the new user's project snapshot arrives.
+  const [confirmedIdentityUid, setConfirmedIdentityUid] = useState(identityUid);
+  const projectAtConfirmedIdentityRef = useRef(selectedProject);
+  const projectContextReady = confirmedIdentityUid === identityUid || !selectedProject;
+  const canQuery = identityReady && projectContextReady;
 
   /**
    * Token de contexto: proyecto + identidad + estado de la sesión.
@@ -269,6 +275,17 @@ export const NlQueryPanel: React.FC = () => {
   const reqCounterRef = useRef(0);
 
   const previousIdentityRef = useRef(identityUid);
+
+  useLayoutEffect(() => {
+    if (confirmedIdentityUid === identityUid) {
+      projectAtConfirmedIdentityRef.current = selectedProject;
+      return;
+    }
+    if (selectedProject !== projectAtConfirmedIdentityRef.current) {
+      projectAtConfirmedIdentityRef.current = selectedProject;
+      setConfirmedIdentityUid(identityUid);
+    }
+  }, [confirmedIdentityUid, identityUid, selectedProject]);
 
   useLayoutEffect(() => {
     mountedRef.current = true;
@@ -344,6 +361,10 @@ export const NlQueryPanel: React.FC = () => {
       setErrorMessage('Inicia sesión para consultar el histórico.');
       return;
     }
+    if (!projectContextReady) {
+      setErrorMessage('Actualizando el contexto del proyecto. Inténtalo nuevamente en un momento.');
+      return;
+    }
     if (query.trim().length === 0) {
       setErrorMessage('Escribe una consulta para buscar.');
       return;
@@ -395,6 +416,10 @@ export const NlQueryPanel: React.FC = () => {
       setErrorMessage('Inicia sesión para consultar el grafo.');
       return;
     }
+    if (!projectContextReady) {
+      setErrorMessage('Actualizando el contexto del proyecto. Inténtalo nuevamente en un momento.');
+      return;
+    }
     if (pattern.trim().length === 0) {
       setErrorMessage('Escribe un patrón para consultar el grafo.');
       return;
@@ -444,16 +469,18 @@ export const NlQueryPanel: React.FC = () => {
 
   const { results, citations, matches, structuredSearched, loading, error } = state;
   // Sin identidad válida no se muestra ningún dato privado del contexto.
-  const canShowPrivateData = identityReady;
+  const canShowPrivateData = canQuery;
 
   // m31 — el nombre y el id del proyecto son dato PRIVADO: sin identidad
   // válida el rótulo NO puede seguir exponiéndolos (tras un logout el
   // panel volvería a delatar el proyecto de la sesión anterior).
   const projectLabel = !identityReady
     ? 'Sesión no válida'
-    : selectedProject
-      ? `${selectedProject.name} (${selectedProject.id})`
-      : 'Sin proyecto seleccionado';
+    : !projectContextReady
+      ? 'Actualizando contexto…'
+      : selectedProject
+        ? `${selectedProject.name} (${selectedProject.id})`
+        : 'Sin proyecto seleccionado';
 
   return (
     <section
@@ -541,7 +568,7 @@ export const NlQueryPanel: React.FC = () => {
           <button
             type="button"
             onClick={onSearch}
-            disabled={loading || !projectId}
+            disabled={loading || !projectId || !canQuery}
             data-testid="nl-query-submit"
             className="inline-flex items-center gap-2 bg-[#4db6ac] hover:bg-[#3da095] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-xl transition-all"
           >
@@ -559,7 +586,7 @@ export const NlQueryPanel: React.FC = () => {
             onKeyDown={(e) => {
               // Enter NO ignora el estado `disabled` del botón: si la consulta
               // está en curso no se abre una segunda petición.
-              if (e.key === 'Enter' && !state.loading && projectId && identityReady) {
+              if (e.key === 'Enter' && !state.loading && projectId && canQuery) {
                 e.preventDefault();
                 onStructuredSearch();
               }
@@ -583,7 +610,7 @@ export const NlQueryPanel: React.FC = () => {
           <button
             type="button"
             onClick={onStructuredSearch}
-            disabled={loading || !projectId}
+            disabled={loading || !projectId || !canQuery}
             data-testid="structured-query-submit"
             className="inline-flex items-center gap-2 bg-[#4db6ac] hover:bg-[#3da095] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-xl transition-all"
           >

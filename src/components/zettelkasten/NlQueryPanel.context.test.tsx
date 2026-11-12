@@ -314,6 +314,41 @@ describe('<NlQueryPanel /> aislamiento de contexto', () => {
     expect(screen.queryAllByTestId('nl-query-results')).toHaveLength(0);
   });
 
+  it('oculta el proyecto anterior y bloquea consultas durante el cambio de identidad', async () => {
+    H.fetchMock.mockImplementation(async () => okJson(NL_BODY));
+    const { rerender } = render(<NlQueryPanel />);
+    expect(screen.getByTestId('nl-query-context')).toHaveTextContent('p-A');
+
+    // Firebase puede conservar isAuthReady=true durante el cambio de cuenta;
+    // ProjectContext aún conserva la selección anterior hasta el nuevo snapshot.
+    H.auth.current = { user: { uid: 'u-2' }, isAuthReady: true };
+    rerender(<NlQueryPanel />);
+    await flush();
+    expect(screen.getByTestId('nl-query-context')).not.toHaveTextContent('p-A');
+    expect(screen.getByTestId('nl-query-context')).toHaveTextContent('Actualizando contexto');
+
+    fireEvent.change(screen.getByTestId('nl-query-input'), {
+      target: { value: 'consulta del usuario nuevo' },
+    });
+    fireEvent.click(screen.getByTestId('nl-query-submit'));
+    await flush();
+    expect(H.fetchMock).not.toHaveBeenCalled();
+
+    // ProjectContext confirma el nuevo usuario al publicar su selección actual.
+    setProject({ id: 'p-B', name: 'Proyecto B' });
+    rerender(<NlQueryPanel />);
+    await flush();
+    expect(screen.getByTestId('nl-query-context')).toHaveTextContent('p-B');
+    fireEvent.change(screen.getByTestId('nl-query-input'), {
+      target: { value: 'consulta del usuario nuevo' },
+    });
+    fireEvent.click(screen.getByTestId('nl-query-submit'));
+    await flush();
+    expect(H.fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = H.fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body).projectId).toBe('p-B');
+  });
+
   it('logout (user -> null) descarta los resultados y no consulta sin identidad', async () => {
     H.fetchMock.mockImplementation(async () => okJson(NL_BODY));
     const { rerender } = render(<NlQueryPanel />);
