@@ -1,18 +1,20 @@
-# Scheduler inventory — Cloud Scheduler jobs
+# Scheduler inventory — endpoints, cadencias y provisioning versionado
 
-Inventario de todos los jobs cron-style del servidor + su endpoint de
-invocación + cadencia recomendada en Cloud Scheduler. Última actualización:
-2026-09-07 (reconciliación DTE queue/lease, ADR-0028).
+Inventario de endpoints cron-style del servidor, cadencias documentadas y
+provisioning versionado localizado. Última actualización: 2026-11-12
+(revisión parcial de rutas, cadencias y zonas horarias desde el código; sin
+lectura de GCP).
 
-Todos los endpoints están gated por `verifySchedulerToken` middleware
-(header `X-Scheduler-Token` con `SCHEDULER_SHARED_SECRET`).
+El contrato previsto usa `verifySchedulerToken` (header `X-Scheduler-Token`
+con `SCHEDULER_SHARED_SECRET`). La verificación exhaustiva por endpoint y el
+estado live de GCP siguen bajo el ticket P1 de reconciliación operativa; este
+archivo no demuestra que un job exista, esté habilitado ni haya ejecutado.
 
-> **Convención**: los jobs listados como `run-daily-housekeeping` se ejecutan
-> **dentro** del cron `daily-housekeeping` (00:00 UTC diario). Algunos de
-> ellos tienen cadencia efectiva más alta cuando están separados (ej.
-> `runDteIssueQueueDrain` cada 10 min) — esos están listados en su propia
-> fila. Los jobs solo-listados-aqui (no tienen cron dedicado) corren
-> diariamente a las 00:00 UTC a través del housekeeping consolidado.
+> **Convención**: la fila `run-daily-housekeeping` enumera las funciones que
+> el endpoint invoca en `maintenance.ts` y se programa diariamente a las
+> 00:00 `America/Santiago` en el workflow. Los jobs con ruta y cadencia propia
+> aparecen aparte; una cadencia documentada no demuestra provisioning. Las
+> discrepancias pendientes se señalan en «Gaps de wiring/provisioning».
 
 ## Jobs cada N minutos
 
@@ -28,32 +30,62 @@ Todos los endpoints están gated por `verifySchedulerToken` middleware
 |---|---|---|
 | `POST /api/maintenance/check-overdue` | 1 h | `checkOverdueMaintenance` + `checkExpiredPpe` + `sendSusesoReminders` + `runCalendarPreWarnCron` + `runResilienceHealthAlertCron` |
 | `POST /api/maintenance/run-check-expired-brigade-resources` | 1 h | `checkExpiredBrigadeResources` |
+| `POST /api/admin/replicate-critical` | Cada hora, minuto 30 | `replicateCriticalData` |
 
 ## Jobs diarios
 
 | Endpoint | Cadencia | Job |
 |---|---|---|
-| `POST /api/maintenance/run-daily-housekeeping` | 00:00 UTC | `runExceptionAutoExpire` + `runWorkPermitAutoExpire` + `runLegalCalendarReminders` + `runLegalObligationReconcile` + `runUfRateRefresh` |
-| `POST /api/maintenance/run-compliance-snapshot` | 02:30 UTC | `runComplianceSnapshot` |
-| `POST /api/jobs/aggregate-ai-feedback` | 02:00 UTC | `aggregateAiFeedback` |
-| `POST /api/jobs/run-consistency-audit` | 03:00 UTC | `runConsistencyAudit` |
-| `POST /api/maintenance/run-slo-metrics-refresh` | 03:30 UTC | `runSloMetricsRefresh` |
-| `POST /api/jobs/daily-climate-risk-scan` | 06:00 UTC | `dailyClimateRiskScan` |
+| `POST /api/maintenance/run-daily-housekeeping` | 00:00 America/Santiago | `runExceptionAutoExpire` + `runWorkPermitAutoExpire` + `runLegalCalendarReminders` + `runLegalObligationReconcile` + `runUfRateRefresh` |
+| `POST /api/maintenance/run-compliance-snapshot` | 02:30 America/Santiago | `runComplianceSnapshot` |
+| `POST /api/maintenance/run-slo-metrics-refresh` | 03:30 America/Santiago | `runSloMetricsRefresh` |
+| `POST /api/admin/jobs/climate-scan` | 05:00 America/Santiago | `dailyClimateRiskScan` |
 
 ## Jobs semanales
 
 | Endpoint | Cadencia | Job |
 |---|---|---|
-| `POST /api/maintenance/run-retention-sweep` | Domingo 04:00 UTC | `runRetentionSweep` (archive-only, ADR-0024; no source delete) |
-| `POST /api/jobs/weekly-digest` | Lunes 09:00 UTC | `weeklyDigest` |
-| `POST /api/admin/firestore-replicate-critical` | Domingo 04:00 UTC | `firestoreCriticalReplicate` |
+| `POST /api/maintenance/run-retention-sweep` | Domingo 04:00 (cadencia histórica; zona/provisioning por validar) | `runRetentionSweep` (archive-only, ADR-0024) |
+| `POST /api/admin/jobs/weekly-digest` | Lunes 09:00 America/Santiago | `weeklyDigest` |
+| `POST /api/admin/jobs/aggregate-ai-feedback` | Lunes 08:00 America/Santiago | `aggregateAiFeedback` |
 
 ## Jobs mensuales
 
 | Endpoint | Cadencia | Job |
 |---|---|---|
-| `POST /api/maintenance/run-b2d-mrr-snapshot` | Día 1 mes 00:30 UTC | `runB2dMrrSnapshot` |
-| `POST /api/maintenance/run-contractor-ranking-snapshot` | Día 1 mes 02:00 UTC | `runContractorRankingSnapshot` |
+| `POST /api/maintenance/run-b2d-mrr-snapshot` | Día 1, 00:30 America/Santiago (`30 0 1 * *`) | `runB2dMrrSnapshot` |
+| `POST /api/maintenance/run-contractor-ranking-snapshot` | Día 1, 02:00 (cadencia histórica; zona/provisioning por validar) | `runContractorRankingSnapshot` |
+
+> **Reconciliación 2026-11-12:** el helper `ensure_job` en
+> `.github/workflows/deploy.yml` aplica `--time-zone=America/Santiago`; el job
+> climático define esa zona explícitamente. Así se interpretan las horas locales
+> de housekeeping, compliance, SLO, digest, RLHF, replicación y B2D. El workflow
+> todavía conserva comentarios/descripciones que dicen UTC para algunos jobs;
+> la bandera `--time-zone` es la configuración versionada efectiva. El validador
+> estático comprueba nombre, cron y endpoint, pero no timezone. El comentario y la
+> descripción de `daily-housekeeping` en `deploy.yml` dicen que corre 9 jobs,
+> incluidos DTE y brigada; el handler `maintenance.ts:1143-1449` ejecuta cinco:
+> excepciones, permisos, conciliación legal, recordatorios y UF. DTE y brigada tienen
+> endpoints separados en este inventario; esa discrepancia sigue en el ticket P1.
+>
+> No se encontró provisioning de `runContractorRankingSnapshot` ni
+> `runRetentionSweep` en `.github/workflows` o `infrastructure/terraform`; sus
+> cadencias son objetivos históricos, no schedules confirmados. No hubo
+> read-back de GCP.
+
+## Gaps de wiring/provisioning (reconciliados 2026-11-12)
+
+- `runConsistencyAuditCron` existe en `src/server/jobs/runConsistencyAudit.ts`,
+  pero no existe la ruta cron `POST /api/jobs/run-consistency-audit` en el
+  router ni caller del job. La fila anterior se retiró; no programar hasta que
+  exista un endpoint y el contrato se valide.
+- `runRetentionSweep` (`maintenance.ts:602`) y
+  `runContractorRankingSnapshot` (`maintenance.ts:1474`) sí tienen rutas, pero
+  no se encontró provisioning correspondiente en `.github/workflows` ni en
+  `infrastructure/terraform`. Sus cadencias siguen siendo objetivos del runbook,
+  no schedules confirmados.
+- Estado de los recursos externos sin verificar: no hubo read-back de GCP. El
+  ticket P1 de reconciliación operativa permanece `In-progress`.
 
 ## Jobs one-shot (manuales, NO en scheduler)
 
@@ -122,7 +154,8 @@ Para verificar que todos los jobs estén montados:
 gcloud scheduler jobs list --location=southamerica-west1 --format="table(name,schedule,httpTarget.uri)"
 ```
 
-**Conteo esperado tras el cambio 2026-08-18** (16 crons en Scheduler):
+**Conteo del snapshot 2026-08-18** (16 filas de aquella versión. La reconciliación
+posterior retiró una ruta inexistente; no es el conteo actual ni un read-back de GCP):
 
 | Categoría | Cantidad |
 |---|---|
@@ -133,7 +166,7 @@ gcloud scheduler jobs list --location=southamerica-west1 --format="table(name,sc
 | Mensuales | 2 |
 | **Total** | **16** |
 
-## Cambios en este sprint (2026-08-18, ticket 3bfaa66d-...)
+## Historial de cambios documentales (2026-08-18; no confirma estado live de GCP)
 
 - **Wire URGENTE**: 10 jobs que existían como código y endpoint pero no
   estaban reflejados en este inventario. Auditoría manual con bash
@@ -146,10 +179,10 @@ gcloud scheduler jobs list --location=southamerica-west1 --format="table(name,sc
   este PR: `runDteIssueQueueDrain` (10 min por SII 24h), `checkExpiredBrigadeResources`
   (1h por vida-safety indirecto), `runComplianceSnapshot` (diario 02:30),
   `runSloMetricsRefresh` (diario 03:30).
-- `runContractorRankingSnapshot` se mueve a crontab dedicado mensual
-  (Día 1 mes 02:00 UTC) en vez de vivir dentro del housekeeping diario
-  (donde igual se invoca una vez pero el crontab dedicado documenta la
-  cadencia real).
-- `runRetentionSweep` se mueve a crontab dedicado semanal (Domingo 04:00 UTC),
-  en modo archive-only conforme al ADR-0024; nunca elimina el documento fuente.
+- `runContractorRankingSnapshot` recibió una cadencia mensual objetivo en este
+  runbook (Día 1, 02:00 UTC). La revisión 2026-11-12 no encontró su provisioning
+  en `deploy.yml` ni Terraform; no tratarlo como cron confirmado.
+- `runRetentionSweep` recibió una cadencia semanal objetivo (Domingo 04:00 UTC),
+  en modo archive-only conforme al ADR-0024; la revisión 2026-11-12 no encontró
+  provisioning en `deploy.yml` ni Terraform.
 - `expiryFindings` se reclasifica como helper interno (no expone endpoint).

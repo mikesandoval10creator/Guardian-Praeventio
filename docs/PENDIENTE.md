@@ -1,4 +1,4 @@
-# PENDIENTE — registro único de lo que falta para "app real y conectada"
+# PENDIENTE — historial de hallazgos y decisiones (no lista operativa)
 
 > ## ⚠ Este documento YA NO es la fuente de verdad de lo pendiente (2026-07-20)
 >

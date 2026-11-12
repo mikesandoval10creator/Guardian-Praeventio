@@ -5,12 +5,12 @@
 // `aggregateAiFeedback` (weekly RLHF rollup) but never wired a trigger;
 // this router exposes the HTTP shim Cloud Scheduler can hit.
 //
-// Cloud Scheduler config (one-shot, weekly):
-//   • cron:        `0 3 * * 0`   (Sun 03:00 UTC)
+// Cloud Scheduler config (weekly; versioned in .github/workflows/deploy.yml):
+//   • cron:        `0 8 * * 1` (Monday 08:00 America/Santiago)
 //   • target:      POST https://<service>/api/admin/jobs/aggregate-ai-feedback
 //   • headers:     Authorization: Bearer ${SCHEDULER_SHARED_SECRET}
-//   • timeZone:    Etc/UTC
-//   • retry:       3 attempts, exp backoff (defaults are fine)
+//   • timeZone:    America/Santiago (set by the deploy.yml ensure_job helper)
+//   • retry:       no explicit override in ensure_job; do not assume a custom policy
 //
 // All routes here are gated by `verifySchedulerToken` — they MUST NOT
 // be reachable from public ingress without the shared bearer secret.
