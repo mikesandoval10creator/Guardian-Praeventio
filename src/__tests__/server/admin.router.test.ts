@@ -855,28 +855,16 @@ describe('admin GETs with the canonical E2E supervisor fixture', () => {
     ['/api/admin/quotas/global', '/api/admin/quotas/global'],
     ['/api/admin/sync/stats', '/api/admin/sync/stats'],
   ] as const;
-  let previousE2EMode: string | undefined;
-  let previousE2ESecret: string | undefined;
-  let previousNodeEnv: string | undefined;
-
   beforeEach(() => {
-    previousE2EMode = process.env.E2E_MODE;
-    previousE2ESecret = process.env.E2E_TEST_SECRET;
-    previousNodeEnv = process.env.NODE_ENV;
-    process.env.E2E_MODE = '1';
-    process.env.E2E_TEST_SECRET = e2eSecret;
-    process.env.NODE_ENV = 'test';
+    vi.stubEnv('E2E_MODE', '1');
+    vi.stubEnv('E2E_TEST_SECRET', e2eSecret);
+    vi.stubEnv('NODE_ENV', 'test');
     H.missingUsers.add(e2eUid);
     vi.mocked(logger.warn).mockClear();
   });
 
   afterEach(() => {
-    if (previousE2EMode === undefined) delete process.env.E2E_MODE;
-    else process.env.E2E_MODE = previousE2EMode;
-    if (previousE2ESecret === undefined) delete process.env.E2E_TEST_SECRET;
-    else process.env.E2E_TEST_SECRET = previousE2ESecret;
-    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = previousNodeEnv;
+    vi.unstubAllEnvs();
     H.missingUsers.clear();
     H.lookupFailures.clear();
   });
