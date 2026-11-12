@@ -13,7 +13,21 @@
  *   7. Locale switching keeps state — i18n.language reflects the new tag.
  *   8. Plural rules: zero / one / many for languages that distinguish.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// jsdom's `document.cookie` getter delegates to tough-cookie's async jar even
+// for synchronous reads. i18next-browser-languagedetector probes it at module
+// import, leaving a Promise that Vitest correctly reports as a leak. Cookie
+// persistence is not part of this suite; the real detector remains loaded and
+// the app config explicitly uses localStorage/navigator only.
+vi.hoisted(() => {
+  Object.defineProperty(document, 'cookie', {
+    configurable: true,
+    get: () => '',
+    set: () => undefined,
+  });
+});
+
 import i18n, { loadLocale, getLoadedLazyLocales } from './index';
 import { isRtlLocale, applyHtmlDir, RTL_LOCALES, toHtmlLang } from './rtl';
 import { normalizeLocale } from '../contexts/LanguageProvider';
@@ -146,6 +160,10 @@ describe('i18n — plural rules', () => {
 });
 
 describe('i18n — browser language detection (normalizeLocale)', () => {
+  it('uses localStorage and navigator, not the cookie detector', () => {
+    expect(i18n.options.detection?.order).toEqual(['localStorage', 'navigator']);
+  });
+
   it('maps en-GB → en, fr-CA → fr, zh-CN-* → zh-CN, ar-SA → ar', () => {
     expect(normalizeLocale('en-GB')).toBe('en');
     expect(normalizeLocale('fr-CA')).toBe('fr');
