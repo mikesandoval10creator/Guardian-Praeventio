@@ -1706,3 +1706,45 @@ new session. A local close intent does not establish the server close time.
 Contracts: `src/pages/SafeDrivingMode.test.tsx`,
 `src/services/driving/commuteSamples.test.ts`, and
 `src/services/driving/commuteSession.test.ts`.
+
+## SUSESO DIAT/DIEP forms (tenants/{tid}/suseso_forms) — server-write-only (issue #1919, added 2026-11-11)
+
+`tenants/{tenantId}/suseso_forms/{formId}` is a LEGAL DECLARATION store (DIAT /
+DIEP, DS 101 / DS 109 / DS 110 under Ley 16.744 art. 76). It was created and
+signed EXCLUSIVELY by the server route (`src/server/routes/suseso.ts` →
+`POST /api/suseso/form`, Admin SDK, tenant derived from the verified token via
+`callerTenantOr403`), but the create rule still admitted any privileged CLIENT:
+`allow create: if isSignedIn() && (isAdmin() || isSupervisor() || isDoctor())`.
+That let a client — including one from ANOTHER tenant, or one with no tenant
+binding at all — place its own declaration row inside a tenant, with a folio
+and a `signature` block of its own choosing. Now create/update/delete are
+`if false` for every client: the Admin SDK is the only writer, so the folio
+counter, the payload digest and the signature stay bound to the verified
+caller and to the rendered PDF. Reads are unchanged (tenant admin / gerente /
+supervisor / occupational doctor / project member; cross-tenant still denied)
+and the immutable-update/delete posture is unchanged. Rules tests:
+`src/rules-tests/susesoFormsServerWriteOnly.rules.test.ts`; route tests:
+`src/__tests__/server/suseso.router.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+190. **Forged SUSESO Declaration**: a client places a `suseso_forms` document
+     directly — denied for every client role, in the tenant or in another one,
+     with or without a tenant binding, with or without a `signature` block.
+     Only the server route creates a form, and it stamps the tenant from the
+     token.
+191. **Forged SUSESO Signature**: a client-supplied `signature`/`payloadHashHex`
+     in a create payload — denied; the signature is attached by the Admin SDK
+     over the bytes the server rendered, so a client can never self-sign.
+192. **Cross-Tenant SUSESO Write**: a privileged caller of another tenant
+     (or with no tenant binding) writing into this tenant's `suseso_forms` —
+     denied; the collection has no client-writer path at all.
+193. **SUSESO Tamper/Erasure**: a client update or delete of an existing
+     declaration (e.g. rewriting the incident, or erasing the compliance
+     trail) — denied; forms are immutable post-creation and a correction
+     requires a new folio.
+194. **Forged Verified Form (QR)**: a denied client write must never surface
+     through the public QR verifier as a signed document — the verifier only
+     ever finds the server-written row (`unknown_folio` otherwise), and a
+     server-written row (including legacy renderer-v1 documents) still
+     verifies exactly as before.
