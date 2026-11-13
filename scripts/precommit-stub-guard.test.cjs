@@ -12,7 +12,7 @@
  * checker directly against fixture files in a tmpdir.
  */
 /* eslint-disable @typescript-eslint/no-require-imports -- This Node test fixture intentionally exercises the CommonJS hook. */
-/* global require */
+/* global require, __dirname */
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -61,6 +61,11 @@ test('countStubMarkers ignores type references/comments and recognizes source-la
   assert.equal(guard.countStubMarkers(rust, 'wasm/engine/src/lib.rs'), 2);
   assert.equal(guard.countStubMarkers('fun load() = TODO("pending")', 'packages/plugin/src/Plugin.kt'), 1);
   assert.equal(guard.countStubMarkers('fatalError("Not implemented")', 'ios/App/Plugin.swift'), 1);
+});
+
+test('pre-commit hook fails fast so a later success cannot mask a guard failure', () => {
+  const hook = fs.readFileSync(path.join(__dirname, '..', '.husky', 'pre-commit'), 'utf8');
+  assert.ok(hook.startsWith('#!/bin/sh\nset -e\n'));
 });
 
 test('isServerFile only matches src/server/* production code', () => {
