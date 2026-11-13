@@ -157,6 +157,8 @@ test.describe('SOSButton long-press (real flow)', () => {
     await loginAsTestUser(page);
     const seed = await seedProject({ emergencyActive: true, phone: '+56 9 1234 5678' });
     const db = getFirestore();
+    const seededProject = await db.collection('projects').doc(seed.projectId).get();
+    const tenantId = seededProject.get('tenantId') as string;
     const requestKeys: string[] = [];
     const requestBodies: unknown[] = [];
     const serverAlertIds: string[] = [];
@@ -231,8 +233,6 @@ test.describe('SOSButton long-press (real flow)', () => {
       const replayPayload = (await retryResponse.json()) as { alertId?: string };
       expect(replayPayload.alertId).toBe(serverAlertIds[0]);
 
-      const project = await db.collection('projects').doc(seed.projectId).get();
-      const tenantId = project.get('tenantId') as string;
       const alerts = await db
         .collection('tenants')
         .doc(tenantId)
@@ -244,7 +244,7 @@ test.describe('SOSButton long-press (real flow)', () => {
     } finally {
       const projectAlerts = await db
         .collection('tenants')
-        .doc('e2e-tenant')
+        .doc(tenantId)
         .collection('emergency_alerts')
         .where('projectId', '==', seed.projectId)
         .get();
