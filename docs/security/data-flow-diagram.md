@@ -57,9 +57,10 @@ flowchart LR
         FS[(Firestore<br/>KMS-encrypted at rest<br/>firestore.rules default-deny + scoped grants)]
         VERTEX[Vertex AI Gemini<br/>gemini-3.1-pro-preview]
         FCM[Firebase Cloud Messaging]
-        TENANT_IOT_SECRETS[(Firestore<br/>tenant_iot_secrets/{tenantId}<br/>client deny; Admin SDK only)]
-        IOT_DEVICE_STORE[(Firestore<br/>tenants/{tid}/iot_devices/{deviceId}<br/>client deny; server-owned)]
+        TENANT_IOT_SECRETS[(Firestore<br/>tenant_iot_secrets/{tenantId}<br/>client deny on rules deploy; Admin SDK only)]
+        IOT_DEVICE_STORE[(Firestore<br/>tenants/{tid}/iot_devices/{deviceId}<br/>client deny on rules deploy; server-owned)]
         IOT_LEGACY[(Legacy tenant root field<br/>tenants/{tid}.iotSecret<br/>member-readable until backfill)]
+        ONBOARDING_IMPORTS[(Firestore<br/>tenants/{tid}/imports/{importId}<br/>client deny on rules deploy<br/>raw worker CSV; 512KiB cap<br/>retention policy pending)]
         SECMGR[(Secret Manager<br/>GEMINI_API_KEY [secret]<br/>WEBPAY_API_KEY [secret]<br/>SESSION_SECRET [secret]<br/>SENTRY_DSN [secret]<br/>IOT_WEBHOOK_SECRET [secret]<br/>MP_IPN_SECRET [secret])]
     end
 
@@ -95,6 +96,7 @@ flowchart LR
     TEL_ROUTE -. "temporary server-only fallback" .-> IOT_LEGACY
     TEL_ROUTE -. "telemetry_events" .-> FS
     EXPRESS -. "admin device registration" .-> IOT_DEVICE_STORE
+    EXPRESS -. "onboardingProvisioning: raw CSV" .-> ONBOARDING_IMPORTS
     BG_TRIGGERS -. "FCM push" .-> FCM
     FCM -. "device push" .-> MOBILE
     EXPRESS -- "secrets at boot" --> SECMGR
@@ -136,7 +138,11 @@ flowchart LR
   IoT HMAC keys live in `tenant_iot_secrets/{tenantId}` (Admin SDK only); per-device
   keys remain in `tenants/{tid}/iot_devices` (client-denied rules). Legacy
   `tenants/{tid}.iotSecret` values are still member-readable until the authorized
-  backfill is verified.
+  backfill is verified. Onboarding worker CSV staging at
+  `tenants/{tid}/imports/{importId}` is intended to become client-denied when
+  these rules are deployed; raw files remain server-readable until a governed
+  cleanup/retention policy exists. A 512 KiB cap is enforced server-side, but
+  row/column parsing and retention policy remain open.
 - `Secret Manager`: global API keys, shared webhook fallbacks, and SESSION_SECRET.
   Never embedded in container images.
 - `IndexedDB` (browser, not encrypted): SLM offline session queue, cached

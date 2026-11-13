@@ -77,3 +77,9 @@ CPRA, PDP-IN-DPDP).
 - Sub-procesador list publicada como endpoint público para GDPR art.28.
 - Auditoría legal por jurisdicción (hoy todo es lectura textual de la
   ley; cada país requiere validación local antes de marketing claims).
+
+## Data-flow control — onboarding worker CSV (2026-11-13)
+
+| Data flow | Current handling | Controls verified in code | Open privacy/operations decisions |
+|-----------|------------------|---------------------------|----------------------------------|
+| Worker CSV supplied during tenant onboarding | Raw `workersCsv` staged at `tenants/{tid}/imports/{importId}` by the Admin SDK; the existing service rejects payloads over 512 KiB. | This patch denies client reads/listing of `imports` when deployed; synthetic emulator tests verify the changed rules. Production rollout is pending. No client consumer/ETL reader was found in `src`. | No row/column schema or CSV-specific processing/consent contract is encoded in this path; no TTL, legal-hold policy, or deletion schedule is defined. Retention must be decided before this flow can be marked complete or advertised as compliant. This row is a technical status, not legal advice or a compliance claim. |

@@ -1188,6 +1188,35 @@ unit tests: `src/__tests__/server/telemetry.router.test.ts` and
      server-owned secret path — denied; only trusted Admin SDK routes may rotate
      or migrate keys.
 
+### Onboarding worker CSV staging — client-access patch, retention unresolved (2026-11-13)
+
+`onboardingProvisioning.ts` accepts a `workersCsv` string with an explicit
+512 KiB byte-length check and writes raw staging data to
+`tenants/{tid}/imports/{importId}` via the Admin SDK. The tenant read catch-all
+made that subcollection readable by any tenant member; this patch excludes
+`imports` and adds an explicit client deny. That closes the client read path once
+the rules are deployed. It does not delete existing CSVs or restrict trusted
+service accounts.
+
+No row/column parser or ETL consumer was found in `src`; the retention policy
+registry has no `onboarding_import` category, TTL, or legal-hold behavior. Do
+not claim the privacy ticket is complete until project/role scope, allowed CSV
+columns and row limits, processing/consent, retention, legal hold, and cleanup
+are explicitly defined and verified. No production CSV or tenant data was read
+by this change.
+
+Rules test: `src/rules-tests/tenantOnboardingImports.rules.test.ts` (synthetic
+CSV only).
+
+**Rejected payloads (onboarding CSV boundary):**
+
+198. **Tenant Member CSV Read**: a tenant worker/admin `get`/`list` or
+     collection-group query of `tenants/{tid}/imports/{id}` to retrieve raw
+     worker CSV — denied; server provisioning continues via Admin SDK.
+199. **Cross-project CSV Read**: a member associated with project A reading an
+     import document tagged for project B — denied because the client surface is
+     server-only until a project-scoped processing contract exists.
+
 ### anonymization_events — cascarón soft-delete proof (Ley 21.719, added 2026-06-15)
 
 `anonymization_events/{uid}` holds ONE immutable record per user proving their
