@@ -2392,9 +2392,12 @@ service cloud.firestore {
       // O cualquier admin/médico del tenant — los médicos necesitan
       // visibilidad total sobre DIAT/DIEP del paciente.
       //
-      // Create: redundante (el server siempre crea via Admin SDK), pero
-      // dejamos la regla explícita para que el modelo de seguridad
-      // sea legible sin necesidad de leer server code.
+      // Create: SERVER-WRITE-ONLY (issue #1919). El backend es el ÚNICO
+      // creador (POST /api/suseso/form vía Admin SDK), y deriva el tenant
+      // del token verificado. Antes la regla de create era
+      // `isSignedIn() && (isAdmin() || isSupervisor() || isDoctor())`, lo
+      // que permitía que CUALQUIER cliente privilegiado fabricara su propio
+      // DIAT/DIEP — con folio y firma propios — dentro del tenant.
       match /suseso_forms/{formId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
@@ -2405,10 +2408,16 @@ service cloud.firestore {
             (resource.data.projectId is string
               && isProjectMemberTenantScoped(resource.data.projectId))
           );
-        allow create: if isSignedIn()
-          && (isAdmin() || isSupervisor() || isDoctor());
-        // Forms IMMUTABLE — only Admin SDK (server) attaches signatures.
-        allow update, delete: if false;
+        // SERVER-WRITE-ONLY — the Admin SDK (server route) is the only
+        // writer: it derives the tenant from the verified token, stamps the
+        // folio and attaches the signature. No client create — not even for
+        // an admin/gerente/supervisor/occupational doctor of the tenant,
+        // not even for a privileged caller of another tenant, and not even
+        // for a privileged caller with no tenant binding at all. A client
+        // could otherwise mint a legal DIAT/DIEP with its own folio and
+        // signature and pass it off as a signed document.
+        // Forms are also IMMUTABLE — only the Admin SDK attaches signatures.
+        allow create, update, delete: if false;
       }
 
       // SUSESO folio counters. Server-only; clients never need to read.
