@@ -34,6 +34,7 @@ import { logger } from '../../utils/logger';
 // trigger source (long-press here) from auto-detection paths.
 import { analytics } from '../../services/analytics';
 import type { SosEvent } from '../../services/emergency/sosOutbox';
+import { randomId } from '../../utils/randomId';
 
 const HOLD_MS = 3_000;
 const GEO_TIMEOUT_MS = 5_000;
@@ -50,9 +51,21 @@ const SOS_FETCH_TIMEOUT_MS = 7_000;
  * changing the Idempotency-Key.
  */
 export function createSosClientEventId(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `sos-${Date.now()}`;
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  // Preserve a distinct key in legacy runtimes without Web Crypto instead of
+  // using a timestamp-only identity that can collide within the same millisecond.
+  return `sos-${randomId()}`;
 }
 
 interface GeoPoint {

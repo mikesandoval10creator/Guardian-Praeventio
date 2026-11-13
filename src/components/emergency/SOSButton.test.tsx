@@ -29,6 +29,47 @@ describe('SOSButton — client event identity', () => {
     expect(createSosClientEventId()).toBeTruthy();
   });
 
+  it('generates distinct UUIDv4 ids when randomUUID is unavailable', () => {
+    let generatedByte = 0;
+    const fakeCrypto = {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.fill(generatedByte++);
+        return bytes;
+      },
+    };
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_234_567);
+    vi.stubGlobal('crypto', fakeCrypto);
+
+    try {
+      const first = createSosClientEventId();
+      const second = createSosClientEventId();
+
+      expect(first).not.toBe(second);
+      expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      expect(second).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    } finally {
+      nowSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps ids distinct when Web Crypto is entirely unavailable', () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_234_567);
+    vi.stubGlobal('crypto', undefined);
+
+    try {
+      const first = createSosClientEventId();
+      const second = createSosClientEventId();
+
+      expect(first).not.toBe(second);
+      expect(first).toMatch(/^sos-fallback-/);
+      expect(second).toMatch(/^sos-fallback-/);
+    } finally {
+      nowSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('builds the initial POST with the same idempotency identity used by retries', () => {
     const clientEventId = 'sos-attempt-42';
     const request = buildSosRequest(
