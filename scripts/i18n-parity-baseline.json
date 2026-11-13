@@ -1782,8 +1782,6 @@
     "sif.requestReview",
     "sif.reviewed",
     "sif.title",
-    "siteMap.subtitle",
-    "siteMap.title",
     "site_book.feedback.already_signed",
     "site_book.feedback.sign_cancelled",
     "site_book.feedback.sign_failed",
