@@ -18,7 +18,7 @@
 | Routers de backend | 218 | `router-test-ratchet` |
 | Routers con test conductual real | 218 | `router-test-ratchet` |
 | Routers sin cobertura conductual | 0 | `router-test-ratchet` |
-| Usos de `as any` | 151 | `any-ratchet` |
+| Usos de `as any` | 149 | `any-ratchet` |
 
 ## Qué NO mide este archivo
 

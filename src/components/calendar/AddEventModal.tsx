@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
 import { humanErrorMessage } from '../../lib/humanError';
+import { type CalendarEventType, getCalendarEventTypeTranslation } from './calendarPresentation';
 
 
 interface AddEventModalProps {
@@ -22,25 +23,20 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
   const [loading, setLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
-  // NOTE: type values are stable identifiers persisted to Firestore — the
-  // localised label is rendered via eventTypeLabel below.
+  // Firestore currently stores Spanish event-type values; keep them stable and
+  // localize the display label at the UI boundary.
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     date: '',
     time: '',
     location: '',
-    type: 'Reunión' as 'Capacitación' | 'Inspección' | 'Auditoría' | 'Reunión'
+    type: 'Reunión' as CalendarEventType
   });
 
-  const eventTypeLabel = (value: typeof formData.type): string => {
-    switch (value) {
-      case 'Reunión': return t('calendar.event_type_meeting', 'Reunión');
-      case 'Capacitación': return t('calendar.event_type_training', 'Capacitación');
-      case 'Inspección': return t('calendar.event_type_inspection', 'Inspección');
-      case 'Auditoría': return t('calendar.event_type_audit', 'Auditoría');
-      default: return value;
-    }
+  const eventTypeLabel = (value: CalendarEventType): string => {
+    const translation = getCalendarEventTypeTranslation(value);
+    return translation ? t(translation.key, translation.defaultValue) : value;
   };
 
   const checkOverlaps = async () => {
@@ -60,7 +56,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
         if (!snapshot.empty) {
           return project.name;
         }
-      } catch (e) {
+      } catch {
         // Ignorar si el usuario no tiene permisos de lectura extendidos
       }
       return false;
@@ -240,7 +236,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as CalendarEventType })}
                     className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
                   >
                     <option value="Reunión">{eventTypeLabel('Reunión')}</option>
