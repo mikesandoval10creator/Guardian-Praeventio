@@ -2342,19 +2342,26 @@ service cloud.firestore {
       // combinan con OR sobre los `allow`. Este catchall daba lectura a
       // CUALQUIER tenant member, incluyendo subcolecciones que tienen
       // matchers hermanos más estrictos (`supervisor_only`, `suseso_forms`,
-      // `suseso_counters`) y la colección server-owned `iot_devices` (que
-      // contiene credenciales por dispositivo). El OR anulaba esos checks.
+      // `suseso_counters`) y las colecciones server-owned `iot_devices` (claves
+      // de dispositivo) e `imports` (CSV laboral con PII). El OR anulaba esos
+      // checks.
       // Excluimos esas rutas de aquí para que la regla estricta sea la única aplicable.
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices', 'imports']);
         allow create, update, delete: if false;
       }
 
       // Device registration and secret lookup are Admin-SDK-only. This path
       // is also excluded from the overlapping tenant-member read catch-all.
       match /iot_devices/{deviceId} {
+        allow read, write: if false;
+      }
+
+      // Onboarding imports may contain raw worker PII. Keep client access
+      // denied until project-scoped processing and retention are specified.
+      match /imports/{importId} {
         allow read, write: if false;
       }
 
