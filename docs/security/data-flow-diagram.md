@@ -11,9 +11,9 @@ referenced from the STRIDE walkthrough and the [findings table](./STRIDE_finding
 - Dashed arrows are asynchronous (push, background, snapshot listener).
 - Subgraphs are trust boundaries — a request crossing a subgraph border
   changes principal (`browser → internet`, `internet → GCP`, etc.).
-- A leaf labelled `[secret]` is held in Google Secret Manager (or an
-  equivalent KMS-encrypted store) and never leaves the GCP project
-  boundary in plaintext.
+- A leaf labelled `[secret]` is a credential at rest. The node states its
+  storage/access boundary explicitly; encryption at rest alone does not
+  prevent an authorized Firestore client from reading a document.
 
 ```mermaid
 flowchart LR
@@ -31,6 +31,11 @@ flowchart LR
         MOBILE[Android/iOS shell<br/>FCM token registration<br/>POST /api/push/register-token]
     end
 
+    %% ─── IoT gateway boundary ────────────────────────────────────
+    subgraph IoTBoundary[IoT gateway / sensor]
+        IOT_GATEWAY[HTTP telemetry producer<br/>RFC 8785 canonical HMAC]
+    end
+
     %% ─── Internet boundary ──────────────────────────────────────
     INET((Public Internet))
 
@@ -42,15 +47,19 @@ flowchart LR
         BILLING_ROUTE[/api/billing/*<br/>/billing/webpay/return<br/>src/server/routes/billing.ts]
         ZK_ROUTE[/api/zettelkasten/nodes<br/>src/server/routes/zettelkasten.ts]
         TEL_ROUTE[/api/telemetry/ingest<br/>HMAC canonical body]
+
         SERVER_SENTRY[server Sentry SDK<br/>sentryAdapter.ts]
         BG_TRIGGERS[Background triggers<br/>onSnapshot listeners<br/>setupBackgroundTriggers]
     end
 
     %% ─── External GCP services ─────────────────────────────────
     subgraph ExternalGCP[GCP managed services]
-        FS[(Firestore<br/>KMS-encrypted at rest<br/>firestore.rules default-deny)]
+        FS[(Firestore<br/>KMS-encrypted at rest<br/>firestore.rules default-deny + scoped grants)]
         VERTEX[Vertex AI Gemini<br/>gemini-3.1-pro-preview]
         FCM[Firebase Cloud Messaging]
+        TENANT_IOT_SECRETS[(Firestore<br/>tenant_iot_secrets/{tenantId}<br/>client deny; Admin SDK only)]
+        IOT_DEVICE_STORE[(Firestore<br/>tenants/{tid}/iot_devices/{deviceId}<br/>client deny; server-owned)]
+        IOT_LEGACY[(Legacy tenant root field<br/>tenants/{tid}.iotSecret<br/>member-readable until backfill)]
         SECMGR[(Secret Manager<br/>GEMINI_API_KEY [secret]<br/>WEBPAY_API_KEY [secret]<br/>SESSION_SECRET [secret]<br/>SENTRY_DSN [secret]<br/>IOT_WEBHOOK_SECRET [secret]<br/>MP_IPN_SECRET [secret])]
     end
 
@@ -65,6 +74,7 @@ flowchart LR
     %% ─── User-side flows ───────────────────────────────────────
     SPA -- "Bearer ID token" --> INET
     MOBILE -- "Bearer ID token" --> INET
+    IOT_GATEWAY -- "canonical JSON + x-iot-signature" --> INET
     INET -- "TLS" --> EXPRESS
 
     %% ─── Internal API routing ──────────────────────────────────
@@ -81,6 +91,10 @@ flowchart LR
     TBK -- "browser redirect /billing/webpay/return" --> EXPRESS
     BILLING_ROUTE -. "invoices, processed_webpay" .-> FS
     ZK_ROUTE -. "zettelkasten_nodes (server-only writes)" .-> FS
+    TEL_ROUTE -. "protected HMAC lookup + telemetry_events" .-> TENANT_IOT_SECRETS
+    TEL_ROUTE -. "temporary server-only fallback" .-> IOT_LEGACY
+    TEL_ROUTE -. "telemetry_events" .-> FS
+    EXPRESS -. "admin device registration" .-> IOT_DEVICE_STORE
     BG_TRIGGERS -. "FCM push" .-> FCM
     FCM -. "device push" .-> MOBILE
     EXPRESS -- "secrets at boot" --> SECMGR
@@ -102,15 +116,15 @@ flowchart LR
 
     %% ─── Trust boundary annotations ────────────────────────────
     classDef boundary stroke:#4db6ac,stroke-width:2px;
-    class BrowserBoundary,MobileBoundary,GCPBoundary,ExternalGCP,ThirdParty boundary;
+    class BrowserBoundary,MobileBoundary,IoTBoundary,GCPBoundary,ExternalGCP,ThirdParty boundary;
 ```
 
 ## Trust boundary inventory
 
 | Boundary | Crosses | Defenses |
 |----------|---------|----------|
-| Internet | Browser/Mobile -> Cloud Run | TLS, rate-limit (100/15min global, per-uid limiters), helmet CSP, body 64kb default |
-| GCP project | Express -> Vertex/Firestore/FCM | IAM roles on Cloud Run service account, Admin SDK uses default credentials |
+| Internet | Browser/Mobile/IoT gateway -> Cloud Run | TLS, rate-limit (100/15min global, per-uid limiters), helmet CSP, body 64kb default |
+| GCP project | Express -> Vertex/Firestore/FCM | IAM roles on Cloud Run service account; Admin SDK reads protected IoT secret stores; legacy tenant-root backfill pending |
 | Browser sandbox | SPA -> SW -> IndexedDB | Service-worker scope, IndexedDB origin isolation. NOTE: IDB contents are NOT encrypted at rest (see TM-T03) |
 | Third-party | Express -> Transbank/Sentry/Resend/Play | Per-vendor secrets; signed callbacks for Webpay (idempotency lock), HMAC for MP IPN, shared-secret for Play webhook |
 
@@ -118,9 +132,13 @@ flowchart LR
 
 - `Firestore` (managed by Google): all PII (worker name, RUT, project members,
   medical exams sub-collection), audit logs, Zettelkasten nodes, OAuth refresh
-  tokens (envelope-encrypted via KMS adapter — see `server.ts:75-92`).
-- `Secret Manager`: API keys, webhook secrets, SESSION_SECRET. Never embedded
-  in container images.
+  tokens (envelope-encrypted via KMS adapter — see `server.ts:75-92`). Per-tenant
+  IoT HMAC keys live in `tenant_iot_secrets/{tenantId}` (Admin SDK only); per-device
+  keys remain in `tenants/{tid}/iot_devices` (client-denied rules). Legacy
+  `tenants/{tid}.iotSecret` values are still member-readable until the authorized
+  backfill is verified.
+- `Secret Manager`: global API keys, shared webhook fallbacks, and SESSION_SECRET.
+  Never embedded in container images.
 - `IndexedDB` (browser, not encrypted): SLM offline session queue, cached
   model weights. Treated as untrusted on reconciliation.
 - `localStorage`: only `praeventio_first_login_<uid>` flag and feature

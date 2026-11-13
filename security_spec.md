@@ -1147,6 +1147,47 @@ works and an accidental client WRITE can never land. Rules tests:
      denied (member-read scoped per tenant). Exercised by the `bbs_observations`
      block in tenantServerWriteStores.rules.test.ts.
 
+### IoT tenant credentials — server-only storage (2026-11-13)
+
+The tenant root `tenants/{tid}` is intentionally readable by tenant members as a
+whole document; Firestore rules cannot redact a field such as `iotSecret`.
+Per-tenant HMAC keys therefore live in the top-level
+`tenant_iot_secrets/{tenantId}` store, with `allow read, write: if false` for
+all Firebase clients. Rotation is admin-only and atomically writes the protected
+document while deleting the legacy root field. Ingest reads the protected store
+first; a server-side legacy fallback is temporarily retained for tenants not yet
+backfilled and does not emit per-sample logs. The migration tool reports tenant
+IDs and outcome counts without printing secret values.
+
+Per-device HMAC credentials remain at
+`tenants/{tid}/iot_devices/{deviceId}.secret`, but that subcollection is
+server-owned: `iot_devices` is excluded from the overlapping tenant-member read
+catch-all and has an explicit client deny. MQTT authorization continues through
+the Admin SDK; no client read path is supported.
+
+The migration tool is `scripts/migrate-tenant-iot-secrets.cjs`. It defaults to
+read-only dry-run, requires an explicit project and scope, uses a transaction
+per tenant, skips conflicts without overwriting, and never prints keys. Production
+backfill is NOT performed by this change; the Notion item remains open until a
+separately authorized apply and post-migration dry-run show no legacy root keys.
+Rules tests: `src/rules-tests/tenantIotSecrets.rules.test.ts` and
+`src/rules-tests/tenantIotSecretMigration.rules.test.ts`; route and migration
+unit tests: `src/__tests__/server/telemetry.router.test.ts` and
+`src/__tests__/scripts/migrate-tenant-iot-secrets.test.ts`.
+
+**Rejected payloads (IoT secret boundary):**
+
+195. **Tenant IoT Key Read / Forgery**: a member reading
+     `tenants/{tid}.iotSecret` or `tenant_iot_secrets/{tid}` to forge an
+     `x-iot-signature` for telemetry — the protected collection is client-denied;
+     the legacy root field must be absent after the authorized migration.
+196. **Per-device Secret Snoop**: a tenant member `get`/`list`s
+     `tenants/{tid}/iot_devices/{deviceId}` to retrieve a device HMAC key — denied
+     by the catch-all exception and explicit server-only rule.
+197. **IoT Key Client Tampering**: a client `set`/`update`/`delete`s either
+     server-owned secret path — denied; only trusted Admin SDK routes may rotate
+     or migrate keys.
+
 ### anonymization_events — cascarón soft-delete proof (Ley 21.719, added 2026-06-15)
 
 `anonymization_events/{uid}` holds ONE immutable record per user proving their
