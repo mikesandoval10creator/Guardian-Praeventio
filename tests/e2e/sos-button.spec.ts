@@ -152,6 +152,9 @@ test.describe('SOSButton long-press (real flow)', () => {
   });
 
   test('replay tras perder la primera respuesta conserva la misma key, body y alerta', async ({ page }) => {
+    // Auth-Emulator boot/token mint has a 20s readiness retry; leave room for
+    // that cold setup plus the bounded long-press and replay network round-trip.
+    test.setTimeout(60_000);
     await loginAsTestUser(page);
     const seed = await seedProject({ emergencyActive: true, phone: '+56 9 1234 5678' });
     const requestKeys: string[] = [];
