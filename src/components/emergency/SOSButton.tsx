@@ -33,6 +33,7 @@ import { logger } from '../../utils/logger';
 // requires the SOS ring buffer in Sentry breadcrumbs to discriminate
 // trigger source (long-press here) from auto-detection paths.
 import { analytics } from '../../services/analytics';
+import type { SosEvent } from '../../services/emergency/sosOutbox';
 
 const HOLD_MS = 3_000;
 const GEO_TIMEOUT_MS = 5_000;
@@ -61,7 +62,7 @@ interface GeoPoint {
 
 type SosRequestBody = {
   type: 'sos';
-  uid: string | null;
+  uid: string;
   projectId: string | null;
   geo: GeoPoint | null;
   timestamp: string;
@@ -82,6 +83,66 @@ export function buildSosRequest(
     },
     body: JSON.stringify(body),
   };
+}
+
+type SosAttemptResult =
+  | { kind: 'delivered' }
+  | { kind: 'zero_reach' }
+  | { kind: 'transport_failure'; error: unknown; queued: boolean; queueError?: unknown };
+
+/**
+ * Submit one SOS attempt and durably queue transport failures using the same
+ * clientEventId sent on the first POST. This is the production transition the
+ * outbox retry tests exercise when the server commits but its response is lost.
+ */
+export async function submitSosAttempt(input: {
+  clientEventId: string;
+  authHeader: string | null;
+  body: SosRequestBody;
+  fetcher: (url: string, init: RequestInit) => Promise<Response>;
+  enqueue?: (event: SosEvent) => Promise<void>;
+}): Promise<SosAttemptResult> {
+  let response: Response;
+  try {
+    response = await input.fetcher(
+      '/api/emergency/sos',
+      buildSosRequest(input.clientEventId, input.authHeader, input.body),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    let queued = false;
+    let queueError: unknown;
+    if (input.body.projectId && input.enqueue) {
+      try {
+        // The server fingerprints the full request body for this key. Build
+        // the outbox event from that same snapshot so uid, geo and timestamp
+        // cannot drift between a lost-response retry and the initial POST.
+        await input.enqueue({
+          clientEventId: input.clientEventId,
+          workerUid: input.body.uid,
+          reason: 'manual_button',
+          projectId: input.body.projectId,
+          coords: input.body.geo ?? undefined,
+          occurredAt: input.body.timestamp,
+        });
+        queued = true;
+      } catch (err) {
+        queueError = err;
+      }
+    }
+    return {
+      kind: 'transport_failure',
+      error,
+      queued,
+      ...(queueError !== undefined ? { queueError } : {}),
+    };
+  }
+
+  const sosResult =
+    typeof response.json === 'function'
+      ? ((await response.json().catch(() => ({ delivered: false }))) as { delivered?: boolean })
+      : {};
+  return sosResult.delivered === false ? { kind: 'zero_reach' } : { kind: 'delivered' };
 }
 
 async function captureGeo(): Promise<GeoPoint | null> {
@@ -158,41 +219,55 @@ export function SOSButton(): React.ReactElement | null {
       const projectId = selectedProject?.id ?? null;
       const body = {
         type: 'sos' as const,
-        uid: user?.uid ?? null,
+        // The server derives identity from verifyAuth, not this field. Keep a
+        // stable wire value for anonymous attempts so an outbox replay has the
+        // exact same idempotency fingerprint.
+        uid: user?.uid ?? 'anonymous',
         projectId,
         geo,
         timestamp: new Date().toISOString(),
       };
-      // 7-second hard timeout: if the server stalls (Firestore outage, no
-      // async-error forwarding), abort so the worker reaches the tel: fallback
-      // quickly rather than waiting indefinitely.  The controller is cleaned up
-      // in the finally block regardless of the outcome.
-      const abortCtrl = new AbortController();
-      const abortTimer = setTimeout(() => abortCtrl.abort(), SOS_FETCH_TIMEOUT_MS);
-      let res: Response;
-      try {
-        res = await fetch('/api/emergency/sos', {
-          ...buildSosRequest(clientEventId, authHeader, body),
-          signal: abortCtrl.signal,
+      const attempt = await submitSosAttempt({
+        clientEventId,
+        authHeader,
+        body,
+        // 7-second hard timeout: abort a stalled request so the worker reaches
+        // the offline/tel fallback rather than waiting indefinitely.
+        fetcher: async (url, init) => {
+          const abortCtrl = new AbortController();
+          const abortTimer = setTimeout(() => abortCtrl.abort(), SOS_FETCH_TIMEOUT_MS);
+          try {
+            return await fetch(url, { ...init, signal: abortCtrl.signal });
+          } finally {
+            clearTimeout(abortTimer);
+          }
+        },
+        enqueue: async (event) => {
+          const { enqueueSos } = await import('../../services/emergency/sosOutboxClient');
+          await enqueueSos(event);
+        },
+      });
+
+      if (attempt.kind === 'transport_failure') {
+        logger.warn('SOSButton: /api/emergency/sos failed; queueing offline + tel: fallback', {
+          err: attempt.error,
         });
-      } finally {
-        clearTimeout(abortTimer);
+        if (attempt.queueError !== undefined) {
+          logger.error('SOSButton: failed to queue offline SOS', { qerr: attempt.queueError });
+        }
+        const phone = selectedProject?.phone;
+        if (phone && typeof window !== 'undefined') {
+          window.location.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
+        } else if (attempt.queued) {
+          showToast('Sin red: tu alerta quedó en cola y se reenviará al recuperar señal.');
+        } else {
+          showToast('No se pudo enviar la alerta — contacta al supervisor.');
+        }
+        return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // The server records the SOS even when it reached NO responder (0 push +
-      // 0 backup email): then `delivered` is false. Do NOT show the green
-      // "supervisores notificados" toast in that case — fall through to the tel:
-      // deeplink so a human is actually reached. (#1 life-safety: never falsely
-      // reassure a worker that help is coming when it isn't.) An ambiguous /
-      // non-JSON 2xx is treated as undelivered (safer → tel:).
-      const sosResult =
-        typeof res.json === 'function'
-          ? ((await res.json().catch(() => ({ delivered: false }))) as { delivered?: boolean })
-          : {};
-      // Analytics: the SOS WAS triggered and accepted by the server (a row was
-      // written) regardless of reach — emit BEFORE the delivered check so the
-      // ops funnel still counts zero-reach attempts (the gap this PR surfaces).
-      // `role_hash` uses the uid as a coarse stand-in until a salted hash lands.
+
+      // Analytics: the SOS was accepted and recorded even if no responder was
+      // reached. Never show the success toast for a zero-reach result.
       try {
         void analytics.track('emergency.sos.triggered', {
           sos_type: 'unknown',
@@ -200,26 +275,22 @@ export function SOSButton(): React.ReactElement | null {
           role_hash: user?.uid ?? 'anonymous',
         });
       } catch { /* analytics must never break user flow */ }
-      if (sosResult.delivered === false) throw new Error('sos_not_delivered');
+      if (attempt.kind === 'zero_reach') throw new Error('sos_not_delivered');
       showToast('Alerta enviada — supervisores notificados');
     } catch (err) {
-      // Two distinct failures land here:
-      //  • transport failure (network / !res.ok) — the server may NOT have the
-      //    SOS, so enqueue it for offline retry.
-      //  • 'sos_not_delivered' — the SOS IS recorded server-side but reached no
-      //    responder; re-POSTing would DUPLICATE the alert doc, so do NOT
-      //    enqueue — just reach a human directly via tel:.
+      // Transport/HTTP failures are queued by submitSosAttempt and return above.
+      // This catch handles setup failures and the explicit zero-reach response.
+      // A zero-reach SOS is already recorded server-side; re-POSTing would
+      // duplicate it, so do NOT enqueue — reach a human directly via tel:.
       const zeroReach = err instanceof Error && err.message === 'sos_not_delivered';
       logger.warn(
         zeroReach
           ? 'SOSButton: SOS recorded but reached no responder; tel: fallback (no re-enqueue)'
-          : 'SOSButton: /api/emergency/sos failed; queueing offline + tel: fallback',
+          : 'SOSButton: SOS setup failed; queueing offline + tel: fallback',
         { err },
       );
-      // Offline-first: persist a TRANSPORT failure so it RETRIES on reconnect
-      // (the engine retains it, dead-letters after max retries — never silently
-      // dropped). tel: stays the immediate human fallback. A zero-reach SOS is
-      // already on the server, so we skip the enqueue to avoid duplicate alerts.
+      // Preserve an SOS that failed before the request could be handled by the
+      // submit helper. The outbox retains it and dead-letters after max retries.
       const projectId = selectedProject?.id;
       let queued = false;
       if (!zeroReach && projectId) {
