@@ -151,6 +151,90 @@ test.describe('SOSButton long-press (real flow)', () => {
     }
   });
 
+  test('replay tras perder la primera respuesta conserva la misma key, body y alerta', async ({ page }) => {
+    // Auth-Emulator boot/token mint has a 20s readiness retry; leave room for
+    // that cold setup plus the bounded long-press and replay network round-trip.
+    test.setTimeout(60_000);
+    await loginAsTestUser(page);
+    const seed = await seedProject({ emergencyActive: true, phone: '+56 9 1234 5678' });
+    const requestKeys: string[] = [];
+    const requestBodies: unknown[] = [];
+    const serverAlertIds: string[] = [];
+    let replayHeader: string | undefined;
+    let requestsSeen = 0;
+
+    await page.route('**/api/emergency/sos', async (route) => {
+      const request = route.request();
+      requestKeys.push(request.headers()['idempotency-key'] ?? '');
+      requestBodies.push(request.postDataJSON());
+
+      // Let the real E2E Express server commit the first SOS, then drop only
+      // its response to simulate a mobile connection loss after persistence.
+      const upstream = await route.fetch();
+      const rawBody = await upstream.body();
+      const payload = JSON.parse(rawBody.toString('utf8')) as { alertId?: string };
+      serverAlertIds.push(payload.alertId ?? '');
+      requestsSeen += 1;
+      if (requestsSeen === 1) {
+        expect(upstream.status()).toBe(200);
+        await route.abort('failed');
+        return;
+      }
+
+      replayHeader = upstream.headers()['idempotent-replayed'];
+      await route.fulfill({
+        status: upstream.status(),
+        headers: {
+          'content-type': upstream.headers()['content-type'] ?? 'application/json',
+          ...(replayHeader ? { 'idempotent-replayed': replayHeader } : {}),
+        },
+        body: rawBody,
+      });
+    });
+
+    try {
+      await page.goto('/emergency');
+      await signInBrowserViaCustomToken(page);
+      const sos = page.getByTestId('sos-button');
+      await expect(sos).toBeVisible({ timeout: 15_000 });
+      await sos.scrollIntoViewIfNeeded();
+      let box = await sos.boundingBox();
+      for (let i = 0; i < 20 && !box; i++) {
+        await page.waitForTimeout(100);
+        box = await sos.boundingBox();
+      }
+      if (!box) throw new Error('SOS button has no bounding box');
+
+      const retryResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/emergency/sos') &&
+          response.request().method() === 'POST',
+        { timeout: 30_000 },
+      );
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      let retryResponse;
+      try {
+        retryResponse = await retryResponsePromise;
+      } finally {
+        await page.mouse.up();
+      }
+
+      expect(retryResponse.status()).toBe(200);
+      expect(replayHeader).toBe('true');
+      expect(requestsSeen).toBe(2);
+      expect(requestKeys).toHaveLength(2);
+      expect(requestKeys[0]).toBeTruthy();
+      expect(requestKeys[1]).toBe(requestKeys[0]);
+      expect(requestBodies[1]).toEqual(requestBodies[0]);
+      expect(serverAlertIds[1]).toBe(serverAlertIds[0]);
+      const replayPayload = (await retryResponse.json()) as { alertId?: string };
+      expect(replayPayload.alertId).toBe(serverAlertIds[0]);
+    } finally {
+      await seed.cleanup();
+    }
+  });
+
   test('contactos de emergencia exponen enlaces tel: reales', async ({ page }) => {
     await loginAsTestUser(page);
     const seed = await seedProject({ emergencyActive: true });
