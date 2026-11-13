@@ -5676,5 +5676,9 @@
       "uploading": "Uploading and verifying hash…",
       "success": "Evidence uploaded and hash-verified: {{name}}"
     }
+  },
+  "siteMap": {
+    "title": "Site Map",
+    "subtitle": "Operational Intelligence"
   }
 }

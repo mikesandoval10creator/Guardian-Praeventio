@@ -5676,5 +5676,9 @@
       "uploading": "Subiendo y verificando hash…",
       "success": "Evidencia subida y verificada por hash: {{name}}"
     }
+  },
+  "siteMap": {
+    "title": "Mapa del sitio",
+    "subtitle": "Inteligencia operativa"
   }
 }
