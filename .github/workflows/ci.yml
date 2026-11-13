@@ -131,6 +131,13 @@ jobs:
       - name: ESLint src + server + firestore.rules
         run: npm run lint
 
+      # Fixed repository scripts only; no event-derived data reaches the shell.
+      - name: Stub-guard unit tests
+        run: npm run test:stub-guard
+
+      - name: Full-tree stub inventory gate
+        run: npm run lint:stub-guard
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest

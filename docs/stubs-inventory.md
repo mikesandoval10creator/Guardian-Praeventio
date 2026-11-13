@@ -1,6 +1,6 @@
 # Stubs Inventory
 
-> Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
+> Inventario de stubs/mocks y marcadores de código productivo. Cada entrada debe tener owner + sprint target + gate de visibilidad. El CI revisa el árbol rastreado completo (src, packages, wasm, android, ios y server.ts) y compara los conteos por archivo con `docs/stubs-inventory-baseline.json`; una subida requiere revisión explícita junto con su inventario/owner.
 >
 > **Revalidación 2026-11-12:** el triage fechado 2026-06-19 se conserva
 > como historia, no como estado actual. Las secciones revalidadas reflejan
@@ -50,6 +50,22 @@
 - **User-visible?**: NO — métricas actuales vía Sentry breadcrumbs + Cloud Run stdout
 - **Why stub**: catalog adapter para futura integración OTel/Prometheus/Datadog
 - **Removal criteria**: cuando K6 active OpenTelemetry, implementar real.
+
+## SII PSE provider scaffolds — typed failure, no real DTE provider call
+- **Files**: `src/services/sii/libredteAdapter.ts`; `src/services/sii/openfacturaAdapter.ts`; `src/services/sii/simpleApiAdapter.ts`
+- **Owner**: Guardian implementation — Chile compliance/DTE integration
+- **Sprint target**: Round 2; blocked until a PSE is selected and its contract, sandbox credentials, and product owner are confirmed.
+- **User-visible?**: YES, only as typed unsupported-provider errors (`SiiNotImplementedError`); these adapters do not return successful DTE results. The success-shaped `noopSiiAdapter` is for dev/test; `getSiiAdapter()` fails closed in production when the selected PSE is missing, invalid, or `noop`.
+- **Evidence**: `src/services/sii/siiAdapter.test.ts` covers adapter dispatch and typed failures; `src/services/sii/index.ts:52-80` rejects the noop adapter in production.
+- **Removal criteria**: implement the selected provider against its sandbox and verify auth, request/response mapping, audit, idempotency, and failure handling before any release decision.
+
+## International jurisdiction adapter scaffolds — AU, CA, IN, JP, KR, UK
+- **Files**: `src/services/compliance/adapters/au/index.ts`; `src/services/compliance/adapters/ca/index.ts`; `src/services/compliance/adapters/in/index.ts`; `src/services/compliance/adapters/jp/index.ts`; `src/services/compliance/adapters/kr/index.ts`; `src/services/compliance/adapters/uk/index.ts`
+- **Owner**: Guardian implementation — Block 7 international compliance
+- **Sprint target**: blocked until jurisdiction-specific product scope, legal review, and implementation owner are approved; international expansion remains in backlog.
+- **User-visible?**: If a scaffolded generator is invoked, it throws typed `AdapterNotImplementedError`; it must not be presented as a completed compliance document. `ADAPTER_STATUS` remains `scaffold` for these countries.
+- **Evidence**: `src/services/compliance/adapters/index.ts:42-50, 94-114` declares the scaffold status; each exported generator/signature throws rather than fabricating output.
+- **Removal criteria**: implement and validate each jurisdiction separately against authoritative legal sources, approved contracts, and tests before exposing its generator.
 
 ## criticalPermitValidators — ✅ WIRED 2026-05-29 (ya no es huérfano)
 - **File**: `src/services/workPermits/criticalPermitValidators.ts` (481 LOC + 36 unit tests)
