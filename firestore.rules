@@ -2321,8 +2321,14 @@ service cloud.firestore {
     // tenantId == X. Writes/creates/deletes are denied to all clients;
     // the server uses the Admin SDK which bypasses these rules.
     //
-    // Without this matcher, Firestore default-deny silently rejected
-    // every client read — leaving the `tenants/*` surface invisible
+    // Per-tenant IoT HMAC credentials are read/written only by trusted server
+    // routes using the Admin SDK. Firestore client access is never permitted.
+    match /tenant_iot_secrets/{tenantId} {
+      allow read, write: if false;
+    }
+
+    // Without the tenants matcher below, Firestore default-deny silently
+    // rejected every client read — leaving the `tenants/*` surface invisible
     // and ungrep-able. Audit hallazgo H8.
     match /tenants/{tenantId} {
       allow read: if isSignedIn()
@@ -2336,13 +2342,20 @@ service cloud.firestore {
       // combinan con OR sobre los `allow`. Este catchall daba lectura a
       // CUALQUIER tenant member, incluyendo subcolecciones que tienen
       // matchers hermanos más estrictos (`supervisor_only`, `suseso_forms`,
-      // `suseso_counters`). El OR anulaba esos checks. Excluimos esas rutas
-      // de aquí para que la regla estricta sea la única aplicable.
+      // `suseso_counters`) y la colección server-owned `iot_devices` (que
+      // contiene credenciales por dispositivo). El OR anulaba esos checks.
+      // Excluimos esas rutas de aquí para que la regla estricta sea la única aplicable.
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices']);
         allow create, update, delete: if false;
+      }
+
+      // Device registration and secret lookup are Admin-SDK-only. This path
+      // is also excluded from the overlapping tenant-member read catch-all.
+      match /iot_devices/{deviceId} {
+        allow read, write: if false;
       }
 
       // A4 follow-up re-scope 2026-06: tenants/{tid}/seismic_events is GONE.
