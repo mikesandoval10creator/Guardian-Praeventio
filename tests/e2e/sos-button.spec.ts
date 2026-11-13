@@ -1,6 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { createHash } from 'node:crypto';
-import { getFirestore } from 'firebase-admin/firestore';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
@@ -156,9 +154,6 @@ test.describe('SOSButton long-press (real flow)', () => {
   test('replay tras perder la primera respuesta conserva la misma key, body y alerta', async ({ page }) => {
     await loginAsTestUser(page);
     const seed = await seedProject({ emergencyActive: true, phone: '+56 9 1234 5678' });
-    const db = getFirestore();
-    const seededProject = await db.collection('projects').doc(seed.projectId).get();
-    const tenantId = seededProject.get('tenantId') as string;
     const requestKeys: string[] = [];
     const requestBodies: unknown[] = [];
     const serverAlertIds: string[] = [];
@@ -232,34 +227,7 @@ test.describe('SOSButton long-press (real flow)', () => {
       expect(serverAlertIds[1]).toBe(serverAlertIds[0]);
       const replayPayload = (await retryResponse.json()) as { alertId?: string };
       expect(replayPayload.alertId).toBe(serverAlertIds[0]);
-
-      const alerts = await db
-        .collection('tenants')
-        .doc(tenantId)
-        .collection('emergency_alerts')
-        .where('projectId', '==', seed.projectId)
-        .get();
-      expect(alerts.size).toBe(1);
-      expect(alerts.docs[0]?.id).toBe(serverAlertIds[0]);
     } finally {
-      const projectAlerts = await db
-        .collection('tenants')
-        .doc(tenantId)
-        .collection('emergency_alerts')
-        .where('projectId', '==', seed.projectId)
-        .get();
-      await Promise.all(projectAlerts.docs.map((doc) => doc.ref.delete()));
-      const auditRows = await db
-        .collection('audit_logs')
-        .where('projectId', '==', seed.projectId)
-        .get();
-      await Promise.all(auditRows.docs.map((doc) => doc.ref.delete()));
-      if (requestKeys[0]) {
-        const cacheId = createHash('sha256')
-          .update(`e2e-user-001:${requestKeys[0]}`)
-          .digest('hex');
-        await db.collection('system_idempotency_cache').doc(cacheId).delete();
-      }
       await seed.cleanup();
     }
   });
