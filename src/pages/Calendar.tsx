@@ -22,18 +22,19 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, differenceInDays, addDays } from 'date-fns';
-import { es } from 'date-fns/locale';
 import {
   loadProjectWeather,
   type ForecastApiDay,
   type ForecastSource,
 } from '../services/projectWeatherClient';
+import {
+  type CalendarEventType,
+  createCalendarDateFormatters,
+  getCalendarEventTypeTranslation,
+  parseCalendarDate,
+} from '../components/calendar/calendarPresentation';
 
-// TODO(i18n): AddEventModal is an external sub-component — its internal strings
-// are scoped to a separate i18n sweep, not this file.
 import { AddEventModal } from '../components/calendar/AddEventModal';
-// TODO(i18n): EventDetailsModal is an external sub-component — its internal
-// strings are scoped to a separate i18n sweep, not this file.
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 import { ExternalEventsPanel } from '../components/external-events/ExternalEventsPanel';
 import { ClimatePlanAdjustment } from '../components/climateAware/ClimatePlanAdjustment';
@@ -47,14 +48,22 @@ interface Event {
   date: string;
   time: string;
   location: string;
-  type: 'Capacitación' | 'Inspección' | 'Auditoría' | 'Reunión';
+  type: CalendarEventType;
   projectId: string;
   endDate?: string; // Added for Gantt
   progress?: number; // Added for Gantt
 }
 
 export function Calendar() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateFormatters = useMemo(
+    () => createCalendarDateFormatters(i18n.resolvedLanguage ?? i18n.language),
+    [i18n.language, i18n.resolvedLanguage],
+  );
+  const eventTypeLabel = (type: string) => {
+    const translation = getCalendarEventTypeTranslation(type);
+    return translation ? t(translation.key, translation.defaultValue) : type;
+  };
   const { selectedProject } = useProject();
   const weatherProjectId = selectedProject?.id;
   const weatherProjectLat = selectedProject?.coordinates?.lat;
@@ -308,7 +317,7 @@ export function Calendar() {
   const allEvents = [...(events || []), ...legalObligations];
 
   const getEventsForDay = (day: Date) => {
-    return allEvents.filter(event => isSameDay(new Date(event.date), day));
+    return allEvents.filter((event) => isSameDay(parseCalendarDate(event.date), day));
   };
 
   // ── Round 17 (R4): honest empty duration ─────────────────────────
@@ -417,7 +426,7 @@ export function Calendar() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <span className="px-2 sm:px-4 text-[10px] sm:text-xs font-black text-primary-token uppercase tracking-widest min-w-[120px] sm:min-w-[140px] text-center">
-              {format(currentDate, 'MMMM yyyy', { locale: es })}
+              {dateFormatters.monthYear(currentDate)}
             </span>
             <button onClick={nextMonth} aria-label={t('calendar.month_nav.next')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-muted-token hover:text-zinc-900 dark:hover:text-white transition-all">
               <ChevronRight className="w-5 h-5" />
@@ -458,7 +467,7 @@ export function Calendar() {
               <div key={i} className={`p-4 rounded-2xl border ${day.alert ? 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10' : 'border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50'} flex items-center justify-between`}>
                 <div>
                   <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
-                    {i === 0 ? t('calendar.weather.today') : i === 1 ? t('calendar.weather.tomorrow') : format(day.date, 'EEEE', { locale: es })}
+                    {i === 0 ? t('calendar.weather.today') : i === 1 ? t('calendar.weather.tomorrow') : dateFormatters.weekdayLong(day.date)}
                   </div>
                   <div className="flex items-center gap-2">
                     <Icon className={`w-5 h-5 ${day.alert ? 'text-red-500' : day.color}`} />
@@ -555,8 +564,8 @@ export function Calendar() {
             {/* Gantt Rows */}
             <div className="space-y-3">
               {ganttEvents.map(event => {
-                const startDate = new Date(event.date);
-                const endDate = new Date(event.endDate!);
+                const startDate = parseCalendarDate(event.date);
+                const endDate = parseCalendarDate(event.endDate!);
 
                 // Calculate position and width
                 const startOffset = Math.max(0, differenceInDays(startDate, monthStart));
@@ -571,7 +580,7 @@ export function Calendar() {
                     <div className="w-1/4 pr-4">
                       <div className="text-xs font-bold text-primary-token truncate">{event.title}</div>
                       <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
-                        {event.type}
+                        {eventTypeLabel(event.type)}
                         {event.durationUnspecified && (
                           <span className="ml-1 text-amber-500" title={t('calendar.gantt.duration_unspecified_tooltip')}>
                             {t('calendar.gantt.duration_unspecified_inline')}
@@ -649,7 +658,7 @@ export function Calendar() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[8px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-md border border-[#4db6ac]/20 dark:border-[#d4af37]/20">
-                    {event.type}
+                    {eventTypeLabel(event.type)}
                   </span>
                   <Clock className="w-4 h-4 text-zinc-500" />
                 </div>
@@ -660,7 +669,7 @@ export function Calendar() {
                   <div className="flex items-center gap-2 text-zinc-500">
                     <CalendarIcon className="w-3 h-3" />
                     <span className="text-[9px] font-bold uppercase tracking-wider">
-                      {format(new Date(event.date), 'dd MMMM, yyyy', { locale: es })}
+                      {dateFormatters.eventDate(event.date)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-zinc-500">

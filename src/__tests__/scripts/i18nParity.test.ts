@@ -103,11 +103,12 @@ describe('i18n used-but-undeclared ratchet (B20)', () => {
     ).toEqual([]);
   });
 
-  it('ratchet hygiene: baselined keys that got declared should leave the baseline', () => {
+  it('ratchet hygiene: every newly declared key is removed from the baseline', () => {
     const live = new Set(guard.undeclaredUsed());
     const stale = (baseline.usedUndeclared ?? []).filter((k) => !live.has(k));
-    // Aviso no-fatal vía aserción suave: solo exige que no haya MUCHA
-    // deriva acumulada (>50 claves ya declaradas sin limpiar el baseline).
-    expect(stale.length).toBeLessThanOrEqual(50);
+    expect(
+      stale,
+      `Remove these now-declared keys from baseline.usedUndeclared: ${stale.join(', ')}`,
+    ).toEqual([]);
   });
 });
