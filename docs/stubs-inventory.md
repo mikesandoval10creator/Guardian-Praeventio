@@ -1,6 +1,11 @@
 # Stubs Inventory
 
 > Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
+>
+> **Revalidación 2026-11-12:** el triage fechado 2026-06-19 se conserva
+> como historia, no como estado actual. Las secciones revalidadas reflejan
+> código y provisioning versionado; no implican que Cloud Scheduler esté
+> habilitado en GCP ni que BLE haya pasado un lab físico.
 
 ## CL/safety_inspection — PDF server-side generator ✅ RESUELTO 2026-09-04
 - **File**: `src/services/compliance/registry.ts` — `clSafetyInspectionAdapter.generate()` + `renderSafetyInspectionPdf()`
@@ -52,23 +57,40 @@
 - **User-visible?**: SÍ ahora — endpoint advisory (devuelve issues blocking/advisory/info; NUNCA bloquea la emisión — el supervisor resuelve/override). Metadata incompleta → 400 honesto (no 500).
 - **Pendiente (no-stub, feature futura)**: validadores deep para los otros 3 kinds (confined/hot_work/altura) no existen aún como funciones; el endpoint los rechaza vía enum. Cuando se implementen, agregarlos al dispatcher + al enum.
 
-## B2D MRR snapshot job Sprint E deferido
-- **File**: `src/server/jobs/runB2dMrrSnapshot.ts:15`
-- **Owner**: G7
-- **Sprint target**: TBD (Sprint B2D)
-- **User-visible?**: NO — job no programado en `scheduler.tf`
-- **Why stub**: B2D billing flujo pendiente — depende de mercado B2D maduro
-- **Removal criteria**: cuando B2D billing se active productivamente.
+## B2D MRR snapshot — código y provisioning versionado (revalidado 2026-11-12)
+- **Código/ruta**: `src/server/jobs/runB2dMrrSnapshot.ts` y `POST
+  /api/maintenance/run-b2d-mrr-snapshot` en
+  `src/server/routes/maintenance.ts`.
+- **Programación versionada**: `.github/workflows/deploy.yml:782-789`
+  provisiona `b2d-mrr-snapshot` con `30 0 1 * *` en `America/Santiago`; el
+  helper `ensure_job` aplica esa zona. `scripts/validate-scheduler-crons.cjs:16-24`
+  valida nombre, cron y endpoint, pero no el timezone. También figura en
+  `docs/runbooks/SCHEDULER_INVENTORY.md:55`.
+- **Alcance**: el código y la configuración de despliegue existen; no es un stub
+  por falta de cron. `infrastructure/terraform/scheduler.tf` define solo
+  `firestore-nightly-backup` y `firestore-backup-integrity-weekly`; el B2D HTTP
+  job se provisiona en `deploy.yml`.
+- **Límite de evidencia**: no se leyó el estado real de GCP
+  (ENABLED/lastAttempt/status); el ticket P1 de reconciliación operativa sigue
+  `In-progress`. No afirmar ejecución real ni que el chart esté poblado.
+- **Histórico**: “no existe en scheduler.tf” era una observación estrecha; la programación actual vive en `deploy.yml`.
 
-## SystemEngineProvider orphan (no mounted)
-- **File**: `src/contexts/SystemEngineProvider.tsx` (3 context adapters REALES: emergency, subscription, sensor + executor.ts + decisionEngine + 2 policies: geofenceToSos, tierChangeReactivity)
-- **Owner**: D3
-- **Sprint target**: post-PR #513
-- **User-visible?**: NO — triggers system engine no llegan al frontend
-- **Why orphan**: provider definido pero `AppProviders.tsx` no lo envuelve.
-- **Blocker real (verificado 2026-05-29, sin asumir)**: el provider exige un prop `tenantId` ("usually fetched from the verified user claim" per su docstring) PERO el claim NO lo lleva — `tenantId` es server-resolved per-project (`resolveTenantId()` en `workPermits.ts:59` lee `projects/{id}.tenantId`). NO existe client-side: ni en el `User` de FirebaseContext (`tenantId` ahí es el campo Firebase-Auth nativo = null) ni en el `Project` type. **Montarlo requiere PRIMERO una fuente client-side de tenantId** (custom claim nuevo + `getIdTokenResult().claims`, o endpoint `/api/me`, o añadir `tenantId` al fetch del project doc).
-- **Bug FIXED 2026-05-29 (PR fix/system-engine-active-emergency-bug)**: `hasActiveEmergency` estaba hardcoded `() => false` (líneas 129+147 del decide-context), lo que anulaba el anti-cascade guard de geofenceToSos (re-disparaba un SOS aun con emergencia activa). Ahora lee el estado real vía `emergencyActiveRef` ← `useEmergency().isEmergencyActive`. El guard en sí ya está tested en `__tests__/policies/geofenceToSos.test.ts`.
-- **Removal criteria (WIRE)**: (1) resolver fuente client-side de `tenantId`, (2) envolver en `AppProviders.tsx` dentro de `SensorProvider` (junto a `MeshProvider` — ahí todos los deps: emergency/subscription/notification/sensor/project/firebase están presentes), (3) integration test del provider montado. O DEPRECATE si se decide.
+## SystemEngineProvider — montado, con feature flag apagada por defecto (revalidado 2026-11-12)
+- **Archivo**: `src/providers/AppProviders.tsx:55-71, 152-159` monta el
+  provider dentro de `MeshProvider`.
+- **Activación**: `VITE_SYSTEM_ENGINE_ENABLED` queda en `false` si no se
+  configura explícitamente; `SystemEngineProvider.tsx:77` devuelve los children
+  sin ejecutar el motor mientras está deshabilitado. Ya no es huérfano, pero
+  no activa triggers por defecto.
+- **Scope**: `tenantId='default'` es metadata informativa; el bus A4 toma el
+  proyecto seleccionado desde el contexto. El bloqueo de tenant client-side
+  de mayo 2026 quedó supersedido por ese re-scope.
+- **Límite de evidencia**: el cableado existe, pero no demuestra automatización
+  activa, comportamiento en dispositivo ni readiness de producción. Mantener
+  el flag apagado salvo autorización y validación separadas.
+- **Histórico**: el diagnóstico previo de “no montado / tenantId ausente”
+  describía el estado pre-A4; se conserva como historia, no como clasificación
+  vigente del stub.
 
 ## useGeofenceWithEvents — RESUELTO 2026-06-14
 - **File**: `src/hooks/useGeofenceWithEvents.ts`
@@ -78,13 +100,22 @@
 - **Evidence**: `src/components/emergency/GeofenceAlert.test.tsx`, `src/hooks/useGeofenceWithEvents.test.ts` y `src/services/systemEngine/__tests__/policies/geofenceToSos.test.ts` cubren consumidor, emisión y política de escalamiento.
 - **Resolution**: ya no es stub ni huérfano; conservar esta entrada como registro histórico evita que auditorías futuras intenten volver a cablearlo.
 
-## capacitor-mesh Android/iOS stubs
-- **File**: `packages/capacitor-mesh/android/src/main/java/.../MeshPlugin.kt:552` + `packages/capacitor-mesh/ios/Sources/.../Plugin.swift:350`
-- **Owner**: H2 (Sprint 31 BLE GATT) + H3 (Sprint 32 Wi-Fi Direct)
-- **Sprint target**: Sprint 31 (BLE) + Sprint 32 (Wi-Fi Direct)
-- **User-visible?**: PARTIAL — web simulator (240 LOC) funciona productivo via BroadcastChannel; native (902 LOC stubs) solo loggea + fake events
-- **Why stub**: BLE GATT real requiere Android `BluetoothLeAdvertiser/Scanner/GattServer` + iOS `CBPeripheralManager/CBCentralManager`. Wi-Fi Direct requiere Android `WifiP2pManager` + iOS `MultipeerConnectivity`. Trabajo no trivial.
-- **Removal criteria**: ADR 0013 cubre split engine/transport. Sprint 31/32 implementan.
+## capacitor-mesh — BLE nativo presente; Wi-Fi Direct aún no implementado (revalidado 2026-11-12)
+- **Archivos**: `packages/capacitor-mesh/android/src/main/java/com/praeventio/mesh/MeshPlugin.kt`
+  y `packages/capacitor-mesh/ios/Plugin.swift` contienen implementación BLE
+  GATT/CoreBluetooth; `MeshWireProtocol` transporta frames PRM1.
+- **Slice integrado**: PR #1652 añadió framing, segmentación/reensamblaje por
+  MTU y ACK/requeue de aplicación. No demuestra recepción por radio.
+- **Aceptación pendiente**: el ticket P0 Mesh BLE permanece `In-progress` para
+  lab Android↔Android / Android↔iOS, MTU efectivo, backpressure, desconexión,
+  retry y medidas de round-trip. `writeWithoutResponse` no demuestra recepción
+  remota. No declarar listo para campo.
+- **Wi-Fi Direct**: no existe implementación `WifiP2pManager` ni
+  `MultipeerConnectivity` en el código nativo. Las declaraciones del
+  Manifest/Info.plist no son implementación; el fallback sigue planificado.
+- **Histórico**: la descripción anterior de “902 LOC native stubs que solo
+  loggean/fingen eventos” fue supersedida por PR #1652. El `BroadcastChannel`
+  web es un simulador, no equivale a BLE.
 
 ## Componentes huérfanos en src/components/ root (audit F2 RE-VERIFICADO ×2 2026-05-27)
 

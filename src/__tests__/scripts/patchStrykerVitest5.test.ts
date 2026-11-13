@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -70,6 +70,28 @@ function createRunnerFixture(version = '10.0.0') {
   return { root, distDir };
 }
 
+function createInstalledRunnerFixture() {
+  const runnerEntry = require.resolve('@stryker-mutator/vitest-runner');
+  const installedRoot = join(dirname(runnerEntry), '..', '..');
+  const packageFile = join(installedRoot, 'package.json');
+  const packageJson = JSON.parse(readFileSync(packageFile, 'utf8')) as { version: string };
+  const root = mkdtempSync(join(tmpdir(), 'guardian-stryker-installed-runner-'));
+  tempRoots.push(root);
+  const packageDir = join(root, 'node_modules/@stryker-mutator/vitest-runner');
+  const distDir = join(packageDir, 'dist/src');
+  mkdirSync(distDir, { recursive: true });
+  copyFileSync(packageFile, join(packageDir, 'package.json'));
+  for (const name of [
+    'test-helpers.js',
+    'stryker-setup.js',
+    'vitest-helpers.js',
+    'vitest-test-runner.js',
+  ]) {
+    copyFileSync(join(installedRoot, 'dist/src', name), join(distDir, name));
+  }
+  return { root, distDir, version: packageJson.version };
+}
+
 afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -96,6 +118,28 @@ describe('patch-stryker-vitest5', () => {
       status: 'already-compatible',
       patched: [],
     });
+  });
+
+  it('recognizes the installed runner only when its separator fix is already compatible', () => {
+    const { root, distDir, version } = createInstalledRunnerFixture();
+    expect(['10.0.0', '10.1.1']).toContain(version);
+    const files = [
+      'test-helpers.js',
+      'stryker-setup.js',
+      'vitest-helpers.js',
+      'vitest-test-runner.js',
+    ];
+    const before = Object.fromEntries(
+      files.map((name) => [name, readFileSync(join(distDir, name), 'utf8')]),
+    );
+
+    expect(patchStrykerRunner(root)).toEqual({
+      status: 'already-compatible',
+      patched: [],
+    });
+    expect(
+      Object.fromEntries(files.map((name) => [name, readFileSync(join(distDir, name), 'utf8')])),
+    ).toEqual(before);
   });
 
   it('repairs an interrupted patch instead of accepting incomplete runner markers', () => {

@@ -50,6 +50,11 @@ describe('router behavioral-coverage ratchet (verified working = real-router sup
     ).toEqual([]);
   });
 
+  it('baseline total matches the live router inventory', () => {
+    expect(baseline.total_routers).toBe(ROUTERS.length);
+    expect(baseline.verified).toBe(ROUTERS.length - LIVE.length);
+  });
+
   it('baseline arithmetic is consistent (total = verified + uncovered)', () => {
     expect(baseline.uncovered_count).toBe(baseline.uncovered.length);
     expect(baseline.verified + baseline.uncovered_count).toBe(baseline.total_routers);

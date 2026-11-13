@@ -1140,9 +1140,10 @@ router.post(
   },
 );
 
-// Plan v2 Bloque F6 — daily housekeeping: expire stale exceptions +
-// work_permits, dispatch legal calendar reminders. Cloud Scheduler
-// invoca a diario 00:00 UTC.
+// Plan v2 Bloque F6 — daily housekeeping: expire stale exceptions and work
+// permits, reconcile legal obligations, dispatch reminders, and refresh UF.
+// deploy.yml configures the endpoint for 00:00 America/Santiago; this source
+// comment does not verify the external Cloud Scheduler state.
 //
 //   POST /api/maintenance/run-daily-housekeeping
 //

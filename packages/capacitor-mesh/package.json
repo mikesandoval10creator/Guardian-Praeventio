@@ -1,7 +1,7 @@
 {
   "name": "@praeventio/capacitor-mesh",
   "version": "0.1.0-scaffold",
-  "description": "Capacitor plugin scaffold for the Praeventio BLE / Wi-Fi Direct mesh transport (ADR 0013). The pure engine lives in src/services/mesh/* — this package is the bridge between that engine and native BLE GATT (Sprint 31 will land the real Kotlin/Swift code).",
+  "description": "Capacitor BLE GATT/CoreBluetooth mesh transport for Praeventio (ADR 0013). Native source exists on Android and iOS; Wi-Fi Direct fallback and physical field acceptance remain outstanding. Pure mesh engine lives in src/services/mesh/.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
