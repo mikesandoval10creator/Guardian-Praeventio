@@ -32,6 +32,13 @@ Convenciones:
   `/api/dte/create`, `/api/iot/devices/register`,
   `/api/emergency/notify-brigada`. Audit signals: `idempotency.cache_hit`
   / `idempotency.cache_write`.
+- **404 JSON en `/api/*` (TestSprite TC075):** toda petición de API que
+  ningún router atiende (path inexistente o método incorrecto) responde
+  `404` con `Content-Type: application/json` y body
+  `{"error":"not_found"}` — el middleware terminal
+  `src/server/middleware/apiNotFound.ts`, montado después de todos los
+  routers `/api` y antes del catch-all SPA. Los 404 de API ya no exponen
+  la respuesta HTML por defecto de Express ni el shell de la SPA.
 
 Group navigation:
 1. [Health](#health)

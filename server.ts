@@ -48,6 +48,10 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { stampCspNonce } from "./src/server/middleware/stampCspNonce.js";
+// TestSprite TC075 — JSON 404 for the /api namespace. Mounted after every
+// /api router (see below) so unknown API paths and wrong methods answer
+// `{"error":"not_found"}` instead of Express' HTML 404 / the SPA shell.
+import { apiNotFoundJson } from "./src/server/middleware/apiNotFound.js";
 // Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
 // hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
 // barrier; legacy `typeof` guards stay in place until Sprint 29.
@@ -1466,7 +1470,7 @@ if (process.env.NODE_ENV !== "production") {
   // requests fall through to the real routers below; everything else (SPA routes,
   // /src modules, @vite client, HMR) still reaches Vite.
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path === '/billing' || req.path.startsWith('/billing/')) {
+    if (req.path === '/api' || req.path.startsWith('/api/') || req.path === '/billing' || req.path.startsWith('/billing/')) {
       return next();
     }
     return vite.middlewares(req, res, next);
@@ -1602,6 +1606,13 @@ app.use('/api/auth', webauthnChallengeRouter);
 // al contenido exacto de la entry persistida.
 const { sitebookSignRouter } = await import('./src/server/routes/sitebookSignRoutes.js');
 app.use('/api/sitebook', sitebookSignRouter);
+
+// TestSprite TC075 — terminal JSON 404 for the /api namespace.
+// Mounted AFTER every /api router (so a known route keeps its own response)
+// and BEFORE the production SPA catch-all (so the SPA shell never answers an
+// API path with HTML). Unknown /api paths and wrong methods now answer
+// `404 {"error":"not_found"}` with Content-Type application/json.
+app.use('/api', apiNotFoundJson);
 
 // Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
