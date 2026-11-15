@@ -52,9 +52,12 @@ export function Iso45001DetailDrawer({ controlId, onClose }: Iso45001DetailDrawe
           </header>
 
           <div className="p-4 space-y-4">
-            <DialogTitle as="h2" className="text-base font-semibold text-primary-token leading-snug">
-              {control.title}
+            <DialogTitle as="span" className="sr-only">
+              {t('iso45001.detail_aria', 'Detalle de control ISO 45001') as string}
             </DialogTitle>
+            <h2 className="text-base font-semibold text-primary-token leading-snug">
+              {control.title}
+            </h2>
 
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-token">{t('iso45001.references', 'Referencias normativas')}</h3>
