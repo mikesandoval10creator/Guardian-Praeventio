@@ -2,6 +2,7 @@ import { auth } from './firebase';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
 import type { SafetyVisualSpec, SafetyVisualResult } from './gemini/imageGen';
+import { normalizeSafetyCapsule, type SafetyCapsuleDto } from '../lib/safetyCapsule';
 
 export interface GeminiCallOptions { readonly signal?: AbortSignal }
 
@@ -88,7 +89,8 @@ export const generateTrainingRecommendations = async (workerName: string, worker
 export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string) => callGeminiAPI('investigateIncidentWithAI', [incidentTitle, incidentDescription, context]);
 export const auditProjectComplianceWithAI = async (projectName: string, projectContext: string, normativeContext: string) => callGeminiAPI('auditProjectComplianceWithAI', [projectName, projectContext, normativeContext]);
 export const analyzeAttendancePatterns = async (projectName: string, attendanceData: string) => callGeminiAPI('analyzeAttendancePatterns', [projectName, attendanceData]);
-export const generateSafetyCapsule = async (workerName: string, role: string, context: string) => callGeminiAPI('generateSafetyCapsule', [workerName, role, context]);
+export const generateSafetyCapsule = async (workerName: string, role: string, context: string): Promise<SafetyCapsuleDto> =>
+  normalizeSafetyCapsule(await callGeminiAPI('generateSafetyCapsule', [workerName, role, context]));
 export const suggestRisksWithAI = async (industry: string, context: string) => callGeminiAPI('suggestRisksWithAI', [industry, context]);
 export const suggestNormativesWithAI = async (industry: string) => callGeminiAPI('suggestNormativesWithAI', [industry]);
 export const syncNodeToNetwork = async (nodeData: any) => {

@@ -16,14 +16,16 @@ import {
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { generateSafetyCapsule } from '../../services/geminiService';
+import type { SafetyCapsuleDto } from '../../lib/safetyCapsule';
 import { logger } from '../../utils/logger';
 
 export function SafetyCapsules() {
   const { t } = useTranslation();
   const { nodes } = useUniversalKnowledge();
   const { user } = useFirebase();
-  const [capsule, setCapsule] = useState<any>(null);
+  const [capsule, setCapsule] = useState<SafetyCapsuleDto | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generationFailed, setGenerationFailed] = useState(false);
 
   const workerContext = useMemo(() => {
     if (!user) return '';
@@ -37,6 +39,7 @@ export function SafetyCapsules() {
 
   const handleGenerate = async () => {
     if (!user) return;
+    setGenerationFailed(false);
     setLoading(true);
     try {
       const result = await generateSafetyCapsule(
@@ -47,6 +50,7 @@ export function SafetyCapsules() {
       setCapsule(result);
     } catch (error) {
       logger.error('Error generating capsule:', error);
+      setGenerationFailed(true);
     } finally {
       setLoading(false);
     }
@@ -72,12 +76,15 @@ export function SafetyCapsules() {
         </div>
         <button 
           onClick={handleGenerate}
+          aria-label="Generar cápsula de seguridad"
           disabled={loading}
           className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500 hover:text-white"
         >
           <Zap className={`w-5 h-5 ${loading ? 'animate-pulse text-amber-500' : ''}`} />
         </button>
       </header>
+
+      {generationFailed && <p role="alert">No se pudo generar la cápsula. Intenta nuevamente con el botón de generación.</p>}
 
       <AnimatePresence mode="wait">
         {loading ? (
