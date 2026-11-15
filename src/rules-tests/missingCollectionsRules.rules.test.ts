@@ -13,14 +13,15 @@
 // F1 fail-closed harness (authenticatedContext; Admin SDK only seeds
 // preconditions). Run via `npm run test:rules` (JDK 21).
 
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertFails,
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, addDoc, deleteDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
+import { normalizeSafetyCapsule } from '../lib/safetyCapsule';
 
 const PID = 'proj-missing-1';
 const OTHER_PID = 'proj-missing-2';
@@ -28,6 +29,7 @@ const MEMBER = 'member-uid-1';
 const OWNER = 'owner-uid-1';
 const OUTSIDER = 'outsider-uid-9';
 const ADMIN = 'admin-uid-1';
+const SUPERVISOR = 'supervisor-uid-1';
 
 let testEnv: RulesTestEnvironment | null = null;
 
@@ -48,8 +50,8 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'projects', PID), {
-      name: 'P1', members: [MEMBER], status: 'active',
-      createdAt: '2026-06-01T00:00:00Z', createdBy: MEMBER,
+      name: 'P1', members: [MEMBER, ADMIN, SUPERVISOR], status: 'active',
+      createdAt: '2026-06-01T00:00:00Z', createdBy: OWNER,
     });
     await setDoc(doc(db, 'projects', OTHER_PID), {
       name: 'P2', members: ['someone-else'], status: 'active',
@@ -57,6 +59,9 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, 'users', ADMIN), {
       uid: ADMIN, role: 'admin', email: `${ADMIN}@x.cl`, createdAt: '2026-06-01T00:00:00Z',
+    });
+    await setDoc(doc(db, 'users', SUPERVISOR), {
+      uid: SUPERVISOR, role: 'supervisor', email: `${SUPERVISOR}@x.cl`, createdAt: '2026-06-01T00:00:00Z',
     });
   });
 });
@@ -101,10 +106,83 @@ describe('slo_metrics — admin/supervisor read, server-only write', () => {
 });
 
 describe('projects/{pid}/training_capsules — member create', () => {
-  const cap = () => ({ projectId: PID, userId: MEMBER, content: '...', createdAt: '2026-06-08T00:00:00.000Z' });
+  const cap = () => ({ ...normalizeSafetyCapsule('Texto heredado.'), projectId: PID, userId: MEMBER, userName: 'Usuario', createdAt: '2026-06-08T00:00:00.000Z' });
 
   it('a member can CREATE a capsule', async () => {
-    await assertSucceeds(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), cap()));
+    const ref = await assertSucceeds(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), cap()));
+    expect((await getDoc(ref)).data()).toEqual(cap());
+  });
+  it('accepts the structured DTO emitted by the current client', async () => {
+    const payload = { ...cap(), ...normalizeSafetyCapsule({ title: 'Título', content: 'Contenido', keyTip: 'Consejo', duration: '1 minuto' }) };
+    const ref = await assertSucceeds(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), payload));
+    expect((await getDoc(ref)).data()).toEqual(payload);
+  });
+  it('a member CANNOT attribute a capsule to another uid', async () => {
+    await assertFails(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), { ...cap(), userId: OUTSIDER }));
+  });
+  it.each([
+    { override: { projectId: OTHER_PID } },
+    { override: { userName: 'Another worker' } },
+    { override: { userName: '' } },
+    { override: { schemaVersion: 2 } },
+    { override: { title: '' } },
+    { override: { title: 'x'.repeat(301) } },
+    { override: { content: { nested: 'not text' } } },
+    { override: { content: 'x'.repeat(20001) } },
+    { override: { keyTip: 'x'.repeat(2001) } },
+    { override: { duration: 60 } },
+    { override: { duration: 'x'.repeat(101) } },
+    { override: { createdAt: 123 } },
+    { override: { createdAt: 'not-a-date' } },
+    { override: { hidden: 'unapproved field' } },
+  ])('rejects invalid actor, scope or DTO fields %#', async ({ override }) => {
+    await assertFails(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), { ...cap(), ...override }));
+  });
+  it('binds the display label to the signed name claim', async () => {
+    const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker', 'member@x.cl', { name: 'Ana' })).firestore();
+    await assertSucceeds(addDoc(c(db, 'projects', PID, 'training_capsules'), { ...cap(), userName: 'Ana' }));
+    await assertFails(addDoc(c(db, 'projects', PID, 'training_capsules'), { ...cap(), userName: 'Beatriz' }));
+  });
+  it('rejects cross-project and unauthenticated create', async () => {
+    await assertFails(addDoc(c(authed(MEMBER), 'projects', OTHER_PID, 'training_capsules'), { ...cap(), projectId: OTHER_PID }));
+    await assertFails(addDoc(c(requireEnv().unauthenticatedContext().firestore(), 'projects', PID, 'training_capsules'), cap()));
+  });
+  it('requires all canonical fields on create', async () => {
+    const { schemaVersion: _version, ...legacy } = cap();
+    await assertFails(addDoc(c(authed(MEMBER), 'projects', PID, 'training_capsules'), legacy));
+  });
+  it('permits a scoped admin content revision, but keeps actor/path/time immutable', async () => {
+    await seed(['projects', PID, 'training_capsules', 'immutable'], cap());
+    const ref = d(authed(ADMIN, 'admin'), 'projects', PID, 'training_capsules', 'immutable');
+    await assertSucceeds(updateDoc(ref, { content: 'Revised text' }));
+    for (const change of [{ userId: ADMIN }, { userName: 'Forged' }, { projectId: OTHER_PID }, { createdAt: '2026-06-09T00:00:00.000Z' }]) {
+      await assertFails(updateDoc(ref, change));
+    }
+    await assertFails(updateDoc(ref, { content: {} }));
+    await assertFails(updateDoc(d(authed(MEMBER), 'projects', PID, 'training_capsules', 'immutable'), { content: 'Worker edit' }));
+    expect((await getDoc(ref)).data()).toEqual({ ...cap(), content: 'Revised text' });
+  });
+  it('does not let an unrelated global admin update or delete a capsule', async () => {
+    await seed(['projects', OTHER_PID, 'training_capsules', 'foreign'], { ...cap(), projectId: OTHER_PID });
+    const ref = d(authed(ADMIN, 'admin'), 'projects', OTHER_PID, 'training_capsules', 'foreign');
+    await assertFails(updateDoc(ref, { content: 'foreign edit' }));
+    await assertFails(deleteDoc(ref));
+  });
+  it('rejects an unverified project member', async () => {
+    const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker', 'member@x.cl', { email_verified: false })).firestore();
+    await assertFails(addDoc(c(db, 'projects', PID, 'training_capsules'), cap()));
+  });
+  it('preserves scoped supervisor revision and deletion', async () => {
+    await seed(['projects', PID, 'training_capsules', 'review'], cap());
+    const ref = d(authed(SUPERVISOR, 'supervisor'), 'projects', PID, 'training_capsules', 'review');
+    await assertSucceeds(updateDoc(ref, { title: 'Revisado' }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+  it('keeps legacy records readable and privileged cleanup available', async () => {
+    const legacy = { projectId: PID, userId: MEMBER, content: { old: 'shape' } };
+    await seed(['projects', PID, 'training_capsules', 'legacy'], legacy);
+    expect((await getDoc(d(authed(MEMBER), 'projects', PID, 'training_capsules', 'legacy'))).data()).toEqual(legacy);
+    await assertSucceeds(deleteDoc(d(authed(ADMIN, 'admin'), 'projects', PID, 'training_capsules', 'legacy')));
   });
   it('a member can READ a capsule (Master Gate)', async () => {
     await seed(['projects', PID, 'training_capsules', 't1'], cap());

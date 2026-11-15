@@ -1818,3 +1818,32 @@ and the immutable-update/delete posture is unchanged. Rules tests:
      ever finds the server-written row (`unknown_folio` otherwise), and a
      server-written row (including legacy renderer-v1 documents) still
      verifies exactly as before.
+
+## Training capsule writer boundary (2026-11-15)
+
+`projects/{projectId}/training_capsules/{capsuleId}` accepts new client records
+only from a verified member of the path project. The canonical nine-field
+`schemaVersion: 1` DTO is bounded and allowlisted; the actor UID matches Auth
+and `projectId` matches the path. `userName` matches the signed Auth `name`
+label (or `Usuario` when absent/empty); this label is not proof of legal identity.
+A changed Auth profile may require refreshing its ID token before writing.
+
+Project-scoped privileged reviewers retain content revision and purge access.
+Revisions preserve actor, name, project, version and creation stamps. Unrelated
+global roles cannot revise or delete another project's capsule. Reads remain
+on the existing tenant-scoped Master Gate; legacy records remain readable and
+purgeable by an authorized reviewer, but malformed legacy updates require an
+explicit trusted migration rather than silently bypassing the new DTO contract.
+
+Rejected payload classes: mismatched actor/name/path, unsupported DTO version,
+missing or unapproved fields, wrong types, oversized strings and immutable-stamp
+changes. Emulator evidence lives in
+`src/rules-tests/missingCollectionsRules.rules.test.ts`; valid payloads come
+from the actual `normalizeSafetyCapsule` client normalizer and are read back
+through an authenticated SDK context. Admin bypass is used only for fixtures.
+
+Temporal limit: this collection still uses the existing client's ISO-string
+`createdAt`; its shape and immutability are checked, **not** equality to server
+`request.time`. This is a scoped legacy exception to the temporal-integrity
+target above, not proof of an authoritative completion timestamp. No rules
+are deployed and no production incident or device evidence is asserted here.
