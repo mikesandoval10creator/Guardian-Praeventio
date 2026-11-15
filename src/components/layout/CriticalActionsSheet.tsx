@@ -1,5 +1,5 @@
 // src/components/layout/CriticalActionsSheet.tsx
-import { useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { AlertOctagon, Zap } from 'lucide-react';
 import Sheet from '../shared/Sheet';
 import Button from '../shared/Button';
@@ -18,37 +18,48 @@ import { FastCheckModal } from '../FastCheckModal';
 export function CriticalActionsSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { setMode } = useAppMode();
   const [fastCheckOpen, setFastCheckOpen] = useState(false);
+  const fastCheckTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen && fastCheckOpen) setFastCheckOpen(false);
+  }, [isOpen, fastCheckOpen]);
 
   const activateEmergency = (): void => {
     setMode('emergency');
     onClose();
   };
 
+  const openFastCheck = (event: MouseEvent<HTMLButtonElement>): void => {
+    fastCheckTriggerRef.current = event.currentTarget;
+    setFastCheckOpen(true);
+  };
+
   return (
-    <>
-      <Sheet isOpen={isOpen} onClose={onClose} title="Acciones rápidas">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Acceso directo a lo crítico sin salir de esta pantalla.
-          </p>
+    <Sheet isOpen={isOpen} onClose={onClose} title="Acciones rápidas">
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Acceso directo a lo crítico sin salir de esta pantalla.
+        </p>
 
-          <Button variant="danger" size="lg" onClick={activateEmergency} className="justify-start w-full">
-            <AlertOctagon aria-hidden="true" />
-            Activar Emergencia
-          </Button>
+        <Button variant="danger" size="lg" onClick={activateEmergency} className="justify-start w-full">
+          <AlertOctagon aria-hidden="true" />
+          Activar Emergencia
+        </Button>
 
-          <Button variant="secondary" size="lg" onClick={() => setFastCheckOpen(true)} className="justify-start w-full">
-            <Zap aria-hidden="true" />
-            Fast Check
-          </Button>
+        <Button variant="secondary" size="lg" onClick={openFastCheck} className="justify-start w-full">
+          <Zap aria-hidden="true" />
+          Fast Check
+        </Button>
 
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">
-            La emergencia activa el modo de alta visibilidad. Puedes cancelarla cuando quieras.
-          </p>
-        </div>
-      </Sheet>
-
-      <FastCheckModal isOpen={fastCheckOpen} onClose={() => setFastCheckOpen(false)} />
-    </>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          La emergencia activa el modo de alta visibilidad. Puedes cancelarla cuando quieras.
+        </p>
+      </div>
+      <FastCheckModal
+        isOpen={fastCheckOpen}
+        onClose={() => setFastCheckOpen(false)}
+        returnFocusRef={fastCheckTriggerRef}
+      />
+    </Sheet>
   );
 }
