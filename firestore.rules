@@ -972,13 +972,39 @@ service cloud.firestore {
         allow delete: if isAdmin() || isSupervisor();
       }
 
-      // AI safety capsules (Training.tsx → projects/{pid}/training_capsules).
-      // Any member generates their own capsule; admin/supervisor may revise/purge.
-      // Was default-denied by the Master Gate (read-only) → the AI capsule never
-      // persisted (SloErrorBudget §365-class gap).
+      // AI safety capsules: verified project members create only their own
+      // canonical DTO. Display names are signed Auth labels, not legal identity.
+      // Scoped privileged reviewers may edit text, never actor/path/time stamps.
       match /training_capsules/{capsuleId} {
-        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId);
-        allow update, delete: if isAdmin() || isSupervisor();
+        function validCapsule() {
+          let data = incoming();
+          let fields = ['schemaVersion', 'projectId', 'userId', 'userName',
+            'title', 'content', 'keyTip', 'duration', 'createdAt'];
+          return data.keys().hasAll(fields) && data.keys().hasOnly(fields)
+            && data.schemaVersion == 1
+            && data.projectId == projectId
+            && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+            && data.userName is string && data.userName.size() > 0 && data.userName.size() <= 300
+            && data.title is string && data.title.size() > 0 && data.title.size() <= 300
+            && data.content is string && data.content.size() > 0 && data.content.size() <= 20000
+            && data.keyTip is string && data.keyTip.size() <= 2000
+            && data.duration is string && data.duration.size() <= 100
+            && data.createdAt is string
+            && data.createdAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$');
+        }
+        function signedCapsuleName() {
+          let name = request.auth.token.get('name', '');
+          return name is string && name.size() > 0 ? name : 'Usuario';
+        }
+        allow create: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
+          && validCapsule()
+          && incoming().userId == request.auth.uid
+          && incoming().userName == signedCapsuleName();
+        allow update: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
+          && (isAdmin() || isSupervisor()) && validCapsule()
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'keyTip', 'duration']);
+        allow delete: if isValidId(projectId) && isProjectMemberTenantScoped(projectId)
+          && (isAdmin() || isSupervisor());
       }
 
       // Auto-scheduled calendar events (useAutoCalendarEvents → monthly inspection
