@@ -1147,6 +1147,76 @@ works and an accidental client WRITE can never land. Rules tests:
      denied (member-read scoped per tenant). Exercised by the `bbs_observations`
      block in tenantServerWriteStores.rules.test.ts.
 
+### IoT tenant credentials — server-only storage (2026-11-13)
+
+The tenant root `tenants/{tid}` is intentionally readable by tenant members as a
+whole document; Firestore rules cannot redact a field such as `iotSecret`.
+Per-tenant HMAC keys therefore live in the top-level
+`tenant_iot_secrets/{tenantId}` store, with `allow read, write: if false` for
+all Firebase clients. Rotation is admin-only and atomically writes the protected
+document while deleting the legacy root field. Ingest reads the protected store
+first; a server-side legacy fallback is temporarily retained for tenants not yet
+backfilled and does not emit per-sample logs. The migration tool reports tenant
+IDs and outcome counts without printing secret values.
+
+Per-device HMAC credentials remain at
+`tenants/{tid}/iot_devices/{deviceId}.secret`, but that subcollection is
+server-owned: `iot_devices` is excluded from the overlapping tenant-member read
+catch-all and has an explicit client deny. MQTT authorization continues through
+the Admin SDK; no client read path is supported.
+
+The migration tool is `scripts/migrate-tenant-iot-secrets.cjs`. It defaults to
+read-only dry-run, requires an explicit project and scope, uses a transaction
+per tenant, skips conflicts without overwriting, and never prints keys. Production
+backfill is NOT performed by this change; the Notion item remains open until a
+separately authorized apply and post-migration dry-run show no legacy root keys.
+Rules tests: `src/rules-tests/tenantIotSecrets.rules.test.ts` and
+`src/rules-tests/tenantIotSecretMigration.rules.test.ts`; route and migration
+unit tests: `src/__tests__/server/telemetry.router.test.ts` and
+`src/__tests__/scripts/migrate-tenant-iot-secrets.test.ts`.
+
+**Rejected payloads (IoT secret boundary):**
+
+195. **Tenant IoT Key Read / Forgery**: a member reading
+     `tenants/{tid}.iotSecret` or `tenant_iot_secrets/{tid}` to forge an
+     `x-iot-signature` for telemetry — the protected collection is client-denied;
+     the legacy root field must be absent after the authorized migration.
+196. **Per-device Secret Snoop**: a tenant member `get`/`list`s
+     `tenants/{tid}/iot_devices/{deviceId}` to retrieve a device HMAC key — denied
+     by the catch-all exception and explicit server-only rule.
+197. **IoT Key Client Tampering**: a client `set`/`update`/`delete`s either
+     server-owned secret path — denied; only trusted Admin SDK routes may rotate
+     or migrate keys.
+
+### Onboarding worker CSV staging — client-access patch, retention unresolved (2026-11-13)
+
+`onboardingProvisioning.ts` accepts a `workersCsv` string with an explicit
+512 KiB byte-length check and writes raw staging data to
+`tenants/{tid}/imports/{importId}` via the Admin SDK. The tenant read catch-all
+made that subcollection readable by any tenant member; this patch excludes
+`imports` and adds an explicit client deny. That closes the client read path once
+the rules are deployed. It does not delete existing CSVs or restrict trusted
+service accounts.
+
+No row/column parser or ETL consumer was found in `src`; the retention policy
+registry has no `onboarding_import` category, TTL, or legal-hold behavior. Do
+not claim the privacy ticket is complete until project/role scope, allowed CSV
+columns and row limits, processing/consent, retention, legal hold, and cleanup
+are explicitly defined and verified. No production CSV or tenant data was read
+by this change.
+
+Rules test: `src/rules-tests/tenantOnboardingImports.rules.test.ts` (synthetic
+CSV only).
+
+**Rejected payloads (onboarding CSV boundary):**
+
+198. **Tenant Member CSV Read**: a tenant worker/admin `get`/`list` or
+     collection-group query of `tenants/{tid}/imports/{id}` to retrieve raw
+     worker CSV — denied; server provisioning continues via Admin SDK.
+199. **Cross-project CSV Read**: a member associated with project A reading an
+     import document tagged for project B — denied because the client surface is
+     server-only until a project-scoped processing contract exists.
+
 ### anonymization_events — cascarón soft-delete proof (Ley 21.719, added 2026-06-15)
 
 `anonymization_events/{uid}` holds ONE immutable record per user proving their
@@ -1706,3 +1776,45 @@ new session. A local close intent does not establish the server close time.
 Contracts: `src/pages/SafeDrivingMode.test.tsx`,
 `src/services/driving/commuteSamples.test.ts`, and
 `src/services/driving/commuteSession.test.ts`.
+
+## SUSESO DIAT/DIEP forms (tenants/{tid}/suseso_forms) — server-write-only (issue #1919, added 2026-11-11)
+
+`tenants/{tenantId}/suseso_forms/{formId}` is a LEGAL DECLARATION store (DIAT /
+DIEP, DS 101 / DS 109 / DS 110 under Ley 16.744 art. 76). It was created and
+signed EXCLUSIVELY by the server route (`src/server/routes/suseso.ts` →
+`POST /api/suseso/form`, Admin SDK, tenant derived from the verified token via
+`callerTenantOr403`), but the create rule still admitted any privileged CLIENT:
+`allow create: if isSignedIn() && (isAdmin() || isSupervisor() || isDoctor())`.
+That let a client — including one from ANOTHER tenant, or one with no tenant
+binding at all — place its own declaration row inside a tenant, with a folio
+and a `signature` block of its own choosing. Now create/update/delete are
+`if false` for every client: the Admin SDK is the only writer, so the folio
+counter, the payload digest and the signature stay bound to the verified
+caller and to the rendered PDF. Reads are unchanged (tenant admin / gerente /
+supervisor / occupational doctor / project member; cross-tenant still denied)
+and the immutable-update/delete posture is unchanged. Rules tests:
+`src/rules-tests/susesoFormsServerWriteOnly.rules.test.ts`; route tests:
+`src/__tests__/server/suseso.router.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+190. **Forged SUSESO Declaration**: a client places a `suseso_forms` document
+     directly — denied for every client role, in the tenant or in another one,
+     with or without a tenant binding, with or without a `signature` block.
+     Only the server route creates a form, and it stamps the tenant from the
+     token.
+191. **Forged SUSESO Signature**: a client-supplied `signature`/`payloadHashHex`
+     in a create payload — denied; the signature is attached by the Admin SDK
+     over the bytes the server rendered, so a client can never self-sign.
+192. **Cross-Tenant SUSESO Write**: a privileged caller of another tenant
+     (or with no tenant binding) writing into this tenant's `suseso_forms` —
+     denied; the collection has no client-writer path at all.
+193. **SUSESO Tamper/Erasure**: a client update or delete of an existing
+     declaration (e.g. rewriting the incident, or erasing the compliance
+     trail) — denied; forms are immutable post-creation and a correction
+     requires a new folio.
+194. **Forged Verified Form (QR)**: a denied client write must never surface
+     through the public QR verifier as a signed document — the verifier only
+     ever finds the server-written row (`unknown_folio` otherwise), and a
+     server-written row (including legacy renderer-v1 documents) still
+     verifies exactly as before.

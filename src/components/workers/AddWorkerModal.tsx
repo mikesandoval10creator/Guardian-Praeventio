@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Mail, Phone, Briefcase, Loader2, ShieldAlert } from 'lucide-react';
-import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
+import { db, collection, doc, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useIndustryIntegration } from '../../hooks/useIndustryIntegration';
 import { NodeType } from '../../types';
@@ -22,7 +22,7 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
   const [suggestedEPP, setSuggestedEPP] = useState<string[]>([]);
   const isOnline = useOnlineStatus();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [newWorkerData, setNewWorkerData] = useState<{name: string, role: string} | null>(null);
+  const [newWorkerData, setNewWorkerData] = useState<{id?: string; projectId?: string; name: string; role: string} | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -58,10 +58,14 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
         shiftEnd: '18:00' // Default shift end
       };
 
+      let workerId: string | undefined;
       if (!isOnline) {
+        // Allocate the Firestore identity locally before enqueuing; no write/network.
+        workerId = doc(collection(db, path)).id;
         await saveForSync({
           type: 'create',
           collection: path,
+          docId: workerId,
           data: {
             ...workerData,
             createNode: true,
@@ -103,11 +107,12 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
         if (!node) throw new Error('Error al crear el nodo de conocimiento');
 
         // 2. Save to Firestore workers collection (subcollection or global)
-        await addDoc(collection(db, path), { ...workerData, nodeId: node.id });
+        const createdWorker = await addDoc(collection(db, path), { ...workerData, nodeId: node.id });
+        workerId = createdWorker.id;
       }
 
       // Trigger Onboarding
-      setNewWorkerData({ name: formData.name, role: formData.role });
+      setNewWorkerData({ id: workerId, projectId, name: formData.name, role: formData.role });
       setShowOnboarding(true);
 
     } catch (error) {

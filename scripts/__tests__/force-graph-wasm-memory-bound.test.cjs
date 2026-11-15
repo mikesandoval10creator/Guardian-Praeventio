@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { readBuiltLayoutWasm } = require('../lib/layout-wasm-gate.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const crate = path.join(root, 'wasm', 'force-graph-layout');
@@ -28,17 +29,25 @@ test('README documents the hard bound and its failure semantics', () => {
 });
 
 test('behavioral memory bound: VM ceiling and graceful input cap (skips without built module)', async (t) => {
-  const wasmPath = path.join(crate, 'target', 'wasm32-unknown-unknown', 'release', 'force_graph_layout.wasm');
-  if (!fs.existsSync(wasmPath)) {
-    t.skip('built module absent (CI has no Rust toolchain); covered by local evidence run');
+  const bytes = readBuiltLayoutWasm();
+  if (!bytes) {
+    t.skip('built module absent; optional contract run only (adoption lane requires bytes)');
     return;
   }
-  const { instance } = await WebAssembly.instantiate(fs.readFileSync(wasmPath), {});
+  const { instance } = await WebAssembly.instantiate(bytes, {});
   const k = instance.exports;
 
   const pagesBefore = k.memory.buffer.byteLength / 65536;
   assert.throws(() => k.memory.grow(8192), RangeError, 'memory.grow beyond 32 MiB must fail (VM-enforced maximum)');
   assert.equal(k.memory.buffer.byteLength / 65536, pagesBefore);
+  // External growth exhausts Rust's ability to grow its allocator arena;
+  // use a separate VM for the destructive exact-ceiling probe.
+  const { instance: ceilingProbe } = await WebAssembly.instantiate(bytes, {});
+  const ceilingMemory = ceilingProbe.exports.memory;
+  const maxPages = 33554432 / 65536;
+  ceilingMemory.grow(maxPages - ceilingMemory.buffer.byteLength / 65536);
+  assert.equal(ceilingMemory.buffer.byteLength, 33554432, 'VM must allow exactly 32 MiB (512 pages)');
+  assert.throws(() => ceilingMemory.grow(1), RangeError, 'one page over the exact ceiling must fail');
 
   const oversize = k.graph_alloc(9 * 1024 * 1024);
   assert.equal(Number(oversize), 0, 'graph_alloc must return null above the 8 MiB input cap');

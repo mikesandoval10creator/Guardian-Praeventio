@@ -2321,8 +2321,14 @@ service cloud.firestore {
     // tenantId == X. Writes/creates/deletes are denied to all clients;
     // the server uses the Admin SDK which bypasses these rules.
     //
-    // Without this matcher, Firestore default-deny silently rejected
-    // every client read — leaving the `tenants/*` surface invisible
+    // Per-tenant IoT HMAC credentials are read/written only by trusted server
+    // routes using the Admin SDK. Firestore client access is never permitted.
+    match /tenant_iot_secrets/{tenantId} {
+      allow read, write: if false;
+    }
+
+    // Without the tenants matcher below, Firestore default-deny silently
+    // rejected every client read — leaving the `tenants/*` surface invisible
     // and ungrep-able. Audit hallazgo H8.
     match /tenants/{tenantId} {
       allow read: if isSignedIn()
@@ -2336,13 +2342,27 @@ service cloud.firestore {
       // combinan con OR sobre los `allow`. Este catchall daba lectura a
       // CUALQUIER tenant member, incluyendo subcolecciones que tienen
       // matchers hermanos más estrictos (`supervisor_only`, `suseso_forms`,
-      // `suseso_counters`). El OR anulaba esos checks. Excluimos esas rutas
-      // de aquí para que la regla estricta sea la única aplicable.
+      // `suseso_counters`) y las colecciones server-owned `iot_devices` (claves
+      // de dispositivo) e `imports` (CSV laboral con PII). El OR anulaba esos
+      // checks.
+      // Excluimos esas rutas de aquí para que la regla estricta sea la única aplicable.
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices', 'imports']);
         allow create, update, delete: if false;
+      }
+
+      // Device registration and secret lookup are Admin-SDK-only. This path
+      // is also excluded from the overlapping tenant-member read catch-all.
+      match /iot_devices/{deviceId} {
+        allow read, write: if false;
+      }
+
+      // Onboarding imports may contain raw worker PII. Keep client access
+      // denied until project-scoped processing and retention are specified.
+      match /imports/{importId} {
+        allow read, write: if false;
       }
 
       // A4 follow-up re-scope 2026-06: tenants/{tid}/seismic_events is GONE.
@@ -2392,9 +2412,12 @@ service cloud.firestore {
       // O cualquier admin/médico del tenant — los médicos necesitan
       // visibilidad total sobre DIAT/DIEP del paciente.
       //
-      // Create: redundante (el server siempre crea via Admin SDK), pero
-      // dejamos la regla explícita para que el modelo de seguridad
-      // sea legible sin necesidad de leer server code.
+      // Create: SERVER-WRITE-ONLY (issue #1919). El backend es el ÚNICO
+      // creador (POST /api/suseso/form vía Admin SDK), y deriva el tenant
+      // del token verificado. Antes la regla de create era
+      // `isSignedIn() && (isAdmin() || isSupervisor() || isDoctor())`, lo
+      // que permitía que CUALQUIER cliente privilegiado fabricara su propio
+      // DIAT/DIEP — con folio y firma propios — dentro del tenant.
       match /suseso_forms/{formId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
@@ -2405,10 +2428,16 @@ service cloud.firestore {
             (resource.data.projectId is string
               && isProjectMemberTenantScoped(resource.data.projectId))
           );
-        allow create: if isSignedIn()
-          && (isAdmin() || isSupervisor() || isDoctor());
-        // Forms IMMUTABLE — only Admin SDK (server) attaches signatures.
-        allow update, delete: if false;
+        // SERVER-WRITE-ONLY — the Admin SDK (server route) is the only
+        // writer: it derives the tenant from the verified token, stamps the
+        // folio and attaches the signature. No client create — not even for
+        // an admin/gerente/supervisor/occupational doctor of the tenant,
+        // not even for a privileged caller of another tenant, and not even
+        // for a privileged caller with no tenant binding at all. A client
+        // could otherwise mint a legal DIAT/DIEP with its own folio and
+        // signature and pass it off as a signed document.
+        // Forms are also IMMUTABLE — only the Admin SDK attaches signatures.
+        allow create, update, delete: if false;
       }
 
       // SUSESO folio counters. Server-only; clients never need to read.

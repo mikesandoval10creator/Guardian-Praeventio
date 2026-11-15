@@ -67,6 +67,40 @@ legacy graph. Its temporary server/harness/results stay outside the repository
 under the dated force-graph Rust laboratory. This browser probe uses injected
 factories and does not substitute for a built-app E2E or Android/OEM validation.
 
+## Required artifact lane (experimental, not rollout)
+
+The existing required `Playwright full-stack (Express + Firestore emulator)`
+job now installs the pinned Rust 1.99.1 target, fetches **locked** Cargo
+packages in a separate network bootstrap step, builds via
+`npm run layout-wasm:build` (`--locked --offline`), and runs
+`npm run test:layout-wasm` with `LAYOUT_WASM_REQUIRED=1` before the full-stack
+browser suite. That same variable applies to Playwright. Missing/invalid
+WASM fails; a missing `E2E_FULL_STACK=1` fails collection rather than silently
+skipping the required WASM suite. Ordinary non-adoption contract runs may
+still honestly skip an absent experimental module.
+
+`LAYOUT_WASM_REQUIRED` is test tooling only, **not a product feature flag**.
+It neither injects a factory nor enables the module in `KnowledgeGraph`.
+The CSP test still composes intercepted real WASM bytes, actual middleware
+headers, and a separate existing canvas differential; it does not prove
+that the production canvas is driven by WASM or that WASM is faster.
+
+Local validation (POSIX shell; on Windows set the variable in the command's
+subprocess environment):
+
+```sh
+npm run layout-wasm:build -- --clean
+LAYOUT_WASM_REQUIRED=1 npm run test:layout-wasm
+# Full-stack prerequisites and the mode=test bundle remain required:
+LAYOUT_WASM_REQUIRED=1 npm run test:e2e:full:chromium -- tests/e2e/wasm-layout-under-deployed-csp.spec.ts
+```
+
+Do not close F3 from this lane alone: current-reference numerical parity,
+representative device measurements, pre-agreed benefit thresholds, the
+operational feature flag/rollback and a rollout verdict remain separate.
+Two clean builds with an equal hash demonstrate reproducibility in the
+measured toolchain/workspace, not cross-platform reproducibility by inference.
+
 ## Remaining adoption gates
 
 Reproducible WASM source/build/asset distribution and license audit; hard module

@@ -76,6 +76,12 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   'failed-precondition': 'La operación no se puede completar en el estado actual. Actualiza la página y revisa los datos.',
   aborted: 'La operación se interrumpió porque otra persona modificó los mismos datos. Actualiza y vuelve a intentarlo.',
   folio_conflict: 'Ese folio ya existe. Actualiza el listado y revisa el registro antes de volver a intentarlo.',
+  supplier_duplicate_id:
+    'Este proveedor ya está registrado en este proyecto. No se creó un registro duplicado ni se modificaron los datos existentes. Revisa el listado; si necesitas corregirlo, consulta con un administrador.',
+  supplier_not_found:
+    'No encontramos este proveedor en el proyecto. Actualiza el listado y vuelve a seleccionarlo; si debería aparecer, consulta con un administrador.',
+  internal_error:
+    'El servidor tuvo un problema y no pudo completar la acción. Vuelve a intentarlo en unos minutos; si persiste, avisa al administrador.',
   cancelled: 'La operación se canceló antes de completarse. Puedes volver a intentarlo.',
   internal: 'El servidor tuvo un problema y no pudo completar la acción. Inténtalo en unos minutos.',
 };

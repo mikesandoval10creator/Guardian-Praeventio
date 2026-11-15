@@ -384,11 +384,25 @@ router.post(
         incidents: [],
         audits: [],
       };
-      await docRef.set(supplier, { merge: false });
+      try {
+        await docRef.create(supplier);
+      } catch (err) {
+        const code = (err as { code?: number | string } | null)?.code;
+        if (code === 6 || code === 'ALREADY_EXISTS' || code === 'already-exists') {
+          return res.status(409).json({
+            error: 'supplier_duplicate_id',
+            message:
+              'Este proveedor ya está registrado en este proyecto. No se creó un registro duplicado ni se modificaron los datos existentes. Revisa el listado; si necesitas corregirlo, consulta con un administrador.',
+          });
+        }
+        throw err;
+      }
       await auditServerEvent(req, 'suppliers.create', 'suppliers', { projectId, supplierId: docRef.id }, { projectId });
-      return res
-        .status(201)
-        .json({ ok: true, supplier: toView(supplier) });
+      return res.status(201).json({
+        ok: true,
+        message: 'Proveedor registrado correctamente.',
+        supplier: toView(supplier),
+      });
     } catch (err) {
       logger.error?.('suppliers.create.error', err);
       captureRouteError(err, 'suppliers.create');

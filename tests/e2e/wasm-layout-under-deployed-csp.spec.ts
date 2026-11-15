@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
+import { createRequire } from 'node:module';
 import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject, seedGraphNodes } from './fixtures/seed';
 
@@ -36,9 +35,15 @@ import { seedProject, seedGraphNodes } from './fixtures/seed';
  * Gated by E2E_FULL_STACK=1 (`npm run test:e2e:full`).
  */
 const API_BASE = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const MODULE_PATH = path.resolve(
-  'wasm/force-graph-layout/target/wasm32-unknown-unknown/release/force_graph_layout.wasm',
-);
+const { readBuiltLayoutWasm } = createRequire(import.meta.url)('../../scripts/lib/layout-wasm-gate.cjs') as {
+  readBuiltLayoutWasm: () => Buffer | null;
+};
+// Adoption is fail-closed even during collection: a missing full-stack flag
+// must not turn the entire required lane into three skips.
+if (process.env.LAYOUT_WASM_REQUIRED === '1') {
+  if (process.env.E2E_FULL_STACK !== '1') throw new Error('layout_wasm_requires_full_stack');
+  readBuiltLayoutWasm();
+}
 
 /**
  * Worker acotado (equivalente al loader del laboratorio): recibe los bytes
@@ -86,7 +91,7 @@ const SEEDED_LAYOUT_PAYLOAD = {
 };
 
 function readModuleBytes(): Buffer | null {
-  return fs.existsSync(MODULE_PATH) ? fs.readFileSync(MODULE_PATH) : null;
+  return readBuiltLayoutWasm();
 }
 
 test.describe('WASM layout bajo CSP y bundling desplegados', () => {

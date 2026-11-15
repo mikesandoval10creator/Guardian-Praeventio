@@ -62,6 +62,16 @@ describe('humanErrorFromResponse', () => {
     expectHuman(msg);
   });
 
+  it('explains a duplicate supplier id without exposing the machine code or HTTP status', async () => {
+    const message = await humanErrorFromResponse(
+      res(409, { error: 'supplier_duplicate_id' }),
+    );
+    expect(message).toMatch(/proveedor ya está registrado/i);
+    expect(message).toMatch(/revisa|consulta/i);
+    expect(message).not.toMatch(/supplier_duplicate_id|409/i);
+    expectHuman(message);
+  });
+
   it('explains invalid permit metadata without exposing the machine code', async () => {
     const msg = await humanErrorFromResponse(res(400, { error: 'invalid_metadata' }));
     expect(msg).toMatch(/permiso|datos/i);

@@ -72,11 +72,16 @@ function buildApp(deps: Deps): Express {
 
     let perTenantSecret: string | null = null;
     if (tenantId) {
-      const snap = await deps.fs.collection('tenants').doc(tenantId).get();
-      if (snap.exists) {
-        const data = snap.data() ?? {};
-        if (typeof data.iotSecret === 'string' && data.iotSecret.length > 0) {
-          perTenantSecret = data.iotSecret;
+      const protectedSnap = await deps.fs.collection('tenant_iot_secrets').doc(tenantId).get();
+      const protectedSecret = protectedSnap.data()?.iotSecret;
+      if (typeof protectedSecret === 'string' && protectedSecret.length > 0) {
+        perTenantSecret = protectedSecret;
+      }
+      if (!perTenantSecret) {
+        const legacySnap = await deps.fs.collection('tenants').doc(tenantId).get();
+        const legacySecret = legacySnap.data()?.iotSecret;
+        if (typeof legacySecret === 'string' && legacySecret.length > 0) {
+          perTenantSecret = legacySecret;
         }
       }
     }

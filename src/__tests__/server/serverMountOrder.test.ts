@@ -269,3 +269,71 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
     });
   }
 });
+
+// TestSprite TC075 (2026-09-28) — los 404 de /api/* devolvían HTML.
+// The JSON 404 middleware (`src/server/middleware/apiNotFound.ts`) is the
+// only thing that keeps the SPA fallback from answering the whole /api
+// namespace with HTML, so its wiring is pinned here:
+//
+//   • mounted AFTER every /api router → it only catches what no router
+//     claimed (an existing route keeps its own response);
+//   • mounted BEFORE the SPA catch-all → the SPA shell never answers an
+//     API path.
+describe('server.ts API 404 JSON wiring (TC075 contract)', () => {
+  const source = readFileSync(join(process.cwd(), 'server.ts'), 'utf8');
+  const lines = source.split('\n');
+
+  function findLine(predicate: (line: string) => boolean): number {
+    return lines.findIndex(predicate);
+  }
+
+  const apiNotFoundMount = findLine((l) =>
+    /app\.use\(\s*['"`]\/api['"`]\s*,\s*apiNotFoundJson/.test(l),
+  );
+  const spaCatchAll = findLine((l) => /^\s*app\.get\(\s*['"`]\/\{\*splat\}['"`]/.test(l));
+
+  it('imports the apiNotFoundJson middleware', () => {
+    const importRe = /import\s+\{\s*apiNotFoundJson\s*\}\s+from\s+['"`][^'"`]*apiNotFound\.js['"`]/;
+    expect(findLine((l) => importRe.test(l)), 'apiNotFoundJson import missing').toBeGreaterThanOrEqual(0);
+  });
+
+  it('declares app.use("/api", apiNotFoundJson) exactly once', () => {
+    const matches = lines.filter((l) =>
+      /app\.use\(\s*['"`]\/api['"`]\s*,\s*apiNotFoundJson/.test(l),
+    );
+    expect(matches.length).toBe(1);
+  });
+
+  it('mounts the API 404 JSON middleware AFTER every /api router', () => {
+    expect(apiNotFoundMount, 'apiNotFoundJson never mounted').toBeGreaterThanOrEqual(0);
+
+    const apiRouterMounts = lines
+      // Comment lines may mention a mount (e.g. "exposed via app.use('/api/emergency', …)");
+      // only real mount statements count.
+      .map((l, i) => (/app\.use\(\s*['"`]\/api(?:\/|['"`])/.test(l) && !l.trim().startsWith('//') ? i : -1))
+      .filter((i) => i >= 0 && i !== apiNotFoundMount);
+
+    expect(apiRouterMounts.length, 'no /api router mounts found').toBeGreaterThan(0);
+    for (const idx of apiRouterMounts) {
+      expect(apiNotFoundMount, 'the API 404 middleware must come after every /api router')
+        .toBeGreaterThan(idx);
+    }
+  });
+
+  it('mounts the API 404 JSON middleware BEFORE the SPA catch-all', () => {
+    expect(apiNotFoundMount, 'apiNotFoundJson never mounted').toBeGreaterThanOrEqual(0);
+    expect(spaCatchAll, 'SPA catch-all not found').toBeGreaterThanOrEqual(0);
+    expect(apiNotFoundMount).toBeLessThan(spaCatchAll);
+  });
+
+  it('lets the dev Vite middleware pass the exact /api path through', () => {
+    // The Vite dev middleware carries an SPA fallback; it must skip the
+    // WHOLE /api namespace (exact '/api' included) so API 404s reach the
+    // Express chain instead of the Vite index.html.
+    const guardLine = lines.find((l) =>
+      /req\.path\.startsWith\(\s*['"`]\/api\/['"`]\s*\)/.test(l),
+    );
+    expect(guardLine, 'Vite guard condition not found').toBeDefined();
+    expect(guardLine).toMatch(/req\.path\s*===\s*['"`]\/api['"`]/);
+  });
+});

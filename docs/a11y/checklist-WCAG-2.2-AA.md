@@ -54,7 +54,7 @@
 | Criterion | Level | Status | Justification / Reference |
 |-----------|-------|--------|---------------------------|
 | 2.1.1 Keyboard | A | PARTIAL | A11Y-005: profile `<div onClick>` not keyboard-reachable. All other interactive elements (`<button>`, `<a>`, `<input>`, `<Link>`) are. |
-| 2.1.2 No Keyboard Trap | A | PASS | No modal currently traps focus (which is itself A11Y-013, but focus is not trapped *into* the modal — Tab will exit it). No Tab traps elsewhere. |
+| 2.1.2 No Keyboard Trap | A | PASS | Verified: Sheet, ISO 45001 drawer and nested FastCheck contain Tab/Shift+Tab but remain escapable via Escape and a visible close button; focus returns to the opener, so these are not keyboard traps. This ticket does not audit every dialog (A11Y-013 AddDocumentModal remains outside scope); do not infer app-wide focus-management completion. |
 | 2.1.4 Character Key Shortcuts | A | PASS | RootLayout listens for Enter on the search input (`RootLayout.tsx:191-196`); contextual to focused input, no global single-key shortcut to disable. |
 
 ### Guideline 2.2 Enough Time

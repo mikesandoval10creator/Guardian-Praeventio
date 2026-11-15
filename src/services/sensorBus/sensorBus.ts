@@ -87,7 +87,7 @@ export interface CorrelatedAlert {
 
 /**
  * Regla de correlación. `match` recibe el estado actual indexado por
- * (workerUid, kind) → SensorReading y decide si dispara un alert.
+ * JSON tuple [projectId, workerUid, kind] → SensorReading.
  */
 export interface CorrelationRule {
   id: string;
@@ -104,7 +104,7 @@ export interface CorrelationRule {
 }
 
 export interface SensorBusState {
-  /** Map key: `${workerUid}::${kind}` → latest SensorReading. */
+  /** Map key: JSON.stringify([projectId, workerUid, kind]) → latest reading. */
   readings: Map<string, SensorReading>;
   /** Alerts correlacionadas que aún no se acknowledged (max LIMIT). */
   pendingAlerts: CorrelatedAlert[];
@@ -132,13 +132,14 @@ const PENDING_ALERTS_LIMIT = 100;
 
 function getRecent(
   readings: ReadonlyMap<string, SensorReading>,
+  projectId: string,
   workerUid: string,
   kind: SensorKind,
   now: Date,
   withinMs: number = STALE_THRESHOLD_MS,
 ): SensorReading | undefined {
-  const r = readings.get(`${workerUid}::${kind}`);
-  if (!r) return undefined;
+  const r = readings.get(readingKey({ projectId, workerUid, kind }));
+  if (!r || r.projectId !== projectId) return undefined;
   const age = now.getTime() - new Date(r.at).getTime();
   return age <= withinMs ? r : undefined;
 }
@@ -157,9 +158,9 @@ export const DEFAULT_CORRELATION_RULES: CorrelationRule[] = [
       if (neu.kind !== 'fall' && neu.kind !== 'inactivity' && neu.kind !== 'ble_proximity') {
         return null;
       }
-      const fall = getRecent(readings, neu.workerUid, 'fall', now);
-      const inactivity = getRecent(readings, neu.workerUid, 'inactivity', now);
-      const ble = getRecent(readings, neu.workerUid, 'ble_proximity', now);
+      const fall = getRecent(readings, neu.projectId, neu.workerUid, 'fall', now);
+      const inactivity = getRecent(readings, neu.projectId, neu.workerUid, 'inactivity', now);
+      const ble = getRecent(readings, neu.projectId, neu.workerUid, 'ble_proximity', now);
       if (!fall || !inactivity || !ble) return null;
       // BLE explícitamente desconectado (warning/critical). Si BLE
       // reciente está 'info' (conectado OK), la regla NO dispara.
@@ -181,8 +182,8 @@ export const DEFAULT_CORRELATION_RULES: CorrelationRule[] = [
     description: 'Frecuencia cardíaca anómala + gas elevado → urgent (intoxicación)',
     match: (readings, neu, now) => {
       if (neu.kind !== 'heart_rate' && neu.kind !== 'gas') return null;
-      const hr = getRecent(readings, neu.workerUid, 'heart_rate', now);
-      const gas = getRecent(readings, neu.workerUid, 'gas', now);
+      const hr = getRecent(readings, neu.projectId, neu.workerUid, 'heart_rate', now);
+      const gas = getRecent(readings, neu.projectId, neu.workerUid, 'gas', now);
       if (!hr || !gas) return null;
       if (hr.severity === 'info' && gas.severity === 'info') return null;
       // Al menos uno warning + el otro warning o critical.
@@ -209,8 +210,8 @@ export const DEFAULT_CORRELATION_RULES: CorrelationRule[] = [
       'WBGT alto + inactividad ≥10min → recommend (riesgo golpe de calor)',
     match: (readings, neu, now) => {
       if (neu.kind !== 'wbgt' && neu.kind !== 'inactivity') return null;
-      const wbgt = getRecent(readings, neu.workerUid, 'wbgt', now);
-      const inact = getRecent(readings, neu.workerUid, 'inactivity', now, 10 * 60_000);
+      const wbgt = getRecent(readings, neu.projectId, neu.workerUid, 'wbgt', now);
+      const inact = getRecent(readings, neu.projectId, neu.workerUid, 'inactivity', now, 10 * 60_000);
       if (!wbgt || !inact) return null;
       if (wbgt.severity === 'info') return null;
       return {
@@ -230,8 +231,8 @@ export const DEFAULT_CORRELATION_RULES: CorrelationRule[] = [
     description: 'Ruido sostenido + HR elevada → recommend (estrés acústico)',
     match: (readings, neu, now) => {
       if (neu.kind !== 'noise' && neu.kind !== 'heart_rate') return null;
-      const noise = getRecent(readings, neu.workerUid, 'noise', now);
-      const hr = getRecent(readings, neu.workerUid, 'heart_rate', now);
+      const noise = getRecent(readings, neu.projectId, neu.workerUid, 'noise', now);
+      const hr = getRecent(readings, neu.projectId, neu.workerUid, 'heart_rate', now);
       if (!noise || !hr) return null;
       if (noise.severity === 'info' || hr.severity === 'info') return null;
       return {
@@ -269,14 +270,14 @@ export const DEFAULT_CORRELATION_RULES: CorrelationRule[] = [
 // Store factory
 // ────────────────────────────────────────────────────────────────────────
 
-function readingKey(r: Pick<SensorReading, 'workerUid' | 'kind'>): string {
-  return `${r.workerUid}::${r.kind}`;
+function readingKey(r: Pick<SensorReading, 'projectId' | 'workerUid' | 'kind'>): string {
+  // Tuple encoding avoids collisions when identifiers contain separators.
+  return JSON.stringify([r.projectId, r.workerUid, r.kind]);
 }
 
 function generateAlertId(rule: string, neu: SensorReading): string {
-  // Determinístico para idempotencia: la misma combinación regla+reading
-  // dentro de la misma ventana produce el mismo alertId.
-  return `${rule}::${neu.workerUid}::${neu.at}`.slice(0, 96);
+  // Local bus identity: preserve replay dedupe without cross-project collisions.
+  return JSON.stringify([rule, neu.projectId, neu.workerUid, neu.at]);
 }
 
 export interface CreateSensorBusOptions {

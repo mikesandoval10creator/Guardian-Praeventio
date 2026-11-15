@@ -152,9 +152,10 @@ router.post(
               // it. Persisted now — the MQTT bridge requires a payload HMAC
               // (`sig`) from devices that have one (defense-in-depth over
               // broker auth; see src/server/triggers/mqttTelemetryBridge.ts).
-              // Raw storage mirrors `tenants/{id}.iotSecret`; the collection
-              // has no client rules (default-deny ⇒ Admin-SDK-only) and the
-              // secret is NEVER echoed back by any read surface.
+              // Per-device HMAC secrets remain in this server-owned document,
+              // separate from the tenant-level key. `firestore.rules` excludes
+              // `iot_devices` from the tenant read catch-all and denies client
+              // access; the secret is NEVER echoed back by any read surface.
               ...(secret ? { secret } : {}),
             },
             { merge: true },

@@ -2835,12 +2835,10 @@
   {
     "kind": "background-capability",
     "surface": "fcm-listener",
-    "sourceFile": "android/app/src/main/AndroidManifest.xml",
-    "summary": "FCM push con listener en background",
-    "codePresence": "code-missing",
-    "missingFragments": [
-      "FirebaseMessagingService|FCMService"
-    ],
+    "sourceFile": "android/capacitor.settings.gradle",
+    "summary": "FCM push vía integración nativa Capacitor",
+    "codePresence": "code-present",
+    "missingFragments": [],
     "persistence": "unknown",
     "authorization": "unknown",
     "automation": "unknown",
@@ -2850,12 +2848,10 @@
   {
     "kind": "background-capability",
     "surface": "workmanager-jobs",
-    "sourceFile": "android/app/src/main/AndroidManifest.xml",
+    "sourceFile": "packages/capacitor-mandown/android/src/main/java/com/praeventio/mandown/NativeManDownRetryWorker.java",
     "summary": "WorkManager para jobs diferidos (cola offline)",
-    "codePresence": "code-missing",
-    "missingFragments": [
-      "androidx\\.work\\.WorkManager|WorkManagerInitializer"
-    ],
+    "codePresence": "code-present",
+    "missingFragments": [],
     "persistence": "unknown",
     "authorization": "unknown",
     "automation": "unknown",
@@ -2867,10 +2863,8 @@
     "surface": "health-connect",
     "sourceFile": "android/app/src/main/AndroidManifest.xml",
     "summary": "Integración Health Connect",
-    "codePresence": "code-missing",
-    "missingFragments": [
-      "androidx\\.health\\.connect|HEALTH_CONNECT_PERMISSION"
-    ],
+    "codePresence": "code-present",
+    "missingFragments": [],
     "persistence": "unknown",
     "authorization": "unknown",
     "automation": "unknown",

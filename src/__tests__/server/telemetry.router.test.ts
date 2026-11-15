@@ -14,14 +14,16 @@
 // Endpoints covered:
 //   POST /api/telemetry/ingest          — IoT device/gateway webhook.
 //       Auth #1 (per-tenant): HMAC-SHA256 over the RFC 8785 canonical JSON of
-//         the body, header `x-iot-signature: sha256=<hex>`, secret read from
-//         `tenants/{id}.iotSecret`. Replicated here with the real `canonicalize`.
+//         the body, header `x-iot-signature: sha256=<hex>`, secret read first
+//         from `tenant_iot_secrets/{id}.iotSecret` with a temporary legacy
+//         fallback to `tenants/{id}.iotSecret` during backfill.
 //       Auth #2 (env fallback): shared `IOT_WEBHOOK_SECRET` via `x-iot-secret`
 //         header (or deprecated body.secretKey).
 //       Auth #3 (legacy rollback): `LEGACY_HMAC_FALLBACK=1` accepts a
 //         `JSON.stringify(body)` HMAC.
 //   POST /api/admin/iot/rotate-secret   — verifyAuth + admin-role gate; mints a
-//         fresh 32-byte hex secret onto tenants/{id} and echoes it once.
+//         fresh 32-byte hex secret into the server-only collection, removes the
+//         readable legacy root field and echoes the key once.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -178,6 +180,27 @@ describe('POST /api/telemetry/ingest — per-tenant HMAC (x-iot-signature)', () 
     expect(stored.status).toBe('normal');
     expect(stored.threatLevel).toBe('None');
     expect(stored.projectId).toBe('global');
+  });
+
+  it('prefers protected key while a stale legacy root copy remains during migration', async () => {
+    const protectedKey = 'protected-only-fixture-key';
+    const legacyKey = 'legacy-only-fixture-key';
+    H.db!._seed(`tenant_iot_secrets/${TENANT_ID}`, { iotSecret: protectedKey });
+    H.db!._seed(`tenants/${TENANT_ID}`, { iotSecret: legacyKey });
+    const body = { tenantId: TENANT_ID, ...validPayload };
+
+    const protectedRes = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-signature', signCanonical(protectedKey, body))
+      .send(body);
+    expect(protectedRes.status).toBe(200);
+
+    const legacyRes = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-signature', signCanonical(legacyKey, body))
+      .send(body);
+    expect(legacyRes.status).toBe(401);
+    expect(eventRows()).toHaveLength(1);
   });
 
   it('200 honors the x-tenant-id HEADER over a body tenantId for secret lookup', async () => {
@@ -636,7 +659,7 @@ describe('POST /api/admin/iot/rotate-secret', () => {
     expect((res.body as { error: string }).error).toMatch(/admin role/);
   });
 
-  it('200 happy path: mints a 64-hex secret, persists it + iotSecretRotatedAt, echoes once', async () => {
+  it('200 happy path: mints a 64-hex secret, persists it only in the server-only store, echoes once', async () => {
     const res = await request(buildApp())
       .post('/api/admin/iot/rotate-secret')
       .set('x-test-uid', 'admin-1')
@@ -647,9 +670,13 @@ describe('POST /api/admin/iot/rotate-secret', () => {
     expect(secret).toHaveLength(64); // 32 bytes hex
     expect(secret).toMatch(/^[0-9a-f]{64}$/);
 
-    // Persisted onto tenants/{id} with merge (secret + rotated-at timestamp).
-    const tenant = H.db!._dump()[`tenants/${TENANT_ID}`];
-    expect(tenant.iotSecret).toBe(secret);
+    // Firestore rules allow tenant members to read tenants/{id} in full;
+    // the HMAC key must therefore live in a separate server-only document.
+    const tenant = H.db!._dump()[`tenants/${TENANT_ID}`] ?? {};
+    const secretDoc = H.db!._dump()[`tenant_iot_secrets/${TENANT_ID}`];
+    expect(typeof secretDoc?.iotSecret).toBe('string');
+    expect(secretDoc?.iotSecret === secret).toBe(true);
+    expect(tenant.iotSecret).toBeUndefined();
     expect(tenant.iotSecretRotatedAt).toBeDefined();
   });
 

@@ -165,7 +165,7 @@ describe('useGeolocationTracking — sensorBus wiring', () => {
       watchCb!({ coords: { latitude: -33.45678, longitude: -70.66123, accuracy: 12 } });
     });
 
-    const r = useSensorBus.getState().readings.get('u1::gps');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'u1', 'gps']));
     expect(r).toBeDefined();
     expect(r?.severity).toBe('info');
     expect(r?.projectId).toBe('p1');
@@ -186,7 +186,7 @@ describe('useGeolocationTracking — sensorBus wiring', () => {
     });
 
     // GPS-alive evidence still reaches the bus…
-    expect(useSensorBus.getState().readings.get('u1::gps')?.value).toBe(80);
+    expect(useSensorBus.getState().readings.get(JSON.stringify(['p1', 'u1', 'gps']))?.value).toBe(80);
     // …but the imprecise fix is NOT persisted (pre-existing behavior intact).
     expect(h.addDoc).not.toHaveBeenCalled();
 

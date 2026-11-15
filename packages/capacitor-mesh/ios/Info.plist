@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   SPDX-License-Identifier: MIT
-  @praeventio/capacitor-mesh — iOS Info.plist additions (Sprint 30 SCAFFOLD).
+  @praeventio/capacitor-mesh — iOS Info.plist additions for native transport.
 
   When the plugin is wired into the host iOS app, the host MUST merge
   these keys into its own Info.plist (Capacitor does not auto-inject
-  usage descriptions). The strings below are the user-facing copy that
-  iOS shows in the BLE permission prompt.
+  usage descriptions). Bluetooth descriptions/background modes support the
+  CoreBluetooth implementation. NSLocalNetworkUsageDescription is reserved
+  for the planned Wi-Fi Direct fallback, which is not implemented. Its
+  user-facing privacy string is unchanged pending separate review.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

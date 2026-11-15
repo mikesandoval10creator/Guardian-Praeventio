@@ -10,10 +10,10 @@
 //     secret is registered. Auto-validates with the AI safety engine and
 //     stamps the row into `telemetry_events`.
 //   • POST /api/admin/iot/rotate-secret   — admin-only operator path that
-//     mints a fresh 32-byte hex secret, persists it on `tenants/{id}.iotSecret`
-//     with a `iotSecretRotatedAt` server timestamp, audits the rotation,
-//     and echoes the raw secret back EXACTLY ONCE in the response body.
-//     This is the only surface that ever exposes the secret in clear.
+//     mints a fresh 32-byte hex secret, persists it to the server-only
+//     `tenant_iot_secrets/{id}` collection, clears any readable legacy root
+//     copy, audits the rotation, and echoes the raw secret only to the
+//     authorized caller. Ingest retains a legacy read fallback until backfill.
 //
 // Round 18 R6 reminder: signing input is the RFC 8785 canonical-JSON form
 // of the parsed body, NOT `JSON.stringify(req.body)`. Producers in any
@@ -53,18 +53,24 @@ const IOT_TYPE_ALLOWLIST = new Set([
 ]);
 
 /**
- * Round 17 R1 — Look up a tenant's per-tenant IoT secret. Returns null when
- * the tenant doc is missing, the field is absent, or anything throws —
- * never crashes the request path. Caller falls back to env secret.
+ * Look up a tenant's per-tenant IoT secret from the server-only store. During
+ * the staged migration, fall back to the legacy tenant-root field only for
+ * tenants not yet backfilled. Returns null on missing data or lookup failure;
+ * the caller may then use the separately configured environment secret.
  */
 async function lookupTenantIotSecret(tenantId: string): Promise<string | null> {
   try {
-    const snap = await getFirestore().collection('tenants').doc(tenantId).get();
-    if (!snap.exists) return null;
-    const data = snap.data() ?? {};
-    const secret = data.iotSecret;
-    if (typeof secret !== 'string' || secret.length === 0) return null;
-    return secret;
+    const db = getFirestore();
+    const protectedSnap = await db.collection('tenant_iot_secrets').doc(tenantId).get();
+    const protectedSecret = protectedSnap.data()?.iotSecret;
+    if (typeof protectedSecret === 'string' && protectedSecret.length > 0) {
+      return protectedSecret;
+    }
+
+    const legacySnap = await db.collection('tenants').doc(tenantId).get();
+    const legacySecret = legacySnap.data()?.iotSecret;
+    if (typeof legacySecret !== 'string' || legacySecret.length === 0) return null;
+    return legacySecret;
   } catch (err: any) {
     logger.warn('telemetry_tenant_lookup_failed', { tenantId, message: err?.message });
     return null;
@@ -281,11 +287,10 @@ router.post('/telemetry/ingest', async (req, res) => {
 });
 
 // Round 17 R1 — IoT secret rotation. Admin-only. Generates a new 32-byte
-// hex secret, stores it on `tenants/{tenantId}.iotSecret` along with a
-// `iotSecretRotatedAt` server timestamp, audits the rotation, and returns
-// the raw secret in the response body. THIS IS THE ONLY OPPORTUNITY for the
-// operator to see the raw secret — subsequent reads of the tenant doc never
-// echo it back through any user-facing surface.
+// hex secret, stores it in `tenant_iot_secrets/{tenantId}` (server-only),
+// removes any legacy root field atomically, audits the rotation, and returns
+// the raw secret only in the authorized response body. Ingest keeps a
+// server-side fallback for legacy documents until the backfill is run.
 //
 // Note: this endpoint is intentionally not under /api/admin (which is the
 // pre-existing `adminRouter` mount with its own surface). It lives at
@@ -303,13 +308,25 @@ router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Requires admin role' });
     }
     const newSecret = crypto.randomBytes(32).toString('hex');
-    await getFirestore().collection('tenants').doc(tenantId).set(
+    const db = getFirestore();
+    const batch = db.batch();
+    batch.set(
+      db.collection('tenant_iot_secrets').doc(tenantId),
       {
         iotSecret: newSecret,
         iotSecretRotatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
+    batch.set(
+      db.collection('tenants').doc(tenantId),
+      {
+        iotSecret: FieldValue.delete(),
+        iotSecretRotatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    await batch.commit();
     try {
       await auditServerEvent(req, 'admin.iot.secret_rotated', 'admin', {
         tenantId,
@@ -317,9 +334,8 @@ router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
     } catch {
       /* observability never breaks request path */
     }
-    // ONLY response surface that ever exposes the raw secret. Caller MUST
-    // copy it now — it cannot be read back from Firestore via any non-admin
-    // path, and even admin reads should be discouraged.
+    // ONLY response surface that returns the raw secret. It is never logged;
+    // Firestore client access to the server-only collection is denied.
     return res.json({ secret: newSecret });
   } catch (error: any) {
     logger.error('admin_iot_rotate_failed', { callerUid, tenantId, message: error?.message });

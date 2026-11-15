@@ -689,12 +689,29 @@ async function assertAdminCaller(req: any, res: any): Promise<boolean> {
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
-  const callerRecord = await getAuth().getUser(callerUid);
-  if (!isAdminRole(callerRecord.customClaims?.role)) {
+  try {
+    const callerRecord = await getAuth().getUser(callerUid);
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      res.status(403).json({ error: 'Forbidden: Requires admin role' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    const authErrorCode =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+    if (authErrorCode !== 'auth/user-not-found') throw error;
+
+    const routePath = typeof req.route?.path === 'string' ? req.route.path : req.path;
+    logger.warn('admin_caller_auth_record_missing', {
+      endpoint: `${req.baseUrl ?? ''}${routePath}`,
+      method: req.method,
+      authErrorCode: 'auth/user-not-found',
+    });
     res.status(403).json({ error: 'Forbidden: Requires admin role' });
     return false;
   }
-  return true;
 }
 
 

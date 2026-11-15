@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "description": "Reviewed baseline of production stub markers. Counts are ceilings per source file; new markers require an inventory owner/visibility entry and an explicit baseline update in the same reviewed change. Deletions are allowed.",
+  "markerCounts": {
+    "src/services/compliance/adapters/au/index.ts": 2,
+    "src/services/compliance/adapters/ca/index.ts": 2,
+    "src/services/compliance/adapters/in/index.ts": 2,
+    "src/services/compliance/adapters/jp/index.ts": 2,
+    "src/services/compliance/adapters/kr/index.ts": 2,
+    "src/services/compliance/adapters/uk/index.ts": 2,
+    "src/services/erp/erpAdapter.ts": 5,
+    "src/services/observability/cloudErrorReportingAdapter.ts": 3,
+    "src/services/observability/metricsAdapter.ts": 3,
+    "src/services/sii/libredteAdapter.ts": 2,
+    "src/services/sii/openfacturaAdapter.ts": 2,
+    "src/services/sii/simpleApiAdapter.ts": 2
+  }
+}

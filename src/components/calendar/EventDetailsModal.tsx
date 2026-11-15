@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
 import { humanErrorMessage } from '../../lib/humanError';
+import { type CalendarEventType, createCalendarDateFormatters, getCalendarEventTypeTranslation } from './calendarPresentation';
 
 
 interface Event {
@@ -19,7 +20,7 @@ interface Event {
   date: string;
   time: string;
   location: string;
-  type: 'Capacitación' | 'Inspección' | 'Auditoría' | 'Reunión';
+  type: CalendarEventType;
   projectId: string;
 }
 
@@ -30,7 +31,11 @@ interface EventDetailsModalProps {
 }
 
 export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateFormatters = React.useMemo(
+    () => createCalendarDateFormatters(i18n.resolvedLanguage ?? i18n.language),
+    [i18n.language, i18n.resolvedLanguage],
+  );
   const { selectedProject, projects } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,6 +53,11 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
   }, [event]);
 
   if (!event) return null;
+
+  const eventTypeTranslation = getCalendarEventTypeTranslation(event.type);
+  const eventTypeLabel = eventTypeTranslation
+    ? t(eventTypeTranslation.key, eventTypeTranslation.defaultValue)
+    : event.type;
 
   const checkOverlaps = async () => {
     const overlapPromises = projects.map(async (project) => {
@@ -67,7 +77,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
         if (overlaps.length > 0) {
           return project.name;
         }
-      } catch (e) {
+      } catch {
         // Ignoramos si no hay permisos Extendidos
       }
       return false;
@@ -155,7 +165,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     {isEditing ? t('calendar.details_edit_title', 'Editar Evento') : t('calendar.details_view_title', 'Detalles del Evento')}
                   </h2>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">
-                    {event.type}
+                    {eventTypeLabel}
                   </p>
                 </div>
               </div>
@@ -279,7 +289,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     </label>
                     <select
                       value={formData.type || 'Reunión'}
-                      onChange={e => setFormData({ ...formData, type: e.target.value as any })}
+                      onChange={e => setFormData({ ...formData, type: e.target.value as CalendarEventType })}
                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none"
                     >
                       <option value="Capacitación">{t('calendar.event_type_training', 'Capacitación')}</option>
@@ -318,7 +328,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                         <Calendar className="w-4 h-4" />
                         <span className="text-[10px] font-black uppercase tracking-widest">{t('calendar.field_date', 'Fecha')}</span>
                       </div>
-                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{event.date}</p>
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{dateFormatters.eventDate(event.date)}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-2 text-zinc-500 mb-1">

@@ -2,10 +2,9 @@
 'use strict';
 
 // Backport the Apache-2.0 upstream Vitest 5 separator fix from PR #6214
-// to the published Stryker Vitest runner 10.0.0. Vitest 5 uses " > " for
-// nested test names; runner 10.0.0 filters mutants with space-joined names,
-// so no covered test runs and every mutant survives. Keep this patch narrow,
-// version-guarded, and fail-closed until npm ships the upstream fix (#6210).
+// for runner 10.0.0, which does not contain it. Newer runners that ship the
+// equivalent upstream implementation are recognized before the version guard;
+// all other unknown versions remain fail-closed.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -37,18 +36,25 @@ function patchStrykerRunner(root) {
     vitestHelpers: fs.readFileSync(path.join(runnerRoot, 'vitest-helpers.js'), 'utf8'),
     runner: fs.readFileSync(path.join(runnerRoot, 'vitest-test-runner.js'), 'utf8'),
   };
-  const alreadyCompatible =
+  const hasBackportedSeparatorFix =
     files.helpers.includes("VITEST_5_TEST_NAME_SEPARATOR = ' > '") &&
     files.helpers.includes("LEGACY_TEST_NAME_SEPARATOR = ' '") &&
+    files.runner.includes("semver.satisfies(vitestWrapper.version, '>=5.0.0') ? VITEST_5_TEST_NAME_SEPARATOR : LEGACY_TEST_NAME_SEPARATOR");
+  const hasUpstreamSeparatorFix =
+    files.helpers.includes("VITEST_MODERN_TEST_NAME_SEPARATOR = ' > '") &&
+    files.helpers.includes("VITEST_LEGACY_TEST_NAME_SEPARATOR = ' '") &&
+    files.runner.includes("semver.gte(vitestWrapper.version, '5.0.0-0')") &&
+    files.runner.includes('VITEST_MODERN_TEST_NAME_SEPARATOR') &&
+    files.runner.includes('VITEST_LEGACY_TEST_NAME_SEPARATOR');
+  const alreadyCompatible =
+    (hasBackportedSeparatorFix || hasUpstreamSeparatorFix) &&
     files.helpers.includes('nameParts.join(separator)') &&
     files.setup.includes("inject('testNameSeparator')") &&
     files.setup.includes('toRawTestId(task, testNameSeparator)') &&
     files.setup.includes('nameParts.join(separator)') &&
     files.vitestHelpers.includes('toRawTestId(test, separator)') &&
     files.vitestHelpers.includes('collectTestName(test, separator)') &&
-    files.runner.includes('VITEST_5_TEST_NAME_SEPARATOR') &&
-    files.runner.includes("semver.satisfies(vitestWrapper.version, '>=5.0.0') ? VITEST_5_TEST_NAME_SEPARATOR : LEGACY_TEST_NAME_SEPARATOR") &&
-    files.runner.includes("this.ctx.provide('testNameSeparator', this.#testNameSeparator);") &&
+    files.runner.includes('this.ctx.provide(\'testNameSeparator\', this.#testNameSeparator);') &&
     files.runner.includes('convertTestToTestResult(test, this.#testNameSeparator)');
   if (alreadyCompatible) return { status: 'already-compatible', patched: [] };
   if (pkg.version !== '10.0.0') {

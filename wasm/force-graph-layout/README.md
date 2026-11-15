@@ -55,7 +55,7 @@ imports):
 
 | Export | Firma | Semántica |
 |---|---|---|
-| `memory` | `WebAssembly.Memory` | memoria lineal con **máximo duro de 32 MiB** (1024 páginas) impuesto por la VM |
+| `memory` | `WebAssembly.Memory` | memoria lineal con **máximo duro de 32 MiB** (512 páginas) impuesto por la VM |
 | `graph_alloc(len: usize) -> *mut u8` | reserva `len` bytes para la entrada JSON; devuelve **null** si `len` supera el cap de 8 MiB |
 | `graph_free(ptr, len)` | libera un bloque reservado por `graph_alloc` (el caller solo libera punteros no nulos) |
 | `graph_layout(ptr, len) -> u64` | ejecuta la simulación sobre el JSON en `ptr..ptr+len`; devuelve `(length << 32) \| address` del JSON de salida en memoria lineal |

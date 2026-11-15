@@ -5,7 +5,7 @@
 // that in + covers set-role / revoke-access / quotas / sync. (The sibling
 // admin.test.ts uses the parallel-copy harness; this mounts the real router.)
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
@@ -20,6 +20,8 @@ const H = vi.hoisted(() => ({
   // the standard "admin operates on a peer" cases stay same-tenant; cross-tenant
   // cases pin a target in a DIFFERENT tenant via `claims`.
   defaultTenant: 'tenant-A',
+  missingUsers: new Set<string>(),
+  lookupFailures: new Map<string, Error>(),
   setClaims: vi.fn(async (_uid: string, _claims: unknown) => {}),
   revoke: vi.fn(async (_uid: string) => {}),
 }));
@@ -27,24 +29,51 @@ const H = vi.hoisted(() => ({
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
   const auth = {
-    getUser: async (uid: string) => ({
-      uid,
-      customClaims: H.claims[uid] ?? { role: H.roles[uid], tenantId: H.defaultTenant },
-    }),
+    getUser: async (uid: string) => {
+      const failure = H.lookupFailures.get(uid);
+      if (failure) throw failure;
+      if (H.missingUsers.has(uid)) {
+        const error = new Error('There is no user record for this identifier.') as Error & { code?: string };
+        error.code = 'auth/user-not-found';
+        throw error;
+      }
+      return {
+        uid,
+        customClaims: H.claims[uid] ?? { role: H.roles[uid], tenantId: H.defaultTenant },
+      };
+    },
     setCustomUserClaims: (uid: string, claims: unknown) => H.setClaims(uid, claims),
     revokeRefreshTokens: (uid: string) => H.revoke(uid),
   };
   return adminMock(() => H.db!, auth);
 });
-vi.mock('../../server/middleware/verifyAuth.js', () => ({
-  verifyAuth: (req: Request, res: Response, next: NextFunction) => {
-    const uid = req.header('x-test-uid');
-    if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    // NOTE: we deliberately set a CLIENT-claimed role here that differs from
-    // the Auth record, to prove the route ignores it and re-reads from Auth.
-    (req as Request & { user: Record<string, unknown> }).user = { uid, role: req.header('x-test-claim-role') ?? 'worker' };
-    next();
-  },
+vi.mock('../../server/middleware/verifyAuth.js', async () => {
+  const actual = await vi.importActual<typeof import('../../server/middleware/verifyAuth.js')>(
+    '../../server/middleware/verifyAuth.js',
+  );
+  return {
+    verifyAuth: async (req: Request, res: Response, next: NextFunction) => {
+      if (req.header('authorization')) {
+        await actual.verifyAuth(req, res, next);
+        return;
+      }
+      const uid = req.header('x-test-uid');
+      if (!uid) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+      // NOTE: we deliberately set a CLIENT-claimed role here that differs from
+      // the Auth record, to prove the route ignores it and re-reads from Auth.
+      (req as Request & { user: Record<string, unknown> }).user = {
+        uid,
+        role: req.header('x-test-claim-role') ?? 'worker',
+      };
+      next();
+    },
+  };
+});
+vi.mock('../../services/observability/index.js', () => ({
+  getErrorTracker: () => ({ captureException: vi.fn() }),
 }));
 vi.mock('../../server/middleware/captureRouteError.js', () => ({ captureRouteError: vi.fn() }));
 vi.mock('../../utils/logger.js', () => ({
@@ -65,6 +94,7 @@ vi.mock('../../server/middleware/geminiCircuit.js', () => ({
 }));
 
 import adminRouter from '../../server/routes/admin.js';
+import { logger } from '../../utils/logger.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { replicateCriticalData } from '../../server/jobs/firestoreCriticalReplicate.js';
 import { runWeeklyDigest } from '../../server/jobs/weeklyDigest.js';
@@ -78,6 +108,14 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use('/api/admin', adminRouter);
+  // Match server.ts's global Express error contract for rejected async routes.
+  app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+    logger.error('express_unhandled_error', error instanceof Error ? error : new Error(String(error)), {
+      method: req.method,
+      url: req.url,
+    });
+    res.status(500).json({ error: 'internal_server_error' });
+  });
   return app;
 }
 // caller header helpers: x-test-uid is the uid; the Auth record's role comes
@@ -89,6 +127,8 @@ beforeEach(() => {
   H.roles = { admin1: 'admin', worker1: 'operario', gerente1: 'gerente' };
   H.setClaims.mockReset().mockResolvedValue(undefined as never);
   H.claims = {};
+  H.missingUsers.clear();
+  H.lookupFailures.clear();
   H.revoke.mockReset().mockResolvedValue(undefined as never);
   vi.mocked(replicateCriticalData).mockClear();
   vi.mocked(runWeeklyDigest).mockClear();
@@ -804,5 +844,52 @@ describe('POST /api/admin/sync/clear-user-queue', () => {
     expect(stuck.length).toBe(25);
     // Sorted descending: first entry should have highest pendingCount
     expect((stuck[0].pendingCount as number) >= (stuck[1].pendingCount as number)).toBe(true);
+  });
+});
+
+describe('admin GETs with the canonical E2E supervisor fixture', () => {
+  const e2eUid = 'e2e-user-001';
+  const e2eSecret = 'e2e-test';
+  const endpoints = [
+    ['/api/admin/quotas?tenantId=tenant-A', '/api/admin/quotas'],
+    ['/api/admin/quotas/global', '/api/admin/quotas/global'],
+    ['/api/admin/sync/stats', '/api/admin/sync/stats'],
+  ] as const;
+  beforeEach(() => {
+    vi.stubEnv('E2E_MODE', '1');
+    vi.stubEnv('E2E_TEST_SECRET', e2eSecret);
+    vi.stubEnv('NODE_ENV', 'test');
+    H.missingUsers.add(e2eUid);
+    vi.mocked(logger.warn).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    H.missingUsers.clear();
+    H.lookupFailures.clear();
+  });
+
+  it.each(endpoints)('valid E2E supervisor is denied cleanly on %s', async (url, loggedPath) => {
+    const response = await request(buildApp())
+      .get(url)
+      .set('Authorization', `E2E ${e2eSecret}:${e2eUid}`);
+
+    expect(response.status).toBe(403);
+    expect((response.body as Record<string, unknown>).error).toMatch(/forbidden/i);
+    expect(logger.warn).toHaveBeenCalledWith('admin_caller_auth_record_missing', {
+      endpoint: loggedPath,
+      method: 'GET',
+      authErrorCode: 'auth/user-not-found',
+    });
+  });
+
+  it('keeps an unexpected Firebase Auth outage distinct from a denied role', async () => {
+    H.lookupFailures.set('auth-outage-user', new Error('Firebase Auth unavailable'));
+    const response = await request(buildApp())
+      .get('/api/admin/sync/stats')
+      .set(asUser('auth-outage-user'));
+
+    expect(response.status).toBe(500);
+    expect((response.body as Record<string, unknown>).error).toBe('internal_server_error');
   });
 });

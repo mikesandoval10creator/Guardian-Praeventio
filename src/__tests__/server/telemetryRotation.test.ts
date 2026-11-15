@@ -7,8 +7,8 @@
 // one tenant compromises every other tenant.
 //
 // R17 R1 layers per-tenant secrets on top of the existing path:
-//   • Each tenant doc may carry `iotSecret` (32-byte hex) and
-//     `iotSecretRotatedAt` (server timestamp).
+//   • New keys live in `tenant_iot_secrets/{tenantId}`; ingest retains a
+//     legacy tenant-root fallback only until the backfill is complete.
 //   • Clients declare `tenantId` via header (`x-tenant-id`) or body.
 //   • When per-tenant secret exists, request body MUST be HMAC-SHA256 signed
 //     using that secret; signature lands in `x-iot-signature` header as
@@ -111,11 +111,16 @@ function buildApp(deps: Deps): Express {
 
     let perTenantSecret: string | null = null;
     if (tenantId) {
-      const snap = await deps.fs.collection('tenants').doc(tenantId).get();
-      if (snap.exists) {
-        const data = snap.data() ?? {};
-        if (typeof data.iotSecret === 'string' && data.iotSecret.length > 0) {
-          perTenantSecret = data.iotSecret;
+      const protectedSnap = await deps.fs.collection('tenant_iot_secrets').doc(tenantId).get();
+      const protectedSecret = protectedSnap.data()?.iotSecret;
+      if (typeof protectedSecret === 'string' && protectedSecret.length > 0) {
+        perTenantSecret = protectedSecret;
+      }
+      if (!perTenantSecret) {
+        const legacySnap = await deps.fs.collection('tenants').doc(tenantId).get();
+        const legacySecret = legacySnap.data()?.iotSecret;
+        if (typeof legacySecret === 'string' && legacySecret.length > 0) {
+          perTenantSecret = legacySecret;
         }
       }
     }
@@ -174,13 +179,18 @@ function buildApp(deps: Deps): Express {
       return res.status(403).json({ error: 'Forbidden: Requires admin role' });
     }
     const newSecret = crypto.randomBytes(32).toString('hex');
-    await deps.fs.collection('tenants').doc(tenantId).set(
+    await deps.fs.collection('tenant_iot_secrets').doc(tenantId).set(
       {
         iotSecret: newSecret,
         iotSecretRotatedAt: fakeFieldValue.serverTimestamp(),
       },
       { merge: true },
     );
+    const tenantPath = `tenants/${tenantId}`;
+    const tenantData = (await deps.fs.collection('tenants').doc(tenantId).get()).data() ?? {};
+    delete tenantData.iotSecret;
+    tenantData.iotSecretRotatedAt = fakeFieldValue.serverTimestamp();
+    deps.fs.store.set(tenantPath, tenantData);
     await deps.fs.collection('audit_logs').add({
       action: 'admin.iot.secret_rotated',
       module: 'admin',
@@ -313,7 +323,7 @@ describe('POST /api/admin/iot/rotate-secret (R17 R1)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('happy path: writes new secret + iotSecretRotatedAt + audit row, returns secret ONCE', async () => {
+  it('happy path: writes to server-only store, clears root secret and audits without returning twice', async () => {
     const app = buildApp({ fs, auth: makeAuth('admin'), envSecret: ENV_SECRET });
     const res = await request(app)
       .post('/api/admin/iot/rotate-secret')
@@ -323,9 +333,12 @@ describe('POST /api/admin/iot/rotate-secret (R17 R1)', () => {
     expect(typeof res.body.secret).toBe('string');
     // 32 bytes hex = 64 chars
     expect(res.body.secret).toHaveLength(64);
-    // Tenant doc updated
+    // The tenant root remains readable, so the raw key belongs only in the
+    // server-only collection after rotation.
     const tenant = fs.store.get('tenants/tenant-A');
-    expect(tenant?.iotSecret).toBe(res.body.secret);
+    const protectedSecret = fs.store.get('tenant_iot_secrets/tenant-A');
+    expect(protectedSecret?.iotSecret === res.body.secret).toBe(true);
+    expect(tenant?.iotSecret).toBeUndefined();
     expect(tenant?.iotSecretRotatedAt).toBeDefined();
     // Audit row recorded with action + tenantId
     const row = fs.audit.find((e) => e.action === 'admin.iot.secret_rotated');

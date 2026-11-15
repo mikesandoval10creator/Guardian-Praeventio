@@ -277,6 +277,51 @@ describe('<SupplierQuality /> page wrapper (Sprint K §90-91)', () => {
     });
   });
 
+  it('6a. explica por qué no se pudo registrar un proveedor duplicado', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockHook = { data: { suppliers: [], total: 0 }, loading: false, error: null };
+    registerSpy.mockRejectedValueOnce(new Error('supplier_duplicate_id'));
+    render(<SupplierQuality />);
+    fireEvent.click(screen.getByTestId('suppliers-register-btn'));
+    fireEvent.change(screen.getByTestId('suppliers-form-name'), {
+      target: { value: 'Mutual Constructora' },
+    });
+    fireEvent.change(screen.getByTestId('suppliers-form-taxid'), {
+      target: { value: '12.345.678-9' },
+    });
+    fireEvent.change(screen.getByTestId('suppliers-form-services'), {
+      target: { value: 'EPP' },
+    });
+    fireEvent.click(screen.getByTestId('suppliers-form-submit'));
+
+    const error = await screen.findByTestId('suppliers-form-error');
+    expect(error).toHaveTextContent(/proveedor ya está registrado en este proyecto/i);
+    expect(error).toHaveTextContent(/no se creó un registro duplicado/i);
+    expect(error).not.toHaveTextContent(/supplier_duplicate_id|409/i);
+  });
+
+  it('6b. confirma el registro exitoso con una explicación clara', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockHook = { data: { suppliers: [], total: 0 }, loading: false, error: null };
+    render(<SupplierQuality />);
+    fireEvent.click(screen.getByTestId('suppliers-register-btn'));
+    fireEvent.change(screen.getByTestId('suppliers-form-name'), {
+      target: { value: 'Mutual Constructora' },
+    });
+    fireEvent.change(screen.getByTestId('suppliers-form-taxid'), {
+      target: { value: '12.345.678-9' },
+    });
+    fireEvent.change(screen.getByTestId('suppliers-form-services'), {
+      target: { value: 'EPP' },
+    });
+    fireEvent.click(screen.getByTestId('suppliers-form-submit'));
+
+    const success = await screen.findByTestId('suppliers-register-success');
+    expect(success).toHaveAttribute('role', 'status');
+    expect(success).toHaveTextContent(/proveedor registrado correctamente/i);
+    expect(refetchSpy).toHaveBeenCalled();
+  });
+
   it('8. monta <SupplierComparator> con el ranking REAL del endpoint', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockHook = {

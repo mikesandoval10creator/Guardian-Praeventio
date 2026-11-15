@@ -101,10 +101,12 @@ export interface ManDownEvidence {
 export interface EvaluateManDownOptions {
   /**
    * Scope the evaluation to one worker. Readings from other workers are
-   * ignored; readings under LOCAL_DEVICE_UID always count (device-scoped
-   * sensors have no auth context). Omit to consider every reading.
+   * ignored. LOCAL_DEVICE_UID attribution still requires project scope, except
+   * truly device-wide BLE/battery corroboration. Omit to consider all workers.
    */
   workerUid?: string;
+  /** Active project. Null means no project; omitted legacy calls require one unambiguous project. */
+  projectId?: string | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -149,11 +151,24 @@ export function evaluateManDownEvidence(
   now: Date,
   options: EvaluateManDownOptions = {},
 ): ManDownEvidence {
-  const scoped = options.workerUid
+  const workerEvents = options.workerUid
     ? events.filter(
         (e) => e.workerUid === options.workerUid || e.workerUid === LOCAL_DEVICE_UID,
       )
     : events;
+  const projects = new Set(workerEvents
+    .filter((e) => e.projectId !== LOCAL_DEVICE_UID)
+    .map((e) => e.projectId));
+  const projectId = options.projectId === undefined && projects.size === 1
+    ? projects.values().next().value
+    : options.projectId;
+  if (!projectId || projectId === LOCAL_DEVICE_UID) return { level: 'none', reasons: [] };
+  const scoped = workerEvents.filter((e) =>
+    e.projectId === projectId || (
+      e.projectId === LOCAL_DEVICE_UID && e.workerUid === LOCAL_DEVICE_UID &&
+      (e.kind === 'ble_proximity' || e.kind === 'battery')
+    ),
+  );
 
   const impact = latestOf(scoped, 'fall', now, IMPACT_EVIDENCE_WINDOW_MS);
   if (!impact) {

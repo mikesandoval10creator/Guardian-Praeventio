@@ -63,6 +63,7 @@ vi.mock('../services/sync/queueIdentity', () => ({
     schemaVersion: 2,
   })),
   isQueueIdentity: (value: unknown) => typeof value === 'object' && value !== null,
+  queueIdentitiesMatch: (a: { ownerUid: string; tenantId: string; installationId: string; schemaVersion: number }, b: { ownerUid: string; tenantId: string; installationId: string; schemaVersion: number }) => a.ownerUid === b.ownerUid && a.tenantId === b.tenantId && a.installationId === b.installationId && a.schemaVersion === b.schemaVersion,
 }));
 
 const fakeDb = {
@@ -72,7 +73,7 @@ const fakeDb = {
   query: vi.fn(async (_sql: string) => ({ values: fakeRows })),
 };
 
-const { getPendingActions, saveForSync, __resetPwaOfflineForTests } = await import('./pwa-offline');
+const { getPendingActions, saveForSync, saveBunkerKnowledge, getBunkerKnowledge, __resetPwaOfflineForTests } = await import('./pwa-offline');
 
 describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () => {
   beforeEach(() => {
@@ -83,8 +84,49 @@ describe('pwa-offline.getPendingActions — localUpdatedAt typing contract', () 
     fakeRows.length = 0;
     fakeDb.query.mockClear();
     fakeDb.execute.mockClear();
+    fakeDb.run.mockClear();
     idbAddMock.mockClear();
     centralEnqueueMock.mockReset().mockResolvedValue('central-op-1');
+  });
+
+  it('does not claim persistence when the native encrypted store is unavailable', async () => {
+    createConnectionMock.mockRejectedValueOnce(new Error('native unavailable'));
+    await expect(saveForSync({ type: 'upload', collection: 'documents', data: {}, file: new File(['fixture'], 'd.pdf', { type: 'application/pdf' }) })).rejects.toThrow('native upload store unavailable');
+  });
+
+  it('keeps the native Bunker PDF blob instead of JSON-serializing it to an empty object', async () => {
+    const blob = new Blob(['%PDF-bunker-fixture'], { type: 'application/pdf' });
+    await saveBunkerKnowledge('scope/document', { workerId: 'worker-1', blob });
+    const [sql, params] = fakeDb.run.mock.calls.at(-1) as unknown as [string, unknown[]];
+    expect(sql).toMatch(/bunker_knowledge/);
+    fakeRows.push({ data: params[1] });
+    const restored = await getBunkerKnowledge('scope/document');
+    expect(restored.blob).toBeInstanceOf(Blob);
+    const text = await new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsText(restored.blob); });
+    expect(text).toBe('%PDF-bunker-fixture');
+    expect(restored.workerId).toBe('worker-1');
+  });
+
+  it('retains PDF bytes, filename and MIME through the native JSON row and restores a replayable File', async () => {
+    const text = '%PDF-native-fixture';
+    await saveForSync({ type: 'upload', collection: 'projects/p/workers/w/documents', docId: 'd', data: { storagePath: 'projects/p/workers/w/documents/d/d.pdf' }, file: new File([text], 'd.pdf', { type: 'application/pdf', lastModified: 7 }) });
+    const [sql, params] = fakeDb.run.mock.calls.at(-1) as unknown as [string, unknown[]];
+    expect(sql).toMatch(/INSERT INTO pending_sync/);
+    fakeRows.push({ id: 91, docId: params[0], type: params[1], collection: params[2], data: params[3], timestamp: params[4], localUpdatedAt: params[5] });
+    const [restored] = await getPendingActions();
+    expect(restored.file).toBeInstanceOf(File);
+    expect(restored.file?.name).toBe('d.pdf');
+    expect(restored.file?.type).toBe('application/pdf');
+    const actual = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; if (!restored.file) throw new Error('restored file missing'); reader.readAsText(restored.file); });
+    expect(actual).toBe(text);
+    expect(restored.data).not.toHaveProperty('__uploadFileV1');
+  });
+
+  it('rejects an upload captured under another account instead of rebinding it to the new login', async () => {
+    nativePlatform = false;
+    await expect(saveForSync({ type: 'upload', collection: 'projects/p/workers/w/documents', docId: 'd', file: new File(['PDF'], 'd.pdf', { type: 'application/pdf' }), data: { storagePath: 'projects/p/workers/w/documents/d/d.pdf' }, queueIdentity: { ownerUid: 'previous-user', tenantId: 'upload-tenant', installationId: 'upload-installation', schemaVersion: 2 } })).rejects.toThrow('upload queue identity changed');
+    expect(idbAddMock).not.toHaveBeenCalled();
+    expect(centralEnqueueMock).not.toHaveBeenCalled();
   });
 
   it('shares one native initialization across concurrent readers', async () => {

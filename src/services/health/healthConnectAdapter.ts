@@ -1,7 +1,7 @@
 /**
  * Health Connect adapter — REAL implementation (Round 2).
  *
- * Backed by `@kiwi-health/capacitor-health-connect@^0.0.40`. The plugin is
+ * Backed by `@kiwi-health/capacitor-health-connect@^0.0.43`. The plugin is
  * Android-only at runtime (no iOS HealthKit support); on web/iOS the calls
  * resolve to a no-op via `isAvailable === false`, and the facade in
  * `./index.ts` falls through to `googleFitAdapter` (deprecated) or
@@ -23,11 +23,13 @@
  * flat string array of record types; we round-trip those back to our
  * `HealthScope` set so the rest of the app stays decoupled from the plugin.
  *
- * Native config still required (NOT done in this round — see migration doc):
- *   - `android/app/build.gradle`: minSdkVersion 26.
- *   - `AndroidManifest.xml`: `<queries>` for `com.google.android.apps.healthdata`
- *     plus `android.permission.health.READ_*` entries for each record type.
- *   - `MainActivity.kt`: register the Health Connect permission contract.
+ * Native Android permission contract is wired in this repo:
+ *   - `AndroidManifest.xml` declares Health Connect record permissions and the
+ *     provider query for `com.google.android.apps.healthdata`.
+ *   - `MainActivity.java` registers activity-result launchers and forwards
+ *     permission results to the plugin.
+ * The build selects minSdk from `rootProject.ext.minSdkVersion`. Device
+ * availability and reads remain unverified here; see `HEALTH_CONNECT_MIGRATION.md`.
  */
 
 import { Capacitor } from '@capacitor/core';

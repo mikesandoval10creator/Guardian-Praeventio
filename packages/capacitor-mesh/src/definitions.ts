@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 //
-// @praeventio/capacitor-mesh — plugin definitions (Sprint 30 scaffold).
+// @praeventio/capacitor-mesh — plugin definitions for native and web transports.
 //
-// The MeshPacket type is imported from the main app's pure engine
-// (Sprint 25 — `src/services/mesh/meshPacket.ts`) so we don't duplicate
-// the model. Sprint 31 will land the real native BLE GATT bridge; this
-// file only declares the JS-side surface.
+// MeshPacket is imported from the main app's pure engine
+// (`src/services/mesh/meshPacket.ts`) to avoid duplicating the model.
+// Android/iOS BLE implementations live in their native plugin files; this
+// file only declares the JS-side surface. Wi-Fi Direct remains unimplemented.
 
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { MeshPacket } from '../../../src/services/mesh/meshPacket';

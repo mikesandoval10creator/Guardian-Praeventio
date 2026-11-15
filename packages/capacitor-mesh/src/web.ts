@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// @praeventio/capacitor-mesh — web simulator (Sprint 30 scaffold).
+// @praeventio/capacitor-mesh — BroadcastChannel simulator for web development.
 //
 // Uses `BroadcastChannel` to bridge multiple tabs of the same origin so
 // the engine + UI can be exercised end-to-end without a physical device.
@@ -12,8 +12,9 @@
 //   { kind: 'packet',    fromPeerId, packet } — relayed mesh packet
 //
 // This is NOT real BLE. It is enough to test the engine wire (see
-// transportFacade.ts and its tests). Sprint 31 replaces this whole
-// file's behaviour with native BLE GATT.
+// transportFacade.ts and its tests). Native BLE implementations live in
+// the Android and iOS plugin files; this remains a multi-tab simulator and
+// is not a substitute for physical radio validation.
 
 import { WebPlugin } from '@capacitor/core';
 

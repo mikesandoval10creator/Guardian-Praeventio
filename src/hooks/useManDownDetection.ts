@@ -298,7 +298,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       userName: user.displayName,
       projectId: selectedProject.id,
       projectName: selectedProject.name,
-      acceleration: sensorData.acceleration,
+      acceleration: accelerationRef.current,
       inactivityMs: INACTIVITY_THRESHOLD,
       timestamp: impactTimestamp,
     }).catch(() => {}); // silently fail — safety data has priority
@@ -472,11 +472,32 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   // black box, so a captured version would record acceleration from when the
   // effect last ran, not from the impact. Route both through refs kept current.
   const triggerAlertRef = useRef(triggerAlert);
+  const accelerationRef = useRef(sensorData.acceleration);
   const publishBatteryEvidenceRef = useRef(publishBatteryEvidence);
   useEffect(() => {
     triggerAlertRef.current = triggerAlert;
+    accelerationRef.current = sensorData.acceleration;
     publishBatteryEvidenceRef.current = publishBatteryEvidence;
   });
+
+  const detectionScope = JSON.stringify([selectedProject?.id ?? null, user?.uid ?? null]);
+  const previousScopeRef = useRef(detectionScope);
+  const excludedEvidenceRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (previousScopeRef.current === detectionScope) return;
+    previousScopeRef.current = detectionScope;
+    // Do not erase another consumer's bus. Exclude the previous context's
+    // snapshot locally, including device-wide BLE/battery observations.
+    excludedEvidenceRef.current = new Set(
+      Array.from(useSensorBus.getState().readings.values(), (r) => r.readingId),
+    );
+    // Selection is not physical movement: preserve the inactivity deadline.
+    accHistoryRef.current = [];
+    if (isActive) {
+      lastBatteryPublishRef.current = Date.now();
+      void publishBatteryEvidenceRef.current();
+    }
+  }, [detectionScope, isActive]);
 
   useEffect(() => {
     if (!isActive) return undefined;
@@ -508,9 +529,11 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         let startCountdownS = MANDOWN_COUNTDOWN_DEFAULT_S;
         try {
           const evidence = evaluateManDownEvidence(
-            Array.from(useSensorBus.getState().readings.values()),
+            Array.from(useSensorBus.getState().readings.values()).filter(
+              (r) => !excludedEvidenceRef.current.has(r.readingId),
+            ),
             new Date(now),
-            { workerUid: user?.uid ?? LOCAL_DEVICE_UID },
+            { workerUid: user?.uid ?? LOCAL_DEVICE_UID, projectId: selectedProject?.id ?? null },
           );
           if (evidence.level === 'critical') {
             startCountdownS = MANDOWN_COUNTDOWN_CRITICAL_S;
@@ -528,23 +551,27 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         // state) doesn't stack a second countdown.
         isAlertingRef.current = true;
         setCountdown(startCountdownS);
-        // Start countdown
+        // Pin identity/project at suspicion time. A later selection must not
+        // cancel this countdown or dispatch it into the newly selected site.
+        const triggerCountdownAlert = triggerAlertRef.current;
+        let remaining = startCountdownS;
         countdownRef.current = setInterval(() => {
-          setCountdown(prev => {
-            if (prev <= 1) {
-              triggerAlertRef.current();
-              if (countdownRef.current) clearInterval(countdownRef.current);
-              return 0;
-            }
-            return prev - 1;
-          });
+          remaining -= 1;
+          setCountdown(remaining);
+          if (remaining <= 0) {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            countdownRef.current = null;
+            // Dispatch outside React state updaters, which StrictMode may replay.
+            void triggerCountdownAlert();
+          }
         }, 1000);
       }
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (countdownRef.current) clearInterval(countdownRef.current);
+      // Countdown teardown belongs to cancel/stop/native handoff/unmount,
+      // not to a project object or settings rerender.
     };
     // NOTE: `isAlerting` is intentionally NOT a dependency — see isAlertingRef
     // above. Listing it here destroyed the countdown the moment the alert

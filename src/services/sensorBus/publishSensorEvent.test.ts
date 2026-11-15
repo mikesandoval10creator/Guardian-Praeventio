@@ -28,7 +28,7 @@ describe('publishSensorEvent', () => {
       unit: 'm',
       meta: { lat: -33.45, lng: -70.66 },
     });
-    const r = useSensorBus.getState().readings.get('w1::gps');
+    const r = useSensorBus.getState().readings.get(JSON.stringify(['p1', 'w1', 'gps']));
     expect(r).toBeDefined();
     expect(r?.projectId).toBe('p1');
     expect(r?.severity).toBe('info');
@@ -41,7 +41,7 @@ describe('publishSensorEvent', () => {
 
   it('defaults workerUid/projectId to the LOCAL_DEVICE_UID sentinel when no auth context', () => {
     publishSensorEvent({ kind: 'ble_proximity', severity: 'warning' });
-    const r = useSensorBus.getState().readings.get(`${LOCAL_DEVICE_UID}::ble_proximity`);
+    const r = useSensorBus.getState().readings.get(JSON.stringify([LOCAL_DEVICE_UID, LOCAL_DEVICE_UID, 'ble_proximity']));
     expect(r).toBeDefined();
     expect(r?.projectId).toBe(LOCAL_DEVICE_UID);
   });
@@ -49,15 +49,15 @@ describe('publishSensorEvent', () => {
   it('treats explicit null identity the same as missing identity', () => {
     publishSensorEvent({ kind: 'battery', severity: 'critical', workerUid: null, projectId: null });
     expect(
-      useSensorBus.getState().readings.get(`${LOCAL_DEVICE_UID}::battery`),
+      useSensorBus.getState().readings.get(JSON.stringify([LOCAL_DEVICE_UID, LOCAL_DEVICE_UID, 'battery'])),
     ).toBeDefined();
   });
 
   it('generates unique reading ids per publish', () => {
     publishSensorEvent({ kind: 'fall', severity: 'critical', workerUid: 'w1' });
-    const first = useSensorBus.getState().readings.get('w1::fall');
+    const first = useSensorBus.getState().readings.get(JSON.stringify([LOCAL_DEVICE_UID, 'w1', 'fall']));
     publishSensorEvent({ kind: 'fall', severity: 'critical', workerUid: 'w1' });
-    const second = useSensorBus.getState().readings.get('w1::fall');
+    const second = useSensorBus.getState().readings.get(JSON.stringify([LOCAL_DEVICE_UID, 'w1', 'fall']));
     expect(first?.readingId).not.toBe(second?.readingId);
   });
 

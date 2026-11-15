@@ -12,7 +12,7 @@
 // exactly one document.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import type { SyncOperation } from '../services/sync/syncStateMachine';
 
 const setDocCalls: Array<{ path: string; data: Record<string, unknown> }> = [];
@@ -38,6 +38,7 @@ vi.mock('../utils/pwa-offline', () => ({
 }));
 
 vi.mock('../services/firebase', () => ({
+  auth: { currentUser: { uid: 'current-user', getIdTokenResult: vi.fn(async () => ({ token: 'test-token', claims: { tenantId: 'current-tenant' } })) } },
   db: {},
   storage: {},
   handleFirestoreError: (err: unknown) => {
@@ -50,6 +51,8 @@ vi.mock('firebase/firestore', () => ({
   doc: (_db: unknown, collectionName: string, id: string) => ({
     path: `${collectionName}/${id}`,
   }),
+  getDocFromServer: vi.fn(async () => ({ exists: () => false, data: () => undefined })),
+  runTransaction: vi.fn(async (_db: unknown, callback: (transaction: { get: () => Promise<{ exists: () => boolean }>; set: (ref: { path: string }, data: Record<string, unknown>) => void }) => Promise<void>) => callback({ get: async () => ({ exists: () => false }), set: (ref, data) => { setDocCalls.push({ path: ref.path, data }); } })),
   setDoc: vi.fn(async (ref: { path: string }, data: Record<string, unknown>) => {
     setDocCalls.push({ path: ref.path, data });
   }),
@@ -136,6 +139,28 @@ const stateMachineOp = (data: Record<string, unknown>): SyncOperation =>
     createdAt: Date.now(),
   }) as SyncOperation;
 
+describe('Zettelkasten server-only batch replay', () => {
+  it('sends the persisted batch to the authenticated endpoint without client Firestore writes', async () => {
+    setDocCalls.length = 0;
+    pendingActions.length = 0;
+    const idempotencyKey = '0123456789abcdef';
+    const nodes = [{ title: 'Finding', description: 'Offline finding', type: 'finding', severity: 'low', metadata: {}, connections: [], references: [], idempotencyKey }];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, count: 1, ids: [idempotencyKey] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      render(<OfflineSyncManager />);
+      await flush();
+      await registeredExecutor!({ ...stateMachineOp({ projectId: 'project-1', nodes, localUpdatedAt: 'retained-envelope-only' }), collection: 'zettelkasten_nodes' });
+      expect(setDocCalls).toHaveLength(0);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/zettelkasten/nodes');
+      expect(JSON.parse(String(init.body))).toEqual({ projectId: 'project-1', nodes });
+      expect(init.headers).toMatchObject({ Authorization: 'Bearer test-token' });
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
 describe('OfflineSyncManager — one operation, one document', () => {
   beforeEach(() => {
     setDocCalls.length = 0;
@@ -144,6 +169,60 @@ describe('OfflineSyncManager — one operation, one document', () => {
     registeredExecutor = null;
     quarantineLegacyOperation.mockClear();
     uploadBytesMock.mockClear();
+  });
+
+  it('drains uploads queued after an already-online mount and coalesces repeated enqueue signals', async () => {
+    const { removeSyncedAction } = await import('../utils/pwa-offline');
+    vi.mocked(removeSyncedAction).mockImplementation(async (id) => { const index = pendingActions.findIndex((row) => typeof row === 'object' && row !== null && 'id' in row && row.id === id); if (index >= 0) pendingActions.splice(index, 1); });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    uploadBytesMock.mockImplementationOnce(async () => { await gate; return undefined; });
+    try {
+      render(<OfflineSyncManager />); await flush();
+      const collection = 'projects/project-1/workers/worker-1/documents';
+      const storagePath = `${collection}/document-ready/document-ready.pdf`;
+      pendingActions.push({ id: 52, type: 'upload', collection, docId: 'document-ready', file: new File(['fixture'], 'document-ready.pdf', { type: 'application/pdf' }), queueIdentity: { ownerUid: 'current-user', tenantId: 'current-tenant', installationId: 'current-installation', schemaVersion: 2 }, data: { onboardingUpload: 1, storagePath, documentData: { type: 'legal_onboarding', name: 'document-ready.pdf', archived: false, workerId: 'worker-1', projectId: 'project-1', storagePath, tenantId: 'current-tenant', createdBy: 'current-user' } } });
+      act(() => { window.dispatchEvent(new CustomEvent('sync-upload-boundary-ready')); window.dispatchEvent(new CustomEvent('sync-upload-boundary-ready')); });
+      await flush(); expect(uploadBytesMock).toHaveBeenCalledOnce();
+      release(); await flush(); await flush();
+      expect(pendingActions).toHaveLength(0); expect(uploadBytesMock).toHaveBeenCalledOnce();
+    } finally { release(); vi.mocked(removeSyncedAction).mockReset().mockResolvedValue(undefined); }
+  });
+
+  it('retains an upload whose binary is missing instead of falsely acknowledging it', async () => {
+    const { removeSyncedAction } = await import('../utils/pwa-offline');
+    vi.mocked(removeSyncedAction).mockClear();
+    const failures: unknown[] = [];
+    const listener = (event: Event) => failures.push((event as CustomEvent).detail);
+    window.addEventListener('sync-action-failed', listener);
+    try {
+      pendingActions.push({ id: 50, type: 'upload', collection: 'documents', data: { storagePath: 'documents/missing.pdf' }, queueIdentity: { ownerUid: 'current-user', tenantId: 'current-tenant', installationId: 'current-installation', schemaVersion: 2 } });
+      render(<OfflineSyncManager />); await flush();
+      expect(removeSyncedAction).not.toHaveBeenCalled();
+      expect(failures).toHaveLength(1); expect(uploadBytesMock).not.toHaveBeenCalled();
+    } finally { window.removeEventListener('sync-action-failed', listener); }
+  });
+
+  it('replays onboarding to its exact preallocated metadata document, never a root or derived replacement', async () => {
+    const collection = 'projects/project-1/workers/worker-1/documents';
+    const storagePath = `${collection}/document-1/document-1.pdf`;
+    pendingActions.push({ id: 51, type: 'upload', collection, docId: 'document-1', file: new File(['fixture'], 'document-1.pdf', { type: 'application/pdf' }), queueIdentity: { ownerUid: 'current-user', tenantId: 'current-tenant', installationId: 'current-installation', schemaVersion: 2 }, data: { onboardingUpload: 1, storagePath, documentData: { type: 'legal_onboarding', name: 'document-1.pdf', archived: false, workerId: 'worker-1', projectId: 'project-1', storagePath, tenantId: 'current-tenant', createdBy: 'current-user' } } });
+    render(<OfflineSyncManager />);
+    await flush();
+    expect(setDocCalls.map((call) => call.path)).toEqual([`${collection}/document-1`]);
+    expect(uploadBytesMock).toHaveBeenCalledOnce();
+  });
+
+  it('uses the preallocated project-worker ID, not a payload-derived replacement', async () => {
+    render(<OfflineSyncManager />);
+    await flush();
+    const execute = registeredExecutor;
+    if (!execute) throw new Error('executor not registered');
+    const op = { ...stateMachineOp({ id: 'offline-worker-1', name: 'Same Name', projectId: 'project-1' }), collection: 'projects/project-1/workers' };
+    await execute(op);
+    await execute(op);
+    expect(setDocCalls.map((call) => call.path)).toEqual(['projects/project-1/workers/offline-worker-1', 'projects/project-1/workers/offline-worker-1']);
+    expect(setDocCalls[0].data).not.toHaveProperty('id');
   });
 
   it('writes a single document when BOTH queues carry the same create', async () => {

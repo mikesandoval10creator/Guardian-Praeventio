@@ -12,7 +12,7 @@ out.
 
 Companion artefacts:
 - [`data-flow-diagram.md`](./data-flow-diagram.md) — DFD with trust boundaries.
-- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (33 entries).
+- [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (35 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
 - [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
@@ -358,6 +358,7 @@ to one of these boundaries.
 |-------|----------------|-------------|-------|
 | Firebase ID tokens | Browser memory, Authorization header | medium | Short-lived (~1 h). Refresh tokens managed by Firebase SDK in IndexedDB scoped to origin. |
 | Worker PII (RUT, name, email, role, project membership) | Firestore | medium | Chilean Ley 19.628 personal data; Ley 16.744 retention. |
+| Raw onboarding worker CSV | `tenants/{tid}/imports/{importId}` | high | Rule patch denies client reads after deployment; existing 512 KiB byte cap. Row/column validation, ETL, TTL and legal-hold policy remain open. |
 | Worker medical exams sub-collection | `users/{uid}/medical_exams/*` | high | Strict envelope: only owner + `medico_ocupacional` can read (`firestore.rules:186-189`). |
 | GPS / location traces | Firestore + Sentry breadcrumbs | medium | Scrubbed from Sentry breadcrumbs (`lib/sentry.ts:60-79`). |
 | Audit log trail | `audit_logs/*`, append-only | high | Required for ISO 45001 §7.5.3 and SUSESO investigations. |
@@ -365,7 +366,9 @@ to one of these boundaries.
 | `GEMINI_API_KEY` | Secret Manager | high | Cost lever — leak = unbounded Vertex spend until rotation. |
 | `WEBPAY_API_KEY`, `WEBPAY_COMMERCE_CODE` | Secret Manager | high | Production Transbank credentials. Defaults route to integration sandbox. |
 | `SESSION_SECRET` | Secret Manager (prod), random in dev | high | Boot fails in production if missing (`server.ts:231-243`). |
-| `IOT_WEBHOOK_SECRET`, `MP_IPN_SECRET` | Secret Manager | high | HMAC keys for telemetry and MP IPN. Per-tenant rotation via `/api/admin/iot/rotate-secret`. |
+| `IOT_WEBHOOK_SECRET`, `MP_IPN_SECRET` | Secret Manager | high | Shared telemetry fallback and MP IPN HMAC keys; distinct from tenant-scoped IoT keys. |
+| Tenant IoT HMAC keys | Firestore `tenant_iot_secrets/{tenantId}` (Admin SDK only) | high | Client rules deny access. Legacy `tenants/{id}.iotSecret` fallback remains until the authorized backfill is verified. |
+| Per-device IoT HMAC keys | `tenants/{tid}/iot_devices/{deviceId}` (server-only rules) | high | MQTT bridge reads via Admin SDK; `iot_devices` is excluded from the tenant-member read catch-all. |
 | `SENTRY_DSN` | Secret Manager | medium | Public-key DSN; loss = noise capture by attacker, not a privacy leak. |
 
 ---
@@ -382,7 +385,9 @@ to one of these boundaries.
 
 ### 5.2 Malicious authenticated user (insider, low privilege)
 - **Goals**: privilege escalation, cross-tenant read/write, manipulate
-  audit log, self-promote subscription, exfiltrate PII via AI prompt.
+  audit log, self-promote subscription, exfiltrate PII via AI prompt/readable
+  onboarding imports, or retrieve tenant IoT credentials from an unprotected
+  Firestore path.
 - **Capabilities**: a valid Firebase ID token, ability to call any
   endpoint that `verifyAuth` admits, ability to write Firestore docs
   the rules permit.
@@ -467,7 +472,9 @@ encyclopedic.
 | TM-I03 | Worker pastes RUT / medical detail into Asesor prompt | Sent verbatim to Vertex AI | **partial** — needs server-side regex sweep before prompt build |
 | TM-I04 | Production stack traces returned to client | Eases attacker recon | **mitigated** — `gemini.ts:323-330` returns generic `'Internal server error'` in prod |
 | TM-I05 | CSP `connectSrc` wildcard `*.googleapis.com` | Compromised dep exfiltrates to attacker-controlled subdomain | **open** — replace wildcard with explicit list |
-| TM-I06 | Audit log omits full URL by design | Investigator may miss query-string context | **mitigated** — intentional; document in incident-response runbook |
+| TM-I06 | Audit row IP and userAgent | Investigator may miss query-string context | **mitigated** — intentional; document in incident-response runbook |
+| TM-I07 | Tenant-readable IoT HMAC credentials | A tenant member can read a legacy root secret or a per-device key through the tenant subcollection catch-all | **partial** — the code rules deny `tenant_iot_secrets` and `iot_devices` and emulator tests pass; production deployment is pending. Legacy root fields remain readable until the separately authorized migration is applied and verified. |
+| TM-I08 | Tenant-readable onboarding worker CSV | A same-tenant member can read pending raw CSV imports, including another project’s document | **partial** — the rules patch excludes `imports` from the tenant read catch-all and explicitly denies client access; emulator tests reproduce the old leak and verify the patch. Production deployment is pending. The 512 KiB cap exists, but row/column validation, retention/TTL, legal hold and a processing consumer remain unresolved. |
 
 ### 7.5 Denial of service (D)
 | ID | Threat | Manifestation | Status |
@@ -492,7 +499,23 @@ encyclopedic.
 In order of severity / blast radius. All cross-linked from
 [`STRIDE_findings.md`](./STRIDE_findings.md).
 
-1. **TM-I03 — Vertex AI prompt PII redaction** — high.
+1. **TM-I08 — Onboarding worker CSV raw PII** — high; rules patch prepared, deployment and lifecycle policy pending.
+   The route stores the unparsed CSV as a tenant subdocument; the former
+   catch-all allowed members to read/list it across projects. The patch denies
+   client access when deployed, but existing raw files remain server-readable
+   and no TTL or approved retention/legal-hold period exists. Owner: privacy/security.
+   Estimate: unmeasured pending retention and processing decisions.
+
+2. **TM-I07 — Tenant-readable IoT HMAC credentials** — high; production backfill pending.
+   The tenant root document remains readable, and a legacy `iotSecret` field
+   therefore exposes the HMAC key to tenant members. The tenant subcollection
+   catch-all also exposed per-device credentials. Code/rules now move tenant keys
+   to `tenant_iot_secrets` and deny client reads of `iot_devices`; the migration
+   script is dry-run by default. Do not close until an authorized production
+   backfill confirms no root secrets remain. Owner: security/ops. Estimate:
+   unmeasured until a tenant inventory and dry-run are reviewed.
+
+3. **TM-I03 — Vertex AI prompt PII redaction** — high.
    Worker may paste a Chilean RUT, medical exam result, or supervisor
    email into the Asesor input. The prompt is sent verbatim to Vertex.
    Mitigation: server-side regex sweep in `src/server/routes/gemini.ts`
@@ -501,7 +524,7 @@ In order of severity / blast radius. All cross-linked from
    *(Cross-link: similar concern raised at high level in
    `auditoria777.md` privacy notes section.)*
 
-2. **TM-T03 — IndexedDB offline queue HMAC** — medium.
+4. **TM-T03 — IndexedDB offline queue HMAC** — medium.
    The reconciliation path trusts disk-resident `{query, response}`
    payloads. A local attacker (shared device, malware) can poison the
    Zettelkasten with attacker-controlled nodes via reconciliation.
@@ -509,7 +532,7 @@ In order of severity / blast radius. All cross-linked from
    (e.g. SHA-256 of refresh-token-tail + hardcoded salt) verified at
    reconcile. Owner: SLM bucket. Estimate: 4 h.
 
-3. **TM-E02 — Cloud Run SA scope verification** — medium, ops-led.
+5. **TM-E02 — Cloud Run SA scope verification** — medium, ops-led.
    Audit `gcloud run services describe` output and ensure the runtime
    SA holds only the bindings needed: `roles/aiplatform.user` scoped to
    the Vertex region/model; `roles/datastore.user` on the project's
