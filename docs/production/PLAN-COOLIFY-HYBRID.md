@@ -1,9 +1,12 @@
 # Plan de producción híbrida — Guardian Praeventio
 
 **Estado:** plan reconciliado con los acuerdos de Daniel; ejecución funcional en curso (Etapa E abierta).
-**Creado:** 2026-10-26 · **Actualizado:** 2026-11-01
+**Creado:** 2026-10-26 · **Actualizado:** 2026-11-15 (revisión documental; los inventarios del 01-nov son históricos)
 **Base histórica:** `c11b4308`; no representa el HEAD actual.
-**Snapshot de esta actualización documental:** `main` en `01c61cad` (PR #1897 integrado).
+**Snapshot original:** `main` en `01c61cad` (PR #1897 integrado).
+**Base de la revisión del 2026-11-15:** `main` en `531596c7` (#1938 integrado).
+La revisión corrige límites y guía de ejecución; no revalida globalmente los
+inventarios, herramientas o estados externos del snapshot del 01-nov.
 
 ## Continuidad y alcance vigente
 
@@ -13,7 +16,7 @@ los documentos existentes; no inicia implementación, instala herramientas, crea
 infraestructura, fusiona PRs ni autoriza producción por sí sola. Las propuestas
 siguen siendo propuestas hasta su implementación y verificación.
 
-- **Workspace de desarrollo:** el checkout canónico de `main` es
+- **Workspace de desarrollo (snapshot histórico del 2026-11-01):** el checkout canónico de `main` era
   `M:/Guardian Praeventio/wt-knowledge-graph-layout-20261027` (`01c61cad`, limpio,
   Graphify en sync). `M:/Guardian Praeventio/repo-live` queda preservado y
   **restaurado** (85 archivos de `packages/capacitor-*` y 4 documentos de
@@ -53,10 +56,15 @@ verificada físicamente. El resto de la tabla se conserva como histórico.
 | Digital twin/AR/CAD | Línea de evolución acordada y referencia ArtCraft identificada | Revalidar capacidades existentes y cerrar un recorrido operacional, con licencias y criterios funcionales |
 | SEO y medición | Incluidos en este plan | Verificación técnica y consentimiento antes de activar servicios o solicitar indexación |
 
-**Estado del ledger (Notion Alpha 41, consulta paginada del 2026-11-01):**
+**Ledger histórico reportado el 2026-11-01; no es un conteo vigente:**
 1.854 tickets — **560 cerrados** (371 `Verified` + 114 `Merged` + 39 `Done` +
 32 `Ya-real (auditoría)` + 4 `Ya-real`) y **664 pendientes** (595 `Spec'd` +
 18 `In-progress` + 51 `Backlog`); 629 `Cancelled`.
+**Advertencia de integridad:** esas categorías suman 1.853, no los 1.854
+reportados. El registro restante no está identificado en este documento;
+no atribuirle un estado ni usar este desglose para afirmar un total exacto.
+Un conteo actual requiere consulta viva paginada con estados desconocidos
+contabilizados por separado.
 
 **Revalidación de los `Spec'd` contra `main` (2026-11-01):** de 595 pendientes,
 469 provienen de auditorías Hy3 (388 `[Hy3-audit]`, 65 `[Hy3-architect-oleada-1]`,
@@ -69,21 +77,29 @@ nombre de archivo (`file:296`) que se resuelve por el encabezado de sesión.
 estimación del ~35% de archivos fantasma del 23-ago— y el problema no es el
 volumen falso sino el **volumen real sin triage por severidad**.
 
-**Segunda pasada — clasificación por contenido** (no solo existencia): de esos
-469, **201 son REALES** (el defecto descrito sigue presente en el código actual),
-**212 son DRIFT** (el archivo existe pero la línea cambió o el caso ya está
-cubierto) y **56 no son comparables** (la spec no trae código verbatim). Por
+**Segunda pasada histórica — clasificación por contenido** (no solo existencia): de esos
+469, **201 se clasificaron como REAL** en el snapshot del 01-nov,
+**212 como DRIFT** (el fragmento citado cambió de ubicación o contenido;
+esto no demuestra que el defecto esté corregido) y **56 como no comparables**
+(la spec no trae código verbatim). Por
 subsistema, según el artefacto de evidencia: `emergency/` 34, `mesh/` 10,
 `sensorBus/` 2 y el resto 155; 19 de los 201 vienen marcados como
 `vida_safety`. Confirmación manual de dos hallazgos «REAL» por muestreo: el mock
 de `src/components/emergency/GeofenceAlert.test.tsx` solo devuelve
 `permissionState: 'granted'` y nunca `'unavailable'`, y
 `src/services/emergency/sosOutbox.indexeddb.ts` documenta en su propio encabezado
-el uso de *«unencrypted idb-keyval»*. Es decir: **quedan 201 defectos con
-evidencia de archivo y línea**, 19 de ellos de vida-safety y 34 en el frente
-`emergency/`, que es el trabajo real que sigue. El detalle por ticket queda en
+el uso de *«unencrypted idb-keyval»*. Estos ejemplos y clasificaciones son
+históricos: no acreditan que hoy queden 201 defectos ni que los casos DRIFT
+puedan cerrarse. El detalle del análisis se referenció en
 `C:/Users/Usuario/AppData/Local/hermes/cache/scratch/hy3-content-revalidation.json`
-(469 registros) y no se promueve a este documento ni al ledger.
+(469 registros). Esa ruta local no es evidencia compartida ni durable: no
+usar sus cifras como cola activa, aceptación de un ticket o autorización de
+cierre. Para elegir trabajo, consultar la base canónica
+[Notion Alpha 41](https://www.notion.so/395aa66d73fe817c90ccd4802bf1c022),
+leer la `Spec` y `Verify cmd` del ticket vivo y contrastarlos con código/tests
+del HEAD actual. Registrar en el ticket la evidencia y el PR del slice; si
+no hay evidencia accesible, conservar el hallazgo como pendiente de revisión.
+No se publica un export local no recuperado ni se inventa un enlace al artefacto.
 
 **Agrupamiento para no abrir 201 PRs sueltos.** Los 201 hallazgos reales se
 concentran en **97 archivos distintos**, y 51 de esos archivos tienen un solo
@@ -92,7 +108,7 @@ hallazgo. Los de mayor densidad: `compliance/cloudKmsComplianceSigner.ts` (7),
 (6), `ergonomics/AIPostureAnalysisModal.tsx` (6), `hazmat/hazmatInventory.ts` (5),
 `jobs/runComplianceSnapshot.ts` (5), `compliance/Ds67Builder.tsx` (5),
 `pricingCalculator/pricingCalculator.ts` (5), `pricingCalculator/TierComparatorWidget.tsx`
-(5), `billingService.ts` (5). **Estrategia:** agrupar por archivo los de densidad
+(5), `billingService.ts` (5). **Estrategia propuesta sobre aquel snapshot:** agrupar por archivo los de densidad
 ≥ 3 (un slice, un PR, un test) y tratar los 51 huérfanos como un lote de
 higiene posterior. En `emergency/` el archivo más denso es
 `IncidentInvestigation.tsx` (4), seguido de `sosOutbox.ts` (3),
@@ -321,8 +337,9 @@ Con A cerrada, C cerrada y E en ejecución, el orden real que se sigue es:
 
 1. **Deuda técnica de la Etapa E (Notion), con vida-safety primero.** No es
    «abrir 664 tickets»: es revalidar por **contenido** (no solo por existencia
-   de archivo) y triagear por severidad. Los 434 tickets Hy3 que apuntan a
-   archivos reales se agrupan por subsistema; sepriorizan los que tocan
+   de archivo) y triagear por severidad. Los conteos Hy3 de arriba son
+   históricos; la selección sale de Notion vivo, no del archivo local. Se
+   agrupan los hallazgos revalidados por subsistema y se priorizan los que tocan
    `emergency/`, `mesh/`, `sensorBus/`, `loneWorker/`, `firestore.rules` y
    permisos. Cada lote es un slice con test y CI, no un mega-PR.
 2. **Etapa E — cierre de los pendientes nombrados.** Custodia BYOK multiusuario
@@ -385,7 +402,12 @@ Paso de integración pendiente (propuesto, no ejecutado): correr
 labels del tracker y layout de GLOSSARY/ADR — modifica configuración del
 repo, por lo que espera su revisión.
 
-### A — Reconciliar la base compartida, sin perder avances
+### A — Base compartida: CERRADA; checklist histórico, no ejecutar de nuevo
+
+La integración de #1874 (`d2dfaa53`) cerró esta etapa. Los pasos siguientes
+se conservan como criterios históricos de aceptación, no como instrucciones
+para resolver otra vez los cinco conflictos. Cualquier limpieza local exige
+inspeccionar el estado vivo de cada worktree y preservar trabajo no integrado.
 
 - Releer el diff y estado remoto de #1874 y los cambios ya integrados por
   #1872/#1873; resolver semánticamente los cinco conflictos del worktree de
@@ -422,8 +444,13 @@ actual y preservación comprobada de los contratos. No implica producción lista
   asset versionado por SHA-256, y auditoría de licencias (d3-force y d3-quadtree
   ISC; serde MIT/Apache-2.0). El módulo **no se commitea**: la fuente es la
   fuente de verdad.
-- Límites duros ya impuestos por el módulo, no por el loader: memoria lineal
-  ≤ 32 MiB por VM, entrada ≤ 8 MiB, salida ≤ 8 MiB.
+- Límites impuestos por el módulo: memoria lineal ≤ 32 MiB por VM y rechazo
+  de entradas > 8 MiB en `graph_alloc`. El cap de **salida ≤ 8 MiB pertenece
+  al loader/adaptor experimental**, no a `graph_layout`: este serializa la
+  salida sin comprobar ese tamaño. Una llamada ABI directa puede agotar la
+  memoria y producir una trampa antes de un error controlado `output_limit`.
+  Ver el contrato versionado en [`wasm/force-graph-layout/README.md`](../../wasm/force-graph-layout/README.md)
+  y la implementación en `wasm/force-graph-layout/src/bin/force_graph_layout.rs`.
 - **Lo que falta para decidir (no para implementar):**
   1. benchmark comparativo **Rust/WASM vs TypeScript commiteado en el repo**, con
      p50/p95/p99, cálculo puro, serialización, transferencia JS/WASM, carga
@@ -448,11 +475,19 @@ medición end-to-end. Compilar un probe WASM o cargar fixtures no satisface este
 criterio, y hoy la implementación ya satisface la parte difícil: lo que falta es
 la medición y la decisión.
 
-### C — Contrato operacional y ejecución acotada
+### C — Contrato operacional: CERRADO; criterios de mantenimiento
 
-- Cerrar el contrato Coolify existente: Dockerfile canónico, workflow, variables,
+El contrato de imágenes/API/proxy está implementado en
+[`COOLIFY-DEPLOYMENT-CONTRACT.md`](COOLIFY-DEPLOYMENT-CONTRACT.md),
+`scripts/__tests__/ops-contract.test.cjs` y `.github/workflows/ops-contract.yml`.
+Los puntos de contrato siguientes son criterios de mantenimiento: no ordenan
+reabrir esa implementación ni prueban un despliegue. El pool y el rollback
+de un eventual motor nuevo siguen condicionados a B; no se declaran cerrados
+por haber cerrado el contrato de contenedores.
+
+- Mantener el contrato Coolify existente: Dockerfile canónico, workflow, variables,
   clasificación de `firebase-applet-config.json`, comandos y puertos.
-- Probar imágenes, API real `/api/health`, proxy `/api/*`, headers/CORS y deep links
+- Conservar en CI las pruebas de imágenes, API real `/api/health`, proxy `/api/*`, headers/CORS y deep links
   con datos sintéticos; un preview estático no prueba funcionamiento del backend.
 - Donde el worker requiera ejecución concurrente, definir y probar pool acotado,
   cola, backpressure, cancelación/expiración y límites de entrada/salida/memoria.
