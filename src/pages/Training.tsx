@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -36,6 +36,7 @@ import {
   type LearningCard,
 } from '../services/spacedRepetition/spacedRepetitionScheduler';
 import { generateSafetyCapsule, generateTrainingQuiz } from '../services/geminiService';
+import type { SafetyCapsuleDto } from '../lib/safetyCapsule';
 import { TrainingSession } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -75,7 +76,18 @@ export function Training() {
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
-  const [capsule, setCapsule] = useState<string | null>(null);
+  const [capsule, setCapsule] = useState<SafetyCapsuleDto | null>(null);
+  const [capsuleError, setCapsuleError] = useState(false);
+  const [capsuleSaved, setCapsuleSaved] = useState(false);
+  const capsuleRequest = useRef(0);
+  useEffect(() => {
+    capsuleRequest.current += 1;
+    setCapsule(null);
+    setCapsuleError(false);
+    setCapsuleSaved(false);
+    setGeneratingCapsule(false);
+    return () => { capsuleRequest.current += 1; };
+  }, [selectedProject?.id, user?.uid]);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
@@ -333,7 +345,11 @@ export function Training() {
   };
 
   const handleGenerateCapsule = async () => {
-    if (!isOnline) return;
+    if (!isOnline || generatingCapsule) return;
+    const request = ++capsuleRequest.current;
+    setCapsuleError(false);
+    setCapsule(null);
+    setCapsuleSaved(false);
     setGeneratingCapsule(true);
     try {
       // Find nodes connected to the user (heuristic: nodes with user's name or relevant tags)
@@ -349,6 +365,7 @@ export function Training() {
         'Operador', // Default role
         context
       );
+      if (request !== capsuleRequest.current) return;
       setCapsule(content);
 
       if (selectedProject && user) {
@@ -357,12 +374,13 @@ export function Training() {
           projectId: selectedProject.id,
           userId: user.uid,
           userName: user.displayName || 'Usuario',
-          content: content,
+          ...content,
           createdAt: new Date().toISOString()
         });
+        if (request !== capsuleRequest.current) return;
 
-        // Save to Zettelkasten
-        await addNode({
+        // addNode acknowledges a durable outbox enqueue, not server delivery.
+        const graphNode = await addNode({
           type: 'DOCUMENT' as any,
           title: `Cápsula de Seguridad: ${user.displayName || 'Usuario'}`,
           description: `Cápsula de seguridad generada por IA para ${user.displayName || 'Usuario'}.`,
@@ -372,14 +390,17 @@ export function Training() {
           metadata: {
             capsuleId: capsuleRef.id,
             userId: user.uid,
-            content: content
+            ...content
           }
         });
+        if (!graphNode) throw new Error('Capsule graph enqueue failed');
+        if (request === capsuleRequest.current) setCapsuleSaved(true);
       }
     } catch (error) {
       logger.error('Error generating capsule:', error);
+      if (request === capsuleRequest.current) setCapsuleError(true);
     } finally {
-      setGeneratingCapsule(false);
+      if (request === capsuleRequest.current) setGeneratingCapsule(false);
     }
   };
 
@@ -532,6 +553,12 @@ export function Training() {
         projectId={selectedProject?.id ?? null}
       />
 
+      {capsuleError && !capsule && (
+        <p role="alert" className="text-amber-300">
+          No se pudo generar la cápsula. Intenta nuevamente con el botón Cápsula de Seguridad IA.
+        </p>
+      )}
+
       {/* AI Capsule Modal */}
       <AnimatePresence>
         {capsule && (
@@ -562,9 +589,13 @@ export function Training() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                {capsuleError && <p role="alert" className="text-amber-300">El texto se generó, pero no se confirmó el registro completo. Consulta al administrador del proyecto antes de volver a generarlo.</p>}
                 <div className="prose prose-invert max-w-none">
                   <div className="whitespace-pre-wrap font-sans text-zinc-300 leading-relaxed text-lg">
-                    {capsule}
+                    <h3>{capsule.title}</h3>
+                    <p>{capsule.content}</p>
+                    {capsule.keyTip && <p>{capsule.keyTip}</p>}
+                    {capsule.duration && <p>{capsule.duration}</p>}
                   </div>
                 </div>
               </div>
@@ -575,7 +606,9 @@ export function Training() {
                     <Shield className="w-5 h-5" />
                   </div>
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest max-w-[200px]">
-                    Capacitación completada con éxito. Registro guardado en la Red Neuronal.
+                    {capsuleSaved
+                      ? 'Cápsula guardada en el proyecto; registro de la Red Neuronal en cola de sincronización.'
+                      : 'Cápsula generada. El guardado todavía no está confirmado.'}
                   </p>
                 </div>
                 <button 
