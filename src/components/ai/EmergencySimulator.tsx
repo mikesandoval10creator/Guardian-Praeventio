@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, AlertCircle, Shield, Loader2, Play, X, Info, Sparkles, MapPin, Users, Phone, WifiOff, Siren, Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, Shield, Loader2, Play, MapPin, Users, Phone, WifiOff, Siren, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateEmergencyScenario } from '../../services/geminiService';
@@ -9,7 +9,10 @@ import { useEmergency } from '../../contexts/EmergencyContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { logger } from '../../utils/logger';
-import { simulateFireSpread, type FireSpreadResult } from '../../services/euler/odeIntegrator';
+import type { FireSpreadResult } from '../../services/euler/odeIntegrator';
+import { runFireSpreadSimulation } from '../../services/euler/fireSpreadClient';
+import { humanErrorMessage } from '../../lib/humanError';
+import { clampFireHorizon, MAX_FIRE_MINUTES } from '../../services/euler/fireSpreadProtocol';
 
 interface Scenario {
   title: string;
@@ -43,17 +46,55 @@ export function EmergencySimulator() {
   const [suppressionStartT, setSuppressionStartT] = useState(5);
   const [tMax, setTMax] = useState(30);
   const [propagationResult, setPropagationResult] = useState<FireSpreadResult | null>(null);
+  const [propagationRunning, setPropagationRunning] = useState(false);
+  const [propagationError, setPropagationError] = useState<string | null>(null);
+  const [propagationCancelled, setPropagationCancelled] = useState(false);
+  const propagationKey = JSON.stringify([selectedProject?.id, initialArea, spreadRate, suppressionRate, suppressionStartT, tMax]);
+  const currentPropagationKey = useRef(propagationKey);
+  currentPropagationKey.current = propagationKey;
+  const activePropagation = useRef<{ key: string; controller: AbortController } | null>(null);
+  useEffect(() => {
+    setPropagationResult(null);
+    setPropagationError(null);
+    setPropagationCancelled(false);
+    if (activePropagation.current?.key !== propagationKey) setPropagationRunning(false);
+    return () => {
+      if (activePropagation.current?.key === propagationKey) activePropagation.current.controller.abort();
+    };
+  }, [propagationKey]);
 
-  const runPropagationSim = () => {
+  const cancelPropagation = () => {
+    activePropagation.current?.controller.abort();
+    activePropagation.current = null;
+    setPropagationRunning(false);
+    setPropagationResult(null);
+    setPropagationError(null);
+    setPropagationCancelled(true);
+  };
+  const runPropagationSim = async () => {
+    if (activePropagation.current && !activePropagation.current.controller.signal.aborted) return;
+    const request = { key: propagationKey, controller: new AbortController() };
+    activePropagation.current = request;
+    setPropagationRunning(true);
+    setPropagationResult(null);
+    setPropagationError(null);
+    setPropagationCancelled(false);
     try {
-      const result = simulateFireSpread(
+      const result = await runFireSpreadSimulation(
         { initialArea, spreadRate, suppressionRate, suppressionStartT },
-        0.25,
-        tMax,
+        clampFireHorizon(tMax),
+        request.controller.signal,
       );
-      setPropagationResult(result);
+      if (!request.controller.signal.aborted && currentPropagationKey.current === request.key) setPropagationResult(result);
     } catch (error) {
+      if (request.controller.signal.aborted || currentPropagationKey.current !== request.key) return;
+      setPropagationError(humanErrorMessage(error, 'No se pudo ejecutar la simulación. Revisa los parámetros e intenta nuevamente.'));
       logger.error('Error running fire spread simulation:', error);
+    } finally {
+      if (activePropagation.current === request) {
+        activePropagation.current = null;
+        if (!request.controller.signal.aborted && currentPropagationKey.current === request.key) setPropagationRunning(false);
+      }
     }
   };
 
@@ -272,7 +313,7 @@ export function EmergencySimulator() {
       {/* Local-first / offline: corre totalmente en cliente sin red. */}
       <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-white/10 max-w-2xl">
         <button
-          onClick={() => setPropagationOpen((v) => !v)}
+          onClick={() => { if (propagationOpen && activePropagation.current) cancelPropagation(); setPropagationOpen(!propagationOpen); }}
           className="w-full flex items-center justify-between gap-3 group"
           aria-expanded={propagationOpen}
         >
@@ -373,9 +414,10 @@ export function EmergencySimulator() {
                     <input
                       type="number"
                       min={1}
+                      max={MAX_FIRE_MINUTES}
                       step={1}
                       value={tMax}
-                      onChange={(e) => setTMax(Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) => setTMax(clampFireHorizon(Number(e.target.value) || 1))}
                       className="mt-1 w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-900/80 border border-zinc-300 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]"
                     />
                   </label>
@@ -383,11 +425,18 @@ export function EmergencySimulator() {
 
                 <button
                   onClick={runPropagationSim}
+                  disabled={propagationRunning}
                   className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#4db6ac] hover:bg-[#3a9e95] text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-[#4db6ac]/20 flex items-center justify-center gap-2"
                 >
-                  <Play className="w-4 h-4" />
-                  Ejecutar simulación
+                  {propagationRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {propagationRunning ? 'Calculando simulación…' : 'Ejecutar simulación'}
                 </button>
+
+                <p className="text-xs text-zinc-500">Horizonte local de 1 a {MAX_FIRE_MINUTES} minutos. Modelo orientativo de entrenamiento; no certifica la seguridad real.</p>
+                {propagationRunning && <p role="status" aria-live="polite">Calculando el modelo en un proceso independiente…</p>}
+                {propagationRunning && <button type="button" onClick={cancelPropagation}>Cancelar simulación</button>}
+                {propagationCancelled && <p role="status">Simulación cancelada. Puedes ajustar los parámetros y volver a ejecutarla.</p>}
+                {propagationError && <p role="alert" className="text-amber-600">{humanErrorMessage(propagationError)}</p>}
 
                 {propagationResult && (
                   <motion.div
