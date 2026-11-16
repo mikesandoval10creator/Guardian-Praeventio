@@ -88,7 +88,7 @@ export function EmergencySimulator() {
       if (!request.controller.signal.aborted && currentPropagationKey.current === request.key) setPropagationResult(result);
     } catch (error) {
       if (request.controller.signal.aborted || currentPropagationKey.current !== request.key) return;
-      setPropagationError(humanErrorMessage(error, 'No se pudo ejecutar la simulación. Revisa los parámetros e intenta nuevamente.'));
+      setPropagationError(humanErrorMessage(error));
       logger.error('Error running fire spread simulation:', error);
     } finally {
       if (activePropagation.current === request) {
