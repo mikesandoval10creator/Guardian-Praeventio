@@ -19,17 +19,18 @@ import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { GeminiDegradedError } from './degraded';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generateEmergencyPlan = async (
   projectName: string,
   context: string,
   industry?: string,
 ): Promise<string | undefined> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en gestión de emergencias industriales.
@@ -55,9 +56,10 @@ export const generateEmergencyPlan = async (
 };
 
 export const generateEmergencyScenario = async (context: string): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un escenario de emergencia simulado basado en el siguiente contexto de la red de riesgos:
@@ -247,9 +249,10 @@ export const generateEmergencyPlanJSON = async (
   normative: string,
   industry?: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const prompt = `
     Genera un Plan de Emergencia detallado para el siguiente escenario:
     Escenario: ${scenario}

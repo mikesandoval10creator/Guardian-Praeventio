@@ -13,6 +13,7 @@ import * as Sentry from '@sentry/core';
 import { getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { CollectionReference, Firestore } from 'firebase-admin/firestore';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
 interface VectorDocument {
   id: string;
@@ -23,7 +24,6 @@ interface VectorDocument {
 
 let isInitialized = false;
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 const METADATA_PATH = '_metadata/rag_status';
 
@@ -69,9 +69,10 @@ const withExponentialBackoff = async <T>(
  * Generates an embedding vector for a given text using Gemini's embedding model.
  */
 export const generateEmbedding = async (text: string): Promise<number[]> => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await withExponentialBackoff(() => 
     ai.models.embedContent({
       model: AI_MODEL_EMBEDDINGS,
@@ -88,9 +89,10 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
  * are never queried with a different semantic vector space without a backfill.
  */
 export const generateIncidentEmbedding = async (text: string): Promise<number[]> => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await withExponentialBackoff(() =>
     ai.models.embedContent({
       model: AI_MODEL_INCIDENT_EMBEDDINGS,

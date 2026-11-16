@@ -2,12 +2,13 @@ import { Type } from "@google/genai";
 import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { AI_MODEL_FAST } from '../config/aiModels';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const analyzePsychosocialRisks = async (surveyResults: any[], organizationalContext: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Eres un Psicólogo Organizacional experto en el protocolo ISTAS-21 y riesgos psicosociales en el trabajo.
@@ -72,8 +73,9 @@ export const analyzePsychosocialRisks = async (surveyResults: any[], organizatio
 };
 
 export const generateStressPreventionTips = async (role: string, criticalRisks: string[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Genera 5 consejos prácticos de manejo de estrés para un trabajador con el cargo de "${role}".

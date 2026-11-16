@@ -16,14 +16,15 @@ import { Type } from '@google/genai';
 import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const suggestRisksWithAI = async (
   industry: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
   // Round 16 (R1) doctrine — `criticidad` is intentionally OMITTED from
   // the prompt and the response schema. Risk-level classification is a
@@ -34,7 +35,7 @@ export const suggestRisksWithAI = async (
   // consumer (Matrix.tsx) must derive `criticidad` via the
   // deterministic P×S ladder so auditors cannot mistake an AI guess
   // for a deterministic figure.
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
@@ -88,9 +89,10 @@ export const suggestRisksWithAI = async (
 };
 
 export const suggestNormativesWithAI = async (industry: string): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera una lista de 3 normativas, leyes o decretos chilenos específicos y críticos para la industria: ${industry}. No incluyas la Ley 16.744 ni el DS 594 que son generales. Enfócate en riesgos específicos del rubro.`,

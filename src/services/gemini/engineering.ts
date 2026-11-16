@@ -16,13 +16,14 @@
 import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { logger } from '../../utils/logger';
 import { AI_MODEL_REASONING } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const calculateStructuralLoad = async (element: string, specs: string) => {
   try {
-    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = createGeminiClient({ apiKey: apiKey });
     const prompt = `
       Actúa como un Ingeniero Estructural Senior y Experto en Prevención de Riesgos.
       Necesito calcular la capacidad de carga y entender el funcionamiento seguro del siguiente elemento:
@@ -53,8 +54,9 @@ export const calculateStructuralLoad = async (element: string, specs: string) =>
 
 export const designHazmatStorage = async (storageType: string, volume: number, materialClass: string) => {
   try {
-    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = createGeminiClient({ apiKey: apiKey });
     const prompt = `
       Actúa como un Experto en Normativa Chilena (OGUC - Ordenanza General de Urbanismo y Construcciones) y DS 43 (Reglamento de Almacenamiento de Sustancias Peligrosas).
       Necesito diseñar una bodega o instalación con las siguientes características:

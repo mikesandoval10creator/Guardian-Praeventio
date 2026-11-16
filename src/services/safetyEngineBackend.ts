@@ -6,8 +6,8 @@ import { logger } from '../utils/logger';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const performProjectSafetyHealthCheck = async (projectId: string) => {
     const db = getFirestore();
@@ -68,8 +68,9 @@ export const performProjectSafetyHealthCheck = async (projectId: string) => {
 };
 
 export const autoValidateTelemetry = async (telemetryEvent: any) => {
-    if (!API_KEY) return;
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) return;
+    const ai = createGeminiClient({ apiKey: apiKey });
     
     // Simple anomaly detection
     const prompt = `
@@ -96,8 +97,9 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
 };
 
 export const predictGlobalIncidents = async (context: string, envContext: string) => {
-    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = createGeminiClient({ apiKey: apiKey });
 
     const prompt = `
         Analiza el panorama GLOBAL de riesgos para la organización Praeventio.

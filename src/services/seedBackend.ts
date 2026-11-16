@@ -6,14 +6,15 @@ import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 import { getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 const INDUSTRIES = ["Construcción", "Minería", "Forestal"];
 
 const generateInitialDataForIndustry = async (industry: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   logger.debug(`Generating initial data for industry: ${industry}`);
 

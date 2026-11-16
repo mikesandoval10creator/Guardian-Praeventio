@@ -2,12 +2,13 @@ import { Type } from "@google/genai";
 import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { AI_MODEL_FAST } from '../config/aiModels';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreements: any[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Genera una tabla de contenidos y agenda para la reunión del Comité Paritario de Higiene y Seguridad (CPHS).
@@ -41,8 +42,9 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
 };
 
 export const summarizeAgreements = async (rawMeetingNotes: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Analiza las notas de una reunión del Comité Paritario y extrae los ACUERDOS de forma estructurada.

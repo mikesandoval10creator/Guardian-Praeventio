@@ -30,13 +30,14 @@ import {
   AI_MODEL_FAST_STABLE,
   AI_MODEL_REASONING,
 } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generateOperationalTasks = async (normativeTitle: string, normativeDescription: string): Promise<string[]> => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const prompt = `
     Eres un experto en Prevención de Riesgos y Compliance Normativo en Chile.
     Tu tarea es traducir la siguiente normativa legal en una lista de tareas operativas claras y accionables para los trabajadores y supervisores en terreno.
@@ -69,12 +70,13 @@ export const generateOperationalTasks = async (normativeTitle: string, normative
 
 export const evaluateMinsalCompliance = async (protocolTitle: string, context: string, industry?: string) => {
   try {
-    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
     // Get relevant legal context using RAG
     const legalContext = await searchRelevantContext(`Exigencias y sanciones del protocolo MINSAL: ${protocolTitle} en la industria ${industry || 'general'}`);
 
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: apiKey });
     const prompt = `
       Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744, utilizando siempre como base la Biblioteca del Congreso Nacional de Chile (BCN).
       Necesito evaluar el nivel de cumplimiento del siguiente protocolo en mi proyecto:
@@ -107,9 +109,10 @@ export const evaluateMinsalCompliance = async (protocolTitle: string, context: s
 };
 
 export const calculateComplianceSummary = async (projectId: string, nodes: any[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   // Filter nodes for the project
   const projectNodes = nodes.filter(n => n.projectId === projectId);
@@ -159,8 +162,9 @@ export const calculateComplianceSummary = async (projectId: string, nodes: any[]
 };
 
 export const processGlobalSafetyAudit = async (_projectId: string, projectData: any) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Auditoría Master de Seguridad - Proyecto: ${projectData.name}.
@@ -195,8 +199,9 @@ export const processGlobalSafetyAudit = async (_projectId: string, projectData: 
 };
 
 export const scanLegalUpdates = async (normativeTitle: string, normativeText: string, modulesSummary: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Eres un experto en normativa de seguridad laboral chilena (DS 594, DS 44/2024, Ley 16.744, SUSESO).

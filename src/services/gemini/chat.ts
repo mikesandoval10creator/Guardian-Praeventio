@@ -19,7 +19,6 @@ import { redactPii } from '../observability/piiRedactor';
 import { searchRelevantContext } from '../ragService';
 import { AI_MODEL_CHAT, AI_MODEL_FAST } from '../../config/aiModels';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 // TODO(§12.5.1 step 10 → step 2 merge): cuando PR #555 (gemini/pii.ts)
 // mergee a main, reemplazar este helper inline por import compartido.
@@ -44,10 +43,11 @@ const redactPromptForVertex = (prompt: string, action: string): string => {
 };
 
 export const queryBCN = async (query: string): Promise<string | undefined> => {
-  if (!API_KEY) throw new Error('API Key no configurada');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('API Key no configurada');
 
   const legalContext = await searchRelevantContext(query);
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const prompt = `
   Eres un asistente legal y normativo estricto, conectado a la base de datos vectorial de la Biblioteca del Congreso Nacional de Chile (BCN) y normativas ISO.
 
@@ -86,6 +86,7 @@ export const queryBCN = async (query: string): Promise<string | undefined> => {
  * mismo asesor cambia de "lente" según el dominio.
  */
 import { asesorDomainFocus, type AsesorDomain } from '../ai/asesorDomain.js';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 export { asesorDomainFocus, type AsesorDomain } from '../ai/asesorDomain.js';
 
 export const getChatResponse = async (
@@ -95,10 +96,11 @@ export const getChatResponse = async (
   detailLevel: number = 1,
   domain: AsesorDomain = 'general',
 ): Promise<string | undefined> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
   const legalContext = await searchRelevantContext(message);
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const detailInstructions = [
     'Respuesta muy precisa, directa y concisa. Máximo 2-3 párrafos o una lista corta de puntos clave. Evita introducciones largas.',
@@ -162,9 +164,10 @@ export interface SafetyAdviceWeather {
 export const getSafetyAdvice = async (
   weather: SafetyAdviceWeather,
 ): Promise<string | undefined> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:

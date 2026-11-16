@@ -38,6 +38,7 @@ import {
   CriticidadLabel,
   ProbabilidadLabel,
 } from './types';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
 // TODO(§12.5.1 step 6 → step 2 merge): cuando PR #555 (gemini/pii.ts)
 // mergee a main, reemplazar este helper inline por `import {
@@ -63,7 +64,6 @@ const redactPromptForVertex = (prompt: string, action: string): string => {
   return redacted;
 };
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const analyzeFastCheck = async (observation: string): Promise<unknown> => {
   // Sprint 20 Bucket Mu — wrap with Sentry scope. We DO NOT pass the
@@ -75,9 +75,10 @@ export const analyzeFastCheck = async (observation: string): Promise<unknown> =>
     'gemini',
     { action: 'analyzeFastCheck', observationLength: observation?.length ?? 0 },
     async () => {
-      if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-      const ai = createGeminiClient({ apiKey: API_KEY });
+      const ai = createGeminiClient({ apiKey: apiKey });
       const fastCheckPrompt = `Analiza la siguiente observación de seguridad en terreno (Fast Check):
     "${observation}"
 
@@ -199,9 +200,10 @@ async function predictGlobalIncidentsImpl(
   context: string,
   envContext: string,
 ): Promise<PredictiveIncidentResult> {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un sistema de predicción de riesgos industriales.
@@ -296,7 +298,8 @@ async function analyzeRiskWithAIImpl(
   nodesContext: string,
   industry?: string,
 ): Promise<unknown> {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
   // Round 16 (R1) — `criticidad` is intentionally OMITTED from the prompt
   // and the response schema. Risk level / criticidad classification is a
@@ -326,7 +329,7 @@ async function analyzeRiskWithAIImpl(
   const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
 
   const fallback = async () => {
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: apiKey });
     const response = await ai.models.generateContent({
       model: AI_MODEL_FAST,
       contents: safePrompt,
@@ -378,9 +381,10 @@ export const analyzeRootCauses = async (
   riskDescription: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('API Key no configurada');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('API Key no configurada');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos laborales en Chile y la metodología Zettelkasten.
 
   Se ha solicitado un análisis de causas raíz para el siguiente riesgo:

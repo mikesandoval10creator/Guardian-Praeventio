@@ -2,12 +2,13 @@ import { Type } from "@google/genai";
 import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { AI_MODEL_FAST } from '../config/aiModels';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const predictEPPReplacement = async (eppItem: any, usageData: any) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Predice la fecha de reemplazo recomendada para el siguiente EPP y calcula su vida útil remanente.
@@ -41,8 +42,9 @@ export const predictEPPReplacement = async (eppItem: any, usageData: any) => {
 };
 
 export const auditEPPCompliance = async (workerId: string, assignedEPP: any[], requiredEPP: any[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Realiza una auditoría de cumplimiento de EPP para el trabajador ${workerId}.
