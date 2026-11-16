@@ -16,7 +16,8 @@
 
 import { Modality } from '@google/genai';
 import { createGeminiClient } from './ai/geminiClientFactory.js';
-import { API_KEY, withExponentialBackoff } from './gemini/_shared.js';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
+import { withExponentialBackoff } from './gemini/_shared.js';
 import { AI_MODEL_IMAGE_GENERATION } from '../config/aiModels.js';
 
 export interface MedicalIllustrationSuccess {
@@ -38,7 +39,8 @@ export async function generateMedicalIllustration(
   regions: { id: string; label: string; severity: string | null }[],
   specialistContext?: string,
 ): Promise<MedicalIllustrationResult> {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   const injured = regions.filter((r) => r.severity !== null);
   if (injured.length === 0) return { error: 'Sin zonas para ilustrar' };
 
@@ -53,7 +55,7 @@ Educational and professional — suitable for occupational health DIAT documenta
 ${specialistContext ? `Context: ${specialistContext}` : ''}
 No text overlays. Purely visual anatomical reference.`;
 
-  const genAI = createGeminiClient({ apiKey: API_KEY });
+  const genAI = createGeminiClient({ apiKey });
   return await withExponentialBackoff(async () => {
     const response = await genAI.models.generateContent({
       model: AI_MODEL_IMAGE_GENERATION,

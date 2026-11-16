@@ -20,8 +20,8 @@ import type { RiskNode } from '../../types';
 import { logger } from '../../utils/logger';
 import { withExponentialBackoff } from './parsing';
 import { AI_MODEL_EMBEDDINGS, AI_MODEL_FAST } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 const EMBEDDING_MODEL = AI_MODEL_EMBEDDINGS;
 
 /**
@@ -48,10 +48,11 @@ export function cosineSimilarity(a: readonly number[], b: readonly number[]): nu
 }
 
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   if (texts.length === 0) return [];
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const embeddings: number[][] = [];
 
   for (const text of texts) {
@@ -75,10 +76,11 @@ export const autoConnectNodes = async (
   newNode: Partial<RiskNode>,
   existingNodes: Partial<RiskNode>[],
 ): Promise<string[]> => {
-  if (!API_KEY) return [];
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return [];
   if (existingNodes.length === 0) return [];
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const nodesContext = existingNodes
     .map((n) => `ID: ${n.id}, Title: ${n.title}, Type: ${n.type}`)
@@ -135,11 +137,12 @@ export const semanticSearch = async (
   const candidates = projectId
     ? nodes.filter((n) => (n as RiskNode & { projectId?: string }).projectId === projectId)
     : nodes;
-  if (!API_KEY) return candidates.slice(0, topK);
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return candidates.slice(0, topK);
   if (candidates.length === 0) return [];
 
   try {
-    const ai = createGeminiClient({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: apiKey });
     const queryResponse = await ai.models.embedContent({
       model: EMBEDDING_MODEL,
       contents: query,

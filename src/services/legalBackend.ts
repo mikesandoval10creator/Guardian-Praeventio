@@ -4,8 +4,8 @@ import { parseGeminiJson } from './gemini/parsing';
 import { LEGAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
 import { AI_MODEL_FAST_STABLE, AI_MODEL_REASONING } from '../config/aiModels.js';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 let ragSingleton: NormativeRagService | null = null;
 const getRag = (): NormativeRagService => {
@@ -29,8 +29,9 @@ const renderPersonaHeader = (): string => {
 };
 
 export const auditLegalGap = async (companyProcedures: any[], applicableNormatives: any[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -97,8 +98,9 @@ referenciadas.`;
 };
 
 export const evaluateNormativeImpact = async (newNormativeText: string, currentOperations: any[]) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(

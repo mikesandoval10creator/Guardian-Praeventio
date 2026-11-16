@@ -15,8 +15,8 @@ import { Type } from '@google/genai';
 import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generatePTS = async (
   taskName: string,
@@ -29,9 +29,10 @@ export const generatePTS = async (
   zkContext: string,
   documentType: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos chileno certificado en ISO 45001.
@@ -96,9 +97,10 @@ export const generatePTSWithManufacturerData = async (
   zkContext: string,
   documentType: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos y mantenimiento industrial chileno.
@@ -142,9 +144,10 @@ export const generateSafetyReport = async (
   reportType: 'PTS' | 'PE' | 'AST',
   context: string,
 ): Promise<string | undefined> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Eres "El Guardián", el núcleo de IA de Praeventio Guard. Genera un borrador profesional y exhaustivo de un documento de seguridad tipo ${reportType} (Procedimiento de Trabajo Seguro, Plan de Emergencia o Análisis Seguro de Trabajo) basado en el siguiente contexto:

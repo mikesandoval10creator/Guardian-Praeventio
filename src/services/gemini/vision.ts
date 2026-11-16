@@ -20,16 +20,17 @@ import { Type } from '@google/genai';
 import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_VISION, AI_MODEL_VISION_FAST } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const analyzePostureWithAI = async (
   base64Image: string,
   mimeType: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION,
     contents: [
@@ -71,9 +72,10 @@ export const analyzeSafetyImage = async (
   mimeType: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION,
     contents: [
@@ -122,9 +124,10 @@ export const analyzeSafetyImage = async (
 };
 
 export const analyzeBioImage = async (base64Image: string): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION_FAST,
     contents: {

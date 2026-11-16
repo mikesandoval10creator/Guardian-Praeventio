@@ -19,8 +19,8 @@ import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { searchRelevantContext } from '../ragService';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generateActionPlan = async (
   findingTitle: string,
@@ -28,9 +28,10 @@ export const generateActionPlan = async (
   severity: string = 'Media',
   workerProposal?: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const promptContent = `Genera un plan de acción correctivo para el siguiente hallazgo de seguridad.
     Título: <user_input>${findingTitle}</user_input>
     Descripción: <user_input>${findingDescription}</user_input>
@@ -81,9 +82,10 @@ export const generatePersonalizedSafetyPlan = async (
   history: string,
   projectRisks: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   // Search for role-specific safety standards and common risks in Chile
   const searchTerms = `Normativa seguridad Chile rol ${role} riesgos comunes`;
@@ -132,9 +134,10 @@ export const generateTrainingRecommendations = async (
   workerRole: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un experto en capacitación de seguridad industrial.
@@ -168,9 +171,10 @@ export const generateSafetyCapsule = async (
   role: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera una cápsula de seguridad de 1 minuto para el trabajador ${workerName} (${role}).
@@ -200,9 +204,10 @@ export const generateCompensatoryExercises = async (
   posture: number,
   attention: number,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const prompt = `Genera una rutina rápida de ejercicios compensatorios (pausa activa) basada en las siguientes métricas biométricas de un trabajador:
   - Fatiga: ${fatigue}% (Alta fatiga requiere ejercicios de activación y descanso visual)
   - Calidad Postural: ${posture}% (Baja postura requiere estiramientos de espalda, cuello y hombros)

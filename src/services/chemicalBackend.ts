@@ -4,8 +4,8 @@ import { parseGeminiJson } from './gemini/parsing';
 import { CHEMICAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 // Lazy-initialized RAG (constructed on first use). One instance is enough —
 // in-memory mode is cheap and Pinecone mode is stateless per call.
@@ -31,8 +31,9 @@ const renderPersonaHeader = (): string => {
 };
 
 export const analyzeChemicalRisk = async (sdsText: string, storageConditions: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -99,8 +100,9 @@ referencias normativas que respaldan cada hallazgo.`;
 };
 
 export const designHazmatStorage = async (storageType: string, volume: number, materialClass: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -155,8 +157,9 @@ Responde en JSON e incluye "citations" con las normas usadas.`;
 };
 
 export const suggestChemicalSubstitution = async (currentChemical: string, purpose: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(

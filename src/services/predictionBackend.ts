@@ -3,8 +3,8 @@ import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { withSentryScope } from './observability/sentryInstrumentation';
 import { AI_MODEL_REASONING } from '../config/aiModels';
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generatePredictiveForecast = async (projectName: string, context: string, weatherContext: string) => {
   // Sprint 20 Bucket Mu — Sentry scope tags `module=prediction` so an
@@ -24,8 +24,9 @@ export const generatePredictiveForecast = async (projectName: string, context: s
 };
 
 async function generatePredictiveForecastImpl(projectName: string, context: string, weatherContext: string) {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Genera un pronóstico predictivo de seguridad para el proyecto: ${projectName}.
@@ -91,8 +92,9 @@ export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => {
 };
 
 async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   const prompt = `
     Analiza correlaciones ocultas entre los nodos de la red de conocimiento y los eventos de telemetría recientes.

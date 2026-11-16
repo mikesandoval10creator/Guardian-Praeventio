@@ -12,7 +12,11 @@ import * as Sentry from '@sentry/core';
 import { logger } from '../../utils/logger.js';
 import { redactPii } from '../observability/piiRedactor.js';
 
-export const API_KEY = process.env.GEMINI_API_KEY;
+// NOTE: this module used to export `const API_KEY = process.env.GEMINI_API_KEY`.
+// A module-scope constant freezes the credential at import time, which makes a
+// per-user ("bring your own subscription") credential impossible. Callers now
+// resolve the key at call time via `getGeminiApiKey()` from
+// `src/services/ai/geminiApiKey.js`.
 
 /** Sleep helper for backoff. */
 export const sleep = (ms: number): Promise<void> =>

@@ -1,9 +1,8 @@
 import { logger } from '../utils/logger';
 import { autoConnectNodes } from "./geminiBackend";
 import { assertProjectMember } from "./auth/projectMembership";
+import { getGeminiApiKey } from './ai/geminiApiKey.js';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-
-const API_KEY = process.env.GEMINI_API_KEY;
 
 /**
  * Maximum number of recent nodes that will be passed to `autoConnectNodes`
@@ -204,7 +203,7 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   // by this point, so a suggestion failure must NOT roll back the node.
   let connectionSuggestions: string[] = [];
   try {
-    if (API_KEY) {
+    if (getGeminiApiKey()) {
       const recentSnapshot = await db
         .collection('nodes')
         .where('projectId', '==', nodeData.projectId || 'global')

@@ -36,8 +36,8 @@ import {
   type DocumentComplianceResult,
 } from './documentCompliance';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
 
-const API_KEY = process.env.GEMINI_API_KEY;
 
 // TODO(§12.5.1 step 12 → step 2 merge): cuando PR #555 (gemini/pii.ts)
 // mergee a main, reemplazar este helper inline por import compartido.
@@ -65,9 +65,10 @@ export const generateISOAuditChecklist = async (
   topic: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Genera un checklist de auditoría basado en la norma ISO 45001 para el tema: "${topic}".
@@ -114,9 +115,10 @@ export const generateISOAuditChecklist = async (
 };
 
 export const processDocumentToNodes = async (text: string): Promise<RiskNode[]> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   // Chunking strategy to avoid token limits.
   const CHUNK_SIZE = 8000;
@@ -174,9 +176,10 @@ export const auditAISuggestion = async (
   suggestion: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como el "Guardián de la Ética" de Praeventio Guard.
@@ -216,9 +219,10 @@ export const analyzeDocumentCompliance = async (
   // resultado explícito, sin gastar llamada al modelo.
   if (!hasAnalyzableText(documentText)) return UNANALYZED_DOCUMENT_RESULT;
 
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza el cumplimiento normativo del siguiente documento.
@@ -255,9 +259,10 @@ export const investigateIncidentWithAI = async (
   incidentDescription: string,
   context: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
 
   // Search for relevant investigation techniques and legal requirements (e.g., DIAT/DIEP).
   const searchTerms = `Metodología investigación incidentes Chile ley 16.744 ${incidentTitle}`;
@@ -331,9 +336,10 @@ export const auditProjectComplianceWithAI = async (
   projectContext: string,
   normativeContext: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un auditor senior de cumplimiento de seguridad y salud ocupacional.
@@ -379,9 +385,10 @@ export const analyzeAttendancePatterns = async (
   projectName: string,
   attendanceData: string,
 ): Promise<unknown> => {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = createGeminiClient({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: apiKey });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza los siguientes patrones de asistencia de trabajadores en busca de riesgos de fatiga o seguridad para el proyecto ${projectName}.

@@ -15,7 +15,8 @@
 
 import { Modality } from '@google/genai';
 import { createGeminiClient } from '../ai/geminiClientFactory.js';
-import { API_KEY, withExponentialBackoff } from './_shared.js';
+import { getGeminiApiKey } from '../ai/geminiApiKey.js';
+import { withExponentialBackoff } from './_shared.js';
 import { AI_MODEL_IMAGE_GENERATION } from '../../config/aiModels.js';
 import { buildSafetyVisualPrompt, type SafetyVisualSpec } from './safetyVisualPrompt.js';
 
@@ -35,12 +36,13 @@ export type SafetyVisualResult = SafetyVisualSuccess | { error: string };
  * Throws only when the API key is missing (a server misconfiguration).
  */
 export async function generateSafetyVisual(spec: SafetyVisualSpec): Promise<SafetyVisualResult> {
-  if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
   const prompt = buildSafetyVisualPrompt(spec ?? ({} as SafetyVisualSpec));
   if (!prompt) return { error: 'Especificación insuficiente para generar el afiche (falta la acción)' };
 
-  const genAI = createGeminiClient({ apiKey: API_KEY });
+  const genAI = createGeminiClient({ apiKey });
   return await withExponentialBackoff(async () => {
     const response = await genAI.models.generateContent({
       model: AI_MODEL_IMAGE_GENERATION,
