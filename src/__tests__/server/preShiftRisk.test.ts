@@ -430,6 +430,78 @@ describe('GET /:projectId/pre-shift-risk — recent incidents', () => {
   });
 });
 
+describe('GET /:projectId/pre-shift-risk — selected UTC day incident window', () => {
+  it.each([
+    { date: '2026-05-20', lower: '2026-05-13' },
+    { date: '2026-07-20', lower: '2026-07-13' },
+    { date: '2026-06-01', lower: '2026-05-25' },
+  ])('uses [date - 7 days, date) for $date rather than the execution clock', async ({ date, lower }) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+    try {
+      seedProject({ emergencyBrigadeReady: true });
+      const start = Date.parse(`${lower}T00:00:00.000Z`);
+      const end = Date.parse(`${date}T00:00:00.000Z`);
+      expect(end - start).toBe(7 * 24 * 60 * 60 * 1000);
+      const seed = (id: string, occurredAt: string, projectId = PROJECT_ID) =>
+        H.db!._seed(`incidents/${id}`, { projectId, severity: 'high', occurredAt });
+      seed('before-window', new Date(start - 1).toISOString());
+      seed('at-lower-bound', new Date(start).toISOString());
+      H.db!._seed('incidents/legacy-last-millisecond', {
+        projectId: PROJECT_ID, severity: 'high', createdAt: end - 1,
+      });
+      seed('at-shift-start', new Date(end).toISOString());
+      seed('after-shift-start', new Date(end + 1).toISOString());
+      seed('execution-time-not-shift-time', new Date().toISOString());
+      seed('foreign-project', new Date(start).toISOString(), 'other-project');
+      seed('unparseable-date', 'not-a-date');
+      const actual = await vi.importActual<typeof import('../../services/shiftRiskPanel/preShiftRiskComposer.js')>(
+        '../../services/shiftRiskPanel/preShiftRiskComposer.js',
+      );
+      vi.mocked(composeShiftRiskPanel).mockImplementationOnce(actual.composeShiftRiskPanel);
+      const res = await request(buildApp()).get(GET_URL).query({ date }).set('x-test-uid', CALLER_UID);
+      expect(res.status).toBe(200);
+      const input = vi.mocked(composeShiftRiskPanel).mock.calls[0][0];
+      expect(input.recentIncidents.map((i) => i.id).sort()).toEqual([
+        'at-lower-bound', 'legacy-last-millisecond',
+      ]);
+      expect(res.body.panel.date).toBe(date);
+      expect(res.body.panel.factors).toHaveLength(1);
+      expect(res.body.panel.factors[0]).toMatchObject({
+        id: 'recent-incidents', label: '2 incidente(s) en últimos 7 días',
+        recommendation: 'Revisar acciones correctivas pendientes + briefing al equipo.',
+      });
+      expect(res.body.panel.riskScore).toBe(res.body.panel.factors[0].weight);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('GET /:projectId/pre-shift-risk — impossible calendar dates', () => {
+  it('still accepts a real leap day', async () => {
+    seedProject();
+    const res = await request(buildApp()).get(GET_URL).query({ date: '2024-02-29' }).set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+    expect(vi.mocked(composeShiftRiskPanel).mock.calls[0][0].date).toBe('2024-02-29');
+  });
+
+  it.each(['2026-13-01', '2026-00-01', '2026-01-00', '2026-02-29', '2026-04-31'])(
+    'rejects %s without composing an apparently valid panel', async (date) => {
+      seedProject();
+      const res = await request(buildApp()).get(GET_URL).query({ date }).set('x-test-uid', CALLER_UID);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_shift_date');
+      expect(res.body.panel).toBeUndefined();
+      expect(composeShiftRiskPanel).not.toHaveBeenCalled();
+      const { humanErrorFromBody, humanErrorMessage } = await import('../../lib/humanError');
+      const message = humanErrorFromBody(res.body, res.status);
+      expect(message).toBe('La fecha del turno no es válida. Selecciona una fecha real e intenta nuevamente.');
+      expect(humanErrorMessage(new Error(message))).toBe(message);
+    },
+  );
+});
+
 // ── Equipment/asset reads ────────────────────────────────────────────────
 
 describe('GET /:projectId/pre-shift-risk — equipment', () => {

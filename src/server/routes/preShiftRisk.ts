@@ -138,6 +138,15 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         : todayStartIso.slice(0, 10);
 
     const shiftDayStart = new Date(`${dateParam}T00:00:00.000Z`);
+    if (
+      !Number.isFinite(shiftDayStart.getTime()) ||
+      shiftDayStart.toISOString().slice(0, 10) !== dateParam
+    ) {
+      return res.status(400).json({
+        error: 'invalid_shift_date',
+        message: 'La fecha del turno no es válida. Selecciona una fecha real e intenta nuevamente.',
+      });
+    }
     const shiftDayEnd = new Date(
       shiftDayStart.getTime() + 24 * 60 * 60 * 1000,
     );
@@ -234,14 +243,20 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       }),
       safeRead('incidents', async () => {
         const snap = await byProject('incidents').limit(200).get();
-        const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        // Seven complete UTC days before the selected day: [D - 7d, D).
+        // Do not include incidents at/after the selected day's start.
+        const incidentWindowEndMs = shiftDayStart.getTime();
+        const incidentWindowStartMs = incidentWindowEndMs - 7 * 24 * 60 * 60 * 1000;
         return snap.docs
           .map((d) => {
             const data = d.data() as Record<string, unknown>;
             const tsDate =
               coerceToDate(data.occurredAt) ??
               coerceToDate(data.createdAt);
-            if (!tsDate || tsDate.getTime() < sevenDaysAgoMs) {
+            if (
+              !tsDate || tsDate.getTime() < incidentWindowStartMs ||
+              tsDate.getTime() >= incidentWindowEndMs
+            ) {
               return null;
             }
             const sevRaw =
