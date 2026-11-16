@@ -1,6 +1,6 @@
 # Industry-rule HTTP request lifetime
 
-Notion ticket: `3caaa66d-73fe-817a-a53c-c2f76a8c8dbb` — Los 5 fetch de industryRules no tienen timeout ni AbortSignal.
+Notion ticket: `3c3aa66d-73fe-8128-b314-f7729e5ca6cb` — Los 5 fetch de industryRules no tienen timeout ni cancelación.
 
 ## Contract
 
