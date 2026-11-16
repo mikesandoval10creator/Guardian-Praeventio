@@ -27,6 +27,7 @@ import {
   hasSelfHostedActionSpec,
 } from './providerRouter.js';
 import { geminiCircuit } from '../../server/middleware/geminiCircuit.js';
+import { SELF_HOSTED_ACTION_SPECS } from './selfHostedActions.js';
 
 const ENV_KEYS = [
   'AI_SELFHOSTED_BASE_URL',
@@ -197,6 +198,61 @@ describe('dispatchSelfHostedAction', () => {
     expect(resolve).toHaveBeenCalledWith('tenant-a', 'selfhosted');
     expect(result).toMatchObject({ status: 'ok', text: 'tenant completion' });
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  // ── E1.2 — async credential resolvers (Firestore + KMS unwrap) ─────────
+  it('awaits an async credential resolver and uses the resolved tenant credential', async () => {
+    const fetchImpl = okFetch('async tenant completion');
+    const resolve = vi.fn(async () => ({
+      baseUrl: 'http://localhost:11434', model: 'tenant-model', timeoutMs: 1000,
+    }));
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl, tenantId: 'tenant-a', credentialResolver: { resolve },
+    });
+    expect(resolve).toHaveBeenCalledWith('tenant-a', 'selfhosted');
+    expect(result).toMatchObject({ status: 'ok', text: 'async tenant completion' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('does not call the endpoint when an async resolver yields no credential', async () => {
+    const fetchImpl = okFetch('must-not-be-used');
+    const resolve = vi.fn(async () => null);
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl, tenantId: 'tenant-without-credential', credentialResolver: { resolve },
+    });
+    expect(result).toEqual({ status: 'failed', reason: 'not_configured' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('contains an async credential resolver rejection without invoking HTTP', async () => {
+    const fetchImpl = okFetch();
+    const result = await dispatchSelfHostedAction(action, args, {
+      fetchImpl, tenantId: 'tenant-a',
+      credentialResolver: { resolve: async () => { throw new Error('private store detail'); } },
+    });
+    expect(result).toMatchObject({ status: 'failed', reason: 'call_failed' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const { logger } = await import('../../utils/logger.js');
+    expect(JSON.stringify((logger.warn as ReturnType<typeof vi.fn>).mock.calls))
+      .not.toContain('private store detail');
+  });
+
+  it('does not start inference when the caller aborts during async credential resolution', async () => {
+    const controller = new AbortController();
+    const build = vi.spyOn(SELF_HOSTED_ACTION_SPECS[action], 'build');
+    const fetchImpl = okFetch('must-not-be-used');
+    const call = dispatchSelfHostedAction(action, args, {
+      signal: controller.signal,
+      fetchImpl,
+      tenantId: 'tenant-a',
+      credentialResolver: { resolve: async () => {
+        controller.abort();
+        return { baseUrl: 'http://localhost:11434', model: 'm', timeoutMs: 1000 };
+      } },
+    });
+    expect(await call).toEqual({ status: 'cancelled' });
+    expect(build).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('contains credential resolver failures without exposing secrets or invoking HTTP', async () => {
