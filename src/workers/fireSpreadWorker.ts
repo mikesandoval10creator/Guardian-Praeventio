@@ -3,7 +3,7 @@ import {
   FIRE_STEP_MINUTES, validFireRequest, validFireResult, type FireSpreadReply,
 } from '../services/euler/fireSpreadProtocol';
 
-/** Fixed training step and bounded horizon; no network, model or emergency dispatch. */
+/** Fixed training step and bounded horizon; no network, LLM or emergency dispatch. */
 export function handleFireSpreadMessage(payload: unknown): FireSpreadReply {
   if (!validFireRequest(payload)) return { ok: false };
   try {
