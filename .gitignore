@@ -10,6 +10,17 @@ tsconfig.tsbuildinfo
 .env*
 !.env.example
 
+# Local SDK/signing configuration and private signing containers, at any depth.
+# Public examples may use a non-sensitive .example suffix; never real keys.
+local.properties
+key.properties
+keystore.properties
+signing.properties
+*.[jJ][kK][sS]
+*.[kK][eE][yY][sS][tT][oO][rR][eE]
+*.[pP]12
+*.[pP][fF][xX]
+
 # Firebase config — contains project credentials, use env vars in production
 firebase-applet-config.json
 
