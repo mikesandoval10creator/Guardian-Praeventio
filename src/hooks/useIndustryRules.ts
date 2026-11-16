@@ -6,6 +6,11 @@
 // `typical-hazards` in the wizard without re-implementing fetch glue.
 
 import { apiAuthHeaders } from '../lib/apiAuth';
+import {
+  decodeRequiredEpp, decodeIndustryList, decodeApplicableNorms,
+  decodeTypicalHazards, decodeIndustrySelection, type IndustryResponseDecoder,
+  IndustryResponseValidationError,
+} from '../lib/industryResponseValidation';
 import type {
   IndustryPreset,
   PresetApplication,
@@ -13,7 +18,8 @@ import type {
 
 function authedFetch<T>(
   path: string,
-  init: RequestInit = {},
+  init: RequestInit,
+  decode: IndustryResponseDecoder<T>,
 ): Promise<T> {
   // Bound the whole operation, including auth and JSON body consumption.
   // Explicit timers/listeners work in WebViews without AbortSignal.any/timeout.
@@ -49,13 +55,13 @@ function authedFetch<T>(
         headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}), ...authHeaders },
       });
       if (controller.signal.aborted) return;
-      const result = await jsonResponse<T>(res);
+      const result = await jsonResponse<T>(res, decode);
       if (!controller.signal.aborted) finish(() => resolve(result));
     })().catch((error: unknown) => finish(() => reject(error)));
   });
 }
 
-async function jsonResponse<T>(res: Response): Promise<T> {
+async function jsonResponse<T>(res: Response, decode: IndustryResponseDecoder<T>): Promise<T> {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -63,7 +69,13 @@ async function jsonResponse<T>(res: Response): Promise<T> {
     };
     throw new Error(body.message ?? body.error ?? `http_${res.status}`);
   }
-  return (await res.json()) as T;
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new IndustryResponseValidationError(res.status);
+  }
+  return decode(payload, res.status);
 }
 
 // ── 1. list ────────────────────────────────────────────────────────────
@@ -79,6 +91,7 @@ export async function listIndustryPresetsRemote(
   const res = await authedFetch<IndustryListResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/list`,
     { method: 'GET', signal },
+    decodeIndustryList,
   );
   return res;
 }
@@ -104,6 +117,7 @@ export async function selectIndustryRemote(
   const res = await authedFetch<SelectIndustryResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/select`,
     { method: 'POST', body: JSON.stringify(input), headers, signal },
+    decodeIndustrySelection,
   );
   return res;
 }
@@ -125,6 +139,7 @@ export async function fetchApplicableNorms(
   const res = await authedFetch<ApplicableNormsResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/applicable-norms?${qs}`,
     { method: 'GET', signal },
+    decodeApplicableNorms,
   );
   return res;
 }
@@ -145,6 +160,7 @@ export async function fetchRequiredEpp(
   const res = await authedFetch<RequiredEppResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/required-epp?${qs}`,
     { method: 'GET', signal },
+    decodeRequiredEpp,
   );
   return res;
 }
@@ -168,6 +184,7 @@ export async function fetchTypicalHazards(
   const res = await authedFetch<TypicalHazardsResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/typical-hazards?${qs}`,
     { method: 'GET', signal },
+    decodeTypicalHazards,
   );
   return res;
 }
