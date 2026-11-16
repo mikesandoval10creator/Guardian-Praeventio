@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { CHEMICAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
@@ -31,7 +32,7 @@ const renderPersonaHeader = (): string => {
 
 export const analyzeChemicalRisk = async (sdsText: string, storageConditions: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -99,7 +100,7 @@ referencias normativas que respaldan cada hallazgo.`;
 
 export const designHazmatStorage = async (storageType: string, volume: number, materialClass: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -155,7 +156,7 @@ Responde en JSON e incluye "citations" con las normas usadas.`;
 
 export const suggestChemicalSubstitution = async (currentChemical: string, purpose: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(

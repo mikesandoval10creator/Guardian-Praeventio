@@ -23,7 +23,7 @@
 // porque ya estamos server-side y autenticados).
 
 import { Router } from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../../services/ai/geminiClientFactory.js';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
@@ -118,7 +118,7 @@ export async function summarizeWithGemini(args: {
   ].join('\n');
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGeminiClient({ apiKey });
     const result = await Promise.race([
       ai.models.generateContent({ model: AI_MODEL_LITE, contents: prompt }),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),

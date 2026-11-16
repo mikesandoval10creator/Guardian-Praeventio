@@ -17,7 +17,8 @@
 //
 // Funciones AI thin wrappers — no contienen lógica de negocio.
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST } from '../../config/aiModels';
 
@@ -26,7 +27,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 export const generateRealisticIoTEvent = async (context: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un evento simulado de un sensor IoT industrial basado en el siguiente contexto:
@@ -63,7 +64,7 @@ export const generateRealisticIoTEvent = async (context: string) => {
 export const generatePredictiveForecast = async (projectName: string, context: string, weatherContext?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `
     Actúa como un experto en análisis predictivo de seguridad industrial (HSE) con un enfoque de "Prevención Empática".
     Tu objetivo no es solo evitar accidentes, sino cuidar el bienestar físico y mental de los trabajadores.
@@ -130,7 +131,7 @@ export const generatePredictiveForecast = async (projectName: string, context: s
 export const forecastSafetyEvents = async (nodesContext: string, historicalData?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un analista predictivo de seguridad industrial.
@@ -175,7 +176,7 @@ export const forecastSafetyEvents = async (nodesContext: string, historicalData?
 export const predictAccidents = async (nodesContext: string, telemetryContext: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como "El Guardián", el núcleo de IA predictiva de Praeventio Guard.
@@ -219,7 +220,7 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
 export const analyzeSiteMapDensity = async (nodesContext: string, workersContext: string, assetsContext: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza la densidad y distribución geoespacial del proyecto para identificar riesgos por aglomeración o proximidad a peligros.

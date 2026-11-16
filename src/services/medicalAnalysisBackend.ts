@@ -14,7 +14,8 @@
 // for DIAT documentation, no diagnosis). The facade `geminiBackend.ts`
 // re-exports this via `export * from './medicalAnalysisBackend.js'`.
 
-import { GoogleGenAI, Modality } from '@google/genai';
+import { Modality } from '@google/genai';
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { API_KEY, withExponentialBackoff } from './gemini/_shared.js';
 import { AI_MODEL_IMAGE_GENERATION } from '../config/aiModels.js';
 
@@ -52,7 +53,7 @@ Educational and professional — suitable for occupational health DIAT documenta
 ${specialistContext ? `Context: ${specialistContext}` : ''}
 No text overlays. Purely visual anatomical reference.`;
 
-  const genAI = new GoogleGenAI({ apiKey: API_KEY });
+  const genAI = createGeminiClient({ apiKey: API_KEY });
   return await withExponentialBackoff(async () => {
     const response = await genAI.models.generateContent({
       model: AI_MODEL_IMAGE_GENERATION,

@@ -11,7 +11,8 @@
 //   3. generateSafetyReport(reportType, context) — borrador Markdown
 //      (PTS / PE / AST).
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
@@ -30,7 +31,7 @@ export const generatePTS = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos chileno certificado en ISO 45001.
@@ -97,7 +98,7 @@ export const generatePTSWithManufacturerData = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos y mantenimiento industrial chileno.
@@ -143,7 +144,7 @@ export const generateSafetyReport = async (
 ): Promise<string | undefined> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Eres "El Guardián", el núcleo de IA de Praeventio Guard. Genera un borrador profesional y exhaustivo de un documento de seguridad tipo ${reportType} (Procedimiento de Trabajo Seguro, Plan de Emergencia o Análisis Seguro de Trabajo) basado en el siguiente contexto:

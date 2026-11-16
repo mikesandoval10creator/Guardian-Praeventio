@@ -13,7 +13,8 @@
 // tier gate. VIEWING generated safety content is life-safety-adjacent and must
 // always stay free (ADR 0021).
 
-import { GoogleGenAI, Modality } from '@google/genai';
+import { Modality } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { API_KEY, withExponentialBackoff } from './_shared.js';
 import { AI_MODEL_IMAGE_GENERATION } from '../../config/aiModels.js';
 import { buildSafetyVisualPrompt, type SafetyVisualSpec } from './safetyVisualPrompt.js';
@@ -39,7 +40,7 @@ export async function generateSafetyVisual(spec: SafetyVisualSpec): Promise<Safe
   const prompt = buildSafetyVisualPrompt(spec ?? ({} as SafetyVisualSpec));
   if (!prompt) return { error: 'Especificación insuficiente para generar el afiche (falta la acción)' };
 
-  const genAI = new GoogleGenAI({ apiKey: API_KEY });
+  const genAI = createGeminiClient({ apiKey: API_KEY });
   return await withExponentialBackoff(async () => {
     const response = await genAI.models.generateContent({
       model: AI_MODEL_IMAGE_GENERATION,

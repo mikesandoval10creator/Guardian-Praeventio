@@ -1,5 +1,6 @@
 import { parseGeminiJson } from './gemini/parsing';
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
 import { logger } from '../utils/logger';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
@@ -68,7 +69,7 @@ export const performProjectSafetyHealthCheck = async (projectId: string) => {
 
 export const autoValidateTelemetry = async (telemetryEvent: any) => {
     if (!API_KEY) return;
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: API_KEY });
     
     // Simple anomaly detection
     const prompt = `
@@ -96,7 +97,7 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
 
 export const predictGlobalIncidents = async (context: string, envContext: string) => {
     if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: API_KEY });
 
     const prompt = `
         Analiza el panorama GLOBAL de riesgos para la organización Praeventio.

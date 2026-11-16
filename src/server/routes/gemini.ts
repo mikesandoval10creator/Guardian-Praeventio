@@ -19,7 +19,7 @@
 // preserved verbatim.
 
 import { Router, type RequestHandler } from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../../services/ai/geminiClientFactory.js';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -461,7 +461,7 @@ router.post(
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = createGeminiClient({ apiKey: process.env.GEMINI_API_KEY });
 
     // Any project-scoped context (environment or incident history) requires
     // membership first. Authorization failures never degrade open.
@@ -1059,7 +1059,7 @@ router.post(
       res.flushHeaders();
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = createGeminiClient({ apiKey: process.env.GEMINI_API_KEY });
 
     let cancelled = false;
     req.on('close', () => {

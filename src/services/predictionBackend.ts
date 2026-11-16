@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { withSentryScope } from './observability/sentryInstrumentation';
 import { AI_MODEL_REASONING } from '../config/aiModels';
@@ -24,7 +25,7 @@ export const generatePredictiveForecast = async (projectName: string, context: s
 
 async function generatePredictiveForecastImpl(projectName: string, context: string, weatherContext: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Genera un pronóstico predictivo de seguridad para el proyecto: ${projectName}.
@@ -91,7 +92,7 @@ export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => {
 
 async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Analiza correlaciones ocultas entre los nodos de la red de conocimiento y los eventos de telemetría recientes.

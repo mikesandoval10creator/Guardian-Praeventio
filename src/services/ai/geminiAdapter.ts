@@ -6,7 +6,7 @@
  * that today is used directly inside `src/services/geminiBackend.ts`. The
  * existing call shape there is:
  *
- *   const ai = new GoogleGenAI({ apiKey: API_KEY });
+ *   const ai = createGeminiClient({ apiKey: API_KEY });
  *   const response = await ai.models.generateContent({
  *     model: AI_MODEL_FAST, // from src/config/aiModels.ts
  *     contents: '...prompt...',
@@ -24,7 +24,8 @@
  * `getAiAdapter().generate(...)` at their own pace.
  */
 
-import { GoogleGenAI } from '@google/genai';
+import type { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from './geminiClientFactory.js';
 import type {
   AiAdapter,
   AiGenerateRequest,
@@ -80,7 +81,7 @@ class GeminiConsumerAdapter implements AiAdapter {
       return null;
     }
     if (!this.client || this.builtForKey !== apiKey) {
-      this.client = new GoogleGenAI({ apiKey });
+      this.client = createGeminiClient({ apiKey });
       this.builtForKey = apiKey;
     }
     return this.client;
