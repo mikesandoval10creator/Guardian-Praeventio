@@ -14,7 +14,7 @@
 //   • Fuente normativa rendered discretely (small chips + footnote), never
 //     as a panic-mode banner.
 
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Check, Factory, ListChecks } from 'lucide-react';
 import {
   listIndustryPresetsRemote,
@@ -189,29 +189,45 @@ export interface IndustrySelectorWizardProps {
    * Optional overrides for tests / Storybook. When omitted, the real
    * `useIndustryRules` HTTP wrappers are used.
    */
-  listFn?: (projectId: string) => Promise<{ presets: IndustryListItem[] }>;
+  listFn?: (projectId: string, signal?: AbortSignal) => Promise<{ presets: IndustryListItem[] }>;
   selectFn?: (
     projectId: string,
     input: { industryPrefix: string },
     idempotencyKey?: string,
+    signal?: AbortSignal,
   ) => Promise<SelectIndustryResponse>;
   /** Provide a deterministic id in tests. */
   idempotencyKey?: string;
 }
 
-async function defaultList(projectId: string) {
-  return listIndustryPresetsRemote(projectId);
+async function defaultList(projectId: string, signal?: AbortSignal) {
+  return listIndustryPresetsRemote(projectId, signal);
 }
 
 async function defaultSelect(
   projectId: string,
   input: { industryPrefix: string },
   idempotencyKey?: string,
+  signal?: AbortSignal,
 ): Promise<SelectIndustryResponse> {
-  return selectIndustryRemote(projectId, input, idempotencyKey);
+  return selectIndustryRemote(projectId, input, idempotencyKey, signal);
 }
 
-export function IndustrySelectorWizard({
+function requestErrorMessage(error: unknown, submitting = false): string {
+  if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') {
+    return submitting
+      ? 'No se confirmó la aplicación del preset. Revisa el estado del proyecto antes de reintentar.'
+      : 'La solicitud demoró demasiado. Revisa tu conexión e intenta nuevamente.';
+  }
+  return humanErrorMessage(error);
+}
+
+// A new project owns a new session, never a previous project's selection/draft.
+export function IndustrySelectorWizard(props: IndustrySelectorWizardProps) {
+  return <IndustrySelectorWizardSession key={props.projectId} {...props} />;
+}
+
+function IndustrySelectorWizardSession({
   projectId,
   onApplied,
   onCancel,
@@ -220,71 +236,67 @@ export function IndustrySelectorWizard({
   idempotencyKey,
 }: IndustrySelectorWizardProps) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const submission = useRef<AbortController | null>(null);
+  useEffect(() => () => { submission.current?.abort(); }, []);
 
   const list = listFn ?? defaultList;
   const select = selectFn ?? defaultSelect;
 
-  // Load the catalog on mount.
+  // Load the catalog on mount; retries are explicit, never automatic POSTs.
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     dispatch({ type: 'LIST_START' });
-    list(projectId)
+    list(projectId, controller.signal)
       .then((resp) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         dispatch({ type: 'LIST_OK', presets: resp.presets });
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Error de red';
-        dispatch({ type: 'LIST_FAIL', error: msg });
+        if (controller.signal.aborted) return;
+        dispatch({ type: 'LIST_FAIL', error: requestErrorMessage(err) });
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, list]);
+    return () => controller.abort();
+  }, [projectId, list, catalogAttempt]);
 
-  // Load preview when entering the "review" step (or when the prefix
-  // changes after a back-and-forth).
   useEffect(() => {
-    if (state.step !== 'review') return;
-    if (!state.selectedPrefix) return;
-    if (state.preview && state.preview.industryPrefix === state.selectedPrefix)
-      return;
-    let cancelled = false;
+    if (state.step !== 'review' || !state.selectedPrefix) return;
+    if (state.preview?.industryPrefix === state.selectedPrefix) return;
+    const controller = new AbortController();
     dispatch({ type: 'PREVIEW_START' });
-    select(projectId, { industryPrefix: state.selectedPrefix })
+    select(projectId, { industryPrefix: state.selectedPrefix }, undefined, controller.signal)
       .then((resp) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         dispatch({ type: 'PREVIEW_OK', preset: resp.preset });
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Error de red';
-        dispatch({ type: 'PREVIEW_FAIL', error: msg });
+        if (controller.signal.aborted) return;
+        dispatch({ type: 'PREVIEW_FAIL', error: requestErrorMessage(err) });
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [state.step, state.selectedPrefix, state.preview, projectId, select]);
+    return () => controller.abort();
+  }, [state.step, state.selectedPrefix, state.preview, projectId, select, previewAttempt]);
 
   async function handleConfirm() {
-    if (!state.selectedPrefix) return;
+    if (!state.selectedPrefix || submission.current) return;
+    const controller = new AbortController();
+    submission.current = controller;
     dispatch({ type: 'SUBMIT_START' });
     try {
       const resp = await select(
         projectId,
         { industryPrefix: state.selectedPrefix },
         idempotencyKey,
+        controller.signal,
       );
-      dispatch({
-        type: 'SUBMIT_OK',
-        application: resp.application,
-        preset: resp.preset,
-      });
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'SUBMIT_OK', application: resp.application, preset: resp.preset });
       onApplied?.({ application: resp.application, preset: resp.preset });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al aplicar preset';
-      dispatch({ type: 'SUBMIT_FAIL', error: msg });
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'SUBMIT_FAIL', error: requestErrorMessage(err, true) });
+    } finally {
+      if (submission.current === controller) submission.current = null;
     }
   }
 
@@ -330,6 +342,13 @@ export function IndustrySelectorWizard({
           error={state.previewError}
           preset={state.preview}
         />
+      )}
+
+      {state.step === 'select' && state.presetsError && (
+        <button type="button" onClick={() => setCatalogAttempt((n) => n + 1)}>Reintentar catálogo</button>
+      )}
+      {state.step === 'review' && state.previewError && (
+        <button type="button" onClick={() => setPreviewAttempt((n) => n + 1)}>Reintentar vista previa</button>
       )}
 
       {state.step === 'confirm' && (

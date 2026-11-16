@@ -11,17 +11,47 @@ import type {
   PresetApplication,
 } from '../services/industryRules/industryRuleEngine';
 
-async function authedFetch(
+function authedFetch<T>(
   path: string,
   init: RequestInit = {},
-): Promise<Response> {
-  return fetch(path, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-      ...(await apiAuthHeaders()),
-    },
+): Promise<T> {
+  // Bound the whole operation, including auth and JSON body consumption.
+  // Explicit timers/listeners work in WebViews without AbortSignal.any/timeout.
+  return new Promise<T>((resolve, reject) => {
+    const controller = new AbortController();
+    const caller = init.signal;
+    let settled = false;
+    const finish = (complete: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      caller?.removeEventListener('abort', cancel);
+      controller.signal.removeEventListener('abort', aborted);
+      complete();
+    };
+    const cancel = () => controller.abort(new DOMException('Solicitud cancelada.', 'AbortError'));
+    const aborted = () => finish(() => reject(controller.signal.reason));
+    const timer = setTimeout(() => controller.abort(
+      new DOMException('La solicitud demoró demasiado. Intenta nuevamente.', 'TimeoutError'),
+    ), 15_000);
+    controller.signal.addEventListener('abort', aborted, { once: true });
+    caller?.addEventListener('abort', cancel, { once: true });
+    if (caller?.aborted) {
+      cancel();
+      return;
+    }
+    void (async () => {
+      const authHeaders = await apiAuthHeaders();
+      if (controller.signal.aborted) return;
+      const res = await fetch(path, {
+        ...init,
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}), ...authHeaders },
+      });
+      if (controller.signal.aborted) return;
+      const result = await jsonResponse<T>(res);
+      if (!controller.signal.aborted) finish(() => resolve(result));
+    })().catch((error: unknown) => finish(() => reject(error)));
   });
 }
 
@@ -44,12 +74,13 @@ export interface IndustryListResponse {
 
 export async function listIndustryPresetsRemote(
   projectId: string,
+  signal?: AbortSignal,
 ): Promise<IndustryListResponse> {
-  const res = await authedFetch(
+  const res = await authedFetch<IndustryListResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/list`,
-    { method: 'GET' },
+    { method: 'GET', signal },
   );
-  return jsonResponse<IndustryListResponse>(res);
+  return res;
 }
 
 // ── 2. select ──────────────────────────────────────────────────────────
@@ -66,14 +97,15 @@ export async function selectIndustryRemote(
   projectId: string,
   input: SelectIndustryInput,
   idempotencyKey?: string,
+  signal?: AbortSignal,
 ): Promise<SelectIndustryResponse> {
   const headers: Record<string, string> = {};
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  const res = await authedFetch(
+  const res = await authedFetch<SelectIndustryResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/select`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    { method: 'POST', body: JSON.stringify(input), headers, signal },
   );
-  return jsonResponse<SelectIndustryResponse>(res);
+  return res;
 }
 
 // ── 3. applicable-norms ────────────────────────────────────────────────
@@ -87,13 +119,14 @@ export interface ApplicableNormsResponse {
 export async function fetchApplicableNorms(
   projectId: string,
   industryPrefix: string,
+  signal?: AbortSignal,
 ): Promise<ApplicableNormsResponse> {
   const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch(
+  const res = await authedFetch<ApplicableNormsResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/applicable-norms?${qs}`,
-    { method: 'GET' },
+    { method: 'GET', signal },
   );
-  return jsonResponse<ApplicableNormsResponse>(res);
+  return res;
 }
 
 // ── 4. required-epp ────────────────────────────────────────────────────
@@ -106,13 +139,14 @@ export interface RequiredEppResponse {
 export async function fetchRequiredEpp(
   projectId: string,
   industryPrefix: string,
+  signal?: AbortSignal,
 ): Promise<RequiredEppResponse> {
   const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch(
+  const res = await authedFetch<RequiredEppResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/required-epp?${qs}`,
-    { method: 'GET' },
+    { method: 'GET', signal },
   );
-  return jsonResponse<RequiredEppResponse>(res);
+  return res;
 }
 
 // ── 5. typical-hazards ─────────────────────────────────────────────────
@@ -128,11 +162,12 @@ export interface TypicalHazardsResponse {
 export async function fetchTypicalHazards(
   projectId: string,
   industryPrefix: string,
+  signal?: AbortSignal,
 ): Promise<TypicalHazardsResponse> {
   const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch(
+  const res = await authedFetch<TypicalHazardsResponse>(
     `/api/sprint-k/${encodeURIComponent(projectId)}/industry/typical-hazards?${qs}`,
-    { method: 'GET' },
+    { method: 'GET', signal },
   );
-  return jsonResponse<TypicalHazardsResponse>(res);
+  return res;
 }
