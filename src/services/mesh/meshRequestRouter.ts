@@ -53,6 +53,8 @@ export interface FileRequestRecord {
   receivedChunks: Map<number, Uint8Array>;
   /** Hash declared by the received chunk stream, once its first chunk arrives. */
   receivedContentHash: string | null;
+  /** First explicit MIME declaration; missing legacy metadata never overwrites it. */
+  receivedMimeType?: string | null;
   totalChunks: number | null;
   reconstructedFile: Blob | null;
 }
@@ -102,6 +104,20 @@ const DEFAULT_REQUEST_LIFETIME_MS = 24 * 60 * 60 * 1000;
 // Hermes-imposed per-process heap.
 const MAX_CHUNKS_PER_REQUEST = 1024;
 
+// Only passive preview types are promoted from peer metadata. HTML, SVG,
+// malformed and unknown types retain the existing generic-download behavior.
+const PREVIEW_MIME_TYPES = new Set([
+  'application/pdf', 'application/json', 'text/plain',
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif',
+  'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'video/mp4', 'video/webm',
+]);
+
+function fileMimeType(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 100) return 'application/octet-stream';
+  const mime = value.toLowerCase();
+  return PREVIEW_MIME_TYPES.has(mime) ? mime : 'application/octet-stream';
+}
+
 export class MeshRequestRouter {
   private readonly selfUid: string;
   private readonly projectId: string;
@@ -144,6 +160,7 @@ export class MeshRequestRouter {
     nodeId: string;
     contentHash: string | null;
     title: string;
+    mimeType?: string;
   }): Promise<{ requestId: string }> {
     const now = this.nowFn();
     const payload: FileRequestPayload = {
@@ -152,6 +169,7 @@ export class MeshRequestRouter {
       contentHash: opts.contentHash,
       title: opts.title,
       projectId: this.projectId,
+      ...(opts.mimeType === undefined ? {} : { mimeType: fileMimeType(opts.mimeType) }),
     };
 
     const packet = buildPacket({
@@ -183,6 +201,7 @@ export class MeshRequestRouter {
       expiresAt: now + this.requestLifetimeMs,
       receivedChunks: new Map(),
       receivedContentHash: null,
+      receivedMimeType: null,
       totalChunks: null,
       reconstructedFile: null,
     };
@@ -288,6 +307,7 @@ export class MeshRequestRouter {
       const chunkPayload: FileChunkPayload = {
         requestId: packet.id,
         contentHash: local.contentHash,
+        mimeType: fileMimeType(local.blob.type),
         chunkIndex: idx,
         totalChunks,
         dataBase64: uint8ToBase64(chunks[idx]),
@@ -373,14 +393,20 @@ export class MeshRequestRouter {
     ) {
       return;
     }
+    // Dedup the whole chunk before accepting any new metadata.
+    if (record.receivedChunks.has(chunkIndex)) return;
+
+    // Legacy chunks carry no MIME and can mix with modern chunks. Explicit
+    // contradictory declarations are ignored before adding their bytes.
+    const declaredMime = packet.payload.mimeType === undefined
+      ? null : fileMimeType(packet.payload.mimeType);
+    if (declaredMime !== null && record.receivedMimeType != null && record.receivedMimeType !== declaredMime) return;
+
+    // A decoding exception must not pin metadata for a chunk we never stored.
+    const bytes = base64ToUint8(dataBase64);
+    if (declaredMime !== null) record.receivedMimeType = declaredMime;
     record.receivedContentHash ??= contentHash;
-
-    // Dedup: si ya tenemos este index, skip silencioso (idempotente).
-    if (record.receivedChunks.has(chunkIndex)) {
-      return;
-    }
-
-    record.receivedChunks.set(chunkIndex, base64ToUint8(dataBase64));
+    record.receivedChunks.set(chunkIndex, bytes);
     if (record.state === 'pending') {
       record.state = 'in_transit';
     }
@@ -401,7 +427,7 @@ export class MeshRequestRouter {
       }
       const reconstructed = reconstructBlob(
         ordered,
-        'application/octet-stream',
+        record.receivedMimeType ?? 'application/octet-stream',
       );
       const expectedHash = record.contentHash ?? record.receivedContentHash;
       const actualHash = expectedHash
@@ -412,6 +438,7 @@ export class MeshRequestRouter {
         // reconstructed artifact whose bytes do not match the declaration.
         record.receivedChunks.clear();
         record.receivedContentHash = null;
+        record.receivedMimeType = null;
         record.totalChunks = null;
         record.reconstructedFile = null;
         record.state = 'in_transit';
