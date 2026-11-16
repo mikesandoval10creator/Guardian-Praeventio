@@ -85,12 +85,16 @@ export interface FileRequestPayload {
   nodeId: string;
   contentHash: string | null;
   title: string;
+  /** Optional hint only; the responder uses its local Blob type. */
+  mimeType?: string;
   projectId: string;
 }
 
 export interface FileChunkPayload {
   requestId: string;
   contentHash: string;
+  /** Optional for compatibility with legacy peers. */
+  mimeType?: string;
   chunkIndex: number;
   totalChunks: number;
   /** Base64-encoded para serialización. Decoder reconstituye Uint8Array. */
