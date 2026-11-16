@@ -26,6 +26,8 @@ const H = vi.hoisted(() => ({
   record: vi.fn(),
   chatHandler: vi.fn(),
   slmFallback: vi.fn(),
+  /** E1.2 — fake tenant credential store: tenantId → stored credential. */
+  credentials: new Map<string, { baseUrl: string; model: string; secret: string }>(),
 }));
 
 vi.mock('../../services/geminiBackend.js', () => ({
@@ -44,7 +46,13 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: Record<string, unknown> }).user = { uid, tier: 'bronze' };
+    // E1.2 — the tenant claim is part of the VERIFIED token, never the body.
+    const tenantId = req.header('x-test-tenant');
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      tier: 'bronze',
+      ...(tenantId ? { tenantId } : {}),
+    };
     next();
   },
 }));
@@ -66,11 +74,39 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 vi.mock('@google/genai', () => ({ GoogleGenAI: class { models = {}; } }));
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => ({
-    collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }),
-  }),
-}));
+// E1.2 — the Firestore mock serves the fake tenant credential store. The
+// stored credential is returned as a real KMS envelope so the production
+// decryption path is exercised end-to-end (not stubbed away).
+vi.mock('firebase-admin/firestore', async () => {
+  const { envelopeEncrypt } = await import('../../services/security/kmsEnvelope.js');
+  const { inMemoryKmsAdapter } = await import('../../services/security/kmsAdapter.js');
+  return {
+    getFirestore: () => ({
+      collection: (path: string) => ({
+        doc: (id: string) => ({
+          get: async () => {
+            const tenantId = path.startsWith('tenants/')
+              ? path.split('/')[1]
+              : '';
+            const stored = H.credentials.get(tenantId);
+            if (!stored) return { exists: false, data: () => undefined };
+            const envelope = await envelopeEncrypt(stored.secret, inMemoryKmsAdapter);
+            return {
+              exists: true,
+              data: () => ({
+                provider: id,
+                envelope,
+                baseUrl: stored.baseUrl,
+                model: stored.model,
+                updatedAt: new Date().toISOString(),
+              }),
+            };
+          },
+        }),
+      }),
+    }),
+  };
+});
 // RAG used by the self-hosted getChatResponse prompt builder.
 vi.mock('../../services/ragService.js', () => ({
   searchRelevantContext: vi.fn(async () => 'CONTEXTO-LEGAL-MOCK'),
@@ -119,6 +155,7 @@ beforeEach(() => {
   H.record.mockReset().mockResolvedValue(undefined);
   H.chatHandler.mockReset().mockResolvedValue('respuesta-gemini');
   H.slmFallback.mockReset().mockResolvedValue({ text: 'respuesta-ladder', tier: 'zettelkasten', confidence: 0.8 });
+  H.credentials.clear();
 
   fetchMock.mockReset().mockImplementation(async () =>
     new Response(
@@ -359,5 +396,85 @@ describe('POST /api/gemini — provider layer (self-hosted routing)', () => {
     const res = await send();
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ result: 'respuesta-gemini' });
+  });
+});
+
+// ── E1.2 — per-tenant credential isolation THROUGH the real route ─────────
+//
+// These tests drive the REAL /api/gemini route with a REAL Firestore-shaped
+// credential store, and assert the property that matters: a tenant that
+// configured its own credential is served with THAT credential, and the
+// platform-wide env credential is never used for it.
+describe('POST /api/gemini — E1.2 tenant-scoped credentials', () => {
+  const tenantAuth = (tenantId: string) => ({ 'x-test-uid': 'u1', 'x-test-tenant': tenantId });
+  const sendAs = (tenantId: string) =>
+    request(buildApp())
+      .post('/api/gemini')
+      .set(tenantAuth(tenantId))
+      .send({ action: 'getChatResponse', args: ['hola', 'ctx'] });
+  /** Read the Authorization header regardless of Headers-object vs plain object. */
+  const authHeader = (init: RequestInit): string => {
+    const h = init.headers as Record<string, string> | undefined;
+    return (h?.['Authorization'] ?? h?.['authorization'] ?? '') as string;
+  };
+
+  it('serves a tenant with its OWN credential, ignoring the platform-wide env credential', async () => {
+    // Platform credential points at a DIFFERENT endpoint than the tenant's.
+    enableSelfHosted();
+    process.env.AI_SELFHOSTED_BASE_URL = 'http://platform.invalid';
+    process.env.AI_SELFHOSTED_API_KEY = 'platform-key';
+    process.env.AI_SELFHOSTED_MODEL = 'platform-model';
+
+    H.credentials.set('tenant-a', {
+      baseUrl: 'http://tenant-a.invalid/v1',
+      model: 'tenant-a-model',
+      secret: 'tenant-a-key',
+    });
+
+    const res = await sendAs('tenant-a');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ result: 'respuesta-selfhosted' });
+
+    // The call went to the TENANT's endpoint with the TENANT's model, not
+    // the platform's.
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://tenant-a.invalid/v1/chat/completions');
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe('tenant-a-model');
+    // The platform key was NOT used as the bearer token.
+    expect(authHeader(init)).not.toContain('platform-key');
+    expect(authHeader(init)).toContain('tenant-a-key');
+  });
+
+  it('never sends tenant B the credential stored for tenant A', async () => {
+    enableSelfHosted();
+    H.credentials.set('tenant-a', {
+      baseUrl: 'http://tenant-a.invalid/v1',
+      model: 'tenant-a-model',
+      secret: 'tenant-a-key',
+    });
+
+    const res = await sendAs('tenant-b');
+
+    // Tenant B has no credential → the platform fallback is used, and the
+    // tenant A credential is nowhere in the request.
+    expect(res.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(authHeader(init)).not.toContain('tenant-a-key');
+    expect(String(init.body)).not.toContain('tenant-a-key');
+  });
+
+  it('falls back to the platform credential when the tenant has none', async () => {
+    enableSelfHosted();
+    process.env.AI_SELFHOSTED_BASE_URL = 'http://platform.invalid';
+    process.env.AI_SELFHOSTED_API_KEY = 'platform-key';
+    process.env.AI_SELFHOSTED_MODEL = 'platform-model';
+
+    const res = await sendAs('tenant-without-key');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ result: 'respuesta-selfhosted' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://platform.invalid/v1/chat/completions');
+    expect(authHeader(init)).toContain('platform-key');
   });
 });

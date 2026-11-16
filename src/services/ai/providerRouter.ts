@@ -46,9 +46,24 @@ export { hasSelfHostedActionSpec };
 
 export type AiProviderName = 'gemini' | 'selfhosted';
 
-/** Backend-only boundary for resolving provider credentials per tenant. */
+/**
+ * Backend-only boundary for resolving provider credentials per tenant.
+ *
+ * `resolve` is ASYNC because a real credential store is inherently async:
+ * reading it means a Firestore round-trip plus a KMS unwrap. A synchronous
+ * signature would force every implementation to either block or pre-load
+ * secrets, which is exactly the "key frozen at boot" pattern this seam
+ * exists to remove.
+ *
+ * Returning `null` means "this tenant has no credential for this provider".
+ * Throwing means "the credential store is broken" — the caller must fail
+ * closed rather than silently escalate to a different credential.
+ */
 export interface LlmCredentialResolver {
-  resolve(tenantId: string, provider: AiProviderName): SelfHostedConfig | null;
+  resolve(
+    tenantId: string,
+    provider: AiProviderName,
+  ): Promise<SelfHostedConfig | null> | SelfHostedConfig | null;
 }
 
 /** Temporary compatibility resolver backed by the existing process environment. */
@@ -57,6 +72,41 @@ export const envCredentialResolver: LlmCredentialResolver = {
     return provider === 'selfhosted' ? getSelfHostedConfig() : null;
   },
 };
+
+/**
+ * Layer a tenant-scoped resolver OVER a platform (operator-wide) fallback.
+ *
+ * POLICY (deliberate, and the reason this exists):
+ *   • Tenant HAS its own credential → that credential wins. The platform
+ *     credential is never consulted. The tenant's traffic is billed to the
+ *     tenant's own provider account.
+ *   • Tenant has NO credential → the platform credential is used, so a
+ *     tenant that never configured BYOK still gets a working app. This is
+ *     the platform's own budget, not a leak of another tenant's secret.
+ *   • The platform credential is NEVER reachable across tenants: it is a
+ *     single operator-owned key, identical for everyone, and it is only
+ *     consulted when the tenant store explicitly reports "no credential".
+ *   • A store FAILURE (Firestore down, KMS unwrap failed) THROWS. The
+ *     composite does NOT swallow it and does NOT fall back to the platform
+ *     credential — that would hide a custody failure behind a silent
+ *     downgrade.
+ *
+ * The fallback is deliberately explicit rather than implicit inside the
+ * store, so the policy is one readable object instead of a branch buried in
+ * the storage layer.
+ */
+export function withPlatformFallback(
+  tenantResolver: LlmCredentialResolver,
+  platformResolver: LlmCredentialResolver = envCredentialResolver,
+): LlmCredentialResolver {
+  return {
+    async resolve(tenantId, provider) {
+      const tenantCredential = await tenantResolver.resolve(tenantId, provider);
+      if (tenantCredential) return tenantCredential;
+      return platformResolver.resolve(tenantId, provider);
+    },
+  };
+}
 
 /** Breaker key for the self-hosted endpoint — isolated from 'gemini'. */
 export const SELFHOSTED_CIRCUIT_KEY = 'selfhosted';
@@ -176,6 +226,20 @@ export interface SelfHostedDispatchOptions {
 }
 
 /**
+ * Is this a promise (or thenable)?
+ *
+ * `instanceof Promise` misses thenables from other realms, so check for a
+ * `then` method instead.
+ */
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
+/**
  * Try to serve a whitelisted action from the self-hosted endpoint. Owns the
  * self-hosted breaker bookkeeping and per-call observability. NEVER throws —
  * the dispatcher's behavior on failure (fallback chain) must not depend on
@@ -218,26 +282,64 @@ export async function dispatchSelfHostedAction(
   };
   const credentialResolver = options.credentialResolver ?? envCredentialResolver;
   try {
-    const config = credentialResolver.resolve(tenantId, 'selfhosted');
-    if (callerSignal?.aborted) return cancelled();
-    if (!config) return { status: 'failed', reason: 'not_configured' };
-    const request = await spec.build(args);
-    if (callerSignal?.aborted) return cancelled();
-    const response = await selfHostedChat(request, { fetchImpl: options.fetchImpl, config, signal: callerSignal });
-    if (callerSignal?.aborted) return cancelled();
-    const latencyMs = Date.now() - startedAt;
+    // Resolve the credential WITHOUT forcing an extra microtask tick when the
+    // resolver is synchronous. `await` on a non-promise still yields a tick,
+    // which would defer `spec.build()` and change the cancellation semantics
+    // the cancel tests pin: a caller that aborts during credential resolution
+    // must not cause an inference call to start.
+    //
+    // Sync resolvers (env-backed, test fixtures) therefore keep their
+    // previous, strictly-synchronous behaviour. Async resolvers (Firestore +
+    // KMS unwrap) are awaited through `continueAsync`.
+    //
+    // A resolver that THROWS lands in the catch below → 'call_failed' → the
+    // caller runs its fallback chain. It never silently escalates to a
+    // different tenant's credential.
+    const resolved = credentialResolver.resolve(tenantId, 'selfhosted');
+    if (isThenable(resolved)) {
+      return await runProvider(await resolved);
+    }
+    return await runProvider(resolved as SelfHostedConfig | null);
 
-    if (!response.text || response.text.trim().length === 0) {
-      // An empty completion is an upstream MISS — same contract as the
-      // Gemini empty-response path: breaker failure + fallback chain.
-      geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
-      recordProviderCall('selfhosted', 'failure', latencyMs, action, options.tenantId);
-      return { status: 'failed', reason: 'empty_response', latencyMs };
+    /**
+     * The provider call, entered with a resolved credential.
+     *
+     * On the sync path this function is invoked WITHOUT an intervening
+     * `await`, so `spec.build()` is invoked synchronously as it always was.
+     * On the async path it is invoked after the credential promise settles.
+     */
+    async function runProvider(
+      config: SelfHostedConfig | null,
+    ): Promise<SelfHostedDispatchResult> {
+      if (callerSignal?.aborted) return cancelled();
+      if (!config) return { status: 'failed', reason: 'not_configured' };
+      const request = await spec.build(args);
+      if (callerSignal?.aborted) return cancelled();
+      const response = await selfHostedChat(request, {
+        fetchImpl: options.fetchImpl,
+        config,
+        signal: callerSignal,
+      });
+      if (callerSignal?.aborted) return cancelled();
+      return finish(response);
     }
 
-    geminiCircuit.recordSuccess(SELFHOSTED_CIRCUIT_KEY);
-    recordProviderCall('selfhosted', 'success', latencyMs, action, options.tenantId);
-    return { status: 'ok', text: response.text, latencyMs };
+    /** Shared response handling (breaker bookkeeping + observability). */
+    function finish(response: { text: string }): SelfHostedDispatchResult {
+      const latencyMs = Date.now() - startedAt;
+
+      if (!response.text || response.text.trim().length === 0) {
+        // An empty completion is an upstream MISS — same contract as the
+        // Gemini empty-response path: breaker failure + fallback chain.
+        geminiCircuit.recordFailure(SELFHOSTED_CIRCUIT_KEY);
+        recordProviderCall('selfhosted', 'failure', latencyMs, action, options.tenantId);
+        return { status: 'failed', reason: 'empty_response', latencyMs };
+      }
+
+      geminiCircuit.recordSuccess(SELFHOSTED_CIRCUIT_KEY);
+      recordProviderCall('selfhosted', 'success', latencyMs, action, options.tenantId);
+      return { status: 'ok', text: response.text, latencyMs };
+    }
   } catch (err) {
     if (callerSignal?.aborted) return cancelled();
     const latencyMs = Date.now() - startedAt;

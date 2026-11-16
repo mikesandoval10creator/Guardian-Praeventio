@@ -2375,8 +2375,21 @@ service cloud.firestore {
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices', 'imports']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts', 'emergency_alerts', 'iot_devices', 'imports', 'llm_credentials']);
         allow create, update, delete: if false;
+      }
+
+      // E1.2 — per-tenant LLM credentials (BYOK). These hold the user's own
+      // provider key. They are stored as KMS-envelope ciphertext, but the
+      // ENVELOPE ITSELF IS STILL SENSITIVE: `encryptedDek` is only useless
+      // without KMS decrypt rights, and client read would still expose
+      // ciphertext, metadata (baseUrl/model — the user's private endpoint
+      // topology) and give a download oracle for the ciphertext blob.
+      // Server-only: the Admin SDK bypasses these rules and is the ONLY
+      // writer/reader. Clients get NOTHING — not even a "has a key" flag —
+      // because even that leaks whether a tenant uses a self-hosted provider.
+      match /llm_credentials/{docId} {
+        allow read, write: if false;
       }
 
       // Device registration and secret lookup are Admin-SDK-only. This path

@@ -51,6 +51,16 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { isUpstreamGeminiParseError } from './_geminiErrors.js';
+// E1.2 — per-tenant LLM credential resolution. The `LlmCredentialResolver`
+// seam already existed in `services/ai/providerRouter.ts` but was never
+// injected at the production dispatch site, so every request fell back to
+// the single process-wide env credential. This wires the real,
+// tenant-scoped store (Firestore + KMS envelope) into the dispatcher.
+import {
+  FirestoreTenantCredentialResolver,
+  TenantCredentialResolver,
+} from '../../services/ai/tenantCredentialStore.js';
+import { withPlatformFallback, type LlmCredentialResolver } from '../../services/ai/providerRouter.js';
 import type {
   IncidentRagDeps,
   IncidentSearchResult,
@@ -347,6 +357,38 @@ const GEMINI_ACTION_MODEL: Record<string, string> = {
  */
 function modelForAction(action: string): string {
   return GEMINI_ACTION_MODEL[action] ?? AI_MODEL_FAST_STABLE;
+}
+
+// ── E1.2 — per-tenant LLM credential resolver ─────────────────────────────
+//
+// The `LlmCredentialResolver` seam was declared in `services/ai/providerRouter.ts`
+// but the production dispatch site never injected one, so
+// `dispatchSelfHostedAction` always fell back to `envCredentialResolver` —
+// ONE process-wide key shared by every tenant.
+//
+// This builds the real resolver: Firestore (Admin SDK, bypasses client rules)
+// + KMS envelope encryption. The tenant id it receives comes from the
+// VERIFIED JWT claim (`req.user.tenantId`), never from the request body, so
+// a caller cannot ask for another tenant's key.
+//
+// The resolver is created lazily and memoized: building it is cheap, but
+// `getFirestore()` must not be touched at module load (the Admin SDK may not
+// be initialized yet when this module is imported).
+let tenantCredentialResolver: LlmCredentialResolver | null = null;
+
+function getTenantCredentialResolver(): LlmCredentialResolver {
+  if (!tenantCredentialResolver) {
+    const store = new FirestoreTenantCredentialResolver(
+      getFirestore() as unknown as ConstructorParameters<typeof FirestoreTenantCredentialResolver>[0],
+    );
+    // The tenant store is layered over the platform (operator-wide) fallback:
+    // a tenant that configured its own key uses it and ONLY it; a tenant that
+    // did not still gets a working app on the platform's budget. The
+    // fallback is explicit policy (see `withPlatformFallback`), not an
+    // accident of the storage layer.
+    tenantCredentialResolver = withPlatformFallback(new TenantCredentialResolver(store));
+  }
+  return tenantCredentialResolver;
 }
 
 // F3 — identity-from-token. A few whitelisted actions take the CALLER'S uid as
@@ -759,7 +801,19 @@ router.post('/gemini', verifyAuth,
     }
     if (caller.signal.aborted) return undefined;
     if (!selfHostedBlocked) {
-      const attempt = await dispatchSelfHostedAction(action, callArgs, { tenantId, signal: caller.signal });
+      // E1.2 — inject the per-tenant credential resolver. `tenantId` is the
+      // VERIFIED JWT tenant claim, so the credential returned is always the
+      // one belonging to the calling tenant. A tenant without its own
+      // credential yields `null` → the dispatcher reports 'not_configured' →
+      // the route's fallback chain decides (explicit fallback flag only).
+      // The operator-wide env key is NEVER used silently behind the tenant's
+      // back: that would let one tenant's traffic be billed and metered
+      // against another tenant's subscription.
+      const attempt = await dispatchSelfHostedAction(action, callArgs, {
+        tenantId,
+        signal: caller.signal,
+        credentialResolver: getTenantCredentialResolver(),
+      });
       if (caller.signal.aborted || attempt.status === 'cancelled') {
         if (!res.destroyed && !res.writableEnded) res.status(499).json({ error: 'ai_request_cancelled' });
         return undefined;
