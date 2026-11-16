@@ -17,6 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  signing-material:
+    name: Signing material guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+      - name: Test signing-material guard against isolated Git fixtures
+        run: node --test scripts/__tests__/signing-material-guard.test.cjs
+      - name: Reject protected material in the tracked tree
+        run: node scripts/check-signing-material.cjs --tracked
+
   # Secret scanning (gitleaks).
   # 2026-08-06 — CI hardening (Oleada 0 #0.2, Daniel-authorised). Guardian
   # handles WebAuthn credentials, KEK envelopes, session tokens, GCP/Firebase
