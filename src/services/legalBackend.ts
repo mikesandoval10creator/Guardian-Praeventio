@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { LEGAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
@@ -29,7 +30,7 @@ const renderPersonaHeader = (): string => {
 
 export const auditLegalGap = async (companyProcedures: any[], applicableNormatives: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -97,7 +98,7 @@ referenciadas.`;
 
 export const evaluateNormativeImpact = async (newNormativeText: string, currentOperations: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(

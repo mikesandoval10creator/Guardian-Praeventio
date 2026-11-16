@@ -14,7 +14,8 @@
 //      industry) — Plan estructurado con marco legal BCN + evaluación
 //      matemática LaTeX ($MR = P × C$) + cadena de mando.
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { GeminiDegradedError } from './degraded';
 import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
@@ -28,7 +29,7 @@ export const generateEmergencyPlan = async (
 ): Promise<string | undefined> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en gestión de emergencias industriales.
@@ -56,7 +57,7 @@ export const generateEmergencyPlan = async (
 export const generateEmergencyScenario = async (context: string): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un escenario de emergencia simulado basado en el siguiente contexto de la red de riesgos:
@@ -248,7 +249,7 @@ export const generateEmergencyPlanJSON = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `
     Genera un Plan de Emergencia detallado para el siguiente escenario:
     Escenario: ${scenario}

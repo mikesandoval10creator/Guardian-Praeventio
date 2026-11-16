@@ -323,8 +323,10 @@ export class NormativeRagService {
     }
     try {
       // Lazy import to avoid pulling @google/genai into hermetic tests.
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey });
+      const { createGeminiClient } = await import(
+        '../ai/geminiClientFactory.js'
+      );
+      const ai = createGeminiClient({ apiKey });
       const res = await ai.models.embedContent({
         model: AI_MODEL_EMBEDDINGS,
         contents: text,

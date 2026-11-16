@@ -12,7 +12,8 @@
 //
 // Funciones AI thin wrappers — no contienen lógica de negocio.
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_FAST } from '../../config/aiModels';
 
@@ -33,7 +34,7 @@ export const suggestRisksWithAI = async (
   // consumer (Matrix.tsx) must derive `criticidad` via the
   // deterministic P×S ladder so auditors cannot mistake an AI guess
   // for a deterministic figure.
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
@@ -89,7 +90,7 @@ export const suggestRisksWithAI = async (
 export const suggestNormativesWithAI = async (industry: string): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera una lista de 3 normativas, leyes o decretos chilenos específicos y críticos para la industria: ${industry}. No incluyas la Ley 16.744 ni el DS 594 que son generales. Enfócate en riesgos específicos del rubro.`,

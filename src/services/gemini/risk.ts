@@ -17,7 +17,8 @@
 // con `withSentryScope` cuando aplica (telemetría sin leak de PII).
 
 import * as Sentry from '@sentry/core';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { logger } from '../../utils/logger';
 import { withSentryScope } from '../observability/sentryInstrumentation';
 import { redactPii } from '../observability/piiRedactor';
@@ -76,7 +77,7 @@ export const analyzeFastCheck = async (observation: string): Promise<unknown> =>
     async () => {
       if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-      const ai = new GoogleGenAI({ apiKey: API_KEY });
+      const ai = createGeminiClient({ apiKey: API_KEY });
       const fastCheckPrompt = `Analiza la siguiente observación de seguridad en terreno (Fast Check):
     "${observation}"
 
@@ -200,7 +201,7 @@ async function predictGlobalIncidentsImpl(
 ): Promise<PredictiveIncidentResult> {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un sistema de predicción de riesgos industriales.
@@ -325,7 +326,7 @@ async function analyzeRiskWithAIImpl(
   const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
 
   const fallback = async () => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
       model: AI_MODEL_FAST,
       contents: safePrompt,
@@ -379,7 +380,7 @@ export const analyzeRootCauses = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('API Key no configurada');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos laborales en Chile y la metodología Zettelkasten.
 
   Se ha solicitado un análisis de causas raíz para el siguiente riesgo:

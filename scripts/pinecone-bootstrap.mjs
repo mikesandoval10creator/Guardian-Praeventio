@@ -32,6 +32,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from './_geminiClient.mjs';
 
 const INDEX_NAME = 'praeventio-normativa';
 const EMBEDDING_DIM = 768; // Gemini text-embedding-004
@@ -138,7 +139,7 @@ async function main() {
 
   await ensureIndex(pc);
 
-  const ai = new GoogleGenAI({ apiKey: geminiKey });
+  const ai = createGeminiClient(GoogleGenAI, { apiKey: geminiKey });
   const packs = await loadCountryPacks();
 
   const allChunks = [];

@@ -22,7 +22,8 @@
 //        detección patrones fatiga / turnos irregulares.
 
 import * as Sentry from '@sentry/core';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import type { RiskNode } from '../../types';
 import { logger } from '../../utils/logger';
 import { redactPii } from '../observability/piiRedactor';
@@ -66,7 +67,7 @@ export const generateISOAuditChecklist = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_REASONING,
     contents: `Genera un checklist de auditoría basado en la norma ISO 45001 para el tema: "${topic}".
@@ -115,7 +116,7 @@ export const generateISOAuditChecklist = async (
 export const processDocumentToNodes = async (text: string): Promise<RiskNode[]> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   // Chunking strategy to avoid token limits.
   const CHUNK_SIZE = 8000;
@@ -175,7 +176,7 @@ export const auditAISuggestion = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como el "Guardián de la Ética" de Praeventio Guard.
@@ -217,7 +218,7 @@ export const analyzeDocumentCompliance = async (
 
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza el cumplimiento normativo del siguiente documento.
@@ -256,7 +257,7 @@ export const investigateIncidentWithAI = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   // Search for relevant investigation techniques and legal requirements (e.g., DIAT/DIEP).
   const searchTerms = `Metodología investigación incidentes Chile ley 16.744 ${incidentTitle}`;
@@ -332,7 +333,7 @@ export const auditProjectComplianceWithAI = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un auditor senior de cumplimiento de seguridad y salud ocupacional.
@@ -380,7 +381,7 @@ export const analyzeAttendancePatterns = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza los siguientes patrones de asistencia de trabajadores en busca de riesgos de fatiga o seguridad para el proyecto ${projectName}.

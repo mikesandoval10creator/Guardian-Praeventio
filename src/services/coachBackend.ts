@@ -1,11 +1,12 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { AI_MODEL_FAST } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
 export const getSafetyCoachResponse = async (uid: string, userStats: any, recentIncidents: any[], userMessage: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Eres "Praeventio AI Coach", un mentor de seguridad industrial empático y experto.

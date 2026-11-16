@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
@@ -71,7 +71,7 @@ const withExponentialBackoff = async <T>(
 export const generateEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await withExponentialBackoff(() => 
     ai.models.embedContent({
       model: AI_MODEL_EMBEDDINGS,
@@ -90,7 +90,7 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
 export const generateIncidentEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await withExponentialBackoff(() =>
     ai.models.embedContent({
       model: AI_MODEL_INCIDENT_EMBEDDINGS,

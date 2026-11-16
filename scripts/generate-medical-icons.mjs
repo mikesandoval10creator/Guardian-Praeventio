@@ -38,6 +38,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from './_geminiClient.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -235,7 +236,9 @@ async function main() {
     process.exit(2);
   }
 
-  const ai = args.dryRun ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = args.dryRun
+    ? null
+    : createGeminiClient(GoogleGenAI, { apiKey: process.env.GEMINI_API_KEY });
 
   const targets = args.name
     ? ICON_MANIFEST.filter((e) => e.name === args.name)

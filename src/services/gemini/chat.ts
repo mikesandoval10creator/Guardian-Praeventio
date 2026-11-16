@@ -13,7 +13,7 @@
 //      condiciones climáticas (temp + UV + air quality).
 
 import * as Sentry from '@sentry/core';
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { logger } from '../../utils/logger';
 import { redactPii } from '../observability/piiRedactor';
 import { searchRelevantContext } from '../ragService';
@@ -47,7 +47,7 @@ export const queryBCN = async (query: string): Promise<string | undefined> => {
   if (!API_KEY) throw new Error('API Key no configurada');
 
   const legalContext = await searchRelevantContext(query);
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `
   Eres un asistente legal y normativo estricto, conectado a la base de datos vectorial de la Biblioteca del Congreso Nacional de Chile (BCN) y normativas ISO.
 
@@ -98,7 +98,7 @@ export const getChatResponse = async (
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
   const legalContext = await searchRelevantContext(message);
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const detailInstructions = [
     'Respuesta muy precisa, directa y concisa. Máximo 2-3 párrafos o una lista corta de puntos clave. Evita introducciones largas.',
@@ -164,7 +164,7 @@ export const getSafetyAdvice = async (
 ): Promise<string | undefined> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:

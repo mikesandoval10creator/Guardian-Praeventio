@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { AI_MODEL_FAST } from '../config/aiModels';
 
@@ -6,7 +7,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generateShiftHandoverInsights = async (previousShiftEvents: any[], currentRisks: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Eres un Jefe de Turno experto en Seguridad Industrial. 
@@ -69,7 +70,7 @@ export const generateShiftHandoverInsights = async (previousShiftEvents: any[], 
 
 export const analyzeShiftFatiguePatterns = async (attendanceData: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Analiza los patrones de asistencia y horas extra para detectar fatiga laboral acumulada.

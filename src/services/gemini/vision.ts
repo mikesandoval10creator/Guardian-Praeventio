@@ -16,7 +16,8 @@
 // NO en el flow operativo del trabajador donde el detector edge
 // (services/ai/eppDetectorOnDevice.ts) es la canonical path.
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { parseGeminiJson } from './parsing';
 import { AI_MODEL_VISION, AI_MODEL_VISION_FAST } from '../../config/aiModels';
 
@@ -28,7 +29,7 @@ export const analyzePostureWithAI = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION,
     contents: [
@@ -72,7 +73,7 @@ export const analyzeSafetyImage = async (
 ): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION,
     contents: [
@@ -123,7 +124,7 @@ export const analyzeSafetyImage = async (
 export const analyzeBioImage = async (base64Image: string): Promise<unknown> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_VISION_FAST,
     contents: {

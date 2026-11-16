@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { MEDICINE_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
@@ -29,7 +30,7 @@ const renderPersonaHeader = (): string => {
 
 export const mapRisksToSurveillance = async (risks: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -95,7 +96,7 @@ Responde en JSON con la estructura:
 
 export const analyzeHealthPatterns = async (medicalRecords: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(
@@ -147,7 +148,7 @@ Proporciona resumen, alertas y citations.`;
 
 export const generateCompensatoryExercises = async (fatigue: number, posture: number, attention: number) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const rag = getRag();
   const ragChunks = await rag.searchTopK(

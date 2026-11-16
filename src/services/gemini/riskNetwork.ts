@@ -22,7 +22,8 @@
 // 16.744 / DS 44/2024 / DS 54 atan responsabilidad a esa cifra. El LLM solo
 // enriquece campos descriptivos / hace triage — el prevencionista clasifica.
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import { RiskNode } from '../../types';
 import { logger } from '../../utils/logger';
 import { redactPromptForVertex } from './pii';
@@ -34,7 +35,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 export const simulateRiskPropagation = async (nodeTitle: string, context: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Simula la propagación de un riesgo en una red de seguridad industrial.
@@ -74,7 +75,7 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
   // the deterministic IPER P×S matrix (`calculateIper()`); Ley 16.744 / DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)
   // attach liability to that figure. This helper only enriches descriptive
   // fields (title, description). The prevencionista must classify via IPER.
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `Eres un experto en prevención de riesgos laborales (SST) en Chile.
   Se ha detectado un registro incompleto en el sistema de gestión de riesgos.
   Tu tarea es completar la información faltante con datos técnicos, verídicos y precisos, basados en normativas y estándares de seguridad industrial. No uses texto de relleno ni simules datos, proporciona información real y aplicable.
@@ -129,7 +130,7 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
 export const analyzeRiskNetwork = async (nodesContext: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza la red neuronal de conocimiento de Praeventio Guard.
@@ -160,7 +161,7 @@ export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
 
   const nodesContext = nodes.map(n => `- [${n.type}] ID: ${n.id}, Título: ${n.title}, Descripción: ${n.description}`).join('\n');
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Analiza la salud de la red de conocimiento (Red Neuronal) de seguridad.
@@ -222,7 +223,7 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
   // the deterministic classification, so we strip `criticidad` from both
   // the prompt and the JSON schema to prevent Gemini's structured-output
   // mode from injecting an AI guess that auditors could mistake for it.
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const feedPostPrompt = `Analiza esta publicación del muro de seguridad hecha por ${userName}.
   Contenido: "${content}"

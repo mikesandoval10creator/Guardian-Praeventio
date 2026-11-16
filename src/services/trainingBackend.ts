@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { parseGeminiJson } from './gemini/parsing';
 import { AI_MODEL_FAST } from '../config/aiModels';
 
@@ -6,7 +7,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generateCustomSafetyTraining = async (gapDescription: string, audienceProfile: string, industry: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Genera un micro-curso de capacitación de seguridad (Cápsula de 5 minutos).
@@ -63,7 +64,7 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
 
 export const generateTrainingQuiz = async (topic: string, description: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `
     Genera un Quiz de evaluación de seguridad para el tema: "${topic}".

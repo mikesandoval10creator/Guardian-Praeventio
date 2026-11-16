@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
+import { Type, Modality, FunctionDeclaration } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 import { calculateDeterministicSafeRoute } from './routingBackend.js';
 import { logger } from '../utils/logger';
@@ -159,7 +160,7 @@ export { calculateStructuralLoad, designHazmatStorage } from './gemini/engineeri
 export const generateTrainingQuiz = async (topic: string, description: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un quiz de 3 preguntas de selección múltiple sobre el siguiente tema de capacitación:
@@ -192,7 +193,7 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
 export const validateRiskImageClick = async (imageBase64: string, x: number, y: number, width: number, height: number, gameContext: string = '') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   
   // Clean up base64 prefix if present
   const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
@@ -266,7 +267,7 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
   const safeRoutePoints = calculateDeterministicSafeRoute(startPoint, destination, hazards);
 
   // 2. Use Gemini to translate the deterministic route into human instructions
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Actúa como un experto en logística de emergencias y evacuación industrial de Praeventio Guard. 
@@ -357,7 +358,7 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
 export const processAudioWithAI = async (base64Audio: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   
   const reportIncidentDeclaration: FunctionDeclaration = {
     name: "reportIncident",
@@ -436,7 +437,7 @@ export const processAudioWithAI = async (base64Audio: string) => {
 export const analyzeVisionImage = async (base64Image: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: [
@@ -473,7 +474,7 @@ export const analyzeVisionImage = async (base64Image: string) => {
 export const verifyEPPWithAI = async (base64Image: string, workerName: string, requiredEPP: string[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const prompt = `Analiza esta imagen de un trabajador (${workerName}). 
   EPP Requerido: ${requiredEPP.join(', ')}.
   Verifica si el trabajador está usando TODO el EPP requerido.
@@ -522,7 +523,7 @@ export const verifyEPPWithAI = async (base64Image: string, workerName: string, r
 
 export const generateModuleRecommendations = async (moduleName: string, industry: string, networkContext: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos y normativas chilenas de la Biblioteca del Congreso Nacional (BCN) (DS 594, Ley 16.744, etc.).
 Actúa como un asistente profesional dedicado.
@@ -568,7 +569,7 @@ Devuelve la respuesta en formato JSON con la siguiente estructura:
 export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   
   const prompt = `Eres el Director de Inteligencia Artificial de Prevención de Riesgos.
   Genera un Resumen Ejecutivo Gerencial basado en los siguientes KPIs y datos de la Red Neuronal.
@@ -625,7 +626,7 @@ export async function analyzeFaenaRiskWithAI(industry: string, context: string, 
   // Get relevant legal context using RAG
   const legalContext = await searchRelevantContext(`Riesgos críticos en la industria ${industry} y su normativa aplicable en Chile`);
   
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   try {
     const prompt = `
       Actúa como un experto senior en Prevención de Riesgos (SSOMA) en Chile.
@@ -663,7 +664,7 @@ export async function analyzeFaenaRiskWithAI(industry: string, context: string, 
 
 export async function extractAcademicSummary(text: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   try {
     const prompt = `
       Actúa como un experto en Prevención de Riesgos (SSOMA) e investigador científico.
@@ -701,7 +702,7 @@ export async function extractAcademicSummary(text: string) {
 
 export const getNutritionSuggestion = async (mood: number, role: string = 'Trabajador', taskContext: string = '') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const moodLabels: Record<number, string> = { 1: 'Agotado', 2: 'Cansado', 3: 'Normal', 4: 'Bien', 5: 'Óptimo' };
   const prompt = `

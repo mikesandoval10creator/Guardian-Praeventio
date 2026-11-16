@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from './ai/geminiClientFactory.js';
 import { FieldValue } from "firebase-admin/firestore";
 import { generateEmbedding } from "./ragService.js";
 import { logger } from '../utils/logger';
@@ -13,7 +13,7 @@ const INDUSTRIES = ["Construcción", "Minería", "Forestal"];
 
 const generateInitialDataForIndustry = async (industry: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   logger.debug(`Generating initial data for industry: ${industry}`);
 

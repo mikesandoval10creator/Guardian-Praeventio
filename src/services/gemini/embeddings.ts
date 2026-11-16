@@ -15,7 +15,7 @@
 // `cosineSimilarity` extraído como export NUEVO para que sea
 // testeable + reusable desde otros módulos (analytics, dedup).
 
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../ai/geminiClientFactory.js';
 import type { RiskNode } from '../../types';
 import { logger } from '../../utils/logger';
 import { withExponentialBackoff } from './parsing';
@@ -51,7 +51,7 @@ export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[]
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
   if (texts.length === 0) return [];
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
   const embeddings: number[][] = [];
 
   for (const text of texts) {
@@ -78,7 +78,7 @@ export const autoConnectNodes = async (
   if (!API_KEY) return [];
   if (existingNodes.length === 0) return [];
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = createGeminiClient({ apiKey: API_KEY });
 
   const nodesContext = existingNodes
     .map((n) => `ID: ${n.id}, Title: ${n.title}, Type: ${n.type}`)
@@ -139,7 +139,7 @@ export const semanticSearch = async (
   if (candidates.length === 0) return [];
 
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = createGeminiClient({ apiKey: API_KEY });
     const queryResponse = await ai.models.embedContent({
       model: EMBEDDING_MODEL,
       contents: query,
