@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listIndustryPresetsRemote, selectIndustryRemote, fetchApplicableNorms, fetchRequiredEpp, fetchTypicalHazards } from './useIndustryRules';
+import { getIndustryPreset, buildPresetApplication } from '../services/industryRules/industryRuleEngine';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), fetch: vi.fn() }));
 vi.mock('../lib/apiAuth', () => ({ apiAuthHeaders: () => mocks.auth() }));
 beforeEach(() => {
@@ -52,6 +53,8 @@ describe('industryRules deadlines and cancellation', () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
   it('retains the POST body and idempotency header', async () => {
+    const payload = { preset: getIndustryPreset('GP-MIN'), application: buildPresetApplication('project/a', 'GP-MIN') };
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(payload)));
     await selectIndustryRemote('project/a', { industryPrefix: 'GP-MIN' }, 'stable-key');
     expect(mocks.fetch).toHaveBeenCalledWith('/api/sprint-k/project%2Fa/industry/select', expect.objectContaining({
       method: 'POST', body: JSON.stringify({ industryPrefix: 'GP-MIN' }),
