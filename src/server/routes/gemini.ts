@@ -700,6 +700,19 @@ router.post('/gemini', verifyAuth,
   const { action, args } = req.body;
   const isNetworkSync = NETWORK_SYNC_ACTIONS.has(action);
 
+  // Run the same action gate before the E2E mock. Otherwise an E2E token
+  // receives a synthetic 200 for forbidden actions and hides a broken caller.
+  if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
+    return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
+  }
+  // Validate before mocking so E2E cannot hide malformed caller payloads.
+  if (!Array.isArray(args)) {
+    return res.status(400).json({ error: 'Invalid args: expected an array' });
+  }
+  if (JSON.stringify(args).length > MAX_GEMINI_ARGS_BYTES) {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
+
   // Sprint 19 / F-B11 — E2E_MODE deterministic mock (same gating as
   // /ask-guardian). Returns a shape compatible with the typical wrapper
   // `{ result: ... }` without invoking the real Gemini backend.
@@ -721,21 +734,6 @@ router.post('/gemini', verifyAuth,
     return res.json({
       result: { ok: true, mock: true, source: 'e2e-mode', action, args: args ?? [] },
     });
-  }
-
-  if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
-    return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
-  }
-
-  // All whitelisted RPCs take a positional args array (the client wrappers
-  // always send one). Reject non-arrays early — a bare spread of a non-array
-  // would throw a 500 — and cap the payload so a client can't force a giant
-  // prompt that burns quota past the flat estimator below.
-  if (!Array.isArray(args)) {
-    return res.status(400).json({ error: 'Invalid args: expected an array' });
-  }
-  if (JSON.stringify(args).length > MAX_GEMINI_ARGS_BYTES) {
-    return res.status(413).json({ error: 'Payload too large' });
   }
 
   // F3 — stamp the caller's verified identity over any client-supplied value for

@@ -206,6 +206,38 @@ describe('POST /api/gemini — whitelist + gates', () => {
     expect(H.assertAllowed).not.toHaveBeenCalled(); // rejected before the gate even runs
   });
 
+  it('rejects unknown actions even with an E2E token and E2E_MODE enabled', async () => {
+    process.env.E2E_MODE = '1';
+    const res = await request(buildApp()).post('/api/gemini')
+      .set(uid).set('Authorization', 'E2E test-token')
+      .send({ action: 'diagnosePatient', args: [] });
+    expect(res.status).toBe(403);
+    expect(H.analyze).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed args before returning an E2E success fixture', async () => {
+    process.env.E2E_MODE = '1';
+    const res = await request(buildApp()).post('/api/gemini')
+      .set(uid).set('Authorization', 'E2E test-token')
+      .send({ action: 'analyzeRiskWithAI', args: { projectId: 'p1' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('expected an array');
+    expect(H.analyze).not.toHaveBeenCalled();
+  });
+
+  it('keeps the allowlisted E2E fixture after validating its payload', async () => {
+    process.env.E2E_MODE = '1';
+    const res = await request(buildApp()).post('/api/gemini')
+      .set(uid).set('Authorization', 'E2E test-token')
+      .send({ action: 'analyzeRiskWithAI', args: [{ projectId: 'p1' }] });
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual({
+      ok: true, mock: true, source: 'e2e-mode', action: 'analyzeRiskWithAI',
+      args: [{ projectId: 'p1' }],
+    });
+    expect(H.analyze).not.toHaveBeenCalled();
+  });
+
   it('200 dispatches a whitelisted action + records the outcome', async () => {
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [{ projectId: 'p1' }] });
     expect(res.status).toBe(200);
