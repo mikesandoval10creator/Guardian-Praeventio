@@ -8,6 +8,10 @@ function declarations(source, names) {
  const found = source.statements.filter(node => (ts.isFunctionDeclaration(node)||ts.isClassDeclaration(node)) && names.includes(node.name?.text));
  assert.equal(found.length, names.length); return found.map(node=>node.getText(source).replace(/^export /,'')).join('\n');
 }
+function variables(source, names) {
+ const found = source.statements.filter(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(d => ts.isIdentifier(d.name) && names.includes(d.name.text)));
+ assert.equal(found.length, names.length); return found.map(node=>node.getText(source).replace(/^export /,'')).join('\n');
+}
 const handlers = [];
 function visit(node) {
  if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='post'&&node.arguments.length&&ts.isStringLiteral(node.arguments[0])&&node.arguments[0].text==='/data-request')handlers.push(node.arguments.at(-1).getText(route));
@@ -19,6 +23,7 @@ const output=ts.transpileModule(`export function create(scope){
  const {getAuth,getDb,logger,captureRouteError,auditServerEvent,Date}=scope;
  const REQUESTS_COLLECTION='compliance_data_requests';
  ${roles}
+ ${variables(service,['DATA_ACCESS_REQUEST_TYPES'])}
  ${declarations(service,['ComplianceError','computeRegimeAndDeadline','requestDataAccess'])}
  ${declarations(route,['assertAdminCaller'])}
  ${declarations(tenant,['assertTargetInCallerTenant'])}
