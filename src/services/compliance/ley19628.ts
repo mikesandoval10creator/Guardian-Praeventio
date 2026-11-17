@@ -56,11 +56,13 @@ export interface ConsentRecord {
   textVersion: string;
 }
 
-export type DataAccessRequestType =
-  | 'access'
-  | 'rectification'
-  | 'erasure'
-  | 'portability';
+export const DATA_ACCESS_REQUEST_TYPES = [
+  'access',
+  'rectification',
+  'erasure',
+  'portability',
+] as const;
+export type DataAccessRequestType = (typeof DATA_ACCESS_REQUEST_TYPES)[number];
 
 export type DataAccessRequestStatus =
   | 'pending'
@@ -313,13 +315,7 @@ export async function requestDataAccess(
   if (!uid) {
     throw new ComplianceError('invalid_uid', 'uid is required', 400);
   }
-  const allowed: DataAccessRequestType[] = [
-    'access',
-    'rectification',
-    'erasure',
-    'portability',
-  ];
-  if (!allowed.includes(type)) {
+  if (!DATA_ACCESS_REQUEST_TYPES.includes(type)) {
     throw new ComplianceError('invalid_type', `Unsupported request type: ${type}`, 400);
   }
   const requestedAt = Date.now();
