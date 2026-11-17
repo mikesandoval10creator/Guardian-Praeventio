@@ -127,6 +127,8 @@ export interface SosPayload {
     | 'man_down_timeout'
     | 'no_response';
   projectId: string;
+  /** Optional stable outbox identity for cross-transport correlation. */
+  clientEventId?: string;
 }
 
 export interface AckPayload {

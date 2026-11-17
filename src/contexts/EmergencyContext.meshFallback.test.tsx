@@ -16,6 +16,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { act, render } from '@testing-library/react';
+import { createInMemoryOutboxAdapter } from '../services/sync/genericOutboxEngine';
+import type { EmergencyDeliveryEvent, EmergencyDeliveryPayload, EmergencyDeliveryStatus } from '../services/emergency/emergencyDeliveryOutbox';
 
 // --- Mock surface --------------------------------------------------------
 
@@ -63,7 +65,7 @@ vi.mock('../services/emergency/meshFallback', () => ({
 
 const emergencyDeliveryState = vi.hoisted(() => ({
   submit: vi.fn(),
-  subscribe: vi.fn(() => () => undefined),
+  subscribe: vi.fn((_clientEventId: string, _listener: (status: EmergencyDeliveryStatus) => void): (() => void) => () => undefined),
 }));
 vi.mock('../services/emergency/emergencyDeliveryOutbox', () => ({
   submitEmergencyDelivery: (...args: unknown[]) =>
@@ -89,21 +91,27 @@ vi.mock('../utils/logger', () => ({
 }));
 
 const { EmergencyProvider, useEmergency } = await import('./EmergencyContext');
+const { createEmergencyDeliveryController } = await vi.importActual<
+  typeof import('../services/emergency/emergencyDeliveryOutbox')
+>('../services/emergency/emergencyDeliveryOutbox');
 
 // --- Test harness --------------------------------------------------------
 
 interface HarnessHandle {
   trigger: (type: string, projectId?: string) => Promise<void>;
+  deliveryStatus: EmergencyDeliveryStatus | null;
 }
 const handle: HarnessHandle = {
   trigger: async () => {
     throw new Error('not wired yet');
   },
+  deliveryStatus: null,
 };
 
 function Harness() {
   const ctx = useEmergency();
   handle.trigger = ctx.triggerEmergency;
+  handle.deliveryStatus = ctx.emergencyDeliveryStatus;
   return null;
 }
 
@@ -183,6 +191,52 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     await flushMicrotasks();
 
     expect(meshEnqueueOutboundMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { failureKind: 'server', status: 'pending', queued: true },
+    { failureKind: 'authorization', status: 'failed', queued: true },
+    { failureKind: 'queue', status: 'failed', queued: false },
+  ] as const)('offline signal does not relabel $failureKind as a mesh transport failure', async (attempt) => {
+    onlineFlag = false;
+    emergencyDeliveryState.submit.mockResolvedValue({
+      clientEventId: 'rejected-activation', operation: 'activation', projectId: 'proj-rejected',
+      ...attempt,
+    });
+    render(<EmergencyProvider><Harness /></EmergencyProvider>);
+    await act(async () => { await handle.trigger('fall', 'proj-rejected'); });
+    expect(meshEnqueueOutboundMock).not.toHaveBeenCalled();
+  });
+
+  it('real offline controller retains activation and requests mesh once without claiming delivery', async () => {
+    onlineFlag = false;
+    const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();
+    const sender = vi.fn(async (_event: EmergencyDeliveryEvent) => ({ kind: 'success' as const }));
+    const controller = createEmergencyDeliveryController({ adapter, sender });
+    emergencyDeliveryState.submit.mockImplementation((...args: Parameters<typeof controller.submit>) => controller.submit(...args));
+    emergencyDeliveryState.subscribe.mockImplementation((...args: Parameters<typeof controller.subscribe>) => controller.subscribe(...args));
+    meshEnqueueOutboundMock.mockResolvedValue({ enqueued: true, packetId: 'mesh-offline-1' });
+
+    render(<EmergencyProvider><Harness /></EmergencyProvider>);
+    await act(async () => { await handle.trigger('fall', 'proj-real-offline'); });
+
+    const entries = await adapter.listEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].event.clientEventId).toBe(handle.deliveryStatus?.clientEventId);
+    expect(handle.deliveryStatus).toMatchObject({ status: 'pending', queued: true });
+    expect(sender).not.toHaveBeenCalled();
+    expect(meshEnqueueOutboundMock).toHaveBeenCalledTimes(1);
+    expect(meshEnqueueOutboundMock).toHaveBeenCalledWith(expect.objectContaining({
+      clientEventId: entries[0].event.clientEventId,
+      projectId: 'proj-real-offline',
+    }));
+
+    onlineFlag = true;
+    await act(async () => { await controller.flush(); });
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender.mock.calls[0]?.[0].clientEventId).toBe(entries[0].event.clientEventId);
+    expect(await adapter.listEntries()).toHaveLength(0);
+    expect(meshEnqueueOutboundMock).toHaveBeenCalledTimes(1);
   });
 
   it('offline (navigator.onLine=false) → mesh enqueue con type sos + payload correcto', async () => {

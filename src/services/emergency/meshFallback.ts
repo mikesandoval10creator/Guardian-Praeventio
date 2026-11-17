@@ -62,6 +62,8 @@ export interface SosFallbackPayload {
   /** ms epoch — el bornAtMs del packet es independiente, esto es el
    *  trigger time clínico (cuándo se detectó la caída/incidente). */
   triggeredAtMs: number;
+  /** Same logical activation ID as the durable HTTP outbox. */
+  clientEventId?: string;
 }
 
 export interface EnqueueOutboundResult {
@@ -100,6 +102,7 @@ export async function enqueueOutbound(
     capturedAtMs: payload.triggeredAtMs,
     triggerReason: mapTriggerReason(payload.emergencyType),
     projectId: payload.projectId,
+    ...(payload.clientEventId ? { clientEventId: payload.clientEventId } : {}),
   };
 
   try {

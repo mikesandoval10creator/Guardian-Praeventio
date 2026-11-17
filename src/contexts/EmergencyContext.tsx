@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { captureEmergencyError } from '../lib/sentry';
 import { enqueueOutbound as meshEnqueueOutbound } from '../services/emergency/meshFallback';
 import { randomId } from '../utils/randomId';
+import { isOnline } from '../utils/networkStatus';
 import {
   submitEmergencyDelivery,
   subscribeEmergencyDelivery,
@@ -69,6 +70,10 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const user = auth.currentUser;
+      // The outbox skips HTTP when already offline and returns queued/pending
+      // without a failureKind. Capture the pre-submit signal before any async
+      // persistence or reconnect can change navigator.onLine.
+      const wasOffline = !isOnline();
       const attempt = await submitEmergencyDelivery({
         operation: 'activation',
         projectId,
@@ -90,14 +95,15 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
         setEmergencyDeliveryStatus,
       );
 
-      // If the authoritative HTTP path is unreachable, preserve the existing
-      // BLE/WiFi-Direct relay path. A server-side 4xx/5xx is not mislabelled as
-      // offline and is surfaced as failed/pending by the outbox.
-      if (attempt.failureKind === 'network') {
+      // A real transport failure or a durable packet queued while already
+      // offline may use mesh. Do not relabel HTTP 4xx/5xx or queue failures.
+      if (attempt.failureKind === 'network' ||
+        (wasOffline && attempt.queued && attempt.status === 'pending' && !attempt.failureKind)) {
         const uid = user?.uid ?? 'anonymous';
         try {
           const meshRes = await meshEnqueueOutbound({
             projectId,
+            clientEventId: attempt.clientEventId,
             emergencyType: type,
             uid,
             triggeredAtMs: startedAt,
