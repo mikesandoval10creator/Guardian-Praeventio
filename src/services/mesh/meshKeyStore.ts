@@ -106,19 +106,26 @@ async function importHmacKey(rawKey: Uint8Array): Promise<CryptoKey | null> {
   );
 }
 
+export type MeshSigningKeyLoadResult =
+  | { status: 'ok'; key: MeshSigningKey }
+  | { status: 'missing' }
+  | { status: 'crypto-unavailable' }
+  | { status: 'corrupt' }
+  | { status: 'storage-error' };
+
 /**
- * Return the cached mesh signing key for a project, or null if none is
- * provisioned yet. Reads in-memory cache → IDB (cold start). Never throws.
+ * Load a project signing key with an operationally useful failure reason.
+ * Reads in-memory cache → IDB (cold start) and never throws.
  */
-export async function getMeshSigningKey(
+export async function getMeshSigningKeyDetailed(
   projectId: string,
-): Promise<MeshSigningKey | null> {
+): Promise<MeshSigningKeyLoadResult> {
   const cached = memCache.get(projectId);
-  if (cached) return cached;
+  if (cached) return { status: 'ok', key: cached };
   try {
     const db = await getDb();
     const rec = (await db.get(STORE, projectId)) as MeshKeyRecord | undefined;
-    if (!rec) return null;
+    if (!rec) return { status: 'missing' };
 
     let rawKey: Uint8Array;
     try {
@@ -134,7 +141,7 @@ export async function getMeshSigningKey(
     } catch {
       await db.delete(STORE, projectId);
       logger.warn('meshKeyStore: corrupt cached key removed', { projectId });
-      return null;
+      return { status: 'corrupt' };
     }
 
     let key: CryptoKey | null;
@@ -143,16 +150,30 @@ export async function getMeshSigningKey(
     } catch {
       await db.delete(STORE, projectId);
       logger.warn('meshKeyStore: unimportable cached key removed', { projectId });
-      return null;
+      return { status: 'corrupt' };
     }
-    if (!key) return null;
+    if (!key) return { status: 'crypto-unavailable' };
     const signing: MeshSigningKey = { keyId: rec.keyId, key };
     memCache.set(projectId, signing);
-    return signing;
+    return { status: 'ok', key: signing };
   } catch (err) {
-    logger.error('meshKeyStore: load failed', err);
-    return null;
+    logger.error('meshKeyStore: load failed', {
+      projectId,
+      code: 'storage-error',
+      error: err,
+    });
+    return { status: 'storage-error' };
   }
+}
+
+/**
+ * Compatibility wrapper for callers that only need a key-or-null result.
+ */
+export async function getMeshSigningKey(
+  projectId: string,
+): Promise<MeshSigningKey | null> {
+  const result = await getMeshSigningKeyDetailed(projectId);
+  return result.status === 'ok' ? result.key : null;
 }
 
 /**

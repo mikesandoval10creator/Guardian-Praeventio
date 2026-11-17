@@ -46,8 +46,8 @@ const buildSignedPacketMock: ReturnType<typeof vi.fn<SignFn>> =
     })),
   );
 
-const getMeshSigningKeyMock = vi.hoisted(() =>
-  vi.fn(async (_projectId: string) => null),
+const getMeshSigningKeyDetailedMock = vi.hoisted(() =>
+  vi.fn(async (_projectId: string) => ({ status: 'missing' as const })),
 );
 
 vi.mock('../mesh/meshPacket', () => ({
@@ -56,11 +56,21 @@ vi.mock('../mesh/meshPacket', () => ({
 }));
 
 vi.mock('../mesh/meshKeyStore', () => ({
-  getMeshSigningKey: (...args: unknown[]) =>
-    (getMeshSigningKeyMock as (...x: unknown[]) => unknown)(...args),
+  getMeshSigningKeyDetailed: (...args: unknown[]) =>
+    (getMeshSigningKeyDetailedMock as (...x: unknown[]) => unknown)(...args),
+}));
+
+vi.mock('../../utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 // --- Imports (after mocks land) --------------------------------------------
+import { logger } from '../../utils/logger';
 import {
   enqueueOutbound,
   registerMeshTransport,
@@ -104,7 +114,7 @@ describe('meshFallback', () => {
       const res = await enqueueOutbound(BASE_PAYLOAD);
       expect(res).toEqual({ enqueued: false, reason: 'no-transport' });
       expect(buildSignedPacketMock).not.toHaveBeenCalled();
-      expect(getMeshSigningKeyMock).not.toHaveBeenCalled();
+      expect(getMeshSigningKeyDetailedMock).not.toHaveBeenCalled();
     });
 
     it('registerMeshTransport(null) clears a previously registered facade', async () => {
@@ -141,7 +151,7 @@ describe('meshFallback', () => {
       expect(res.enqueued).toBe(false);
       expect(res.reason).toBe('no-transport');
       expect(res.packetId).toBeUndefined();
-      expect(getMeshSigningKeyMock).not.toHaveBeenCalled();
+      expect(getMeshSigningKeyDetailedMock).not.toHaveBeenCalled();
       expect(buildSignedPacketMock).not.toHaveBeenCalled();
     });
   });
@@ -155,8 +165,8 @@ describe('meshFallback', () => {
       const res = await enqueueOutbound(BASE_PAYLOAD);
 
       expect(res).toMatchObject({ enqueued: true, packetId: 'pkt-test-001' });
-      expect(getMeshSigningKeyMock).toHaveBeenCalledTimes(1);
-      expect(getMeshSigningKeyMock).toHaveBeenCalledWith(BASE_PAYLOAD.projectId);
+      expect(getMeshSigningKeyDetailedMock).toHaveBeenCalledTimes(1);
+      expect(getMeshSigningKeyDetailedMock).toHaveBeenCalledWith(BASE_PAYLOAD.projectId);
       expect(buildSignedPacketMock).toHaveBeenCalledTimes(1);
       expect(facade.sendLocal).toHaveBeenCalledTimes(1);
     });
@@ -204,9 +214,39 @@ describe('meshFallback', () => {
       await enqueueOutbound(BASE_PAYLOAD);
 
       const keyArg = buildSignedPacketMock.mock.calls[0]?.[1];
-      // meshKeyStore.getMeshSigningKey returns null in this no-IDB scenario.
+      // The detailed missing-key status maps to null for the packet signer.
       expect(keyArg).toBeNull();
-      expect(getMeshSigningKeyMock).toHaveBeenCalledWith(BASE_PAYLOAD.projectId);
+      expect(getMeshSigningKeyDetailedMock).toHaveBeenCalledWith(BASE_PAYLOAD.projectId);
+    });
+
+    it.each(['missing', 'crypto-unavailable', 'corrupt', 'storage-error'] as const)(
+      'logs %s and still enqueues the SOS as unkeyed',
+      async (status) => {
+        getMeshSigningKeyDetailedMock.mockImplementation(async () => ({ status } as never));
+        const facade = makeFakeFacade();
+        registerMeshTransport(facade);
+
+        const res = await enqueueOutbound(BASE_PAYLOAD);
+
+        expect(res.enqueued).toBe(true);
+        expect(logger.warn).toHaveBeenCalledWith('mesh_sos_signing_key_unavailable', {
+          projectId: BASE_PAYLOAD.projectId,
+          status,
+        });
+        expect(buildSignedPacketMock.mock.calls[0]?.[1]).toBeNull();
+        expect(facade.sendLocal).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('passes through an available project signing key without warning', async () => {
+      const signingKey = { keyId: `${BASE_PAYLOAD.projectId}:v1`, key: {} as CryptoKey };
+      getMeshSigningKeyDetailedMock.mockImplementation(async () => ({ status: 'ok', key: signingKey } as never));
+      registerMeshTransport(makeFakeFacade());
+
+      await enqueueOutbound(BASE_PAYLOAD);
+
+      expect(buildSignedPacketMock.mock.calls[0]?.[1]).toBe(signingKey);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

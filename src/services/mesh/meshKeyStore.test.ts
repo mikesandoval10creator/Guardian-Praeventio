@@ -25,6 +25,7 @@ import { apiAuthHeader } from '../../lib/apiAuth';
 import {
   __resetMeshKeyStoreForTests,
   getMeshSigningKey,
+  getMeshSigningKeyDetailed,
   provisionMeshSigningKey,
 } from './meshKeyStore';
 
@@ -73,6 +74,52 @@ function responseWithKey(keyId: string, key: string): Response {
 }
 
 describe('meshKeyStore corruption recovery', () => {
+  it('classifies an absent record as missing', async () => {
+    await expect(getMeshSigningKeyDetailed(PROJECT_ID)).resolves.toEqual({
+      status: 'missing',
+    });
+  });
+
+  it('returns the valid cached key in the detailed result', async () => {
+    await seedKey(toBase64(new Uint8Array(32).fill(0x2a)));
+
+    const result = await getMeshSigningKeyDetailed(PROJECT_ID);
+
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') throw new Error('expected cached key');
+    expect(result.key.keyId).toBe(`${PROJECT_ID}:v1`);
+  });
+
+  it('classifies unavailable WebCrypto without deleting the valid record', async () => {
+    const validKey = toBase64(new Uint8Array(32).fill(0x2a));
+    await seedKey(validKey);
+    vi.stubGlobal('crypto', { subtle: undefined } as unknown as Crypto);
+
+    await expect(getMeshSigningKeyDetailed(PROJECT_ID)).resolves.toEqual({
+      status: 'crypto-unavailable',
+    });
+    expect(await readKeyRecord()).toMatchObject({ rawKeyB64: validKey });
+  });
+
+  it('classifies and removes a malformed persisted record', async () => {
+    await seedKey('not-base64!');
+
+    await expect(getMeshSigningKeyDetailed(PROJECT_ID)).resolves.toEqual({
+      status: 'corrupt',
+    });
+    expect(await readKeyRecord()).toBeUndefined();
+  });
+
+  it('classifies IndexedDB open failure separately from a missing record', async () => {
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => { throw new Error('IndexedDB unavailable'); }),
+    });
+
+    await expect(getMeshSigningKeyDetailed(PROJECT_ID)).resolves.toEqual({
+      status: 'storage-error',
+    });
+  });
+
   beforeEach(() => {
     (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB =
       new FDBFactory() as unknown as IDBFactory;

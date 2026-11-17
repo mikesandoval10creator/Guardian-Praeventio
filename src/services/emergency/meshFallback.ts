@@ -40,8 +40,9 @@
 
 import type { MeshPacket } from '../mesh/meshPacket';
 import { buildSignedPacket } from '../mesh/meshPacket';
-import { getMeshSigningKey } from '../mesh/meshKeyStore';
+import { getMeshSigningKeyDetailed } from '../mesh/meshKeyStore';
 import type { TransportFacade } from '../mesh/transportFacade';
+import { logger } from '../../utils/logger';
 
 // Estado de módulo: el facade activo (si algún día el provider de
 // runtime lo registra). En tests + dev sin mesh, queda null.
@@ -107,11 +108,18 @@ export async function enqueueOutbound(
 
   try {
     // Sign-on-build with the project mesh key so same-project peers can verify
-    // this SOS is authentic (not a forged/spoofed broadcast). getMeshSigningKey
-    // returns null when offline-without-key (first launch in a dead zone) →
+    // this SOS is authentic (not a forged/spoofed broadcast). A non-ok key
+    // result sends an explicitly unkeyed packet that peers treat as untrusted →
     // buildSignedPacket degrades to an unkeyed packet, which peers still relay
     // as untrusted — we never block the life signal on a missing key.
-    const signingKey = await getMeshSigningKey(payload.projectId);
+    const keyResult = await getMeshSigningKeyDetailed(payload.projectId);
+    const signingKey = keyResult.status === 'ok' ? keyResult.key : null;
+    if (keyResult.status !== 'ok') {
+      logger.warn('mesh_sos_signing_key_unavailable', {
+        projectId: payload.projectId,
+        status: keyResult.status,
+      });
+    }
     const packet: MeshPacket = await buildSignedPacket(
       {
         type: 'sos',
