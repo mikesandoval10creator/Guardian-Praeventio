@@ -7,6 +7,7 @@ import {
   decideAlertAction,
   type WasteRecord,
   type WasteManifest,
+  type EmissionFactors,
 } from './environmentalCompliance.js';
 
 function waste(over: Partial<WasteRecord> & { id: string }): WasteRecord {
@@ -91,6 +92,30 @@ describe('computeFootprint', () => {
     });
     expect(r.co2EquivKg).toBeCloseTo(1000 * 0.42 + 100 * 2.68, 1);
     expect(r.hazardousPercent).toBe(25);
+    expect(r.factorProvenance).toBeNull();
+  });
+
+  it('uses a region/year-specific factor set when explicitly supplied', () => {
+    const r = computeFootprint(
+      { electricityKwh: 1000, fuelLiters: 100, waterM3: 0, totalWasteKg: 0, hazardousWasteKg: 0 },
+      { electricityKgCo2PerKwh: 0.2, fuelKgCo2PerLiter: 3.1,
+        sourceId: 'test-fixture-not-official', year: 2026 },
+    );
+    expect(r.co2EquivKg).toBe(510);
+    expect(r.factorProvenance).toEqual({ sourceId: 'test-fixture-not-official', year: 2026 });
+  });
+
+  it.each([
+    ['missing fuel factor', { electricityKgCo2PerKwh: 0.2, sourceId: 'fixture', year: 2026 }],
+    ['negative factor', { electricityKgCo2PerKwh: -0.2, fuelKgCo2PerLiter: 2.68, sourceId: 'fixture', year: 2026 }],
+    ['nonfinite factor', { electricityKgCo2PerKwh: NaN, fuelKgCo2PerLiter: 2.68, sourceId: 'fixture', year: 2026 }],
+    ['missing provenance', { electricityKgCo2PerKwh: 0.2, fuelKgCo2PerLiter: 2.68, sourceId: '', year: 2026 }],
+    ['invalid year', { electricityKgCo2PerKwh: 0.2, fuelKgCo2PerLiter: 2.68, sourceId: 'fixture', year: 0 }],
+  ])('rejects %s rather than silently claiming a calibrated footprint', (_label, factors) => {
+    expect(() => computeFootprint(
+      { electricityKwh: 100, fuelLiters: 10, waterM3: 0, totalWasteKg: 0, hazardousWasteKg: 0 },
+      factors as EmissionFactors,
+    )).toThrow('invalid_emission_factors');
   });
 
   it('cero electricidad → wasteIntensity=0', () => {

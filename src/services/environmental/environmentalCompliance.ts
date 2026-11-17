@@ -147,8 +147,18 @@ export interface FootprintInputs {
   hazardousWasteKg: number;
 }
 
+export interface EmissionFactors {
+  electricityKgCo2PerKwh: number;
+  fuelKgCo2PerLiter: number;
+  /** Caller-owned provenance; no official values are bundled here. */
+  sourceId: string;
+  year: number;
+}
+
 export interface FootprintReport {
   co2EquivKg: number;
+  /** Null means the legacy approximate factors have no verified provenance. */
+  factorProvenance: Pick<EmissionFactors, 'sourceId' | 'year'> | null;
   waterFootprintM3: number;
   wasteIntensityKgPerKwh: number;
   /** % residuos peligrosos del total. */
@@ -162,11 +172,24 @@ export interface FootprintReport {
  *
  * Para reporting interno orientativo, NO sustituye un cálculo ISO 14064.
  */
-export function computeFootprint(inputs: FootprintInputs): FootprintReport {
-  const ELECTRICITY_FACTOR = 0.42;
-  const FUEL_FACTOR = 2.68;
+export function computeFootprint(
+  inputs: FootprintInputs,
+  factors?: EmissionFactors,
+): FootprintReport {
+  if (factors && (
+    !Number.isFinite(factors.electricityKgCo2PerKwh) ||
+    factors.electricityKgCo2PerKwh < 0 ||
+    !Number.isFinite(factors.fuelKgCo2PerLiter) ||
+    factors.fuelKgCo2PerLiter < 0 ||
+    typeof factors.sourceId !== 'string' || !factors.sourceId.trim() ||
+    !Number.isInteger(factors.year) || factors.year <= 0
+  )) {
+    throw new Error('invalid_emission_factors');
+  }
+  const electricityFactor = factors?.electricityKgCo2PerKwh ?? 0.42;
+  const fuelFactor = factors?.fuelKgCo2PerLiter ?? 2.68;
 
-  const co2 = inputs.electricityKwh * ELECTRICITY_FACTOR + inputs.fuelLiters * FUEL_FACTOR;
+  const co2 = inputs.electricityKwh * electricityFactor + inputs.fuelLiters * fuelFactor;
   const wasteIntensity =
     inputs.electricityKwh > 0 ? inputs.totalWasteKg / inputs.electricityKwh : 0;
   const hazardousPercent =
@@ -176,6 +199,7 @@ export function computeFootprint(inputs: FootprintInputs): FootprintReport {
 
   return {
     co2EquivKg: Math.round(co2 * 10) / 10,
+    factorProvenance: factors ? { sourceId: factors.sourceId, year: factors.year } : null,
     waterFootprintM3: inputs.waterM3,
     wasteIntensityKgPerKwh: Math.round(wasteIntensity * 1000) / 1000,
     hazardousPercent,
