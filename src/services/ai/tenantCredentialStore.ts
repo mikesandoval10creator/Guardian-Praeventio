@@ -128,10 +128,9 @@ export class FirestoreTenantCredentialResolver {
   /**
    * Resolve the credential for `tenantId` + `provider`.
    *
-   * Returns `null` when the tenant has no stored credential. Throws only on a
-   * genuine infrastructure fault (Firestore unavailable, KMS unwrap failed),
-   * because silently returning null there would mask a broken envelope as
-   * "tenant has no key" and route traffic to the wrong provider.
+   * Returns `null` only when the tenant has no stored credential. Invalid
+   * identity, malformed stored data, Firestore failure and KMS failure reject:
+   * returning null for those cases would silently authorize platform fallback.
    */
   async resolve(
     tenantId: string,
@@ -140,7 +139,7 @@ export class FirestoreTenantCredentialResolver {
     // Fail-closed: an unverifiable tenant must not borrow a credential.
     if (!isValidTenantId(tenantId)) {
       logger.warn('[ai.credential] invalid_tenant_id', { provider });
-      return null;
+      throw new Error('invalid_tenant_id');
     }
 
     let snap: { exists: boolean; data(): unknown };
@@ -270,10 +269,9 @@ export class TenantCredentialResolver implements LlmCredentialResolver {
     if (!resolved) return null;
 
     if (provider === 'selfhosted') {
-      // A self-hosted credential is only usable with the endpoint + model it
-      // was issued for. Without both, the credential cannot address anything
-      // — returning null is honest, and the caller's fallback chain runs.
-      if (!resolved.baseUrl || !resolved.model) return null;
+      // A stored credential without both endpoint and model is unusable.
+      // It is not an absent credential: do not borrow the platform key.
+      if (!resolved.baseUrl || !resolved.model) throw new Error('incomplete_tenant_credential');
       return {
         baseUrl: resolved.baseUrl.replace(/\/+$/, ''),
         apiKey: resolved.secret,
