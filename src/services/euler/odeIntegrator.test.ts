@@ -196,6 +196,30 @@ describe('simulateFireSpread — fire growth + suppression', () => {
     expect(result.timeToContain!).toBeLessThan(24);
   });
 
+  it('keeps growing when suppressionStartT is beyond the requested horizon', () => {
+    const result = simulateFireSpread(
+      { initialArea: 10, spreadRate: 3, suppressionRate: 10, suppressionStartT: 20 },
+      0.5,
+      10,
+    );
+    expect(result.timeline.every((step) => step.phase === 'growth')).toBe(true);
+    expect(result.timeline[result.timeline.length - 1].area).toBeCloseTo(40, 6);
+    expect(result.peakArea).toBeCloseTo(40, 6);
+    expect(result.timeToContain).toBeNull();
+  });
+
+  it('does not report containment when spread and suppression rates are equal', () => {
+    const result = simulateFireSpread(
+      { initialArea: 10, spreadRate: 5, suppressionRate: 5, suppressionStartT: 0 },
+      0.5,
+      10,
+    );
+    expect(result.timeline.every((step) => step.phase === 'suppression')).toBe(true);
+    expect(result.timeline.every((step) => step.area === 10)).toBe(true);
+    expect(result.peakArea).toBe(10);
+    expect(result.timeToContain).toBeNull();
+  });
+
   it('contains within reasonable time when suppression > spread', () => {
     const result = simulateFireSpread(
       {
