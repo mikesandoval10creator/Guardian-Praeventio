@@ -106,6 +106,8 @@
     "size": "size-limit",
     "lhci": "lhci autorun",
     "perf": "npm run build && size-limit && lhci autorun",
+    "inspect:app": "node scripts/inspect-app.mjs",
+    "test:inspect-app": "node --test scripts/inspect-app.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ci": "CI=true npx playwright test --project=chromium --project=mobile-android",
     "test:e2e:ui": "playwright test --ui",
