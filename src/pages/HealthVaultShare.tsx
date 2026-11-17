@@ -70,6 +70,18 @@ const PURPOSE_LABELS: Record<HealthAccessPurpose, string> = {
   occupational_health: 'Salud ocupacional',
 };
 
+function shareIdempotencyStorageKey(uid: string): string {
+  return `health-vault-share-idempotency:${uid}`;
+}
+
+function clearPersistedShareIdempotencyKey(uid: string): void {
+  try {
+    window.sessionStorage.removeItem(shareIdempotencyStorageKey(uid));
+  } catch {
+    // In-memory retries still work when browser storage is unavailable.
+  }
+}
+
 export function HealthVaultShare() {
   const { user, db } = useFirebase() as any;
   if (!user?.uid) {
@@ -104,6 +116,7 @@ function HealthVaultShareSession({ user, db }: { user: { uid: string }; db: any 
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveShareSummary[]>([]);
   const mountedRef = useRef(true);
+  const shareIdempotencyKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const isCurrent = () => mountedRef.current && Boolean(user.uid);
 
   useEffect(() => {
@@ -244,6 +257,39 @@ function HealthVaultShareSession({ user, db }: { user: { uid: string }; db: any 
     setError(null);
     setSubmitting(true);
     try {
+      const body = {
+        version: 2,
+        scope,
+        resourceIds: selectedRecordIds,
+        ...(openInvitation ? {} : { recipientProfessionalUid: selectedProfessionalUid }),
+        purpose,
+        ttlHours,
+        maxSessions: 5,
+      };
+      const fingerprint = JSON.stringify({
+        ...body,
+        resourceIds: [...selectedRecordIds].sort(),
+      });
+      if (shareIdempotencyKeyRef.current?.fingerprint !== fingerprint) {
+        let newKey: string | null = null;
+        if (shareIdempotencyKeyRef.current === null) {
+          try {
+            const persisted = window.sessionStorage.getItem(shareIdempotencyStorageKey(user.uid));
+            if (persisted && /^[A-Za-z0-9_-]{16,128}$/.test(persisted)) newKey = persisted;
+          } catch {
+            // Browser storage may be disabled; the mounted-session key still works.
+          }
+        }
+        newKey ??= globalThis.crypto?.randomUUID?.() ?? null;
+        if (!newKey) throw new Error('secure_random_unavailable');
+        shareIdempotencyKeyRef.current = { fingerprint, key: newKey };
+        try {
+          window.sessionStorage.setItem(shareIdempotencyStorageKey(user.uid), newKey);
+        } catch {
+          // Do not block consent creation when storage is unavailable.
+        }
+      }
+      const idempotencyKey = shareIdempotencyKeyRef.current.key;
       const authHeader = await apiAuthHeader();
       if (!isCurrent()) return;
       if (!authHeader) throw new Error('authentication_required');
@@ -252,25 +298,24 @@ function HealthVaultShareSession({ user, db }: { user: { uid: string }; db: any 
         headers: {
           'Content-Type': 'application/json',
           Authorization: authHeader,
+          'Idempotency-Key': idempotencyKey,
         },
-        body: JSON.stringify({
-          version: 2,
-          scope,
-          resourceIds: selectedRecordIds,
-          ...(openInvitation ? {} : { recipientProfessionalUid: selectedProfessionalUid }),
-          purpose,
-          ttlHours,
-          maxSessions: 5,
-        }),
+        body: JSON.stringify(body),
       });
       if (!isCurrent()) return;
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const responseBody = await res.json().catch(() => ({}));
         if (!isCurrent()) return;
-        throw new Error(body.error ?? `error_${res.status}`);
+        if (res.status === 410 || responseBody.error === 'idempotency_key_payload_mismatch') {
+          shareIdempotencyKeyRef.current = null;
+          clearPersistedShareIdempotencyKey(user.uid);
+        }
+        throw new Error(responseBody.message ?? responseBody.error ?? `error_${res.status}`);
       }
       const data = (await res.json()) as CreatedShare;
       if (!isCurrent()) return;
+      shareIdempotencyKeyRef.current = null;
+      clearPersistedShareIdempotencyKey(user.uid);
       setCreatedShare(data);
     } catch (err: any) {
       if (isCurrent()) setError(humanErrorMessage(err?.message ?? 'unknown_error'));
@@ -536,7 +581,11 @@ function HealthVaultShareSession({ user, db }: { user: { uid: string }; db: any 
               </button>
               <button
                 type="button"
-                onClick={() => setCreatedShare(null)}
+                onClick={() => {
+                  shareIdempotencyKeyRef.current = null;
+                  clearPersistedShareIdempotencyKey(user.uid);
+                  setCreatedShare(null);
+                }}
                 className="flex-1 rounded-md bg-teal-600 hover:bg-teal-700 px-3 py-2 text-sm text-white"
               >
                 {t('healthVaultShare.generateAnother', 'Generar otro')}

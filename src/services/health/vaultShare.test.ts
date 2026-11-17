@@ -474,6 +474,7 @@ describe('HealthAccessGrant v2', () => {
   it('open invitation requires owner confirmation before it becomes active', () => {
     const { record } = createGrant({ recipientProfessionalUid: undefined });
     expect(record.status).toBe('pending');
+    expect(Object.hasOwn(record, 'recipientProfessionalUid')).toBe(false);
 
     expect(() =>
       confirmGrantRecipient(record, 'company-admin-1', 'doctor-external-1', { now }),
