@@ -185,6 +185,19 @@ export const webauthnVerifyLimiter = rateLimit({
   message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
 });
 
+// Public Cloud Run/Marketplace probe: allow a generous burst for periodic
+// probes while bounding unauthenticated Firestore checks from a single IP.
+// MemoryStore is intentional here: persisting limiter hits to Firestore would
+// add a write to the dependency probe and fail open/closed on its outage.
+export const publicHealthProbeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: ipOnlyKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_health_probes', retryAfterMs: 60_000 },
+});
+
 // /api/health/deep fans out to Firestore + KMS + Gemini + Resend + Open-Meteo on
 // every call. Public + unlimited it was a cost/quota-drain and internal-state
 // probe vector. The route now requires an admin token; this caps even an

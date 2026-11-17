@@ -5,9 +5,8 @@
 // Returns 503 when a critical dependency is unreachable.
 //
 // Mounted in server.ts AFTER helmet (so CSP headers apply) but BEFORE the
-// /api/ rate limiter and verifyAuth — Cloud Run probes hit this endpoint
-// frequently and without an auth token, so it must remain unauthenticated and
-// unthrottled.
+// /api/ global rate limiter and verifyAuth. It remains unauthenticated for
+// platform probes, with a generous per-IP ceiling to bound Firestore checks.
 //
 // Sprint 22 Bucket AA — added GET /api/health/deep, which fans out to the
 // real downstream dependencies (Firestore, KMS, Gemini, Resend,
@@ -21,7 +20,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
 import net from 'node:net';
-import { healthDeepLimiter } from '../middleware/limiters.js';
+import { healthDeepLimiter, publicHealthProbeLimiter } from '../middleware/limiters.js';
 import { buildCapabilityRegistry } from '../capabilities/registry.js';
 
 import { getFirestore } from 'firebase-admin/firestore';
@@ -29,7 +28,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 
 const router = Router();
 
-router.get('/health', async (_req, res) => {
+router.get('/health', publicHealthProbeLimiter, async (_req, res) => {
   const checks: Record<string, 'ok' | 'fail' | 'skipped'> = {};
   let allOk = true;
 
