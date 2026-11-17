@@ -29,9 +29,10 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
+  COUNTRY_CODES,
+  EMISSION_TYPES,
   getAdapter,
   getSuggestedAdapters,
-  isCountryCode,
   isEmissionType,
   type CountryCode,
   type EmissionType,
@@ -67,9 +68,10 @@ function getReqRole(req: Request): string | null {
 }
 
 const bodySchema = z.object({
-  country: z.string().min(2),
+  country: z.string(),
   payload: z.unknown(),
 });
+const countrySchema = z.enum(COUNTRY_CODES);
 
 router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
   const rawType = req.params.type;
@@ -77,14 +79,7 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     return res.status(400).json({
       error: 'invalid_emission_type',
       received: rawType,
-      supported: [
-        'occupational_injury',
-        'aptitude_cert',
-        'tax_invoice',
-        'committee_minutes',
-        'training_record',
-        'safety_inspection',
-      ],
+      supported: EMISSION_TYPES,
     });
   }
   const type: EmissionType = rawType;
@@ -95,14 +90,15 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'invalid_input', issues: bodyParse.error.issues });
   }
   const { country: rawCountry, payload } = bodyParse.data;
-  if (!isCountryCode(rawCountry)) {
+  const countryParse = countrySchema.safeParse(rawCountry);
+  if (!countryParse.success) {
     return res.status(400).json({
       error: 'invalid_country',
       received: rawCountry,
-      supported: ['CL', 'US', 'UK', 'EU', 'MX', 'BR', 'AU', 'CN', 'TW', 'RU'],
+      supported: COUNTRY_CODES,
     });
   }
-  const country: CountryCode = rawCountry;
+  const country: CountryCode = countryParse.data;
 
   // Role gate per type.
   const role = getReqRole(req);
