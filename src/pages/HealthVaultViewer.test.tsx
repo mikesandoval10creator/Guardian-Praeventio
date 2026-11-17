@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { HealthVaultViewer } from './HealthVaultViewer';
+import { apiAuthHeader } from '../lib/apiAuth';
 import { createVaultSecretHandoff } from '../services/health/vaultSecretHandoff';
 
 const runtime = vi.hoisted(() => ({
@@ -50,6 +51,8 @@ beforeEach(() => {
     clientExtensionResults: {}, clientDataJSON: 'client', authenticatorData: 'authenticator', signature: 'signature',
   };
   fetchMock.mockReset();
+  vi.mocked(apiAuthHeader).mockReset();
+  vi.mocked(apiAuthHeader).mockResolvedValue('Bearer doctor-token');
   registerCredentialMock.mockReset();
   registerCredentialMock.mockResolvedValue({ success: true, credentialId: 'credential-new' });
   vi.stubGlobal('fetch', fetchMock);
@@ -76,6 +79,16 @@ function renderAt(options?: { legacy?: boolean; secret?: string }) {
       <Routes>
         <Route path="/vault/share/:tokenId" element={<HealthVaultViewer />} />
         <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function rerenderAtCurrentIdentity(view: ReturnType<typeof render>) {
+  view.rerender(
+    <MemoryRouter initialEntries={['/vault/share/grant-1']}>
+      <Routes>
+        <Route path="/vault/share/:tokenId" element={<HealthVaultViewer />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -180,6 +193,77 @@ describe('HealthVaultViewer v2', () => {
     const claimCall = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(claimCall[0]).toBe('/api/health-vault/view/grant-1/claim');
     expect(JSON.parse(String(claimCall[1].body))).toEqual({ secret: 'fragment-secret' });
+  });
+
+  it.each([null, { uid: 'doctor-2' }])(
+    'never reveals doctor-1 records after identity changes while the records response is pending (%o)',
+    async nextUser => {
+      let resolveRecords!: (response: ReturnType<typeof jsonResponse>) => void;
+      const delayedRecords = new Promise<ReturnType<typeof jsonResponse>>(resolve => { resolveRecords = resolve; });
+      fetchMock.mockImplementation((url: string) => {
+        if (url === '/api/health-professionals/me') {
+          return jsonResponse(200, { identity: { status: 'verified' } });
+        }
+        if (url === '/api/health-vault/view/grant-1/claim') {
+          return jsonResponse(200, { status: 'active', confirmationRequired: false });
+        }
+        if (url === '/api/health-vault/view/grant-1/session') {
+          return jsonResponse(201, { sessionToken: 'hvs_session.doctor-1', expiresAt: Date.now() + 60_000 });
+        }
+        if (url === '/api/health-vault/view/grant-1/records') return delayedRecords;
+        throw new Error(`unexpected fetch ${url}`);
+      });
+      const view = renderAt();
+      fireEvent.click(await screen.findByRole('button', { name: /Verificar huella y abrir/ }));
+      await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/health-vault/view/grant-1/records')).toBe(true));
+      act(() => {
+        runtime.user = nextUser;
+        rerenderAtCurrentIdentity(view);
+      });
+      await act(async () => {
+        resolveRecords(jsonResponse(200, {
+          ownerName: 'Paciente A', expiresAt: Date.now() + 60_000,
+          records: [{ id: 'record-A', meta: { title: 'Laboratorio A' } }],
+        }));
+        await delayedRecords;
+      });
+      expect(screen.queryByText('Laboratorio A')).toBeNull();
+      expect(screen.queryByText(/Health Vault de Paciente A/)).toBeNull();
+    },
+  );
+
+  it('does not request a file after logout while file auth is still pending', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === '/api/health-professionals/me') {
+        return jsonResponse(200, { identity: { status: 'verified' } });
+      }
+      if (url === '/api/health-vault/view/grant-1/claim') {
+        return jsonResponse(200, { status: 'active', confirmationRequired: false });
+      }
+      if (url === '/api/health-vault/view/grant-1/session') {
+        return jsonResponse(201, { sessionToken: 'hvs_session.doctor-1' });
+      }
+      if (url === '/api/health-vault/view/grant-1/records') {
+        return jsonResponse(200, {
+          ownerName: 'Paciente A', expiresAt: Date.now() + 60_000,
+          records: [{ id: 'record-A', meta: { title: 'Imagen A' }, fileAvailable: true }],
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const view = renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Verificar huella y abrir/ }));
+    await screen.findByRole('button', { name: /Abrir archivo de forma segura/ });
+    let releaseAuth!: (header: string) => void;
+    const delayedAuth = new Promise<string>(resolve => { releaseAuth = resolve; });
+    vi.mocked(apiAuthHeader).mockImplementationOnce(() => delayedAuth);
+    fireEvent.click(screen.getByRole('button', { name: /Abrir archivo de forma segura/ }));
+    act(() => {
+      runtime.user = null;
+      rerenderAtCurrentIdentity(view);
+    });
+    await act(async () => { releaseAuth('Bearer doctor-1'); await delayedAuth; });
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/health-vault/view/grant-1/file')).toBe(false);
   });
 
   it('opens a server-verified session and fetches exactly the authorized records', async () => {
