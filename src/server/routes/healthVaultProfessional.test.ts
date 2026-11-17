@@ -18,6 +18,7 @@ vi.mock('../middleware/verifyAuth.js', () => ({
     next();
   },
 }));
+vi.mock('../middleware/auditLog.js', () => ({ auditServerEvent: vi.fn(async () => true) }));
 
 import {
   activateVaultSessionAtomically,
@@ -56,9 +57,32 @@ function setup() {
     ['doctor-1', professional('doctor-1')],
     ['doctor-2', professional('doctor-2', 'verified')],
   ]);
+  const idempotency = new Map<string, any>();
   const deps = {
     analytics: { track: vi.fn(async () => undefined) },
-    createGrant: vi.fn(async (grant: HealthAccessGrantV2) => grants.set(grant.id, grant)),
+    claimShareCreation: vi.fn(async (input: any) => {
+      const current = idempotency.get(input.claimId);
+      if (current && current.requestHash !== input.requestHash) return { kind: 'mismatch' as const };
+      if (current?.state === 'completed') {
+        return { kind: 'replay' as const, grantId: current.grantId, responseStatus: current.responseStatus, responseEnvelope: current.responseEnvelope };
+      }
+      if (current?.state === 'in_flight') return { kind: 'in_flight' as const };
+      idempotency.set(input.claimId, { ...input, state: 'in_flight' });
+      return { kind: 'acquired' as const };
+    }),
+    releaseShareCreation: vi.fn(async (input: any) => {
+      const current = idempotency.get(input.claimId);
+      if (current?.state === 'in_flight' && current.claimToken === input.claimToken) idempotency.delete(input.claimId);
+    }),
+    createGrant: vi.fn(async (grant: HealthAccessGrantV2, completion?: any) => {
+      grants.set(grant.id, grant);
+      if (completion) {
+        const current = idempotency.get(completion.claimId);
+        if (current?.state === 'in_flight' && current.claimToken === completion.claimToken) {
+          idempotency.set(completion.claimId, { ...current, state: 'completed', grantId: grant.id, responseStatus: completion.responseStatus, responseEnvelope: completion.responseEnvelope });
+        }
+      }
+    }),
     getGrant: vi.fn(async (id: string) => grants.get(id) ?? null),
     replaceGrant: vi.fn(async (grant: HealthAccessGrantV2) => grants.set(grant.id, grant)),
     activateSession: vi.fn(
@@ -83,11 +107,16 @@ function setup() {
   const app = express();
   app.use(express.json());
   app.use('/api/health-vault', createHealthVaultProfessionalRouter(deps));
-  return { app, deps, grants, sessions, records, professionals };
+  return { app, deps, grants, sessions, records, professionals, idempotency };
+}
+
+let shareRequestSequence = 0;
+function sharePost(app: express.Express, key = `test-share-key-${++shareRequestSequence}-unique`) {
+  return request(app).post('/api/health-vault/share').set('Idempotency-Key', key);
 }
 
 async function createGrant(app: express.Express, recipientProfessionalUid = 'doctor-1') {
-  const response = await request(app).post('/api/health-vault/share').send({
+  const response = await sharePost(app).send({
     version: 2,
     scope: 'full',
     resourceIds: ['record-1', 'record-2'],
@@ -125,6 +154,102 @@ describe('Health Vault professional v2 routes', () => {
     });
   });
 
+  it('requires an opaque Idempotency-Key before creating a consent', async () => {
+    const { app, deps } = setup();
+    const response = await request(app).post('/api/health-vault/share').send({
+      version: 2, scope: 'full', resourceIds: ['record-1'],
+      recipientProfessionalUid: 'doctor-1', purpose: 'continuity_of_care',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('health_vault_idempotency_key_required');
+    expect(deps.getRecordsByIds).not.toHaveBeenCalled();
+    expect(deps.createGrant).not.toHaveBeenCalled();
+  });
+
+  it('replays the same encrypted creation result and one consent for a same-key retry', async () => {
+    const { app, deps, grants, idempotency } = setup();
+    const key = 'retry-share-operation-0000000001';
+    const payload = {
+      version: 2, scope: 'full', resourceIds: ['record-1', 'record-2'],
+      recipientProfessionalUid: 'doctor-1', purpose: 'continuity_of_care', ttlHours: 24, maxSessions: 3,
+    };
+
+    const first = await sharePost(app, key).send(payload);
+    const retry = await sharePost(app, key).send(payload);
+
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(retry.body).toEqual(first.body);
+    expect(deps.createGrant).toHaveBeenCalledTimes(1);
+    expect(grants.size).toBe(1);
+    expect(first.body.secret).not.toBe(key);
+    expect(JSON.stringify([...idempotency.values()])).not.toContain(first.body.secret);
+    expect(JSON.stringify([...idempotency.values()])).not.toContain(key);
+  });
+
+  it('replays the exact original response even after the grant state changes', async () => {
+    const { app, grants } = setup();
+    const key = 'retry-share-operation-0000000004';
+    const payload = { version: 2, scope: 'full', resourceIds: ['record-1'], purpose: 'continuity_of_care' };
+    const first = await sharePost(app, key).send(payload);
+    expect(first.status).toBe(201);
+    expect(first.body.status).toBe('pending');
+
+    const confirmed = await request(app)
+      .post(`/api/health-vault/share/${first.body.grantId}/confirm-recipient`)
+      .send({ professionalUid: 'doctor-2' });
+    expect(confirmed.status).toBe(200);
+    expect(grants.get(first.body.grantId)?.status).toBe('active');
+
+    const retry = await sharePost(app, key).send(payload);
+    expect(retry.status).toBe(201);
+    expect(retry.body).toEqual(first.body);
+  });
+
+  it('rejects reusing an Idempotency-Key with a different consent payload', async () => {
+    const { app, deps, grants } = setup();
+    const key = 'retry-share-operation-0000000002';
+    const payload = { version: 2, scope: 'full', resourceIds: ['record-1'], purpose: 'continuity_of_care' };
+    const first = await sharePost(app, key).send(payload);
+    const mismatch = await sharePost(app, key).send({ ...payload, purpose: 'second_opinion' });
+
+    expect(first.status).toBe(201);
+    expect(mismatch.status).toBe(422);
+    expect(mismatch.body.error).toBe('idempotency_key_payload_mismatch');
+    expect(deps.createGrant).toHaveBeenCalledTimes(1);
+    expect(grants.size).toBe(1);
+  });
+
+  it('does not run two consent handlers concurrently for one key; later retry replays', async () => {
+    const { app, deps } = setup();
+    const key = 'retry-share-operation-0000000003';
+    const payload = { version: 2, scope: 'full', resourceIds: ['record-1'], purpose: 'continuity_of_care' };
+    let releaseRecords!: (records: HealthRecord[]) => void;
+    let signalStarted!: () => void;
+    const delayedRecords = new Promise<HealthRecord[]>(resolve => { releaseRecords = resolve; });
+    const handlerStarted = new Promise<void>(resolve => { signalStarted = resolve; });
+    deps.getRecordsByIds.mockImplementationOnce(async () => {
+      signalStarted();
+      return delayedRecords;
+    });
+    const firstPromise = sharePost(app, key).send(payload).then(response => response);
+    await handlerStarted;
+
+    const concurrent = await sharePost(app, key).send(payload);
+    expect(concurrent.status).toBe(409);
+    expect(concurrent.body.error).toBe('health_vault_creation_in_progress');
+    expect(deps.getRecordsByIds).toHaveBeenCalledTimes(1);
+
+    releaseRecords([record('record-1')]);
+    const first = await firstPromise;
+    const retry = await sharePost(app, key).send(payload);
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(retry.body).toEqual(first.body);
+    expect(deps.createGrant).toHaveBeenCalledTimes(1);
+  });
+
   it('blocks cached clients from creating a legacy link that no viewer can open', async () => {
     const { app, deps } = setup();
     const response = await request(app).post('/api/health-vault/share').send({
@@ -149,7 +274,7 @@ describe('Health Vault professional v2 routes', () => {
 
   it('rejects any resource id that is not in the authenticated owner vault', async () => {
     const { app } = setup();
-    const response = await request(app).post('/api/health-vault/share').send({
+    const response = await sharePost(app).send({
       version: 2,
       scope: 'full',
       resourceIds: ['record-1', 'record-from-another-patient'],
@@ -164,7 +289,7 @@ describe('Health Vault professional v2 routes', () => {
 
   it('persists recipient confirmation with an explicit audit action', async () => {
     const { app, deps } = setup();
-    const created = await request(app).post('/api/health-vault/share').send({
+    const created = await sharePost(app).send({
       version: 2,
       scope: 'full',
       resourceIds: ['record-1'],
@@ -194,7 +319,7 @@ describe('Health Vault professional v2 routes', () => {
 
   it('lets the verified QR holder request access and waits for owner confirmation', async () => {
     const { app, deps, grants } = setup();
-    const created = await request(app).post('/api/health-vault/share').send({
+    const created = await sharePost(app).send({
       version: 2,
       scope: 'full',
       resourceIds: ['record-1'],
@@ -211,7 +336,6 @@ describe('Health Vault professional v2 routes', () => {
     expect(deps.replaceGrant).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'pending',
-        recipientProfessionalUid: undefined,
         recipientClaim: expect.objectContaining({
           professionalUid: 'doctor-1',
           registryNumber: 'RNPI-12345',
@@ -222,12 +346,13 @@ describe('Health Vault professional v2 routes', () => {
         actorUid: 'doctor-1',
       },
     );
+    expect(deps.replaceGrant.mock.calls.at(-1)?.[0]).not.toHaveProperty('recipientProfessionalUid');
     expect(grants.get(created.body.grantId)?.status).toBe('pending');
   });
 
   it('does not let a QR holder claim with an invalid secret', async () => {
     const { app, deps } = setup();
-    const created = await request(app).post('/api/health-vault/share').send({
+    const created = await sharePost(app).send({
       version: 2,
       scope: 'full',
       resourceIds: ['record-1'],

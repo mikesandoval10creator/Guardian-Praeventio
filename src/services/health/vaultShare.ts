@@ -442,7 +442,7 @@ export function createHealthAccessGrant(opts: {
     ownerUid,
     scope: opts.scope,
     resourceIds: [...resourceIds],
-    recipientProfessionalUid,
+    ...(recipientProfessionalUid ? { recipientProfessionalUid } : {}),
     purpose: opts.purpose,
     consentTextVersion,
     consentTextHash: createHash('sha256').update(consentText, 'utf8').digest('hex'),

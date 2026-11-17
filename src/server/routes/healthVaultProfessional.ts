@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
@@ -51,8 +51,11 @@ import { bucketHealthAccessDuration } from '../../services/analytics/healthPriva
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { envelopeDecrypt, envelopeEncrypt, type EnvelopeCiphertext } from '../../services/security/kmsEnvelope.js';
+import { getKmsAdapter } from '../../services/security/kmsAdapter.js';
+import { IDEMPOTENCY_CACHE_COLLECTION } from '../middleware/idempotencyKey.js';
 import { scalarRouteParams } from "../http/scalarRouteParams.js";
 
 
@@ -64,9 +67,30 @@ type FilePayload = {
   size?: number;
 };
 
+export interface ShareCreationClaimInput {
+  claimId: string;
+  ownerUid: string;
+  requestHash: string;
+  claimToken: string;
+  nowMs: number;
+}
+
+export type ShareCreationClaimResult =
+  | { kind: 'acquired' }
+  | { kind: 'in_flight' }
+  | { kind: 'mismatch' }
+  | { kind: 'replay'; grantId: string; responseStatus: number; responseEnvelope: EnvelopeCiphertext };
+
+export interface ShareCreationCommitInput extends ShareCreationClaimInput {
+  responseStatus: number;
+  responseEnvelope: EnvelopeCiphertext;
+}
+
 export interface HealthVaultProfessionalRouterDeps {
   analytics?: Pick<ServerAnalytics, 'track'>;
-  createGrant(grant: HealthAccessGrantV2): Promise<unknown>;
+  claimShareCreation(input: ShareCreationClaimInput): Promise<ShareCreationClaimResult>;
+  releaseShareCreation(input: ShareCreationClaimInput): Promise<void>;
+  createGrant(grant: HealthAccessGrantV2, claim: ShareCreationCommitInput): Promise<void>;
   getGrant(id: string): Promise<HealthAccessGrantV2 | null>;
   replaceGrant(
     grant: HealthAccessGrantV2,
@@ -119,6 +143,41 @@ const sessionSchema = z.object({
 
 const claimSchema = z.object({ secret: z.string().min(20).max(512) });
 const fileSchema = z.object({ recordId: z.string().min(1).max(128) });
+
+const SHARE_IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+const SHARE_CREATE_CLAIM_STALE_MS = 60_000;
+const SHARE_CREATE_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+const SHARE_CREATE_IDEMPOTENCY_ROUTE = 'health_vault_share_create';
+
+function shareCreationRequestHash(
+  ownerUid: string,
+  input: z.infer<typeof grantSchema>,
+): string {
+  const canonical = {
+    ownerUid,
+    version: 2,
+    scope: input.scope,
+    resourceIds: [...input.resourceIds].sort(),
+    recipientProfessionalUid: input.recipientProfessionalUid ?? null,
+    purpose: input.purpose,
+    ttlHours: input.ttlHours ?? 24,
+    maxSessions: input.maxSessions ?? 5,
+  };
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+function shareCreationClaimId(ownerUid: string, key: string): string {
+  const keyHash = createHash('sha256').update(JSON.stringify([ownerUid, key])).digest('hex');
+  return `${SHARE_CREATE_IDEMPOTENCY_ROUTE}_${keyHash}`;
+}
+
+function shareResponseKmsAdapter() {
+  const adapter = getKmsAdapter();
+  if (process.env.NODE_ENV === 'production' && adapter.name !== 'cloud-kms') {
+    throw new Error('health_vault_idempotency_kms_unavailable');
+  }
+  return adapter;
+}
 
 const confirmRecipientSchema = z.object({
   professionalUid: z.string().min(1).max(128),
@@ -420,6 +479,13 @@ export function createHealthVaultProfessionalRouter(
     if (!callerUid) {
       return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión.' });
     }
+    const idempotencyKey = req.header('Idempotency-Key')?.trim();
+    if (!idempotencyKey || !SHARE_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+      return res.status(400).json({
+        error: 'health_vault_idempotency_key_required',
+        message: 'No pudimos confirmar la operación. Reintenta desde la aplicación actualizada.',
+      });
+    }
     const parsed = grantSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -427,8 +493,51 @@ export function createHealthVaultProfessionalRouter(
         message: 'Revisa el profesional, los registros y la duración seleccionados.',
       });
     }
+    const claimInput: ShareCreationClaimInput = {
+      claimId: shareCreationClaimId(callerUid, idempotencyKey),
+      ownerUid: callerUid,
+      requestHash: shareCreationRequestHash(callerUid, parsed.data),
+      claimToken: randomUUID(),
+      nowMs: Date.now(),
+    };
+    let claimAcquired = false;
+    let creationCommitted = false;
+    let service: HealthVaultProfessionalRouterDeps | undefined;
     try {
-      const service = deps();
+      service = deps();
+      const claim = await service.claimShareCreation(claimInput);
+      if (claim.kind === 'mismatch') {
+        return res.status(422).json({
+          error: 'idempotency_key_payload_mismatch',
+          message: 'La misma solicitud de consentimiento no puede reutilizarse con otra selección.',
+        });
+      }
+      if (claim.kind === 'in_flight') {
+        res.setHeader('Retry-After', '1');
+        return res.status(409).json({
+          error: 'health_vault_creation_in_progress',
+          message: 'La creación sigue en curso. Espera un momento y reintenta.',
+        });
+      }
+      if (claim.kind === 'replay') {
+        const existing = await service.getGrant(claim.grantId);
+        if (
+          !existing || existing.ownerUid !== callerUid || existing.id !== claim.grantId ||
+          existing.status === 'revoked' || existing.status === 'expired' || Date.now() >= existing.expiresAt
+        ) {
+          return res.status(410).json({
+            error: 'health_vault_idempotency_result_unavailable',
+            message: 'El acceso fue revocado o expiró. Revisa tus accesos antes de crear otro.',
+          });
+        }
+        const plaintext = await envelopeDecrypt(claim.responseEnvelope, shareResponseKmsAdapter());
+        const replayed = JSON.parse(plaintext) as Record<string, unknown>;
+        if (replayed.grantId !== existing.id) {
+          throw new Error('health_vault_idempotency_response_mismatch');
+        }
+        return res.status(claim.responseStatus).json(replayed);
+      }
+      claimAcquired = true;
       const records = await service.getRecordsByIds(callerUid, parsed.data.resourceIds);
       const returnedIds = new Set(records.map((record) => record.id));
       if (
@@ -469,7 +578,26 @@ export function createHealthVaultProfessionalRouter(
         ttlHours,
         maxSessions: parsed.data.maxSessions,
       });
-      await service.createGrant(created.record);
+      const responseBody = {
+        grantId: created.record.id,
+        secret: created.secret,
+        qrPayload: created.qrPayload,
+        expiresAt: created.record.expiresAt,
+        status: created.record.status,
+        consentText,
+        consentTextVersion: created.record.consentTextVersion,
+        consentTextHash: created.record.consentTextHash,
+      };
+      const responseEnvelope = await envelopeEncrypt(
+        JSON.stringify(responseBody),
+        shareResponseKmsAdapter(),
+      );
+      await service.createGrant(created.record, {
+        ...claimInput,
+        responseStatus: 201,
+        responseEnvelope,
+      });
+      creationCommitted = true;
       // Oleada 2 — audit log vida-safety. Ley 21.719 (Chile) requiere
       // trazabilidad de cada acceso a datos medicos sensibles. POST /share
       // crea un grant que da acceso a health records del caller a un
@@ -505,16 +633,7 @@ export function createHealthVaultProfessionalRouter(
           // Consent persistence and audit are critical; product analytics is not.
         }
       }
-      return res.status(201).json({
-        grantId: created.record.id,
-        secret: created.secret,
-        qrPayload: created.qrPayload,
-        expiresAt: created.record.expiresAt,
-        status: created.record.status,
-        consentText,
-        consentTextVersion: created.record.consentTextVersion,
-        consentTextHash: created.record.consentTextHash,
-      });
+      return res.status(201).json(responseBody);
     } catch (error) {
       if (error instanceof VaultShareError) return grantError(res, error);
       logger.error('health_vault_v2_create_failed', error instanceof Error ? error : new Error(String(error)));
@@ -522,6 +641,17 @@ export function createHealthVaultProfessionalRouter(
         error: 'health_vault_temporarily_unavailable',
         message: 'No pudimos crear el acceso seguro. Intenta nuevamente.',
       });
+    } finally {
+      if (claimAcquired && !creationCommitted && service) {
+        try {
+          await service.releaseShareCreation(claimInput);
+        } catch {
+          logger.warn?.('health_vault_share_idempotency_release_failed', {
+            ownerUid: callerUid,
+            claimId: claimInput.claimId,
+          });
+        }
+      }
     }
   });
 
@@ -882,6 +1012,7 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
   const grants = db.collectionGroup('health_vault_shares');
   const sessions = db.collection('health_vault_access_sessions');
   const professionals = db.collection('health_professional_identities');
+  const shareCreationClaims = db.collection(IDEMPOTENCY_CACHE_COLLECTION);
 
   const locateGrant = async (id: string): Promise<HealthAccessGrantV2 | null> => {
     const snapshot = await grants.where('id', '==', id).limit(1).get();
@@ -891,14 +1022,92 @@ function defaultDependencies(): HealthVaultProfessionalRouterDeps {
   };
 
   cachedDefaultDependencies = {
-    async createGrant(grant) {
+    async claimShareCreation(input) {
+      const claimRef = shareCreationClaims.doc(input.claimId);
+      const newClaim = {
+        route: SHARE_CREATE_IDEMPOTENCY_ROUTE,
+        ownerUid: input.ownerUid,
+        requestHash: input.requestHash,
+        claimToken: input.claimToken,
+        state: 'in_flight' as const,
+        createdAtMs: input.nowMs,
+        expiresAt: Timestamp.fromMillis(input.nowMs + SHARE_CREATE_CACHE_MAX_MS),
+      };
+      return db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(claimRef);
+        const current = snapshot.data() as Record<string, unknown> | undefined;
+        if (!snapshot.exists || !current) {
+          transaction.create(claimRef, newClaim);
+          return { kind: 'acquired' as const };
+        }
+        if (current.ownerUid !== input.ownerUid || current.requestHash !== input.requestHash) {
+          return { kind: 'mismatch' as const };
+        }
+        const expiration = current.expiresAt as Timestamp | undefined;
+        const expiresAtMs = expiration?.toMillis?.() ?? 0;
+        if (
+          current.state === 'completed' && expiresAtMs > input.nowMs &&
+          typeof current.grantId === 'string' && current.responseEnvelope &&
+          typeof current.responseStatus === 'number'
+        ) {
+          return {
+            kind: 'replay' as const,
+            grantId: current.grantId,
+            responseStatus: current.responseStatus,
+            responseEnvelope: current.responseEnvelope as EnvelopeCiphertext,
+          };
+        }
+        if (
+          current.state === 'in_flight' &&
+          input.nowMs - Number(current.createdAtMs ?? 0) < SHARE_CREATE_CLAIM_STALE_MS
+        ) {
+          return { kind: 'in_flight' as const };
+        }
+        transaction.set(claimRef, newClaim);
+        return { kind: 'acquired' as const };
+      });
+    },
+    async releaseShareCreation(input) {
+      const claimRef = shareCreationClaims.doc(input.claimId);
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(claimRef);
+        const current = snapshot.data() as Record<string, unknown> | undefined;
+        if (
+          snapshot.exists && current?.state === 'in_flight' &&
+          current.claimToken === input.claimToken && current.requestHash === input.requestHash
+        ) {
+          transaction.delete(claimRef);
+        }
+      });
+    },
+    async createGrant(grant, claim) {
       const grantRef = db
         .collection('users')
         .doc(grant.ownerUid)
         .collection('health_vault_shares')
         .doc(grant.id);
+      const claimRef = shareCreationClaims.doc(claim.claimId);
       await db.runTransaction(async (transaction) => {
+        const claimSnapshot = await transaction.get(claimRef);
+        const currentClaim = claimSnapshot.data() as Record<string, unknown> | undefined;
+        if (
+          !claimSnapshot.exists || currentClaim?.state !== 'in_flight' ||
+          currentClaim.ownerUid !== grant.ownerUid ||
+          currentClaim.requestHash !== claim.requestHash ||
+          currentClaim.claimToken !== claim.claimToken ||
+          Date.now() - Number(currentClaim.createdAtMs ?? 0) >= SHARE_CREATE_CLAIM_STALE_MS
+        ) {
+          throw new Error('health_vault_share_idempotency_claim_lost');
+        }
         transaction.create(grantRef, grant);
+        transaction.update(claimRef, {
+          state: 'completed',
+          grantId: grant.id,
+          responseStatus: claim.responseStatus,
+          responseEnvelope: claim.responseEnvelope,
+          completedAtMs: Date.now(),
+          expiresAt: Timestamp.fromMillis(grant.expiresAt),
+        });
         transaction.create(db.collection('audit_logs').doc(), {
           action: 'health_vault.grant.created',
           actorUid: grant.ownerUid,

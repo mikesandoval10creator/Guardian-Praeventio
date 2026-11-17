@@ -59,6 +59,7 @@ const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }
 beforeEach(() => {
   runtime.user = { uid: 'patient-1' };
   runtime.dynamicGrantIds = false;
+  window.sessionStorage.clear();
   activeShareOverrides = {};
   emitActiveShares = undefined;
   activeShareEmissions.length = 0;
@@ -116,6 +117,58 @@ afterEach(() => {
 });
 
 describe('HealthVaultShare v2', () => {
+  it('reuses one non-secret Idempotency-Key when the owner manually retries a lost response', async () => {
+    const submittedKeys: string[] = [];
+    let shareAttempts = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/health-vault/records') return ok({ records: [{
+        id: 'record-1', workerUid: 'patient-1', type: 'lab_result', uploadedAt: Date.now(),
+        uploadedBy: 'self', meta: { title: 'Hemograma' }, tags: [], shareScope: 'private',
+      }] });
+      if (url.startsWith('/api/health-professionals/search')) return ok({ professionals: [{
+        uid: 'doctor-1', displayName: 'Dra. Elena Morales', registryNumber: 'RNPI-12345', status: 'provisional',
+      }] });
+      if (url === '/api/health-vault/share' && init?.method === 'POST') {
+        const headers = init.headers as Record<string, string>;
+        submittedKeys.push(headers['Idempotency-Key']);
+        shareAttempts += 1;
+        if (shareAttempts === 1) throw new TypeError('response lost after server commit');
+        return ok({
+          grantId: 'grant-replayed', secret: 'server-secret-not-key',
+          qrPayload: 'https://praeventio.app/vault/share/grant-replayed#server-secret-not-key',
+          expiresAt: Date.now() + 60_000, consentText: 'Consentimiento reintentado.',
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    const firstView = render(<HealthVaultShare />);
+    await screen.findByRole('checkbox', { name: 'Hemograma' });
+    fireEvent.change(screen.getByLabelText('Profesional destinatario'), { target: { value: 'doctor-1' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hemograma' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar QR' }));
+    await waitFor(() => expect(shareAttempts).toBe(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generar QR' })).toBeEnabled());
+    firstView.unmount();
+
+    render(<HealthVaultShare />);
+    await screen.findByRole('checkbox', { name: 'Hemograma' });
+    fireEvent.change(screen.getByLabelText('Profesional destinatario'), { target: { value: 'doctor-1' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hemograma' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar QR' }));
+    expect(await screen.findByText('Consentimiento reintentado.')).toBeTruthy();
+
+    expect(submittedKeys).toHaveLength(2);
+    expect(submittedKeys[0]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(submittedKeys[1]).toBe(submittedKeys[0]);
+    expect(submittedKeys[0]).not.toBe('server-secret-not-key');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generar otro' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Generar QR' }));
+    await waitFor(() => expect(submittedKeys).toHaveLength(3));
+    expect(submittedKeys[2]).not.toBe(submittedKeys[1]);
+  });
+
   it('clears private selections, active grants and the generated QR when identity changes', async () => {
     runtime.dynamicGrantIds = true;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
