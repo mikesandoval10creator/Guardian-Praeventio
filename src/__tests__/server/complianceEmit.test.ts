@@ -101,6 +101,23 @@ describe('POST /api/compliance/emit/:type', () => {
     expect(res.body.supported).toBeInstanceOf(Array);
   });
 
+  it('reports the live emission-type registry in invalid-type responses', async () => {
+    const codes = registry.EMISSION_TYPES as string[];
+    codes.push('future_emission_test');
+    try {
+      const res = await request(buildApp())
+        .post('/api/compliance/emit/bogus_type')
+        .set('x-test-uid', 'u1')
+        .set('x-test-role', 'admin')
+        .send({ country: 'CL', payload: {} });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_emission_type');
+      expect(res.body.supported).toEqual(codes);
+    } finally {
+      codes.pop();
+    }
+  });
+
   it('returns 400 for invalid body shape (non-string country)', async () => {
     const app = buildApp();
     const res = await request(app)
@@ -108,8 +125,8 @@ describe('POST /api/compliance/emit/:type', () => {
       .set('x-test-uid', 'u1')
       .set('x-test-role', 'admin')
       .send({ country: 42, payload: { foo: 'bar' } });
-    // `payload: z.unknown()` allows anything, but `country: z.string().min(2)`
-    // rejects non-strings → invalid_input from the body schema gate.
+    // `payload: z.unknown()` allows anything, but `country: z.string()`
+    // rejects non-strings before the registry enum gate.
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_input');
   });
@@ -124,6 +141,34 @@ describe('POST /api/compliance/emit/:type', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_country');
     expect(res.body.supported).toContain('CL');
+  });
+
+  it('returns invalid_country with registry suggestions for a one-character code', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/emit/aptitude_cert')
+      .set('x-test-uid', 'u1')
+      .set('x-test-role', 'admin')
+      .send({ country: 'X', payload: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_country');
+    expect(res.body.supported).toEqual(registry.COUNTRY_CODES);
+  });
+
+  it('reports the live country registry in invalid-country responses', async () => {
+    const codes = registry.COUNTRY_CODES as string[];
+    codes.push('ZZ');
+    try {
+      const res = await request(buildApp())
+        .post('/api/compliance/emit/aptitude_cert')
+        .set('x-test-uid', 'u1')
+        .set('x-test-role', 'admin')
+        .send({ country: 'XX', payload: {} });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_country');
+      expect(res.body.supported).toEqual(codes);
+    } finally {
+      codes.pop();
+    }
   });
 
   it('returns 403 for a role outside the allowlist for tax_invoice', async () => {
