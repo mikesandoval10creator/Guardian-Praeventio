@@ -27,7 +27,8 @@ The policy ships in two places:
    Node app, including SSR fallbacks, the dev server, error pages, and the
    404 path. This is the canonical CSP. It LAYERS additively on top of
    nginx without contradicting (`frame-ancestors 'none'` is identical in
-   both).
+   both, except for the development-only embedding exception described
+   below, which never reaches the production edge).
 
 ## Current directives
 
@@ -40,7 +41,7 @@ The policy ships in two places:
 | `img-src` | `'self' data: blob: https:` | Avatars, IPER photos (blob URLs from camera), generic `https:` for thumbnails — broad but read-only. |
 | `connect-src` | _Explicit allow-list — see "connect-src allow-list" below._ | Wildcard `https://*.googleapis.com` was retired in Sprint 20 12th wave Bucket A (TM-I05). |
 | `frame-src` | `'self' https://accounts.google.com` | Google OAuth consent dialog when applicable. |
-| `frame-ancestors` | `'none'` | Clickjacking defense — no site may embed us. |
+| `frame-ancestors` | `'none'` (production) · `'self' http://localhost:* http://127.0.0.1:*` (development only) | Clickjacking defense — no site may embed us. See "Dev-mode embedding exception" below. |
 | `object-src` | `'none'` | Bans `<object>`/`<embed>` (legacy XSS vector). |
 | `base-uri` | `'self'` | Prevents `<base href>` redirection of relative URLs. |
 | `form-action` | `'self'` | Forms POST only to our own origin. |
@@ -66,13 +67,64 @@ The policy ships in two places:
 | `https://*.sentry.io` | Sentry ingest — multi-region wildcard is unavoidable (`o<org>.ingest.<region>.sentry.io`). |
 | `wss://*.firebaseio.com` | Realtime DB websockets — kept until full Firestore-only audit. |
 
+## Dev-mode embedding exception
+
+**Production is unchanged. Only the development server relaxes framing.**
+
+The Express middleware emits two different framing policies depending on the
+environment:
+
+| Environment | `frame-ancestors` | `X-Frame-Options` |
+|---|---|---|
+| Production | `'none'` | `DENY` |
+| Development | `'self' http://localhost:* http://127.0.0.1:*` | `SAMEORIGIN` |
+
+### Why this exists
+
+The development server is consumed from a **browser-based IDE that renders
+the app inside an iframe** (the DeepSeek Harness "Browser" tab). With the
+production policy, the browser refused the frame outright
+(`net::ERR_BLOCKED_BY_RESPONSE`) and the iframe stayed blank — a pure
+tooling problem, with no application defect behind it.
+
+### What the exception does and does not allow
+
+- It allows framing **only from loopback origins** (`localhost`,
+  `127.0.0.1`). There is no host wildcard (`*`) and no bare `'*'` — a remote
+  page cannot embed the development server. A test in
+  `securityHeaders.test.ts` asserts both of those absences, so a future
+  broadening to a public host fails the build.
+- It is gated on the existing development flag, so the production build
+  (`npm run build` → `dist/`) and the nginx edge keep the strict policy.
+  `nginx.conf` is deliberately **not** modified: the edge layer still sends
+  `frame-ancestors 'none'`, and it does not need to know about the local
+  tooling exception.
+- It grants **no access to the application itself**. The embedding iframe is
+  still subject to the full CSP (`script-src` with a per-request nonce and
+  `'strict-dynamic'`, the `connect-src` allow-list, `object-src 'none'`,
+  `form-action 'self'`). The exception only relaxes *who may frame us*, not
+  *what our own pages may do*.
+
+### Verification
+
+```bash
+npm run dev
+curl -I http://localhost:3000/ | grep -iE 'content-security-policy|x-frame-options'
+# dev  → frame-ancestors 'self' http://localhost:* http://127.0.0.1:*
+# dev  → X-Frame-Options: SAMEORIGIN
+```
+
+The regression suite lives in
+[`src/server/middleware/securityHeaders.test.ts`](../../src/server/middleware/securityHeaders.test.ts)
+under `describe('CSP frame-ancestors — dev embeddability vs production lockdown')`.
+
 ## Other security headers
 
 | Header | Value | Scope |
 |---|---|---|
 | `X-Content-Type-Options` | `nosniff` | Always. |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Always. |
-| `X-Frame-Options` | `DENY` | Belt-and-braces with `frame-ancestors`. |
+| `X-Frame-Options` | `DENY` (production) · `SAMEORIGIN` (development only) | Belt-and-braces with `frame-ancestors`. See "Dev-mode embedding exception" below. |
 | `Permissions-Policy` | `camera=(self), microphone=(self), geolocation=(self), accelerometer=(self), gyroscope=(self)` | Self-only. The app legitimately uses each: SOSButton (mic+geo), fall detection (accelerometer/gyroscope), IPER photos (camera), commute tracking (geo). |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` | HTTPS only — gated on `req.secure` OR `X-Forwarded-Proto: https` (Cloud Run). Skipped on plain HTTP so local dev does not pin browsers to HTTPS. |
 
@@ -204,11 +256,14 @@ curl -I -H "X-Forwarded-Proto: https" http://localhost:3000/   # HSTS appears
 ```
 
 You should see all six headers (CSP, X-Content-Type-Options, Referrer-Policy,
-X-Frame-Options, Permissions-Policy, plus HSTS on the second call).
+X-Frame-Options, Permissions-Policy, plus HSTS on the second call). In
+development the X-Frame-Options value is `SAMEORIGIN` and the CSP
+`frame-ancestors` lists the loopback origins — see "Dev-mode embedding
+exception" above.
 
 ## Cross-references
 
-- [`nginx.conf`](../../nginx.conf) — edge headers. Keep `frame-ancestors 'none'` in sync if changed.
+- [`nginx.conf`](../../nginx.conf) — edge headers. Keep `frame-ancestors 'none'` in sync if changed. The edge is NOT affected by the development-only embedding exception.
 - [`THREAT_MODEL.md`](./THREAT_MODEL.md) — the threat scenarios CSP defends against.
 - [`STRIDE_findings.md`](./STRIDE_findings.md) — TM-I05 tracker for connect-src wildcard tightening.
 - [`SECURITY.md`](../../SECURITY.md) — top-level security policy and disclosure.
