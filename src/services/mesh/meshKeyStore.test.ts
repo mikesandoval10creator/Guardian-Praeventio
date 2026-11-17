@@ -88,12 +88,70 @@ describe('meshKeyStore corruption recovery', () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
   });
 
+  it('coalesces concurrent provisioning for the same project and auth scope', async () => {
+    const validKey = toBase64(new Uint8Array(32).fill(0x2a));
+    let releaseResponse!: (response: Response) => void;
+    const delayedResponse = new Promise<Response>((resolve) => { releaseResponse = resolve; });
+    const fetchImpl = vi.fn(async () => delayedResponse) as unknown as typeof fetch;
+
+    const first = provisionMeshSigningKey(PROJECT_ID, fetchImpl);
+    const second = provisionMeshSigningKey(PROJECT_ID, fetchImpl);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    releaseResponse(responseWithKey(`${PROJECT_ID}:v1`, validKey));
+    const [firstKey, secondKey] = await Promise.all([first, second]);
+    expect(firstKey?.keyId).toBe(`${PROJECT_ID}:v1`);
+    expect(secondKey).toBe(firstKey);
+    expect(await readKeyRecord()).toMatchObject({ keyId: `${PROJECT_ID}:v1`, rawKeyB64: validKey });
+  });
+
+  it('does not let a delayed older keyId overwrite a newer key already persisted', async () => {
+    const oldKey = toBase64(new Uint8Array(32).fill(0x11));
+    const newKey = toBase64(new Uint8Array(32).fill(0x22));
+    let releaseOld!: (response: Response) => void;
+    let releaseNew!: (response: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => { releaseOld = resolve; });
+    const newResponse = new Promise<Response>((resolve) => { releaseNew = resolve; });
+    vi.mocked(apiAuthHeader)
+      .mockResolvedValueOnce('Bearer caller-a')
+      .mockResolvedValueOnce('Bearer caller-b');
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) => {
+      const authorization = (init?.headers as Record<string, string>)?.Authorization;
+      return authorization === 'Bearer caller-a' ? oldResponse : newResponse;
+    }) as unknown as typeof fetch;
+
+    const olderProvision = provisionMeshSigningKey(PROJECT_ID, fetchImpl);
+    const newerProvision = provisionMeshSigningKey(PROJECT_ID, fetchImpl);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    releaseNew(responseWithKey(`${PROJECT_ID}:v3`, newKey));
+    const newer = await newerProvision;
+    releaseOld(responseWithKey(`${PROJECT_ID}:v2`, oldKey));
+    const older = await olderProvision;
+
+    expect(newer?.keyId).toBe(`${PROJECT_ID}:v3`);
+    expect(older?.keyId).toBe(`${PROJECT_ID}:v3`);
+    expect(await readKeyRecord()).toMatchObject({ keyId: `${PROJECT_ID}:v3`, rawKeyB64: newKey });
+  });
+
   it.each([
     ['invalid Base64', 'not-base64!'],
     ['a decoded key shorter than 32 bytes', toBase64(new Uint8Array(31).fill(0x2a))],
   ])('rejects %s server key material without writing to IndexedDB', async (_case, invalidKey) => {
     const fetchImpl = vi.fn(async () =>
       responseWithKey(`${PROJECT_ID}:v2`, invalidKey),
+    ) as unknown as typeof fetch;
+
+    await expect(provisionMeshSigningKey(PROJECT_ID, fetchImpl)).resolves.toBeNull();
+    expect(await readKeyRecord()).toBeUndefined();
+  });
+
+  it('rejects a keyId outside the requested project without writing IndexedDB', async () => {
+    const validKey = toBase64(new Uint8Array(32).fill(0x2a));
+    const fetchImpl = vi.fn(async () =>
+      responseWithKey('different-project:v1', validKey),
     ) as unknown as typeof fetch;
 
     await expect(provisionMeshSigningKey(PROJECT_ID, fetchImpl)).resolves.toBeNull();
