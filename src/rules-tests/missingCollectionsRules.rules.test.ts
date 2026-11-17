@@ -19,7 +19,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 import { normalizeSafetyCapsule } from '../lib/safetyCapsule';
 
@@ -243,6 +243,34 @@ describe('calendar_events (top-level) — projectId-gated', () => {
     await seed(['calendar_events', 'e1'], ev(PID));
     await assertFails(getDoc(d(authed(OUTSIDER), 'calendar_events', 'e1')));
   });
+  it('a member can query only top-level events constrained to their own project', async () => {
+    await seed(['calendar_events', 'e1'], { ...ev(PID), relatedObjectId: 'ext-1' });
+    await seed(['calendar_events', 'e2'], { ...ev(OTHER_PID), relatedObjectId: 'ext-1' });
+
+    const snapshot = await assertSucceeds(getDocs(query(
+      c(authed(MEMBER), 'calendar_events'),
+      where('projectId', '==', PID),
+      where('relatedObjectId', '==', 'ext-1'),
+    )));
+
+    expect(snapshot.docs.map((event) => event.data().projectId)).toEqual([PID]);
+  });
+  it('a member CANNOT list top-level calendar events without a project scope', async () => {
+    await seed(['calendar_events', 'e1'], { ...ev(PID), relatedObjectId: 'ext-1' });
+    await assertFails(getDocs(query(
+      c(authed(MEMBER), 'calendar_events'),
+      where('relatedObjectId', '==', 'ext-1'),
+    )));
+  });
+  it('a member CANNOT query events from another project by choosing its projectId', async () => {
+    await seed(['calendar_events', 'e1'], { ...ev(OTHER_PID), relatedObjectId: 'ext-1' });
+    await assertFails(getDocs(query(
+      c(authed(MEMBER), 'calendar_events'),
+      where('projectId', '==', OTHER_PID),
+      where('relatedObjectId', '==', 'ext-1'),
+    )));
+  });
+
   it('client UPDATE/DELETE are denied (syncStatus is server-owned)', async () => {
     await seed(['calendar_events', 'e1'], ev(PID));
     await assertFails(setDoc(d(authed(MEMBER), 'calendar_events', 'e1'), { syncStatus: 'synced' }, { merge: true }));
