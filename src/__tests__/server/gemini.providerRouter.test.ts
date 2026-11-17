@@ -28,6 +28,7 @@ const H = vi.hoisted(() => ({
   slmFallback: vi.fn(),
   /** E1.2 — fake tenant credential store: tenantId → stored credential. */
   credentials: new Map<string, { baseUrl: string; model: string; secret: string }>(),
+  corruptCredentialFor: null as string | null,
 }));
 
 vi.mock('../../services/geminiBackend.js', () => ({
@@ -89,6 +90,9 @@ vi.mock('firebase-admin/firestore', async () => {
               ? path.split('/')[1]
               : '';
             const stored = H.credentials.get(tenantId);
+            if (H.corruptCredentialFor === tenantId) {
+              return { exists: true, data: () => ({ provider: id, envelope: { nonsense: true } }) };
+            }
             if (!stored) return { exists: false, data: () => undefined };
             const envelope = await envelopeEncrypt(stored.secret, inMemoryKmsAdapter);
             return {
@@ -156,6 +160,7 @@ beforeEach(() => {
   H.chatHandler.mockReset().mockResolvedValue('respuesta-gemini');
   H.slmFallback.mockReset().mockResolvedValue({ text: 'respuesta-ladder', tier: 'zettelkasten', confidence: 0.8 });
   H.credentials.clear();
+  H.corruptCredentialFor = null;
 
   fetchMock.mockReset().mockImplementation(async () =>
     new Response(
@@ -476,5 +481,19 @@ describe('POST /api/gemini — E1.2 tenant-scoped credentials', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://platform.invalid/v1/chat/completions');
     expect(authHeader(init)).toContain('platform-key');
+  });
+
+  it('does not call the platform endpoint when a tenant credential envelope is malformed', async () => {
+    enableSelfHosted();
+    process.env.AI_SELFHOSTED_BASE_URL = 'http://platform.invalid';
+    process.env.AI_SELFHOSTED_API_KEY = 'platform-key';
+    process.env.AI_SELFHOSTED_MODEL = 'platform-model';
+    H.corruptCredentialFor = 'tenant-corrupt';
+
+    const res = await sendAs('tenant-corrupt');
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(H.chatHandler).not.toHaveBeenCalled();
   });
 });
