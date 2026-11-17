@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Health Vault v2 — authenticated, consent-bound professional viewer.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
@@ -26,7 +26,7 @@ type ViewerState =
   | { kind: 'recipient_confirmation_pending' }
   | { kind: 'webauthn_required' }
   | { kind: 'opening' }
-  | { kind: 'authorized'; ownerName: string; records: SafeRecord[]; expiresAt: number }
+  | { kind: 'authorized'; scope: string; ownerName: string; records: SafeRecord[]; expiresAt: number }
   | { kind: 'error'; title: string; message: string };
 
 type VaultRouteState = { vaultHandoff?: string } | null;
@@ -73,6 +73,16 @@ export function HealthVaultViewer() {
     legacySecret ? { kind: 'legacy_reissue' } : { kind: 'checking' },
   );
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  // Bind the in-flight open and rendered records to the current identity/grant.
+  // Updating on render prevents a late response from exposing prior-user data
+  // even before effect cleanup runs after an auth/route change.
+  const scope = JSON.stringify([user?.uid ?? null, tokenId, Boolean(legacySecret)]);
+  const scopeRef = useRef(scope);
+  const openEpochRef = useRef(0);
+  if (scopeRef.current !== scope) {
+    scopeRef.current = scope;
+    openEpochRef.current += 1;
+  }
 
   useEffect(() => {
     if ((location.state as VaultRouteState)?.vaultHandoff) {
@@ -89,7 +99,11 @@ export function HealthVaultViewer() {
   );
 
   useEffect(() => {
-    if (legacySecret) return;
+    setSessionToken(null);
+    if (legacySecret) {
+      setState({ kind: 'legacy_reissue' });
+      return;
+    }
     if (!user?.uid) {
       setState({ kind: 'login_required' });
       return;
@@ -103,9 +117,11 @@ export function HealthVaultViewer() {
       return;
     }
     let cancelled = false;
+    setState({ kind: 'checking' });
     async function checkProfessional() {
       try {
         const authHeader = await apiAuthHeader();
+        if (cancelled) return;
         if (!authHeader) throw new Error('authentication_required');
         const response = await fetch('/api/health-professionals/me', {
           headers: { Authorization: authHeader },
@@ -116,6 +132,7 @@ export function HealthVaultViewer() {
           return;
         }
         const body = await response.json().catch(() => ({}));
+        if (cancelled) return;
         if (!response.ok) throw new Error(serverError(body, response.status));
         const status = body.identity?.status;
         if (status !== 'provisional' && status !== 'verified') {
@@ -150,16 +167,22 @@ export function HealthVaultViewer() {
     void checkProfessional();
     return () => {
       cancelled = true;
+      openEpochRef.current += 1;
     };
   }, [legacySecret, secret, tokenId, user?.uid]);
 
   async function openVault() {
+    if (!user?.uid || !tokenId || !secret || legacySecret || scopeRef.current !== scope) return;
+    const requestScope = scope;
+    const epoch = ++openEpochRef.current;
+    const isCurrent = () => scopeRef.current === requestScope && openEpochRef.current === epoch;
     setState({ kind: 'opening' });
     try {
       const [authHeader, assertion] = await Promise.all([
         apiAuthHeader(),
         createHealthProfessionalAssertion(tokenId),
       ]);
+      if (!isCurrent()) return;
       if (!authHeader || !assertion) {
         setState({
           kind: 'error',
@@ -174,7 +197,9 @@ export function HealthVaultViewer() {
         headers: { 'Content-Type': 'application/json', Authorization: authHeader },
         body: JSON.stringify({ secret, assertion }),
       });
+      if (!isCurrent()) return;
       const sessionBody = await sessionResponse.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!sessionResponse.ok) {
         throw new Error(serverError(sessionBody, sessionResponse.status));
       }
@@ -187,17 +212,21 @@ export function HealthVaultViewer() {
           'X-Health-Vault-Session': nextSessionToken,
         },
       });
+      if (!isCurrent()) return;
       const recordsBody = await recordsResponse.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!recordsResponse.ok) {
         throw new Error(serverError(recordsBody, recordsResponse.status));
       }
       setState({
         kind: 'authorized',
+        scope: requestScope,
         ownerName: String(recordsBody.ownerName ?? 'Paciente'),
         records: Array.isArray(recordsBody.records) ? recordsBody.records : [],
         expiresAt: Number(recordsBody.expiresAt),
       });
     } catch (error: any) {
+      if (!isCurrent()) return;
       setState({
         kind: 'error',
         title: 'No se pudo abrir el Health Vault',
@@ -207,27 +236,42 @@ export function HealthVaultViewer() {
   }
 
   async function openFile(recordId: string) {
-    if (!sessionToken) return;
+    if (!sessionToken || !user?.uid || !secret || legacySecret || state.kind !== 'authorized' || state.scope !== scope) return;
+    const requestScope = scope;
+    const epoch = openEpochRef.current;
+    const requestSessionToken = sessionToken;
+    const isCurrent = () => scopeRef.current === requestScope &&
+      openEpochRef.current === epoch && user?.uid != null && requestSessionToken === sessionToken;
     try {
       const authHeader = await apiAuthHeader();
+      if (!isCurrent()) return;
       if (!authHeader) throw new Error('authentication_required');
       const response = await fetch(`/api/health-vault/view/${tokenId}/file`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: authHeader,
-          'X-Health-Vault-Session': sessionToken,
+          'X-Health-Vault-Session': requestSessionToken,
         },
         body: JSON.stringify({ recordId }),
       });
+      if (!isCurrent()) return;
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (!isCurrent()) return;
         throw new Error(serverError(body, response.status));
       }
-      const url = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      if (!isCurrent()) return;
+      const url = URL.createObjectURL(blob);
+      if (!isCurrent()) {
+        URL.revokeObjectURL(url);
+        return;
+      }
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error: any) {
+      if (!isCurrent()) return;
       setState({
         kind: 'error',
         title: 'No se pudo abrir el archivo',
@@ -302,7 +346,7 @@ export function HealthVaultViewer() {
         )}
 
         {state.kind === 'error' && <ErrorCard title={state.title} message={state.message} />}
-        {state.kind === 'authorized' && (
+        {state.kind === 'authorized' && state.scope === scope && !!user?.uid && (
           <AuthorizedView
             ownerName={state.ownerName}
             records={state.records}
