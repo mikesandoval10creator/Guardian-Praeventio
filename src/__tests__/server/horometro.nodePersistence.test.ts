@@ -77,16 +77,8 @@ vi.mock('../../services/observability/index.js', () => ({
   getErrorTracker: () => ({ captureException: vi.fn() }),
 }));
 
-// ── edge store: out of scope here (covered by edge tests). The REAL flow + REAL
-//    node writer run; only edge materialization is stubbed to a no-op. ────────
+// The real EdgeStore adapter and createEdge path run against the same fake database.
 
-vi.mock('../../services/zettelkasten/edges.js', () => ({
-  createEdge: vi.fn(async () => undefined),
-}));
-
-vi.mock('../../services/zettelkasten/edgeStoreFirestore.js', () => ({
-  buildEdgeStore: vi.fn(() => ({})),
-}));
 
 // NOTE: deliberately NOT mocking horometroMaintenanceFlow, serverZkNodeWriter,
 // persistence/writeNode (nodeIdFor), horometroService, maintenanceScheduler, or
@@ -98,6 +90,8 @@ import horometroRouter from '../../server/routes/horometro.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 import { getFirestore } from 'firebase-admin/firestore';
+import { getRelatedNodes } from '../../services/zettelkasten/edges.js';
+import { buildEdgeStore, EDGE_PATH } from '../../services/zettelkasten/edgeStoreFirestore.js';
 const PREFIX = '/api/sprint-k';
 const UID = 'uid-1';
 const PROJECT_ID = 'proj-1';
@@ -136,12 +130,29 @@ function postReading(hours: number) {
     .send({ equipmentId: EQUIPMENT_ID, hours, source: 'qr_entry' });
 }
 
+function postTaskCompletion(taskId: string) {
+  return request(buildApp())
+    .post(`${PREFIX}/${PROJECT_ID}/horometro/maintenance-task/${taskId}/complete`)
+    .set('x-test-uid', UID)
+    .set('x-test-email', 'op@praeventio.test')
+    .send({ notes: 'Synthetic maintenance evidence', horometroAtCompletion: 300 });
+}
+
 /** All `zettelkasten_nodes/{id}` docs persisted to the fake Firestore. */
 function dumpZkNodes(): Array<Record<string, unknown>> {
   const store = H.db!._dump();
   return Object.entries(store)
     .filter(([k]) => k.startsWith('zettelkasten_nodes/'))
     .map(([, v]) => v as Record<string, unknown>);
+}
+
+function dumpZkNodeDocs(): Array<{ docId: string; data: Record<string, unknown> }> {
+  return Object.entries(H.db!._dump())
+    .filter(([path]) => path.startsWith('zettelkasten_nodes/'))
+    .map(([path, data]) => ({
+      docId: path.slice('zettelkasten_nodes/'.length),
+      data: data as Record<string, unknown>,
+    }));
 }
 
 beforeEach(() => {
@@ -230,5 +241,124 @@ describe('horometro route → REAL serverWriteNodes persists ZK nodes', () => {
       expect(n.projectId).toBe(PROJECT_ID);
       expect(n.createdBy).toBe(UID);
     }
+  });
+
+  it('persists and reads back reading → threshold → task → completion edges by canonical IDs', async () => {
+    seedProject();
+    seedEquipment();
+
+    const res = await postReading(300);
+    expect(res.status).toBe(201);
+
+    const nodes = dumpZkNodeDocs();
+    const reading = nodes.find((node) => node.data.type === 'horometro-reading');
+    const threshold = nodes.find((node) => node.data.type === 'maintenance-threshold-reached');
+    const task = nodes.find((node) => node.data.type === 'maintenance-task-created');
+    expect(reading).toBeDefined();
+    expect(threshold).toBeDefined();
+    expect(task).toBeDefined();
+    if (!reading || !threshold || !task) throw new Error('missing persisted chain node');
+
+    const edges = Object.entries(H.db!._dump())
+      .filter(([path]) => path.startsWith(`${EDGE_PATH(TENANT_ID)}/`))
+      .map(([, edge]) => edge);
+    expect(edges).toHaveLength(5);
+    expect(edges).toContainEqual(expect.objectContaining({
+      fromNodeId: reading.docId,
+      toNodeId: threshold.docId,
+      type: 'causes',
+    }));
+    expect(edges).toContainEqual(expect.objectContaining({
+      fromNodeId: threshold.docId,
+      toNodeId: task.docId,
+      type: 'causes',
+    }));
+
+    const localIds = [reading.data, threshold.data, task.data]
+      .map((node) => (node.metadata as Record<string, unknown>).zkLocalId)
+      .filter((id): id is string => typeof id === 'string');
+    const persistedEndpoints = new Set([...nodes.map((node) => node.docId), EQUIPMENT_ID]);
+    expect(H.db!._dump()[`tenants/${TENANT_ID}/projects/${PROJECT_ID}/equipment/${EQUIPMENT_ID}`]).toBeDefined();
+    for (const edge of edges) {
+      const endpoints = [edge.fromNodeId, edge.toNodeId];
+      for (const endpoint of endpoints) {
+        expect(typeof endpoint).toBe('string');
+        if (typeof endpoint !== 'string') throw new Error('edge endpoint must be a string');
+        expect(persistedEndpoints.has(endpoint)).toBe(true);
+      }
+      for (const localId of localIds) expect(endpoints).not.toContain(localId);
+    }
+
+    const edgeStore = buildEdgeStore(getFirestore());
+    const readingRelated = await getRelatedNodes(
+      edgeStore,
+      reading.docId,
+      TENANT_ID,
+      { projectId: PROJECT_ID, direction: 'outgoing' },
+    );
+    expect(readingRelated).toContainEqual(expect.objectContaining({
+      nodeId: threshold.docId,
+      via: 'causes',
+    }));
+    const thresholdRelated = await getRelatedNodes(
+      edgeStore,
+      threshold.docId,
+      TENANT_ID,
+      { projectId: PROJECT_ID, direction: 'outgoing' },
+    );
+    expect(thresholdRelated).toContainEqual(expect.objectContaining({
+      nodeId: task.docId,
+      via: 'causes',
+    }));
+
+    const metadata = task.data.metadata as Record<string, unknown>;
+    expect(typeof metadata.taskId).toBe('string');
+    if (typeof metadata.taskId !== 'string') throw new Error('task node must carry taskId');
+    const completionResponse = await postTaskCompletion(metadata.taskId);
+    expect(completionResponse.status).toBe(200);
+    expect(completionResponse.body.flow.ok).toBe(true);
+
+    const completedNodes = dumpZkNodeDocs();
+    const completed = completedNodes.find((node) => node.data.type === 'maintenance-task-completed');
+    expect(completed).toBeDefined();
+    if (!completed) throw new Error('missing persisted completion evidence node');
+    expect(completionResponse.body.flow.readingNodeId).toBe(completed.docId);
+
+    const completeGraphEdges = Object.entries(H.db!._dump())
+      .filter(([path]) => path.startsWith(`${EDGE_PATH(TENANT_ID)}/`))
+      .map(([, edge]) => edge);
+    expect(completeGraphEdges).toHaveLength(7);
+    expect(completeGraphEdges).toContainEqual(expect.objectContaining({
+      fromNodeId: task.docId,
+      toNodeId: completed.docId,
+      type: 'causes',
+    }));
+    expect(completeGraphEdges).toContainEqual(expect.objectContaining({
+      fromNodeId: completed.docId,
+      toNodeId: EQUIPMENT_ID,
+      type: 'references',
+    }));
+
+    const allPersistedEndpoints = new Set([...completedNodes.map((node) => node.docId), EQUIPMENT_ID]);
+    const completedLocalId = (completed.data.metadata as Record<string, unknown>).zkLocalId;
+    for (const edge of completeGraphEdges) {
+      for (const endpoint of [edge.fromNodeId, edge.toNodeId]) {
+        expect(typeof endpoint).toBe('string');
+        if (typeof endpoint !== 'string') throw new Error('edge endpoint must be a string');
+        expect(allPersistedEndpoints.has(endpoint)).toBe(true);
+        expect(endpoint).not.toBe(completedLocalId);
+      }
+    }
+
+    const taskRelated = await getRelatedNodes(
+      edgeStore,
+      task.docId,
+      TENANT_ID,
+      { projectId: PROJECT_ID, direction: 'outgoing' },
+    );
+    expect(taskRelated).toContainEqual(expect.objectContaining({
+      nodeId: completed.docId,
+      via: 'causes',
+    }));
   });
 });

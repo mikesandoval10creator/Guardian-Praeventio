@@ -27,6 +27,7 @@ import {
   type WriteNodesFn,
   type CreateEdgeFn,
 } from './horometroMaintenanceFlow';
+import type { RiskNodePayload } from '../types.js';
 import type { HorometroReading } from '../../horometro/horometroService';
 import type {
   MaintenanceTask,
@@ -341,6 +342,17 @@ describe('onHorometroReading', () => {
     expect(result.edgesCreated).toBe(13);
     expect(result.edgesExpected).toBe(13);
     expect(edgesAdapter.edges).toHaveLength(13);
+    expect(edgesAdapter.edges).toContainEqual({
+      from: 'srv-id-1-0',
+      to: 'srv-id-1-1',
+      type: 'causes',
+    });
+    expect(edgesAdapter.edges).toContainEqual({
+      from: 'srv-id-1-1',
+      to: 'srv-id-1-2',
+      type: 'causes',
+    });
+    expect(result.readingNodeId).toBe('srv-id-1-0');
     // Verify tasks exist with deterministic ids.
     expect(taskStore._all()).toHaveLength(3);
     const ids = taskStore._all().map((t) => t.id).sort();
@@ -369,6 +381,53 @@ describe('onHorometroReading', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('simulated_failure');
+    expect(taskStore._all()).toHaveLength(0);
+    expect(edgesAdapter.edges).toHaveLength(0);
+  });
+
+  it('does not create edges or tasks when the writer returns incomplete canonical IDs', async () => {
+    const taskStore = inMemoryTaskStore();
+    const writer: WriteNodesFn = async () => ({ ok: true, ids: ['only-reading-id'] });
+    const edgesAdapter = inMemoryCreateEdge();
+
+    const result = await onHorometroReading(
+      {
+        tenantId: TENANT,
+        projectId: PROJECT,
+        equipmentId: EQUIPMENT,
+        equipmentType: 'compresor',
+        reading: makeReading({ hours: 260 }),
+        lastMaintenanceHours: 240,
+      },
+      { writeNodes: writer, createEdge: edgesAdapter.fn, taskStore },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'canonical_node_ids_unavailable' });
+    expect(taskStore._all()).toHaveLength(0);
+    expect(edgesAdapter.edges).toHaveLength(0);
+  });
+
+  it('rejects ambiguous duplicate canonical IDs before creating tasks or edges', async () => {
+    const taskStore = inMemoryTaskStore();
+    const writer: WriteNodesFn = async (nodes) => ({
+      ok: true,
+      ids: nodes.map((_, index) => index < 2 ? 'duplicate-id' : `canonical-${index}`),
+    });
+    const edgesAdapter = inMemoryCreateEdge();
+
+    const result = await onHorometroReading(
+      {
+        tenantId: TENANT,
+        projectId: PROJECT,
+        equipmentId: EQUIPMENT,
+        equipmentType: 'compresor',
+        reading: makeReading({ hours: 260 }),
+        lastMaintenanceHours: 240,
+      },
+      { writeNodes: writer, createEdge: edgesAdapter.fn, taskStore },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'canonical_node_ids_unavailable' });
     expect(taskStore._all()).toHaveLength(0);
     expect(edgesAdapter.edges).toHaveLength(0);
   });
@@ -443,6 +502,12 @@ describe('onMaintenanceCompleted', () => {
       createdAt: RECORDED_AT,
       createdBy: 'system',
     };
+    const nodeIdFor = vi.fn(async (node: RiskNodePayload, _projectId: string) => {
+      expect(node.type).toBe('maintenance-task-created');
+      expect(node.description).toContain('Estado inicial: open.');
+      return 'canonical-task-node';
+    });
+    const isTaskNodePersisted = vi.fn(async () => true);
     const result = await onMaintenanceCompleted(
       {
         tenantId: TENANT,
@@ -456,7 +521,13 @@ describe('onMaintenanceCompleted', () => {
           horometroAtCompletion: 1010,
         },
       },
-      { writeNodes: writer.fn, createEdge: edgesAdapter.fn, logger: undefined },
+      {
+        writeNodes: writer.fn,
+        createEdge: edgesAdapter.fn,
+        logger: undefined,
+        nodeIdFor,
+        isTaskNodePersisted,
+      },
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -465,8 +536,62 @@ describe('onMaintenanceCompleted', () => {
     expect(writer.calls[0]!.types).toEqual(['maintenance-task-completed']);
     expect(result.edgesCreated).toBe(2);
     expect(result.edgesExpected).toBe(2);
-    const types = edgesAdapter.edges.map((e) => e.type).sort();
-    expect(types).toEqual(['causes', 'references']);
+    expect(result.readingNodeId).toBe('srv-id-1-0');
+    expect(isTaskNodePersisted).toHaveBeenCalledWith({
+      nodeId: 'canonical-task-node',
+      taskId: task.id,
+      projectId: PROJECT,
+    });
+    expect(edgesAdapter.edges).toContainEqual({
+      from: 'canonical-task-node',
+      to: 'srv-id-1-0',
+      type: 'causes',
+    });
+    expect(edgesAdapter.edges).toContainEqual({
+      from: 'srv-id-1-0',
+      to: EQUIPMENT,
+      type: 'references',
+    });
+  });
+
+  it('does not create a completion node or edge when the prior task node is not persisted', async () => {
+    const writer = inMemoryWriteNodes();
+    const edgesAdapter = inMemoryCreateEdge();
+    const result = await onMaintenanceCompleted(
+      {
+        tenantId: TENANT,
+        projectId: PROJECT,
+        task: {
+          id: 'mtask-EQ-1000h-k1',
+          projectId: PROJECT,
+          equipmentId: EQUIPMENT,
+          equipmentType: 'compresor',
+          thresholdHours: 1000,
+          triggeredAtHours: 1000,
+          multiplier: 1,
+          severity: 'high',
+          status: 'completed',
+          dueAtIso: '2026-05-20T14:00:00.000Z',
+          createdAt: RECORDED_AT,
+          createdBy: 'system',
+        },
+        completion: {
+          completedByUid: 'tech-1',
+          completedAt: '2026-05-20T18:00:00.000Z',
+          notes: 'Done',
+        },
+      },
+      {
+        writeNodes: writer.fn,
+        createEdge: edgesAdapter.fn,
+        nodeIdFor: async () => 'missing-task-node',
+        isTaskNodePersisted: async () => false,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'task_created_node_not_persisted' });
+    expect(writer.calls).toHaveLength(0);
+    expect(edgesAdapter.edges).toHaveLength(0);
   });
 
   it('returns ok:false when writeNodes fails', async () => {
@@ -498,6 +623,8 @@ describe('onMaintenanceCompleted', () => {
       {
         writeNodes: async () => ({ ok: false, error: 'boom' }),
         createEdge: edgesAdapter.fn,
+        nodeIdFor: async () => 'canonical-task-node',
+        isTaskNodePersisted: async () => true,
       },
     );
     expect(result.ok).toBe(false);

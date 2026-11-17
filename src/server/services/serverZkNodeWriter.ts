@@ -43,6 +43,17 @@ export interface ZkWriteActor {
   createdByEmail?: string | null;
 }
 
+/** Resolve the canonical Zettelkasten document ID without loading the browser writer eagerly. */
+export async function serverNodeIdFor(
+  node: RiskNodePayload,
+  projectId: string,
+): Promise<string> {
+  const { nodeIdFor } = await import(
+    '../../services/zettelkasten/persistence/writeNode.js'
+  );
+  return nodeIdFor(node, projectId);
+}
+
 export interface CreateNodeOnceResult {
   ok: boolean;
   id: string;

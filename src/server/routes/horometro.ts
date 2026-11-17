@@ -61,7 +61,7 @@ import {
   type WriteNodesFn,
   type CreateEdgeFn,
 } from '../../services/zettelkasten/flows/horometroMaintenanceFlow.js';
-import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
+import { makeServerWriteNodes, serverNodeIdFor } from '../services/serverZkNodeWriter.js';
 import { createEdge } from '../../services/zettelkasten/edges.js';
 import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
 
@@ -449,6 +449,20 @@ router.post(
           writeNodes: serverWriteNodesFor(req),
           createEdge: buildCreateEdgeAdapter(db),
           logger,
+          nodeIdFor: serverNodeIdFor,
+          isTaskNodePersisted: async ({ nodeId, taskId, projectId: nodeProjectId }) => {
+            const nodeSnapshot = await db.collection('zettelkasten_nodes').doc(nodeId).get();
+            if (!nodeSnapshot.exists) return false;
+            const nodeData = nodeSnapshot.data();
+            const metadata = nodeData?.metadata;
+            if (!nodeData || typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+              return false;
+            }
+            return nodeData.projectId === nodeProjectId &&
+              nodeData.idempotencyKey === nodeId &&
+              nodeData.type === 'maintenance-task-created' &&
+              (metadata as Record<string, unknown>).taskId === taskId;
+          },
         },
       );
       await auditServerEvent(req, 'horometro.complete', 'horometro', { projectId, taskId }, { projectId });
