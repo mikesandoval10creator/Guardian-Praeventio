@@ -10,11 +10,12 @@
  *
  * Production hardening — KMS envelope encryption (default-ON, B17):
  *   refresh_token is wrapped via `envelopeEncrypt` before being written to
- *   Firestore (and transparently unwrapped on read) UNLESS the operator opts
- *   out with `OAUTH_ENVELOPE_ENABLED=false`. The wrapping uses a per-token
- *   random AES-256-GCM Data Encryption Key (DEK), and that DEK is itself
- *   wrapped by a KMS-managed Key Encryption Key (KEK) selected via
- *   `KMS_ADAPTER`.
+ *   Firestore and transparently unwrapped on read. Production requires
+ *   `KMS_ADAPTER=cloud-kms` and `KMS_KEY_RESOURCE_NAME`; the boot preflight
+ *   enforces this, and the store independently rejects an unavailable or
+ *   non-cloud adapter rather than writing plaintext. Outside production,
+ *   `OAUTH_ENVELOPE_ENABLED=false` and the development adapter fallback remain
+ *   available for local development/tests.
  *
  *   Both adapters are functional: `in-memory-dev` for tests, and
  *   `cloud-kms` (real `CloudKmsAdapter` backed by `@google-cloud/kms`,
@@ -23,12 +24,11 @@
  *   are envelope-encrypted at rest. The earlier "stub awaiting install"
  *   note here was stale — kept for historical context only.
  *
- *   Backwards compatibility: the read path is permissive — it accepts BOTH
- *   legacy plaintext refresh_tokens AND new envelope objects. This means the
- *   default-ON flip needs no migration; old plaintext docs continue to work
- *   and a separate migration job (also documented in KMS_ROTATION.md) re-wraps
- *   them in the background. Opting out (`OAUTH_ENVELOPE_ENABLED=false`)
- *   restores the pre-envelope plaintext-write behavior.
+ *   Backwards compatibility: the read path accepts both legacy plaintext
+ *   refresh_tokens and new envelope objects. Old plaintext docs continue to
+ *   work during migration; a separate job (KMS_ROTATION.md) re-wraps them.
+ *   Production never writes plaintext: the `OAUTH_ENVELOPE_ENABLED=false` opt-out
+ *   is restricted to non-production.
  */
 
 import {
@@ -99,26 +99,39 @@ function envelopeEnabled(): boolean {
 }
 
 /**
- * Wrap a refresh_token for storage. Returns the envelope object (not a JSON
- * string — Firestore handles nested objects natively) when enabled AND a
- * working KMS adapter is available, else returns the plaintext string.
- *
- * Graceful degradation: if envelope is enabled but the selected adapter is
- * NOT available (e.g. `KMS_ADAPTER=cloud-kms` without `KMS_KEY_RESOURCE_NAME`),
- * we DO NOT throw — that would break the OAuth connect/refresh flow. Instead we
- * log loudly and fall back to plaintext storage so the feature degrades to the
- * pre-envelope behavior rather than failing closed on the user. The in-memory
- * dev adapter is always available, so the common default still encrypts.
+ * Wrap a refresh_token for storage. Returns an envelope object when envelope
+ * encryption is enabled and the selected adapter is available. Plaintext
+ * fallback is permitted only outside production; production rejects both an
+ * unavailable/non-cloud adapter and the explicit plaintext opt-out.
  */
 async function maybeWrapRefreshToken(
   refreshToken: string,
 ): Promise<string | EnvelopeCiphertext> {
-  if (!envelopeEnabled()) return refreshToken;
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!envelopeEnabled()) {
+    if (isProduction) {
+      logger.error?.('oauth_envelope_disabled_in_production', {
+        msg: 'Refusing to store OAuth refresh_token as plaintext in production.',
+      });
+      throw new Error('oauth_envelope_disabled_in_production');
+    }
+    return refreshToken;
+  }
+
   const adapter = getKmsAdapter();
-  if (!adapter.isAvailable) {
-    logger.warn?.('oauth_envelope_adapter_unavailable', {
+  if (!adapter.isAvailable || (isProduction && adapter.name !== 'cloud-kms')) {
+    const details = {
       adapter: adapter.name,
-      msg: 'OAUTH_ENVELOPE_ENABLED is on but the KMS adapter is not configured; storing refresh_token as plaintext. Set KMS_KEY_RESOURCE_NAME (cloud-kms).',
+      available: adapter.isAvailable,
+      msg: 'OAUTH envelope storage requires an available cloud-kms adapter in production.',
+    };
+    if (isProduction) {
+      logger.error?.('oauth_envelope_adapter_unavailable', details);
+      throw new Error('oauth_envelope_adapter_unavailable');
+    }
+    logger.warn?.('oauth_envelope_adapter_unavailable', {
+      ...details,
+      msg: 'Envelope adapter unavailable outside production; preserving development fallback. Configure Cloud KMS before production.',
     });
     return refreshToken;
   }

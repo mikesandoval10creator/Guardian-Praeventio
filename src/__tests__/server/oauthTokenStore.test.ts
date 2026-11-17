@@ -38,6 +38,28 @@ afterEach(() => {
 });
 
 describe('oauthTokenStore — envelope default-ON (B17)', () => {
+  it.each([
+    { adapter: 'cloud-kms', reason: 'missing cloud key' },
+    { adapter: 'in-memory-dev', reason: 'development key in production' },
+  ])('rejects production refresh-token writes with $reason instead of storing plaintext', async ({ adapter }) => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('KMS_ADAPTER', adapter);
+    vi.stubEnv('KMS_KEY_RESOURCE_NAME', '');
+
+    await expect(saveTokens(ID, { access_token: 'at-1', refresh_token: 'must-not-persist', expires_in: 3600 }))
+      .rejects.toThrow('oauth_envelope_adapter_unavailable');
+    expect(H.db!._store.has(docKey)).toBe(false);
+  });
+
+  it('rejects the plaintext opt-out in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('OAUTH_ENVELOPE_ENABLED', 'false');
+
+    await expect(saveTokens(ID, { access_token: 'at-1', refresh_token: 'must-not-persist', expires_in: 3600 }))
+      .rejects.toThrow('oauth_envelope_disabled_in_production');
+    expect(H.db!._store.has(docKey)).toBe(false);
+  });
+
   it('encrypts the refresh_token by default (no flag set) — stored value is an envelope, not plaintext', async () => {
     // No OAUTH_ENVELOPE_ENABLED set → default-ON.
     await saveTokens(ID, { access_token: 'at-1', refresh_token: 'super-secret-refresh', expires_in: 3600 });
@@ -60,9 +82,9 @@ describe('oauthTokenStore — envelope default-ON (B17)', () => {
     expect(isEnvelopeCiphertext(storedRefreshToken())).toBe(true);
   });
 
-  it('degrades to plaintext (no throw) when envelope is on but the KMS adapter is unavailable', async () => {
-    // cloud-kms is selected but KMS_KEY_RESOURCE_NAME is unset → adapter
-    // isAvailable=false. Must NOT break the OAuth flow — fall back to plaintext.
+  it('degrades to plaintext (no throw) when envelope is on but the KMS adapter is unavailable outside production', async () => {
+    // Dev/test may preserve the prior OAuth flow; production writes are denied.
+    vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('KMS_ADAPTER', 'cloud-kms');
     await expect(
       saveTokens(ID, { access_token: 'at-1', refresh_token: 'degraded-refresh', expires_in: 3600 }),
