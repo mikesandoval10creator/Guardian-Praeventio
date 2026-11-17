@@ -339,6 +339,7 @@ describe('onHorometroReading', () => {
     // Edges: 1 (reading->eq) + 4 per step (reading->thr, thr->task,
     // thr->eq, task->eq) = 1 + 12 = 13.
     expect(result.edgesCreated).toBe(13);
+    expect(result.edgesExpected).toBe(13);
     expect(edgesAdapter.edges).toHaveLength(13);
     // Verify tasks exist with deterministic ids.
     expect(taskStore._all()).toHaveLength(3);
@@ -392,6 +393,7 @@ describe('onHorometroReading', () => {
     expect(result.crossesDetected).toBe(0);
     expect(result.tasksCreated).toBe(0);
     expect(result.edgesCreated).toBe(1);
+    expect(result.edgesExpected).toBe(1);
     expect(writer.calls[0]!.count).toBe(1);
     expect(writer.calls[0]!.types).toEqual(['horometro-reading']);
   });
@@ -462,6 +464,7 @@ describe('onMaintenanceCompleted', () => {
     expect(writer.calls[0]!.count).toBe(1);
     expect(writer.calls[0]!.types).toEqual(['maintenance-task-completed']);
     expect(result.edgesCreated).toBe(2);
+    expect(result.edgesExpected).toBe(2);
     const types = edgesAdapter.edges.map((e) => e.type).sort();
     expect(types).toEqual(['causes', 'references']);
   });

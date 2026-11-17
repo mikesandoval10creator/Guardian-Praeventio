@@ -5406,7 +5406,14 @@
       "ok": "Leitura registrada",
       "thresholdsCrossed": "Limites cruzados",
       "equipment": "Equipamento {{code}} ({{type}})",
-      "tasksCreated": "{{count}} tarefa(s) de manutenção preventiva criada(s)."
+      "tasksCreated": "{{count}} tarefa(s) de manutenção preventiva criada(s).",
+      "evidencePendingTitle": "Leitura salva; evidência pendente",
+      "partialTitle": "Persistência da manutenção incompleta",
+      "partialEvidence": "A leitura foi salva, mas parte do acompanhamento da manutenção não foi persistida.",
+      "failedEvidence": "A leitura foi salva, mas não foi possível salvar a evidência de manutenção.",
+      "persistedCounts": "Tarefas salvas: {{tasksCreated}} de {{tasksExpected}} · Relações salvas: {{edgesCreated}} de {{edgesExpected}}.",
+      "persistedCountsUnknown": "Tarefas salvas: {{tasksCreated}} de {{tasksExpected}} · Relações salvas: {{edgesCreated}}; total a confirmar.",
+      "nonBlocking": "Este aviso não bloqueia a operação; você pode continuar e tratar a evidência pendente depois."
     }
   },
   "softBlocks": {

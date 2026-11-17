@@ -494,6 +494,7 @@ export type OnHorometroReadingResult =
       crossesDetected: number;
       tasksCreated: number;
       edgesCreated: number;
+      edgesExpected?: number;
     }
   | { ok: false; reason: string };
 
@@ -579,6 +580,7 @@ export async function onHorometroReading(
     crossesDetected: spec.steps.length,
     tasksCreated,
     edgesCreated,
+    edgesExpected: spec.edges.length,
   };
 }
 
@@ -674,6 +676,7 @@ export async function onMaintenanceCompleted(
     crossesDetected: 0,
     tasksCreated: 0,
     edgesCreated,
+    edgesExpected: edges.length,
   };
 }
 

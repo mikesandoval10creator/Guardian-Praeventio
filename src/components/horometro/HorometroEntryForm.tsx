@@ -82,8 +82,22 @@ export function HorometroEntryForm({
 
   if (result) {
     const flow = result.flow;
-    const crossesDetected =
-      flow.ok && 'crossesDetected' in flow ? flow.crossesDetected : 0;
+    const crossesDetected = flow.ok ? flow.crossesDetected : 0;
+    const tasksExpected = flow.ok ? flow.crossesDetected : 0;
+    const edgesUnknown = flow.ok && typeof flow.edgesExpected !== 'number';
+    const edgesExpected = flow.ok && typeof flow.edgesExpected === 'number'
+      ? flow.edgesExpected
+      : 0;
+    const tasksPending = flow.ok && flow.tasksCreated < tasksExpected;
+    const edgesPending = flow.ok && (edgesUnknown || flow.edgesCreated < edgesExpected);
+    const evidencePending = !flow.ok || tasksPending || edgesPending;
+    const title = !flow.ok
+      ? t('horometro.result.evidencePendingTitle', 'Lectura guardada; evidencia pendiente')
+      : evidencePending
+        ? t('horometro.result.partialTitle', 'Mantenimiento pendiente de persistencia')
+        : crossesDetected > 0
+          ? t('horometro.result.thresholdsCrossed', 'Umbrales cruzados')
+          : t('horometro.result.ok', 'Lectura registrada');
     return (
       <section
         className="min-h-screen bg-zinc-950 text-white p-4 flex flex-col gap-4"
@@ -92,13 +106,14 @@ export function HorometroEntryForm({
         <div
           className={
             'rounded-2xl border p-6 space-y-3 ' +
-            (crossesDetected > 0
+            (evidencePending || crossesDetected > 0
               ? 'bg-amber-500/15 border-amber-500/40 text-amber-100'
               : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-100')
           }
+          aria-live="polite"
         >
           <header className="flex items-center gap-3">
-            {crossesDetected > 0 ? (
+            {evidencePending || crossesDetected > 0 ? (
               <Wrench className="w-7 h-7 shrink-0" aria-hidden="true" />
             ) : (
               <Gauge className="w-7 h-7 shrink-0" aria-hidden="true" />
@@ -107,9 +122,7 @@ export function HorometroEntryForm({
               className="text-lg font-black uppercase tracking-tight"
               data-testid="horometro-result-title"
             >
-              {crossesDetected > 0
-                ? t('horometro.result.thresholdsCrossed', 'Umbrales cruzados')
-                : t('horometro.result.ok', 'Lectura registrada')}
+              {title}
             </h2>
           </header>
           <p className="text-sm leading-relaxed">
@@ -121,15 +134,48 @@ export function HorometroEntryForm({
             {' · '}
             {result.reading.hours} h
           </p>
-          {crossesDetected > 0 && (
+          {evidencePending ? (
+            <div className="space-y-2 text-sm leading-relaxed" data-testid="horometro-evidence-pending">
+              <p>
+                {flow.ok
+                  ? t('horometro.result.partialEvidence', 'La lectura sí quedó registrada, pero parte del mantenimiento no se pudo persistir.')
+                  : t('horometro.result.failedEvidence', 'La lectura sí quedó registrada, pero no se pudo guardar la evidencia de mantenimiento.')}
+              </p>
+              {flow.ok && (
+                <p data-testid="horometro-persisted-counts">
+                  {edgesUnknown
+                    ? t(
+                        'horometro.result.persistedCountsUnknown',
+                        'Tareas guardadas: {{tasksCreated}} de {{tasksExpected}} · Relaciones guardadas: {{edgesCreated}}; total por confirmar.',
+                        {
+                          tasksCreated: flow.tasksCreated,
+                          tasksExpected,
+                          edgesCreated: flow.edgesCreated,
+                        } as Record<string, number>,
+                      )
+                    : t(
+                        'horometro.result.persistedCounts',
+                        'Tareas guardadas: {{tasksCreated}} de {{tasksExpected}} · Relaciones guardadas: {{edgesCreated}} de {{edgesExpected}}.',
+                        {
+                          tasksCreated: flow.tasksCreated,
+                          tasksExpected,
+                          edgesCreated: flow.edgesCreated,
+                          edgesExpected,
+                        } as Record<string, number>,
+                      )}
+                </p>
+              )}
+              <p>{t('horometro.result.nonBlocking', 'Este aviso no bloquea la operación; puedes continuar y gestionar la evidencia pendiente después.')}</p>
+            </div>
+          ) : crossesDetected > 0 ? (
             <p className="text-sm leading-relaxed" data-testid="horometro-crosses-count">
               {t(
                 'horometro.result.tasksCreated',
-                'Se crearon {{count}} tarea(s) de mantencion preventiva.',
-                { count: crossesDetected } as Record<string, number>,
+                'Se crearon {{count}} tarea(s) de mantención preventiva.',
+                { count: flow.ok ? flow.tasksCreated : 0 } as Record<string, number>,
               )}
             </p>
-          )}
+          ) : null}
         </div>
         {onCancel && (
           <button
