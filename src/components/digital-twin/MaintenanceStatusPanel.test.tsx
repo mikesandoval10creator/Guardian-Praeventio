@@ -6,6 +6,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { where } from "firebase/firestore";
 import type { PlacedObject } from "../../services/digitalTwin/photogrammetry/types";
 
 let mockHistoryFromCache = false;
@@ -51,9 +52,19 @@ const placedObject: PlacedObject = {
 beforeEach(() => {
   mockHistoryFromCache = false;
   mockHistoryHasPendingWrites = false;
+  vi.mocked(where).mockClear();
 });
 
 describe("<MaintenanceStatusPanel /> — fromCache indicator", () => {
+  it("scopes calendar events by both project and selected object", () => {
+    render(
+      <MaintenanceStatusPanel placedObject={placedObject} projectId="proj-1" />,
+    );
+
+    expect(where).toHaveBeenCalledWith("projectId", "==", "proj-1");
+    expect(where).toHaveBeenCalledWith("relatedObjectId", "==", "ext-1");
+  });
+
   it("marks geo-anchored history as possibly stale when Firestore serves it from cache", () => {
     mockHistoryFromCache = true;
 

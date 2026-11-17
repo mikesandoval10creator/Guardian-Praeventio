@@ -10,11 +10,11 @@
 //      ordered by `metadata.occurredAt` desc. Filtered to the same
 //      `kind` and `control-material` tag so unrelated nearby risks
 //      don't pollute the timeline.
-//   3. Próximos mantenimientos — `calendar_events` whose
-//      `relatedObjectId` matches the selected PlacedObject, ordered
-//      by `startIso` ascending. Past + pending events show a "Vencido"
-//      badge so the prevencionista can act before the cron job
-//      auto-flips the lifecycle to `maintenance_due`.
+//   3. Próximos mantenimientos — `calendar_events` scoped to the active
+//      `projectId` and matching the selected `relatedObjectId`, ordered
+//      by `startIso` ascending. Firestore rules independently require
+//      tenant-scoped project membership. Past/pending events show "Vencido"
+//      before the cron flips lifecycle to `maintenance_due`.
 //
 // Reuse: pulls history from the Bucket K.1 hook + tracks calendar
 // events via `useFirestoreCollection`. No new Firestore plumbing.
@@ -120,9 +120,11 @@ export function MaintenanceStatusPanel({
       : { projectId: "", center, radiusM: 0 }, // hook devuelve vacío
   );
 
-  // Calendar — query directa por relatedObjectId.
+  // Calendar reads are scoped to both the active project and its object. The
+  // Firestore rule independently verifies project membership (tenant-scoped).
   const { data: rawEvents, loading: loadingEvents } =
     useFirestoreCollection<CalendarEventRow>("calendar_events", [
+      where("projectId", "==", projectId),
       where("relatedObjectId", "==", placedObject?.id ?? "__no_object__"),
       orderBy("startIso", "asc"),
     ]);

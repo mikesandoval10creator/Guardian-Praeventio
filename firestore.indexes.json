@@ -568,6 +568,15 @@
       ]
     },
     {
+      "collectionGroup": "calendar_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "relatedObjectId", "order": "ASCENDING" },
+        { "fieldPath": "startIso", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cphs_committees",
       "queryScope": "COLLECTION",
       "fields": [
