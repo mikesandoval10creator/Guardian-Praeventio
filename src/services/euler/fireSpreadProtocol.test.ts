@@ -28,6 +28,28 @@ describe('bounded training-worker protocol', () => {
     expect(handleFireSpreadMessage({ input, tMax: 30, h: 1e-100 })).toEqual({ ok: true, result });
     expect(core).toHaveBeenCalledWith(input, FIRE_STEP_MINUTES, 30);
   });
+  it('accepts null timeToContain when suppression begins beyond the horizon', () => {
+    const response = handleFireSpreadMessage({
+      input: { initialArea: 10, spreadRate: 3, suppressionRate: 10, suppressionStartT: 20 },
+      tMax: 10,
+    });
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error('valid no-containment response rejected');
+    expect(response.result.timeToContain).toBeNull();
+    expect(validFireResult(response.result, 10)).toBe(true);
+  });
+
+  it('accepts null timeToContain when rates balance after suppression begins', () => {
+    const response = handleFireSpreadMessage({
+      input: { initialArea: 10, spreadRate: 5, suppressionRate: 5, suppressionStartT: 0 },
+      tMax: 10,
+    });
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error('valid balanced-rate response rejected');
+    expect(response.result.timeToContain).toBeNull();
+    expect(validFireResult(response.result, 10)).toBe(true);
+  });
+
   it('rejects floating-point overflow instead of returning nonfinite chart data', () => {
     expect(handleFireSpreadMessage({ input: { ...input, initialArea: 1e308, spreadRate: 1e308 }, tMax: 30 })).toEqual({ ok: false });
   });
