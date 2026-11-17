@@ -175,6 +175,15 @@ describe('meshFallback', () => {
       expect(opts.projectId).toBe(BASE_PAYLOAD.projectId);
     });
 
+    it('carries the stable outbox clientEventId inside the signed SOS payload', async () => {
+      registerMeshTransport(makeFakeFacade());
+      await enqueueOutbound({ ...BASE_PAYLOAD, clientEventId: 'activation-123' });
+      const opts = buildSignedPacketMock.mock.calls[0]?.[0] as {
+        payload: { clientEventId?: string };
+      };
+      expect(opts.payload.clientEventId).toBe('activation-123');
+    });
+
     it('carries the honest placeholder location when no GPS is available', async () => {
       registerMeshTransport(makeFakeFacade());
 
