@@ -5406,7 +5406,14 @@
       "ok": "Lectura registrada",
       "thresholdsCrossed": "Umbrales cruzados",
       "equipment": "Equipo {{code}} ({{type}})",
-      "tasksCreated": "Se crearon {{count}} tarea(s) de mantención preventiva."
+      "tasksCreated": "Se crearon {{count}} tarea(s) de mantención preventiva.",
+      "evidencePendingTitle": "Lectura guardada; evidencia pendiente",
+      "partialTitle": "Mantenimiento pendiente de persistencia",
+      "partialEvidence": "La lectura sí quedó registrada, pero parte del mantenimiento no se pudo persistir.",
+      "failedEvidence": "La lectura sí quedó registrada, pero no se pudo guardar la evidencia de mantenimiento.",
+      "persistedCounts": "Tareas guardadas: {{tasksCreated}} de {{tasksExpected}} · Relaciones guardadas: {{edgesCreated}} de {{edgesExpected}}.",
+      "persistedCountsUnknown": "Tareas guardadas: {{tasksCreated}} de {{tasksExpected}} · Relaciones guardadas: {{edgesCreated}}; total por confirmar.",
+      "nonBlocking": "Este aviso no bloquea la operación; puedes continuar y gestionar la evidencia pendiente después."
     }
   },
   "softBlocks": {

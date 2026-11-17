@@ -168,6 +168,7 @@ const FLOW_OK = {
   crossesDetected: 0,
   tasksCreated: 0,
   edgesCreated: 1,
+  edgesExpected: 1,
 };
 
 const FLOW_WITH_TASK = {
@@ -176,6 +177,7 @@ const FLOW_WITH_TASK = {
   crossesDetected: 1,
   tasksCreated: 1,
   edgesCreated: 2,
+  edgesExpected: 2,
 };
 
 // ── beforeEach ────────────────────────────────────────────────────────────────

@@ -5406,7 +5406,14 @@
       "ok": "Reading recorded",
       "thresholdsCrossed": "Thresholds crossed",
       "equipment": "Equipment {{code}} ({{type}})",
-      "tasksCreated": "{{count}} preventive maintenance task(s) created."
+      "tasksCreated": "{{count}} preventive maintenance task(s) created.",
+      "evidencePendingTitle": "Reading saved; evidence pending",
+      "partialTitle": "Maintenance persistence incomplete",
+      "partialEvidence": "The reading was saved, but part of the maintenance follow-up could not be persisted.",
+      "failedEvidence": "The reading was saved, but the maintenance evidence could not be saved.",
+      "persistedCounts": "Tasks saved: {{tasksCreated}} of {{tasksExpected}} · Relations saved: {{edgesCreated}} of {{edgesExpected}}.",
+      "persistedCountsUnknown": "Tasks saved: {{tasksCreated}} of {{tasksExpected}} · Relations saved: {{edgesCreated}}; total unconfirmed.",
+      "nonBlocking": "This notice does not block operations; you can continue and arrange the pending evidence later."
     }
   },
   "softBlocks": {
