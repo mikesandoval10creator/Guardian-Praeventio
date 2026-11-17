@@ -138,6 +138,24 @@ const SCRIPT_SRC_FALLBACK_ORIGINS = [
 ] as const;
 
 /*
+ * `frame-ancestors` para el build de DESARROLLO.
+ *
+ * En producción el directive es `'none'` (ver CSP_STATIC_DIRECTIVES) y no
+ * debe cambiarse: es la defensa anti-clickjacking de la app desplegada.
+ *
+ * En desarrollo la app se embebe en un iframe: el visor de Guardian dentro
+ * del DeepSeek Harness abre `http://localhost:57335` en la pestaña Browser
+ * de la barra lateral derecha, que la monta en un iframe con sandbox. Con
+ * `frame-ancestors 'none'` el navegador rechaza la carga
+ * (ERR_BLOCKED_BY_RESPONSE) y la pestaña queda en blanco.
+ *
+ * Sólo se permiten orígenes de loopback — nunca un comodín ni '*' — de modo
+ * que un sitio de terceros no pueda embeber el build de desarrollo.
+ */
+const DEV_FRAME_ANCESTORS =
+  "'self' http://localhost:* http://127.0.0.1:*";
+
+/*
  * Static directive map. `script-src` is intentionally NOT here — it
  * depends on the per-request nonce and is computed in buildCspString.
  */
@@ -213,6 +231,13 @@ function buildCspString(nonce: string): string {
     // docs/COWORK_REQUIREMENTS.md §Hallazgos dev-local.
     directives['script-src-elem'] =
       "'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com";
+    // Embeddable en un iframe SOLO en dev. El visor de Guardian dentro del
+    // DeepSeek Harness (pestaña Browser de la barra lateral derecha) carga
+    // esta app en un iframe sandboxed; con `frame-ancestors 'none'` el
+    // navegador la bloquea (ERR_BLOCKED_BY_RESPONSE) y la pestaña queda en
+    // blanco. Permitimos sólo loopback — nunca un origen abierto — de modo
+    // que la defensa anti-clickjacking de producción quede intacta.
+    directives['frame-ancestors'] = DEV_FRAME_ANCESTORS;
   }
 
   const otherDirectives = Object.entries(directives)
@@ -236,7 +261,12 @@ export function securityHeaders(
   res.setHeader('Content-Security-Policy', buildCspString(nonce));
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('X-Frame-Options', 'DENY');
+  // X-Frame-Options debe moverse EN LOCKSTEP con `frame-ancestors`:
+  // `DENY` seguiría bloqueando el iframe aunque el CSP lo permita, y
+  // `SAMEORIGIN` seguiría bloqueando el embedding si el CSP lo permite
+  // (mismo origen). En producción queda `DENY` + `frame-ancestors 'none'`.
+  const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
+  res.setHeader('X-Frame-Options', isDev ? 'SAMEORIGIN' : 'DENY');
   // Allow-self for sensors/camera/mic/geo because the app legitimately uses
   // them (fall detection, SOS button, IPER photos, commute geolocation).
   res.setHeader(
