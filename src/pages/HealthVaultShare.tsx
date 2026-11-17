@@ -6,7 +6,7 @@
 // cartera médica con un médico tratante. Praeventio NO diagnostica; el
 // QR es sólo el canal de transporte. Cumple Ley 20.584 + 21.719 + 16.744.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
@@ -71,8 +71,22 @@ const PURPOSE_LABELS: Record<HealthAccessPurpose, string> = {
 };
 
 export function HealthVaultShare() {
-  const { t } = useTranslation();
   const { user, db } = useFirebase() as any;
+  if (!user?.uid) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+        <main className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+          <MedicalDisclaimer variant="card" />
+          <p role="status">Inicia sesión para administrar tus accesos del Health Vault.</p>
+        </main>
+      </div>
+    );
+  }
+  return <HealthVaultShareSession key={user.uid} user={user} db={db} />;
+}
+
+function HealthVaultShareSession({ user, db }: { user: { uid: string }; db: any }) {
+  const { t } = useTranslation();
 
   const [scope, setScope] = useState<VaultShareScope>('full');
   const [ttlHours, setTtlHours] = useState(24);
@@ -89,6 +103,13 @@ export function HealthVaultShare() {
   const [error, setError] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveShareSummary[]>([]);
+  const mountedRef = useRef(true);
+  const isCurrent = () => mountedRef.current && Boolean(user.uid);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!user?.uid) return undefined;
@@ -96,6 +117,7 @@ export function HealthVaultShare() {
     async function loadChoices() {
       try {
         const authHeader = await apiAuthHeader();
+        if (cancelled || !isCurrent()) return;
         if (!authHeader) throw new Error('authentication_required');
         const [recordsResponse, professionalsResponse] = await Promise.all([
           fetch('/api/health-vault/records', {
@@ -105,6 +127,7 @@ export function HealthVaultShare() {
             headers: { Authorization: authHeader },
           }),
         ]);
+        if (cancelled || !isCurrent()) return;
         if (!recordsResponse.ok || !professionalsResponse.ok) {
           throw new Error('health_vault_temporarily_unavailable');
         }
@@ -139,7 +162,7 @@ export function HealthVaultShare() {
     const timer = window.setTimeout(async () => {
       try {
         const authHeader = await apiAuthHeader();
-        if (!authHeader) return;
+        if (cancelled || !isCurrent() || !authHeader) return;
         const response = await fetch(
           `/api/health-professionals/search?q=${encodeURIComponent(professionalQuery.trim())}&limit=20`,
           { headers: { Authorization: authHeader } },
@@ -217,19 +240,18 @@ export function HealthVaultShare() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isCurrent()) return;
     setError(null);
     setSubmitting(true);
     try {
-      // apiAuthHeader() returns the FULL header string with the `Bearer `
-      // (or `E2E `) prefix. verifyAuth.ts requires that prefix — sending the
-      // raw idToken made every POST /share fail with 401. Centralizing here
-      // also wires the E2E path so the QR flow works in Playwright.
       const authHeader = await apiAuthHeader();
+      if (!isCurrent()) return;
+      if (!authHeader) throw new Error('authentication_required');
       const res = await fetch('/api/health-vault/share', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authHeader ? { 'Authorization': authHeader } : {}),
+          Authorization: authHeader,
         },
         body: JSON.stringify({
           version: 2,
@@ -241,30 +263,38 @@ export function HealthVaultShare() {
           maxSessions: 5,
         }),
       });
+      if (!isCurrent()) return;
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (!isCurrent()) return;
         throw new Error(body.error ?? `error_${res.status}`);
       }
       const data = (await res.json()) as CreatedShare;
+      if (!isCurrent()) return;
       setCreatedShare(data);
     } catch (err: any) {
-      setError(humanErrorMessage(err?.message ?? 'unknown_error'));
+      if (isCurrent()) setError(humanErrorMessage(err?.message ?? 'unknown_error'));
     } finally {
-      setSubmitting(false);
+      if (isCurrent()) setSubmitting(false);
     }
   }
 
   async function handleRevoke(tokenId: string) {
+    if (!isCurrent()) return;
     setRevokeError(null);
     try {
-      // Same Bearer-prefix requirement as handleSubmit — use apiAuthHeader().
       const authHeader = await apiAuthHeader();
+      if (!isCurrent()) return;
+      if (!authHeader) throw new Error('authentication_required');
       const response = await fetch(`/api/health-vault/share/${tokenId}/revoke`, {
         method: 'POST',
-        headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
+        headers: { Authorization: authHeader },
       });
+      if (!isCurrent()) return;
       if (!response.ok) {
-        throw new Error(await humanErrorFromResponse(response));
+        const message = await humanErrorFromResponse(response);
+        if (!isCurrent()) return;
+        throw new Error(message);
       }
       setActive((prev) =>
         prev.map((s) =>
@@ -272,29 +302,36 @@ export function HealthVaultShare() {
         ),
       );
     } catch (revokeFailure) {
-      setRevokeError(humanErrorMessage(revokeFailure));
+      if (isCurrent()) setRevokeError(humanErrorMessage(revokeFailure));
     }
   }
 
   async function handleConfirmRecipient(share: ActiveShareSummary) {
-    if (!share.recipientClaim) return;
+    if (!share.recipientClaim || !isCurrent()) return;
     setRevokeError(null);
     try {
       const authHeader = await apiAuthHeader();
+      if (!isCurrent()) return;
+      if (!authHeader) throw new Error('authentication_required');
       const response = await fetch(
         `/api/health-vault/share/${share.id}/confirm-recipient`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(authHeader ? { Authorization: authHeader } : {}),
+            Authorization: authHeader,
           },
           body: JSON.stringify({
             professionalUid: share.recipientClaim.professionalUid,
           }),
         },
       );
-      if (!response.ok) throw new Error(await humanErrorFromResponse(response));
+      if (!isCurrent()) return;
+      if (!response.ok) {
+        const message = await humanErrorFromResponse(response);
+        if (!isCurrent()) return;
+        throw new Error(message);
+      }
       setActive((previous) => previous.map((candidate) =>
         candidate.id === share.id
           ? {
@@ -306,7 +343,7 @@ export function HealthVaultShare() {
           : candidate,
       ));
     } catch (confirmationFailure) {
-      setRevokeError(humanErrorMessage(confirmationFailure));
+      if (isCurrent()) setRevokeError(humanErrorMessage(confirmationFailure));
     }
   }
 
