@@ -11,7 +11,7 @@
 //     solo si el user está en affectedWorkerUids y no ha hecho ack).
 //   - Card muestra coverage % de acknowledgments.
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   GitCompare,
@@ -53,11 +53,23 @@ type ModalAction =
   | { kind: 'revert'; change: OperationalChange }
   | { kind: 'verify'; change: OperationalChange };
 
-// Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep OperationalChanges (MOC).
+// Treat project/user identity as the state owner for every dialog and write.
+// A new key unmounts the previous scope instead of carrying modal data forward.
 export function OperationalChanges() {
-  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+  const scopeKey = JSON.stringify([user?.uid ?? null, selectedProject?.id ?? null]);
+  return <OperationalChangesScope key={scopeKey} user={user} selectedProject={selectedProject} />;
+}
+
+function OperationalChangesScope({
+  user,
+  selectedProject,
+}: {
+  user: ReturnType<typeof useFirebase>['user'];
+  selectedProject: ReturnType<typeof useProject>['selectedProject'];
+}) {
+  const { t } = useTranslation();
 
   const KIND_LABELS: Record<ChangeKind, string> = {
     supervisor: t('operational_changes.kind.supervisor', 'Supervisor'),
@@ -75,6 +87,14 @@ export function OperationalChanges() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [modalAction, setModalAction] = useState<ModalAction | null>(null);
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+  const modalSubmittingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   // Plan 2026-05-24 §MOC — Role del user para gates del workflow.
   // En producción se deriva de la membership del proyecto (roles
@@ -108,25 +128,32 @@ export function OperationalChanges() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const projectId = selectedProject?.id;
     if (!projectId) {
       setChanges([]);
       setLoading(false);
-      return undefined;
+      return () => { cancelled = true; };
     }
     setLoading(true);
     const unsub = subscribeChanges(
       projectId,
       (list) => {
-        setChanges(list);
+        if (cancelled) return;
+        // A project-scoped store must never leak a change from another scope.
+        setChanges(list.filter((change) => change.projectId === projectId));
         setLoading(false);
       },
       (err) => {
+        if (cancelled) return;
         logger.warn('changes_sub_error', { err: String(err) });
         setLoading(false);
       },
     );
-    return () => unsub();
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, [selectedProject?.id]);
 
   const resetForm = () => {
@@ -203,6 +230,13 @@ export function OperationalChanges() {
     async (reason: string, extra?: { effective: boolean }) => {
       if (!user || !selectedProject || !modalAction) return;
       const { change } = modalAction;
+      if (change.projectId !== selectedProject.id) {
+        setModalAction(null);
+        return;
+      }
+      if (modalSubmittingRef.current) return;
+      modalSubmittingRef.current = true;
+      setModalSubmitting(true);
       try {
         if (modalAction.kind === 'approve') {
           await decideChangeApi(selectedProject.id, change.id, { decision: 'approved', comment: reason });
@@ -216,17 +250,23 @@ export function OperationalChanges() {
             observations: reason,
           });
         }
+        if (!isMountedRef.current) return;
         setFeedback(
           t(`operational_changes.feedback.action_ok.${modalAction.kind}`, {
             defaultValue: 'Acción registrada.',
           }),
         );
       } catch (err) {
+        if (!isMountedRef.current) return;
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('moc modal action failed', { kind: modalAction.kind, err: msg });
         setFeedback(msg);
       } finally {
-        setModalAction(null);
+        modalSubmittingRef.current = false;
+        if (isMountedRef.current) {
+          setModalSubmitting(false);
+          setModalAction(null);
+        }
       }
     },
     [user, selectedProject, modalAction, t],
@@ -466,9 +506,10 @@ export function OperationalChanges() {
       </div>
 
       {/* Plan 2026-05-24 §MOC — Modal de razón para approve/reject/revert/verify */}
-      {modalAction && (
+      {modalAction && selectedProject && modalAction.change.projectId === selectedProject.id && (
         <ReasonModal
           open={true}
+          busy={modalSubmitting}
           title={
             modalAction.kind === 'approve'
               ? t('operational_changes.modal.approve_title', 'Aprobar cambio')

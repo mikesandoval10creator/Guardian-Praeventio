@@ -54,6 +54,7 @@ vi.mock('../middleware/auditLog.js', () => ({
 }));
 
 import operationalChangeRouter from './operationalChange';
+import { OperationalChangeAdapter } from '../../services/changeMgmt/operationalChangeFirestoreAdapter.js';
 import { createFakeFirestore } from '../../__tests__/helpers/fakeFirestore';
 
 const PREFIX = '/api/sprint-k';
@@ -140,6 +141,24 @@ describe('operationalChange MOC workflow (audited)', () => {
     expect(auditedActions).toEqual(
       expect.arrayContaining(['moc.declare', 'moc.submit_for_review', 'moc.decide', 'moc.activate', 'moc.verify']),
     );
+  });
+
+  it('rejects an ID from project A when addressed through project B', async () => {
+    const id = await declare();
+    await request(buildApp()).post(`${moc}/${id}/submit-for-review`).set(asUser('sup-1', 'supervisor')).send({});
+    H.db!._seed('projects/p2', { tenantId: TENANT, members: ['hse-1'] });
+
+    const response = await request(buildApp())
+      .post(`${PREFIX}/p2/moc/${id}/decide`)
+      .set(asUser('hse-1', 'prevencionista'))
+      .send({ decision: 'approved', comment: 'Aprobación de proyecto distinto.' });
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('moc_not_found');
+    const projectA = await new OperationalChangeAdapter(H.db!, TENANT, PROJECT).getById(id);
+    const projectB = await new OperationalChangeAdapter(H.db!, TENANT, 'p2').getById(id);
+    expect(projectA?.status).toBe('pending_review');
+    expect(projectB).toBeNull();
   });
 
   it('rejects an approval decision without a verified role claim (403)', async () => {

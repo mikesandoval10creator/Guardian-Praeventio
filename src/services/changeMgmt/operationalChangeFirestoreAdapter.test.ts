@@ -32,6 +32,18 @@ describe('OperationalChangeAdapter', () => {
     expect(got?.kind).toBe('supervisor');
   });
 
+  it('does not resolve a change id through another project adapter', async () => {
+    const db = createFakeFirestore();
+    const projectA = new OperationalChangeAdapter(db, 't1', 'p1');
+    const projectB = new OperationalChangeAdapter(db, 't1', 'p2');
+    const change = makeChange();
+
+    await projectA.save(change);
+
+    expect(await projectA.getById(change.id)).toEqual(change);
+    expect(await projectB.getById(change.id)).toBeNull();
+  });
+
   it('addAcknowledgment es idempotente', async () => {
     const db = createFakeFirestore();
     const a = new OperationalChangeAdapter(db, 't1', 'p1');
