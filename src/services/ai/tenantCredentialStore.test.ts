@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   FirestoreTenantCredentialResolver,
+  TenantCredentialResolver,
   credentialPath,
   deleteTenantCredential,
   isValidTenantId,
@@ -9,6 +10,7 @@ import {
   type TenantCredentialDoc,
 } from './tenantCredentialStore.js';
 import { inMemoryKmsAdapter } from '../security/kmsAdapter.js';
+import { withPlatformFallback } from './providerRouter.js';
 
 /**
  * Fake Firestore: a plain Map keyed by `path/docId`. It never talks to a
@@ -146,14 +148,30 @@ describe('FirestoreTenantCredentialResolver', () => {
     expect(await resolver.resolve('../other', 'gemini')).toBeNull();
   });
 
-  it('returns null for a malformed envelope rather than throwing', async () => {
+  it('rejects a present malformed envelope instead of treating it as an absent key', async () => {
     db.docs.set(`${credentialPath(TENANT_A)}/gemini`, {
       provider: 'gemini',
       envelope: { nonsense: true },
       updatedAt: new Date().toISOString(),
     });
 
-    expect(await resolver.resolve(TENANT_A, 'gemini')).toBeNull();
+    await expect(resolver.resolve(TENANT_A, 'gemini')).rejects.toThrow('malformed_credential_envelope');
+  });
+
+  it('does not consult the platform key when a tenant has a malformed stored credential', async () => {
+    db.docs.set(`${credentialPath(TENANT_A)}/selfhosted`, {
+      provider: 'selfhosted', envelope: { nonsense: true }, updatedAt: new Date().toISOString(),
+    });
+    const platformResolve = vi.fn(() => ({
+      baseUrl: 'http://platform.invalid', model: 'platform-model', apiKey: 'platform-key',
+      timeoutMs: 1000,
+    }));
+    const composite = withPlatformFallback(
+      new TenantCredentialResolver(resolver), { resolve: platformResolve },
+    );
+
+    await expect(composite.resolve(TENANT_A, 'selfhosted')).rejects.toThrow('malformed_credential_envelope');
+    expect(platformResolve).not.toHaveBeenCalled();
   });
 
   it('surfaces a Firestore read failure instead of silently returning null', async () => {

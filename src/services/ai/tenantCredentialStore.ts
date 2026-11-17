@@ -165,7 +165,9 @@ export class FirestoreTenantCredentialResolver {
         provider,
         tenant_id: tenantId,
       });
-      return null;
+      // An existing document is not an absent credential. Prevent the
+      // platform fallback from masking corruption or a custody failure.
+      throw new Error('malformed_credential_envelope');
     }
 
     let secret: string;
