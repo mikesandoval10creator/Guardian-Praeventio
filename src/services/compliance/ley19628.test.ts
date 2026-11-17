@@ -3,7 +3,7 @@
 // In-memory MinimalComplianceDb fake. Mirrors the pattern used by
 // `src/services/auth/projectMembership.test.ts`. No firebase-admin import.
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, expectTypeOf, beforeEach, afterEach, vi } from 'vitest';
 import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from '../../utils/logger.js';
 import {
@@ -16,7 +16,9 @@ import {
   eraseUserData,
   getProcessingActivities,
   PROCESSING_ACTIVITIES,
+  DATA_ACCESS_REQUEST_TYPES,
   ComplianceError,
+  type DataAccessRequestType,
   type MinimalComplianceDb,
   type MinimalCollectionRef,
   type MinimalDocRef,
@@ -202,6 +204,20 @@ describe('compliance/ley19628', () => {
     await expect(
       requestDataAccess(db, 'uid-A', 'bogus' as any),
     ).rejects.toBeInstanceOf(ComplianceError);
+  });
+
+  it('derives the DSAR type union and runtime validation from one catalog', async () => {
+    expectTypeOf<DataAccessRequestType>().toEqualTypeOf<(typeof DATA_ACCESS_REQUEST_TYPES)[number]>();
+    const types = DATA_ACCESS_REQUEST_TYPES as unknown as string[];
+    types.push('future-dsar-test');
+    try {
+      const req = await requestDataAccess(db, 'uid-A', 'future-dsar-test' as DataAccessRequestType);
+      expect(req.type).toBe('future-dsar-test');
+      await expect(requestDataAccess(db, 'uid-A', 'unsupported' as DataAccessRequestType))
+        .rejects.toMatchObject({ code: 'invalid_type' });
+    } finally {
+      types.pop();
+    }
   });
 
   it('5. exportUserData includes ONLY the requested uid (no cross-tenant leak)', async () => {
