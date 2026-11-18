@@ -41,6 +41,20 @@ vi.mock('../../services/emergency/emergencyDeliveryOutbox', () => ({
 }));
 vi.mock('../../utils/randomId', () => ({ randomId: mockRandomId }));
 
+// This suite tests access and outbox behavior, not animation timing. Keep the
+// rendered DOM without starting animations that outlive jsdom cleanup.
+vi.mock('framer-motion', async () => {
+  const { Fragment } = await import('react');
+  return {
+    AnimatePresence: Fragment,
+    motion: {
+      div: ({ children, className }: Pick<React.ComponentProps<'div'>, 'children' | 'className'>) => (
+        <div className={className}>{children}</div>
+      ),
+    },
+  };
+});
+
 import { EmergencyCheckIn } from './EmergencyCheckIn';
 
 afterEach(() => cleanup());
