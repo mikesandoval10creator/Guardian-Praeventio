@@ -36,14 +36,17 @@ export function EmergencySimulator() {
   const { addNode } = useRiskEngine();
   const { triggerEmergency } = useEmergency();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [activeStep, setActiveStep] = useState(0);
   const isOnline = useOnlineStatus();
   const drillEpoch = useRef(0);
+  const submittedDrillEpoch = useRef<number | null>(null);
   useLayoutEffect(() => {
     // Remove the previous scope's drill before the next paint.
     setScenario(null);
     setIsGenerating(false);
+    setIsEscalating(false);
     setActiveStep(0);
     return () => { drillEpoch.current += 1; };
   }, [uid, projectId]);
@@ -133,6 +136,7 @@ export function EmergencySimulator() {
     if (!isOnline) return;
     const requestEpoch = ++drillEpoch.current;
     setIsGenerating(true);
+    setIsEscalating(false);
     setScenario(null);
     setActiveStep(0);
     try {
@@ -155,28 +159,38 @@ export function EmergencySimulator() {
   const handleTriggerRealEmergency = async () => {
     if (!scenario || !projectId || !uid) return;
     const escalationEpoch = drillEpoch.current;
+    if (submittedDrillEpoch.current === escalationEpoch) return;
+    submittedDrillEpoch.current = escalationEpoch;
+    setIsEscalating(true);
     
     // Trigger the global emergency state. Without the projectId the local
     // alarm activates but no durable activation packet / FCM fan-out is sent,
     // so a real emergency escalated from a drill would reach nobody.
     triggerEmergency(String(scenario.type || '').toLowerCase(), projectId);
 
-    // Add to Zettelkasten as a real incident
-    await addNode({
-      type: NodeType.INCIDENT,
-      title: `[SIMULACRO ESCALADO] ${scenario.title}`,
-      description: scenario.description,
-      tags: ['simulacro', 'emergencia', String(scenario.type || '').toLowerCase()],
-      projectId,
-      connections: [],
-      metadata: {
-        location: scenario.location,
-        criticality: scenario.criticality,
-        isDrill: true
+    // Recording the drill is separate from the alert, which was already requested.
+    try {
+      await addNode({
+        type: NodeType.INCIDENT,
+        title: `[SIMULACRO ESCALADO] ${scenario.title}`,
+        description: scenario.description,
+        tags: ['simulacro', 'emergencia', String(scenario.type || '').toLowerCase()],
+        projectId,
+        connections: [],
+        metadata: {
+          location: scenario.location,
+          criticality: scenario.criticality,
+          isDrill: true
+        }
+      });
+    } catch (error) {
+      logger.error('Error recording escalated drill:', error);
+    } finally {
+      if (drillEpoch.current === escalationEpoch) {
+        setScenario(null);
+        setIsEscalating(false);
       }
-    });
-
-    if (drillEpoch.current === escalationEpoch) setScenario(null);
+    }
   };
 
   return (
@@ -305,7 +319,7 @@ export function EmergencySimulator() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={handleTriggerRealEmergency}
-                    disabled={!projectId || !uid}
+                    disabled={!projectId || !uid || isEscalating}
                     className="flex-1 py-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2"
                   >
                     <Siren className="w-4 h-4" />
