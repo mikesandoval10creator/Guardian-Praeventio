@@ -6,6 +6,7 @@ import { handleFireSpreadMessage } from '../../workers/fireSpreadWorker';
 const h = vi.hoisted(() => ({ projectId: 'p1', emergency: vi.fn(), addNode: vi.fn() }));
 vi.mock('../../contexts/UniversalKnowledgeContext', () => ({ useUniversalKnowledge: () => ({ nodes: [] }) }));
 vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => ({ selectedProject: { id: h.projectId } }) }));
+vi.mock('../../contexts/FirebaseContext', () => ({ useFirebase: () => ({ user: { uid: 'worker-1' } }) }));
 vi.mock('../../contexts/EmergencyContext', () => ({ useEmergency: () => ({ triggerEmergency: h.emergency }) }));
 vi.mock('../../hooks/useRiskEngine', () => ({ useRiskEngine: () => ({ addNode: h.addNode }) }));
 vi.mock('../../utils/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));

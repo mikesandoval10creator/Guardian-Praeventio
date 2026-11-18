@@ -7,9 +7,11 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({
+  projectId: 'p1' as string | null,
+  uid: 'worker-1',
   triggerEmergency: vi.fn(async () => undefined),
   addNode: vi.fn(async () => undefined),
   scenario: {
@@ -34,9 +36,11 @@ vi.mock('../../contexts/EmergencyContext', () => ({
   }),
 }));
 
+vi.mock('../../contexts/FirebaseContext', () => ({ useFirebase: () => ({ user: { uid: h.uid } }) }));
+
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
-    selectedProject: { id: 'p1', name: 'Faena Norte' },
+    selectedProject: h.projectId ? { id: h.projectId, name: 'Faena' } : null,
     projects: [],
     setSelectedProject: vi.fn(),
     createProject: vi.fn(),
@@ -82,13 +86,49 @@ vi.mock('framer-motion', () => ({
 }));
 
 import { EmergencySimulator } from './EmergencySimulator';
+import { generateEmergencyScenario } from '../../services/geminiService';
 
 beforeEach(() => {
+  h.projectId = 'p1';
+  h.uid = 'worker-1';
   h.triggerEmergency.mockClear();
   h.addNode.mockClear();
 });
 
 describe('EmergencySimulator — drill escalation', () => {
+  it.each(['project', 'account', 'missing project'])('discards a ready drill after changing %s', async (change) => {
+    const view = render(<EmergencySimulator />);
+    fireEvent.click(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i }));
+    await screen.findByRole('button', { name: /Escalar a Emergencia Real/i });
+
+    if (change === 'project') h.projectId = 'p2';
+    else if (change === 'account') h.uid = 'worker-2';
+    else h.projectId = null;
+    view.rerender(<EmergencySimulator />);
+
+    expect(screen.queryByRole('heading', { name: h.scenario.title })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Escalar a Emergencia Real/i })).toBeNull();
+    expect(h.triggerEmergency).not.toHaveBeenCalled();
+    expect(h.addNode).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late drill response even after returning to the original project', async () => {
+    let finish!: (scenario: typeof h.scenario) => void;
+    vi.mocked(generateEmergencyScenario).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const view = render(<EmergencySimulator />);
+    fireEvent.click(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i }));
+    h.projectId = 'p2';
+    view.rerender(<EmergencySimulator />);
+    h.projectId = 'p1';
+    view.rerender(<EmergencySimulator />);
+    expect(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i })).toBeEnabled();
+    await act(async () => { finish(h.scenario); });
+
+    expect(screen.queryByRole('button', { name: /Escalar a Emergencia Real/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i }));
+    expect(await screen.findByRole('button', { name: /Escalar a Emergencia Real/i })).toBeEnabled();
+  });
+
   it('escalates with the selected projectId so the real emergency is delivered', async () => {
     render(<EmergencySimulator />);
 

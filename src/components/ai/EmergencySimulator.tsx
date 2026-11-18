@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Shield, Loader2, Play, MapPin, Users, Phone, WifiOff, Siren, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
 import { generateEmergencyScenario } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useEmergency } from '../../contexts/EmergencyContext';
@@ -29,12 +30,23 @@ interface Scenario {
 export function EmergencySimulator() {
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
+  const projectId = selectedProject?.id;
+  const uid = user?.uid;
   const { addNode } = useRiskEngine();
   const { triggerEmergency } = useEmergency();
   const [isGenerating, setIsGenerating] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [activeStep, setActiveStep] = useState(0);
   const isOnline = useOnlineStatus();
+  const drillEpoch = useRef(0);
+  useLayoutEffect(() => {
+    // Remove the previous scope's drill before the next paint.
+    setScenario(null);
+    setIsGenerating(false);
+    setActiveStep(0);
+    return () => { drillEpoch.current += 1; };
+  }, [uid, projectId]);
 
   // ─── ODE Fire-spread simulation (Euler-Matrix Fase 6) ─────────────────
   // Local, SLM-friendly: pure pure-function math from
@@ -119,6 +131,7 @@ export function EmergencySimulator() {
 
   const generateScenario = async () => {
     if (!isOnline) return;
+    const requestEpoch = ++drillEpoch.current;
     setIsGenerating(true);
     setScenario(null);
     setActiveStep(0);
@@ -131,21 +144,22 @@ export function EmergencySimulator() {
         .join('\n');
 
       const data = await generateEmergencyScenario(context);
-      setScenario(data);
+      if (drillEpoch.current === requestEpoch) setScenario(data);
     } catch (error) {
-      logger.error('Error generating scenario:', error);
+      if (drillEpoch.current === requestEpoch) logger.error('Error generating scenario:', error);
     } finally {
-      setIsGenerating(false);
+      if (drillEpoch.current === requestEpoch) setIsGenerating(false);
     }
   };
 
   const handleTriggerRealEmergency = async () => {
-    if (!scenario || !selectedProject) return;
+    if (!scenario || !projectId || !uid) return;
+    const escalationEpoch = drillEpoch.current;
     
     // Trigger the global emergency state. Without the projectId the local
     // alarm activates but no durable activation packet / FCM fan-out is sent,
     // so a real emergency escalated from a drill would reach nobody.
-    triggerEmergency(String(scenario.type || '').toLowerCase(), selectedProject.id);
+    triggerEmergency(String(scenario.type || '').toLowerCase(), projectId);
 
     // Add to Zettelkasten as a real incident
     await addNode({
@@ -153,7 +167,7 @@ export function EmergencySimulator() {
       title: `[SIMULACRO ESCALADO] ${scenario.title}`,
       description: scenario.description,
       tags: ['simulacro', 'emergencia', String(scenario.type || '').toLowerCase()],
-      projectId: selectedProject.id,
+      projectId,
       connections: [],
       metadata: {
         location: scenario.location,
@@ -161,8 +175,8 @@ export function EmergencySimulator() {
         isDrill: true
       }
     });
-    
-    setScenario(null);
+
+    if (drillEpoch.current === escalationEpoch) setScenario(null);
   };
 
   return (
@@ -291,6 +305,7 @@ export function EmergencySimulator() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={handleTriggerRealEmergency}
+                    disabled={!projectId || !uid}
                     className="flex-1 py-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2"
                   >
                     <Siren className="w-4 h-4" />
