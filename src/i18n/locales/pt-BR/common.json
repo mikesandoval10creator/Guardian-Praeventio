@@ -8,15 +8,15 @@
     "actions": {
       "processing": "Processando com Gemini...",
       "extract": "Extrair conhecimento",
-      "saved": "Salvo",
+      "syncPending": "Sincronização pendente",
       "saving": "Salvando...",
-      "saveZettel": "Salvar no Zettelkasten"
+      "saveSummary": "Salvar resumo"
     },
     "errors": {
       "textFileOnly": "No momento, são aceitos arquivos TXT ou Markdown; a extração de PDF requer um leitor de PDF dedicado.",
       "file": "Não foi possível ler o arquivo.",
       "processing": "Erro ao processar o texto. Tente novamente.",
-      "save": "Não foi possível salvar o conhecimento no Zettelkasten."
+      "save": "Não foi possível salvar o resumo."
     },
     "source": {
       "title": "Texto-fonte (artigo)",
