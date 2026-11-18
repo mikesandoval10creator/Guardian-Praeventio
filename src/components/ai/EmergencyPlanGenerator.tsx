@@ -363,7 +363,7 @@ export function EmergencyPlanGenerator() {
       setSaved(true);
     } catch (error) {
       logger.error('Error saving emergency plan', { error });
-      showToast(t('emergency_plan.zettelkasten_save_unconfirmed', 'No se pudo confirmar el guardado del plan en Zettelkasten.'), 'error');
+      showToast(t('emergency_plan.save_unconfirmed', 'No se pudo confirmar que el plan se guardó.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -415,8 +415,8 @@ export function EmergencyPlanGenerator() {
             >
               {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
               {saved
-                ? t('emergency_plan.zettelkasten_queued', 'En cola para Zettelkasten')
-                : t('emergency_plan.zettelkasten_save', 'Guardar en Zettelkasten')}
+                ? t('emergency_plan.sync_pending', 'Pendiente de sincronización')
+                : t('emergency_plan.save', 'Guardar plan')}
             </Button>
             <Button
               onClick={handleSaveToCloud}

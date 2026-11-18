@@ -22,14 +22,14 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); });
 async function savePlan() {
   render(<EmergencyPlanGenerator />);
   fireEvent.click(screen.getByRole('button', { name: 'Generar Plan' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Guardar en Zettelkasten' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Guardar plan' }));
 }
 
 it('shows that the plan is queued for Zettelkasten only after both save operations succeed', async () => {
   h.addNode.mockResolvedValue({ id: 'node-1' });
   h.addDoc.mockResolvedValue({ id: 'draft-1' });
   await savePlan();
-  expect(await screen.findByRole('button', { name: 'En cola para Zettelkasten' })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: 'Pendiente de sincronización' })).toBeDisabled();
   expect(h.addNode).toHaveBeenCalledOnce();
   expect(h.addDoc).toHaveBeenCalledOnce();
 });
@@ -38,6 +38,6 @@ it('does not claim a queued node when the writer returns null', async () => {
   h.addNode.mockResolvedValue(null);
   h.addDoc.mockResolvedValue({ id: 'draft-1' });
   await savePlan();
-  await waitFor(() => expect(h.show).toHaveBeenCalledWith('No se pudo confirmar el guardado del plan en Zettelkasten.', 'error'));
-  expect(screen.queryByRole('button', { name: 'En cola para Zettelkasten' })).not.toBeInTheDocument();
+  await waitFor(() => expect(h.show).toHaveBeenCalledWith('No se pudo confirmar que el plan se guardó.', 'error'));
+  expect(screen.queryByRole('button', { name: 'Pendiente de sincronización' })).not.toBeInTheDocument();
 });

@@ -1,8 +1,8 @@
 {
   "emergency_plan": {
-    "zettelkasten_save": "Save to Zettelkasten",
-    "zettelkasten_queued": "Queued for Zettelkasten",
-    "zettelkasten_save_unconfirmed": "Could not confirm that the plan was saved to Zettelkasten."
+    "save": "Save plan",
+    "sync_pending": "Sync pending",
+    "save_unconfirmed": "Could not confirm that the plan was saved."
   },
   "academic": {
     "actions": {

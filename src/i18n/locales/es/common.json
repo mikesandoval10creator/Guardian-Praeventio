@@ -1,8 +1,8 @@
 {
   "emergency_plan": {
-    "zettelkasten_save": "Guardar en Zettelkasten",
-    "zettelkasten_queued": "En cola para Zettelkasten",
-    "zettelkasten_save_unconfirmed": "No se pudo confirmar el guardado del plan en Zettelkasten."
+    "save": "Guardar plan",
+    "sync_pending": "Pendiente de sincronización",
+    "save_unconfirmed": "No se pudo confirmar que el plan se guardó."
   },
   "academic": {
     "actions": {
