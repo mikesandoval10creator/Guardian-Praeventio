@@ -16,6 +16,19 @@ vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: currentSelected }),
 }));
 
+// Keep EmptyState's real content and CTA, without starting browser animations
+// in tests that only exercise the project gate and page layout.
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, className }: Pick<React.ComponentProps<'div'>, 'children' | 'className'>) => (
+      <div className={className}>{children}</div>
+    ),
+    img: ({ src, alt, className }: Pick<React.ComponentProps<'img'>, 'src' | 'alt' | 'className'>) => (
+      <img src={src} alt={alt} className={className} />
+    ),
+  },
+}));
+
 import { ProjectScopedPage } from './ProjectScopedPage';
 
 function renderInDom(ui: React.ReactElement): {
