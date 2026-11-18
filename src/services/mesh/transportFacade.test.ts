@@ -291,7 +291,7 @@ describe('TransportFacade', () => {
     await facade.stopMesh();
   });
 
-  it('requeues a drained packet after the complete-packet ACK timeout', async () => {
+  it('retains the original packet until ACK, without spending a hop on retry', async () => {
     plugin.__sendImpl = () => ({ deliveredTo: ['peer-1'], queued: [] });
     const facade = new TransportFacade({
       peerId: 'worker-self',
@@ -307,14 +307,21 @@ describe('TransportFacade', () => {
     queue.enqueueLocal(packet);
     plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
     await vi.waitFor(
-      () => expect(queue.size()).toBe(0),
+      () => expect(plugin.__sentPackets).toHaveLength(1),
       { timeout: 1000, interval: 10 },
     );
-
-    await new Promise((resolve) => setTimeout(resolve, 35));
-    expect(queue.size()).toBe(1);
-
-    await facade.stopMesh();
+    try {
+      expect(queue.snapshot()).toEqual([packet]);
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+      await vi.waitFor(() => expect(plugin.__sentPackets).toHaveLength(2));
+      expect(plugin.__sentPackets[1]).toEqual(plugin.__sentPackets[0]);
+      const ack = makeAck(packet.id, 'peer-1');
+      plugin.__emit('mesh:packet', { ...ack, ...(await signPacket(ack, queueKey)) });
+      await vi.waitFor(() => expect(queue.snapshot()).toEqual([]));
+    } finally {
+      await facade.stopMesh();
+    }
   });
 
   it('sendLocal enqueues into the queue AND fans out via the plugin', async () => {
