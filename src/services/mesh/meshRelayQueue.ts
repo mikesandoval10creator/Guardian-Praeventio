@@ -279,11 +279,15 @@ export class MeshRelayQueue {
    * Aplica hop a cada uno (decrementa TTL, agrega self a relayedBy).
    * Limita a `maxPackets` por encuentro (bandwidth).
    *
-   * Después del send, el caller debe llamar `markDelivered(packet.id)`
-   * por cada ack que reciba del peer, o `requeue(packet.id)` si la
-   * conexión se cae mid-transfer.
+   * With an eligibility predicate, retain the original packets until
+   * `markDelivered` receives an ACK. Only the wire copy spends a hop.
+   * Without it, preserve the existing destructive drain contract.
    */
-  drainForPeer(peerUid: string, maxPackets: number = 50): RelayResult {
+  drainForPeer(
+    peerUid: string,
+    maxPackets: number = 50,
+    eligibleWhileRetained?: (packetId: string) => boolean,
+  ): RelayResult {
     const toSend: MeshPacket[] = [];
     const evicted: MeshPacket[] = [];
     const remaining: MeshPacket[] = [];
@@ -312,6 +316,10 @@ export class MeshRelayQueue {
         // El peer es el origen — no tiene sentido enviarle su propio packet
         remaining.push(packet);
         continue;
+      }
+      if (eligibleWhileRetained) {
+        remaining.push(packet);
+        if (!eligibleWhileRetained(packet.id)) continue;
       }
 
       const hopped = applyHop(packet, this.selfUid);

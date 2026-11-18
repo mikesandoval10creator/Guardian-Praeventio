@@ -64,10 +64,7 @@ const DEFAULT_RECONCILE_INTERVAL_MS = 30_000;
 const DEFAULT_ACK_TIMEOUT_MS = 10_000;
 
 type PendingDelivery = {
-  packet: MeshPacket;
   peerIds: Set<string>;
-  /** True when drainForPeer already removed it from the queue. */
-  removedFromQueue: boolean;
 };
 
 export class TransportFacade {
@@ -87,6 +84,7 @@ export class TransportFacade {
   private reconcileTimer: ReturnType<typeof setInterval> | null = null;
   private active = false;
   private pendingDeliveries = new Map<string, PendingDelivery>();
+  private relayInFlight = new Set<string>();
   private pendingAckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(opts: TransportFacadeOptions) {
@@ -170,7 +168,7 @@ export class TransportFacade {
       }
     }
     this.listeners = [];
-    this.clearPendingDeliveries(true);
+    this.clearPendingDeliveries();
     try {
       await this.plugin.stop();
     } catch {
@@ -197,7 +195,7 @@ export class TransportFacade {
     }
     const sendRes = await this.plugin.send(packet);
     for (const peerId of sendRes.deliveredTo) {
-      this.trackPendingDelivery(packet, peerId, false);
+      this.trackPendingDelivery(packet.id, peerId);
     }
     return {
       enqueued: true,
@@ -240,24 +238,24 @@ export class TransportFacade {
    * packet pending until a complete-packet ACK arrives.
    */
   private async drainForPeer(peerId: string): Promise<void> {
-    const { toSend } = this.queue.drainForPeer(peerId);
+    const inFlight = this.relayInFlight;
+    const { toSend } = this.queue.drainForPeer(peerId, 50, (id) =>
+      !inFlight.has(id) && !this.pendingDeliveries.get(id)?.peerIds.has(peerId),
+    );
+    for (const packet of toSend) inFlight.add(packet.id);
     for (const packet of toSend) {
-      const pending = this.pendingDeliveries.get(packet.id);
-      if (pending?.peerIds.has(peerId)) {
-        // A direct send is already awaiting this peer's ACK. Restore the
-        // queue entry instead of issuing a duplicate packet.
-        this.queue.requeue(packet);
-        continue;
-      }
       try {
+        if (!this.active || this.relayInFlight !== inFlight ||
+          !this.queue.snapshot().some((queued) => queued.id === packet.id)) continue;
         const result = await this.plugin.send(packet);
-        if (result.deliveredTo.includes(peerId)) {
-          this.trackPendingDelivery(packet, peerId, true);
-        } else {
-          this.queue.requeue(packet);
+        if (this.active && this.relayInFlight === inFlight && result.deliveredTo.includes(peerId) &&
+          this.queue.snapshot().some((queued) => queued.id === packet.id)) {
+          this.trackPendingDelivery(packet.id, peerId);
         }
       } catch {
-        this.queue.requeue(packet);
+        // The original packet remains eligible for the next encounter.
+      } finally {
+        inFlight.delete(packet.id);
       }
     }
   }
@@ -342,36 +340,16 @@ export class TransportFacade {
     this.queue.markDelivered(payload.ackedPacketId);
   }
 
-  private trackPendingDelivery(
-    packet: MeshPacket,
-    peerId: string,
-    removedFromQueue: boolean,
-  ): void {
-    const current = this.pendingDeliveries.get(packet.id);
+  private trackPendingDelivery(packetId: string, peerId: string): void {
+    const current = this.pendingDeliveries.get(packetId);
     const peerIds = current?.peerIds ?? new Set<string>();
     peerIds.add(peerId);
-    this.pendingDeliveries.set(packet.id, {
-      packet,
-      peerIds,
-      removedFromQueue: Boolean(current?.removedFromQueue || removedFromQueue),
-    });
-    this.clearPendingTimer(packet.id);
+    this.pendingDeliveries.set(packetId, { peerIds });
+    this.clearPendingTimer(packetId);
     this.pendingAckTimers.set(
-      packet.id,
-      setTimeout(() => this.expirePending(packet.id), this.ackTimeoutMs),
+      packetId,
+      setTimeout(() => this.clearPending(packetId), this.ackTimeoutMs),
     );
-  }
-
-  private expirePending(packetId: string): void {
-    const pending = this.pendingDeliveries.get(packetId);
-    if (!pending) return;
-    this.clearPending(packetId);
-    if (
-      pending.removedFromQueue &&
-      !this.queue.snapshot().some((packet) => packet.id === packetId)
-    ) {
-      this.queue.requeue(pending.packet);
-    }
   }
 
   private clearPending(packetId: string): void {
@@ -385,18 +363,12 @@ export class TransportFacade {
     this.pendingAckTimers.delete(packetId);
   }
 
-  private clearPendingDeliveries(requeueRemoved: boolean): void {
-    for (const [packetId, pending] of this.pendingDeliveries) {
+  private clearPendingDeliveries(): void {
+    for (const packetId of this.pendingDeliveries.keys()) {
       this.clearPendingTimer(packetId);
-      if (
-        requeueRemoved &&
-        pending.removedFromQueue &&
-        !this.queue.snapshot().some((packet) => packet.id === packetId)
-      ) {
-        this.queue.requeue(pending.packet);
-      }
     }
     this.pendingDeliveries.clear();
+    this.relayInFlight = new Set();
   }
 
 }
