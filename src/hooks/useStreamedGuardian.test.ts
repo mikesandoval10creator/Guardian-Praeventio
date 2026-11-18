@@ -141,29 +141,25 @@ describe('streamGuardian SSE consumer', () => {
   });
 
   it('respeta AbortSignal cuando el caller cancela mid-stream', async () => {
+    const caller = new AbortController();
     global.fetch = vi.fn(async (_url, init) => {
-      // Simular un stream lento que respeta abort.
       const signal = (init as RequestInit | undefined)?.signal;
+      expect(signal).toBe(caller.signal);
       const body = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          if (signal?.aborted) {
-            controller.error(new DOMException('Aborted', 'AbortError'));
-            return;
-          }
+        start(controller) {
           signal?.addEventListener('abort', () => {
-            controller.error(new DOMException('Aborted', 'AbortError'));
-          });
-          // Nunca emite — pero abre el stream.
-          await new Promise(() => undefined);
+            controller.error(signal.reason);
+          }, { once: true });
         },
-      });
+        pull() {
+          caller.abort();
+        },
+      }, { highWaterMark: 0 }); // Pull only once the consumer starts reading.
       return new Response(body, { status: 200 });
     }) as unknown as typeof fetch;
 
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 30);
     await expect(
-      streamGuardianText({ query: 'q', signal: controller.signal }),
-    ).rejects.toThrow();
+      streamGuardianText({ query: 'q', signal: caller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
