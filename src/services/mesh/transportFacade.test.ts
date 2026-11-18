@@ -430,6 +430,56 @@ describe('TransportFacade', () => {
     await facade.stopMesh();
   });
 
+  it('acknowledges each hop of a three-peer SOS relay in a simulated transport', async () => {
+    const makeNode = (peerId: string) => {
+      const nodeQueue = new MeshRelayQueue({ selfUid: peerId, projectId: 'project-X', signingKey: queueKey });
+      const transport = makeFakePlugin();
+      const facade = new TransportFacade({
+        peerId, projectId: 'project-X', queue: nodeQueue, plugin: transport,
+        signingKey: queueKey, isNativePlatform: () => false,
+      });
+      return { peerId, queue: nodeQueue, transport, facade };
+    };
+    const origin = makeNode('origin');
+    const relay = makeNode('relay');
+    const receiver = makeNode('receiver');
+    const connect = (sender: typeof origin, neighbor: typeof origin) => {
+      sender.transport.__sendImpl = (packet) => {
+        neighbor.transport.__emit('mesh:packet', packet);
+        return { deliveredTo: [neighbor.peerId], queued: [] };
+      };
+    };
+
+    const unsigned = makePacket({
+      type: 'sos', fromUid: origin.peerId,
+      payload: { projectId: 'project-X', triggerReason: 'fall' },
+    });
+    const sos = { ...unsigned, ...(await signPacket(unsigned, queueKey)) };
+    try {
+      await Promise.all([origin.facade.startMesh(), relay.facade.startMesh(), receiver.facade.startMesh()]);
+      connect(origin, relay);
+      connect(relay, origin);
+      expect((await origin.facade.sendLocal(sos)).enqueued).toBe(true);
+      await vi.waitFor(() => expect(origin.queue.snapshot()).toEqual([]));
+      expect(relay.queue.snapshot()).toEqual([sos]);
+
+      // The origin is now out of range; only relay and receiver are neighbors.
+      connect(relay, receiver);
+      connect(receiver, relay);
+      relay.transport.__emit('mesh:peer-discovered', { id: receiver.peerId, rssi: -40 });
+      expect(relay.queue.snapshot()).toEqual([sos]);
+      await vi.waitFor(() => expect(receiver.transport.__sentPackets).toHaveLength(1));
+      expect(receiver.queue.snapshot()).toEqual([expect.objectContaining({ id: sos.id, fromUid: origin.peerId })]);
+      expect(receiver.transport.__sentPackets[0]).toMatchObject({
+        type: 'ack', fromUid: receiver.peerId, toUid: relay.peerId,
+        payload: { ackedPacketId: sos.id, confirmedBy: receiver.peerId },
+      });
+      await vi.waitFor(() => expect(relay.queue.snapshot()).toEqual([]));
+    } finally {
+      await Promise.all([origin.facade.stopMesh(), relay.facade.stopMesh(), receiver.facade.stopMesh()]);
+    }
+  });
+
   it('signs generated ACKs when verify-on-receive has a project key', async () => {
     const signingKey = await makeSigningKey();
     queue = new MeshRelayQueue({

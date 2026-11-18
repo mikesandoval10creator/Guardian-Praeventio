@@ -302,10 +302,14 @@ export class TransportFacade {
   }
 
   private async sendReceiptAck(packet: MeshPacket): Promise<void> {
+    // The last relay owns this attempt; the origin owns only a direct send.
+    // The hop list is a routing hint, not a peer authentication source.
+    const previousHop = packet.relayedBy.at(-1) ?? packet.fromUid;
+    if (previousHop === this.peerId) return;
     const base = buildPacket({
       type: 'ack',
       fromUid: this.peerId,
-      toUid: packet.fromUid,
+      toUid: previousHop,
       bornAtMs: this.nowFn(),
       payload: {
         ackedPacketId: packet.id,
