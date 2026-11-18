@@ -20,9 +20,18 @@ export function AcademicProcessor() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const sourceRevision = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
+
+  const updateSource = (text: string) => {
+    sourceRevision.current += 1;
+    setTextInput(text);
+    setResult(null);
+    setSaved(false);
+    setError(null);
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -33,22 +42,29 @@ export function AcademicProcessor() {
       return;
     }
     setError(null);
+    const revision = sourceRevision.current;
     const reader = new FileReader();
-    reader.onload = () => setTextInput(String(reader.result ?? ''));
-    reader.onerror = () => setError(t('academic.errors.file', 'No se pudo leer el archivo.'));
+    reader.onload = () => {
+      if (sourceRevision.current === revision) updateSource(String(reader.result ?? ''));
+    };
+    reader.onerror = () => {
+      if (sourceRevision.current === revision) setError(t('academic.errors.file', 'No se pudo leer el archivo.'));
+    };
     reader.readAsText(file);
     event.target.value = '';
   };
 
   const handleProcess = async () => {
     if (!textInput.trim()) return;
+    const revision = sourceRevision.current;
     setIsProcessing(true);
     setSaved(false);
     setError(null);
     try {
       const summary = await extractAcademicSummary(textInput);
-      setResult(summary);
+      if (sourceRevision.current === revision) setResult(summary);
     } catch (err) {
+      if (sourceRevision.current !== revision) return;
       logger.error(err);
       setError(t('academic.errors.processing', 'Error al procesar el texto. Por favor, intenta de nuevo.'));
     } finally {
@@ -58,6 +74,7 @@ export function AcademicProcessor() {
 
   const handleSave = async () => {
     if (!result || !selectedProject || isSaving) return;
+    const revision = sourceRevision.current;
     setIsSaving(true);
     setError(null);
     try {
@@ -76,8 +93,9 @@ export function AcademicProcessor() {
         connections: [],
       });
       if (!node) throw new Error('No se pudo encolar el nodo académico');
-      setSaved(true);
+      if (sourceRevision.current === revision) setSaved(true);
     } catch (err) {
+      if (sourceRevision.current !== revision) return;
       logger.error(err);
       setError(t('academic.errors.save', 'No se pudo guardar el conocimiento en Zettelkasten.'));
     } finally {
@@ -120,7 +138,7 @@ export function AcademicProcessor() {
 
           <textarea
             value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
+            onChange={(e) => updateSource(e.target.value)}
             placeholder={t('academic.source.placeholder', "Ej: 'El estudio demuestra que la fatiga cognitiva en operadores de maquinaria pesada aumenta un 40% después de 6 horas de turno continuo en altitud superior a 3000 msnm...'")}
             className="flex-1 w-full min-h-[300px] bg-zinc-50 dark:bg-zinc-900/50 border border-default-token rounded-xl p-4 text-sm text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
           />
