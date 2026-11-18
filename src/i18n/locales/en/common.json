@@ -1135,6 +1135,8 @@
     "distilling": "Distilling knowledge...",
     "new_for_you": "New for you",
     "listen_capsule": "Listen to Capsule",
+    "stop_playback": "Stop audio",
+    "local_audio_unavailable": "No local voice is available to play this capsule. You can read it on screen.",
     "key_tip": "Guardian Key Tip",
     "view_history": "View capsule history"
   },

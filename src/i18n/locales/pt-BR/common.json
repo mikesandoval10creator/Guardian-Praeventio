@@ -1135,6 +1135,8 @@
     "distilling": "Destilando conhecimento...",
     "new_for_you": "Novo para você",
     "listen_capsule": "Ouvir Cápsula",
+    "stop_playback": "Parar áudio",
+    "local_audio_unavailable": "Não há uma voz local disponível para reproduzir a cápsula. Você pode ler o conteúdo na tela.",
     "key_tip": "Dica-Chave do Guardião",
     "view_history": "Ver histórico de cápsulas"
   },
