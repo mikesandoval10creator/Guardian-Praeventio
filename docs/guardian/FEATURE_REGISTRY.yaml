@@ -52,7 +52,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-a7915da39e
-    name: [P1] Validacion FISICA de funciones vitales (BLE/sensores/background/FCM/offline)
+    name: "[P1] Validacion FISICA de funciones vitales (BLE/sensores/background/FCM/offline)"
     domain: uncategorized
     priority: urgent
     status: Backlog
@@ -72,7 +72,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-39907e3319
-    name: [P0][VIDA] Foreground service de trabajador solitario no ejecuta proteccion real
+    name: "[P0][VIDA] Foreground service de trabajador solitario no ejecuta proteccion real"
     domain: uncategorized
     priority: urgent
     status: In-progress
@@ -92,7 +92,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-90a18d327e
-    name: [P0][billing] WebpayAdapter cae a sandbox de Transbank si WEBPAY_COMMERCE_CODE / WEBPAY_API_KEY no estan configurados — pago real al sandbox
+    name: "[P0][billing] WebpayAdapter cae a sandbox de Transbank si WEBPAY_COMMERCE_CODE / WEBPAY_API_KEY no estan configurados — pago real al sandbox"
     domain: uncategorized
     priority: urgent
     status: In-progress
@@ -112,7 +112,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-de20819cb4
-    name: [Audit-2026-08-30] Android ManDown — FGS start handshake debe reflejar registro del sensor
+    name: "[Audit-2026-08-30] Android ManDown — FGS start handshake debe reflejar registro del sensor"
     domain: ops
     priority: urgent
     status: Spec'd
@@ -132,7 +132,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-9c0daee5cf
-    name: [Audit-2026-08-30] Android ManDown — evitar doble detector FGS + WebView
+    name: "[Audit-2026-08-30] Android ManDown — evitar doble detector FGS + WebView"
     domain: ops
     priority: urgent
     status: Spec'd
@@ -152,7 +152,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-3d431d3e7b
-    name: [Audit-2026-08-30] Mesh fail-closed — sin signing key no auto-escalar packet remoto
+    name: "[Audit-2026-08-30] Mesh fail-closed — sin signing key no auto-escalar packet remoto"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -172,7 +172,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-10d9c1fa1c
-    name: [Audit-2026-08-31] LOTO release API — permite liberar sin validar energías bloqueadas y cero energía
+    name: "[Audit-2026-08-31] LOTO release API — permite liberar sin validar energías bloqueadas y cero energía"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -212,7 +212,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-6635ba3f24
-    name: [Audit-2026-08-30] Android ManDown — tests nativos FGS/WorkManager
+    name: "[Audit-2026-08-30] Android ManDown — tests nativos FGS/WorkManager"
     domain: ops
     priority: high
     status: Spec'd
@@ -232,7 +232,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-60a1043929
-    name: [Audit-2026-08-30] Android emergency FCM — fijar channel_id crítico
+    name: "[Audit-2026-08-30] Android emergency FCM — fijar channel_id crítico"
     domain: ops
     priority: high
     status: Spec'd
@@ -252,7 +252,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-8b968e0160
-    name: [Audit-2026-08-30] R15 — src/server/routes/billing.ts (Webpay/KMS) sin test
+    name: "[Audit-2026-08-30] R15 — src/server/routes/billing.ts (Webpay/KMS) sin test"
     domain: ops
     priority: high
     status: Spec'd
@@ -272,7 +272,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-8f4bb527f5
-    name: [Audit-2026-08-31] Wisdom Capsule diaria — no existe scheduler/producer FCM ni entrega durable
+    name: "[Audit-2026-08-31] Wisdom Capsule diaria — no existe scheduler/producer FCM ni entrega durable"
     domain: ops
     priority: high
     status: Spec'd
@@ -292,7 +292,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-736a12ab7e
-    name: [Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Fallo de Descarga de Backup Silencioso en Export+Archive
+    name: "[Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Fallo de Descarga de Backup Silencioso en Export+Archive"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -312,7 +312,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-162e249d31
-    name: [P1] Climate risk scan no fails-closed en delivery FCM
+    name: "[P1] Climate risk scan no fails-closed en delivery FCM"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -392,7 +392,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-7381407c19
-    name: [Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Archivar Elude el Chequeo de Concurrencia Optimista (TOCTOU)
+    name: "[Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Archivar Elude el Chequeo de Concurrencia Optimista (TOCTOU)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -412,7 +412,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-90641804d4
-    name: [Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Clave de Error Nunca Superficializada al Usuario
+    name: "[Hy3-architect-oleada-2] billing/TierDowngradeModal.tsx — Clave de Error Nunca Superficializada al Usuario"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -432,7 +432,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-e14fa7cf1b
-    name: [Hy3-audit] (validar M3) — [Test gap] Cobertura del path legacy de prepareSigningContext
+    name: "[Hy3-audit] (validar M3) — [Test gap] Cobertura del path legacy de prepareSigningContext"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -452,7 +452,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-8f6b690a7c
-    name: [Hy3-audit] Deduplicar los 4 adapters ComplianceSigningDocuments en un factory único
+    name: "[Hy3-audit] Deduplicar los 4 adapters ComplianceSigningDocuments en un factory único"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -472,7 +472,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-7322e0ebb2
-    name: [Hy3-audit] Header de billing.ts omite ufPricing.ts del inventario de módulos
+    name: "[Hy3-audit] Header de billing.ts omite ufPricing.ts del inventario de módulos"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -532,7 +532,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-5e4f19bea1
-    name: [Hy3-audit] Suite de unit tests ausente para lógica de billing crítica
+    name: "[Hy3-audit] Suite de unit tests ausente para lógica de billing crítica"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -552,7 +552,7 @@ features_tier_A:
       - "marked_done_without_file:line"
 
   - id: F-1ca3802779
-    name: [Hy3-audit] resolveBillingTier case-sensitive sin normalización
+    name: "[Hy3-audit] resolveBillingTier case-sensitive sin normalización"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -593,7 +593,7 @@ features_tier_A:
 
 features_tier_B:
   - id: F-3d6fd6b118
-    name: [P0][VIDA] Fall detection no garantizada con el telefono bloqueado
+    name: "[P0][VIDA] Fall detection no garantizada con el telefono bloqueado"
     domain: uncategorized
     priority: urgent
     status: In-progress
@@ -614,7 +614,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-9e107f6c61
-    name: [P0][VIDA] Los paquetes BLE pueden truncarse o perderse (>512B, sin framing/ACK)
+    name: "[P0][VIDA] Los paquetes BLE pueden truncarse o perderse (>512B, sin framing/ACK)"
     domain: uncategorized
     priority: urgent
     status: In-progress
@@ -634,7 +634,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-a0f2e540d8
-    name: [Audit-2026-08-30] Android ManDown — serializar cancelación y expiración del countdown
+    name: "[Audit-2026-08-30] Android ManDown — serializar cancelación y expiración del countdown"
     domain: ops
     priority: urgent
     status: Spec'd
@@ -655,7 +655,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7fc9458261
-    name: [Audit-2026-08-30] Mesh store-carry-forward — drenar cola al descubrir peer y ACK
+    name: "[Audit-2026-08-30] Mesh store-carry-forward — drenar cola al descubrir peer y ACK"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -675,7 +675,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6f95dd1c9d
-    name: [Audit-2026-08-30] SOSButton — idempotency key también en el POST inicial
+    name: "[Audit-2026-08-30] SOSButton — idempotency key también en el POST inicial"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -696,7 +696,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-b097bb5e17
-    name: [Audit-2026-08-31] DTE queue drain — claim in_flight no es atómico y permite doble emisión
+    name: "[Audit-2026-08-31] DTE queue drain — claim in_flight no es atómico y permite doble emisión"
     domain: compliance
     priority: urgent
     status: Spec'd
@@ -716,7 +716,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3eba190226
-    name: [Audit-2026-08-31] Driver scoring — datos persistidos inválidos pueden producir nivel low/operable
+    name: "[Audit-2026-08-31] Driver scoring — datos persistidos inválidos pueden producir nivel low/operable"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -736,7 +736,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-1cdd060870
-    name: [Audit-2026-08-31] Horómetro completion — firma biométrica opcional y hash local no verificable
+    name: "[Audit-2026-08-31] Horómetro completion — firma biométrica opcional y hash local no verificable"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -756,7 +756,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3097820c4e
-    name: [Audit-2026-08-31] Native ManDown — demostrar clientEventId como Idempotency-Key en postPersistedEvent
+    name: "[Audit-2026-08-31] Native ManDown — demostrar clientEventId como Idempotency-Key en postPersistedEvent"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -777,7 +777,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7937259d14
-    name: [Audit-2026-08-31] ZK materializer — trigger no está cableado y su contrato no coincide con los writers
+    name: "[Audit-2026-08-31] ZK materializer — trigger no está cableado y su contrato no coincide con los writers"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -797,7 +797,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-b74b57be74
-    name: [Hy3-architect-oleada-1] loneWorkerService.ts — Divergencia status persistido vs derivado causa sobre-escala a emergency
+    name: "[Hy3-architect-oleada-1] loneWorkerService.ts — Divergencia status persistido vs derivado causa sobre-escala a emergency"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -838,7 +838,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-c4e2f4d572
-    name: [Hy3-architect-oleada-1] meshRelayQueue.ts — drain priority cut
+    name: "[Hy3-architect-oleada-1] meshRelayQueue.ts — drain priority cut"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -858,7 +858,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7bc2d2fcc7
-    name: [Hy3-architect-oleada-1] runManDownEscalation.ts — Race read-then-write del marcador sin transacción
+    name: "[Hy3-architect-oleada-1] runManDownEscalation.ts — Race read-then-write del marcador sin transacción"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -879,7 +879,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-def364f5a1
-    name: [Hy3-architect-oleada-1] runManDownEscalation.ts — Subcolección escalations sin regla de seguridad ni test
+    name: "[Hy3-architect-oleada-1] runManDownEscalation.ts — Subcolección escalations sin regla de seguridad ni test"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -900,7 +900,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-bff8484ea0
-    name: [Hy3-architect-oleada-1] server/routes/mesh.ts — Validar doc leído de mesh_keys antes de entregar la clave
+    name: "[Hy3-architect-oleada-1] server/routes/mesh.ts — Validar doc leído de mesh_keys antes de entregar la clave"
     domain: uncategorized
     priority: urgent
     status: Spec'd
@@ -920,7 +920,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-b0e43dff10
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — chunkSize pre-base64 excede MTU BLE
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — chunkSize pre-base64 excede MTU BLE"
     domain: uncategorized
     priority: high
     status: In-progress
@@ -940,7 +940,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3cb287d5ab
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — falta control de acceso en file_request
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — falta control de acceso en file_request"
     domain: uncategorized
     priority: high
     status: In-progress
@@ -960,7 +960,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-17b4587143
-    name: [Meta] Matriz visible->persistencia->authz->automatizacion->prueba real->evidencia prod
+    name: "[Meta] Matriz visible->persistencia->authz->automatizacion->prueba real->evidencia prod"
     domain: uncategorized
     priority: high
     status: In-progress
@@ -980,7 +980,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-976b7ee70c
-    name: [P1][seguridad] Aislamiento de proyecto tardio en Mesh + contenido sin cifrar E2E
+    name: "[P1][seguridad] Aislamiento de proyecto tardio en Mesh + contenido sin cifrar E2E"
     domain: uncategorized
     priority: high
     status: In-progress
@@ -1000,7 +1000,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-1b130146bb
-    name: [P1][store] Paquete de submission Play para permisos sensibles (declaración + video + divulgación)
+    name: "[P1][store] Paquete de submission Play para permisos sensibles (declaración + video + divulgación)"
     domain: ops
     priority: high
     status: In-progress
@@ -1021,7 +1021,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-9277142dc7
-    name: [Audit-2026-08-30] Mesh file-transfer — request y response deben firmarse
+    name: "[Audit-2026-08-30] Mesh file-transfer — request y response deben firmarse"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1041,7 +1041,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-46fa65fdee
-    name: [Audit-2026-08-31] Driving telemetry — aceleración positiva se clasifica como frenada agresiva
+    name: "[Audit-2026-08-31] Driving telemetry — aceleración positiva se clasifica como frenada agresiva"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1061,7 +1061,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-b9d0e7afac
-    name: [Audit-2026-08-31] LOTO validate-critical — payload incompatible con LotoApplication y vocabulary drift de energías
+    name: "[Audit-2026-08-31] LOTO validate-critical — payload incompatible con LotoApplication y vocabulary drift de energías"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1081,7 +1081,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-336c2dd4f3
-    name: [Audit-2026-08-31] Predictive scheduler — autoalerta solo local, sin fan-out remoto a la cuadrilla
+    name: "[Audit-2026-08-31] Predictive scheduler — autoalerta solo local, sin fan-out remoto a la cuadrilla"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1101,7 +1101,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-e362ca4601
-    name: [Audit-2026-08-31] Sentry contract — assertion matches comment, not executable sendDefaultPii
+    name: "[Audit-2026-08-31] Sentry contract — assertion matches comment, not executable sendDefaultPii"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1121,7 +1121,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-cb0d66e85d
-    name: [Bundle-Verify-2026-08-27] P1 — 2 memory leaks en EmergencyContext.meshFallback.test.tsx (notifyBrigadeServer L64)
+    name: "[Bundle-Verify-2026-08-27] P1 — 2 memory leaks en EmergencyContext.meshFallback.test.tsx (notifyBrigadeServer L64)"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1141,7 +1141,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-0336ed8353
-    name: [Bundle-Verify-2026-08-27] P2 — /sos route is missing in AppRoutes.tsx (vida-safety gap, no es ruta crítica)
+    name: "[Bundle-Verify-2026-08-27] P2 — /sos route is missing in AppRoutes.tsx (vida-safety gap, no es ruta crítica)"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1183,7 +1183,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-9a5f5711f8
-    name: [Hy3-architect-oleada-1] meshRelayQueue.ts — untrusted sos xp
+    name: "[Hy3-architect-oleada-1] meshRelayQueue.ts — untrusted sos xp"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1204,7 +1204,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-364c3891db
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — MIME hardcodeado rompe preview de archivos
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — MIME hardcodeado rompe preview de archivos"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1224,7 +1224,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-c780253e7f
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — generateRequestId TEST-ONLY puede romper firma
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — generateRequestId TEST-ONLY puede romper firma"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1244,7 +1244,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-14407623e4
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — race cleanup() descarta último chunk válido
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — race cleanup() descarta último chunk válido"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1264,7 +1264,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3dd7a7cdd5
-    name: [Hy3-architect-oleada-1] meshRequestRouter.ts — totalChunks sin límite = DoS de memoria
+    name: "[Hy3-architect-oleada-1] meshRequestRouter.ts — totalChunks sin límite = DoS de memoria"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1284,7 +1284,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-a0d71eba18
-    name: [Hy3-architect-oleada-1] server/routes/emergency.ts — Rate limiter cae a por-IP si req.user es undefined
+    name: "[Hy3-architect-oleada-1] server/routes/emergency.ts — Rate limiter cae a por-IP si req.user es undefined"
     domain: ops
     priority: high
     status: Spec'd
@@ -1304,7 +1304,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-66034a9cb8
-    name: [Hy3-architect-oleada-1] server/routes/emergency.ts — delivered asimétrico en /notify-brigada ignora email fallback
+    name: "[Hy3-architect-oleada-1] server/routes/emergency.ts — delivered asimétrico en /notify-brigada ignora email fallback"
     domain: ops
     priority: high
     status: Spec'd
@@ -1324,7 +1324,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-d646b98a1d
-    name: [Hy3-architect-oleada-1] server/routes/mesh.ts — Rechazar projectId con / en QuerySchema
+    name: "[Hy3-architect-oleada-1] server/routes/mesh.ts — Rechazar projectId con / en QuerySchema"
     domain: ops
     priority: high
     status: Spec'd
@@ -1344,7 +1344,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-975cbcf08a
-    name: [Idea][Dirección][ÉTICA] Diseñar para CUIDAR, no para vigilar — el principio que sostiene todo (¿ADR?)
+    name: "[Idea][Dirección][ÉTICA] Diseñar para CUIDAR, no para vigilar — el principio que sostiene todo (¿ADR?)"
     domain: compliance
     priority: high
     status: Spec'd
@@ -1365,7 +1365,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-9f699b1c06
-    name: [Idea][VIDA] Ejecución durable para la escalación de emergencia (patrón Temporal, MIT)
+    name: "[Idea][VIDA] Ejecución durable para la escalación de emergencia (patrón Temporal, MIT)"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1385,7 +1385,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-caa216ef59
-    name: [P1] Scheduler apunta a ruta inexistente para expiracion de recursos de brigada
+    name: "[P1] Scheduler apunta a ruta inexistente para expiracion de recursos de brigada"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1427,7 +1427,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3efd76d205
-    name: [P1][ai] EmergencySimulator.tsx sin test propio (22KB, simulador emergencias)
+    name: "[P1][ai] EmergencySimulator.tsx sin test propio (22KB, simulador emergencias)"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1487,7 +1487,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-cc93f3b3c9
-    name: [P1][seguridad] Firmas biometricas que no son firmas end-to-end (falsificables)
+    name: "[P1][seguridad] Firmas biometricas que no son firmas end-to-end (falsificables)"
     domain: uncategorized
     priority: high
     status: Spec'd
@@ -1507,7 +1507,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-2fe999efd4
-    name: [Idea][VIDA] Integrar detectores de gas wearables BLE al bus de sensores (espacios confinados)
+    name: "[Idea][VIDA] Integrar detectores de gas wearables BLE al bus de sensores (espacios confinados)"
     domain: uncategorized
     priority: med
     status: Backlog
@@ -1527,7 +1527,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-2770b25b1e
-    name: [Audit-2026-08-31] PredictiveGuard test — Maximum update depth exceeded con mock de proyecto inestable
+    name: "[Audit-2026-08-31] PredictiveGuard test — Maximum update depth exceeded con mock de proyecto inestable"
     domain: ops
     priority: med
     status: Spec'd
@@ -1547,7 +1547,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-904fc4efad
-    name: [Audit-2026-08-31] i18n — locales globales stub expuestas como disponibles
+    name: "[Audit-2026-08-31] i18n — locales globales stub expuestas como disponibles"
     domain: ops
     priority: med
     status: Spec'd
@@ -1567,7 +1567,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-754bde6a44
-    name: [Hy3-architect-oleada-1] emergencyNumbers.ts — CHILE_FALLBACK duplica entrada CL de COUNTRIES
+    name: "[Hy3-architect-oleada-1] emergencyNumbers.ts — CHILE_FALLBACK duplica entrada CL de COUNTRIES"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1587,7 +1587,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-a11301b031
-    name: [Hy3-architect-oleada-1] emergencyNumbers.ts — bbox US latMin=18.9 mal calibrado
+    name: "[Hy3-architect-oleada-1] emergencyNumbers.ts — bbox US latMin=18.9 mal calibrado"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1627,7 +1627,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-f5db29004e
-    name: [Hy3-architect-oleada-1] emergencyNumbers.ts — getEmergencyNumbersByCoords sin null-guard
+    name: "[Hy3-architect-oleada-1] emergencyNumbers.ts — getEmergencyNumbersByCoords sin null-guard"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1647,7 +1647,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-01eeb122ae
-    name: [Hy3-architect-oleada-1] emergencyNumbers.ts — listSupportedCountries sin llamador de UI real
+    name: "[Hy3-architect-oleada-1] emergencyNumbers.ts — listSupportedCountries sin llamador de UI real"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1709,7 +1709,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-db7333b193
-    name: [Hy3-architect-oleada-1] meshFallback.ts — catch {} descarta causa raíz del fallo de firma/transporte
+    name: "[Hy3-architect-oleada-1] meshFallback.ts — catch {} descarta causa raíz del fallo de firma/transporte"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1729,7 +1729,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6941f4553b
-    name: [Hy3-architect-oleada-1] meshFallback.ts — mapTriggerReason pierde semántica fire/medical/gas/collapse
+    name: "[Hy3-architect-oleada-1] meshFallback.ts — mapTriggerReason pierde semántica fire/medical/gas/collapse"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1749,7 +1749,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-d134b09e97
-    name: [Hy3-architect-oleada-1] meshRelayQueue.ts — append eviction perf
+    name: "[Hy3-architect-oleada-1] meshRelayQueue.ts — append eviction perf"
     domain: ops
     priority: med
     status: Spec'd
@@ -1769,7 +1769,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-e6290f1397
-    name: [Hy3-architect-oleada-1] meshRelayQueue.ts — seenids unbounded
+    name: "[Hy3-architect-oleada-1] meshRelayQueue.ts — seenids unbounded"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -1810,7 +1810,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-418da7b424
-    name: [Hy3-architect-oleada-1] meshRelayXpWire.ts — Sin test de makeRelayXpHandler cuando options.onAward lanza
+    name: "[Hy3-architect-oleada-1] meshRelayXpWire.ts — Sin test de makeRelayXpHandler cuando options.onAward lanza"
     domain: ops
     priority: med
     status: Spec'd
@@ -1830,7 +1830,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-5f1a05da57
-    name: [Hy3-architect-oleada-1] meshRelayXpWire.ts — console.warn en path de awardXp — observables en producción
+    name: "[Hy3-architect-oleada-1] meshRelayXpWire.ts — console.warn en path de awardXp — observables en producción"
     domain: ops
     priority: med
     status: Spec'd
@@ -1850,7 +1850,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6ff7ac7e2f
-    name: [Hy3-architect-oleada-1] meshRelayXpWire.ts — onAward recibe solo amount, no AwardXpResult completo
+    name: "[Hy3-architect-oleada-1] meshRelayXpWire.ts — onAward recibe solo amount, no AwardXpResult completo"
     domain: ops
     priority: med
     status: Spec'd
@@ -1870,7 +1870,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-c8e70ae799
-    name: [Hy3-architect-oleada-1] runManDownEscalation.ts — Default collectionPath apunta a root legacy no usado en producción
+    name: "[Hy3-architect-oleada-1] runManDownEscalation.ts — Default collectionPath apunta a root legacy no usado en producción"
     domain: ops
     priority: med
     status: Spec'd
@@ -1891,7 +1891,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-f27c12a18e
-    name: [Hy3-architect-oleada-1] runManDownEscalation.ts — Marcadores escalations sin TTL ni limpieza
+    name: "[Hy3-architect-oleada-1] runManDownEscalation.ts — Marcadores escalations sin TTL ni limpieza"
     domain: ops
     priority: med
     status: Spec'd
@@ -1912,7 +1912,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-a1b0768ceb
-    name: [Hy3-architect-oleada-1] runManDownEscalation.ts — messageForLevel sin test unitario directo
+    name: "[Hy3-architect-oleada-1] runManDownEscalation.ts — messageForLevel sin test unitario directo"
     domain: ops
     priority: med
     status: Spec'd
@@ -1954,7 +1954,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-4830346062
-    name: [Hy3-architect-oleada-1] server/routes/loneWorker.ts — Import dinámico en hot path de alerta Man-Down
+    name: "[Hy3-architect-oleada-1] server/routes/loneWorker.ts — Import dinámico en hot path de alerta Man-Down"
     domain: ops
     priority: med
     status: Spec'd
@@ -2075,7 +2075,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-4f22ad3d39
-    name: [Hy3-audit] Cifrado en reposo de la cola SOS (follow-up documentado)
+    name: "[Hy3-audit] Cifrado en reposo de la cola SOS (follow-up documentado)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2096,7 +2096,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-66e36312a5
-    name: [Hy3-audit] Colecciones exportables hardcodeadas y no tipadas
+    name: "[Hy3-audit] Colecciones exportables hardcodeadas y no tipadas"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2116,7 +2116,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-407f822496
-    name: [Hy3-audit] Colisión de Idempotency-Key con fallback sos-${Date.now()}
+    name: "[Hy3-audit] Colisión de Idempotency-Key con fallback sos-${Date.now()}"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2198,7 +2198,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-3d2a288f7d
-    name: [Hy3-audit] Doble envoltura de humanErrorMessage en render de error
+    name: "[Hy3-audit] Doble envoltura de humanErrorMessage en render de error"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2218,7 +2218,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-0155e381e6
-    name: [Hy3-audit] Doble fuente de verdad de cálculo de precio (cliente vs servidor)
+    name: "[Hy3-audit] Doble fuente de verdad de cálculo de precio (cliente vs servidor)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2238,7 +2238,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-8512aacd5a
-    name: [Hy3-audit] Doble parseo Zod (ruta + adapter) sobre payload crudo
+    name: "[Hy3-audit] Doble parseo Zod (ruta + adapter) sobre payload crudo"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2258,7 +2258,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-b5561a511a
-    name: [Hy3-audit] Doble validación de ApiTierId en b2dAdmin.ts
+    name: "[Hy3-audit] Doble validación de ApiTierId en b2dAdmin.ts"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2278,7 +2278,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-2c5346a428
-    name: [Hy3-audit] Duplicación de motor outbox (sosOutbox vs GenericOutboxEngine)
+    name: "[Hy3-audit] Duplicación de motor outbox (sosOutbox vs GenericOutboxEngine)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2299,7 +2299,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-556010c1f3
-    name: [Hy3-audit] Eliminar rama inalcanzable if (!result) en handleAnalyze
+    name: "[Hy3-audit] Eliminar rama inalcanzable if (!result) en handleAnalyze"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2339,7 +2339,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-e28b6fe8a3
-    name: [Hy3-audit] Import auth muerto en SOSButton
+    name: "[Hy3-audit] Import auth muerto en SOSButton"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2360,7 +2360,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-916c1e46fc
-    name: [Hy3-audit] Invariante de idempotencia de work() no verificado (riesgo de doble-ejecución real)
+    name: "[Hy3-audit] Invariante de idempotencia de work() no verificado (riesgo de doble-ejecución real)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2400,7 +2400,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-36fd672072
-    name: [Hy3-audit] MeshWeb sin cobertura de tests unitarios
+    name: "[Hy3-audit] MeshWeb sin cobertura de tests unitarios"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2420,7 +2420,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-bcf7ce75d3
-    name: [Hy3-audit] Race de doble fireSOS en hold repetido
+    name: "[Hy3-audit] Race de doble fireSOS en hold repetido"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2441,7 +2441,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-eca3a18adb
-    name: [Hy3-audit] Re-escalación SOS por ruido GPS (anti-flapping)
+    name: "[Hy3-audit] Re-escalación SOS por ruido GPS (anti-flapping)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2462,7 +2462,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6b255e1478
-    name: [Hy3-audit] Referencia a susesoSchema inexistente en comentario
+    name: "[Hy3-audit] Referencia a susesoSchema inexistente en comentario"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2483,7 +2483,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7cb5e50979
-    name: [Hy3-audit] Test faltante del path evidence_attestation_unavailable (ambas variantes)
+    name: "[Hy3-audit] Test faltante del path evidence_attestation_unavailable (ambas variantes)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2523,7 +2523,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-0bd832abcd
-    name: [Hy3-audit] Toast timer no cancelable en desmontaje (state update on unmounted)
+    name: "[Hy3-audit] Toast timer no cancelable en desmontaje (state update on unmounted)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2563,7 +2563,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-716f5bb05f
-    name: [Hy3-audit] authDisabled hardcodeado desalineado del proof
+    name: "[Hy3-audit] authDisabled hardcodeado desalineado del proof"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2604,7 +2604,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-46348ff04f
-    name: [Hy3-audit] detectPermitExpirations silencia permisos con fecha inválida (cumplimiento)
+    name: "[Hy3-audit] detectPermitExpirations silencia permisos con fecha inválida (cumplimiento)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2625,7 +2625,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-d0b7854011
-    name: [Hy3-audit] exportUserData entrega export incompleto indistinguible de vacío
+    name: "[Hy3-audit] exportUserData entrega export incompleto indistinguible de vacío"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2645,7 +2645,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-ca16da4664
-    name: [Hy3-audit] getProcessingActivities() expone el RAT mutable por referencia
+    name: "[Hy3-audit] getProcessingActivities() expone el RAT mutable por referencia"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2685,7 +2685,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-4d23eef86f
-    name: [Hy3-audit] industry no pasado a generateEmergencyPlan (validar M3)
+    name: "[Hy3-audit] industry no pasado a generateEmergencyPlan (validar M3)"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2705,7 +2705,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-d1e918eca9
-    name: [Hy3-audit] projectId opcional permite SOS en retry-infinito silencioso
+    name: "[Hy3-audit] projectId opcional permite SOS en retry-infinito silencioso"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2747,7 +2747,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-e2039284d3
-    name: [Hy3-audit] useMemo depende de referencias inestables
+    name: "[Hy3-audit] useMemo depende de referencias inestables"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2767,7 +2767,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7a664a4975
-    name: [P2][mesh][vault-gap] emergencyBrigadeService.test.ts — coverage verification pendiente
+    name: "[P2][mesh][vault-gap] emergencyBrigadeService.test.ts — coverage verification pendiente"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2787,7 +2787,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-08f74836b5
-    name: [P2][mesh][vault-gap] policy.types.ts + eventTypes.ts — types del bus pendientes documentar
+    name: "[P2][mesh][vault-gap] policy.types.ts + eventTypes.ts — types del bus pendientes documentar"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2807,7 +2807,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-08e376a5c1
-    name: [P2][mesh][vault-gap] restrictedZonesEngine.test.ts — coverage verification pendiente
+    name: "[P2][mesh][vault-gap] restrictedZonesEngine.test.ts — coverage verification pendiente"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2827,7 +2827,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-507ced9ad6
-    name: [UX] Pestaña activa no persistida ni deep-linkable
+    name: "[UX] Pestaña activa no persistida ni deep-linkable"
     domain: uncategorized
     priority: med
     status: Spec'd
@@ -2908,7 +2908,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-f6d4e91c94
-    name: [Hy3-architect-oleada-1] gpsBreadcrumbTracker.ts — Sentinela -1 de accuracy no documentado en payload mesh
+    name: "[Hy3-architect-oleada-1] gpsBreadcrumbTracker.ts — Sentinela -1 de accuracy no documentado en payload mesh"
     domain: uncategorized
     priority: low
     status: Spec'd
@@ -2928,7 +2928,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6adee2a07f
-    name: [Hy3-architect-oleada-1] gpsBreadcrumbTracker.ts — buildMeshBreadcrumbPacket lee Date.now() rompiendo garantía de pureza
+    name: "[Hy3-architect-oleada-1] gpsBreadcrumbTracker.ts — buildMeshBreadcrumbPacket lee Date.now() rompiendo garantía de pureza"
     domain: uncategorized
     priority: low
     status: Spec'd
@@ -2969,7 +2969,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-6cde1a0e92
-    name: [Hy3-architect-oleada-1] manDownCorrelation.ts — Falta test de integración E2E del flujo publisher→bus→motor→countdown; los tests
+    name: "[Hy3-architect-oleada-1] manDownCorrelation.ts — Falta test de integración E2E del flujo publisher→bus→motor→countdown; los tests"
     domain: ops
     priority: low
     status: Spec'd
@@ -2990,7 +2990,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-d997c7ab78
-    name: [Hy3-architect-oleada-1] meshRelayQueue.ts — seenids bloom doc
+    name: "[Hy3-architect-oleada-1] meshRelayQueue.ts — seenids bloom doc"
     domain: ops
     priority: low
     status: Spec'd
@@ -3010,7 +3010,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-1abe3438f7
-    name: [Hy3-architect-oleada-1] server/routes/emergency.ts — /notify-brigada no tiene email fallback aunque /sos sí
+    name: "[Hy3-architect-oleada-1] server/routes/emergency.ts — /notify-brigada no tiene email fallback aunque /sos sí"
     domain: ops
     priority: low
     status: Spec'd
@@ -3031,7 +3031,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-be44de6dbc
-    name: [Hy3-architect-oleada-1] server/routes/emergency.ts — /sos valida input a mano en vez de Zod schema
+    name: "[Hy3-architect-oleada-1] server/routes/emergency.ts — /sos valida input a mano en vez de Zod schema"
     domain: ops
     priority: low
     status: Spec'd
@@ -3052,7 +3052,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-7b596881af
-    name: [Hy3-architect-oleada-1] server/routes/emergency.ts — Cache de tokens proceso-local sin test de invalidación por rotación
+    name: "[Hy3-architect-oleada-1] server/routes/emergency.ts — Cache de tokens proceso-local sin test de invalidación por rotación"
     domain: ops
     priority: low
     status: Spec'd
@@ -3072,7 +3072,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-4050084478
-    name: [Hy3-architect-oleada-1] server/routes/mesh.ts — Cubrir path 500 de runTransaction
+    name: "[Hy3-architect-oleada-1] server/routes/mesh.ts — Cubrir path 500 de runTransaction"
     domain: ops
     priority: low
     status: Spec'd
@@ -3112,7 +3112,7 @@ features_tier_B:
       - "marked_done_without_file:line"
 
   - id: F-df6cfa846f
-    name: [Hy3-architect-oleada-1] server/routes/mesh.ts — Implementar rotación/revocación de mesh key (prometida en comentario)
+    name: "[Hy3-architect-oleada-1] server/routes/mesh.ts — Implementar rotación/revocación de mesh key (prometida en comentario)"
     domain: ops
     priority: low
     status: Spec'd
