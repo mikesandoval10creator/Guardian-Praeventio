@@ -31,7 +31,7 @@ interface FakePlugin extends MeshPlugin {
   __startCalls: number;
   __stopCalls: number;
   __sentPackets: MeshPacket[];
-  __sendImpl: ((p: MeshPacket) => MeshSendResult) | null;
+  __sendImpl: ((p: MeshPacket) => MeshSendResult | Promise<MeshSendResult>) | null;
   __nextState: MeshState;
 }
 
@@ -289,6 +289,52 @@ describe('TransportFacade', () => {
     expect(queue.size()).toBe(1);
 
     await facade.stopMesh();
+  });
+
+  it.each([
+    { from: 'peer-1', accepted: true, confirms: true },
+    { from: 'peer-2', accepted: true, confirms: false },
+    { from: 'peer-1', accepted: false, confirms: false },
+  ])('handles an early relay ACK from $from with transport acceptance=$accepted', async ({ from, accepted, confirms }) => {
+    let finishSend!: (result: MeshSendResult) => void;
+    const send = new Promise<MeshSendResult>((resolve) => { finishSend = resolve; });
+    plugin.__sendImpl = () => send;
+    const facade = new TransportFacade({
+      peerId: 'worker-self',
+      projectId: 'project-X',
+      queue,
+      plugin,
+      isNativePlatform: () => false,
+    });
+    await facade.startMesh();
+    try {
+      const packet = makePacket({ fromUid: 'worker-self' });
+      const ack = makeAck(packet.id, from);
+      const signedAck = { ...ack, ...(await signPacket(ack, queueKey)) };
+      const receive = vi.spyOn(queue, 'receive');
+      queue.enqueueLocal(packet);
+      plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+      expect(plugin.__sentPackets).toHaveLength(1);
+      plugin.__emit('mesh:packet', signedAck);
+      expect((await receive.mock.results[0]?.value)?.forLocal).toEqual([signedAck]);
+      expect(queue.snapshot()).toEqual([packet]);
+      finishSend(accepted ? { deliveredTo: ['peer-1'], queued: [] } : { deliveredTo: [], queued: ['peer-1'] });
+      if (confirms) {
+        await vi.waitFor(() => expect(queue.snapshot()).toEqual([]));
+      } else {
+        // A different peer can retry once the first attempt releases the packet.
+        await vi.waitFor(() => {
+          if (plugin.__sentPackets.length === 1) {
+            plugin.__emit('mesh:peer-discovered', { id: 'peer-3', rssi: -40 });
+          }
+          expect(plugin.__sentPackets).toHaveLength(2);
+        });
+        expect(queue.snapshot()).toEqual([packet]);
+      }
+    } finally {
+      finishSend({ deliveredTo: [], queued: [] });
+      await facade.stopMesh();
+    }
   });
 
   it('retains the original packet until ACK, without spending a hop on retry', async () => {

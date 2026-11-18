@@ -84,7 +84,8 @@ export class TransportFacade {
   private reconcileTimer: ReturnType<typeof setInterval> | null = null;
   private active = false;
   private pendingDeliveries = new Map<string, PendingDelivery>();
-  private relayInFlight = new Set<string>();
+  // null reserves a packet in the batch, before its actual send begins.
+  private relayInFlight = new Map<string, { peerId: string; ackReceived: boolean } | null>();
   private pendingAckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(opts: TransportFacadeOptions) {
@@ -242,15 +243,21 @@ export class TransportFacade {
     const { toSend } = this.queue.drainForPeer(peerId, 50, (id) =>
       !inFlight.has(id) && !this.pendingDeliveries.get(id)?.peerIds.has(peerId),
     );
-    for (const packet of toSend) inFlight.add(packet.id);
+    for (const packet of toSend) inFlight.set(packet.id, null);
     for (const packet of toSend) {
       try {
         if (!this.active || this.relayInFlight !== inFlight ||
           !this.queue.snapshot().some((queued) => queued.id === packet.id)) continue;
+        const attempt = { peerId, ackReceived: false };
+        inFlight.set(packet.id, attempt);
         const result = await this.plugin.send(packet);
         if (this.active && this.relayInFlight === inFlight && result.deliveredTo.includes(peerId) &&
           this.queue.snapshot().some((queued) => queued.id === packet.id)) {
-          this.trackPendingDelivery(packet.id, peerId);
+          if (attempt.ackReceived) {
+            this.confirmDelivery(packet.id);
+          } else {
+            this.trackPendingDelivery(packet.id, peerId);
+          }
         }
       } catch {
         // The original packet remains eligible for the next encounter.
@@ -335,9 +342,19 @@ export class TransportFacade {
       return;
     }
     const pending = this.pendingDeliveries.get(payload.ackedPacketId);
-    if (!pending || !pending.peerIds.has(packet.fromUid)) return;
-    this.clearPending(payload.ackedPacketId);
-    this.queue.markDelivered(payload.ackedPacketId);
+    if (pending?.peerIds.has(packet.fromUid)) {
+      this.confirmDelivery(payload.ackedPacketId);
+      return;
+    }
+    // The receipt can overtake the plugin's send result. Remember it only
+    // for the current attempt and still require that peer in deliveredTo.
+    const attempt = this.relayInFlight.get(payload.ackedPacketId);
+    if (attempt?.peerId === packet.fromUid) attempt.ackReceived = true;
+  }
+
+  private confirmDelivery(packetId: string): void {
+    this.clearPending(packetId);
+    this.queue.markDelivered(packetId);
   }
 
   private trackPendingDelivery(packetId: string, peerId: string): void {
@@ -368,7 +385,7 @@ export class TransportFacade {
       this.clearPendingTimer(packetId);
     }
     this.pendingDeliveries.clear();
-    this.relayInFlight = new Set();
+    this.relayInFlight = new Map();
   }
 
 }
