@@ -23,8 +23,10 @@ vi.mock('../hooks/useMultiProject', () => ({
   fetchProjectSnapshots: (projectId: string) => mockFetchProjectSnapshots(projectId),
 }));
 vi.mock('../hooks/useProjectComparator', () => ({
-  // Force the local pure-engine report to render (no server round-trip in test).
-  compareProjectsApi: () => new Promise(() => {}),
+  // Exercise the local report fallback without leaving a pending request behind.
+  compareProjectsApi: async () => {
+    throw new Error('Comparison API unavailable in this test');
+  },
 }));
 
 vi.mock('react-i18next', () => ({
