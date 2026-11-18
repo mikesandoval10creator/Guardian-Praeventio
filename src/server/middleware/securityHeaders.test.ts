@@ -320,3 +320,76 @@ describe('CSP D.13.b — WASM + workers + Hugging Face SLM', () => {
     expect(csp).toMatch(/script-src-elem/);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Embeddability — the dev server must be loadable inside a local frame
+// (the DSH right-Sidebar Browser tab renders it in a sandboxed iframe).
+//
+// Production keeps `frame-ancestors 'none'` UNCHANGED: clickjacking
+// defense is a production requirement and the deployed SPA must never be
+// embedded by a third-party site.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('CSP frame-ancestors — dev embeddability vs production lockdown', () => {
+  function getCspForEnv(env: string): string {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = env;
+    try {
+      return __buildCspStringForTests('TEST_NONCE');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  }
+
+  it("dev permite el embedding desde loopback (DSH Browser tab usa iframe)", () => {
+    const csp = getCspForEnv('development');
+    const frameAncestors = csp.match(/frame-ancestors [^;]+/)?.[0] ?? '';
+    expect(frameAncestors).not.toBe("frame-ancestors 'none'");
+    expect(frameAncestors).toContain('http://localhost:');
+    expect(frameAncestors).toContain('http://127.0.0.1:');
+  });
+
+  it("prod conserva frame-ancestors 'none' (anti-clickjacking intacto)", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).toMatch(/frame-ancestors 'none'/);
+  });
+
+  it('dev habilita X-Frame-Options SAMEORIGIN en vez de DENY', () => {
+    // X-Frame-Options: DENY blocks framing even when frame-ancestors allows
+    // it, so the dev header must relax in lockstep with the CSP directive.
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      const { req, res, next, headers } = makeCtx();
+      securityHeaders(req, res, next);
+      expect(headers['X-Frame-Options']).toBe('SAMEORIGIN');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('prod conserva X-Frame-Options DENY', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const { req, res, next, headers } = makeCtx();
+      securityHeaders(req, res, next);
+      expect(headers['X-Frame-Options']).toBe('DENY');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('dev no abre el embedding a cualquier origen (solo loopback)', () => {
+    const csp = getCspForEnv('development');
+    const frameAncestors = csp.match(/frame-ancestors [^;]+/)?.[0] ?? '';
+    // Un comodín de HOST o un '*' suelto reabriría el clickjacking para el
+    // build de dev. Un comodín de PUERTO sobre loopback es aceptable: sólo
+    // permite cualquier puerto de 127.0.0.1/localhost, que es el host local.
+    expect(frameAncestors).not.toMatch(/https?:\/\/\*/);
+    expect(frameAncestors).not.toMatch(/frame-ancestors\s+'none'/);
+    expect(frameAncestors).not.toMatch(/frame-ancestors\s+\*/);
+    // Y debe seguir cerrando el acceso a orígenes externos.
+    expect(frameAncestors).not.toContain('https://');
+  });
+});
