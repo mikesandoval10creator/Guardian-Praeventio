@@ -8,7 +8,6 @@ import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
-import { humanErrorMessage } from '../../lib/humanError';
 import { type CalendarEventType, getCalendarEventTypeTranslation } from './calendarPresentation';
 
 
@@ -21,7 +20,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
   const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
   const [loading, setLoading] = useState(false);
-  const [conflictError, setConflictError] = useState<string | null>(null);
+  const [conflictingProjects, setConflictingProjects] = useState<string[]>([]);
   const { toasts, show: showToast, dismiss } = useToast();
   // Firestore currently stores Spanish event-type values; keep them stable and
   // localize the display label at the UI boundary.
@@ -72,13 +71,13 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
     if (!selectedProject) return;
 
     setLoading(true);
-    setConflictError(null);
+    setConflictingProjects([]);
 
     // Detección de colisiones inter-proyectos
     if (navigator.onLine) {
       const overlaps = await checkOverlaps();
       if (overlaps.length > 0) {
-        setConflictError(t('calendar.conflict_detected', { projects: overlaps.join(', '), defaultValue: 'Conflicto detectado: Tienes eventos agendados a la misma hora en: {{projects}}.' }));
+        setConflictingProjects(overlaps);
         setLoading(false);
         return; // Detenemos la creación
       }
@@ -148,8 +147,9 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
             <div className="overflow-y-auto custom-scrollbar flex-1">
               <form id="add-event-form" onSubmit={handleSubmit} className="p-6 space-y-4">
                 <AnimatePresence>
-                  {conflictError && (
+                  {conflictingProjects.length > 0 && (
                     <motion.div
+                      role="alert"
                       initial={{ opacity: 0, height: 0, scale: 0.95 }}
                       animate={{ opacity: 1, height: 'auto', scale: 1 }}
                       exit={{ opacity: 0, height: 0, scale: 0.95 }}
@@ -157,7 +157,10 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                     >
                       <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                       <p className="text-xs sm:text-sm font-medium leading-relaxed">
-                        {humanErrorMessage(conflictError)}
+                        {t('calendar.conflict_detected', {
+                          projects: conflictingProjects.join(', '),
+                          defaultValue: 'Conflicto detectado: Tienes eventos agendados a la misma hora en: {{projects}}.',
+                        })}
                       </p>
                     </motion.div>
                   )}
