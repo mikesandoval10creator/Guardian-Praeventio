@@ -102,6 +102,35 @@ describe('sendEmergencyDelivery', () => {
 });
 
 describe('createEmergencyDeliveryController', () => {
+  it('does not publish queued until the adapter finishes saving', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();
+    const saveEntry = adapter.saveEntry.bind(adapter);
+    let release!: () => void;
+    const writeGate = new Promise<void>((resolve) => { release = resolve; });
+    const save = vi.spyOn(adapter, 'saveEntry').mockImplementation(async (entry) => {
+      await writeGate;
+      await saveEntry(entry);
+    });
+    const controller = createEmergencyDeliveryController({ adapter });
+    const listener = vi.fn();
+    const unsubscribe = controller.subscribe(event.clientEventId, listener);
+    const submission = controller.submit(payload, { clientEventId: event.clientEventId });
+    try {
+      await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+      expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'pending', queued: false }));
+      expect(await adapter.listEntries()).toHaveLength(0);
+    } finally {
+      release();
+      await submission;
+      unsubscribe();
+    }
+    await expect(submission).resolves.toMatchObject({ status: 'pending', queued: true });
+    expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'pending', queued: true }));
+    expect(await adapter.listEntries()).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('keeps a network-failed packet pending and delivers it later with the same key', async () => {
     let now = 1_000_000;
     const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();

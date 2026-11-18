@@ -316,7 +316,7 @@ export function createEmergencyDeliveryController(
         operation: payload.operation,
         projectId: payload.projectId,
         status: 'pending',
-        queued: true,
+        queued: false,
       });
 
       let queued: boolean;
@@ -357,6 +357,12 @@ export function createEmergencyDeliveryController(
         };
         publish(failed);
         return failed;
+      }
+
+      // A deduplicated entry returns true without emitting enqueued telemetry.
+      const current = statuses.get(clientEventId);
+      if (current?.status === 'pending' && !current.queued) {
+        publish({ ...current, queued: true });
       }
 
       if (isOnline()) {

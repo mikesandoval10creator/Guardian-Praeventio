@@ -62,7 +62,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       operation: 'activation',
       projectId,
       status: 'pending',
-      queued: true,
+      queued: false,
     };
     activeEventRef.current = { projectId, clientEventId };
     deliveryOperationRef.current = clientEventId;
@@ -81,7 +81,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
         occurredAt: new Date(startedAt).toISOString(),
       }, { clientEventId });
       if (deliveryOperationRef.current !== clientEventId) return;
-      if (attempt.queued) {
+      if (attempt.queued || attempt.status === 'accepted') {
         activeEventRef.current = { projectId, clientEventId: attempt.clientEventId };
       } else {
         activeEventRef.current = null;
@@ -131,7 +131,6 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       const failed: EmergencyDeliveryStatus = {
         ...pendingStatus,
         status: 'failed',
-        queued: true,
         failureKind: 'unknown',
         error: err instanceof Error ? err.message : String(err),
       };

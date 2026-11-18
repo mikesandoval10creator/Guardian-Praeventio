@@ -52,6 +52,25 @@ beforeEach(() => {
 });
 
 describe('EmergencyContext durable delivery contract', () => {
+  it('keeps the local alarm active without claiming a queued alert before persistence or after an unconfirmed write', async () => {
+    let rejectWrite!: (error: Error) => void;
+    deliveryState.submit.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    render(<EmergencyProvider><Harness /></EmergencyProvider>);
+    let activation: Promise<void> | undefined;
+    act(() => { activation = handle.ctx!.triggerEmergency('fall', 'project-1'); });
+    try {
+      expect(handle.ctx?.isEmergencyActive).toBe(true);
+      expect(handle.ctx?.emergencyDeliveryStatus).toMatchObject({ status: 'pending', queued: false });
+    } finally {
+      await act(async () => {
+        rejectWrite(new Error('Storage not confirmed'));
+        await activation;
+      });
+    }
+    expect(handle.ctx?.emergencyDeliveryStatus).toMatchObject({ status: 'failed', queued: false });
+    expect(handle.ctx?.isEmergencyActive).toBe(true);
+  });
+
   it('activates locally but exposes pending until server ACK', async () => {
     deliveryState.submit.mockResolvedValue({
       clientEventId: 'activation-1',
@@ -115,7 +134,7 @@ describe('EmergencyContext durable delivery contract', () => {
         operation: 'activation',
         projectId: 'project-1',
         status: 'accepted',
-        queued: true,
+        queued: false,
       })
       .mockResolvedValueOnce({
         clientEventId: 'resolution-3',
