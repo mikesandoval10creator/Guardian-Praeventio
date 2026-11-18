@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -19,11 +19,76 @@ import { generateSafetyCapsule } from '../../services/geminiService';
 import type { SafetyCapsuleDto } from '../../lib/safetyCapsule';
 import { logger } from '../../utils/logger';
 
+function CapsulePlayback({ capsule }: { capsule: SafetyCapsuleDto }) {
+  const { t, i18n } = useTranslation();
+  const active = useRef<SpeechSynthesisUtterance | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+
+  useEffect(() => () => {
+    if (!active.current) return;
+    active.current = null;
+    window.speechSynthesis.cancel();
+  }, []);
+
+  const togglePlayback = () => {
+    const synth = window.speechSynthesis;
+    if (active.current) {
+      active.current = null;
+      synth.cancel();
+      setPlaying(false);
+      return;
+    }
+
+    try {
+      const language = (i18n.resolvedLanguage ?? i18n.language ?? 'es').toLowerCase();
+      const voices = synth?.getVoices().filter((voice) => voice.localService) ?? [];
+      const voice = voices.find((candidate) => candidate.lang.toLowerCase() === language)
+        ?? voices.find((candidate) => candidate.lang.toLowerCase().split('-')[0] === language.split('-')[0]);
+      if (!voice || typeof window.SpeechSynthesisUtterance !== 'function') {
+        setUnavailable(true);
+        return;
+      }
+
+      const utterance = new window.SpeechSynthesisUtterance(`${capsule.title}. ${capsule.content}`);
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+      const finish = (failed: boolean) => {
+        if (active.current !== utterance) return;
+        active.current = null;
+        setPlaying(false);
+        setUnavailable(failed);
+      };
+      utterance.onend = () => finish(false);
+      utterance.onerror = () => finish(true);
+      active.current = utterance;
+      setUnavailable(false);
+      setPlaying(true);
+      synth.speak(utterance);
+    } catch {
+      active.current = null;
+      setPlaying(false);
+      setUnavailable(true);
+    }
+  };
+
+  return (
+    <div className="flex-1">
+      <button type="button" onClick={togglePlayback} className="w-full bg-white text-black py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-all active:scale-95">
+        {!playing && <Play className="w-4 h-4 fill-current" />}
+        {playing ? t('safety_capsules.stop_playback', 'Detener audio') : t('safety_capsules.listen_capsule', 'Escuchar Cápsula')}
+      </button>
+      {unavailable && <p role="status" className="mt-2 text-xs text-zinc-400">{t('safety_capsules.local_audio_unavailable', 'No hay una voz local disponible para reproducir la cápsula. Puedes leerla en pantalla.')}</p>}
+    </div>
+  );
+}
+
 export function SafetyCapsules() {
   const { t } = useTranslation();
   const { nodes } = useUniversalKnowledge();
   const { user } = useFirebase();
-  const [capsule, setCapsule] = useState<SafetyCapsuleDto | null>(null);
+  const [generated, setGenerated] = useState<{ capsule: SafetyCapsuleDto; ownerUid: string } | null>(null);
+  const capsule = generated?.ownerUid === user?.uid ? generated?.capsule : null;
   const [loading, setLoading] = useState(false);
   const [generationFailed, setGenerationFailed] = useState(false);
 
@@ -47,7 +112,7 @@ export function SafetyCapsules() {
         t('safety_capsules.default_role', 'Operador'), // Default role
         workerContext
       );
-      setCapsule(result);
+      setGenerated({ capsule: result, ownerUid: user.uid });
     } catch (error) {
       logger.error('Error generating capsule:', error);
       setGenerationFailed(true);
@@ -120,10 +185,7 @@ export function SafetyCapsules() {
                 "{capsule.content}"
               </p>
               <div className="flex items-center gap-4">
-                <button className="flex-1 bg-white text-black py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-all active:scale-95">
-                  <Play className="w-4 h-4 fill-current" />
-                  {t('safety_capsules.listen_capsule', 'Escuchar Cápsula')}
-                </button>
+                {user && !loading && <CapsulePlayback key={user.uid} capsule={capsule} />}
                 <button className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
                   <CheckCircle2 className="w-5 h-5" />
                 </button>
