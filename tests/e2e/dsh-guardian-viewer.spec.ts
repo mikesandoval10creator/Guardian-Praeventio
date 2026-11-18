@@ -16,10 +16,14 @@
  * Environment:
  *   DSH_TEST_URL   base URL of the scratch host, including the launch token
  *   DSH_APP_URL    base URL of the Guardian application under inspection
+ *
+ * The spec is skipped unless `DSH_TEST_URL` is set: it drives a live DeepSeek
+ * Harness client, which CI does not run. The CI lane must not fail because a
+ * scratch host is absent, so the suite reports itself as skipped instead.
  */
 import { expect, test } from '@playwright/test'
 
-const DSH_URL = process.env.DSH_TEST_URL ?? 'http://127.0.0.1:59780'
+const DSH_URL = process.env.DSH_TEST_URL ?? ''
 const APP_URL = process.env.DSH_APP_URL ?? 'http://localhost:57335'
 
 /** The Guardian dock pill, located by its accessible name (locale-aware). */
@@ -57,6 +61,9 @@ async function openSession(page: import('@playwright/test').Page): Promise<void>
 }
 
 test.describe('Guardian Praeventio viewer', () => {
+  // A live harness client is required; without it the suite is skipped.
+  test.skip(!DSH_URL, 'DSH_TEST_URL is not set — no live harness client to drive')
+
   test.beforeEach(async ({ page }) => {
     await page.goto(DSH_URL, { waitUntil: 'domcontentloaded' })
     await openSession(page)

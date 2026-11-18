@@ -6,6 +6,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { HeroBlueprint } from './BlueprintArt';
+import { landingEnter } from './landingMotion';
 
 interface LandingHeroProps {
   onStart: () => void;
@@ -16,14 +17,10 @@ export function LandingHero({ onStart, onHowItWorks }: LandingHeroProps) {
   const { t } = useTranslation();
   const reduced = useReducedMotion();
 
-  const enter = (delay: number) =>
-    reduced
-      ? {}
-      : {
-          initial: { opacity: 0, y: 24 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.7, delay, ease: 'easeOut' as const },
-        };
+  // The headline is the landing page's LCP element, so the entrance is
+  // transform-only: see `landingMotion.ts` for the measurement that
+  // motivates it.
+  const enter = (delay: number) => landingEnter(reduced, { delay, distance: 24 });
 
   return (
     <header className="pv-hero">
