@@ -8,11 +8,24 @@ import ReactMarkdown from 'react-markdown';
 import { logger } from '../utils/logger';
 import { humanErrorMessage } from '../lib/humanError';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 
 
 export function AcademicProcessor() {
+  const { selectedProject } = useProject();
+  const { user } = useFirebase();
+  const projectId = selectedProject?.id;
+  return (
+    <AcademicDraft
+      key={JSON.stringify([user?.uid, projectId])}
+      saveProjectId={user ? projectId : undefined}
+    />
+  );
+}
+
+function AcademicDraft({ saveProjectId }: { saveProjectId?: string }) {
   const { t } = useTranslation();
   const [textInput, setTextInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -22,7 +35,6 @@ export function AcademicProcessor() {
   const [saved, setSaved] = useState(false);
   const sourceRevision = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
 
   const updateSource = (text: string) => {
@@ -73,7 +85,7 @@ export function AcademicProcessor() {
   };
 
   const handleSave = async () => {
-    if (!result || !selectedProject || isSaving) return;
+    if (!result || !saveProjectId || isSaving) return;
     const revision = sourceRevision.current;
     setIsSaving(true);
     setError(null);
@@ -89,7 +101,7 @@ export function AcademicProcessor() {
           generatedAt: new Date().toISOString(),
           provenance: 'user-provided-text',
         },
-        projectId: selectedProject.id,
+        projectId: saveProjectId,
         connections: [],
       });
       if (!node) throw new Error('No se pudo encolar el nodo académico');
@@ -97,7 +109,7 @@ export function AcademicProcessor() {
     } catch (err) {
       if (sourceRevision.current !== revision) return;
       logger.error(err);
-      setError(t('academic.errors.save', 'No se pudo guardar el conocimiento en Zettelkasten.'));
+      setError(t('academic.errors.save', 'No se pudo guardar el resumen.'));
     } finally {
       setIsSaving(false);
     }
@@ -196,9 +208,9 @@ export function AcademicProcessor() {
               </div>
 
               <div className="pt-6 border-t border-default-token flex justify-end">
-                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white" onClick={handleSave} disabled={isSaving || saved || !selectedProject}>
+                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white" onClick={handleSave} disabled={isSaving || saved || !saveProjectId}>
                   {saved ? <CheckCircle2 className="w-4 h-4 mr-2" /> : isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                  {saved ? t('academic.actions.saved', 'Guardado') : isSaving ? t('academic.actions.saving', 'Guardando...') : t('academic.actions.saveZettel', 'Guardar en Zettelkasten')}
+                  {saved ? t('academic.actions.syncPending', 'Pendiente de sincronización') : isSaving ? t('academic.actions.saving', 'Guardando...') : t('academic.actions.saveSummary', 'Guardar resumen')}
                 </Button>
               </div>
             </div>
