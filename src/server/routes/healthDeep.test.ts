@@ -39,6 +39,12 @@ function buildAppWithProbes(probes: ProbeMap): express.Express {
 const okProbe = () => Promise.resolve();
 const okSkipped = () => Promise.resolve({ skipped: true });
 
+function deferredProbe() {
+  let finish!: () => void;
+  const promise = new Promise<void>((resolve) => { finish = resolve; });
+  return { promise, finish };
+}
+
 describe('GET /api/health/deep', () => {
   it('returns 200 + status: healthy when every probe passes', async () => {
     const app = buildAppWithProbes({
@@ -66,22 +72,18 @@ describe('GET /api/health/deep', () => {
   });
 
   it('returns 503 + status: degraded when one probe times out (2s cap)', async () => {
-    // Never resolves — withTimeout at 2000ms will cut it before this
-    // timer fires. Using a never-resolving promise instead of a long
-    // setTimeout avoids leaking a 10s Timeout handle after the assertion
-    // finishes (the old `setTimeout(10_000)` kept the worker event loop
-    // alive for up to 10 seconds post-test).
-    const slow = () => new Promise<void>(() => { /* intentionally never resolves */ });
+    // Keep the probe pending until the response, then drain its continuations.
+    const slow = deferredProbe();
     const app = buildAppWithProbes({
       firestore: okProbe,
       kms: okProbe,
-      gemini: slow, // <- offender
+      gemini: () => slow.promise,
       resend: okProbe,
       openMeteo: okProbe,
       photogrammetry: okProbe,
     });
     const start = Date.now();
-    const res = await request(app).get('/api/health/deep');
+    const res = await Promise.resolve(request(app).get('/api/health/deep')).finally(() => slow.finish());
     const elapsed = Date.now() - start;
     expect(res.status).toBe(503);
     expect(res.body.status).toBe('degraded');
@@ -97,10 +99,14 @@ describe('GET /api/health/deep', () => {
   }, 8000);
 
   it('withTimeout rejects in ≈2000ms with TimeoutError', async () => {
+    const slow = deferredProbe();
     const start = Date.now();
-    await expect(
-      withTimeout(new Promise<void>(() => { /* never */ }), 2000),
-    ).rejects.toBeInstanceOf(TimeoutError);
+    try {
+      await expect(withTimeout(slow.promise, 2000)).rejects.toBeInstanceOf(TimeoutError);
+    } finally {
+      slow.finish();
+      await slow.promise;
+    }
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(1900);
     expect(elapsed).toBeLessThan(2500);
