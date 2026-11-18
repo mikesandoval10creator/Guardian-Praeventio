@@ -24,15 +24,45 @@ Ventana de trabajo compartida:
 
 1. `npm run dev` en el repositorio (puerto `57335` por defecto).
 2. Abrir o refrescar el cliente de DeepSeek Harness.
-3. Pulsar el acceso **Guardian** junto al redactor → elegir *Abrir en la
+3. **Abrir una sesión con contenido**: el dock del redactor es un slot con
+   alcance de sesión y el anfitrión solo lo monta en la variante `composer`
+   del campo de entrada, no en la variante `hero` (pantalla de sesión nueva).
+   En una sesión nueva y vacía la píldora no aparece — es comportamiento del
+   anfitrión, no una limitación del visor.
+4. Pulsar el acceso **Guardian** junto al redactor → elegir *Abrir en la
    pestaña Navegador* o *Buscar rutas…*.
-4. En el catálogo, filtrar por nombre o ruta y pulsar Enter para saltar al
+5. En el catálogo, filtrar por nombre o ruta y pulsar Enter para saltar al
    módulo objetivo.
+
+Detalles del comportamiento verificado:
+
+- La píldora convive con los ocupantes propios del anfitrión (la píldora de
+  actividad); el visor no los expulsa.
+- El catálogo es un diálogo **no modal** (`aria-modal="false"`): no atrapa el
+  foco, así que se puede seguir leyendo la conversación mientras está
+  abierto. El campo de búsqueda es un combobox ARIA sobre un listbox.
+- Al elegir una ruta el catálogo se cierra y la pestaña Navegador queda con
+  la **URL absoluta** (`http://localhost:57335/<ruta>`). Un host sin esquema
+  se interpretaría como HTTPS.
+- La pestaña Navegador es de tipo `multiple: true`, así que el visor cierra la
+  pestaña Navegador activa antes de abrir la nueva: la barra lateral derecha
+  conserva **exactamente una** pestaña Navegador.
 
 El catálogo es un **snapshot** extraído de las declaraciones de ruta reales
 (`src/AppRoutes.tsx` y `src/routes/*.tsx`), no un router en vivo. Si una ruta
 se renombra o se elimina aguas arriba, la pestaña Navegador sigue reportando
 el resultado real de la carga.
+
+### Verificación automatizada del visor
+
+Dos comprobaciones cubren el visor, ambas contra un cliente real:
+
+| Comprobación | Qué garantiza |
+|---|---|
+| `M:\deepseek\scripts\verify-bundle.mjs` | El bundle servido contiene el catálogo, la semántica ARIA, el estado honesto y la reutilización de la pestaña Navegador; además **evalúa la expresión de aplanado** del propio bundle, que es la que detecta un desajuste de forma (`ROUTE_GROUPS.groups`). |
+| `tests/e2e/dsh-guardian-viewer.spec.ts` | Playwright contra el cliente de DSH: la píldora se registra en el dock, el menú abre el catálogo, la búsqueda devuelve rutas y la elegida monta la pestaña Navegador. |
+
+`verify-bundle.mjs` acepta `DSH_HOST_URL` para apuntar al host bajo prueba.
 
 ### Honestidad del estado
 
@@ -148,7 +178,10 @@ lo que promete; nunca un cartel "no disponible" ni un stub.
 ## 5. Checklist de revisión conjunta
 
 - [ ] `npm run dev` en ejecución; `GET /api/health` responde.
-- [ ] El visor abre la app en la pestaña Navegador.
+- [ ] Una **sesión con contenido** abierta en el cliente: la píldora Guardian
+      aparece junto al redactor.
+- [ ] El visor abre la app en la pestaña Navegador (una sola, con URL
+      absoluta).
 - [ ] `npm run inspect:app` — accessibility ≥ 90, sin regresiones nuevas.
 - [ ] `graphify affected "<archivo>"` antes de cambiar un módulo compartido.
 - [ ] El cambio tiene test (TDD estricto) y `npm run typecheck` en 0 errores.
