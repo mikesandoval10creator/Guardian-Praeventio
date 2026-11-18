@@ -1,4 +1,9 @@
 {
+  "emergency_plan": {
+    "save": "Save plan",
+    "sync_pending": "Sync pending",
+    "save_unconfirmed": "Could not confirm that the plan was saved."
+  },
   "academic": {
     "actions": {
       "processing": "Processing with Gemini...",

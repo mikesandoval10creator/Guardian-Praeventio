@@ -1,4 +1,9 @@
 {
+  "emergency_plan": {
+    "save": "Guardar plan",
+    "sync_pending": "Pendiente de sincronización",
+    "save_unconfirmed": "No se pudo confirmar que el plan se guardó."
+  },
   "academic": {
     "actions": {
       "processing": "Procesando con Gemini...",

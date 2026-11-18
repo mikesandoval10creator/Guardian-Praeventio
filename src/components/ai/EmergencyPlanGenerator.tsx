@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { generateEmergencyPlan } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
@@ -15,6 +16,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
 
 export function EmergencyPlanGenerator() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -332,7 +334,7 @@ export function EmergencyPlanGenerator() {
     setLoading(true);
     try {
       const { collection, addDoc, db, serverTimestamp } = await import('../../services/firebase');
-      await Promise.all([
+      const [queuedNode] = await Promise.all([
         // 1. Persist in Risk Network Zettelkasten
         addNode({
           type: NodeType.EMERGENCY,
@@ -357,9 +359,11 @@ export function EmergencyPlanGenerator() {
           createdAt: serverTimestamp(),
         }),
       ]);
+      if (!queuedNode) throw new Error('Zettelkasten enqueue not confirmed');
       setSaved(true);
     } catch (error) {
       logger.error('Error saving emergency plan', { error });
+      showToast(t('emergency_plan.save_unconfirmed', 'No se pudo confirmar que el plan se guardó.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -410,7 +414,9 @@ export function EmergencyPlanGenerator() {
               }`}
             >
               {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              {saved ? 'Zettelkasten' : 'Zettelkasten'}
+              {saved
+                ? t('emergency_plan.sync_pending', 'Pendiente de sincronización')
+                : t('emergency_plan.save', 'Guardar plan')}
             </Button>
             <Button
               onClick={handleSaveToCloud}
