@@ -263,8 +263,7 @@ class VertexAdapter implements AiAdapter {
       model: request.model,
     });
 
-    // We arm our own timeout via AbortController-style timer; the Vertex SDK
-    // does not honour AbortSignal directly, so this is a best-effort race.
+    // The deadline bounds the caller's wait; it does not cancel the SDK call.
     const generatePromise = (async (): Promise<AiGenerateResponse> => {
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
@@ -290,24 +289,24 @@ class VertexAdapter implements AiAdapter {
       };
     })();
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        const e = new Error(
-          `vertexAdapter: request exceeded ${this.timeoutMs}ms timeout`,
-        ) as CodedError;
-        e.code = 'TIMEOUT';
-        reject(e);
-      }, this.timeoutMs);
-    });
-
     try {
-      const out = await Promise.race([generatePromise, timeoutPromise]);
-      return out;
+      return await new Promise<AiGenerateResponse>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const e = new Error(
+            `vertexAdapter: request exceeded ${this.timeoutMs}ms timeout`,
+          ) as CodedError;
+          e.code = 'TIMEOUT';
+          reject(e);
+        }, this.timeoutMs);
+
+        // Observe late SDK errors even after the caller received TIMEOUT.
+        void generatePromise.then(
+          (out) => { clearTimeout(timer); resolve(out); },
+          (err: unknown) => { clearTimeout(timer); reject(err); },
+        );
+      });
     } catch (err) {
       throw classifyError(err);
-    } finally {
-      if (timer) clearTimeout(timer);
     }
   }
 }
