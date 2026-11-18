@@ -233,15 +233,21 @@ describe('VertexAdapter error classification', () => {
     ).rejects.toMatchObject({ code: 'QUOTA' });
   });
 
-  it('classifies a slow upstream as .code=TIMEOUT (timer racing wins)', async () => {
+  it('returns TIMEOUT before a late upstream rejection and safely observes it', async () => {
     process.env.VERTEX_PROJECT_ID = 'p';
     process.env.VERTEX_TIMEOUT_MS = '20';
-    // Never resolves — timeout must win.
-    mockImpl = () => new Promise(() => {});
+    let fail!: (error: Error) => void;
+    const pending = new Promise<never>((_, reject) => { fail = reject; });
+    mockImpl = () => pending;
     const a = new VertexAdapter();
-    await expect(
-      a.generate({ model: 'gemini-1.5-pro', prompt: 'x' }),
-    ).rejects.toMatchObject({ code: 'TIMEOUT' });
+    try {
+      await expect(
+        a.generate({ model: 'gemini-1.5-pro', prompt: 'x' }),
+      ).rejects.toMatchObject({ code: 'TIMEOUT' });
+    } finally {
+      fail(new Error('late upstream rejection'));
+      await pending.catch(() => undefined);
+    }
   });
 
   it('classifies an arbitrary upstream error as .code=UPSTREAM', async () => {
