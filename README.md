@@ -30,7 +30,7 @@
 - **Mesh BLE offline** — comunicación peer-to-peer entre dispositivos en faena sin señal (capacitor-mesh plugin nativo Android/iOS)
 - **Offline-first** — IndexedDB/SQLite local + outbox cifrado (AES-256-GCM con HMAC) + sync por drain al reconectar
 - **Multi-tenant con RBAC** — Firebase Auth + custom claims verificados en cada request (`verifyAuth` + `assertProjectMember` + `callerTenantOr403`)
-- **23 verticales vida-safety documentadas** (Vida-01 a Vida-23) + vertical SOS
+- **Auditoría de vida-safety** — documentación histórica `Vida-01` a `Vida-23`, con seguimiento de SOS por separado; no equivale a cobertura validada
 - **Multi-jurisdiccional** — Chile (DS 44/2024, Ley 16.744, DS 594, SUSESO, DS 67/76, Ley Karin), más extensible a UK/CA/AU/JP/KR/IN/US/EU/MX/BR/CN/TW/RU vía adaptadores de compliance
 
 **Alcance de esta lista:** describe capacidades y módulos del proyecto, no certifica todos sus recorridos ni integraciones externas.
@@ -117,7 +117,7 @@ Este mapa orienta la investigación por dominio. El grafo ayuda a encontrar rela
 | **Observability / Sentry** | PiiRedactor + sentryAdapter + cloud-error-reporting + prometheus | `sentryAdapter`, `prometheus`, `piiRedactor`, `safetyMetrics` |
 | **Scheduler / Jobs / Backup** | verifySchedulerToken (2 modos) + distributedLease; 13 endpoints scheduler-protected, 8 jobs críticos; backup/restore (módulo formal ausente hoy) | `verifySchedulerToken`, `distributedLease`, `routes/maintenance*`, `routes/jobs*` |
 
-**23 verticales vida-safety** (`01-Guardian/09-VIDA-SAFETY/Vida-01` … `Vida-23`) cubren cada uno de los riesgos pragmáticos detectados en operaciones. La vertical SOS vive aparte por su criticidad.
+La bóveda de auditoría usa `Vida-01` a `Vida-23` como etiquetas de documentación (`01-Guardian/09-VIDA-SAFETY/`) y sigue SOS por separado. Estas etiquetas organizan riesgos y antecedentes; no son un inventario de módulos del repositorio ni acreditan cobertura operativa. La implementación y la evidencia de cada flujo deben verificarse por separado.
 
 ---
 
