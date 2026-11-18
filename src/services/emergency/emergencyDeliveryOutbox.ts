@@ -81,9 +81,16 @@ type StatusListener = (status: EmergencyDeliveryStatus) => void;
 
 const STORAGE_KEY = 'praeventio:emergency-delivery-outbox:v1';
 
+function readStoredEntries(raw: unknown): OutboxEntry<EmergencyDeliveryPayload>[] {
+  if (raw === undefined) return [];
+  // Do not overwrite unreadable evidence with an empty queue. The same
+  // check must run inside the transaction for direct save/delete callers.
+  if (!Array.isArray(raw)) throw new Error('emergency_delivery_outbox_invalid_storage');
+  return raw;
+}
+
 async function loadAll(): Promise<OutboxEntry<EmergencyDeliveryPayload>[]> {
-  const raw = await get<OutboxEntry<EmergencyDeliveryPayload>[]>(STORAGE_KEY);
-  return Array.isArray(raw) ? raw : [];
+  return readStoredEntries(await get<unknown>(STORAGE_KEY));
 }
 
 export function createIndexedDbEmergencyDeliveryAdapter(): OutboxAdapter<EmergencyDeliveryPayload> {
@@ -95,7 +102,7 @@ export function createIndexedDbEmergencyDeliveryAdapter(): OutboxAdapter<Emergen
       await update<OutboxEntry<EmergencyDeliveryPayload>[] | undefined>(
         STORAGE_KEY,
         (current) => {
-          const all = Array.isArray(current) ? current : [];
+          const all = readStoredEntries(current);
           const index = all.findIndex(
             (candidate) => candidate.event.clientEventId === entry.event.clientEventId,
           );
@@ -109,7 +116,7 @@ export function createIndexedDbEmergencyDeliveryAdapter(): OutboxAdapter<Emergen
       await update<OutboxEntry<EmergencyDeliveryPayload>[] | undefined>(
         STORAGE_KEY,
         (current) =>
-          (Array.isArray(current) ? current : []).filter(
+          readStoredEntries(current).filter(
             (entry) => entry.event.clientEventId !== clientEventId,
           ),
       );
