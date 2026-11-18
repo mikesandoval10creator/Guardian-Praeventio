@@ -69,19 +69,24 @@ describe('buildResilienceHealthReport — basic aggregation', () => {
   });
 
   it('checker que toma demasiado tiempo → timeout', async () => {
-    // Never resolves — buildResilienceHealthReport races it against a
-    // 50ms internal deadline. A bare never-resolving promise has no timer
-    // and won't keep the worker event loop alive after the test; the old
-    // `setTimeout(5000)` leaked a 5s Timeout handle post-assertion.
-    const slowChecker: SubsystemChecker = () =>
-      new Promise((_res) => { /* intentionally never resolves */ });
-    const r = await buildResilienceHealthReport(
-      { slm: slowChecker },
-      { checkerTimeoutMs: 50 },
-    );
-    const slm = r.subsystems.find((x) => x.id === 'slm')!;
-    expect(slm.status).toBe('unknown');
-    expect(slm.error).toContain('timeout');
+    type CheckResult = Awaited<ReturnType<SubsystemChecker>>;
+    let resolveLateResult!: (result: CheckResult) => void;
+    const lateResult = new Promise<CheckResult>((resolve) => {
+      resolveLateResult = resolve;
+    });
+    try {
+      // Keep the checker pending until the monitor's own deadline wins.
+      const r = await buildResilienceHealthReport(
+        { slm: () => lateResult },
+        { checkerTimeoutMs: 50 },
+      );
+      const slm = r.subsystems.find((x) => x.id === 'slm')!;
+      expect(slm.status).toBe('unknown');
+      expect(slm.error).toBe('slm: timeout 50ms');
+    } finally {
+      resolveLateResult({ id: 'slm', status: 'healthy', detail: 'late result' });
+      await lateResult;
+    }
   });
 
   it('generatedAt + totalLatencyMs incluidos', async () => {
