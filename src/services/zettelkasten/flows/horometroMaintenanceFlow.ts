@@ -31,7 +31,7 @@
 // persiste via writeNodes + createEdge + maintenanceScheduler. Esto
 // permite tests deterministas sin red.
 
-import type { RiskNodePayload, RiskNodeSeverity } from '../types.js';
+import type { RiskNodePayload } from '../types.js';
 import type {
   HorometroReading,
   ThresholdCross,
@@ -447,6 +447,38 @@ export type WriteNodesFn = (
 ) => Promise<{ ok: boolean; ids?: string[]; queued?: boolean; error?: string }>;
 
 /**
+ * Pair the flow-local references in node metadata with the writer's canonical
+ * document IDs. The writer contract preserves input order; reject incomplete or
+ * ambiguous results before creating any graph edges.
+ */
+function mapPersistedNodeIds(
+  nodes: ReadonlyArray<RiskNodePayload>,
+  ids: readonly string[] | undefined,
+): Map<string, string> | null {
+  if (!ids || ids.length !== nodes.length) return null;
+
+  const byLocalId = new Map<string, string>();
+  const canonicalIds = new Set<string>();
+  for (const [index, node] of nodes.entries()) {
+    const localId = node.metadata.zkLocalId;
+    const canonicalId = ids[index];
+    if (
+      typeof localId !== 'string' ||
+      localId.length === 0 ||
+      typeof canonicalId !== 'string' ||
+      canonicalId.length === 0 ||
+      byLocalId.has(localId) ||
+      canonicalIds.has(canonicalId)
+    ) {
+      return null;
+    }
+    byLocalId.set(localId, canonicalId);
+    canonicalIds.add(canonicalId);
+  }
+  return byLocalId;
+}
+
+/**
  * Adaptador minimal del edge creator. Igual que arriba: mantenemos los
  * tests hermeticos.
  */
@@ -455,6 +487,17 @@ export type CreateEdgeFn = (input: EdgeSpec & {
   createdBy: string;
   projectId?: string;
 }) => Promise<void>;
+
+export type NodeIdForFn = (
+  node: RiskNodePayload,
+  projectId: string,
+) => Promise<string>;
+
+export type IsPersistedTaskNodeFn = (input: {
+  nodeId: string;
+  taskId: string;
+  projectId: string;
+}) => Promise<boolean>;
 
 export interface OnHorometroReadingInput {
   tenantId: string;
@@ -529,11 +572,57 @@ export async function onHorometroReading(
     });
     return { ok: false, reason: writeRes.error ?? 'writeNodes_failed' };
   }
+
+  const expectedLocalIds = [
+    spec.readingNodeId,
+    ...spec.steps.flatMap((step) => [step.thresholdNodeId, step.taskCreatedNodeId]),
+  ];
+  const canonicalIdByLocalId = mapPersistedNodeIds(allNodes, writeRes.ids);
+  if (
+    !canonicalIdByLocalId ||
+    expectedLocalIds.length !== allNodes.length ||
+    new Set(expectedLocalIds).size !== expectedLocalIds.length ||
+    canonicalIdByLocalId.size !== expectedLocalIds.length ||
+    expectedLocalIds.some((localId) => !canonicalIdByLocalId.has(localId))
+  ) {
+    log.warn?.('horometroMaintenanceFlow.canonical_node_ids_unavailable', {
+      projectId: input.projectId,
+      expectedNodeIds: allNodes.length,
+      receivedNodeIds: writeRes.ids?.length ?? 0,
+    });
+    return { ok: false, reason: 'canonical_node_ids_unavailable' };
+  }
+
+  const allowedExternalNodeIds = new Set([input.reading.equipmentId]);
+  const resolvedEdges: EdgeSpec[] = [];
+  for (const edge of spec.edges) {
+    const resolveEndpoint = (nodeId: string): string | null => {
+      const canonicalId = canonicalIdByLocalId.get(nodeId);
+      if (canonicalId) return canonicalId;
+      return allowedExternalNodeIds.has(nodeId) ? nodeId : null;
+    };
+    const fromNodeId = resolveEndpoint(edge.fromNodeId);
+    const toNodeId = resolveEndpoint(edge.toNodeId);
+    if (!fromNodeId || !toNodeId) {
+      log.warn?.('horometroMaintenanceFlow.edge_endpoint_unresolved', {
+        projectId: input.projectId,
+        edgeType: edge.type,
+      });
+      return { ok: false, reason: 'edge_endpoint_unresolved' };
+    }
+    resolvedEdges.push({ ...edge, fromNodeId, toNodeId });
+  }
+  const canonicalReadingNodeId = canonicalIdByLocalId.get(spec.readingNodeId);
+  if (!canonicalReadingNodeId) {
+    return { ok: false, reason: 'canonical_reading_node_id_unavailable' };
+  }
+
   // queued (offline) cuenta como exitoso para no bloquear UX — los nodos
   // se sincronizaran cuando vuelva la red.
   log.info?.('horometroMaintenanceFlow.nodes_written', {
     equipmentId: input.reading.equipmentId,
     nodesWritten: allNodes.length,
+    canonicalNodeIdsResolved: canonicalIdByLocalId.size,
     queued: writeRes.queued === true,
   });
 
@@ -554,10 +643,10 @@ export async function onHorometroReading(
     }
   }
 
-  // Materializar edges.
+  // Materializar edges con IDs canónicos retornados por writeNodes.
   let edgesCreated = 0;
   const createdBy = input.createdByUid ?? 'system';
-  for (const edge of spec.edges) {
+  for (const edge of resolvedEdges) {
     try {
       await deps.createEdge({
         ...edge,
@@ -576,11 +665,11 @@ export async function onHorometroReading(
 
   return {
     ok: true,
-    readingNodeId: spec.readingNodeId,
+    readingNodeId: canonicalReadingNodeId,
     crossesDetected: spec.steps.length,
     tasksCreated,
     edgesCreated,
-    edgesExpected: spec.edges.length,
+    edgesExpected: resolvedEdges.length,
   };
 }
 
@@ -602,7 +691,10 @@ export interface OnMaintenanceCompletedInput {
  */
 export async function onMaintenanceCompleted(
   input: OnMaintenanceCompletedInput,
-  deps: Pick<OnHorometroReadingDeps, 'writeNodes' | 'createEdge' | 'logger'>,
+  deps: Pick<OnHorometroReadingDeps, 'writeNodes' | 'createEdge' | 'logger'> & {
+    nodeIdFor: NodeIdForFn;
+    isTaskNodePersisted: IsPersistedTaskNodeFn;
+  },
 ): Promise<OnHorometroReadingResult> {
   const log = deps.logger ?? {};
   const { task, completion } = input;
@@ -617,6 +709,45 @@ export async function onMaintenanceCompleted(
     task.multiplier,
     completion.completedAt,
   );
+
+  // The graph node was created from the task's initial `open` snapshot. Its
+  // persisted ID is content-addressed, so reconstruct that immutable payload
+  // and verify the exact document before linking a completion event to it.
+  const taskCreatedNode = createMaintenanceTaskNode({
+    projectId: input.projectId,
+    task: { ...task, status: 'open' },
+    thresholdNodeLocalId: thresholdNodeId(
+      task.equipmentId,
+      task.thresholdHours,
+      task.multiplier,
+    ),
+  });
+  let canonicalTaskNodeId: string;
+  try {
+    canonicalTaskNodeId = await deps.nodeIdFor(taskCreatedNode, input.projectId);
+    if (
+      typeof canonicalTaskNodeId !== 'string' ||
+      canonicalTaskNodeId.length === 0 ||
+      !(await deps.isTaskNodePersisted({
+        nodeId: canonicalTaskNodeId,
+        taskId: task.id,
+        projectId: input.projectId,
+      }))
+    ) {
+      log.warn?.('horometroMaintenanceFlow.task_node_not_persisted', {
+        projectId: input.projectId,
+        taskId: task.id,
+      });
+      return { ok: false, reason: 'task_created_node_not_persisted' };
+    }
+  } catch (err) {
+    log.warn?.('horometroMaintenanceFlow.task_node_resolution_failed', {
+      projectId: input.projectId,
+      taskId: task.id,
+      err: String(err),
+    });
+    return { ok: false, reason: 'task_created_node_resolution_failed' };
+  }
 
   const completedNode = createMaintenanceCompletedNode({
     projectId: input.projectId,
@@ -633,30 +764,42 @@ export async function onMaintenanceCompleted(
     });
     return { ok: false, reason: writeRes.error ?? 'writeNodes_failed' };
   }
+  const persistedIds = mapPersistedNodeIds([completedNode], writeRes.ids);
+  const canonicalCompletedNodeId = persistedIds?.get(completedLocal);
+  if (!canonicalCompletedNodeId) {
+    log.warn?.('horometroMaintenanceFlow.completed_node_id_unavailable', {
+      projectId: input.projectId,
+      taskId: task.id,
+      receivedNodeIds: writeRes.ids?.length ?? 0,
+    });
+    return { ok: false, reason: 'canonical_completed_node_id_unavailable' };
+  }
+
   log.info?.('horometroMaintenanceFlow.complete_node_written', {
     taskId: task.id,
+    canonicalNodeId: canonicalCompletedNodeId,
     queued: writeRes.queued === true,
   });
 
-  let edgesCreated = 0;
   const edges: EdgeSpec[] = [
     {
-      fromNodeId: taskCreatedLocal,
-      toNodeId: completedLocal,
+      fromNodeId: canonicalTaskNodeId,
+      toNodeId: canonicalCompletedNodeId,
       type: 'causes',
       rationale: `Tarea ${task.id} completada`,
     },
     {
-      fromNodeId: completedLocal,
+      fromNodeId: canonicalCompletedNodeId,
       toNodeId: task.equipmentId,
       type: 'references',
       rationale: `Mantencion completada del equipo ${task.equipmentId}`,
     },
   ];
-  for (const e of edges) {
+  let edgesCreated = 0;
+  for (const edge of edges) {
     try {
       await deps.createEdge({
-        ...e,
+        ...edge,
         tenantId: input.tenantId,
         createdBy: completion.completedByUid,
         projectId: input.projectId,
@@ -664,7 +807,7 @@ export async function onMaintenanceCompleted(
       edgesCreated += 1;
     } catch (err) {
       log.warn?.('horometroMaintenanceFlow.complete_edge_failed', {
-        edge: `${e.fromNodeId} -[${e.type}]-> ${e.toNodeId}`,
+        edge: `${edge.fromNodeId} -[${edge.type}]-> ${edge.toNodeId}`,
         err: String(err),
       });
     }
@@ -672,7 +815,7 @@ export async function onMaintenanceCompleted(
 
   return {
     ok: true,
-    readingNodeId: completedLocal,
+    readingNodeId: canonicalCompletedNodeId,
     crossesDetected: 0,
     tasksCreated: 0,
     edgesCreated,
