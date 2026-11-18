@@ -919,7 +919,7 @@ describe('POST /:projectId/horometro/maintenance-task/:taskId/complete', () => {
     );
   });
 
-  it('500 — onMaintenanceCompleted throws → 500 internal_error', async () => {
+  it('reports a committed completion separately from a failed graph projection', async () => {
     seedProject();
     seedTask();
     H.onMaintenanceCompleted.mockRejectedValueOnce(new Error('ZK write failed'));
@@ -929,7 +929,16 @@ describe('POST /:projectId/horometro/maintenance-task/:taskId/complete', () => {
       .set('x-test-uid', 'uid-1')
       .send(validBody);
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.status).toBe(200);
+    expect(res.body.task).toMatchObject({ id: 'task-1', status: 'completed' });
+    expect(res.body.flow).toEqual({ ok: false, reason: 'completion_evidence_failed' });
+    expect(res.text).not.toContain('ZK write failed');
+    const dump = H.db!._dump();
+    expect(dump['tenants/tenant-1/projects/proj-1/maintenance_tasks/task-1']).toMatchObject({
+      status: 'completed', completion: { notes: validBody.notes },
+    });
+    const audit = Object.entries(dump).filter(([path, value]) =>
+      path.startsWith('audit_logs/') && value.action === 'horometro.complete');
+    expect(audit).toHaveLength(1);
   });
 });

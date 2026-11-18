@@ -464,7 +464,12 @@ router.post(
               (metadata as Record<string, unknown>).taskId === taskId;
           },
         },
-      );
+      ).catch((err: unknown) => {
+        // The maintenance task is already committed. Do not report a failed
+        // closure or skip its audit just because the graph projection failed.
+        captureRouteError(err, 'horometro.completeTask.evidence', { callerUid, projectId });
+        return { ok: false, reason: 'completion_evidence_failed' } as const;
+      });
       await auditServerEvent(req, 'horometro.complete', 'horometro', { projectId, taskId }, { projectId });
       return res.json({
         task: updated,
