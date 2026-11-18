@@ -1,4 +1,9 @@
 {
+  "emergency_plan": {
+    "zettelkasten_save": "Guardar en Zettelkasten",
+    "zettelkasten_queued": "En cola para Zettelkasten",
+    "zettelkasten_save_unconfirmed": "No se pudo confirmar el guardado del plan en Zettelkasten."
+  },
   "academic": {
     "actions": {
       "processing": "Procesando con Gemini...",
