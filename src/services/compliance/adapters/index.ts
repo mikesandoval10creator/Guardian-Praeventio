@@ -123,4 +123,4 @@ export * as jp from './jp/index.js';
 export * as kr from './kr/index.js';
 export * as in_ from './in/index.js';
 
-export { AdapterNotImplementedError } from './jurisdictionErrors.js';
+export { AdapterNotImplementedError, type CountryCodeISO } from './jurisdictionErrors.js';
