@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AddEventModal } from './AddEventModal';
 
@@ -50,6 +50,22 @@ function submitEvent() {
 }
 
 describe('AddEventModal scheduling conflicts', () => {
+  it('does not save twice when the form is resubmitted during the conflict check', async () => {
+    let release!: (value: { empty: boolean }) => void;
+    const pending = new Promise<{ empty: boolean }>((resolve) => { release = resolve; });
+    mocks.read.mockReturnValue(pending);
+    mocks.write.mockResolvedValue({ id: 'event-1' });
+    const onClose = submitEvent();
+    try {
+      const button = screen.getByRole<HTMLButtonElement>('button', { name: /guardando/i });
+      fireEvent.submit(button.form!);
+    } finally {
+      await act(async () => { release({ empty: true }); });
+    }
+    expect(mocks.write).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('shows the conflicting project name even when it resembles an HTTP status', async () => {
     mocks.read.mockImplementation(async (path: string) => ({ empty: path !== 'projects/p2/events' }));
     const onClose = submitEvent();

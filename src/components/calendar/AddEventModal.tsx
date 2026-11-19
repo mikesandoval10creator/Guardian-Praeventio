@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, AlertTriangle } from 'lucide-react';
@@ -20,6 +20,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
   const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
   const [loading, setLoading] = useState(false);
+  const submitInFlight = useRef(false);
   const [conflictingProjects, setConflictingProjects] = useState<string[]>([]);
   const { toasts, show: showToast, dismiss } = useToast();
   // Firestore currently stores Spanish event-type values; keep them stable and
@@ -68,22 +69,22 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProject) return;
+    if (!selectedProject || submitInFlight.current) return;
 
+    submitInFlight.current = true;
     setLoading(true);
     setConflictingProjects([]);
 
-    // Detección de colisiones inter-proyectos
-    if (navigator.onLine) {
-      const overlaps = await checkOverlaps();
-      if (overlaps.length > 0) {
-        setConflictingProjects(overlaps);
-        setLoading(false);
-        return; // Detenemos la creación
-      }
-    }
-
     try {
+      // Detección de colisiones inter-proyectos
+      if (navigator.onLine) {
+        const overlaps = await checkOverlaps();
+        if (overlaps.length > 0) {
+          setConflictingProjects(overlaps);
+          return;
+        }
+      }
+
       await addDoc(collection(db, `projects/${selectedProject.id}/events`), {
         ...formData,
         projectId: selectedProject.id,
@@ -102,6 +103,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
       logger.error('Error adding event:', error);
       showToast(t('calendar.error_saving', 'Error al guardar el evento'), 'error');
     } finally {
+      submitInFlight.current = false;
       setLoading(false);
     }
   };
