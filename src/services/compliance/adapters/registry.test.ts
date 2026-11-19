@@ -3,7 +3,7 @@
 // Cubre que getJurisdictionMeta + isAdapterFullyImplemented + filtros
 // respondan correctamente para los 7 países del registro inicial.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, expectTypeOf } from 'vitest';
 import {
   getJurisdictionMeta,
   isAdapterFullyImplemented,
@@ -12,8 +12,13 @@ import {
   ADAPTER_STATUS,
   JURISDICTION_META_BY_COUNTRY,
   AdapterNotImplementedError,
+  type CountryCodeISO,
   type SupportedCountry,
 } from './index';
+
+it('exports the country type used by public adapter errors', () => {
+  expectTypeOf<CountryCodeISO>().toEqualTypeOf<AdapterNotImplementedError['country']>();
+});
 
 describe('getJurisdictionMeta', () => {
   it('CL retorna meta SUSESO + DS 44', () => {
