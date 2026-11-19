@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { listIndustryPresetsRemote, selectIndustryRemote } from './useIndustryRules';
+import {
+  fetchApplicableNorms, fetchRequiredEpp, fetchTypicalHazards, listIndustryPresetsRemote, selectIndustryRemote,
+} from './useIndustryRules';
 import { getIndustryPreset, buildPresetApplication } from '../services/industryRules/industryRuleEngine';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), fetch: vi.fn() }));
@@ -13,6 +15,22 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe('industryRules real HTTP client contract', () => {
+  it.each([
+    { segment: 'applicable-norms', fetcher: fetchApplicableNorms, data: { applicableRegulations: ['DS 594'], minsalProtocols: [] } },
+    { segment: 'required-epp', fetcher: fetchRequiredEpp, data: { baseEpp: ['Casco'] } },
+    { segment: 'typical-hazards', fetcher: fetchTypicalHazards, data: { label: 'Minería', typicalRisks: [], mandatoryDocuments: [], mandatoryTrainings: [] } },
+  ])('encodes the project and filter and decodes $segment', async ({ segment, fetcher, data }) => {
+    const industryPrefix = 'GP-A+B & C';
+    const payload = { industryPrefix, ...data };
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(payload)));
+
+    await expect(fetcher('project/a', industryPrefix)).resolves.toEqual(payload);
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(
+      `/api/sprint-k/project%2Fa/industry/${segment}?industryPrefix=GP-A%2BB+%26+C`,
+      expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ Authorization: 'test-auth' }) }),
+    );
+  });
+
   it('passes a live cancellation signal while preserving authentication', async () => {
     await listIndustryPresetsRemote('project/a');
     expect(mocks.fetch).toHaveBeenCalledWith('/api/sprint-k/project%2Fa/industry/list', expect.objectContaining({
