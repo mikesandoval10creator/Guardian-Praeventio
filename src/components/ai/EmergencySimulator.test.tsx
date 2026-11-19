@@ -129,6 +129,27 @@ describe('EmergencySimulator — drill escalation', () => {
     expect(await screen.findByRole('button', { name: /Escalar a Emergencia Real/i })).toBeEnabled();
   });
 
+  it('dispatches and records only one escalation while the drill record is pending', async () => {
+    let finish!: () => void;
+    h.addNode.mockReturnValueOnce(new Promise<undefined>((resolve) => { finish = () => resolve(undefined); }));
+    render(<EmergencySimulator />);
+    fireEvent.click(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i }));
+    const escalate = await screen.findByRole('button', { name: /Escalar a Emergencia Real/i });
+
+    try {
+      fireEvent.click(escalate);
+      fireEvent.click(escalate);
+      expect(h.triggerEmergency).toHaveBeenCalledTimes(1);
+      expect(h.addNode).toHaveBeenCalledTimes(1);
+      expect(escalate).toBeDisabled();
+    } finally {
+      await act(async () => { finish(); });
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /Generar Simulacro Dinámico/i }));
+    expect(await screen.findByRole('button', { name: /Escalar a Emergencia Real/i })).toBeEnabled();
+  });
+
   it('escalates with the selected projectId so the real emergency is delivered', async () => {
     render(<EmergencySimulator />);
 
