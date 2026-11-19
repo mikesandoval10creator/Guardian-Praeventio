@@ -65,8 +65,6 @@ export interface OutboxEntry {
   deadLettered?: boolean;
 }
 
-export type OutboxStatus = 'pending' | 'in_flight' | 'sent' | 'gave_up';
-
 const MAX_RETRY = 6; // 1s, 2s, 4s, 8s, 16s, 32s
 const MAX_QUEUE_SIZE = 50;
 
