@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { del, get, set } from 'idb-keyval';
-import { afterEach, expect, it } from 'vitest';
-import { createIndexedDbEmergencyDeliveryAdapter } from './emergencyDeliveryOutbox';
+import { afterEach, expect, it, vi } from 'vitest';
+import { createEmergencyDeliveryController, createIndexedDbEmergencyDeliveryAdapter } from './emergencyDeliveryOutbox';
 import type { EmergencyDeliveryPayload } from './emergencyDeliveryOutbox';
 import type { OutboxEntry } from '../sync/genericOutboxEngine';
 
@@ -15,7 +15,12 @@ const entry: OutboxEntry<EmergencyDeliveryPayload> = {
   queuedAt: '2026-09-17T10:00:00.000Z', retryCount: 0, nextRetryAt: 0,
 };
 
-afterEach(async () => { await del(key); });
+vi.mock('../../lib/apiAuth', () => ({ apiAuthHeader: async () => 'Bearer test-token' }));
+
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  await del(key);
+});
 
 it('preserves an unexpected stored value on reads, saves and deletes', async () => {
   const retained = { entries: [entry], version: 'unknown' };
@@ -38,4 +43,38 @@ it('accepts an absent store and reads a saved entry from a new adapter instance'
   expect(await createIndexedDbEmergencyDeliveryAdapter().listEntries()).toEqual([entry]);
   await adapter.deleteEntry(entry.event.clientEventId);
   expect(await adapter.listEntries()).toEqual([]);
+});
+
+it('publishes the matching acknowledgement for an offline entry replayed by a new submission', async () => {
+  const connectivity = { onLine: false };
+  vi.stubGlobal('navigator', connectivity);
+  const fetchMock = vi.fn(async (_url: string, request: RequestInit) => {
+    const id = new Headers(request.headers).get('Idempotency-Key');
+    return Response.json({ accepted: true, persisted: true, serverEventId: id, delivered: false });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const id = entry.event.clientEventId;
+  const nowMs = () => Date.parse(entry.queuedAt);
+  const offline = createEmergencyDeliveryController({ adapter: createIndexedDbEmergencyDeliveryAdapter(), nowMs });
+  await expect(offline.submit(entry.event.payload, { clientEventId: id })).resolves.toMatchObject({
+    status: 'pending', queued: true,
+  });
+  expect(fetchMock).not.toHaveBeenCalled();
+
+  const adapter = createIndexedDbEmergencyDeliveryAdapter();
+  const resumed = createEmergencyDeliveryController({ adapter, nowMs });
+  const observer = vi.fn();
+  const unsubscribe = resumed.subscribe(id, observer);
+  connectivity.onLine = true;
+  try {
+    await resumed.submit(entry.event.payload, { clientEventId: 'event-2' });
+    expect(fetchMock.mock.calls.map(([, request]) => new Headers(request.headers).get('Idempotency-Key')).sort())
+      .toEqual([id, 'event-2']);
+    expect(await adapter.listEntries()).toEqual([]);
+    expect(observer).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'accepted', queued: false, ack: { accepted: true, persisted: true, serverEventId: id, delivered: false },
+    }));
+  } finally {
+    unsubscribe();
+  }
 });
