@@ -38,6 +38,7 @@ import {
   type ComplianceCategory,
 } from '../../services/compliance/trafficLightEngine.js';
 import { applyCoverage } from '../../services/compliance/trafficLightCoverage.js';
+import { resolveComplianceSector } from '../../services/compliance/sectorMapping.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,28 +78,6 @@ export interface RunComplianceSnapshotDeps {
   now?: () => Date;
   /** Max projects per run. Default 500. */
   projectLimit?: number;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-// Industry code → GP-* sector mapping (mirrors compliance.ts route).
-const INDUSTRY_TO_SECTOR: Record<string, string> = {
-  mining: 'GP-MIN',
-  construction: 'GP-CONS',
-  energy: 'GP-ELEC',
-};
-
-function resolveSector(data: Record<string, unknown>): string | undefined {
-  if (typeof data.sectorId === 'string' && /^GP-/.test(data.sectorId)) {
-    return data.sectorId;
-  }
-  if (
-    typeof data.industry_code === 'string' &&
-    INDUSTRY_TO_SECTOR[data.industry_code]
-  ) {
-    return INDUSTRY_TO_SECTOR[data.industry_code];
-  }
-  return undefined;
 }
 
 // ── Main job ─────────────────────────────────────────────────────────────────
@@ -159,7 +138,7 @@ async function runComplianceSnapshotInner(
       const profile = {
         workersCount:
           typeof data.workersCount === 'number' ? data.workersCount : 0,
-        industry: resolveSector(data),
+        industry: resolveComplianceSector(data),
         presentRisks: Array.isArray(data.presentRisks)
           ? data.presentRisks.filter((r): r is string => typeof r === 'string')
           : undefined,

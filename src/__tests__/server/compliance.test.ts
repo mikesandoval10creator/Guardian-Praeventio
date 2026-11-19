@@ -52,6 +52,8 @@ vi.mock('../../services/observability/index.js', () => ({
 
 import complianceRouter from '../../server/routes/compliance.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { runComplianceSnapshot } from '../../server/jobs/runComplianceSnapshot.js';
+import { getFirestore } from 'firebase-admin/firestore';
 
 function buildApp() {
   const app = express();
@@ -66,6 +68,29 @@ const OTHER_UID = 'uid-other-user';
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+});
+
+it('uses the same project sector in the live traffic light and its daily snapshot', async () => {
+  const projectId = 'sector-project';
+  const date = '2026-06-10';
+  H.db!._seed(`projects/${projectId}`, {
+    members: [CALLER_UID],
+    workersCount: 50,
+    industry_code: 'mining',
+    sectorId: 'GP-ELEC',
+    hasHazmat: true,
+    hasSubcontractors: false,
+  });
+  const live = await request(buildApp())
+    .get(`/api/compliance/${projectId}/traffic-light`)
+    .set('x-test-uid', CALLER_UID);
+  expect(live.status).toBe(200);
+  expect(live.body.result).toBeDefined();
+
+  await runComplianceSnapshot({ db: getFirestore(), now: () => new Date(`${date}T12:00:00Z`) });
+  const snapshot = H.db!._dump()[`compliance_snapshots/${projectId}_${date}`];
+  expect(snapshot).toMatchObject({ profile: { industry: 'GP-ELEC' } });
+  expect(snapshot?.result).toEqual({ ...live.body.result, computedAt: expect.any(String) });
 });
 
 // ---------------------------------------------------------------------------
