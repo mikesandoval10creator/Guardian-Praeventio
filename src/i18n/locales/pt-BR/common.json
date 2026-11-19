@@ -4637,6 +4637,7 @@
       "projects": "N.º de projetos",
       "tier": "Plano",
       "submit": "Estimar fatura",
+      "reconnect": "Conecte-se novamente para estimar sua fatura.",
       "error": "Não foi possível estimar a fatura.",
       "total": "Total estimado / mês",
       "base": "Base do plano",

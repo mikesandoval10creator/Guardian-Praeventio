@@ -4637,6 +4637,7 @@
       "projects": "No. of projects",
       "tier": "Plan",
       "submit": "Estimate bill",
+      "reconnect": "Reconnect to estimate your bill.",
       "error": "Could not estimate the bill.",
       "total": "Estimated total / month",
       "base": "Plan base",

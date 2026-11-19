@@ -32,6 +32,11 @@ vi.mock('../../hooks/usePricingSimulator', () => ({
   estimateBillFor: (...args: unknown[]) => estimateMock(...args),
 }));
 
+vi.mock('../../contexts/ProjectContext', () => ({
+  useProject: () => ({ selectedProject: { id: 'proj-1' } }),
+}));
+
+import { PricingSimulatorPage } from '../../pages/PricingSimulatorPage';
 import { PricingSimulatorPanel } from './PricingSimulatorPanel';
 
 afterEach(() => {
@@ -40,14 +45,42 @@ afterEach(() => {
 });
 
 describe('<PricingSimulatorPanel />', () => {
+  it('blocks the form offline and preserves inputs when connectivity returns', async () => {
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      render(<PricingSimulatorPage />);
+      const submit = screen.getByTestId('pricing-simulator-submit');
+      const form = submit.closest('form')!;
+      expect(screen.getByTestId('pricing-simulator-offline-chip')).toBeVisible();
+      fireEvent.change(screen.getByTestId('pricing-simulator-workers'), { target: { value: '31' } });
+      fireEvent.submit(form);
+      expect(estimateMock).not.toHaveBeenCalled();
+      expect(submit).toBeDisabled();
+      expect(screen.getByRole('status')).toHaveTextContent('Vuelve a conectarte para estimar tu factura.');
+
+      online.mockReturnValue(true);
+      fireEvent(window, new Event('online'));
+      expect(submit).toBeEnabled();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(estimateMock).not.toHaveBeenCalled();
+      fireEvent.click(submit);
+      expect(await screen.findByTestId('pricing-simulator-result')).toBeVisible();
+      expect(estimateMock).toHaveBeenCalledExactlyOnceWith('proj-1', expect.objectContaining({
+        usage: expect.objectContaining({ workers: 31 }),
+      }));
+    } finally {
+      online.mockRestore();
+    }
+  });
+
   it('renders the form with the submit control enabled', () => {
-    render(<PricingSimulatorPanel projectId="proj-1" />);
+    render(<PricingSimulatorPanel projectId="proj-1" isOnline />);
     expect(screen.getByTestId('pricing-simulator-panel')).toBeInTheDocument();
     expect(screen.getByTestId('pricing-simulator-submit')).toBeEnabled();
   });
 
   it('renders the seven canonical metallic tiers and defaults to Cobre', () => {
-    render(<PricingSimulatorPanel projectId="proj-1" />);
+    render(<PricingSimulatorPanel projectId="proj-1" isOnline />);
 
     const select = screen.getByTestId('pricing-simulator-tier') as HTMLSelectElement;
     expect(Array.from(select.options, (option) => option.value)).toEqual([
@@ -63,7 +96,7 @@ describe('<PricingSimulatorPanel />', () => {
   });
 
   it('submits the form via the hook and renders the bill estimate', async () => {
-    render(<PricingSimulatorPanel projectId="proj-1" />);
+    render(<PricingSimulatorPanel projectId="proj-1" isOnline />);
 
     fireEvent.change(screen.getByTestId('pricing-simulator-workers'), { target: { value: '25' } });
     fireEvent.change(screen.getByTestId('pricing-simulator-projects'), { target: { value: '3' } });
@@ -87,7 +120,7 @@ describe('<PricingSimulatorPanel />', () => {
 
   it('renders the error state when the hook rejects', async () => {
     estimateMock.mockRejectedValueOnce(new Error('http_403'));
-    render(<PricingSimulatorPanel projectId="proj-1" />);
+    render(<PricingSimulatorPanel projectId="proj-1" isOnline />);
 
     fireEvent.click(screen.getByTestId('pricing-simulator-submit'));
 
