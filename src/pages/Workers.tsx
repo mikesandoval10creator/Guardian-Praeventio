@@ -43,8 +43,23 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { humanErrorFromBody } from '../lib/humanError';
 
 export function Workers() {
-  const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const { t } = useTranslation();
+  if (!selectedProject) {
+    return (
+      <section className="p-4 sm:p-6 max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold text-primary-token">{t('workers.title')}</h1>
+        <p className="mt-2 text-muted-token">{t('workers.select_project')}</p>
+      </section>
+    );
+  }
+  return <ProjectWorkers key={selectedProject.id} selectedProject={selectedProject} />;
+}
+
+function ProjectWorkers({ selectedProject }: {
+  selectedProject: NonNullable<ReturnType<typeof useProject>['selectedProject']>;
+}) {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -67,7 +82,7 @@ export function Workers() {
   const [activeModal, setActiveModal] = useState<'epp' | 'docs' | 'qr' | 'safety-plan' | 'training' | 'access' | 'traceability' | 'labor' | 'user-profile' | null>(null);
   const isOnline = useOnlineStatus();
   
-  const collectionPath = selectedProject ? `projects/${selectedProject.id}/workers` : 'workers';
+  const collectionPath = `projects/${selectedProject.id}/workers`;
   
   const [archiveWorkerId, setArchiveWorkerId] = useState<string | null>(null);
 
@@ -113,9 +128,7 @@ export function Workers() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary-token tracking-tight leading-tight">{t('workers.title')}</h1>
           <p className="text-muted-token mt-1 text-xs sm:text-sm">
-            {selectedProject
-              ? t('workers.managing_for', { project: selectedProject.name })
-              : t('workers.subtitle_centralized')}
+            {t('workers.managing_for', { project: selectedProject.name })}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
