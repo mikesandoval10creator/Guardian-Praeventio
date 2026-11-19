@@ -47,7 +47,7 @@ afterEach(() => {
 describe('sendEmergencyDelivery', () => {
   it('POSTs the packet with the stable idempotency key and returns the server ACK', async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ accepted: true, delivered: true, serverEventId: 'srv-1' }), {
+      new Response(JSON.stringify({ accepted: true, persisted: true, delivered: true, serverEventId: event.clientEventId }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -102,6 +102,36 @@ describe('sendEmergencyDelivery', () => {
 });
 
 describe('createEmergencyDeliveryController', () => {
+  it.each([
+    ['non-JSON body', '<html>Unavailable</html>'],
+    ['missing persistence', JSON.stringify({ accepted: true, serverEventId: event.clientEventId })],
+    ['mismatched ID', JSON.stringify({ accepted: true, persisted: true, serverEventId: 'other-event' })],
+  ])('retains and retries an alert after a 2xx with %s', async (_label, body) => {
+    let now = 1_000_000;
+    const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();
+    const controller = createEmergencyDeliveryController({ adapter, nowMs: () => now });
+    const listener = vi.fn();
+    const unsubscribe = controller.subscribe(event.clientEventId, listener);
+    const ack = { accepted: true, persisted: true, delivered: false, serverEventId: event.clientEventId };
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(ack), { status: 200 }));
+    try {
+      const result = await controller.submit(payload, { clientEventId: event.clientEventId });
+      expect(result).toMatchObject({ status: 'pending', queued: true, failureKind: 'server' });
+      expect(result.ack).toBeUndefined();
+      expect(await adapter.listEntries()).toEqual([expect.objectContaining({ event })]);
+
+      now += 2_000;
+      await controller.flush();
+      expect(await adapter.listEntries()).toHaveLength(0);
+      expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'accepted', queued: false, ack }));
+      expect(fetchMock.mock.calls.map(([, init]) => new Headers(init?.headers).get('Idempotency-Key')))
+        .toEqual([event.clientEventId, event.clientEventId]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('does not publish queued until the adapter finishes saving', async () => {
     vi.stubGlobal('navigator', { onLine: false });
     const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();

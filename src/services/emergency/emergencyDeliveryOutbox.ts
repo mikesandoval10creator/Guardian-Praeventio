@@ -130,7 +130,7 @@ function classifyFailure(error: string | undefined): EmergencyDeliveryFailureKin
   if (!error) return 'unknown';
   if (/HTTP 4\d\d/i.test(error)) return 'authorization';
   if (/auth_unavailable/i.test(error)) return 'network';
-  if (/HTTP 5\d\d/i.test(error)) return 'server';
+  if (error === 'emergency_delivery_invalid_ack' || /HTTP 5\d\d/i.test(error)) return 'server';
   if (/network|offline|fetch|timeout|abort|Failed to fetch/i.test(error)) return 'network';
   return 'unknown';
 }
@@ -171,14 +171,26 @@ export async function sendEmergencyDelivery(
     }
 
     if (response.ok) {
-      let ack: EmergencyDeliveryAck | undefined;
+      let body: unknown;
       try {
-        ack = (await response.json()) as EmergencyDeliveryAck;
+        body = await response.json();
       } catch {
-        // A 2xx without JSON is still a server response, but the UI will show
-        // accepted without delivery details rather than inventing them.
+        return { kind: 'retry', error: 'emergency_delivery_invalid_ack' };
       }
-      if (ack) serverAcks.set(event.clientEventId, ack);
+      if (!body || typeof body !== 'object' ||
+        !('accepted' in body) || body.accepted !== true ||
+        !('persisted' in body) || body.persisted !== true ||
+        !('serverEventId' in body) || body.serverEventId !== event.clientEventId) {
+        return { kind: 'retry', error: 'emergency_delivery_invalid_ack' };
+      }
+      serverAcks.set(event.clientEventId, {
+        accepted: true,
+        persisted: true,
+        serverEventId: event.clientEventId,
+        ...('delivered' in body && typeof body.delivered === 'boolean' ? { delivered: body.delivered } : {}),
+        ...('notified' in body && typeof body.notified === 'number' ? { notified: body.notified } : {}),
+        ...('failed' in body && typeof body.failed === 'number' ? { failed: body.failed } : {}),
+      });
       return { kind: 'success' };
     }
     try {
