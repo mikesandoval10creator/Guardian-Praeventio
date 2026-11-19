@@ -92,19 +92,27 @@ Qué hace:
 
 | Paso | Herramienta | Objetivo |
 |---|---|---|
-| salud | `GET /api/health` | confirmar que el dev server responde |
+| salud | `GET /api/health` | confirmar que el dev server responde **y está sano** |
 | Lighthouse | `node_modules/lighthouse/cli/index.js` | performance, accessibility, best-practices, SEO, PWA |
 | smoke | `node_modules/@playwright/test/cli.js` | `tests/e2e/landing-smoke.spec.ts` en chromium |
 
 Decisiones de diseño:
 
 - **Reutiliza el servidor** si ya está sano. Nunca levanta un segundo
-  proceso: dos instancias de Express sobre el mismo proyecto de Firestore
+  proceso: dos instancias de Express sobre un proyecto de Firestore
   pelearían por los emuladores y los jobs en segundo plano.
 - **Apunta al dev server**, no al preview de build que usa el job de perf de
   CI. El dev server es lo que el visor muestra.
+- **La sonda de salud solo consulta `/api/health`** y valida la respuesta:
+  debe ser JSON con `status: 'ok'`. El dev server monta el fallback SPA de
+  Vite para los GET no coincididos, así que cualquier otra ruta (por ejemplo
+  `/health`) responde 200 con el HTML de la aplicación — leer eso como "sano"
+  ocultaría un servidor degradado, que es justo lo que esta sonda debe
+  detectar.
 - **Un fallo en un paso no aborta el resto**: cada paso reporta su resultado y
-  el script continúa.
+  el script continúa. Los fallos se acumulan y el proceso **termina con exit
+  code 1** si algún paso falló, para que un script externo o un check
+  automatizado no lea "éxito" de una corrida donde no se inspeccionó nada.
 - Los artefactos se escriben en `reports/lighthouse/` (ya ignorado por git).
 
 `E2E_NO_SERVER=1` y `E2E_BASE_URL` se inyectan para que Playwright no levante
