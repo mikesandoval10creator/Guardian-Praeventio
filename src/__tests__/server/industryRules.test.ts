@@ -79,9 +79,47 @@ function seedProject(db: NonNullable<typeof H.db>) {
   });
 }
 
+vi.mock('../../services/industryRules/industryRuleEngine.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/industryRules/industryRuleEngine.js')>();
+  return {
+    ...actual,
+    listIndustryPresets: vi.fn(actual.listIndustryPresets),
+    buildPresetApplication: vi.fn(actual.buildPresetApplication),
+    getIndustryPreset: vi.fn(actual.getIndustryPreset),
+  };
+});
+
+import { captureRouteError } from '../../server/middleware/captureRouteError.js';
+import {
+  buildPresetApplication, getIndustryPreset, listIndustryPresets,
+} from '../../services/industryRules/industryRuleEngine.js';
+
 beforeEach(() => {
   H.db = createFakeFirestore();
   seedProject(H.db);
+});
+
+it.each([
+  { segment: 'list', action: 'list', engine: listIndustryPresets },
+  { segment: 'select', action: 'select', engine: buildPresetApplication },
+  { segment: 'applicable-norms', action: 'applicableNorms', engine: getIndustryPreset },
+  { segment: 'required-epp', action: 'requiredEpp', engine: getIndustryPreset },
+  { segment: 'typical-hazards', action: 'typicalHazards', engine: getIndustryPreset },
+])('reports an internal failure without leaking details from $segment', async ({ segment, action, engine }) => {
+  const fault = new Error('synthetic engine detail');
+  vi.mocked(engine).mockImplementationOnce(() => { throw fault; });
+  const path = `/api/${PROJECT_ID}/industry/${segment}`;
+  const client = request(buildApp());
+  const pending = segment === 'select'
+    ? client.post(path).send({ industryPrefix: 'GP-MIN' })
+    : client.get(path).query({ industryPrefix: 'GP-MIN' });
+  const response = await pending.set('x-test-uid', CALLER_UID);
+
+  expect(response.status).toBe(500);
+  expect(response.body).toEqual({ error: 'internal_error' });
+  expect(captureRouteError).toHaveBeenLastCalledWith(fault, `industryRules.${action}`, {
+    callerUid: CALLER_UID, projectId: PROJECT_ID,
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────

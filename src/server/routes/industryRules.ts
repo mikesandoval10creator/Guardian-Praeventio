@@ -24,7 +24,7 @@
 //   Membership is checked via `getFirestore()` only. The preset engine
 //   itself is in-memory and deterministic — no second backend.
 
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -48,6 +48,18 @@ import { scalarRouteParams } from "../http/scalarRouteParams.js";
 
 
 const router = Router();
+
+function respondToIndustryFailure(
+  res: Response,
+  action: 'list' | 'select' | 'applicableNorms' | 'requiredEpp' | 'typicalHazards',
+  err: unknown,
+  context: { callerUid: string; projectId: string },
+) {
+  const operation = `industryRules.${action}`;
+  logger.error?.(`${operation}.error`, err);
+  captureRouteError(err, operation, context);
+  return res.status(500).json({ error: 'internal_error' });
+}
 
 // ── Guard helper ──────────────────────────────────────────────────────
 
@@ -95,9 +107,7 @@ router.get(
       const presets = listIndustryPresets();
       return res.json({ presets });
     } catch (err) {
-      logger.error?.('industryRules.list.error', err);
-      captureRouteError(err, 'industryRules.list', { callerUid, projectId });
-      return res.status(500).json({ error: 'internal_error' });
+      return respondToIndustryFailure(res, 'list', err, { callerUid, projectId });
     }
   },
 );
@@ -132,12 +142,7 @@ router.post(
       const preset: IndustryPreset = getIndustryPreset(body.industryPrefix);
       return res.json({ application, preset });
     } catch (err) {
-      logger.error?.('industryRules.select.error', err);
-      captureRouteError(err, 'industryRules.select', {
-        callerUid,
-        projectId,
-      });
-      return res.status(500).json({ error: 'internal_error' });
+      return respondToIndustryFailure(res, 'select', err, { callerUid, projectId });
     }
   },
 );
@@ -182,12 +187,7 @@ router.get(
         minsalProtocols: preset.minsalProtocols,
       });
     } catch (err) {
-      logger.error?.('industryRules.applicableNorms.error', err);
-      captureRouteError(err, 'industryRules.applicableNorms', {
-        callerUid,
-        projectId,
-      });
-      return res.status(500).json({ error: 'internal_error' });
+      return respondToIndustryFailure(res, 'applicableNorms', err, { callerUid, projectId });
     }
   },
 );
@@ -213,12 +213,7 @@ router.get(
         baseEpp: preset.baseEpp,
       });
     } catch (err) {
-      logger.error?.('industryRules.requiredEpp.error', err);
-      captureRouteError(err, 'industryRules.requiredEpp', {
-        callerUid,
-        projectId,
-      });
-      return res.status(500).json({ error: 'internal_error' });
+      return respondToIndustryFailure(res, 'requiredEpp', err, { callerUid, projectId });
     }
   },
 );
@@ -249,12 +244,7 @@ router.get(
         mandatoryTrainings: preset.mandatoryTrainings,
       });
     } catch (err) {
-      logger.error?.('industryRules.typicalHazards.error', err);
-      captureRouteError(err, 'industryRules.typicalHazards', {
-        callerUid,
-        projectId,
-      });
-      return res.status(500).json({ error: 'internal_error' });
+      return respondToIndustryFailure(res, 'typicalHazards', err, { callerUid, projectId });
     }
   },
 );
