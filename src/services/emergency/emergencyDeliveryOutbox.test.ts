@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiAuthHeader } from '../../lib/apiAuth';
 import {
   createEmergencyDeliveryController,
   sendEmergencyDelivery,
@@ -45,6 +46,26 @@ afterEach(() => {
 });
 
 describe('sendEmergencyDelivery', () => {
+  it('releases a stalled credential attempt without sending with a late token', async () => {
+    vi.useFakeTimers();
+    let release!: (header: string) => void;
+    vi.mocked(apiAuthHeader).mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const attempt = sendEmergencyDelivery(event);
+    const settled = vi.fn();
+    void attempt.then(settled);
+    try {
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(settled).toHaveBeenCalledWith({ kind: 'retry', error: 'auth_timeout' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      release('Bearer late-test-token');
+      await attempt;
+      vi.useRealTimers();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('POSTs the packet with the stable idempotency key and returns the server ACK', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ accepted: true, persisted: true, delivered: true, serverEventId: event.clientEventId }), {

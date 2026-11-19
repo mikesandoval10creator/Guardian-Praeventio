@@ -129,6 +129,7 @@ const serverAcks = new Map<string, EmergencyDeliveryAck>();
 function classifyFailure(error: string | undefined): EmergencyDeliveryFailureKind {
   if (!error) return 'unknown';
   if (/HTTP 4\d\d/i.test(error)) return 'authorization';
+  if (error === 'auth_timeout') return 'authorization';
   if (/auth_unavailable/i.test(error)) return 'network';
   if (error === 'emergency_delivery_invalid_ack' || /HTTP 5\d\d/i.test(error)) return 'server';
   if (/network|offline|fetch|timeout|abort|Failed to fetch/i.test(error)) return 'network';
@@ -144,9 +145,6 @@ function classifyFailure(error: string | undefined): EmergencyDeliveryFailureKin
 export async function sendEmergencyDelivery(
   event: EmergencyDeliveryEvent,
 ): Promise<{ kind: 'success' | 'retry'; error?: string }> {
-  const authHeader = await apiAuthHeader();
-  if (!authHeader) return { kind: 'retry', error: 'auth_unavailable' };
-
   const abortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
   const timeoutError = new Error('network_timeout');
   let expire!: () => void;
@@ -159,6 +157,14 @@ export async function sendEmergencyDelivery(
   }, 10_000);
 
   try {
+    let authHeader: string | null;
+    try {
+      authHeader = await Promise.race([deadline, apiAuthHeader()]);
+    } catch (error) {
+      return { kind: 'retry', error: error === timeoutError ? 'auth_timeout' : 'auth_unavailable' };
+    }
+    if (!authHeader) return { kind: 'retry', error: 'auth_unavailable' };
+
     const response = await Promise.race([
       deadline,
       Promise.resolve().then(() => fetch('/api/emergency/delivery', {
