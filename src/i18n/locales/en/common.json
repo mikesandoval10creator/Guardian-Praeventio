@@ -2651,6 +2651,7 @@
     "title": "Workers",
     "managing_for": "Managing personnel for: {{project}}",
     "subtitle_centralized": "Centralized personnel and contractor management",
+    "select_project": "Select a project to view or add workers.",
     "resource_label": "workers",
     "requires_internet": "Requires internet connection",
     "requires_connection": "Requires Connection",

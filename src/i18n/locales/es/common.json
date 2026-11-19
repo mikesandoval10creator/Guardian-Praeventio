@@ -2651,6 +2651,7 @@
     "title": "Trabajadores",
     "managing_for": "Gestionando personal para: {{project}}",
     "subtitle_centralized": "Gestión centralizada de personal y contratistas",
+    "select_project": "Selecciona un proyecto para consultar o agregar trabajadores.",
     "resource_label": "los trabajadores",
     "requires_internet": "Requiere conexión a internet",
     "requires_connection": "Requiere Conexión",
