@@ -1,5 +1,7 @@
-import type { SubscriptionPlan } from "../pricing/subscriptionPlan";
-import { TIERS, type Tier, type TierId } from "../pricing/tiers";
+import {
+  isSubscriptionPlan, PLAN_RANK, TIER_TO_SUBSCRIPTION_PLAN, type SubscriptionPlan,
+} from "../pricing/subscriptionPlan";
+import type { Tier, TierId } from "../pricing/tiers";
 
 export interface TierDowngradeGate {
   fromTier: TierId;
@@ -15,12 +17,11 @@ export function resolveTierDowngradeGate(
   sourcePlan: SubscriptionPlan,
   targetTier: Tier,
 ): TierDowngradeGate | null {
-  const fromTier = tierIdForPlan(sourcePlan);
-  const fromIndex = TIERS.findIndex((tier) => tier.id === fromTier);
-  const targetIndex = TIERS.findIndex((tier) => tier.id === targetTier.id);
-  if (fromIndex < 0 || targetIndex < 0 || targetIndex >= fromIndex) return null;
+  const targetPlan = TIER_TO_SUBSCRIPTION_PLAN[targetTier.id];
+  if (!isSubscriptionPlan(sourcePlan) || !isSubscriptionPlan(targetPlan)) return null;
+  if (PLAN_RANK[targetPlan] >= PLAN_RANK[sourcePlan]) return null;
   return {
-    fromTier,
+    fromTier: tierIdForPlan(sourcePlan),
     toTier: targetTier.id,
     toTierLabel: targetTier.nombre,
   };
