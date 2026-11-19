@@ -147,12 +147,21 @@ export async function sendEmergencyDelivery(
   const authHeader = await apiAuthHeader();
   if (!authHeader) return { kind: 'retry', error: 'auth_unavailable' };
 
+  const abortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  const timeoutError = new Error('network_timeout');
+  let expire!: () => void;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    expire = () => reject(timeoutError);
+  });
+  const timeoutId = setTimeout(() => {
+    expire();
+    abortController?.abort();
+  }, 10_000);
+
   try {
-    const abortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-    const timeoutId = setTimeout(() => abortController?.abort(), 10_000);
-    let response: Response;
-    try {
-      response = await fetch('/api/emergency/delivery', {
+    const response = await Promise.race([
+      deadline,
+      Promise.resolve().then(() => fetch('/api/emergency/delivery', {
         method: 'POST',
         credentials: 'include',
         signal: abortController?.signal,
@@ -165,16 +174,17 @@ export async function sendEmergencyDelivery(
           clientEventId: event.clientEventId,
           ...event.payload,
         }),
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+      })),
+    ]);
 
     if (response.ok) {
       let body: unknown;
       try {
-        body = await response.json();
-      } catch {
+        body = await Promise.race([deadline, response.json()]);
+      } catch (error) {
+        if (error === timeoutError || abortController?.signal.aborted) {
+          return { kind: 'retry', error: timeoutError.message };
+        }
         return { kind: 'retry', error: 'emergency_delivery_invalid_ack' };
       }
       if (!body || typeof body !== 'object' ||
@@ -193,17 +203,18 @@ export async function sendEmergencyDelivery(
       });
       return { kind: 'success' };
     }
-    try {
-      await response.text();
-    } catch {
-      // The HTTP status remains the authoritative retry signal.
-    }
+    // Retry decisions use only the status, not an error body that may stall.
+    void response.body?.cancel().catch(() => undefined);
     return { kind: 'retry', error: `HTTP ${response.status}` };
   } catch (err) {
     return {
       kind: 'retry',
       error: err instanceof Error ? err.message : 'network_error',
     };
+  } finally {
+    clearTimeout(timeoutId);
+    // Settle the losing deadline even when both HTTP phases finish normally.
+    expire();
   }
 }
 
