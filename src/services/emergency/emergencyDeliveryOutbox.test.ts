@@ -92,6 +92,33 @@ describe('sendEmergencyDelivery', () => {
     vi.useRealTimers();
   });
 
+  it('bounds a stalled acknowledgement body with the same deadline as the HTTP request', async () => {
+    vi.useFakeTimers();
+    let release!: (value: unknown) => void;
+    const body = new Promise<unknown>((resolve) => { release = resolve; });
+    const response = new Response(null, { status: 200 });
+    vi.spyOn(response, 'json').mockReturnValue(body);
+    fetchMock.mockImplementation(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 9_000));
+      return response;
+    });
+    const pending = sendEmergencyDelivery(event);
+    const settled = vi.fn();
+    void pending.then(settled);
+    try {
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(settled).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toHaveBeenCalledWith({ kind: 'retry', error: 'network_timeout' });
+      expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      release({ accepted: true, persisted: true, serverEventId: event.clientEventId });
+      await pending;
+      vi.useRealTimers();
+    }
+  });
+
   it('classifies rules/membership denial as retryable retention with an honest HTTP error', async () => {
     fetchMock.mockResolvedValue(new Response('{"error":"forbidden"}', { status: 403 }));
     await expect(sendEmergencyDelivery(event)).resolves.toEqual({
