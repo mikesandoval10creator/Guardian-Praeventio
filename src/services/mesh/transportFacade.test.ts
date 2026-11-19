@@ -6,6 +6,7 @@
 // Capacitor plugin scaffold. The plugin is mocked end-to-end so these
 // tests run on Node/jsdom without any native bridge.
 
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPacket, type MeshPacket } from './meshPacket';
@@ -108,6 +109,40 @@ function makePacket(overrides: Partial<Parameters<typeof buildPacket>[0]> = {}):
     ...overrides,
   });
 }
+
+it('restores an originating SOS after restarting before acknowledgement', async () => {
+
+  const { createOriginatingSosStore } = await import('./originatingSosStore');
+  const { clearEncryptedStore } = await import('../security/encryptedKvStore');
+  const plugin = makeFakePlugin();
+  const options = { selfUid: 'worker-self', projectId: 'project-X' };
+  const makeFacade = () => new TransportFacade({
+    peerId: options.selfUid, projectId: options.projectId,
+    queue: new MeshRelayQueue(options), plugin,
+    packetStore: createOriginatingSosStore(options.selfUid, options.projectId),
+  });
+  const packet = makePacket({ type: 'sos', fromUid: options.selfUid });
+  const first = makeFacade();
+  await first.startMesh();
+  try {
+    await first.sendLocal(packet);
+  } finally {
+    await first.stopMesh();
+  }
+  const restarted = makeFacade();
+  try {
+    await restarted.startMesh();
+    expect((await restarted.snapshot()).queueDepth).toBe(1);
+    plugin.__sentPackets.length = 0;
+    plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+    expect(plugin.__sentPackets.at(-1)?.id).toBe(packet.id);
+    expect(await createOriginatingSosStore('different-user', options.projectId).load()).toEqual([]);
+    expect(await createOriginatingSosStore(options.selfUid, 'different-project').load()).toEqual([]);
+  } finally {
+    await restarted.stopMesh();
+    await clearEncryptedStore();
+  }
+});
 
 function makeAck(ackedPacketId: string, fromUid = 'peer-1'): MeshPacket {
   return buildPacket({
