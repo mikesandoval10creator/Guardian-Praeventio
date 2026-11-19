@@ -5269,7 +5269,7 @@
     "level_dba": "Nível de ruído dB(A)",
     "add_measurement": "Adicionar medição",
     "remove_measurement": "Remover",
-    "measurements_required": "Adicione pelo menos uma medição.",
+    "invalid_measurements": "Preencha cada medição: duração de 0 a 24 horas e nível de ruído de 0 a 200 dB(A).",
     "dose": "Dose diária",
     "laeq": "LAeq,8h equivalente",
     "exceeds_limit": "Excede o limite legal D.S. 594 (dose > 100%)",

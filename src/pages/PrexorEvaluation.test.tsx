@@ -108,6 +108,17 @@ describe('<PrexorEvaluation /> page (B-protocols)', () => {
     expect(screen.getByText(/Audiometría anual/)).toBeInTheDocument();
   });
 
+  it.each([
+    ['duration', ''], ['level', ''], ['duration', '25'], ['level', '201'],
+  ])('pide corregir la medición si %s contiene %j', async (field, value) => {
+    render(<PrexorEvaluation />);
+    fireEvent.change(screen.getByTestId(`prexor-${field}-input-0`), { target: { value } });
+    fireEvent.click(screen.getByTestId('prexor-calculate-btn'));
+    expect(calculateMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/duración.*nivel de ruido/i);
+    expect(screen.queryByTestId('prexor-result')).not.toBeInTheDocument();
+  });
+
   it('guardar llama al mutador y refresca el historial', async () => {
     render(<PrexorEvaluation />);
     fireEvent.change(screen.getByTestId('prexor-task-input'), {
