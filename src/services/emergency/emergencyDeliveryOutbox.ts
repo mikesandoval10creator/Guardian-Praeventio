@@ -379,7 +379,7 @@ export function createEmergencyDeliveryController(
 
       if (isOnline()) {
         try {
-          await outbox.flush();
+          await controller.flush();
         } catch (err) {
           // The adapter/sender contract should retain the packet; expose a
           // pending state rather than rejecting the emergency interaction.
