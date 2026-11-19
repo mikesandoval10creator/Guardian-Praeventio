@@ -122,6 +122,21 @@ export async function selectIndustryRemote(
   return res;
 }
 
+function getWithPrefix<T>(
+  projectId: string,
+  segment: 'applicable-norms' | 'required-epp' | 'typical-hazards',
+  industryPrefix: string,
+  decode: IndustryResponseDecoder<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  const query = new URLSearchParams({ industryPrefix });
+  return authedFetch(
+    `/api/sprint-k/${encodeURIComponent(projectId)}/industry/${segment}?${query.toString()}`,
+    { method: 'GET', signal },
+    decode,
+  );
+}
+
 // ── 3. applicable-norms ────────────────────────────────────────────────
 
 export interface ApplicableNormsResponse {
@@ -135,13 +150,7 @@ export async function fetchApplicableNorms(
   industryPrefix: string,
   signal?: AbortSignal,
 ): Promise<ApplicableNormsResponse> {
-  const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch<ApplicableNormsResponse>(
-    `/api/sprint-k/${encodeURIComponent(projectId)}/industry/applicable-norms?${qs}`,
-    { method: 'GET', signal },
-    decodeApplicableNorms,
-  );
-  return res;
+  return getWithPrefix(projectId, 'applicable-norms', industryPrefix, decodeApplicableNorms, signal);
 }
 
 // ── 4. required-epp ────────────────────────────────────────────────────
@@ -156,13 +165,7 @@ export async function fetchRequiredEpp(
   industryPrefix: string,
   signal?: AbortSignal,
 ): Promise<RequiredEppResponse> {
-  const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch<RequiredEppResponse>(
-    `/api/sprint-k/${encodeURIComponent(projectId)}/industry/required-epp?${qs}`,
-    { method: 'GET', signal },
-    decodeRequiredEpp,
-  );
-  return res;
+  return getWithPrefix(projectId, 'required-epp', industryPrefix, decodeRequiredEpp, signal);
 }
 
 // ── 5. typical-hazards ─────────────────────────────────────────────────
@@ -180,11 +183,5 @@ export async function fetchTypicalHazards(
   industryPrefix: string,
   signal?: AbortSignal,
 ): Promise<TypicalHazardsResponse> {
-  const qs = new URLSearchParams({ industryPrefix }).toString();
-  const res = await authedFetch<TypicalHazardsResponse>(
-    `/api/sprint-k/${encodeURIComponent(projectId)}/industry/typical-hazards?${qs}`,
-    { method: 'GET', signal },
-    decodeTypicalHazards,
-  );
-  return res;
+  return getWithPrefix(projectId, 'typical-hazards', industryPrefix, decodeTypicalHazards, signal);
 }
