@@ -58,6 +58,7 @@ import {
 import {
   onHorometroReading,
   onMaintenanceCompleted,
+  type OnHorometroReadingResult,
   type WriteNodesFn,
   type CreateEdgeFn,
 } from '../../services/zettelkasten/flows/horometroMaintenanceFlow.js';
@@ -317,28 +318,36 @@ router.post(
         }
         throw err;
       }
-      const lastMaintenanceHours = await horoStore.getLastMaintenanceHours({
-        tenantId: g.tenantId,
-        projectId,
-        equipmentId: body.equipmentId,
-      });
-      const flowResult = await onHorometroReading(
-        {
+      let flowResult: OnHorometroReadingResult;
+      try {
+        const lastMaintenanceHours = await horoStore.getLastMaintenanceHours({
           tenantId: g.tenantId,
           projectId,
           equipmentId: body.equipmentId,
-          equipmentType: equipment.type,
-          reading,
-          lastMaintenanceHours,
-          createdByUid: callerUid,
-        },
-        {
-          writeNodes: serverWriteNodesFor(req),
-          createEdge: buildCreateEdgeAdapter(db),
-          taskStore,
-          logger,
-        },
-      );
+        });
+        flowResult = await onHorometroReading(
+          {
+            tenantId: g.tenantId,
+            projectId,
+            equipmentId: body.equipmentId,
+            equipmentType: equipment.type,
+            reading,
+            lastMaintenanceHours,
+            createdByUid: callerUid,
+          },
+          {
+            writeNodes: serverWriteNodesFor(req),
+            createEdge: buildCreateEdgeAdapter(db),
+            taskStore,
+            logger,
+          },
+        );
+      } catch (err) {
+        // The reading has committed. Do not invite a duplicate submission
+        // or fabricate a maintenance baseline when derived evidence fails.
+        captureRouteError(err, 'horometro.reading.evidence', { callerUid, projectId });
+        flowResult = { ok: false, reason: 'reading_evidence_failed' };
+      }
       await auditServerEvent(req, 'horometro.reading', 'horometro', { projectId, equipmentId: body.equipmentId, hours: body.hours }, { projectId });
       return res.status(201).json({
         reading,
