@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ROICalculatorWidget } from './ROICalculatorWidget.js';
+import * as pricing from '../../services/pricingCalculator/pricingCalculator.js';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -11,6 +12,27 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('<ROICalculatorWidget />', () => {
+  it.each(['future-level', 'constructor'])('shows a neutral state for %s without hiding the ratio', (level) => {
+    const inputs = {
+      costPerPreventedIncident: 0, preventedIncidents: 0, costPerAvoidedFine: 0,
+      finesAvoided: 0, adminHoursSaved: 0, adminHourlyRateClp: 0,
+      monthlyPlanClp: 100_000, additionalSafetyInvestmentClp: 0,
+    };
+    const report = pricing.computeROI(inputs);
+    const compute = vi.spyOn(pricing, 'computeROI').mockReturnValue({
+      ...report, level: level as typeof report.level,
+    });
+    try {
+      render(<ROICalculatorWidget inputs={inputs} />);
+      const widget = screen.getByTestId('roi-calculator-widget');
+      expect(widget).toHaveClass('border-default-token');
+      expect(widget).not.toHaveTextContent(level.toUpperCase());
+      expect(screen.getByTestId('roi-ratio')).toHaveTextContent('0x');
+    } finally {
+      compute.mockRestore();
+    }
+  });
+
   it('renderiza level y ratio', () => {
     render(
       <ROICalculatorWidget

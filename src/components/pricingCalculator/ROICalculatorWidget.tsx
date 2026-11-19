@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, DollarSign, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Clock, Minus } from 'lucide-react';
 import {
   computeROI,
   type ROIInputs,
@@ -30,12 +30,13 @@ function formatClp(n: number): string {
 export function ROICalculatorWidget({ inputs }: ROICalculatorWidgetProps) {
   const { t } = useTranslation();
   const report = useMemo(() => computeROI(inputs), [inputs]);
-  const isPositive = report.level !== 'underwater';
-  const Icon = isPositive ? TrendingUp : TrendingDown;
+  const knownLevel = Object.hasOwn(LEVEL_CLASS, report.level);
+  const levelClass = knownLevel ? LEVEL_CLASS[report.level] : 'border-default-token bg-surface text-primary-token';
+  const Icon = !knownLevel ? Minus : report.level === 'underwater' ? TrendingDown : TrendingUp;
 
   return (
     <section
-      className={`rounded-2xl border-2 p-4 shadow-mode ${LEVEL_CLASS[report.level]}`}
+      className={`rounded-2xl border-2 p-4 shadow-mode ${levelClass}`}
       data-testid="roi-calculator-widget"
       aria-label={t('roi.aria', 'Calculadora de ROI preventivo') as string}
     >
@@ -44,7 +45,7 @@ export function ROICalculatorWidget({ inputs }: ROICalculatorWidgetProps) {
         <h2 className="text-sm font-black uppercase tracking-wide">
           {t('roi.title', 'ROI Preventivo')}
         </h2>
-        <span className="ml-auto text-xs font-bold opacity-80">{report.level.toUpperCase()}</span>
+        {knownLevel && <span className="ml-auto text-xs font-bold opacity-80">{report.level.toUpperCase()}</span>}
       </header>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
