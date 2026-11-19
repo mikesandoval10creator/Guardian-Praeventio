@@ -19,10 +19,21 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /** Port the project's dev server listens on (Express + Vite middleware). */
 const DEFAULT_PORT = 57335
+
+/**
+ * The ONLY path that answers with the real health payload.
+ *
+ * The dev server mounts Vite's SPA fallback for unmatched GETs, so any other
+ * path (e.g. `/health`) answers 200 with the application HTML. Probing a
+ * second path would therefore mark a degraded server — `/api/health` returns
+ * 503 when a critical dependency is unreachable — as healthy.
+ */
+const HEALTH_PATH = '/api/health'
 
 /** How long to wait for the dev server to answer its health probe. */
 const HEALTH_TIMEOUT_MS = 60_000
@@ -59,20 +70,38 @@ function resolveUrl() {
 const BASE_URL = resolveUrl()
 
 /**
- * Probe the dev server's health endpoint.
- * @param {string} url - base URL of the app.
- * @returns {Promise<boolean>} whether the server answered.
+ * Decide whether a response body is the real health payload.
+ *
+ * The health route answers JSON `{ status: 'ok' | 'degraded', ... }`. The SPA
+ * fallback answers `text/html` with the application shell, which is not a
+ * health answer and must never be read as one.
+ * @param {string} contentType - the response `content-type` header.
+ * @param {unknown} body - the parsed response body.
+ * @returns {boolean} whether the payload proves the server is healthy.
  */
-async function checkHealth(url) {
-  for (const path of ['/api/health', '/health']) {
-    try {
-      const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(4000) })
-      if (response.ok) return true
-    } catch {
-      // Try the next candidate path.
-    }
+export function isHealthPayload(contentType, body) {
+  if (!/application\/json/i.test(contentType)) return false;
+  if (typeof body !== 'object' || body === null) return false;
+  return body.status === 'ok';
+}
+
+/**
+ * Probe the dev server's health endpoint.
+ *
+ * Only the real route is probed, and its payload is validated: a degraded
+ * server answers 503 and must not be reported as healthy.
+ * @param {string} url - base URL of the app.
+ * @returns {Promise<boolean>} whether the server answered healthy.
+ */
+export async function checkHealth(url) {
+  try {
+    const response = await fetch(`${url}${HEALTH_PATH}`, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return isHealthPayload(response.headers.get('content-type') ?? '', body);
+  } catch {
+    return false;
   }
-  return false
 }
 
 /**
@@ -136,7 +165,7 @@ function run(resolved, commandArgs, options = {}) {
 /**
  * Audit the app with Lighthouse.
  * @param {string} url - base URL of the app.
- * @returns {Promise<void>} resolves after reporting.
+ * @returns {Promise<boolean>} whether the audit completed successfully.
  */
 async function runLighthouse(url) {
   const outDir = join(REPORT_DIR, 'lighthouse')
@@ -154,7 +183,7 @@ async function runLighthouse(url) {
   if (result.code !== 0) {
     console.log(`[inspect] lighthouse failed (exit ${result.code})`)
     console.log(result.stderr.trim().split('\n').slice(-8).join('\n'))
-    return
+    return false
   }
   try {
     const report = JSON.parse(readFileSync(`${outPath}.report.json`, 'utf8'))
@@ -164,15 +193,17 @@ async function runLighthouse(url) {
       console.log(`[inspect]   ${name}: ${score}`)
     }
     console.log(`[inspect]   report: ${outPath}.report.html`)
+    return true
   } catch (error) {
     console.log(`[inspect]   report written but not parsed: ${error.message}`)
+    return false
   }
 }
 
 /**
  * Run a Playwright smoke against the already-running dev server.
  * @param {string} url - base URL of the app.
- * @returns {Promise<void>} resolves after reporting.
+ * @returns {Promise<boolean>} whether the smoke suite passed.
  */
 async function runPlaywright(url) {
   console.log(`[inspect] playwright → ${url}`)
@@ -191,6 +222,40 @@ async function runPlaywright(url) {
   const lines = output.split('\n')
   console.log(`[inspect] playwright exit ${result.code}`)
   for (const line of lines.slice(-12)) console.log(`[inspect]   ${line}`)
+  return result.code === 0
+}
+
+/**
+ * Run the requested steps.
+ *
+ * Every step runs even when an earlier one failed — the reviewer wants the
+ * full picture — but the failures are collected so the process can exit
+ * nonzero. A run where nothing was inspected must never look successful to a
+ * shell script or an automated check.
+ * @param {string[]} steps - the step names to run.
+ * @param {string} url - base URL of the app.
+ * @returns {Promise<string[]>} the names of the steps that failed.
+ */
+export async function runSteps(steps, url) {
+  const failures = []
+
+  for (const step of steps) {
+    try {
+      let ok = false
+      if (step === 'lighthouse') ok = await runLighthouse(url)
+      else if (step === 'e2e') ok = await runPlaywright(url)
+      else {
+        console.log(`[inspect] unknown step: ${step}`)
+        continue
+      }
+      if (!ok) failures.push(step)
+    } catch (error) {
+      console.log(`[inspect] step "${step}" failed: ${error.message}`)
+      failures.push(step)
+    }
+  }
+
+  return failures
 }
 
 /**
@@ -204,17 +269,17 @@ async function main() {
 
   await waitForHealth(BASE_URL)
 
-  for (const step of steps) {
-    try {
-      if (step === 'lighthouse') await runLighthouse(BASE_URL)
-      else if (step === 'e2e') await runPlaywright(BASE_URL)
-      else console.log(`[inspect] unknown step: ${step}`)
-    } catch (error) {
-      console.log(`[inspect] step "${step}" failed: ${error.message}`)
-    }
-  }
+  const failures = await runSteps(steps, BASE_URL)
 
   console.log(`[inspect] done`)
+  if (failures.length > 0) {
+    console.log(`[inspect] failed steps: ${failures.join(', ')}`)
+    process.exitCode = 1
+  }
 }
 
-await main()
+// The module is imported by its test, so the run only starts when this file
+// is the process entry point.
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await main()
+}
