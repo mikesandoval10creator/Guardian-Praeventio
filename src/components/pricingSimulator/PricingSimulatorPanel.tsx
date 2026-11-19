@@ -19,6 +19,7 @@ import { humanErrorMessage } from '../../lib/humanError';
 
 interface PricingSimulatorPanelProps {
   projectId: string;
+  isOnline: boolean;
 }
 
 const TIER_OPTIONS: Array<{ value: Tier; label: string }> = TIERS.map((tier) => ({
@@ -33,7 +34,7 @@ const CLP = new Intl.NumberFormat('es-CL', {
   maximumFractionDigits: 0,
 });
 
-export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps) {
+export function PricingSimulatorPanel({ projectId, isOnline }: PricingSimulatorPanelProps) {
   const { t } = useTranslation();
   const [workers, setWorkers] = useState<number>(24);
   const [projects, setProjects] = useState<number>(3);
@@ -43,7 +44,7 @@ export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps)
   const [error, setError] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<BillEstimate | null>(null);
 
-  const canSubmit = workers >= 0 && projects >= 0 && !loading;
+  const canSubmit = isOnline && workers >= 0 && projects >= 0 && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,6 +148,11 @@ export function PricingSimulatorPanel({ projectId }: PricingSimulatorPanelProps)
             ? t('common.loading', 'Cargando…')
             : t('pricingSimulator.panel.submit', 'Estimar factura')}
         </button>
+        {!isOnline && (
+          <p role="status" className="col-span-2 text-xs text-secondary-token">
+            {t('pricingSimulator.panel.reconnect', 'Vuelve a conectarte para estimar tu factura.')}
+          </p>
+        )}
       </form>
 
       {error && (

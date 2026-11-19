@@ -53,7 +53,7 @@ export function PricingSimulatorPage() {
         )}
       </header>
 
-      <PricingSimulatorPanel projectId={selectedProject.id} />
+      <PricingSimulatorPanel projectId={selectedProject.id} isOnline={isOnline} />
     </div>
   );
 }
