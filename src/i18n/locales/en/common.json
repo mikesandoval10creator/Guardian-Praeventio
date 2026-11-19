@@ -5268,7 +5268,7 @@
     "level_dba": "Noise level dB(A)",
     "add_measurement": "Add measurement",
     "remove_measurement": "Remove",
-    "measurements_required": "Add at least one measurement.",
+    "invalid_measurements": "Complete each measurement: duration from 0 to 24 hours and noise level from 0 to 200 dB(A).",
     "dose": "Daily dose",
     "laeq": "Equivalent LAeq,8h",
     "exceeds_limit": "Exceeds the D.S. 594 legal limit (dose > 100%)",

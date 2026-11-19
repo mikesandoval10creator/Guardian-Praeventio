@@ -108,6 +108,7 @@ export function PrexorEvaluation() {
   }
 
   const parseMeasurements = (): PrexorMeasurement[] | null => {
+    if (rows.some((r) => !r.durationHours.trim() || !r.levelDbA.trim())) return null;
     const parsed = rows.map((r) => ({
       durationHours: Number(r.durationHours),
       levelDbA: Number(r.levelDbA),
@@ -119,7 +120,9 @@ export function PrexorEvaluation() {
           !Number.isFinite(m.durationHours) ||
           !Number.isFinite(m.levelDbA) ||
           m.durationHours < 0 ||
-          m.levelDbA < 0,
+          m.durationHours > 24 ||
+          m.levelDbA < 0 ||
+          m.levelDbA > 200,
       )
     ) {
       return null;
@@ -148,7 +151,7 @@ export function PrexorEvaluation() {
     setStatus(null);
     const measurements = parseMeasurements();
     if (!measurements) {
-      setError(t('prexor.measurements_required', 'Agrega al menos una medición.'));
+      setError(t('prexor.invalid_measurements', 'Completa cada medición: duración de 0 a 24 horas y nivel de ruido de 0 a 200 dB(A).'));
       return;
     }
     setCalculating(true);
@@ -171,7 +174,7 @@ export function PrexorEvaluation() {
     }
     const measurements = parseMeasurements();
     if (!measurements) {
-      setError(t('prexor.measurements_required', 'Agrega al menos una medición.'));
+      setError(t('prexor.invalid_measurements', 'Completa cada medición: duración de 0 a 24 horas y nivel de ruido de 0 a 200 dB(A).'));
       return;
     }
     setSaving(true);
@@ -350,7 +353,7 @@ export function PrexorEvaluation() {
               <p data-testid="prexor-status" className="text-xs text-emerald-400">{status}</p>
             )}
             {error && (
-              <p data-testid="prexor-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
+              <p role="alert" data-testid="prexor-error" className="text-xs text-rose-400">{humanErrorMessage(error)}</p>
             )}
           </div>
 
