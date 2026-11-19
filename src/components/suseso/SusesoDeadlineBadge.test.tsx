@@ -12,6 +12,17 @@ afterEach(() => cleanup());
 const NOW = Date.parse('2026-05-05T12:00:00Z');
 
 describe('SusesoDeadlineBadge', () => {
+  it.each([
+    { status: 'submitted_by_company', background: '#4db6ac', color: '#0b1f1d' },
+    { status: 'overdue', background: '#7f1d1d', color: '#fee2e2' },
+  ] as const)('preserves the layout and palette for $status', ({ status, background, color }) => {
+    render(<SusesoDeadlineBadge deadline="2026-05-11T12:00:00Z" status={status} formKind="DIAT" now={NOW} />);
+    expect(screen.getByRole('status')).toHaveStyle({
+      display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: '999px',
+      fontSize: '12px', fontWeight: '600', background, color,
+    });
+  });
+
   it('renders green level when ≥5 días remaining', () => {
     render(
       <SusesoDeadlineBadge

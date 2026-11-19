@@ -41,6 +41,19 @@ const LEVEL_STYLES: Record<EscalationLevel, { bg: string; fg: string }> = {
 
 const SUBMITTED_STYLE = { bg: '#4db6ac', fg: '#0b1f1d' };
 
+function badgeStyle({ bg, fg }: { bg: string; fg: string }): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 10px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    background: bg,
+    color: fg,
+  };
+}
+
 /** Build the visible Spanish label. */
 function buildLabel(
   formKind: SusesoFormKindLocal,
@@ -69,16 +82,7 @@ export const SusesoDeadlineBadge: React.FC<SusesoDeadlineBadgeProps> = ({
         role="status"
         data-testid="suseso-deadline-badge"
         data-status="submitted_by_company"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '2px 10px',
-          borderRadius: 999,
-          fontSize: 12,
-          fontWeight: 600,
-          background: SUBMITTED_STYLE.bg,
-          color: SUBMITTED_STYLE.fg,
-        }}
+        style={badgeStyle(SUBMITTED_STYLE)}
       >
         ✓ Enviado por la empresa
       </span>
@@ -110,16 +114,7 @@ export const SusesoDeadlineBadge: React.FC<SusesoDeadlineBadgeProps> = ({
       data-testid="suseso-deadline-badge"
       data-level={level}
       data-status={status}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '2px 10px',
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 600,
-        background: palette.bg,
-        color: palette.fg,
-      }}
+      style={badgeStyle(palette)}
     >
       {label}
     </span>
