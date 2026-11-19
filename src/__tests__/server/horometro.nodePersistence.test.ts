@@ -161,6 +161,33 @@ beforeEach(() => {
 });
 
 describe('horometro route → REAL serverWriteNodes persists ZK nodes', () => {
+  it('confirms a persisted reading when the maintenance baseline lookup fails', async () => {
+    seedProject();
+    seedEquipment();
+    const db = H.db!;
+    const collection = db.collection.bind(db);
+    const tasksPath = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/maintenance_tasks`;
+    const readingPrefix = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/equipment/${EQUIPMENT_ID}/horometro_readings/`;
+    const fault = vi.spyOn(db, 'collection').mockImplementation((path) => {
+      if (path === tasksPath) throw new Error('synthetic maintenance lookup failure');
+      return collection(path);
+    });
+    try {
+      const res = await postReading(300);
+      const entries = Object.entries(db._dump());
+      const readings = entries.filter(([path]) => path.startsWith(readingPrefix));
+      expect(readings).toHaveLength(1);
+      expect(readings[0]![1]).toMatchObject({ hours: 300, equipmentId: EQUIPMENT_ID });
+      expect(res.status).toBe(201);
+      expect(res.body.reading).toEqual(readings[0]![1]);
+      expect(res.body.flow).toEqual({ ok: false, reason: 'reading_evidence_failed' });
+      expect(entries.filter(([path]) => path.startsWith(`${tasksPath}/`))).toHaveLength(0);
+      expect(entries.filter(([path, data]) => path.startsWith('audit_logs/') && data.action === 'horometro.reading')).toHaveLength(1);
+    } finally {
+      fault.mockRestore();
+    }
+  });
+
   it('repeated HTTP readings preserve cancellation and create only the next threshold task', async () => {
     seedProject();
     seedEquipment();

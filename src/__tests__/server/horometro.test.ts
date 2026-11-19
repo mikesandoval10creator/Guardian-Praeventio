@@ -391,7 +391,7 @@ describe('POST /:projectId/horometro/reading', () => {
     expect(res.body.reading.source).toBe('manual');
   });
 
-  it('500 — onHorometroReading throws → 500 internal_error', async () => {
+  it('201 — preserves the reading when the derived flow throws', async () => {
     seedProject();
     seedEquipment();
     H.onHorometroReading.mockRejectedValueOnce(new Error('ZK exploded'));
@@ -401,8 +401,9 @@ describe('POST /:projectId/horometro/reading', () => {
       .set('x-test-uid', 'uid-1')
       .send(validBody);
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.status).toBe(201);
+    expect(res.body.reading).toMatchObject({ hours: validBody.hours });
+    expect(res.body.flow).toEqual({ ok: false, reason: 'reading_evidence_failed' });
   });
 
   it('201 — reading also verifies getLastMaintenanceHours baseline via completed task', async () => {
