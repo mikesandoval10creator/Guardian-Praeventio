@@ -74,6 +74,24 @@ describe('<PrexorEvaluation /> page (B-protocols)', () => {
     await waitFor(() => expect(listMock).toHaveBeenCalledWith('p-1', 'PREXOR'));
   });
 
+  it('descarta un cálculo que termina después de editar la medición', async () => {
+    let resolve!: (value: { result: typeof altoResult }) => void;
+    calculateMock.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    render(<PrexorEvaluation />);
+    const calculate = screen.getByTestId('prexor-calculate-btn');
+    fireEvent.click(calculate);
+    fireEvent.change(screen.getByTestId('prexor-level-input-0'), { target: { value: '90' } });
+    resolve({ result: altoResult });
+    await waitFor(() => expect(calculate).toBeEnabled());
+    expect(screen.queryByTestId('prexor-result')).not.toBeInTheDocument();
+    expect(screen.getByTestId('prexor-save-btn')).toBeDisabled();
+    fireEvent.click(calculate);
+    expect(await screen.findByTestId('prexor-result')).toBeInTheDocument();
+    expect(calculateMock).toHaveBeenLastCalledWith('p-1', {
+      measurements: [{ durationHours: 8, levelDbA: 90 }],
+    });
+  });
+
   it('agrega y quita filas de medición', () => {
     render(<PrexorEvaluation />);
     fireEvent.click(screen.getByTestId('prexor-add-row-btn'));

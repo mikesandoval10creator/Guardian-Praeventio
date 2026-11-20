@@ -11,7 +11,7 @@
 // critical/alto verdicts mandate surveillance-program referral — the health
 // qualification belongs to the médico del organismo administrador.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Ear,
@@ -71,6 +71,7 @@ export function PrexorEvaluation() {
 
   const [result, setResult] = useState<PrexorResult | null>(null);
   const [calculating, setCalculating] = useState(false);
+  const calculationVersion = useRef(0);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -130,19 +131,26 @@ export function PrexorEvaluation() {
     return parsed;
   };
 
-  const updateRow = (idx: number, field: keyof MeasurementRow, value: string) => {
+  const invalidateCalculation = () => {
+    calculationVersion.current += 1;
+    setCalculating(false);
     setResult(null);
     setStatus(null);
+    setError(null);
+  };
+
+  const updateRow = (idx: number, field: keyof MeasurementRow, value: string) => {
+    invalidateCalculation();
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
   };
 
   const addRow = () => {
-    setResult(null);
+    invalidateCalculation();
     setRows((prev) => [...prev, { durationHours: '', levelDbA: '' }]);
   };
 
   const removeRow = (idx: number) => {
-    setResult(null);
+    invalidateCalculation();
     setRows((prev) => prev.filter((_, i) => i !== idx));
   };
 
@@ -154,14 +162,17 @@ export function PrexorEvaluation() {
       setError(t('prexor.invalid_measurements', 'Completa cada medición: duración de 0 a 24 horas y nivel de ruido de 0 a 200 dB(A).'));
       return;
     }
+    const version = ++calculationVersion.current;
     setCalculating(true);
     try {
       const { result: r } = await calculatePrexorRemote(selectedProject.id, { measurements });
-      setResult(r);
+      if (calculationVersion.current === version) setResult(r);
     } catch {
-      setError(t('protocols_minsal.calc_error', 'No se pudo calcular. Revisa los datos ingresados.'));
+      if (calculationVersion.current === version) {
+        setError(t('protocols_minsal.calc_error', 'No se pudo calcular. Revisa los datos ingresados.'));
+      }
     } finally {
-      setCalculating(false);
+      if (calculationVersion.current === version) setCalculating(false);
     }
   };
 
