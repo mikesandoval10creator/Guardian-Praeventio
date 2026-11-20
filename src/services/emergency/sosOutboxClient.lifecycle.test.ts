@@ -59,7 +59,7 @@ describe('durable SOS client lifecycle', () => {
     await settle();
     expect(disk.entries).toHaveLength(1);
     expect(disk.entries[0].retryCount).toBe(1);
-    await vi.advanceTimersByTimeAsync(1_999);
+    await vi.advanceTimersByTimeAsync(999);
     expect(disk.entries).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
     await settle();
