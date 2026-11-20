@@ -21,6 +21,7 @@ import {
   waitFor,
   act,
 } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Equipment } from '../services/equipment/equipmentQrService';
 
 let selected: { id: string; name: string } | null = {
@@ -178,6 +179,33 @@ describe('<MantenimientoPreventivo /> — orphan HorometroEntryForm mount', () =
     expect(screen.getByTestId('maintenance-open-reading')).toBeTruthy();
     // Form not open yet.
     expect(screen.queryByTestId('horometro-entry-eq-77')).toBeNull();
+  });
+
+  it('keeps keyboard focus inside the named reading dialog and restores the trigger on Escape', async () => {
+    const user = userEvent.setup();
+    render(<MantenimientoPreventivo />);
+    fireEvent.change(screen.getByTestId('maintenance-equipment-select'), { target: { value: EQUIPMENT.id } });
+    const trigger = screen.getByTestId('maintenance-open-reading');
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Registrar lectura de horómetro' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await waitFor(() => expect(screen.getByTestId('horometro-hours-input')).toHaveFocus());
+
+    // Avoid user-event simulating containment solely from the semantic attributes.
+    dialog.removeAttribute('aria-modal');
+    for (const root of document.body.children) {
+      if (!root.contains(dialog)) {
+        root.removeAttribute('inert');
+        root.removeAttribute('aria-hidden');
+      }
+    }
+    await user.tab({ shift: true });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await user.tab();
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it('opens the real HorometroEntryForm and submits a reading with the correct POST payload', async () => {
