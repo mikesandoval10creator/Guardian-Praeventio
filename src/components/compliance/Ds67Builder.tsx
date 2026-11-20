@@ -10,6 +10,7 @@ import { auth } from '../../services/firebase';
 import { ds67FolioToDocId } from '../../services/compliance/ds67/ds67Service';
 import { apiAuthHeader } from '../../lib/apiAuth';
 import { humanErrorFromResponse, humanErrorMessage } from '../../lib/humanError';
+import { isValidRut } from '../../utils/rut';
 
 interface BuilderState {
   companyName: string;
@@ -77,6 +78,10 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
     setState((s) => ({ ...s, [k]: v }));
 
   const handleGenerate = async () => {
+    if (!isValidRut(state.companyRut)) {
+      setError('RUT empresa: verifica el dígito verificador.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -311,7 +316,7 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId }) => {
       )}
 
       {error && (
-        <div className="text-red-600 text-sm border border-red-300 bg-red-50 px-3 py-2 rounded">
+        <div role="alert" className="text-red-600 text-sm border border-red-300 bg-red-50 px-3 py-2 rounded">
           {humanErrorMessage(error)}
         </div>
       )}
