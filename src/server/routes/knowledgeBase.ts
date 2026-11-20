@@ -6,6 +6,7 @@
 //
 // 4 endpoints:
 //   GET  /:projectId/knowledge-base?category=X&search=Y
+//   GET  /:projectId/knowledge-base?limit=1..50[&cursor=<document ID>] (unfiltered browsing)
 //   POST /:projectId/knowledge-base
 //   POST /:projectId/knowledge-base/:id/use
 //   POST /:projectId/knowledge-base/:id/flag-obsolete
@@ -29,7 +30,7 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import {
   assertProjectMember,
@@ -146,6 +147,19 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
         ? req.query.search
         : null;
 
+    const { limit: rawLimit, cursor } = req.query;
+    const paginated = rawLimit !== undefined || cursor !== undefined;
+    // Filtering only one page would silently hide matches from legacy search.
+    const limit = typeof rawLimit === 'string' && /^[1-9]\d?$/.test(rawLimit)
+      ? Number(rawLimit) : 0;
+    const validCursor = cursor === undefined || (
+      typeof cursor === 'string' && cursor.length > 0 && Buffer.byteLength(cursor) <= 1500 &&
+      !cursor.includes('/') && cursor !== '.' && cursor !== '..' && !/^__.*__$/.test(cursor)
+    );
+    if (paginated && (!limit || limit > 50 || !validCursor || req.query.category !== undefined || req.query.search !== undefined)) {
+      return res.status(400).json({ error: 'invalid_pagination' });
+    }
+
     const colRef = db
       .collection('tenants')
       .doc(g.tenantId)
@@ -155,8 +169,11 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
 
     // Let storage failures reach the route error boundary; an empty corpus
     // is a successful read with no documents, not a fallback for failed reads.
-    const snap = await colRef.get();
-    const projectEntries = snap.docs.map((d): KbDoc => {
+    let query = paginated ? colRef.orderBy(FieldPath.documentId()) : colRef;
+    if (paginated && typeof cursor === 'string') query = query.startAfter(cursor);
+    const snap = await (paginated ? query.limit(limit + 1) : query).get();
+    const docs = paginated ? snap.docs.slice(0, limit) : snap.docs;
+    const projectEntries = docs.map((d): KbDoc => {
       const data = d.data() as Record<string, unknown>;
       return {
         id: d.id,
@@ -222,6 +239,7 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
       entries,
       searched: false,
       category: category ?? null,
+      ...(paginated ? { nextCursor: snap.docs.length > limit ? docs[limit - 1].id : null } : {}),
     });
   } catch (err) {
     logger.error?.('knowledgeBase.list.error', err);

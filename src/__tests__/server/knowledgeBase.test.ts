@@ -77,6 +77,44 @@ describe('GET /knowledge-base', () => {
     expect(res.status).toBe(403);
   });
 
+  it('paginates browsing by document ID, including after the cursor document disappears', async () => {
+    for (const id of ['k4', 'k2', 'k1', 'k3']) seedEntry(id, { id: 'legacy-id' });
+    H.db!._seed('tenants/t1/projects/p2/knowledge_base/k0', { title: 'Other project' });
+    const app = buildApp();
+    const first = await request(app).get(KB).query({ limit: 2 }).set('x-test-uid', 'w1');
+    expect(first.status).toBe(200);
+    expect(first.body.entries.map((e: { id: string }) => e.id)).toEqual(['k1', 'k2']);
+    expect(first.body.nextCursor).toBe('k2');
+    await H.db!.collection(KB_COLL).doc('k2').delete();
+    const second = await request(app).get(KB).query({ limit: 2, cursor: first.body.nextCursor }).set('x-test-uid', 'w1');
+    expect(second.status).toBe(200);
+    expect(second.body.entries.map((e: { id: string }) => e.id)).toEqual(['k3', 'k4']);
+    expect(second.body.nextCursor).toBeNull();
+  });
+
+  it.each([{ limit: '0' }, { limit: '51' }, { limit: '2.5' }, { cursor: 'k1' },
+    { limit: 2, cursor: 'a/b' }, { limit: 2, search: 'izaje' }, { limit: 2, category: 'guide' },
+  ])('rejects invalid or incompatible pagination parameters %j', async (query) => {
+    const res = await request(buildApp()).get(KB).query(query).set('x-test-uid', 'w1');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_pagination');
+  });
+
+  it('caps a page of large articles without changing full-corpus search', async () => {
+    for (let i = 0; i < 120; i += 1) {
+      seedEntry(`k${String(i).padStart(3, '0')}`, { title: 'Article', content: 'x'.repeat(20_000) });
+    }
+    seedEntry('z-match', { title: 'Termografia', content: 'Revision tecnica' });
+    const app = buildApp();
+    const page = await request(app).get(KB).query({ limit: 50 }).set('x-test-uid', 'w1');
+    expect(page.status).toBe(200);
+    expect(page.body.entries).toHaveLength(50);
+    expect(page.body.nextCursor).toBe('k049');
+    const search = await request(app).get(KB).query({ search: 'termografia', category: 'guide' }).set('x-test-uid', 'w1');
+    expect(search.status).toBe(200);
+    expect(search.body.entries.map((e: { id: string }) => e.id)).toEqual(['z-match']);
+  });
+
   it('200 returns seeded entries', async () => {
     seedEntry('k1', { title: 'LOTO bloqueo' });
     seedEntry('k2', { title: 'Trabajo en altura' });
