@@ -60,9 +60,13 @@ function formatNumber(n: number, decimals = 1): string {
 }
 
 export function PrexorEvaluation() {
-  const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const projectId = selectedProject?.id ?? null;
+  return <ProjectPrexorEvaluation key={projectId} projectId={projectId} />;
+}
 
+function ProjectPrexorEvaluation({ projectId }: { projectId: string | null }) {
+  const { t } = useTranslation();
   const [taskName, setTaskName] = useState('');
   const [workerId, setWorkerId] = useState('');
   const [rows, setRows] = useState<MeasurementRow[]>([
@@ -78,8 +82,6 @@ export function PrexorEvaluation() {
 
   const [history, setHistory] = useState<ProtocolAssessment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-
-  const projectId = selectedProject?.id ?? null;
 
   const refreshHistory = useCallback(async () => {
     if (!projectId) return;
@@ -98,7 +100,7 @@ export function PrexorEvaluation() {
     void refreshHistory();
   }, [refreshHistory]);
 
-  if (!selectedProject) {
+  if (!projectId) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="prexor-page-empty">
         <p className="text-muted-token text-sm">
@@ -165,7 +167,7 @@ export function PrexorEvaluation() {
     const version = ++calculationVersion.current;
     setCalculating(true);
     try {
-      const { result: r } = await calculatePrexorRemote(selectedProject.id, { measurements });
+      const { result: r } = await calculatePrexorRemote(projectId, { measurements });
       if (calculationVersion.current === version) setResult(r);
     } catch {
       if (calculationVersion.current === version) {
@@ -190,7 +192,7 @@ export function PrexorEvaluation() {
     }
     setSaving(true);
     try {
-      await recordPrexorAssessment(selectedProject.id, {
+      await recordPrexorAssessment(projectId, {
         measurements,
         taskName: taskName.trim(),
         ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
