@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, AlertTriangle } from 'lucide-react';
@@ -16,11 +16,21 @@ interface AddEventModalProps {
   onClose: () => void;
 }
 
-export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
-  const { t } = useTranslation();
+export function AddEventModal(props: AddEventModalProps) {
   const { selectedProject, projects } = useProject();
+  return <ProjectEventModal key={selectedProject?.id ?? ''} {...props} selectedProject={selectedProject} projects={projects} />;
+}
+
+function ProjectEventModal({ isOpen, onClose, selectedProject, projects }: AddEventModalProps &
+  Pick<ReturnType<typeof useProject>, 'selectedProject' | 'projects'>) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const submitInFlight = useRef(false);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [conflictingProjects, setConflictingProjects] = useState<string[]>([]);
   const { toasts, show: showToast, dismiss } = useToast();
   // Firestore currently stores Spanish event-type values; keep them stable and
@@ -79,6 +89,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
       // Detección de colisiones inter-proyectos
       if (navigator.onLine) {
         const overlaps = await checkOverlaps();
+        if (!mounted.current) return;
         if (overlaps.length > 0) {
           setConflictingProjects(overlaps);
           return;
@@ -90,6 +101,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
         projectId: selectedProject.id,
         createdAt: serverTimestamp()
       });
+      if (!mounted.current) return;
       onClose();
       setFormData({
         title: '',
@@ -100,6 +112,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
         type: 'Reunión'
       });
     } catch (error) {
+      if (!mounted.current) return;
       logger.error('Error adding event:', error);
       const denied = typeof error === 'object' && error !== null &&
         'code' in error && error.code === 'permission-denied';
@@ -108,7 +121,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
         : t('calendar.error_saving', 'Error al guardar el evento'), 'error');
     } finally {
       submitInFlight.current = false;
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   };
 
