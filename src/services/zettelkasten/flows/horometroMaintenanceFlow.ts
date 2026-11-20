@@ -628,6 +628,7 @@ export async function onHorometroReading(
 
   // Persistir cada tarea via scheduler.
   let tasksCreated = 0;
+  const unconfirmedTaskNodes = new Set<string>();
   for (const step of spec.steps) {
     try {
       await scheduleMaintenanceTask(
@@ -636,6 +637,8 @@ export async function onHorometroReading(
       );
       tasksCreated += 1;
     } catch (err) {
+      const canonicalTaskNode = canonicalIdByLocalId.get(step.taskCreatedNodeId);
+      if (canonicalTaskNode) unconfirmedTaskNodes.add(canonicalTaskNode);
       log.warn?.('horometroMaintenanceFlow.task_save_failed', {
         taskId: step.task.id,
         err: String(err),
@@ -647,6 +650,8 @@ export async function onHorometroReading(
   let edgesCreated = 0;
   const createdBy = input.createdByUid ?? 'system';
   for (const edge of resolvedEdges) {
+    // Keep these links in the expected count, but do not assert that the task exists.
+    if (unconfirmedTaskNodes.has(edge.fromNodeId) || unconfirmedTaskNodes.has(edge.toNodeId)) continue;
     try {
       await deps.createEdge({
         ...edge,
