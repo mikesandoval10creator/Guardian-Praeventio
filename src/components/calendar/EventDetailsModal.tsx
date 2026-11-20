@@ -31,12 +31,33 @@ interface EventDetailsModalProps {
 }
 
 export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalProps) {
+  const { selectedProject, projects } = useProject();
+  if (!event || !selectedProject || event.projectId !== selectedProject.id) return null;
+  return (
+    <ProjectEventDetails
+      key={JSON.stringify([event.projectId, event.id])}
+      event={event}
+      isOpen={isOpen}
+      onClose={onClose}
+      projects={projects}
+    />
+  );
+}
+
+function ProjectEventDetails({ isOpen, event, onClose, projects }: Omit<EventDetailsModalProps, 'event'> & {
+  event: Event;
+  projects: ReturnType<typeof useProject>['projects'];
+}) {
   const { t, i18n } = useTranslation();
   const dateFormatters = React.useMemo(
     () => createCalendarDateFormatters(i18n.resolvedLanguage ?? i18n.language),
     [i18n.language, i18n.resolvedLanguage],
   );
-  const { selectedProject, projects } = useProject();
+  const active = React.useRef(false);
+  React.useLayoutEffect(() => {
+    active.current = isOpen;
+    return () => { active.current = false; };
+  }, [isOpen]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
@@ -52,7 +73,6 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
     }
   }, [event]);
 
-  if (!event) return null;
 
   const eventTypeTranslation = getCalendarEventTypeTranslation(event.type);
   const eventTypeLabel = eventTypeTranslation
@@ -73,7 +93,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       try {
         const snapshot = await getDocs(q);
         // Excluimos el evento actual si estamos editando en el mismo proyecto
-        const overlaps = snapshot.docs.filter(d => !(project.id === selectedProject?.id && d.id === event.id));
+        const overlaps = snapshot.docs.filter(d => !(project.id === event.projectId && d.id === event.id));
         if (overlaps.length > 0) {
           return project.name;
         }
@@ -89,7 +109,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProject || !event.id) return;
+    if (!active.current || !event.id) return;
 
     setLoading(true);
     setConflictError(null);
@@ -97,6 +117,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
     // Revisar colisiones al editar
     if (navigator.onLine && (formData.date !== event.date || formData.time !== event.time)) {
       const overlaps = await checkOverlaps();
+      if (!active.current) return;
       if (overlaps.length > 0) {
         setConflictError(t('calendar.details_conflict_detected', 'Conflicto detectado: Tienes eventos a la misma hora en: {{projects}}.', { projects: overlaps.join(', ') }));
         setLoading(false);
@@ -105,7 +126,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
     }
 
     try {
-      const eventRef = doc(db, `projects/${selectedProject.id}/events`, event.id);
+      const eventRef = doc(db, `projects/${event.projectId}/events`, event.id);
       await updateDoc(eventRef, {
         ...formData,
         updatedAt: serverTimestamp()
@@ -122,12 +143,12 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
   const handleDelete = () => setShowDeleteConfirm(true);
 
   const doDeleteEvent = async () => {
-    if (!selectedProject || !event.id) return;
+    if (!active.current || !event.id) return;
     setShowDeleteConfirm(false);
     setLoading(true);
     try {
-      await deleteDoc(doc(db, `projects/${selectedProject.id}/events`, event.id));
-      onClose();
+      await deleteDoc(doc(db, `projects/${event.projectId}/events`, event.id));
+      if (active.current) onClose();
     } catch (error) {
       logger.error('Error deleting event:', error);
     } finally {
