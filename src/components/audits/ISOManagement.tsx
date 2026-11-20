@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -669,14 +669,14 @@ export function ISOManagement() {
   const { user } = useFirebase();
   const projectId = selectedProject?.id ?? '';
 
-  const TABS: { id: ISOTab; label: string; icon: IconType }[] = [
+  const tabs = useMemo<{ id: ISOTab; label: string; icon: IconType }[]>(() => [
     { id: 'dashboard',    label: t('iso_management.tab_dashboard', 'Dashboard'),         icon: LayoutDashboard },
     { id: 'documentos',   label: t('iso_management.tab_documents', 'Documentos'),         icon: FileText        },
     { id: 'competencias', label: t('iso_management.tab_competencies', 'Competencias'),    icon: Users           },
     { id: 'auditorias',   label: t('iso_management.tab_audits', 'Auditorías'),            icon: ClipboardCheck  },
     { id: 'riesgos',      label: t('iso_management.tab_risks', 'Riesgos'),                icon: AlertTriangle   },
     { id: 'mejora',       label: t('iso_management.tab_improvement', 'Mejora Continua'), icon: TrendingUp      },
-  ];
+  ], [t]);
 
   // Data for dashboard KPIs
   const { data: docs } = useFirestoreCollection<ISODocument>(
@@ -687,23 +687,25 @@ export function ISOManagement() {
   );
   const { nodes } = useRiskEngine();
 
-  const completedAudits = nodes.filter(
-    n => n.type === NodeType.AUDIT &&
-      (!selectedProject || n.projectId === selectedProject.id) &&
-      (n.metadata?.status === 'Completada' || n.metadata?.status === 'Completado')
-  ).length;
-
-  const isoHighRisks = nodes.filter(
-    n =>
-      // [operations 3c4aa66d-73fe-8188-9a6a-c0a80066e9a4 2026-08-25]:
-      // predicate is shared with the Riesgos table now — see
-      // isISORiskNode() above. The dashboard KPI matches the table.
-      isISORiskNode(n) &&
-      (!selectedProject || n.projectId === selectedProject.id) &&
-      // [operations 3c4aa66d-73fe-8158-92cb-f3ffb7f9b05e 2026-08-25]: see
-      // isHighSeverity() defined above. Same helper, no inline list.
-      isHighSeverity((n.metadata?.severity ?? n.metadata?.nivel) as string | undefined)
-  ).length;
+  const { completedAudits, isoHighRisks } = useMemo(() => {
+    let completedAudits = 0;
+    let isoHighRisks = 0;
+    if (projectId) {
+      for (const node of nodes) {
+        if (node.projectId !== projectId) continue;
+        if (node.type === NodeType.AUDIT) {
+          const status = node.metadata?.status;
+          if (status === 'Completada' || status === 'Completado') completedAudits += 1;
+        } else if (
+          isISORiskNode(node) &&
+          isHighSeverity((node.metadata?.severity ?? node.metadata?.nivel) as string | undefined)
+        ) {
+          isoHighRisks += 1;
+        }
+      }
+    }
+    return { completedAudits, isoHighRisks };
+  }, [nodes, projectId]);
 
   if (!user || !projectId) {
     return (
@@ -720,7 +722,7 @@ export function ISOManagement() {
     <div className="space-y-5">
       {/* Inner Tab Bar */}
       <div className="flex gap-1 overflow-x-auto bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-xl">
-        {TABS.map(tab => {
+        {tabs.map(tab => {
           const isActive = activeTab === tab.id;
           return (
             <button
