@@ -5408,7 +5408,7 @@
     "title": "Horímetro",
     "aria": "Reportar horímetro",
     "hoursLabel": "Horas acumuladas (leitura atual)",
-    "hoursHint": "Anote o número exato que o painel do equipamento mostra neste momento.",
+    "hoursHint": "Digite apenas o número exibido no equipamento, sem unidades nem separadores de milhar. Use vírgula ou ponto para os decimais.",
     "notesLabel": "Notas (opcional)",
     "notesPlaceholder": "Qualquer observação relevante…",
     "submit": "Registrar horas",
