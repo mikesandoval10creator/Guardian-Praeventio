@@ -20,7 +20,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { KnowledgeBase } from './KnowledgeBase';
-import type { KnowledgeEntry } from '../hooks/useKnowledgeBase';
+import type { KnowledgeEntry, UseKnowledgeBaseOptions } from '../hooks/useKnowledgeBase';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -51,6 +51,7 @@ type KbHookState = {
     entries: KnowledgeEntry[];
     searched: boolean;
     category: string | null;
+    nextCursor?: string | null;
   } | null;
   loading: boolean;
   error: Error | null;
@@ -58,7 +59,7 @@ type KbHookState = {
 };
 let mockKbState: KbHookState;
 const refetchSpy = vi.fn();
-let lastHookOpts: { category?: string; search?: string } | undefined;
+let lastHookOpts: UseKnowledgeBaseOptions | undefined;
 
 const createSpy = vi.fn().mockResolvedValue({ entry: { id: 'new' } });
 const entryUseSpy = vi.fn().mockResolvedValue(undefined);
@@ -73,7 +74,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../hooks/useKnowledgeBase', () => ({
   useKnowledgeBase: (
     _pid: string | null,
-    opts?: { category?: string; search?: string },
+    opts?: UseKnowledgeBaseOptions,
   ) => {
     lastHookOpts = opts;
     return mockKbState;
@@ -144,6 +145,28 @@ describe('<KnowledgeBase /> page wrapper (§185-190)', () => {
     render(<KnowledgeBase />);
     expect(screen.getByTestId('knowledge-base-error')).toBeInTheDocument();
     expect(screen.getByText(/conectar con el servidor/i)).toBeInTheDocument();
+  });
+
+  it('navega por cursores y los descarta al cambiar de proyecto o buscar', () => {
+    mockSelectedProject = { id: 'p1', name: 'Proyecto 1' };
+    mockKbState.data = { entries: [sampleEntry], searched: false, category: null, nextCursor: 'kb-next' };
+    const { rerender } = render(<KnowledgeBase />);
+    expect(lastHookOpts).toMatchObject({ limit: 50 });
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    expect(lastHookOpts).toMatchObject({ limit: 50, cursor: 'kb-next' });
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    expect(lastHookOpts?.cursor).toBeUndefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    fireEvent.change(screen.getByTestId('knowledge-base-search-input'), { target: { value: 'izaje' } });
+    expect(lastHookOpts).toMatchObject({ search: 'izaje' });
+    expect(lastHookOpts?.limit).toBeUndefined();
+    expect(lastHookOpts?.cursor).toBeUndefined();
+    fireEvent.change(screen.getByTestId('knowledge-base-search-input'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    mockSelectedProject = { id: 'p2', name: 'Proyecto 2' };
+    rerender(<KnowledgeBase />);
+    expect(lastHookOpts).toMatchObject({ limit: 50 });
+    expect(lastHookOpts?.cursor).toBeUndefined();
   });
 
   it('renderiza resultados de búsqueda y propaga el search query al hook', () => {

@@ -114,10 +114,14 @@ function sourceTypeLabel(s: KbSourceType): string {
 }
 
 export function KnowledgeBase() {
-  const { t } = useTranslation();
   const { selectedProject } = useProject();
-  const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
+  return <ProjectKnowledgeBase key={projectId} projectId={projectId} />;
+}
+
+function ProjectKnowledgeBase({ projectId }: { projectId: string | null }) {
+  const { t } = useTranslation();
+  const isOnline = useOnlineStatus();
 
   const [search, setSearch] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<KbCategory | undefined>(
@@ -127,10 +131,20 @@ export function KnowledgeBase() {
   const [selectedEntry, setSelectedEntry] = useState<KnowledgeEntry | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const { data, loading, error, refetch } = useKnowledgeBase(projectId, {
+  const [cursors, setCursors] = useState<string[]>([]);
+  const query = search.trim();
+  const searchTerm = query.length >= 3 ? query : undefined;
+  const browsing = !categoryFilter && !searchTerm;
+  const cursor = cursors.at(-1);
+  const { data, loading, error, refetch } = useKnowledgeBase(projectId, browsing ? {
+    limit: 50,
+    cursor,
+  } : {
     category: categoryFilter,
-    search: search.trim().length >= 3 ? search.trim() : undefined,
+    search: searchTerm,
   });
+  const nextCursor = browsing && !loading && !error && data?.nextCursor !== cursor
+    ? data?.nextCursor : null;
 
   const entries: KnowledgeEntry[] = useMemo(
     () => data?.entries ?? [],
@@ -181,7 +195,7 @@ export function KnowledgeBase() {
     }
   };
 
-  if (!selectedProject) {
+  if (!projectId) {
     return (
       <div
         className="flex-1 w-full p-4 sm:p-6 max-w-5xl mx-auto"
@@ -262,7 +276,10 @@ export function KnowledgeBase() {
               'Buscar (mínimo 3 caracteres)…',
             )}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              if (e.target.value.trim().length >= 3) setCursors([]);
+            }}
             data-testid="knowledge-base-search-input"
             className="flex-1 bg-transparent text-sm text-primary-token placeholder:text-secondary-token focus:outline-none"
             aria-label={t(
@@ -284,7 +301,10 @@ export function KnowledgeBase() {
           </span>
           <button
             type="button"
-            onClick={() => setCategoryFilter(undefined)}
+            onClick={() => {
+              if (categoryFilter) setCursors([]);
+              setCategoryFilter(undefined);
+            }}
             data-testid="knowledge-base-filter-all"
             className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border transition-colors ${
               categoryFilter === undefined
@@ -301,7 +321,10 @@ export function KnowledgeBase() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => setCategoryFilter(cat.key)}
+                onClick={() => {
+                  setCursors([]);
+                  setCategoryFilter(cat.key);
+                }}
                 data-testid={`knowledge-base-filter-${cat.key}`}
                 className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border transition-colors ${
                   active
@@ -472,6 +495,30 @@ export function KnowledgeBase() {
             </li>
           ))}
         </ul>
+      )}
+
+      {browsing && (cursors.length > 0 || nextCursor) && (
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-default-token px-3 py-2 text-sm disabled:opacity-50"
+            disabled={cursors.length === 0}
+            onClick={() => setCursors((previous) => previous.slice(0, -1))}
+          >
+            {t('common.back', 'Volver')}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-default-token px-3 py-2 text-sm disabled:opacity-50"
+            disabled={!nextCursor}
+            onClick={() => {
+              if (nextCursor) setCursors((previous) => previous.at(-1) === nextCursor
+                ? previous : [...previous, nextCursor]);
+            }}
+          >
+            {t('common.next', 'Siguiente')}
+          </button>
+        </div>
       )}
 
       {showCreate && (

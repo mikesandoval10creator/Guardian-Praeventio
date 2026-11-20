@@ -41,11 +41,14 @@ export interface KnowledgeBaseResponse {
   entries: KnowledgeEntry[];
   searched: boolean;
   category: KbCategory | null;
+  nextCursor?: string | null;
 }
 
 export interface UseKnowledgeBaseOptions {
   category?: KbCategory;
   search?: string;
+  limit?: number;
+  cursor?: string;
 }
 
 export function useKnowledgeBase(
@@ -57,6 +60,8 @@ export function useKnowledgeBase(
     const qs = new URLSearchParams();
     if (opts.category) qs.set('category', opts.category);
     if (opts.search) qs.set('search', opts.search);
+    if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+    if (opts.cursor !== undefined) qs.set('cursor', opts.cursor);
     const query = qs.toString();
     path = `/api/sprint-k/${projectId}/knowledge-base${
       query ? `?${query}` : ''
