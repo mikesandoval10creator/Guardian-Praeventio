@@ -49,6 +49,7 @@ import {
 import { logger } from '../utils/logger';
 import { humanErrorMessage } from '../lib/humanError';
 import { McpProjectPanel } from '../components/mcp/McpProjectPanel';
+import { isPageableKnowledgeCategory } from '../services/knowledgeBase/knowledgeBaseService';
 
 
 type TLite = (key: string, fallback?: string) => string;
@@ -134,16 +135,18 @@ function ProjectKnowledgeBase({ projectId }: { projectId: string | null }) {
   const [cursors, setCursors] = useState<string[]>([]);
   const query = search.trim();
   const searchTerm = query.length >= 3 ? query : undefined;
-  const browsing = !categoryFilter && !searchTerm;
+  const browsing = !searchTerm && (!categoryFilter || isPageableKnowledgeCategory(categoryFilter));
   const cursor = cursors.at(-1);
   const { data, loading, error, refetch } = useKnowledgeBase(projectId, browsing ? {
     limit: 50,
+    category: categoryFilter,
     cursor,
   } : {
     category: categoryFilter,
     search: searchTerm,
   });
-  const nextCursor = browsing && !loading && !error && data?.nextCursor !== cursor
+  const nextCursor = browsing && !loading && !error && data?.searched === false &&
+    data.category === (categoryFilter ?? null) && data.nextCursor !== cursor
     ? data?.nextCursor : null;
 
   const entries: KnowledgeEntry[] = useMemo(

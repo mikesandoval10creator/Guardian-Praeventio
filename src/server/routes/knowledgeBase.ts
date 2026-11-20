@@ -6,7 +6,7 @@
 //
 // 4 endpoints:
 //   GET  /:projectId/knowledge-base?category=X&search=Y
-//   GET  /:projectId/knowledge-base?limit=1..50[&cursor=<document ID>] (unfiltered browsing)
+//   GET  /:projectId/knowledge-base?limit=1..50[&cursor=<document ID>][&category=X] (no search or guide)
 //   POST /:projectId/knowledge-base
 //   POST /:projectId/knowledge-base/:id/use
 //   POST /:projectId/knowledge-base/:id/flag-obsolete
@@ -23,6 +23,7 @@
 // `/flag-obsolete`: marca isObsolete=true con auditoría.
 
 import { Router } from 'express';
+import { isPageableKnowledgeCategory } from '../../services/knowledgeBase/knowledgeBaseService.js';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
@@ -156,7 +157,9 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
       typeof cursor === 'string' && cursor.length > 0 && Buffer.byteLength(cursor) <= 1500 &&
       !cursor.includes('/') && cursor !== '.' && cursor !== '..' && !/^__.*__$/.test(cursor)
     );
-    if (paginated && (!limit || limit > 50 || !validCursor || req.query.category !== undefined || req.query.search !== undefined)) {
+    const rawCategory = req.query.category;
+    if (paginated && (!limit || limit > 50 || !validCursor ||
+      (rawCategory !== undefined && !isPageableKnowledgeCategory(rawCategory)) || req.query.search !== undefined)) {
       return res.status(400).json({ error: 'invalid_pagination' });
     }
 
@@ -169,7 +172,8 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
 
     // Let storage failures reach the route error boundary; an empty corpus
     // is a successful read with no documents, not a fallback for failed reads.
-    let query = paginated ? colRef.orderBy(FieldPath.documentId()) : colRef;
+    const scoped = paginated && category ? colRef.where('kind', '==', category) : colRef;
+    let query = paginated ? scoped.orderBy(FieldPath.documentId()) : scoped;
     if (paginated && typeof cursor === 'string') query = query.startAfter(cursor);
     const snap = await (paginated ? query.limit(limit + 1) : query).get();
     const docs = paginated ? snap.docs.slice(0, limit) : snap.docs;
@@ -217,7 +221,7 @@ router.get('/:projectId/knowledge-base', verifyAuth, async (req, res) => {
     });
 
     let entries = projectEntries;
-    if (category) {
+    if (category && !paginated) {
       entries = entries.filter((e) => e.kind === category);
     }
 

@@ -100,6 +100,28 @@ describe('GET /knowledge-base', () => {
     expect(res.body.error).toBe('invalid_pagination');
   });
 
+  it('applies the category before the page limit and keeps its cursor order', async () => {
+    for (const id of ['k6', 'k2', 'k4']) seedEntry(id, { kind: 'faq' });
+    for (const id of ['k1', 'k3', 'k5']) seedEntry(id);
+    const app = buildApp();
+    const query = { category: 'faq', limit: 2 };
+    const first = await request(app).get(KB).query(query).set('x-test-uid', 'w1');
+    expect(first.status).toBe(200);
+    expect(first.body.entries.map((e: { id: string }) => e.id)).toEqual(['k2', 'k4']);
+    expect(first.body.nextCursor).toBe('k4');
+    const last = await request(app).get(KB).query({ ...query, cursor: 'k4' }).set('x-test-uid', 'w1');
+    expect(last.status).toBe(200);
+    expect(last.body.entries.map((e: { id: string }) => e.id)).toEqual(['k6']);
+    expect(last.body.nextCursor).toBeNull();
+  });
+
+  it('keeps legacy entries without a kind visible under guide', async () => {
+    seedEntry('k1', { kind: null });
+    const res = await request(buildApp()).get(KB).query({ category: 'guide' }).set('x-test-uid', 'w1');
+    expect(res.status).toBe(200);
+    expect(res.body.entries.map((e: { id: string }) => e.id)).toEqual(['k1']);
+  });
+
   it('caps a page of large articles without changing full-corpus search', async () => {
     for (let i = 0; i < 120; i += 1) {
       seedEntry(`k${String(i).padStart(3, '0')}`, { title: 'Article', content: 'x'.repeat(20_000) });
