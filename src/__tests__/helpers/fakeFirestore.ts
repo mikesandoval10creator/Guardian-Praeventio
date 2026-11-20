@@ -153,6 +153,7 @@ interface FakeQuery {
   where(field: string, op: string, value: unknown): FakeQuery;
   orderBy(field: string, dir?: 'asc' | 'desc'): FakeQuery;
   limit(n: number): FakeQuery;
+  startAfter(id: string): FakeQuery;
   get(): Promise<FakeQuerySnap>;
   count(): { get(): Promise<{ data(): { count: number } }> };
 }
@@ -254,7 +255,7 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
     };
   }
 
-  function runQuery(colPath: string, filters: Filter[], order: { field: string; dir: string } | null, lim: number | null): FakeQuerySnap {
+  function runQuery(colPath: string, filters: Filter[], order: { field: string; dir: string } | null, lim: number | null, afterId?: string): FakeQuerySnap {
     const depth = colPath.split('/').length;
     let docs: FakeDocSnap[] = [];
     for (const [key, value] of store.entries()) {
@@ -266,26 +267,40 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
     }
     if (order) {
       docs.sort((a, b) => {
+        if (order.field === '__name__') {
+          const c = Buffer.compare(Buffer.from(a.id), Buffer.from(b.id));
+          return order.dir === 'desc' ? -c : c;
+        }
         const av = getField(a.data(), order.field) as number;
         const bv = getField(b.data(), order.field) as number;
         const c = av < bv ? -1 : av > bv ? 1 : 0;
         return order.dir === 'desc' ? -c : c;
       });
     }
+    if (afterId !== undefined) {
+      const cursor = Buffer.from(afterId);
+      docs = docs.filter((d) => Buffer.compare(Buffer.from(d.id), cursor) > 0);
+    }
     if (lim != null) docs = docs.slice(0, lim);
     return { empty: docs.length === 0, size: docs.length, docs, forEach: (cb) => docs.forEach(cb) };
   }
 
-  function query(colPath: string, filters: Filter[], order: { field: string; dir: string } | null, lim: number | null): FakeQuery {
+  function query(colPath: string, filters: Filter[], order: { field: string; dir: string } | null, lim: number | null, afterId?: string): FakeQuery {
     return {
-      where: (field, op, value) => query(colPath, [...filters, { field, op, value }], order, lim),
-      orderBy: (field, dir = 'asc') => query(colPath, filters, { field, dir }, lim),
-      limit: (n) => query(colPath, filters, order, n),
+      where: (field, op, value) => query(colPath, [...filters, { field, op, value }], order, lim, afterId),
+      orderBy: (field, dir = 'asc') => query(colPath, filters, { field, dir }, lim, afterId),
+      limit: (n) => query(colPath, filters, order, n, afterId),
+      startAfter: (id) => {
+        if (order?.field !== '__name__' || order.dir !== 'asc') {
+          throw new Error('fakeFirestore: startAfter only supports ascending document ID');
+        }
+        return query(colPath, filters, order, lim, id);
+      },
       get: async () => {
         if (failReadsMatch !== null && colPath.includes(failReadsMatch)) {
           throw new Error(`fakeFirestore: forced read failure at ${colPath}`);
         }
-        return runQuery(colPath, filters, order, lim);
+        return runQuery(colPath, filters, order, lim, afterId);
       },
       count: () => ({
         get: async () => ({ data: () => ({ count: runQuery(colPath, filters, null, null).size }) }),
@@ -409,6 +424,9 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
         limit: (n: number) => {
           lim = n;
           return groupQ();
+        },
+        startAfter: () => {
+          throw new Error('fakeFirestore: collection-group cursors are not supported');
         },
         get: async () => run(),
         count: () => ({ get: async () => ({ data: () => ({ count: run().size }) }) }),
