@@ -76,6 +76,17 @@ describe('AddEventModal scheduling conflicts', () => {
     expect(screen.getByRole('button', { name: 'Guardar Evento' })).toBeEnabled();
   });
 
+  it('explains a denied save without exposing the internal error or clearing the draft', async () => {
+    mocks.read.mockResolvedValue({ empty: true });
+    mocks.write.mockRejectedValue(Object.assign(new Error('internal diagnostics'), { code: 'permission-denied' }));
+    const onClose = submitEvent();
+    expect(await screen.findByText('No tienes permiso para agendar en este proyecto. Pide acceso a su administrador.')).toBeVisible();
+    expect(screen.queryByText('internal diagnostics')).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('Inspección')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Guardar Evento' })).toBeEnabled();
+  });
+
   it('saves to the selected project when the slots are free', async () => {
     mocks.read.mockResolvedValue({ empty: true });
     mocks.write.mockResolvedValue({ id: 'event-1' });

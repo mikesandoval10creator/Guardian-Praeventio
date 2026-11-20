@@ -101,7 +101,11 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
       });
     } catch (error) {
       logger.error('Error adding event:', error);
-      showToast(t('calendar.error_saving', 'Error al guardar el evento'), 'error');
+      const denied = typeof error === 'object' && error !== null &&
+        'code' in error && error.code === 'permission-denied';
+      showToast(denied
+        ? t('calendar.save_permission_denied', 'No tienes permiso para agendar en este proyecto. Pide acceso a su administrador.')
+        : t('calendar.error_saving', 'Error al guardar el evento'), 'error');
     } finally {
       submitInFlight.current = false;
       setLoading(false);
