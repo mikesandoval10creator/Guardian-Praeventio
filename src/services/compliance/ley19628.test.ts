@@ -144,6 +144,19 @@ describe('compliance/ley19628', () => {
     expect(status.analytics.textVersion).toBe('consent_v1.0');
   });
 
+  it('exports consent and request records created by the canonical writers', async () => {
+    for (const uid of ['uid-A', 'uid-B']) {
+      await recordConsent(db, {
+        uid, purpose: 'analytics', granted: true, legalBasis: 'consent', textVersion: 'consent_v1.0',
+      });
+      await requestDataAccess(db, uid, 'access');
+    }
+    const { data, incomplete } = await exportUserData(db, 'uid-A');
+    expect(data.compliance_consents).toMatchObject([{ uid: 'uid-A', purpose: 'analytics' }]);
+    expect(data.compliance_data_requests).toMatchObject([{ uid: 'uid-A', type: 'access' }]);
+    expect(incomplete).toEqual([]);
+  });
+
   it('2. revokeConsent updates record to granted:false with revokedAt', async () => {
     await recordConsent(db, {
       uid: 'uid-A',
