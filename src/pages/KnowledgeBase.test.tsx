@@ -169,6 +169,25 @@ describe('<KnowledgeBase /> page wrapper (§185-190)', () => {
     expect(lastHookOpts?.cursor).toBeUndefined();
   });
 
+  it('reinicia el cursor al elegir una categoría y conserva la consulta de guías', () => {
+    mockSelectedProject = { id: 'p1', name: 'Proyecto 1' };
+    mockKbState.data = { entries: [sampleEntry], searched: false, category: null, nextCursor: 'all-next' };
+    const { rerender } = render(<KnowledgeBase />);
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    fireEvent.click(screen.getByTestId('knowledge-base-filter-faq'));
+    expect(lastHookOpts).toMatchObject({ category: 'faq', limit: 50 });
+    expect(lastHookOpts?.cursor).toBeUndefined();
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).not.toBeInTheDocument();
+    mockKbState.data = { ...mockKbState.data, category: 'faq', nextCursor: 'faq-next' };
+    rerender(<KnowledgeBase />);
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    expect(lastHookOpts).toMatchObject({ category: 'faq', cursor: 'faq-next' });
+    fireEvent.click(screen.getByTestId('knowledge-base-filter-guide'));
+    expect(lastHookOpts?.category).toBe('guide');
+    expect(lastHookOpts?.limit).toBeUndefined();
+    expect(lastHookOpts?.cursor).toBeUndefined();
+  });
+
   it('renderiza resultados de búsqueda y propaga el search query al hook', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockKbState = {

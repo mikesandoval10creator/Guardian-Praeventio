@@ -17,6 +17,12 @@
 
 export type ArticleKind = 'glossary' | 'faq' | 'procedure' | 'guide' | 'norm_summary';
 
+// Guides also include legacy documents without a string kind, which an
+// equality query on the stored field would omit.
+export function isPageableKnowledgeCategory(kind: unknown): kind is Exclude<ArticleKind, 'guide'> {
+  return kind === 'glossary' || kind === 'faq' || kind === 'procedure' || kind === 'norm_summary';
+}
+
 export interface KnowledgeArticle {
   id: string;
   kind: ArticleKind;
