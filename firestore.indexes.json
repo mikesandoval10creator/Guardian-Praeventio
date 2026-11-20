@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "compliance_data_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "requestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "commute_sessions",
       "queryScope": "COLLECTION",
       "fields": [
