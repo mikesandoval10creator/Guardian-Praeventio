@@ -27,6 +27,29 @@ beforeEach(() => vi.mocked(recordHorometroReading).mockReset());
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('HorometroEntryForm evidence result', () => {
+  it.each(['1234 h', '12,3,4', '1e3', '1 234'])('does not submit ambiguous reading %s', (value) => {
+    render(<HorometroEntryForm projectId="project-1" equipment={equipment} />);
+    fireEvent.change(screen.getByTestId('horometro-hours-input'), { target: { value } });
+    const submit = screen.getByTestId('horometro-submit');
+    fireEvent.click(submit);
+    expect(recordHorometroReading).not.toHaveBeenCalled();
+    expect(submit).toBeDisabled();
+  });
+
+  it.each(['1234,5', '1234.5'])('submits the full decimal reading %s', async (value) => {
+    vi.mocked(recordHorometroReading).mockResolvedValue({
+      reading: { ...reading, hours: 1234.5 } as never,
+      flow: { ok: false, reason: 'writeNodes_failed' } as never,
+    });
+    render(<HorometroEntryForm projectId="project-1" equipment={equipment} />);
+    fireEvent.change(screen.getByTestId('horometro-hours-input'), { target: { value } });
+    fireEvent.click(screen.getByTestId('horometro-submit'));
+    await screen.findByTestId('horometro-evidence-pending');
+    expect(recordHorometroReading).toHaveBeenCalledExactlyOnceWith(
+      'project-1', expect.objectContaining({ hours: 1234.5 }), expect.any(String),
+    );
+  });
+
   it('distinguishes a saved reading from failed follow-up evidence and remains dismissible', async () => {
     vi.mocked(recordHorometroReading).mockResolvedValue({
       reading: reading as never,

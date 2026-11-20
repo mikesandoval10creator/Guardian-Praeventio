@@ -5408,7 +5408,7 @@
     "title": "Horómetro",
     "aria": "Reportar horómetro",
     "hoursLabel": "Horas acumuladas (lectura actual)",
-    "hoursHint": "Anota la cifra exacta que muestra el panel del equipo en este momento.",
+    "hoursHint": "Anota solo la cifra que muestra el equipo, sin unidades ni separadores de miles. Usa coma o punto para los decimales.",
     "notesLabel": "Notas (opcional)",
     "notesPlaceholder": "Cualquier observación relevante…",
     "submit": "Registrar horas",

@@ -5408,7 +5408,7 @@
     "title": "Hour meter",
     "aria": "Report hour meter",
     "hoursLabel": "Accumulated hours (current reading)",
-    "hoursHint": "Enter the exact figure shown on the equipment panel right now.",
+    "hoursHint": "Enter only the reading shown on the equipment, without units or thousands separators. Use a comma or period for decimals.",
     "notesLabel": "Notes (optional)",
     "notesPlaceholder": "Any relevant observation…",
     "submit": "Record hours",

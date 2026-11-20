@@ -49,9 +49,12 @@ export function HorometroEntryForm({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RecordHorometroReadingResponse | null>(null);
 
-  const hoursNum = Number.parseFloat(hoursStr.replace(',', '.'));
-  const hoursValid =
-    hoursStr.length > 0 && Number.isFinite(hoursNum) && hoursNum >= 0;
+  const hoursText = hoursStr.trim();
+  // Validate the whole input before conversion; parseFloat accepts a numeric prefix.
+  const hoursNum = /^\d+(?:[.,]\d+)?$/.test(hoursText)
+    ? Number(hoursText.replace(',', '.'))
+    : Number.NaN;
+  const hoursValid = Number.isFinite(hoursNum);
 
   async function handleSubmit() {
     if (!hoursValid) return;
@@ -245,7 +248,7 @@ export function HorometroEntryForm({
             <span className="text-[10px] text-zinc-500 mt-1 block">
               {t(
                 'horometro.hoursHint',
-                'Anota la cifra exacta que muestra el panel del equipo en este momento.',
+                'Anota solo la cifra que muestra el equipo, sin unidades ni separadores de miles. Usa coma o punto para los decimales.',
               )}
             </span>
           </label>
