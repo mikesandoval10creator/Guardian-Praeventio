@@ -30,11 +30,19 @@ import { signPacket, type MeshSigningKey } from './meshPacketSigner';
 import type { MeshRelayQueue } from './meshRelayQueue';
 import type { MeshRequestRouter } from './meshRequestRouter';
 
+export interface OriginatingSosStore {
+  load(): Promise<MeshPacket[]>;
+  save(packet: MeshPacket): Promise<void>;
+  remove(id: string): Promise<void>;
+}
+
 export interface TransportFacadeOptions {
   peerId: string;
   projectId: string;
   queue: MeshRelayQueue;
   router?: MeshRequestRouter;
+  packetStore?: OriginatingSosStore;
+  onPersistenceError?: () => void;
   /** Override for tests / DI. Defaults to the registered plugin. */
   plugin?: MeshPlugin;
   /** Override Capacitor.isNativePlatform() for tests. */
@@ -62,6 +70,17 @@ export interface TransportSnapshot {
 
 const DEFAULT_RECONCILE_INTERVAL_MS = 30_000;
 const DEFAULT_ACK_TIMEOUT_MS = 10_000;
+const STORAGE_WAIT_MS = 500;
+
+async function waitForStorage<T>(operation: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Mesh storage wait expired')), STORAGE_WAIT_MS);
+    void operation.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error: unknown) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
 
 type PendingDelivery = {
   peerIds: Set<string>;
@@ -72,6 +91,8 @@ export class TransportFacade {
   private readonly projectId: string;
   private readonly queue: MeshRelayQueue;
   private readonly router?: MeshRequestRouter;
+  private readonly packetStore?: OriginatingSosStore;
+  private readonly onPersistenceError?: () => void;
   private readonly plugin: MeshPlugin;
   private readonly platform: 'native' | 'web';
   private readonly reconcileIntervalMs: number;
@@ -87,12 +108,15 @@ export class TransportFacade {
   // null reserves a packet in the batch, before its actual send begins.
   private relayInFlight = new Map<string, { peerId: string; ackReceived: boolean } | null>();
   private pendingAckTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pendingWrites = new Map<string, Promise<void>>();
 
   constructor(opts: TransportFacadeOptions) {
     this.peerId = opts.peerId;
     this.projectId = opts.projectId;
     this.queue = opts.queue;
     this.router = opts.router;
+    this.packetStore = opts.packetStore;
+    this.onPersistenceError = opts.onPersistenceError;
     this.plugin = opts.plugin ?? (Mesh as unknown as MeshPlugin);
     const isNative = (opts.isNativePlatform ?? Capacitor.isNativePlatform)();
     this.platform = isNative ? 'native' : 'web';
@@ -115,6 +139,16 @@ export class TransportFacade {
         'TransportFacade.startMesh: Mesh plugin is not available. ' +
           'Make sure @praeventio/capacitor-mesh is installed and registered.',
       );
+    }
+    if (this.packetStore) {
+      try {
+        for (const packet of await waitForStorage(this.packetStore.load())) {
+          if (packet.type === 'sos' && packet.fromUid === this.peerId &&
+            packet.projectId === this.projectId) this.queue.enqueueLocal(packet);
+        }
+      } catch {
+        this.onPersistenceError?.();
+      }
     }
     await this.plugin.start({
       peerId: this.peerId,
@@ -187,7 +221,23 @@ export class TransportFacade {
     queued: string[];
   }> {
     const enqRes = this.queue.enqueueLocal(packet);
-    if (!this.active || !enqRes.added) {
+    const lifecycle = this.relayInFlight;
+    if (enqRes.added && this.packetStore && packet.type === 'sos' &&
+      packet.fromUid === this.peerId && packet.projectId === this.projectId) {
+      lifecycle.set(packet.id, null);
+      const write = this.packetStore.save(packet).catch(() => this.onPersistenceError?.());
+      this.pendingWrites.set(packet.id, write);
+      void write.then(() => this.pendingWrites.delete(packet.id));
+      try {
+        await waitForStorage(write);
+      } catch {
+        // Storage failure must not suppress a live attempt to obtain help.
+        this.onPersistenceError?.();
+      } finally {
+        lifecycle.delete(packet.id);
+      }
+    }
+    if (!this.active || this.relayInFlight !== lifecycle || !enqRes.added) {
       return {
         enqueued: enqRes.added,
         deliveredTo: [],
@@ -195,8 +245,10 @@ export class TransportFacade {
       };
     }
     const sendRes = await this.plugin.send(packet);
-    for (const peerId of sendRes.deliveredTo) {
-      this.trackPendingDelivery(packet.id, peerId);
+    if (this.active && this.relayInFlight === lifecycle) {
+      for (const peerId of sendRes.deliveredTo) {
+        this.trackPendingDelivery(packet.id, peerId);
+      }
     }
     return {
       enqueued: true,
@@ -358,7 +410,15 @@ export class TransportFacade {
 
   private confirmDelivery(packetId: string): void {
     this.clearPending(packetId);
+    const packet = this.queue.snapshot().find((item) => item.id === packetId);
     this.queue.markDelivered(packetId);
+    const store = this.packetStore;
+    if (store && packet?.type === 'sos' && packet.fromUid === this.peerId &&
+      packet.projectId === this.projectId) {
+      void Promise.resolve(this.pendingWrites.get(packetId))
+        .then(() => store.remove(packetId))
+        .catch(() => this.onPersistenceError?.());
+    }
   }
 
   private trackPendingDelivery(packetId: string, peerId: string): void {

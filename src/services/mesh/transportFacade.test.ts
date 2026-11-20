@@ -6,6 +6,7 @@
 // Capacitor plugin scaffold. The plugin is mocked end-to-end so these
 // tests run on Node/jsdom without any native bridge.
 
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPacket, type MeshPacket } from './meshPacket';
@@ -108,6 +109,92 @@ function makePacket(overrides: Partial<Parameters<typeof buildPacket>[0]> = {}):
     ...overrides,
   });
 }
+
+it('restores an originating SOS after restarting before acknowledgement', async () => {
+
+  const { createOriginatingSosStore } = await import('./originatingSosStore');
+  const { clearEncryptedStore } = await import('../security/encryptedKvStore');
+  const plugin = makeFakePlugin();
+  const options = { selfUid: 'worker-self', projectId: 'project-X' };
+  const makeFacade = () => new TransportFacade({
+    peerId: options.selfUid, projectId: options.projectId,
+    queue: new MeshRelayQueue(options), plugin,
+    packetStore: createOriginatingSosStore(options.selfUid, options.projectId),
+  });
+  const packet = makePacket({ type: 'sos', fromUid: options.selfUid });
+  const first = makeFacade();
+  await first.startMesh();
+  try {
+    await first.sendLocal(packet);
+  } finally {
+    await first.stopMesh();
+  }
+  const restarted = makeFacade();
+  try {
+    await restarted.startMesh();
+    expect((await restarted.snapshot()).queueDepth).toBe(1);
+    plugin.__sentPackets.length = 0;
+    plugin.__emit('mesh:peer-discovered', { id: 'peer-1', rssi: -40 });
+    expect(plugin.__sentPackets.at(-1)?.id).toBe(packet.id);
+    expect(await createOriginatingSosStore('different-user', options.projectId).load()).toEqual([]);
+    expect(await createOriginatingSosStore(options.selfUid, 'different-project').load()).toEqual([]);
+  } finally {
+    await restarted.stopMesh();
+    await clearEncryptedStore();
+  }
+});
+
+it('removes a persisted originating SOS only after its peer receipt', async () => {
+  const { createOriginatingSosStore } = await import('./originatingSosStore');
+  const { clearEncryptedStore } = await import('../security/encryptedKvStore');
+  const signingKey = await makeSigningKey();
+  const plugin = makeFakePlugin();
+  plugin.__sendImpl = () => ({ deliveredTo: ['peer-1'], queued: [] });
+  const scope = { selfUid: 'worker-self', projectId: 'project-X' };
+  const store = createOriginatingSosStore(scope.selfUid, scope.projectId);
+  const facade = new TransportFacade({
+    peerId: scope.selfUid, projectId: scope.projectId, plugin, packetStore: store,
+    queue: new MeshRelayQueue({ ...scope, signingKey }), signingKey,
+  });
+  try {
+    await facade.startMesh();
+    const packet = makePacket({ type: 'sos', fromUid: scope.selfUid });
+    await facade.sendLocal(packet);
+    expect((await store.load()).map(({ id }) => id)).toEqual([packet.id]);
+    const ack = makeAck(packet.id);
+    plugin.__emit('mesh:packet', { ...ack, ...(await signPacket(ack, signingKey)) });
+    await vi.waitFor(async () => expect(await store.load()).toEqual([]));
+    expect((await facade.snapshot()).queueDepth).toBe(0);
+  } finally {
+    await facade.stopMesh();
+    await clearEncryptedStore();
+  }
+});
+
+it('still attempts live delivery when saving an SOS fails', async () => {
+  const plugin = makeFakePlugin();
+  const onPersistenceError = vi.fn();
+  const scope = { selfUid: 'worker-self', projectId: 'project-X' };
+  const facade = new TransportFacade({
+    peerId: scope.selfUid, projectId: scope.projectId, plugin, onPersistenceError,
+    queue: new MeshRelayQueue(scope),
+    packetStore: {
+      async load() { return []; },
+      async save() { throw new Error('test storage failure'); },
+      async remove() {},
+    },
+  });
+  try {
+    await facade.startMesh();
+    const packet = makePacket({ type: 'sos', fromUid: scope.selfUid });
+    await facade.sendLocal(packet);
+    expect(plugin.__sentPackets).toEqual([packet]);
+    expect(onPersistenceError).toHaveBeenCalledOnce();
+    expect((await facade.snapshot()).queueDepth).toBe(1);
+  } finally {
+    await facade.stopMesh();
+  }
+});
 
 function makeAck(ackedPacketId: string, fromUid = 'peer-1'): MeshPacket {
   return buildPacket({

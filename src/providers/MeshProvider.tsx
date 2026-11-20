@@ -54,6 +54,7 @@ import {
   provisionMeshSigningKey,
 } from '../services/mesh/meshKeyStore';
 import { TransportFacade } from '../services/mesh/transportFacade';
+import { createOriginatingSosStore } from '../services/mesh/originatingSosStore';
 import { getErrorTracker } from '../services/observability/index.js';
 import { logger } from '../utils/logger';
 
@@ -139,6 +140,8 @@ export function MeshProvider({ children }: MeshProviderProps) {
         projectId,
         queue,
         signingKey,
+        packetStore: createOriginatingSosStore(uid, projectId),
+        onPersistenceError: () => logger.warn('mesh_sos_storage_degraded'),
         // [P0][VIDA] Route verified incoming packets to the local consumers.
         // Without a router the facade dropped every forLocal packet silently:
         // a supervisor physically in range of a worker's SOS got NOTHING.
