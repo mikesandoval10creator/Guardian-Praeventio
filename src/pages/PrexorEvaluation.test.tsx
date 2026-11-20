@@ -16,7 +16,7 @@
 // src/services/protocols/prexor.ts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PrexorEvaluation } from './PrexorEvaluation';
 
 vi.mock('react-i18next', () => ({
@@ -72,6 +72,23 @@ describe('<PrexorEvaluation /> page (B-protocols)', () => {
     expect(screen.getByTestId('protocols-disclaimer')).toBeInTheDocument();
     expect(screen.getByTestId('prexor-measurement-row-0')).toBeInTheDocument();
     await waitFor(() => expect(listMock).toHaveBeenCalledWith('p-1', 'PREXOR'));
+  });
+
+  it('abandona el borrador y el cálculo pendiente al cambiar de proyecto', async () => {
+    let resolve!: (value: { result: typeof altoResult }) => void;
+    calculateMock.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    const { rerender } = render(<PrexorEvaluation />);
+    fireEvent.change(screen.getByTestId('prexor-task-input'), { target: { value: 'Faena anterior' } });
+    fireEvent.click(screen.getByTestId('prexor-calculate-btn'));
+    mockSelectedProject = { id: 'p-2', name: 'Faena Sur' };
+    rerender(<PrexorEvaluation />);
+    await act(async () => { resolve({ result: altoResult }); });
+    expect(screen.queryByTestId('prexor-result')).not.toBeInTheDocument();
+    expect(screen.getByTestId('prexor-task-input')).toHaveValue('');
+    expect(screen.getByTestId('prexor-save-btn')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('prexor-calculate-btn'));
+    expect(await screen.findByTestId('prexor-result')).toBeInTheDocument();
+    expect(calculateMock).toHaveBeenLastCalledWith('p-2', expect.anything());
   });
 
   it('descarta un cálculo que termina después de editar la medición', async () => {
