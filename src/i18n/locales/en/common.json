@@ -1167,6 +1167,7 @@
   "calendar": {
     "conflict_detected": "Conflict detected: You have events scheduled at the same time at: {{projects}}.",
     "error_saving": "Failed to save event",
+    "save_permission_denied": "You don't have permission to schedule events in this project. Ask the project administrator for access.",
     "event_type_audit": "Audit",
     "event_type_inspection": "Inspection",
     "event_type_meeting": "Meeting",

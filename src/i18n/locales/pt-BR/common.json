@@ -1167,6 +1167,7 @@
   "calendar": {
     "conflict_detected": "Conflito detectado: Você tem eventos agendados no mesmo horário em: {{projects}}.",
     "error_saving": "Erro ao salvar o evento",
+    "save_permission_denied": "Você não tem permissão para agendar eventos neste projeto. Solicite acesso ao administrador do projeto.",
     "event_type_audit": "Auditoria",
     "event_type_inspection": "Inspeção",
     "event_type_meeting": "Reunião",
