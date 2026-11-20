@@ -241,6 +241,7 @@ export function HorometroEntryForm({
               value={hoursStr}
               onChange={(e) => setHoursStr(e.target.value)}
               data-testid="horometro-hours-input"
+              data-autofocus
               maxLength={10}
               className="mt-1 w-full px-3 py-3 rounded-lg bg-zinc-800 text-white text-lg font-mono border border-white/10 focus:outline-none focus:border-teal-400"
               placeholder="1234"

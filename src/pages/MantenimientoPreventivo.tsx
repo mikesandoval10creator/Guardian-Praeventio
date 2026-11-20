@@ -17,6 +17,7 @@
 // del equipo en el flujo móvil full-screen.)
 
 import { useEffect, useState } from 'react';
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 import { useTranslation } from 'react-i18next';
 import { Wrench, WifiOff, Gauge } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -225,26 +226,28 @@ export function MantenimientoPreventivo() {
       )}
 
       {reading && selectedEquipment && (
-        <div
-          className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto"
-          role="dialog"
-          aria-modal="true"
+        <Dialog
+          open={reading}
+          onClose={() => setReading(false)}
+          className="fixed inset-0 z-50"
           data-testid="maintenance-reading-overlay"
         >
-          <HorometroEntryForm
-            projectId={projectId}
-            equipment={selectedEquipment}
-            onSubmitted={() => {
-              // The reading may have crossed a maintenance threshold and created
-              // tasks; refetch equipment so any status change (e.g. nextMaintenanceAt)
-              // is reflected when the operator closes the overlay, and bump the
-              // status reload key so the horometer card re-fetches its progress.
-              refetch();
-              setStatusReloadKey((k) => k + 1);
-            }}
-            onCancel={() => setReading(false)}
-          />
-        </div>
+          <DialogPanel className="h-full overflow-y-auto bg-zinc-950">
+            <DialogTitle className="sr-only">
+              {t('maintenance.page.registerReading', 'Registrar lectura de horómetro')}
+            </DialogTitle>
+            <HorometroEntryForm
+              projectId={projectId}
+              equipment={selectedEquipment}
+              onSubmitted={() => {
+                // Refresh equipment and status after a confirmed reading.
+                refetch();
+                setStatusReloadKey((k) => k + 1);
+              }}
+              onCancel={() => setReading(false)}
+            />
+          </DialogPanel>
+        </Dialog>
       )}
     </div>
   );
