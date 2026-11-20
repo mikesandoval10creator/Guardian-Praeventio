@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AddEventModal } from './AddEventModal';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(), write: vi.fn(), selectedProject: { id: 'p1', name: 'Faena Norte' },
+}));
 
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -17,7 +19,7 @@ vi.mock('react-i18next', () => ({
 }));
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
-    selectedProject: { id: 'p1', name: 'Faena Norte' },
+    selectedProject: mocks.selectedProject,
     projects: [{ id: 'p1', name: 'Faena Norte' }, { id: 'p2', name: 'Faena 500' }],
   }),
 }));
@@ -32,14 +34,17 @@ vi.mock('firebase/firestore', () => ({
 
 afterEach(() => {
   cleanup();
+  mocks.selectedProject = { id: 'p1', name: 'Faena Norte' };
   vi.resetAllMocks();
   vi.restoreAllMocks();
 });
 
-function submitEvent() {
+function submitEvent(prepare?: (view: ReturnType<typeof render>) => void) {
   vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
   const onClose = vi.fn();
-  const { container } = render(<AddEventModal isOpen onClose={onClose} />);
+  const view = render(<AddEventModal isOpen onClose={onClose} />);
+  prepare?.(view);
+  const { container } = view;
   fireEvent.change(screen.getByPlaceholderText('Ej: Inspección de Seguridad'), { target: { value: 'Inspección' } });
   fireEvent.change(screen.getByPlaceholderText('Ej: Sala de Reuniones 1'), { target: { value: 'Taller' } });
   fireEvent.change(screen.getByPlaceholderText('Detalles del evento...'), { target: { value: 'Revisión' } });
@@ -50,6 +55,25 @@ function submitEvent() {
 }
 
 describe('AddEventModal scheduling conflicts', () => {
+  it('abandons a pending save when switching projects and discards the old draft', async () => {
+    let release!: (value: { empty: boolean }) => void;
+    const pending = new Promise<{ empty: boolean }>((resolve) => { release = resolve; });
+    mocks.read.mockReturnValue(pending);
+    mocks.write.mockResolvedValue({ id: 'event-1' });
+    let view!: ReturnType<typeof render>;
+    const onClose = submitEvent((mounted) => { view = mounted; });
+    mocks.selectedProject = { id: 'p2', name: 'Faena 500' };
+    view.rerender(<AddEventModal isOpen onClose={onClose} />);
+    try {
+      expect(screen.getByPlaceholderText('Ej: Inspección de Seguridad')).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Guardar Evento' })).toBeEnabled();
+    } finally {
+      await act(async () => { release({ empty: true }); });
+    }
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('does not save twice when the form is resubmitted during the conflict check', async () => {
     let release!: (value: { empty: boolean }) => void;
     const pending = new Promise<{ empty: boolean }>((resolve) => { release = resolve; });
