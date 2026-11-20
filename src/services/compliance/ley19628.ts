@@ -462,20 +462,30 @@ export async function processDataAccessRequest(
 // Export / erasure
 // ---------------------------------------------------------------------------
 
-/**
- * Collections we walk to assemble the user's data export. Each entry
- * contains a Firestore field that holds the user's uid; we use a `where`
- * filter so we never read another tenant's data, even by accident.
- */
-const EXPORTABLE_COLLECTIONS: { name: string; uidField: string }[] = [
+type SubjectFieldByCollection = {
+  users: 'uid';
+  [CONSENTS_COLLECTION]: keyof Pick<ConsentRecord, 'uid'>;
+  [REQUESTS_COLLECTION]: keyof Pick<DataAccessRequest, 'uid'>;
+  curriculum_claims: 'uid';
+  gamification_xp: 'uid';
+  commute_sessions: 'uid';
+  notifications: 'recipientUid';
+};
+
+type SubjectCollection = {
+  [Name in keyof SubjectFieldByCollection]: { name: Name; uidField: SubjectFieldByCollection[Name] };
+}[keyof SubjectFieldByCollection];
+
+/** Shared allowlist for subject-scoped export and erasure. */
+const EXPORTABLE_COLLECTIONS = [
   { name: 'users', uidField: 'uid' },
-  { name: 'compliance_consents', uidField: 'uid' },
-  { name: 'compliance_data_requests', uidField: 'uid' },
+  { name: CONSENTS_COLLECTION, uidField: 'uid' },
+  { name: REQUESTS_COLLECTION, uidField: 'uid' },
   { name: 'curriculum_claims', uidField: 'uid' },
   { name: 'gamification_xp', uidField: 'uid' },
   { name: 'commute_sessions', uidField: 'uid' },
   { name: 'notifications', uidField: 'recipientUid' },
-];
+] as const satisfies readonly SubjectCollection[];
 
 /**
  * Collections preserved when `keepLegalRecords: true` (default). Driven by
