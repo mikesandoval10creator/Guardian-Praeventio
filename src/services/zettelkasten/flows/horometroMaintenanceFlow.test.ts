@@ -363,6 +363,33 @@ describe('onHorometroReading', () => {
     ]);
   });
 
+  it('does not link a failed maintenance task as created', async () => {
+    const taskStore = inMemoryTaskStore();
+    const createTask = taskStore.createTaskIfAbsent.bind(taskStore);
+    taskStore.createTaskIfAbsent = async (task) => {
+      if (task.thresholdHours === 250) throw new Error('simulated task write failure');
+      return createTask(task);
+    };
+    const writer = inMemoryWriteNodes();
+    const edgesAdapter = inMemoryCreateEdge();
+    const result = await onHorometroReading(
+      {
+        tenantId: TENANT,
+        projectId: PROJECT,
+        equipmentId: EQUIPMENT,
+        equipmentType: 'compresor',
+        reading: makeReading({ hours: 1000 }),
+        lastMaintenanceHours: 750,
+      },
+      { writeNodes: writer.fn, createEdge: edgesAdapter.fn, taskStore },
+    );
+    expect(taskStore._all().map((task) => task.thresholdHours).sort()).toEqual([1000, 500]);
+    expect(edgesAdapter.edges.some(({ from, to }) => from === 'srv-id-1-2' || to === 'srv-id-1-2')).toBe(false);
+    expect(edgesAdapter.edges).toContainEqual({ from: 'srv-id-1-0', to: 'srv-id-1-1', type: 'causes' });
+    expect(edgesAdapter.edges).toContainEqual({ from: 'srv-id-1-3', to: 'srv-id-1-4', type: 'causes' });
+    expect(result).toMatchObject({ ok: true, tasksCreated: 2, edgesCreated: 11, edgesExpected: 13 });
+  });
+
   it('returns ok:false when writeNodes fails — does not save tasks or edges', async () => {
     const taskStore = inMemoryTaskStore();
     const writer: WriteNodesFn = async () => ({ ok: false, error: 'simulated_failure' });
