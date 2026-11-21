@@ -16,3 +16,15 @@ node --test tests/*.test.mjs
 ```
 
 The synthetic fixture is constructed from explicit fields by the tests. The `.wasm` lives under ignored `target/`, not in the application bundle. A future opt-in consumer must prove authorization, valid geometry on-screen, stale-request cancellation, CSP and rollback before activation.
+
+## Local Chromium regression
+
+After building the WASM as above, run from the repository root:
+
+```sh
+npm ci
+npx playwright install chromium
+NODE_ENV=production node wasm/gaussian-splat/tests/browser/run.mjs
+```
+
+The isolated Vite build exercises the default module worker and preparation pipeline in Chromium. A loopback Express server runs the application's CSP middleware in production mode and serves both the bundle and the build's WASM. The test checks that rejected bytes leave the canvas unchanged, accepted bytes render, and removing the splat restores the original canvas. This is a manual regression test, not the Guardian app bundle, a deployed CSP check, or evidence of authenticated capture access.
