@@ -276,8 +276,9 @@ export interface CanonicalCaptureSelection {
 
 /**
  * Elige la captura canónica de un proyecto. Prioriza la marcada como
- * `isCanonical=true`. Si no hay, elige la más reciente con calidad >=
- * 'good'. Si no, devuelve null con razón explicativa.
+ * `isCanonical=true` más reciente. Sin canónica, prefiere la más reciente
+ * con calidad 'good' o superior; si ninguna alcanza ese nivel, usa la más
+ * reciente. A igual fecha desempata por ID ascendente.
  */
 export function selectCanonicalCapture(
   captures: SplatCapture[],
@@ -285,13 +286,18 @@ export function selectCanonicalCapture(
   if (captures.length === 0) {
     return { capture: null, reason: 'Sin capturas registradas para este proyecto.' };
   }
-  const flagged = captures.find((c) => c.isCanonical);
+  const sorted = captures.map((capture) => {
+    const time = Date.parse(capture.capturedAt);
+    return { capture, time: Number.isFinite(time) ? time : -Infinity };
+  }).sort((a, b) => {
+    if (a.time !== b.time) return b.time - a.time;
+    return a.capture.id < b.capture.id ? -1 : a.capture.id > b.capture.id ? 1 : 0;
+  }).map(({ capture }) => capture);
+  const flagged = sorted.find((c) => c.isCanonical);
   if (flagged) {
     return { capture: flagged, reason: 'Marcada manualmente como canónica.' };
   }
-  const sorted = [...captures].sort(
-    (a, b) => Date.parse(b.capturedAt) - Date.parse(a.capturedAt),
-  );
+
   for (const candidate of sorted) {
     const quality = evaluateSplatQuality(candidate);
     if (quality.level === 'good' || quality.level === 'excellent') {
