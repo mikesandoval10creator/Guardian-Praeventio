@@ -12,8 +12,7 @@
 // detrás de un `<button>` "Abrir visor 3D" que dynamically importa el
 // código pesado. Hasta que se haga click, el componente es ~5KB.
 //
-// Si playcanvas no está instalado, el visor muestra un placeholder
-// con instrucciones para activar la funcionalidad.
+// Si el navegador no puede iniciar PlayCanvas, conserva la vista de metadatos.
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,8 +42,9 @@ export function GaussianSplatViewer({
   const { t } = useTranslation();
   const [selectedPreset, setSelectedPreset] = useState<CameraPreset | null>(null);
   const [is3DOpen, setIs3DOpen] = useState(false);
-  const [engineState, setEngineState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
+  const [engineState, setEngineState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hasCapture = capture !== null;
 
   const quality = useMemo(
     () => (capture ? evaluateSplatQuality(capture) : null),
@@ -55,23 +55,21 @@ export function GaussianSplatViewer({
     [capture],
   );
 
-  // Lazy load engine al abrir el visor
+  // The canvas is a preview surface only; no capture bytes are loaded here.
   useEffect(() => {
-    if (!is3DOpen || engineState !== 'idle') return undefined;
+    if (!is3DOpen || !hasCapture) return undefined;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
     setEngineState('loading');
+    let app: { destroy: () => void } | undefined;
     let aborted = false;
     (async () => {
       try {
-        // Dynamic import — falla limpio si playcanvas no está instalado.
-        // Variable + @vite-ignore para que Vite no falle en tiempo de bundle
-        // cuando el paquete optional no está presente.
-        const pkgName = 'playcanvas';
-        const mod = await import(/* @vite-ignore */ pkgName).catch(() => null);
+        const { Application } = await import('playcanvas');
         if (aborted) return;
-        if (!mod) {
-          setEngineState('unavailable');
-          return;
-        }
+        app = new Application(canvas, {
+          graphicsDeviceOptions: { alpha: false, antialias: true },
+        });
         setEngineState('ready');
       } catch {
         if (!aborted) setEngineState('unavailable');
@@ -79,48 +77,13 @@ export function GaussianSplatViewer({
     })();
     return () => {
       aborted = true;
-    };
-  }, [is3DOpen, engineState]);
-
-  // Sprint 49 — activación playcanvas: cuando el motor está ready y el
-  // <canvas> está montado, inicializamos una Application básica que
-  // pinta el fondo en negro (clear color). Esto valida que la dep
-  // funciona end-to-end. La carga del .splat real queda para el PR
-  // de pipeline de fotogrametría (Brecha C del roadmap).
-  useEffect(() => {
-    if (engineState !== 'ready') return undefined;
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
-    let app: { destroy?: () => void } | null = null;
-    let aborted = false;
-    (async () => {
       try {
-        const pc = await import(/* @vite-ignore */ 'playcanvas');
-        if (aborted) return;
-        const Application = (pc as { Application?: new (...args: unknown[]) => unknown }).Application;
-        if (!Application) return;
-        // Construcción defensiva: PlayCanvas Application requiere canvas + options.
-        // Falla silenciosa si la firma cambia entre majors — preferible mostrar el
-        // canvas vacío que crashear el árbol React.
-        app = new Application(canvas, {
-          mouse: undefined,
-          touch: undefined,
-          keyboard: undefined,
-          graphicsDeviceOptions: { alpha: false, antialias: true },
-        }) as { destroy?: () => void };
-      } catch {
-        // No-op: ya marcamos `unavailable` si import falló.
-      }
-    })();
-    return () => {
-      aborted = true;
-      try {
-        app?.destroy?.();
+        app?.destroy();
       } catch {
         // ignore
       }
     };
-  }, [engineState]);
+  }, [is3DOpen, hasCapture]);
 
   if (!capture) {
     return (
@@ -296,20 +259,22 @@ export function GaussianSplatViewer({
             className="rounded-md bg-amber-500/10 border border-amber-500/30 text-xs p-3 space-y-1"
           >
             <p className="font-bold text-amber-700 dark:text-amber-300">
-              {t('splat.engineMissing', 'Motor 3D no instalado')}
+              {t('splat.engineMissing', 'No se pudo iniciar la vista 3D')}
             </p>
             <p className="text-amber-600 dark:text-amber-300/80">
               {t(
                 'splat.engineMissingHint',
-                'Agrega `playcanvas` y `@playcanvas/react` para activar el visor. El registro determinístico funciona sin esa dep.',
+                'Puedes seguir consultando los datos de la captura o intentar abrir la vista en otro navegador.',
               )}
             </p>
           </div>
         )}
 
-        {is3DOpen && engineState === 'ready' && (
+        {is3DOpen && (
           <canvas
             ref={canvasRef}
+            role="img"
+            hidden={engineState !== 'ready'}
             data-testid="splat-canvas"
             className="w-full aspect-video rounded-md bg-black"
             aria-label={t('splat.canvasAria', 'Canvas 3D del visor') as string}
