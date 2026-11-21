@@ -47,13 +47,13 @@ export function choosePreferredSplatCapture(
 
 /**
  * Suscribe solo a la metadata de capturas del tenant/proyecto actual.
- * Un documento inválido se omite para que no derribe la pantalla; una denegación
- * o falta de caché muestra estado vacío honesto y delega el detalle al caller.
+ * Omite documentos inválidos e informa si el resultado procede de la caché.
+ * Un resultado vacío en caché no confirma que el proyecto no tenga capturas.
  */
 export function subscribePreferredSplatCapture(
   tenantId: string,
   projectId: string,
-  onCapture: (capture: SplatCapture | null) => void,
+  onCapture: (capture: SplatCapture | null, fromCache?: boolean) => void,
   onError?: (error: Error) => void,
 ): () => void {
   if (!tenantId || !projectId) {
@@ -68,6 +68,7 @@ export function subscribePreferredSplatCapture(
 
   return onSnapshot(
     capturesQuery,
+    { includeMetadataChanges: true },
     (snapshot) => {
       const captures: SplatCapture[] = [];
       snapshot.forEach((document) => {
@@ -79,7 +80,7 @@ export function subscribePreferredSplatCapture(
             (stampedProject !== undefined && stampedProject !== projectId)) return;
         captures.push({ ...data, id: document.id, projectId });
       });
-      onCapture(choosePreferredSplatCapture(captures));
+      onCapture(choosePreferredSplatCapture(captures), snapshot.metadata.fromCache);
     },
     (error) => {
       onError?.(error as Error);

@@ -89,8 +89,8 @@ describe("subscribePreferredSplatCapture", () => {
     { centerCoords: { lat: 91, lng: 0 } },
   ])("ignora metadatos inválidos o de otro proyecto: %j", (invalid) => {
     const onCapture = vi.fn();
-    onSnapshotMock.mockImplementationOnce((_query, onNext) => {
-      onNext({ forEach: (visit: (doc: { id: string; data: () => unknown }) => void) => {
+    onSnapshotMock.mockImplementationOnce((_query, _options, onNext) => {
+      onNext({ metadata: { fromCache: false }, forEach: (visit: (doc: { id: string; data: () => unknown }) => void) => {
         visit({ id: "invalid", data: () => ({ ...capture({ isCanonical: true }), ...invalid }) });
         visit({ id: "valid", data: () => capture() });
       } });
@@ -98,15 +98,29 @@ describe("subscribePreferredSplatCapture", () => {
     });
 
     subscribePreferredSplatCapture("t1", "p1", onCapture);
-    expect(onCapture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "valid", projectId: "p1" }));
+    expect(onCapture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "valid", projectId: "p1" }), false);
+  });
+
+  it("distinguishes a cache miss from a server-confirmed empty result", () => {
+    const onCapture = vi.fn();
+    const forEach = vi.fn();
+    onSnapshotMock.mockImplementationOnce((_query, options, onNext) => {
+      expect(options).toEqual({ includeMetadataChanges: true });
+      onNext({ metadata: { fromCache: true }, forEach });
+      onNext({ metadata: { fromCache: false }, forEach });
+      return vi.fn();
+    });
+    subscribePreferredSplatCapture("t1", "p1", onCapture);
+    expect(onCapture.mock.calls).toEqual([[null, true], [null, false]]);
   });
 
   it("rehidrata documentos, prefiere el canónico y preserva cleanup", () => {
     const onCapture = vi.fn();
     const onError = vi.fn();
     const unsubscribe = vi.fn();
-    onSnapshotMock.mockImplementationOnce((_query, onNext) => {
+    onSnapshotMock.mockImplementationOnce((_query, _options, onNext) => {
       onNext({
+        metadata: { fromCache: true },
         forEach: (
           visit: (doc: {
             id: string;
@@ -132,6 +146,7 @@ describe("subscribePreferredSplatCapture", () => {
 
     expect(onCapture).toHaveBeenCalledWith(
       expect.objectContaining({ id: "canonical", isCanonical: true }),
+      true,
     );
     expect(onError).not.toHaveBeenCalled();
     expect(received).toBe(unsubscribe);

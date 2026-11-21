@@ -5,7 +5,7 @@ import type { SplatCapture } from "../../services/digitalTwin/gaussianSplatRegis
 import { ScopedGaussianSplatViewer } from "./ScopedGaussianSplatViewer";
 
 const subscriptions = vi.hoisted(() =>
-  vi.fn<(tenant: string, project: string, receive: (capture: SplatCapture | null) => void, fail: (error: Error) => void) => () => void>(),
+  vi.fn<(tenant: string, project: string, receive: (capture: SplatCapture | null, fromCache?: boolean) => void, fail: (error: Error) => void) => () => void>(),
 );
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
@@ -70,4 +70,16 @@ it("distinguishes a read failure from no capture and retries the current project
   act(() => current(null));
   expect(screen.getByTestId("splat-viewer-empty")).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("does not show an empty project until the server confirms a cache miss", () => {
+  subscriptions.mockReset();
+  subscriptions.mockReturnValue(vi.fn());
+  render(<ScopedGaussianSplatViewer tenantId="tenant-a" projectId="project-a" />);
+  const receive = subscriptions.mock.lastCall![2];
+  act(() => receive(null, true));
+  expect(screen.getByRole("status")).toHaveTextContent("No hay una captura guardada en este dispositivo");
+  expect(screen.queryByTestId("splat-viewer-empty")).not.toBeInTheDocument();
+  act(() => receive(null, false));
+  expect(screen.getByTestId("splat-viewer-empty")).toBeInTheDocument();
 });
