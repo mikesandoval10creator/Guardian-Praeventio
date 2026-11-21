@@ -5631,6 +5631,9 @@
     }
   },
   "digitalTwin": {
+    "captureLoading": "Looking up the 3D capture…",
+    "captureUnavailable": "Could not look up the 3D capture.",
+    "captureRetry": "Retry",
     "tabIntegration": "Integration",
     "tabScene3d": "3D Scene"
   },
