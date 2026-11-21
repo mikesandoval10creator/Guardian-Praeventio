@@ -48,7 +48,8 @@ jobs:
         working-directory: .
         run: |
           npm ci --no-audit --no-fund
-          node node_modules/playwright/cli.js install --with-deps chromium
+          # Use the same Playwright package the probe imports, not a hoisted transitive CLI.
+          node node_modules/@playwright/test/cli.js install --with-deps chromium
       - name: Check the bundled WASM worker and canvas in Chromium
         working-directory: .
         env:

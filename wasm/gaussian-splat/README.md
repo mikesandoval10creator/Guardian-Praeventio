@@ -29,7 +29,7 @@ After building the WASM as above, run from the repository root:
 
 ```sh
 npm ci
-npx playwright install chromium
+node node_modules/@playwright/test/cli.js install chromium
 NODE_ENV=production node wasm/gaussian-splat/tests/browser/run.mjs
 ```
 
