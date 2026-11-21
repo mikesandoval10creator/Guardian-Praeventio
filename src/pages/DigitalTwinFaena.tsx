@@ -62,9 +62,7 @@ import {
 import { NormativaWarningsBanner } from "../components/digital-twin/NormativaWarningsBanner";
 import { MaintenanceStatusPanel } from "../components/digital-twin/MaintenanceStatusPanel";
 import { ARObjectOverlay } from "../components/digital-twin/ARObjectOverlay";
-import { GaussianSplatViewer } from "../components/digital-twin/GaussianSplatViewer";
-import { subscribePreferredSplatCapture } from "../services/digitalTwin/splatCaptureStore";
-import type { SplatCapture } from "../services/digitalTwin/gaussianSplatRegistry";
+import { ScopedGaussianSplatViewer } from "../components/digital-twin/ScopedGaussianSplatViewer";
 import { RePositionConfirmDialog } from "../components/digital-twin/RePositionConfirmDialog";
 import {
   TwinPhysicsScene,
@@ -317,8 +315,6 @@ export function DigitalTwinFaena() {
   const [jobs, setJobs] = useState<ReconstructionJob[]>([]);
   const [activeJob, setActiveJob] = useState<ReconstructionJob | null>(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
-  const [preferredSplatCapture, setPreferredSplatCapture] =
-    useState<SplatCapture | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -329,24 +325,6 @@ export function DigitalTwinFaena() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [arObject, setArObject] = useState<PlacedObject | null>(null);
   const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? "");
-
-  // Gaussian Splat metadata es tenant-scoped. El tenant se deriva del claim
-  // firmado con `useTenantId`, no del proyecto ni del uid, y el store es solo
-  // lectura: firestore.rules mantiene las escrituras server-only.
-  useEffect(() => {
-    const projectId = selectedProject?.id;
-    // Al cambiar project/tenant, nunca renderizar brevemente la geometría
-    // anterior mientras Firestore entrega el snapshot nuevo.
-    setPreferredSplatCapture(null);
-    const unsub = subscribePreferredSplatCapture(
-      tenantId ?? "",
-      projectId ?? "",
-      setPreferredSplatCapture,
-      (err) =>
-        logger.warn("splat_capture_subscription_error", { err: String(err) }),
-    );
-    return () => unsub();
-  }, [selectedProject?.id, tenantId]);
 
   // Suscripción Firestore — limpia automáticamente al cambiar projectId.
   useEffect(() => {
@@ -1264,7 +1242,10 @@ export function DigitalTwinFaena() {
                   sin captura permanece en estado vacío honesto. El panel está
                   dentro de TwinAccessGuard antes de entregar geometría 3D. */}
                 <div className="p-4 border-b border-default-token">
-                  <GaussianSplatViewer capture={preferredSplatCapture} />
+                  <ScopedGaussianSplatViewer
+                    tenantId={tenantId ?? ""}
+                    projectId={selectedProject?.id ?? ""}
+                  />
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-default-token shrink-0">
                   <div className="flex items-center gap-2">

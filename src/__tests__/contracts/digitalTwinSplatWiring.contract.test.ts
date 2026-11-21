@@ -16,15 +16,10 @@ describe("Digital Twin Gaussian Splat wiring contract", () => {
       /import\s+\{\s*useTenantId\s*\}\s+from\s+["']\.\.\/hooks\/useTenantId["']/,
     );
     expect(source).toMatch(
-      /subscribePreferredSplatCapture\(\s*tenantId\s*\?\?\s*["']{2}\s*,\s*projectId\s*\?\?\s*["']{2}/,
-    );
-    expect(source).toMatch(
-      /const projectId = selectedProject\?\.id;[\s\S]*?setPreferredSplatCapture\(null\);[\s\S]*?const unsub = subscribePreferredSplatCapture/,
+      /<ScopedGaussianSplatViewer\s+tenantId=\{tenantId \?\? ""\}\s+projectId=\{selectedProject\?\.id \?\? ""\}/,
     );
     const guardOffset = source.indexOf("<TwinAccessGuard");
-    const viewerOffset = source.indexOf(
-      "<GaussianSplatViewer capture={preferredSplatCapture}",
-    );
+    const viewerOffset = source.indexOf("<ScopedGaussianSplatViewer");
     expect(guardOffset).toBeGreaterThanOrEqual(0);
     expect(viewerOffset).toBeGreaterThan(guardOffset);
     expect(source).not.toMatch(/<GaussianSplatViewer\s+capture=\{null\}/);
