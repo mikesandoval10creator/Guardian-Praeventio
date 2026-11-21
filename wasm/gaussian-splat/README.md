@@ -23,7 +23,7 @@ The existing Firestore subscription reads preview metadata only. `storageUrl` is
 
 Before enabling downloads, identify or implement a trusted publisher that binds each raw `.splat` to a tenant, project, actor and immutable object. The download boundary must authorize the current user against that same tenant and project, resolve the object server-side rather than accepting a caller-supplied URL, and enforce the format and byte cap. Test a successful synthetic publish/read-back and denial for another project and another tenant through the actual download boundary. Keep preview-only behavior until those checks pass.
 
-## Local Chromium regression
+## Chromium regression
 
 After building the WASM as above, run from the repository root:
 
@@ -33,4 +33,6 @@ npx playwright install chromium
 NODE_ENV=production node wasm/gaussian-splat/tests/browser/run.mjs
 ```
 
-The isolated Vite build exercises the default module worker and preparation pipeline in Chromium. A loopback Express server runs the application's CSP middleware in production mode and serves both the bundle and the build's WASM. The test checks that rejected bytes leave the canvas unchanged, accepted bytes render, and removing the splat restores the original canvas. This is a manual regression test, not the Guardian app bundle, a deployed CSP check, or evidence of authenticated capture access.
+The `Gaussian splat WASM` workflow runs the same probe after building the WASM and running the Node tests. Changes to the crate, workflow, CSP middleware, or locked npm dependencies trigger it.
+
+The isolated Vite build exercises the default module worker and preparation pipeline in Chromium. A loopback Express server runs the application's CSP middleware in production mode and serves both the bundle and the build's WASM. The test checks that rejected bytes leave the canvas unchanged, accepted bytes render, and removing the splat restores the original canvas. This is not the Guardian app bundle, a deployed CSP check, or evidence of authenticated capture access.

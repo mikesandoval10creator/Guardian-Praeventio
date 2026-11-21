@@ -5,11 +5,19 @@ on:
     paths:
       - 'wasm/gaussian-splat/**'
       - '.github/workflows/gaussian-splat-wasm.yml'
+      - 'src/server/middleware/securityHeaders.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
   push:
     branches: [main]
     paths:
       - 'wasm/gaussian-splat/**'
       - '.github/workflows/gaussian-splat-wasm.yml'
+      - 'src/server/middleware/securityHeaders.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
 
 permissions:
   contents: read
@@ -17,7 +25,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: wasm/gaussian-splat
@@ -36,3 +44,13 @@ jobs:
           cargo clippy --target wasm32-unknown-unknown --locked --offline -- -D warnings
           cargo build --release --target wasm32-unknown-unknown --locked --offline
           node --test tests/*.test.mjs
+      - name: Install browser test dependencies
+        working-directory: .
+        run: |
+          npm ci --no-audit --no-fund
+          node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Check the bundled WASM worker and canvas in Chromium
+        working-directory: .
+        env:
+          NODE_ENV: production
+        run: node wasm/gaussian-splat/tests/browser/run.mjs
