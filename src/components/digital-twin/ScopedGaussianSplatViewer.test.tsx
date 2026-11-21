@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { SplatCapture } from "../../services/digitalTwin/gaussianSplatRegistry";
 import { ScopedGaussianSplatViewer } from "./ScopedGaussianSplatViewer";
 
 const subscriptions = vi.hoisted(() =>
-  vi.fn<(tenant: string, project: string, receive: (capture: SplatCapture | null) => void) => () => void>(),
+  vi.fn<(tenant: string, project: string, receive: (capture: SplatCapture | null) => void, fail: (error: Error) => void) => () => void>(),
 );
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+}));
 vi.mock("../../services/digitalTwin/splatCaptureStore", () => ({
   subscribePreferredSplatCapture: subscriptions,
 }));
@@ -33,7 +36,7 @@ it.each([["tenant-b", "project-a"], ["tenant-a", "project-b"]])(
     expect(screen.getByText("17m")).toBeInTheDocument();
     view.rerender(<ScopedGaussianSplatViewer tenantId={tenant} projectId={project} />);
     expect(stop).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("splat-viewer-empty")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Consultando la captura 3D");
     expect(subscriptions.mock.lastCall?.slice(0, 2)).toEqual([tenant, project]);
     const current = subscriptions.mock.lastCall![2];
     act(() => current(capture(project, 29)));
@@ -42,3 +45,29 @@ it.each([["tenant-b", "project-a"], ["tenant-a", "project-b"]])(
     expect(screen.queryByText("17m")).not.toBeInTheDocument();
   },
 );
+
+it("distinguishes a read failure from no capture and retries the current project", () => {
+  subscriptions.mockReset();
+  const stop = vi.fn();
+  subscriptions.mockReturnValue(stop);
+  render(<ScopedGaussianSplatViewer tenantId="tenant-a" projectId="project-a" />);
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  const [, , receive, fail] = subscriptions.mock.lastCall!;
+  act(() => receive(capture("project-a", 17)));
+  expect(screen.getByText("17m")).toBeInTheDocument();
+  act(() => { fail(new Error("fixture")); receive(null); });
+  expect(screen.getByRole("alert")).toHaveTextContent("No se pudo consultar la captura 3D");
+  expect(screen.queryByTestId("splat-viewer-empty")).not.toBeInTheDocument();
+  expect(screen.queryByText("17m")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  expect(stop).toHaveBeenCalledTimes(1);
+  expect(subscriptions.mock.lastCall?.slice(0, 2)).toEqual(["tenant-a", "project-a"]);
+  expect(subscriptions).toHaveBeenCalledTimes(2);
+  act(() => fail(new Error("late fixture")));
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  const current = subscriptions.mock.lastCall![2];
+  act(() => current(null));
+  expect(screen.getByTestId("splat-viewer-empty")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

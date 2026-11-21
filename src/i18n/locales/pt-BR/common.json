@@ -5631,6 +5631,9 @@
     }
   },
   "digitalTwin": {
+    "captureLoading": "Consultando a captura 3D…",
+    "captureUnavailable": "Não foi possível consultar a captura 3D.",
+    "captureRetry": "Tentar novamente",
     "tabIntegration": "Integração",
     "tabScene3d": "Cena 3D"
   },
