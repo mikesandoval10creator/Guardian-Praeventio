@@ -1,6 +1,6 @@
 # Gaussian splat validation (Rust/WASM)
 
-First slice of the Digital Twin ingestion ticket. **Not loaded by the application.** No Firebase, network, browser worker or renderer integration in this slice.
+First slice of the Digital Twin ingestion ticket. **Not loaded by the application.** No Firebase, network, or renderer integration. `validationWorker.ts` handles one capture off the UI thread: the caller supplies a trusted compiled module and transfers the input buffer; a successful reply transfers the validated bytes back. The caller owns cancellation and worker termination. Node tests exercise this entrypoint in a separate thread with a Web Worker API adapter; they do not certify the deployed browser or CSP.
 
 Accepts one raw little-endian `.splat` layout: 32 bytes per record (position XYZ and linear scales XYZ as six float32s, four RGBA bytes, four WXYZ rotation bytes centered at 128). Layout reference: [raw splat converter](https://github.com/antimatter15/splat/blob/main/convert.py); no third-party source copied and no Cargo dependencies. This is structural validation of the selected layout, not file provenance or authorization. PLY, compressed formats and scene reconstruction are out of scope.
 
