@@ -25,15 +25,16 @@ function CaptureViewer({ tenantId, projectId }: CaptureScope) {
   const { t } = useTranslation();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<
-    { kind: "loading" | "unavailable" } | { kind: "resolved"; capture: SplatCapture | null }
+    { kind: "loading" | "cacheMiss" | "unavailable" } | { kind: "resolved"; capture: SplatCapture | null }
   >({ kind: "loading" });
   useEffect(() => {
     let active = true;
     const unsubscribe = subscribePreferredSplatCapture(
       tenantId,
       projectId,
-      (next) => {
-        if (active) setState({ kind: "resolved", capture: next });
+      (next, fromCache) => {
+        if (!active) return;
+        setState(next === null && fromCache ? { kind: "cacheMiss" } : { kind: "resolved", capture: next });
       },
       () => {
         if (!active) return;
@@ -54,6 +55,8 @@ function CaptureViewer({ tenantId, projectId }: CaptureScope) {
     <section className="rounded-2xl border border-default-token bg-surface p-4 text-sm text-secondary-token">
       {state.kind === "loading" ? (
         <p role="status">{t("digitalTwin.captureLoading", "Consultando la captura 3D…")}</p>
+      ) : state.kind === "cacheMiss" ? (
+        <p role="status">{t("digitalTwin.captureCacheMiss", "No hay una captura guardada en este dispositivo. Esperando la confirmación del servidor.")}</p>
       ) : (
         <>
           <p role="alert">{t("digitalTwin.captureUnavailable", "No se pudo consultar la captura 3D.")}</p>

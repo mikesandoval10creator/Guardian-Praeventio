@@ -5632,6 +5632,7 @@
   },
   "digitalTwin": {
     "captureLoading": "Looking up the 3D capture…",
+    "captureCacheMiss": "No capture is stored on this device. Waiting for confirmation from the server.",
     "captureUnavailable": "Could not look up the 3D capture.",
     "captureRetry": "Retry",
     "tabIntegration": "Integration",
