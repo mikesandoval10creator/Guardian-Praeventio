@@ -1,14 +1,15 @@
-const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
-const { test } = require('node:test');
+import { Buffer } from 'node:buffer';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
 
-const wasm = join(__dirname, '../target/wasm32-unknown-unknown/release/guardian_gaussian_splat.wasm');
+const wasm = join(import.meta.dirname, '../target/wasm32-unknown-unknown/release/guardian_gaussian_splat.wasm');
 const MAX = 4 * 1024 * 1024;
 async function engine() {
-  const module = await WebAssembly.compile(readFileSync(wasm));
-  assert.deepEqual(WebAssembly.Module.imports(module), []);
-  return (await WebAssembly.instantiate(module)).exports;
+  const module = await globalThis.WebAssembly.compile(readFileSync(wasm));
+  assert.deepEqual(globalThis.WebAssembly.Module.imports(module), []);
+  return (await globalThis.WebAssembly.instantiate(module)).exports;
 }
 function record(x = 1, scale = 0.25, rotation = 255) {
   const bytes = Buffer.alloc(32);

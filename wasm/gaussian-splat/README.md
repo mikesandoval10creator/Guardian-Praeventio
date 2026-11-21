@@ -12,7 +12,7 @@ From this directory, with Node 24 and the pinned Rust toolchain:
 cargo fmt --check
 cargo clippy --target wasm32-unknown-unknown --locked --offline -- -D warnings
 cargo build --release --target wasm32-unknown-unknown --locked --offline
-node --test tests/*.test.cjs
+node --test tests/*.test.mjs
 ```
 
 The synthetic fixture is constructed from explicit fields by the tests. The `.wasm` lives under ignored `target/`, not in the application bundle. A future opt-in consumer must prove authorization, valid geometry on-screen, stale-request cancellation, CSP and rollback before activation.

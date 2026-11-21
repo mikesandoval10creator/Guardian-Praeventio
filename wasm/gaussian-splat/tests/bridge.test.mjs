@@ -1,13 +1,13 @@
-const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
 
-const artifact = join(__dirname, '../target/wasm32-unknown-unknown/release/guardian_gaussian_splat.wasm');
+const artifact = join(import.meta.dirname, '../target/wasm32-unknown-unknown/release/guardian_gaussian_splat.wasm');
 
 test('TypeScript calls real Rust/WASM, including reuse after invalid input', async () => {
   const { createSplatValidator } = await import('../bridge.ts');
-  const validate = await createSplatValidator(await WebAssembly.compile(readFileSync(artifact)));
+  const validate = await createSplatValidator(await globalThis.WebAssembly.compile(readFileSync(artifact)));
   const data = new Uint8Array(32);
   const view = new DataView(data.buffer);
   for (const offset of [12, 16, 20]) view.setFloat32(offset, 0.25, true);
