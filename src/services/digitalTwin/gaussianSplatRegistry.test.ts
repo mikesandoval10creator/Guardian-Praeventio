@@ -141,6 +141,20 @@ describe('selectCanonicalCapture', () => {
     expect(r.reason).toMatch(/canónica/i);
   });
 
+  it('elige la canónica más reciente aunque cambie el orden de entrada', () => {
+    const older = capture({ id: 'older', isCanonical: true, capturedAt: '2026-01-01T00:00:00Z' });
+    const newer = capture({ id: 'newer', isCanonical: true, capturedAt: '2026-01-02T00:00:00Z' });
+    expect(selectCanonicalCapture([older, newer]).capture?.id).toBe('newer');
+    expect(selectCanonicalCapture([newer, older]).capture?.id).toBe('newer');
+  });
+
+  it.each([true, false])('desempata por ID en el mismo instante (canónica: %s)', (isCanonical) => {
+    const first = capture({ id: 'a', isCanonical, capturedAt: '2026-01-01T00:00:00Z' });
+    const second = capture({ id: 'z', isCanonical, capturedAt: '2025-12-31T21:00:00-03:00' });
+    expect(selectCanonicalCapture([second, first]).capture?.id).toBe('a');
+    expect(selectCanonicalCapture([first, second]).capture?.id).toBe('a');
+  });
+
   it('sin canonical → más reciente con quality good+', () => {
     const r = selectCanonicalCapture([
       capture({
