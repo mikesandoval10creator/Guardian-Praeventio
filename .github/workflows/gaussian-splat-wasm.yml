@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.22.2'
+          node-version: '24.22.1'
       - name: Install pinned toolchain
         run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-unknown-unknown --component rustfmt --component clippy
       - name: Check, build and exercise the WASM artifact
