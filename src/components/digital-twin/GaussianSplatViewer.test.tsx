@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { GaussianSplatViewer } from './GaussianSplatViewer.js';
 import {
   buildEvacuationPathOverlay,
@@ -13,6 +13,14 @@ vi.mock('react-i18next', () => ({
     t: (_k: string, fallback?: string | Record<string, unknown>) =>
       typeof fallback === 'string' ? fallback : _k,
   }),
+}));
+
+const engine = vi.hoisted(() => ({ create: vi.fn(), destroy: vi.fn() }));
+vi.mock('playcanvas', () => ({
+  Application: class {
+    constructor(canvas: HTMLCanvasElement) { engine.create(canvas); }
+    destroy() { engine.destroy(); }
+  },
 }));
 
 function capture(over: Partial<SplatCapture> = {}): SplatCapture {
@@ -88,9 +96,26 @@ describe('<GaussianSplatViewer />', () => {
     expect(screen.getByTestId('splat-open-3d')).toBeInTheDocument();
   });
 
-  it('clickear abrir 3D → loading state', () => {
-    render(<GaussianSplatViewer capture={capture()} />);
+  it('termina la carga al inicializar el canvas y libera el motor al cerrar la vista', async () => {
+    engine.create.mockClear();
+    engine.destroy.mockClear();
+    const view = render(<GaussianSplatViewer capture={capture()} />);
+    expect(engine.create).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId('splat-open-3d'));
     expect(screen.getByTestId('splat-engine-loading')).toBeInTheDocument();
+    const canvas = await screen.findByRole('img', { name: 'Canvas 3D del visor' });
+    expect(engine.create).toHaveBeenCalledExactlyOnceWith(canvas);
+    expect(screen.queryByTestId('splat-engine-loading')).not.toBeInTheDocument();
+    view.unmount();
+    expect(engine.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('sale de la carga si el navegador no puede inicializar el motor', async () => {
+    engine.create.mockImplementationOnce(() => { throw new Error('no graphics device'); });
+    render(<GaussianSplatViewer capture={capture()} />);
+    fireEvent.click(screen.getByTestId('splat-open-3d'));
+    await waitFor(() => expect(screen.getByTestId('splat-engine-unavailable')).toBeInTheDocument());
+    expect(screen.queryByTestId('splat-engine-loading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Canvas 3D del visor' })).not.toBeInTheDocument();
   });
 });
