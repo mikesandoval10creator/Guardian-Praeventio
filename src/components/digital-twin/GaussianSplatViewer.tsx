@@ -34,7 +34,14 @@ interface GaussianSplatViewerProps {
   onRender3D?: (capture: SplatCapture, preset: CameraPreset) => void;
 }
 
-export function GaussianSplatViewer({
+export function GaussianSplatViewer(props: GaussianSplatViewerProps) {
+  const { capture } = props;
+  // Keep preview state for metadata refreshes, but never carry it to another capture.
+  const key = capture ? JSON.stringify([capture.projectId, capture.id]) : 'no-capture';
+  return <CapturePreview key={key} {...props} />;
+}
+
+function CapturePreview({
   capture,
   overlays = [],
   onRender3D,
