@@ -72,9 +72,9 @@ const MAX_QUEUE_SIZE = 50;
 // Backoff
 // ────────────────────────────────────────────────────────────────────────
 
-/** Backoff exponencial determinístico: 2^n segundos, cap a 60s. */
+/** Backoff tras el fallo número n (base 1): 2^(n-1) segundos, cap a 60s. */
 export function computeBackoffMs(retryCount: number): number {
-  const seconds = Math.min(2 ** retryCount, 60);
+  const seconds = Math.min(2 ** Math.max(0, retryCount - 1), 60);
   return seconds * 1000;
 }
 
