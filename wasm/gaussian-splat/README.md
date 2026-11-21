@@ -17,6 +17,12 @@ node --test tests/*.test.mjs
 
 The synthetic fixture is constructed from explicit fields by the tests. The `.wasm` lives under ignored `target/`, not in the application bundle. A future opt-in consumer must prove authorization, valid geometry on-screen, stale-request cancellation, CSP and rollback before activation.
 
+## Capture source and access
+
+The existing Firestore subscription reads preview metadata only. `storageUrl` is a legacy descriptive field, not an authorization decision; the browser must not dereference it for rendering. The existing on-device `reconstructions` uploader produces GLB/USDZ, not raw `.splat`, and the checked-in server does not publish records to `splat_captures`.
+
+Before enabling downloads, identify or implement a trusted publisher that binds each raw `.splat` to a tenant, project, actor and immutable object. The download boundary must authorize the current user against that same tenant and project, resolve the object server-side rather than accepting a caller-supplied URL, and enforce the format and byte cap. Test a successful synthetic publish/read-back and denial for another project and another tenant through the actual download boundary. Keep preview-only behavior until those checks pass.
+
 ## Local Chromium regression
 
 After building the WASM as above, run from the repository root:

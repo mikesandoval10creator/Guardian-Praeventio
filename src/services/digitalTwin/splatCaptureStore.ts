@@ -5,6 +5,7 @@
 // Selección determinística del dominio: canónica primero; si falta, la más
 // reciente que alcance calidad buena/excelente; como último recurso la más reciente.
 
+import { z } from "zod";
 import { db, collection, onSnapshot, orderBy, query } from "../firebase";
 import {
   selectCanonicalCapture,
@@ -13,6 +14,22 @@ import {
 
 const splatCapturesPath = (tenantId: string, projectId: string) =>
   `tenants/${tenantId}/projects/${projectId}/splat_captures`;
+
+// Metadata for preview only. A valid record is not proof of object provenance or permission to fetch it.
+const previewMetadata = z.object({
+  tenantId: z.string().optional(),
+  projectId: z.string().optional(),
+  capturedAt: z.string().refine((date) => Number.isFinite(Date.parse(date))),
+  capturedByUid: z.string().min(1),
+  format: z.enum(["ply", "splat", "compressed_splat"]),
+  storageUrl: z.string().min(1),
+  sizeBytes: z.number().int().positive(),
+  splatCount: z.number().int().nonnegative(),
+  extentMeters: z.number().finite().nonnegative(),
+  centerCoords: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
+  isCanonical: z.boolean(),
+  notes: z.string().optional(),
+});
 
 /**
  * Selecciona la captura que debe representar la faena.
@@ -54,9 +71,13 @@ export function subscribePreferredSplatCapture(
     (snapshot) => {
       const captures: SplatCapture[] = [];
       snapshot.forEach((document) => {
-        const data = document.data() as Partial<SplatCapture>;
-        if (!data.capturedAt || !data.storageUrl || !data.format) return;
-        captures.push({ ...data, id: document.id, projectId } as SplatCapture);
+        const parsed = previewMetadata.safeParse(document.data());
+        if (!parsed.success) return;
+        const { tenantId: stampedTenant, projectId: stampedProject, ...data } = parsed.data;
+        // Legacy records may omit stamps; a contradictory stamp is never silently rewritten.
+        if ((stampedTenant !== undefined && stampedTenant !== tenantId) ||
+            (stampedProject !== undefined && stampedProject !== projectId)) return;
+        captures.push({ ...data, id: document.id, projectId });
       });
       onCapture(choosePreferredSplatCapture(captures));
     },

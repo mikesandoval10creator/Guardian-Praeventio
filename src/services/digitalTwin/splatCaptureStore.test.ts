@@ -77,6 +77,30 @@ describe("subscribePreferredSplatCapture", () => {
     expect(unsubscribe).toBeTypeOf("function");
   });
 
+  it.each([
+    { capturedAt: "not-a-date" },
+    { format: "obj" },
+    { splatCount: -1 },
+    { sizeBytes: Number.NaN },
+    { extentMeters: Infinity },
+    { isCanonical: "false" },
+    { projectId: "other-project" },
+    { tenantId: "other-tenant" },
+    { centerCoords: { lat: 91, lng: 0 } },
+  ])("ignora metadatos inválidos o de otro proyecto: %j", (invalid) => {
+    const onCapture = vi.fn();
+    onSnapshotMock.mockImplementationOnce((_query, onNext) => {
+      onNext({ forEach: (visit: (doc: { id: string; data: () => unknown }) => void) => {
+        visit({ id: "invalid", data: () => ({ ...capture({ isCanonical: true }), ...invalid }) });
+        visit({ id: "valid", data: () => capture() });
+      } });
+      return vi.fn();
+    });
+
+    subscribePreferredSplatCapture("t1", "p1", onCapture);
+    expect(onCapture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "valid", projectId: "p1" }));
+  });
+
   it("rehidrata documentos, prefiere el canónico y preserva cleanup", () => {
     const onCapture = vi.fn();
     const onError = vi.fn();
