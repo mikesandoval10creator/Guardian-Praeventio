@@ -110,6 +110,26 @@ describe('<GaussianSplatViewer />', () => {
     expect(engine.destroy).toHaveBeenCalledTimes(1);
   });
 
+  it('conserva el motor al refrescar metadatos y lo libera al cambiar de captura', async () => {
+    engine.create.mockClear();
+    engine.destroy.mockClear();
+    const original = capture();
+    const view = render(<GaussianSplatViewer capture={original} />);
+    fireEvent.click(screen.getByTestId('splat-open-3d'));
+    const canvas = await screen.findByRole('img', { name: 'Canvas 3D del visor' });
+    view.rerender(<GaussianSplatViewer capture={{ ...original, notes: 'updated' }} />);
+    expect(screen.getByRole('img', { name: 'Canvas 3D del visor' })).toBe(canvas);
+    expect(engine.destroy).not.toHaveBeenCalled();
+
+    view.rerender(<GaussianSplatViewer capture={{ ...original, id: 'c2' }} />);
+    expect(canvas).not.toBeInTheDocument();
+    expect(engine.destroy).toHaveBeenCalledTimes(1);
+    expect(engine.create).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('splat-open-3d'));
+    expect(await screen.findByRole('img', { name: 'Canvas 3D del visor' })).not.toBe(canvas);
+    expect(engine.create).toHaveBeenCalledTimes(2);
+  });
+
   it('sale de la carga si el navegador no puede inicializar el motor', async () => {
     engine.create.mockImplementationOnce(() => { throw new Error('no graphics device'); });
     render(<GaussianSplatViewer capture={capture()} />);
