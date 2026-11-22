@@ -103,6 +103,21 @@ describe("subscribePreferredSplatCapture", () => {
     expect(onCapture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "valid", projectId: "p1" }), false);
   });
 
+  it("reports a terminal listener error without emitting an empty snapshot", () => {
+    const onCapture = vi.fn();
+    const onError = vi.fn();
+    const error = new Error("Snapshot listener failed");
+    const unsubscribe = vi.fn();
+    onSnapshotMock.mockImplementationOnce((_query, _options, _onNext, fail) => {
+      fail(error);
+      return unsubscribe;
+    });
+
+    expect(subscribePreferredSplatCapture("t1", "p1", onCapture, onError)).toBe(unsubscribe);
+    expect(onError).toHaveBeenCalledExactlyOnceWith(error);
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
   it("distinguishes a cache miss from a server-confirmed empty result", () => {
     const onCapture = vi.fn();
     const forEach = vi.fn();
