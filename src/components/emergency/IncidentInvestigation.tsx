@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
-import { investigateIncidentWithAI } from '../../services/geminiService';
+import { investigateIncidentWithAI, type IncidentInvestigationResult } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
@@ -15,7 +15,7 @@ export function IncidentInvestigation() {
   const [incidentTitle, setIncidentTitle] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<IncidentInvestigationResult | null>(null);
   const [saved, setSaved] = useState(false);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const { nodes } = useUniversalKnowledge();
@@ -244,7 +244,7 @@ export function IncidentInvestigation() {
             <div className="space-y-4">
               <h5 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Acciones Correctivas Sugeridas</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {analysis.correctiveActions.map((action: any, i: number) => (
+                {analysis.correctiveActions.map((action, i) => (
                   <div key={i} className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-zinc-900 dark:text-white">{action.action}</p>

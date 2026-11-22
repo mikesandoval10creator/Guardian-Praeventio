@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { auth } from './firebase';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
@@ -86,7 +87,21 @@ export const auditAISuggestion = async (suggestion: string, context: string) => 
 export const generatePersonalizedSafetyPlan = async (workerName: string, role: string, history: string, projectRisks: string) => callGeminiAPI('generatePersonalizedSafetyPlan', [workerName, role, history, projectRisks]);
 export const analyzeDocumentCompliance = async (documentText: string, normativeContext: string) => callGeminiAPI('analyzeDocumentCompliance', [documentText, normativeContext]);
 export const generateTrainingRecommendations = async (workerName: string, workerRole: string, context: string) => callGeminiAPI('generateTrainingRecommendations', [workerName, workerRole, context]);
-export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string) => callGeminiAPI('investigateIncidentWithAI', [incidentTitle, incidentDescription, context]);
+const incidentInvestigationSchema = z.object({
+  summary: z.string(),
+  immediateCauses: z.array(z.string()),
+  rootCauses: z.array(z.string()),
+  correctiveActions: z.array(z.object({ action: z.string(), priority: z.enum(['Alta', 'Media', 'Baja']) })),
+  globalRiskLesson: z.object({ title: z.string(), description: z.string() }).optional(),
+  legalRequirementNote: z.string().optional(),
+});
+export type IncidentInvestigationResult = z.infer<typeof incidentInvestigationSchema>;
+
+export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string): Promise<IncidentInvestigationResult> => {
+  const result = incidentInvestigationSchema.safeParse(await callGeminiAPI('investigateIncidentWithAI', [incidentTitle, incidentDescription, context]));
+  if (!result.success) throw new Error('invalid_incident_analysis');
+  return result.data;
+};
 export const auditProjectComplianceWithAI = async (projectName: string, projectContext: string, normativeContext: string) => callGeminiAPI('auditProjectComplianceWithAI', [projectName, projectContext, normativeContext]);
 export const analyzeAttendancePatterns = async (projectName: string, attendanceData: string) => callGeminiAPI('analyzeAttendancePatterns', [projectName, attendanceData]);
 export const generateSafetyCapsule = async (workerName: string, role: string, context: string): Promise<SafetyCapsuleDto> =>
