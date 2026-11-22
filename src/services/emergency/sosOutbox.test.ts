@@ -18,9 +18,9 @@ function makeEvent(over: Partial<SosEvent> = {}): SosEvent {
 
 describe('computeBackoffMs', () => {
   it('1s, 2s, 4s, 8s, 16s, 32s, cap 60s', () => {
-    expect(computeBackoffMs(0)).toBe(1000);
-    expect(computeBackoffMs(1)).toBe(2000);
-    expect(computeBackoffMs(5)).toBe(32000);
+    expect([1, 2, 3, 4, 5, 6].map(computeBackoffMs)).toEqual([
+      1000, 2000, 4000, 8000, 16000, 32000,
+    ]);
     expect(computeBackoffMs(10)).toBe(60000); // capped
   });
 });
@@ -128,16 +128,16 @@ describe('SosOutbox', () => {
     expect(r1.pending).toBe(1);
     const snap1 = await outbox.snapshot();
     expect(snap1[0].retryCount).toBe(1);
-    expect(snap1[0].nextRetryAt).toBe(now + 2000); // backoff(1)=2s
+    expect(snap1[0].nextRetryAt).toBe(now + 1000);
 
     // Antes del tiempo de retry → no se reintenta
-    now += 500;
+    now += 999;
     const r2 = await outbox.flush();
     expect(r2.pending).toBe(1);
     expect(send).toHaveBeenCalledTimes(1); // sigue 1 (no se reintentó)
 
-    // Después del tiempo de retry → sí
-    now += 2500;
+    // Exactamente al vencer el plazo → sí
+    now += 1;
     await outbox.flush();
     expect(send).toHaveBeenCalledTimes(2);
   });
