@@ -16,8 +16,8 @@ export async function prepareSplatForRendering(
   options?: WorkerOptions,
 ): Promise<Preparation> {
   const result = await validateSplatInWorker(module, bytes, options);
-  if (!result.ok) return result;
   if (options?.signal?.aborted) return { ok: false, reason: 'cancelled' };
+  if (!result.ok) return result;
   try {
     return { ok: true, element: toSplatVertexElement(result.bytes, result.count) };
   } catch (error) {

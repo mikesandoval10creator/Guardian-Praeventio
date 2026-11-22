@@ -7,7 +7,7 @@ import { prepareSplatForRendering } from '../preparation.ts';
 
 const engine = await globalThis.WebAssembly.compile(readFileSync(new URL('../target/wasm32-unknown-unknown/release/guardian_gaussian_splat.wasm', import.meta.url)));
 
-function setup(t) {
+function setup(t, afterReply = () => {}) {
   const bytes = new ArrayBuffer(32);
   const view = new DataView(bytes);
   view.setFloat32(0, 2.5, true);
@@ -20,7 +20,10 @@ function setup(t) {
       postMessage: (message, transfer) => thread.postMessage(message, transfer),
       terminate: () => { void thread.terminate(); },
     };
-    thread.on('message', (data) => adapter.onmessage?.({ data }));
+    thread.on('message', (data) => {
+      adapter.onmessage?.({ data });
+      afterReply(data);
+    });
     thread.on('messageerror', (error) => adapter.onmessageerror?.(error));
     thread.on('error', (error) => adapter.onerror?.(error));
     return adapter;
@@ -45,6 +48,24 @@ test('keeps WASM rejection distinct from render-envelope rejection', async (t) =
   outOfRange.view.setFloat32(0, 2_000_000, true);
   assert.deepEqual(await prepareSplatForRendering(engine, outOfRange.bytes, outOfRange), { ok: false, reason: 'outside_render_envelope' });
 });
+
+for (const valid of [true, false]) {
+  test(`honors cancellation before consuming a ${valid ? 'valid' : 'rejected'} worker reply`, async (t) => {
+    const controller = new globalThis.AbortController();
+    let workerResult;
+    const { bytes, view, createWorker } = setup(t, (reply) => {
+      workerResult = reply;
+      controller.abort();
+    });
+    if (!valid) view.setFloat32(0, NaN, true);
+
+    const result = await prepareSplatForRendering(engine, bytes, { createWorker, signal: controller.signal });
+
+    assert.equal(workerResult?.ok, valid);
+    assert.equal(bytes.byteLength, 0);
+    assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+  });
+}
 
 test('honors cancellation without constructing a worker', async () => {
   const bytes = new ArrayBuffer(32);
