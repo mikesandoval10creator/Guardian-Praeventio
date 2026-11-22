@@ -5634,6 +5634,7 @@
     "captureLoading": "Consultando la captura 3D…",
     "openCapturePreview": "Abrir visor 3D",
     "closeCapturePreview": "Cerrar visor 3D",
+    "noCaptureAvailable": "No hay una captura 3D disponible para este proyecto.",
     "captureCacheMiss": "No hay una captura guardada en este dispositivo. Esperando la confirmación del servidor.",
     "captureUnavailable": "No se pudo consultar la captura 3D.",
     "captureRetry": "Reintentar",
