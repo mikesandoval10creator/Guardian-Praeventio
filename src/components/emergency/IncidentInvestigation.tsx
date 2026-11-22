@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
 import { investigateIncidentWithAI } from '../../services/geminiService';
@@ -10,11 +11,13 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
 
 export function IncidentInvestigation() {
+  const { t } = useTranslation();
   const [incidentTitle, setIncidentTitle] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
@@ -23,6 +26,7 @@ export function IncidentInvestigation() {
   const handleInvestigate = async () => {
     if (!incidentTitle || !selectedProject || !isOnline) return;
     setLoading(true);
+    setAnalysisFailed(false);
     setAnalysis(null);
     setSaved(false);
     try {
@@ -35,6 +39,7 @@ export function IncidentInvestigation() {
       setAnalysis(result);
     } catch (error) {
       logger.error('Error investigating incident:', error);
+      setAnalysisFailed(true);
     } finally {
       setLoading(false);
     }
@@ -163,6 +168,11 @@ export function IncidentInvestigation() {
             </>
           )}
         </button>
+        {analysisFailed && (
+          <p role="alert" className="text-sm font-medium text-rose-700 dark:text-rose-300">
+            {t('aiHub.incidentAnalysisFailed', 'No se pudo analizar el incidente. Inténtalo de nuevo.')}
+          </p>
+        )}
       </div>
 
       <AnimatePresence>

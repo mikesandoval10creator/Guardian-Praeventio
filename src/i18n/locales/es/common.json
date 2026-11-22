@@ -5624,6 +5624,7 @@
     }
   },
   "aiHub": {
+    "incidentAnalysisFailed": "No se pudo analizar el incidente. Inténtalo de nuevo.",
     "streaming": {
       "title": "Asesor Guardian — Streaming",
       "desc": "El Asesor ahora responde en streaming: el primer carácter aparece en ~600ms en lugar de esperar 12s por la respuesta completa. Usa Server-Sent Events vía /api/ask-guardian con stream=true.",
