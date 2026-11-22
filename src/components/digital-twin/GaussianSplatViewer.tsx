@@ -67,7 +67,6 @@ function CapturePreview({
     if (!is3DOpen || !hasCapture) return undefined;
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    setEngineState('loading');
     let app: { destroy: () => void } | undefined;
     let aborted = false;
     (async () => {
@@ -238,15 +237,21 @@ function CapturePreview({
 
       {/* 3D viewer (lazy) */}
       <div className="pt-2 border-t border-default-token">
-        {!is3DOpen && quality?.isViewable && (
+        {(is3DOpen || quality?.isViewable) && (
           <button
             type="button"
-            data-testid="splat-open-3d"
-            onClick={() => setIs3DOpen(true)}
+            data-testid={is3DOpen ? 'splat-close-3d' : 'splat-open-3d'}
+            aria-expanded={is3DOpen}
+            onClick={() => {
+              if (!is3DOpen) setEngineState('loading');
+              setIs3DOpen(!is3DOpen);
+            }}
             className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600"
           >
             <Play className="w-3 h-3" aria-hidden="true" />
-            {t('splat.openViewer', 'Abrir visor 3D')}
+            {is3DOpen
+              ? t('digitalTwin.closeCapturePreview', 'Cerrar visor 3D')
+              : t('digitalTwin.openCapturePreview', 'Abrir visor 3D')}
           </button>
         )}
 
