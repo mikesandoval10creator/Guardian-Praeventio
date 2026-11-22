@@ -46,6 +46,18 @@ test('rejects pre-aborted and oversized inputs without constructing a worker', a
   assert.deepEqual(counts(), [0, 0]);
 });
 
+test('rejects unsupported deadlines before starting a worker or transferring bytes', async () => {
+  const { options, counts } = setup((_worker, _message, transfer) => {
+    globalThis.structuredClone(transfer[0], { transfer });
+  });
+  for (const timeoutMs of [0, -1, 0.5, Number.NaN, Infinity, 2 ** 31]) {
+    const bytes = new ArrayBuffer(32);
+    assert.deepEqual(await validateSplatInWorker(engine, bytes, { ...options, timeoutMs }), { ok: false, reason: 'invalid_timeout' });
+    assert.equal(bytes.byteLength, 32);
+  }
+  assert.deepEqual(counts(), [0, 0]);
+});
+
 test('rejects a mismatched reply and terminates an unresponsive worker', async () => {
   const wrong = setup((worker) => worker.onmessage({ data: { ok: true, count: 2, bytes: new ArrayBuffer(32) } }));
   assert.deepEqual(await validateSplatInWorker(engine, new ArrayBuffer(32), wrong.options), { ok: false, reason: 'engine_error' });

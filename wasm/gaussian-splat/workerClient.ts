@@ -1,4 +1,4 @@
-type Rejection = 'invalid_length' | 'invalid_geometry' | 'input_limit' | 'engine_error' | 'cancelled' | 'timeout';
+type Rejection = 'invalid_length' | 'invalid_geometry' | 'input_limit' | 'engine_error' | 'cancelled' | 'timeout' | 'invalid_timeout';
 type Result = { ok: true; count: number; bytes: ArrayBuffer } | { ok: false; reason: Rejection };
 type ValidationWorker = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage' | 'onmessageerror' | 'onerror'>;
 
@@ -6,7 +6,9 @@ function createWorker(): Worker {
   return new Worker(new URL('./validationWorker.ts', import.meta.url), { type: 'module' });
 }
 
-/** Takes ownership of the input when it posts to a dedicated worker. */
+/** Takes ownership of the input when it posts to a dedicated worker.
+ * timeoutMs must be a positive integer within the shared browser/Node timer range.
+ */
 export async function validateSplatInWorker(
   module: WebAssembly.Module,
   bytes: ArrayBuffer,
@@ -17,6 +19,9 @@ export async function validateSplatInWorker(
   if (signal?.aborted) return { ok: false, reason: 'cancelled' };
   if (size > 4 * 1024 * 1024) return { ok: false, reason: 'input_limit' };
   if (!size || size % 32 !== 0) return { ok: false, reason: 'invalid_length' };
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2 ** 31 - 1) {
+    return { ok: false, reason: 'invalid_timeout' };
+  }
 
   return new Promise((resolve) => {
     let worker: ValidationWorker | undefined;
