@@ -78,3 +78,43 @@ it('publishes the matching acknowledgement for an offline entry replayed by a ne
     unsubscribe();
   }
 });
+
+it('replays a persisted emergency after controller restart and reconnect', async () => {
+  const connectivity = { onLine: false };
+  const browserEvents = new EventTarget();
+  vi.stubGlobal('navigator', connectivity);
+  vi.stubGlobal('window', browserEvents);
+  const id = entry.event.clientEventId;
+  const nowMs = () => Date.parse(entry.queuedAt);
+  const fetchMock = vi.fn(async (_url: string, _request: RequestInit) =>
+    Response.json({ accepted: true, persisted: true, serverEventId: id, delivered: false }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+
+  const offline = createEmergencyDeliveryController({ adapter: createIndexedDbEmergencyDeliveryAdapter(), nowMs });
+  await expect(offline.submit(entry.event.payload, { clientEventId: id })).resolves.toMatchObject({
+    status: 'pending', queued: true,
+  });
+
+  const adapter = createIndexedDbEmergencyDeliveryAdapter();
+  const resumed = createEmergencyDeliveryController({ adapter, nowMs });
+  expect(await adapter.listEntries()).toEqual([expect.objectContaining({ event: entry.event })]);
+  const observer = vi.fn();
+  const unsubscribe = resumed.subscribe(id, observer);
+  try {
+    resumed.registerOnReconnect();
+    expect(fetchMock).not.toHaveBeenCalled();
+    connectivity.onLine = true;
+    browserEvents.dispatchEvent(new Event('online'));
+    browserEvents.dispatchEvent(new Event('online'));
+    await vi.waitFor(() => expect(observer).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'accepted', queued: false, ack: { accepted: true, persisted: true, serverEventId: id, delivered: false },
+    })));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const request = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(request?.headers).get('Idempotency-Key')).toBe(id);
+    expect(await adapter.listEntries()).toEqual([]);
+  } finally {
+    unsubscribe();
+  }
+});
