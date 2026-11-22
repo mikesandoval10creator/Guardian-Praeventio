@@ -35,3 +35,19 @@ it('explains an analysis failure, preserves the form, and clears the message on 
   expect(investigate).toHaveBeenLastCalledWith('Incidente de prueba', 'Relato de prueba', '');
   expect(addNode).not.toHaveBeenCalled();
 });
+
+it.each([0, 1])('requires a fresh analysis after editing field %i', async (field) => {
+  investigate.mockResolvedValueOnce({
+    summary: 'Análisis anterior', immediateCauses: [], rootCauses: [], correctiveActions: [],
+  });
+  render(<IncidentInvestigation />);
+  const fields = screen.getAllByRole('textbox');
+  fireEvent.change(fields[0], { target: { value: 'Incidente de prueba' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Investigación IA' }));
+  });
+  expect(screen.getByRole('button', { name: 'Guardar en Red Neuronal' })).toBeEnabled();
+  fireEvent.change(fields[field], { target: { value: 'Datos corregidos' } });
+  expect(screen.queryByRole('button', { name: 'Guardar en Red Neuronal' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Iniciar Investigación IA' })).toBeEnabled();
+});

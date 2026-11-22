@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
 import { investigateIncidentWithAI } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
@@ -23,12 +23,16 @@ export function IncidentInvestigation() {
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
+  const invalidateAnalysis = () => {
+    setAnalysis(null);
+    setSaved(false);
+    setAnalysisFailed(false);
+  };
+
   const handleInvestigate = async () => {
     if (!incidentTitle || !selectedProject || !isOnline) return;
     setLoading(true);
-    setAnalysisFailed(false);
-    setAnalysis(null);
-    setSaved(false);
+    invalidateAnalysis();
     try {
       const context = nodes
         .filter(n => n.projectId === selectedProject.id)
@@ -129,7 +133,12 @@ export function IncidentInvestigation() {
           <input
             type="text"
             value={incidentTitle}
-            onChange={(e) => setIncidentTitle(e.target.value)}
+            disabled={loading}
+            onChange={(e) => {
+              if (loading) return;
+              setIncidentTitle(e.target.value);
+              invalidateAnalysis();
+            }}
             placeholder="Ej: Caída de altura en zona de carga"
             className="w-full bg-white dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
           />
@@ -138,7 +147,12 @@ export function IncidentInvestigation() {
           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Descripción / Relato</label>
           <textarea
             value={incidentDescription}
-            onChange={(e) => setIncidentDescription(e.target.value)}
+            disabled={loading}
+            onChange={(e) => {
+              if (loading) return;
+              setIncidentDescription(e.target.value);
+              invalidateAnalysis();
+            }}
             placeholder="Describe lo sucedido con el mayor detalle posible..."
             rows={3}
             className="w-full bg-white dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
@@ -175,12 +189,11 @@ export function IncidentInvestigation() {
         )}
       </div>
 
-      <AnimatePresence>
+      <>
         {analysis && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
             className="space-y-6 pt-6 border-t border-white/5"
           >
             <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-4">
@@ -248,7 +261,7 @@ export function IncidentInvestigation() {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </>
     </section>
   );
 }
