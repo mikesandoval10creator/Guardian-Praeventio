@@ -38,7 +38,7 @@ function CaptureViewer({ tenantId, projectId }: CaptureScope) {
       },
       () => {
         if (!active) return;
-        // Firestore listener errors are terminal; ignore the store's subsequent null.
+        // Firestore listener errors are terminal for this attempt.
         active = false;
         setState({ kind: "unavailable" });
         logger.warn("splat_capture_subscription_error");

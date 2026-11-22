@@ -50,6 +50,7 @@ export function choosePreferredSplatCapture(
  * Suscribe solo a la metadata de capturas del tenant/proyecto actual.
  * Omite documentos inválidos e informa si el resultado procede de la caché.
  * Un resultado vacío en caché no confirma que el proyecto no tenga capturas.
+ * Los errores del listener se notifican solo por onError.
  */
 export function subscribePreferredSplatCapture(
   tenantId: string,
@@ -84,8 +85,7 @@ export function subscribePreferredSplatCapture(
       onCapture(choosePreferredSplatCapture(captures), snapshot.metadata.fromCache);
     },
     (error) => {
-      onError?.(error as Error);
-      onCapture(null);
+      onError?.(error);
     },
   );
 }
