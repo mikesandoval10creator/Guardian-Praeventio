@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { createInMemoryOutboxAdapter } from '../services/sync/genericOutboxEngine';
 import type { EmergencyDeliveryEvent, EmergencyDeliveryPayload, EmergencyDeliveryStatus } from '../services/emergency/emergencyDeliveryOutbox';
 
@@ -208,7 +208,7 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     expect(meshEnqueueOutboundMock).not.toHaveBeenCalled();
   });
 
-  it('real offline controller retains activation and requests mesh once without claiming delivery', async () => {
+  it('retains offline activation, requests mesh once and replays on the online event', async () => {
     onlineFlag = false;
     const adapter = createInMemoryOutboxAdapter<EmergencyDeliveryPayload>();
     const sender = vi.fn(async (_event: EmergencyDeliveryEvent) => ({ kind: 'success' as const }));
@@ -231,12 +231,33 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
       projectId: 'proj-real-offline',
     }));
 
-    onlineFlag = true;
-    await act(async () => { await controller.flush(); });
-    expect(sender).toHaveBeenCalledTimes(1);
-    expect(sender.mock.calls[0]?.[0].clientEventId).toBe(entries[0].event.clientEventId);
-    expect(await adapter.listEntries()).toHaveLength(0);
-    expect(meshEnqueueOutboundMock).toHaveBeenCalledTimes(1);
+    const addListener = vi.spyOn(window, 'addEventListener');
+    try {
+      // The production submit wrapper arms this listener before submission.
+      // Arm it while still offline so an initial online flush cannot pass the test.
+      controller.registerOnReconnect();
+      controller.registerOnReconnect();
+      expect(addListener.mock.calls.filter(([type]) => type === 'online')).toHaveLength(1);
+      expect(sender).not.toHaveBeenCalled();
+
+      await act(async () => {
+        onlineFlag = true;
+        window.dispatchEvent(new Event('online'));
+        window.dispatchEvent(new Event('online'));
+      });
+      await waitFor(async () => {
+        expect(sender).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+          clientEventId: entries[0].event.clientEventId,
+        }));
+        expect(await adapter.listEntries()).toHaveLength(0);
+      });
+      expect(meshEnqueueOutboundMock).toHaveBeenCalledTimes(1);
+    } finally {
+      for (const [type, listener, options] of addListener.mock.calls) {
+        if (type === 'online') window.removeEventListener(type, listener, options);
+      }
+      addListener.mockRestore();
+    }
   });
 
   it('offline (navigator.onLine=false) → mesh enqueue con type sos + payload correcto', async () => {
