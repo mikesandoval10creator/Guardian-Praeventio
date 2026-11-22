@@ -11,6 +11,13 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
 
 export function IncidentInvestigation() {
+  const { selectedProject } = useProject();
+  return <IncidentInvestigationForm key={selectedProject?.id ?? null} selectedProject={selectedProject} />;
+}
+
+function IncidentInvestigationForm({ selectedProject }: {
+  selectedProject: ReturnType<typeof useProject>['selectedProject'];
+}) {
   const { t } = useTranslation();
   const [incidentTitle, setIncidentTitle] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
@@ -19,7 +26,6 @@ export function IncidentInvestigation() {
   const [saved, setSaved] = useState(false);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const { nodes } = useUniversalKnowledge();
-  const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
