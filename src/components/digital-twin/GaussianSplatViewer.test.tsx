@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { GaussianSplatViewer } from './GaussianSplatViewer.js';
 import {
   buildEvacuationPathOverlay,
@@ -130,12 +130,46 @@ describe('<GaussianSplatViewer />', () => {
     expect(engine.create).toHaveBeenCalledTimes(2);
   });
 
-  it('sale de la carga si el navegador no puede inicializar el motor', async () => {
+  it('permite cerrar y reabrir la vista sin perder el foco ni reutilizar el motor', async () => {
+    engine.create.mockClear();
+    engine.destroy.mockClear();
+    render(<GaussianSplatViewer capture={capture()} />);
+    const toggle = screen.getByRole('button', { name: 'Abrir visor 3D' });
+    toggle.focus();
+    fireEvent.click(toggle);
+    const canvas = await screen.findByRole('img', { name: 'Canvas 3D del visor' });
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar visor 3D', expanded: true }));
+    expect(screen.getByRole('button', { name: 'Abrir visor 3D', expanded: false })).toHaveFocus();
+    expect(canvas).not.toBeInTheDocument();
+    expect(engine.destroy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('splat-engine-loading')).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Canvas 3D del visor' })).not.toBe(canvas);
+    expect(engine.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('no crea un motor si se cierra la vista mientras se está cargando', async () => {
+    engine.create.mockClear();
+    render(<GaussianSplatViewer capture={capture()} />);
+    fireEvent.click(screen.getByTestId('splat-open-3d'));
+    expect(screen.getByTestId('splat-engine-loading')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar visor 3D' }));
+    });
+    expect(screen.queryByTestId('splat-canvas')).not.toBeInTheDocument();
+    expect(engine.create).not.toHaveBeenCalled();
+  });
+
+  it('permite reabrir la vista tras un fallo de inicialización', async () => {
     engine.create.mockImplementationOnce(() => { throw new Error('no graphics device'); });
     render(<GaussianSplatViewer capture={capture()} />);
     fireEvent.click(screen.getByTestId('splat-open-3d'));
     await waitFor(() => expect(screen.getByTestId('splat-engine-unavailable')).toBeInTheDocument());
     expect(screen.queryByTestId('splat-engine-loading')).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Canvas 3D del visor' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar visor 3D' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir visor 3D' }));
+    expect(await screen.findByRole('img', { name: 'Canvas 3D del visor' })).toBeInTheDocument();
   });
 });

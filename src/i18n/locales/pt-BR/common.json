@@ -5632,6 +5632,8 @@
   },
   "digitalTwin": {
     "captureLoading": "Consultando a captura 3D…",
+    "openCapturePreview": "Abrir visualizador 3D",
+    "closeCapturePreview": "Fechar visualizador 3D",
     "captureCacheMiss": "Não há uma captura salva neste dispositivo. Aguardando a confirmação do servidor.",
     "captureUnavailable": "Não foi possível consultar a captura 3D.",
     "captureRetry": "Tentar novamente",

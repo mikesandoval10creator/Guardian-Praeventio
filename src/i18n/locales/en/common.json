@@ -5632,6 +5632,8 @@
   },
   "digitalTwin": {
     "captureLoading": "Looking up the 3D capture…",
+    "openCapturePreview": "Open 3D viewer",
+    "closeCapturePreview": "Close 3D viewer",
     "captureCacheMiss": "No capture is stored on this device. Waiting for confirmation from the server.",
     "captureUnavailable": "Could not look up the 3D capture.",
     "captureRetry": "Retry",
