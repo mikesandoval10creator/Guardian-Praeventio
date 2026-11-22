@@ -98,14 +98,8 @@ function CapturePreview({
         data-testid="splat-viewer-empty"
       >
         <Box className="w-8 h-8 mx-auto mb-2 opacity-50" aria-hidden="true" />
-        <p className="text-sm font-semibold mb-1">
-          {t('splat.noCapture', 'Sin captura 3D de la faena')}
-        </p>
-        <p className="text-xs">
-          {t(
-            'splat.captureHint',
-            'Sube una captura .ply o .splat para habilitar el visor del Digital Twin.',
-          )}
+        <p className="text-sm font-semibold">
+          {t('digitalTwin.noCaptureAvailable', 'No hay una captura 3D disponible para este proyecto.')}
         </p>
       </section>
     );

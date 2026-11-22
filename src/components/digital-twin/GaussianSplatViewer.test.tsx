@@ -43,7 +43,9 @@ function capture(over: Partial<SplatCapture> = {}): SplatCapture {
 describe('<GaussianSplatViewer />', () => {
   it('empty si no hay captura', () => {
     render(<GaussianSplatViewer capture={null} />);
-    expect(screen.getByTestId('splat-viewer-empty')).toBeInTheDocument();
+    const empty = screen.getByTestId('splat-viewer-empty');
+    expect(empty).toHaveTextContent('No hay una captura 3D disponible para este proyecto.');
+    expect(empty).not.toHaveTextContent(/\.ply|\.splat/);
   });
 
   it('renderiza metadata + quality badge', () => {
