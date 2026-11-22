@@ -19,7 +19,8 @@ const splatCapturesPath = (tenantId: string, projectId: string) =>
 const previewMetadata = z.object({
   tenantId: z.string().optional(),
   projectId: z.string().optional(),
-  capturedAt: z.string().refine((date) => Number.isFinite(Date.parse(date))),
+  // Require an explicit zone so every client selects the same capture.
+  capturedAt: z.iso.datetime({ offset: true }).refine((date) => Number.isFinite(Date.parse(date))),
   capturedByUid: z.string().min(1),
   format: z.enum(["ply", "splat", "compressed_splat"]),
   storageUrl: z.string().min(1),

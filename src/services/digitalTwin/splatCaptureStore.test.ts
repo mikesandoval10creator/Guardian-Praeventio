@@ -79,6 +79,8 @@ describe("subscribePreferredSplatCapture", () => {
 
   it.each([
     { capturedAt: "not-a-date" },
+    { capturedAt: "2026-02-29T12:00:00Z" },
+    { capturedAt: "2026-08-12T12:00:00" },
     { format: "obj" },
     { splatCount: -1 },
     { sizeBytes: Number.NaN },
@@ -116,6 +118,7 @@ describe("subscribePreferredSplatCapture", () => {
 
   it("rehidrata documentos, prefiere el canónico y preserva cleanup", () => {
     const onCapture = vi.fn();
+    const capturedAt = "2024-02-29T09:00:00-03:00";
     const onError = vi.fn();
     const unsubscribe = vi.fn();
     onSnapshotMock.mockImplementationOnce((_query, _options, onNext) => {
@@ -130,7 +133,7 @@ describe("subscribePreferredSplatCapture", () => {
           visit({ id: "recent", data: () => capture() });
           visit({
             id: "canonical",
-            data: () => capture({ isCanonical: true }),
+            data: () => capture({ isCanonical: true, capturedAt }),
           });
         },
       });
@@ -145,7 +148,7 @@ describe("subscribePreferredSplatCapture", () => {
     );
 
     expect(onCapture).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "canonical", isCanonical: true }),
+      expect.objectContaining({ id: "canonical", isCanonical: true, capturedAt }),
       true,
     );
     expect(onError).not.toHaveBeenCalled();
