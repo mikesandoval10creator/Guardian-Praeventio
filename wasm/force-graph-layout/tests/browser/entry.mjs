@@ -6,7 +6,7 @@ const input = {
   links: [{ source: 'a', target: 'b' }], iterations: 60, dim: 2,
 };
 
-globalThis.layoutProbe = async (scenario) => {
+globalThis.layoutProbe = async (scenario, payload = input) => {
   const module = scenario === 'off' ? undefined : await globalThis.WebAssembly.compileStreaming(globalThis.fetch(
     scenario === 'bad-abi' ? '/empty.wasm' : '/engine.wasm',
   ));
@@ -15,7 +15,7 @@ globalThis.layoutProbe = async (scenario) => {
     createWasmWorker: module ? () => createForceGraphWasmWorker(module) : undefined,
   });
   const controller = new globalThis.AbortController();
-  const work = client.simulate(input, { signal: controller.signal });
+  const work = client.simulate(payload, { signal: controller.signal });
   if (scenario === 'abort') controller.abort();
   try { return await work; }
   catch (error) { return { error: error.name }; }

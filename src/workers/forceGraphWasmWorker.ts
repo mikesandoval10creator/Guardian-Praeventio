@@ -18,7 +18,17 @@ scope.onmessage = ({ data }) => {
   scope.onmessage = null;
   try {
     if (data?.type !== 'simulate' || !module) throw new Error('layout_not_initialized');
-    const input = new TextEncoder().encode(JSON.stringify(data.payload));
+    // Match d3-force's 2D initialization before crossing the JSON boundary.
+    // A missing axis resets both x and y; z is passed through independently.
+    // Using the browser's math here also avoids differences in Rust's trig.
+    const initialAngle = Math.PI * (3 - Math.sqrt(5));
+    const nodes = data.payload.nodes.map((node, index) => {
+      if (Number.isFinite(node.x) && Number.isFinite(node.y)) return node;
+      const radius = 10 * Math.sqrt(0.5 + index);
+      const angle = index * initialAngle;
+      return { ...node, x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+    });
+    const input = new TextEncoder().encode(JSON.stringify({ ...data.payload, nodes }));
     if (input.length > inputLimit) throw new Error('layout_input_limit');
     const { exports: { memory, graph_alloc: alloc, graph_layout: layout } } = new WebAssembly.Instance(module);
     if (!(memory instanceof WebAssembly.Memory) || typeof alloc !== 'function' || typeof layout !== 'function') {

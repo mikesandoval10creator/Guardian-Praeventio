@@ -25,7 +25,12 @@ NODE_ENV=production node wasm/force-graph-layout/tests/browser/run.mjs
 
 The probe checks TypeScript with no WASM request when off, actual Rust/WASM
 positions against TypeScript when on, fallback on an incompatible ABI, and
-cancellation. It is not a production asset rollout or a canvas benchmark.
+cancellation. The 1,000-node cases also compare the workers after 80 ticks
+with no initial coordinates in 2D and mixed complete, partial and missing
+positions in 3D. The WASM worker initializes missing `x`/`y` using the same
+spiral as the TypeScript reference, preserves `z`, and relies on lossless
+decimal decoding in Rust. This probe is not a production asset rollout or a
+canvas benchmark.
 
 ## Ownership and cancellation
 
