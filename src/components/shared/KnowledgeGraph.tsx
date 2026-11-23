@@ -240,13 +240,20 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
   // and cannot deliver old positions to the next graph's listener.
   const defaultLayoutClient = useMemo(() => createForceGraphLayoutClient(), []);
   const layoutClient = suppliedLayoutClient ?? defaultLayoutClient;
-  // The canvas initializes x/y synchronously when it first receives nodes.
-  // For the opt-in path, do not hand it nodes until the worker settles.
+  // In 2D, paint inline first and only adopt Rust before interaction.
   const layoutKey = useMemo(() => ({ graphData, is3D, layoutClient }), [graphData, is3D, layoutClient]);
   const [settledLayout, setSettledLayout] = useState<typeof layoutKey | null>(null);
-  const waitForLayout = Boolean(suppliedLayoutClient?.engineInfo().wasmEnabled)
+  const [appliedLayout, setAppliedLayout] = useState<typeof layoutKey | null>(null);
+  const interactedLayout = useRef<typeof layoutKey | null>(null);
+  const optedIn = Boolean(suppliedLayoutClient?.engineInfo().wasmEnabled)
     && graphData.nodes.length >= WORKER_THRESHOLD && typeof Worker !== 'undefined';
+  const waitForLayout = optedIn && is3D;
+  const progressiveLayout = optedIn && !is3D;
+  const markLayoutInteraction = () => {
+    if (progressiveLayout) interactedLayout.current = layoutKey;
+  };
   const canvasGraphData = waitForLayout && settledLayout !== layoutKey ? EMPTY_LAYOUT_GRAPH : graphData;
+  const adoptedCurrentLayout = appliedLayout === layoutKey;
 
   useEffect(() => {
     const total = graphData.nodes.length;
@@ -271,18 +278,27 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
         ...(fallbackReason ? { fallback_reason: fallbackReason } : {}),
         node_count: graphData.nodes.length,
       });
+      if (progressiveLayout && (engine !== 'wasm' || interactedLayout.current === layoutKey || controlledSelectedId)) return;
       const byId = new Map(positions.map((p) => [p.id, p]));
       // Mutate the runtime nodes in place — react-force-graph reads
       // x/y/z directly off the same objects we passed in.
       for (const n of graphData.nodes as RFGNode[]) {
         const seed = byId.get(String(n.id ?? ''));
         if (!seed) continue;
-        if (waitForLayout || typeof n.x !== 'number') n.x = seed.x;
-        if (waitForLayout || typeof n.y !== 'number') n.y = seed.y;
+        if (progressiveLayout) {
+          n.x = seed.x;
+          n.y = seed.y;
+          n.vx = 0;
+          n.vy = 0;
+        } else {
+          if (waitForLayout || typeof n.x !== 'number') n.x = seed.x;
+          if (waitForLayout || typeof n.y !== 'number') n.y = seed.y;
+        }
         if (is3D && (waitForLayout || typeof (n as { z?: number }).z !== 'number')) {
           (n as { z?: number }).z = seed.z ?? 0;
         }
       }
+      if (progressiveLayout) setAppliedLayout(layoutKey);
     }).catch(() => {
       // Rendering retains its own inline simulation if precompute fails.
       if (!controller.signal.aborted) logger.warn('Graph layout unavailable; retaining inline simulation');
@@ -290,7 +306,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
       if (waitForLayout && !controller.signal.aborted) setSettledLayout(layoutKey);
     });
     return () => controller.abort();
-  }, [graphData, is3D, layoutClient, layoutKey, waitForLayout]);
+  }, [controlledSelectedId, graphData, is3D, layoutClient, layoutKey, progressiveLayout, waitForLayout]);
 
   // ── Sprint 29 Bucket BB H22 ─ frustum culling.
   //
@@ -300,7 +316,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
   // We update on `onZoom` / `onZoomEnd` events that the library fires.
   const [viewport2D, setViewport2D] = useState<{ minX: number; maxX: number; minY: number; maxY: number } | null>(null);
   const renderedGraphData = useMemo(() => {
-    const graphData = canvasGraphData;
+    const graphData = adoptedCurrentLayout ? { ...canvasGraphData } : canvasGraphData;
     if (graphData.nodes.length < VIRTUALIZATION_THRESHOLD) return graphData;
     if (!viewport2D) return graphData;
     // Inflate the viewport by 20% so panning doesn't pop nodes in.
@@ -323,7 +339,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
         visibleIds.has(linkEndpointId(l.target as string | RFGNode)),
     );
     return { nodes: visible, links };
-  }, [canvasGraphData, viewport2D]);
+  }, [adoptedCurrentLayout, canvasGraphData, viewport2D]);
 
   const handleSimulatePropagation = async (node: RiskNode) => {
     if (!isOnline) return;
@@ -533,7 +549,12 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
   };
 
   return (
-    <div className={`relative rounded-3xl border overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} ${isZenMode ? 'bg-black border-transparent' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-white/5'}`}>
+    <div
+      onPointerMoveCapture={markLayoutInteraction}
+      onPointerDownCapture={markLayoutInteraction}
+      onWheelCapture={markLayoutInteraction}
+      onKeyDownCapture={markLayoutInteraction}
+      className={`relative rounded-3xl border overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} ${isZenMode ? 'bg-black border-transparent' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-white/5'}`}>
       {/* Header / Controls */}
       <div className={`absolute top-0 left-0 right-0 p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between z-10 pointer-events-none gap-2 sm:gap-0 transition-opacity duration-500 ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
         <div className="flex items-center gap-2 sm:gap-4 pointer-events-auto w-full sm:w-auto overflow-x-auto no-scrollbar">

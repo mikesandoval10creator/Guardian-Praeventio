@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeType, type RiskNode } from "../../types";
 import { analytics } from "../../services/analytics";
@@ -29,7 +29,7 @@ vi.mock("react-force-graph-2d", () => ({
           for (const node of graphData.nodes) node.x ??= -1;
         }
       }, [graphData]);
-      return null;
+      return <canvas />;
     },
   ),
 }));
@@ -101,17 +101,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("KnowledgeGraph layout lifecycle", () => {
-  it.each([true, false])(
-    "hands the opt-in render its nodes only after layout settles (success=%s)",
-    async (success) => {
+  it.each(["wasm", "typescript", "pointer", "wheel", "failure"] as const)(
+    "draws immediately and only updates untouched nodes on WASM success (%s)",
+    async (mode) => {
       state.initialFrame.mockImplementation(() => {});
-      if (success) (state.graph.nodes[0] as SeedNode).x = -7;
       const positions = (state.graph.nodes as SeedNode[]).map(({ id }) => ({ id, x: 41, y: 42 }));
       const simulate = vi.fn(async () => {
-        if (!success) throw new Error("layout failed");
-        return { engine: "wasm" as const, positions };
+        if (mode === "failure") throw new Error("layout failed");
+        return {
+          engine: mode === "typescript" ? ("typescript" as const) : ("wasm" as const),
+          positions,
+        };
       });
-      render(
+      const view = render(
         <KnowledgeGraph
           layoutClient={{
             simulate,
@@ -119,9 +121,15 @@ describe("KnowledgeGraph layout lifecycle", () => {
           }}
         />,
       );
-      expect(state.initialFrame).not.toHaveBeenCalled();
+      expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(undefined);
+      const canvas = view.container.querySelector("canvas")!;
+      if (mode === "pointer") fireEvent.pointerMove(canvas);
+      if (mode === "wheel") fireEvent.wheel(canvas);
       await act(async () => {});
-      expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(success ? 41 : undefined);
+      expect(state.initialFrame.mock.calls).toEqual(
+        mode === "wasm" ? [[undefined], [41]] : [[undefined]],
+      );
+      expect((state.graph.nodes[0] as SeedNode).x).toBe(mode === "wasm" ? 41 : -1);
     },
   );
   it("does not hand off a replacement graph when the aborted layout resolves late", async () => {
@@ -148,7 +156,7 @@ describe("KnowledgeGraph layout lifecycle", () => {
     await act(async () => {
       resolveOld({ engine: "wasm", positions: [{ id: "shared", x: 999, y: 999 }] });
     });
-    expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(32);
+    expect(state.initialFrame.mock.calls).toEqual([[undefined], [undefined], [32]]);
   });
   it("does not gate the default renderer behind worker completion", () => {
     render(<KnowledgeGraph />);
