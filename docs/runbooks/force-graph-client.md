@@ -3,14 +3,18 @@
 ## Default and rollback
 
 `KnowledgeGraph` uses `createForceGraphLayoutClient()` by default. That client
-creates the existing TypeScript worker. No Rust/WASM binary, environment flag,
-remote URL or new provider is activated by this change.
+creates the existing TypeScript worker. `/risk-network` supplies a WASM client
+only in a build configured with `VITE_GRAPH_LAYOUT_WASM_SHA256`, set to the
+lowercase digest emitted by `npm run layout-wasm:build`. Vite packages the
+matching artifact under `/assets/` and rejects missing or mismatched bytes.
+The browser loads it only for an eligible request, with integrity checking,
+no credentials or redirects, and the existing deadline and TypeScript fallback.
+Do not enable the setting on a normal release as part of verification.
 
-An explicitly supplied `layoutClient` prop is the opt-in seam. Removing it (or
-constructing a client with `wasmEnabled: false`) restores the TypeScript route.
-A configured WASM client requires BOTH `wasmEnabled: true` and a trusted
-`createWasmWorker` factory. Shipping and enabling that factory/module is a
-separate adoption gate, not an implicit effect of this bridge.
+To roll back, unset `VITE_GRAPH_LAYOUT_WASM_SHA256` and rebuild (or return to the
+previous build without the setting). A build without it emits no graph WASM
+asset and `/risk-network` uses its normal TypeScript layout client. This is
+build-time configuration, not a query parameter or a live toggle.
 
 `createForceGraphWasmWorker` provides the real opt-in module-worker factory.
 It accepts a compiled module from the trusted build, not a URL, and does not

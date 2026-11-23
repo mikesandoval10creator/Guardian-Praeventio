@@ -1,6 +1,8 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {defineConfig, loadEnv, type Plugin} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import viteCompression from 'vite-plugin-compression';
@@ -83,6 +85,25 @@ function fcmSwConfigInjector(env: Record<string, string>): Plugin {
   };
 }
 
+function forceGraphAsset(digest: string | undefined): Plugin {
+  return {
+    name: 'force-graph-wasm-asset',
+    apply: 'build',
+    buildStart() {
+      if (!digest) return;
+      if (digest.length !== 64 || !/^[a-f0-9]+$/.test(digest)) {
+        throw new Error('VITE_GRAPH_LAYOUT_WASM_SHA256 must be a lowercase SHA-256');
+      }
+      const name = `force-graph-layout-${digest}.wasm`;
+      const bytes = readFileSync(path.resolve('wasm/force-graph-layout/dist', name));
+      if (createHash('sha256').update(bytes).digest('hex') !== digest) {
+        throw new Error('Force graph WASM does not match its configured SHA-256');
+      }
+      this.emitFile({ type: 'asset', fileName: `assets/${name}`, source: bytes });
+    },
+  };
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -90,6 +111,7 @@ export default defineConfig(({mode}) => {
       react(),
       tailwindcss(),
       cspNoncePlaceholder(),
+      forceGraphAsset(env.VITE_GRAPH_LAYOUT_WASM_SHA256),
       fcmSwConfigInjector(env),
       viteCompression({
         algorithm: 'brotliCompress',

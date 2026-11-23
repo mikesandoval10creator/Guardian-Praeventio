@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 // Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph carries
@@ -20,6 +20,7 @@ import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
 import { logger } from '../utils/logger';
+import { createOptInForceGraphClient } from '../workers/forceGraphOptIn';
 
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
 import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
@@ -51,6 +52,7 @@ export function resolveSelectedNodeIdFromSearch(
 
 export function RiskNetwork() {
   const { t } = useTranslation();
+  const layoutClient = useMemo(() => createOptInForceGraphClient(import.meta.env.VITE_GRAPH_LAYOUT_WASM_SHA256), []);
   const { nodes, loading, error: nodesError } = useRiskEngine();
   const [activeTab, setActiveTab] = useState<'graph' | 'explorer' | 'health' | 'manager'>('graph');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -232,7 +234,7 @@ export function RiskNetwork() {
                   <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
                 </div>
               }>
-                <KnowledgeGraph controlledSelectedId={selectedNodeId} />
+                <KnowledgeGraph controlledSelectedId={selectedNodeId} layoutClient={layoutClient} />
               </Suspense>
             </motion.div>
           )}
