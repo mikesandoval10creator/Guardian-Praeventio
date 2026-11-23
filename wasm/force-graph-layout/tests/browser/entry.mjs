@@ -7,12 +7,14 @@ const input = {
 };
 
 globalThis.layoutProbe = async (scenario, payload = input) => {
-  const module = scenario === 'off' ? undefined : await globalThis.WebAssembly.compileStreaming(globalThis.fetch(
-    scenario === 'bad-abi' ? '/empty.wasm' : '/engine.wasm',
-  ));
   const client = createForceGraphLayoutClient({
     wasmEnabled: scenario !== 'off',
-    createWasmWorker: module ? () => createForceGraphWasmWorker(module) : undefined,
+    prepareWasmWorker: async (signal) => {
+      const path = scenario === 'bad-abi' ? '/empty.wasm'
+        : scenario === 'missing' ? '/missing.wasm' : '/engine.wasm';
+      const module = await globalThis.WebAssembly.compileStreaming(globalThis.fetch(path, { signal }));
+      return () => createForceGraphWasmWorker(module);
+    },
   });
   const controller = new globalThis.AbortController();
   const work = client.simulate(payload, { signal: controller.signal });

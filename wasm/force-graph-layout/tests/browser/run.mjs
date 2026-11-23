@@ -62,6 +62,8 @@ try {
   });
   const fallback = await run('bad-abi');
   assert.deepEqual(fallback, { ...baseline, fallbackReason: 'layout_worker_failed' });
+  assert.deepEqual(await run('missing'), { ...baseline, fallbackReason: 'layout_module_unavailable' });
+  assert.ok(requests.includes('/missing.wasm'));
   assert.deepEqual(await run('abort'), { error: 'AbortError' });
   const fixture = require('../../../../scripts/fixtures/force-graph/fixtures-1000.json');
   const nodes = fixture.nodes.map(({ id }) => ({ id }));

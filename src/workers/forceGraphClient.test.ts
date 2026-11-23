@@ -44,6 +44,83 @@ describe("force graph client engine selection", () => {
     expect(r.fallbackReason).toBe("layout_worker_unavailable");
     expect(JSON.stringify(r)).not.toContain("private detail");
   });
+  it("lazily prepares the WASM factory only for an enabled, eligible request", async () => {
+    const factory = vi.fn(() => new Transport() as unknown as Worker);
+    const prepareWasmWorker = vi.fn(async () => factory);
+    const options = {
+      prepareWasmWorker,
+      createTypeScriptWorker: () => new Transport() as unknown as Worker,
+    };
+    const signal = new AbortController().signal;
+    expect((await createForceGraphLayoutClient(options).simulate(payload, { signal })).engine).toBe(
+      "typescript",
+    );
+    const client = createForceGraphLayoutClient({ ...options, wasmEnabled: true });
+    expect((await client.simulate({ ...payload, iterations: 601 }, { signal })).engine).toBe(
+      "typescript",
+    );
+    expect(prepareWasmWorker).not.toHaveBeenCalled();
+    expect(client.engineInfo().wasmEnabled).toBe(true);
+    expect((await client.simulate(payload, { signal })).engine).toBe("wasm");
+    expect(prepareWasmWorker).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenCalledOnce();
+  });
+  it.each(["deadline", "abort"])(
+    "stops WASM preparation on %s and ignores late completion",
+    async (stop) => {
+      vi.useFakeTimers();
+      let resolveFactory!: (factory: () => Worker) => void;
+      const prepared = new Promise<() => Worker>((resolve) => {
+        resolveFactory = resolve;
+      });
+      const prepareWasmWorker = vi.fn((_signal: AbortSignal) => prepared);
+      const createTypeScriptWorker = vi.fn(() => new Transport() as unknown as Worker);
+      const factory = vi.fn(() => new Transport() as unknown as Worker);
+      const client = createForceGraphLayoutClient({
+        wasmEnabled: true,
+        prepareWasmWorker,
+        createTypeScriptWorker,
+        wasmDeadlineMs: 10,
+      });
+      const controller = new AbortController();
+      const result = client.simulate(payload, { signal: controller.signal });
+      if (stop === "abort") {
+        const cancelled = expect(result).rejects.toMatchObject({ name: "AbortError" });
+        controller.abort();
+        await cancelled;
+        expect(createTypeScriptWorker).not.toHaveBeenCalled();
+      } else {
+        await vi.advanceTimersByTimeAsync(10);
+        await expect(result).resolves.toMatchObject({
+          engine: "typescript",
+          fallbackReason: "layout_deadline",
+        });
+        expect(createTypeScriptWorker).toHaveBeenCalledOnce();
+      }
+      expect(prepareWasmWorker.mock.calls[0]?.[0].aborted).toBe(true);
+      resolveFactory(factory);
+      await prepared;
+      expect(factory).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+  it("falls back once if loading the module fails", async () => {
+    const createTypeScriptWorker = vi.fn(() => new Transport() as unknown as Worker);
+    const c = createForceGraphLayoutClient({
+      wasmEnabled: true,
+      prepareWasmWorker: async () => {
+        throw new Error("private detail");
+      },
+      createTypeScriptWorker,
+    });
+    await expect(
+      c.simulate(payload, { signal: new AbortController().signal }),
+    ).resolves.toMatchObject({
+      engine: "typescript",
+      fallbackReason: "layout_module_unavailable",
+    });
+    expect(createTypeScriptWorker).toHaveBeenCalledOnce();
+  });
   it.each(["foreign", "nonfinite", "truncated", "sparse", "reported-error"])(
     "rejects %s WASM output before TypeScript fallback",
     async (kind) => {
@@ -240,7 +317,9 @@ describe("force graph client engine selection", () => {
     const failing = new Transport();
     failing.postMessage = vi.fn(() =>
       queueMicrotask(() =>
-        failing.onmessage?.({ data: { type: "simulate.error", payload: { message: "boom" } } } as MessageEvent),
+        failing.onmessage?.({
+          data: { type: "simulate.error", payload: { message: "boom" } },
+        } as MessageEvent),
       ),
     );
     const client = createForceGraphLayoutClient({
