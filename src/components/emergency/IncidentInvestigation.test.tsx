@@ -25,7 +25,8 @@ it('explains an analysis failure, preserves the form, and clears the message on 
     summary: 'Resultado de prueba', immediateCauses: [], rootCauses: [], correctiveActions: [],
   });
   render(<IncidentInvestigation />);
-  const [title, description] = screen.getAllByRole('textbox');
+  const title = screen.getByRole('textbox', { name: 'Título del Incidente' });
+  const description = screen.getByRole('textbox', { name: 'Descripción / Relato' });
   fireEvent.change(title, { target: { value: 'Incidente de prueba' } });
   fireEvent.change(description, { target: { value: 'Relato de prueba' } });
   const start = () => act(async () => {

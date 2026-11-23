@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
@@ -19,6 +19,8 @@ function IncidentInvestigationForm({ selectedProject }: {
   selectedProject: ReturnType<typeof useProject>['selectedProject'];
 }) {
   const { t } = useTranslation();
+  const titleId = useId();
+  const descriptionId = useId();
   const [incidentTitle, setIncidentTitle] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -135,8 +137,9 @@ function IncidentInvestigationForm({ selectedProject }: {
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Título del Incidente</label>
+          <label htmlFor={titleId} className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Título del Incidente</label>
           <input
+            id={titleId}
             type="text"
             value={incidentTitle}
             disabled={loading}
@@ -150,8 +153,9 @@ function IncidentInvestigationForm({ selectedProject }: {
           />
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Descripción / Relato</label>
+          <label htmlFor={descriptionId} className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Descripción / Relato</label>
           <textarea
+            id={descriptionId}
             value={incidentDescription}
             disabled={loading}
             onChange={(e) => {
