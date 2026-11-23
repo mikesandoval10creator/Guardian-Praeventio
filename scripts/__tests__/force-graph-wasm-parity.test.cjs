@@ -113,6 +113,17 @@ const cases = [
   ] }],
 ];
 for (const count of [100, 1000, 10000]) cases.push([`shared-${count}`, JSON.parse(fs.readFileSync(path.join(fixtureDir, `fixtures-${count}.json`), 'utf8'))]);
+const linkedGraph = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'fixtures-1000.json'), 'utf8'));
+const angle = Math.PI * (3 - Math.sqrt(5));
+// Fractional d3 seeds exercise the JSON-to-f64 boundary; the shared fixtures
+// above use integer seeds, which do not expose decimal rounding here.
+const seeded = linkedGraph.nodes.map(({ id }, i) => {
+  const r = 10 * Math.sqrt(0.5 + i);
+  return { id, x: r * Math.cos(i * angle), y: r * Math.sin(i * angle) };
+});
+for (const iterations of [1, 10, 80]) {
+  cases.push([`seeded-linked-1000-${iterations}`, { nodes: seeded, links: linkedGraph.links, iterations, dim: 2 }]);
+}
 
 test('real WASM differential parity against current product TypeScript', {
   skip: !bytes ? 'optional run: build WASM first; required adoption mode rejects absence' : false,
