@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
@@ -30,6 +30,11 @@ function IncidentInvestigationForm({ selectedProject }: {
   const { nodes } = useUniversalKnowledge();
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const pendingAnalysis = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    pendingAnalysis.current?.abort();
+  }, []);
 
   const invalidateAnalysis = () => {
     setAnalysis(null);
@@ -38,7 +43,9 @@ function IncidentInvestigationForm({ selectedProject }: {
   };
 
   const handleInvestigate = async () => {
-    if (!incidentTitle || !selectedProject || !isOnline) return;
+    if (!incidentTitle || !selectedProject || !isOnline || pendingAnalysis.current) return;
+    const controller = new AbortController();
+    pendingAnalysis.current = controller;
     setLoading(true);
     invalidateAnalysis();
     try {
@@ -47,13 +54,15 @@ function IncidentInvestigationForm({ selectedProject }: {
         .map(n => `- [${n.type}] ${n.title}: ${n.description}`)
         .join('\n');
 
-      const result = await investigateIncidentWithAI(incidentTitle, incidentDescription, context);
-      setAnalysis(result);
+      const result = await investigateIncidentWithAI(incidentTitle, incidentDescription, context, { signal: controller.signal });
+      if (!controller.signal.aborted) setAnalysis(result);
     } catch (error) {
+      if (controller.signal.aborted) return;
       logger.error('Error investigating incident:', error);
       setAnalysisFailed(true);
     } finally {
-      setLoading(false);
+      pendingAnalysis.current = null;
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 

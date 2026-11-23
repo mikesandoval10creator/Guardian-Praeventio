@@ -97,8 +97,8 @@ const incidentInvestigationSchema = z.object({
 });
 export type IncidentInvestigationResult = z.infer<typeof incidentInvestigationSchema>;
 
-export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string): Promise<IncidentInvestigationResult> => {
-  const result = incidentInvestigationSchema.safeParse(await callGeminiAPI('investigateIncidentWithAI', [incidentTitle, incidentDescription, context]));
+export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string, options: GeminiCallOptions = {}): Promise<IncidentInvestigationResult> => {
+  const result = incidentInvestigationSchema.safeParse(await callGeminiAPI('investigateIncidentWithAI', [incidentTitle, incidentDescription, context], options));
   if (!result.success) throw new Error('invalid_incident_analysis');
   return result.data;
 };
