@@ -21,6 +21,8 @@ export interface ForceGraphLayoutClient {
 export interface ForceGraphClientOptions {
   wasmEnabled?: boolean;
   createWasmWorker?: () => Worker;
+  /** Deferred loading/compilation; the deadline also covers this step. */
+  prepareWasmWorker?: (signal: AbortSignal) => Promise<() => Worker>;
   createTypeScriptWorker?: () => Worker;
   wasmDeadlineMs?: number;
   typescriptDeadlineMs?: number;
@@ -78,11 +80,16 @@ export function createForceGraphLayoutClient(
   if (![wasmDeadline, tsDeadline].every((n) => Number.isFinite(n) && n > 0 && n <= 30_000))
     throw new Error("Invalid layout deadline");
   let active: object | null = null;
+  const prepareWasmWorker = options.prepareWasmWorker;
+  const wasmEnabled = Boolean(
+    options.wasmEnabled && (prepareWasmWorker || options.createWasmWorker),
+  );
   function execute(
-    factory: () => Worker,
+    factory: (() => Worker) | undefined,
     payload: Payload,
     signal: AbortSignal,
     budget: number,
+    prepare?: ForceGraphClientOptions["prepareWasmWorker"],
   ): Promise<ForceGraphPosition[]> {
     return new Promise((resolve, reject) => {
       if (signal.aborted) {
@@ -92,11 +99,13 @@ export function createForceGraphLayoutClient(
       let worker: Worker | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
       let finished = false;
+      const preparation = prepare ? new AbortController() : undefined;
       const finish = (failure?: Error, positions?: ForceGraphPosition[]) => {
         if (finished) return;
         finished = true;
         clearTimeout(timer);
         signal.removeEventListener("abort", onAbort);
+        if (failure) preparation?.abort();
         if (worker) {
           worker.onmessage = null;
           worker.onerror = null;
@@ -111,28 +120,43 @@ export function createForceGraphLayoutClient(
         else reject(new Error("layout_invalid_output"));
       };
       const onAbort = () => finish(abortError());
-      try {
-        worker = factory();
-        signal.addEventListener("abort", onAbort, { once: true });
-        if (signal.aborted) {
-          onAbort();
-          return;
+      const start = (create: () => Worker) => {
+        if (finished) return;
+        try {
+          worker = create();
+          if (finished) {
+            worker.terminate();
+            return;
+          }
+          worker.onmessage = ({ data }: MessageEvent<ForceGraphResponse>) => {
+            if (data?.type === "simulate.error") {
+              finish(new Error("layout_worker_failed"));
+              return;
+            }
+            if (!validPositions(data, payload)) {
+              finish(new Error("layout_invalid_output"));
+              return;
+            }
+            finish(undefined, data.payload.positions);
+          };
+          worker.onerror = () => finish(new Error("layout_worker_failed"));
+          worker.postMessage({ type: "simulate", payload });
+        } catch {
+          finish(new Error("layout_worker_unavailable"));
         }
-        timer = setTimeout(() => finish(new Error("layout_deadline")), budget);
-        worker.onmessage = ({ data }: MessageEvent<ForceGraphResponse>) => {
-          if (data?.type === "simulate.error") {
-            finish(new Error("layout_worker_failed"));
-            return;
-          }
-          if (!validPositions(data, payload)) {
-            finish(new Error("layout_invalid_output"));
-            return;
-          }
-          finish(undefined, data.payload.positions);
-        };
-        worker.onerror = () => finish(new Error("layout_worker_failed"));
-        worker.postMessage({ type: "simulate", payload });
-      } catch {
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      timer = setTimeout(() => finish(new Error("layout_deadline")), budget);
+      if (prepare && preparation) {
+        const unavailable = () => finish(new Error("layout_module_unavailable"));
+        try {
+          void prepare(preparation.signal).then(start, unavailable);
+        } catch {
+          unavailable();
+        }
+      } else if (factory) {
+        start(factory);
+      } else {
         finish(new Error("layout_worker_unavailable"));
       }
     });
@@ -140,7 +164,7 @@ export function createForceGraphLayoutClient(
   return {
     engineInfo: () => ({
       defaultEngine: "typescript",
-      wasmEnabled: Boolean(options.wasmEnabled && options.createWasmWorker),
+      wasmEnabled,
       versions: { ...options.engineVersions },
     }),
     async simulate(input, { signal }) {
@@ -159,12 +183,18 @@ export function createForceGraphLayoutClient(
           links: input.links.map((l) => ({ ...l })),
         };
         let fallbackReason: string | undefined;
-        if (options.wasmEnabled && options.createWasmWorker && wasmEligible(payload)) {
+        if (wasmEnabled && wasmEligible(payload)) {
           try {
             return {
               engine: "wasm",
               engineVersion: options.engineVersions?.wasm,
-              positions: await execute(options.createWasmWorker, payload, signal, wasmDeadline),
+              positions: await execute(
+                options.createWasmWorker,
+                payload,
+                signal,
+                wasmDeadline,
+                prepareWasmWorker,
+              ),
             };
           } catch (e) {
             if (signal.aborted) throw abortError();
