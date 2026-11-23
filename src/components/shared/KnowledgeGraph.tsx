@@ -26,6 +26,7 @@ function linkEndpointId(end: string | number | RFGNode | undefined): string {
 
 /** Threshold above which we hand off layout to the Web Worker. */
 const WORKER_THRESHOLD = 200;
+const EMPTY_LAYOUT_GRAPH = { nodes: [], links: [] };
 /** Threshold above which we frustum-cull invisible nodes. */
 const VIRTUALIZATION_THRESHOLD = 1000;
 import {
@@ -239,6 +240,13 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
   // and cannot deliver old positions to the next graph's listener.
   const defaultLayoutClient = useMemo(() => createForceGraphLayoutClient(), []);
   const layoutClient = suppliedLayoutClient ?? defaultLayoutClient;
+  // The canvas initializes x/y synchronously when it first receives nodes.
+  // For the opt-in path, do not hand it nodes until the worker settles.
+  const layoutKey = useMemo(() => ({ graphData, is3D, layoutClient }), [graphData, is3D, layoutClient]);
+  const [settledLayout, setSettledLayout] = useState<typeof layoutKey | null>(null);
+  const waitForLayout = Boolean(suppliedLayoutClient?.engineInfo().wasmEnabled)
+    && graphData.nodes.length >= WORKER_THRESHOLD && typeof Worker !== 'undefined';
+  const canvasGraphData = waitForLayout && settledLayout !== layoutKey ? EMPTY_LAYOUT_GRAPH : graphData;
 
   useEffect(() => {
     const total = graphData.nodes.length;
@@ -269,18 +277,20 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
       for (const n of graphData.nodes as RFGNode[]) {
         const seed = byId.get(String(n.id ?? ''));
         if (!seed) continue;
-        if (typeof n.x !== 'number') n.x = seed.x;
-        if (typeof n.y !== 'number') n.y = seed.y;
-        if (is3D && typeof (n as { z?: number }).z !== 'number') {
+        if (waitForLayout || typeof n.x !== 'number') n.x = seed.x;
+        if (waitForLayout || typeof n.y !== 'number') n.y = seed.y;
+        if (is3D && (waitForLayout || typeof (n as { z?: number }).z !== 'number')) {
           (n as { z?: number }).z = seed.z ?? 0;
         }
       }
     }).catch(() => {
       // Rendering retains its own inline simulation if precompute fails.
       if (!controller.signal.aborted) logger.warn('Graph layout unavailable; retaining inline simulation');
+    }).finally(() => {
+      if (waitForLayout && !controller.signal.aborted) setSettledLayout(layoutKey);
     });
     return () => controller.abort();
-  }, [graphData, is3D, layoutClient]);
+  }, [graphData, is3D, layoutClient, layoutKey, waitForLayout]);
 
   // ── Sprint 29 Bucket BB H22 ─ frustum culling.
   //
@@ -290,6 +300,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
   // We update on `onZoom` / `onZoomEnd` events that the library fires.
   const [viewport2D, setViewport2D] = useState<{ minX: number; maxX: number; minY: number; maxY: number } | null>(null);
   const renderedGraphData = useMemo(() => {
+    const graphData = canvasGraphData;
     if (graphData.nodes.length < VIRTUALIZATION_THRESHOLD) return graphData;
     if (!viewport2D) return graphData;
     // Inflate the viewport by 20% so panning doesn't pop nodes in.
@@ -312,7 +323,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
         visibleIds.has(linkEndpointId(l.target as string | RFGNode)),
     );
     return { nodes: visible, links };
-  }, [graphData, viewport2D]);
+  }, [canvasGraphData, viewport2D]);
 
   const handleSimulatePropagation = async (node: RiskNode) => {
     if (!isOnline) return;
@@ -601,7 +612,7 @@ export function KnowledgeGraph({ controlledSelectedId, layoutClient: suppliedLay
           // y `unknown` es demasiado restrictivo para asignar.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ref={graph3DRef as any}
-          graphData={graphData}
+          graphData={canvasGraphData}
           nodeLabel="title"
           nodeColor={node => getNodeColorWithCritical((node as RFGNode).type, node as RiskNode)}
           nodeRelSize={6}

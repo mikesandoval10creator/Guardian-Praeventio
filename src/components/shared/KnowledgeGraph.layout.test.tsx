@@ -4,18 +4,35 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeType, type RiskNode } from "../../types";
 import { analytics } from "../../services/analytics";
-const state = vi.hoisted(() => ({ graph: { nodes: [] as unknown[], links: [] as unknown[] } }));
+const state = vi.hoisted(() => ({
+  graph: { nodes: [] as unknown[], links: [] as unknown[] },
+  initialFrame: vi.fn(),
+}));
 vi.mock("../../hooks/useRiskEngine", () => ({
   useRiskEngine: () => ({
     nodes: state.graph.nodes,
-    getGraphData: () => state.graph,
+    getGraphData: React.useCallback(() => state.graph, [state.graph]),
     loading: false,
   }),
 }));
 vi.mock("../../hooks/useOnlineStatus", () => ({ useOnlineStatus: () => true }));
 vi.mock("../../services/geminiService", () => ({ analyzeRootCauses: vi.fn() }));
 vi.mock("../../services/analytics", () => ({ analytics: { track: vi.fn() } }));
-vi.mock("react-force-graph-2d", () => ({ default: React.forwardRef(() => null) }));
+vi.mock("react-force-graph-2d", () => ({
+  default: React.forwardRef<unknown, { graphData: { nodes: SeedNode[] } }>(
+    ({ graphData }, _ref) => {
+      React.useLayoutEffect(() => {
+        if (!graphData.nodes.length) return;
+        state.initialFrame(graphData.nodes[0].x);
+        // Model the renderer initializing its own coordinates on first use.
+        if (state.initialFrame.getMockImplementation()) {
+          for (const node of graphData.nodes) node.x ??= -1;
+        }
+      }, [graphData]);
+      return null;
+    },
+  ),
+}));
 vi.mock("react-force-graph-3d", () => ({ default: React.forwardRef(() => null) }));
 vi.mock("framer-motion", () => ({
   motion: {
@@ -25,7 +42,11 @@ vi.mock("framer-motion", () => ({
 }));
 import { KnowledgeGraph } from "./KnowledgeGraph";
 type SeedNode = RiskNode & { x?: number; y?: number };
-const fakeEngineInfo = () => ({ defaultEngine: "typescript" as const, wasmEnabled: false, versions: {} });
+const fakeEngineInfo = () => ({
+  defaultEngine: "typescript" as const,
+  wasmEnabled: false,
+  versions: {},
+});
 function graph(prefix: string) {
   return {
     nodes: Array.from({ length: 200 }, (_, i): SeedNode => ({
@@ -73,19 +94,72 @@ beforeEach(() => {
   TestWorker.instances = [];
   vi.stubGlobal("Worker", TestWorker);
   state.graph = graph("old");
+  state.initialFrame.mockReset();
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 describe("KnowledgeGraph layout lifecycle", () => {
-  it("uses the supplied opt-in layout client and cancels its request on unmount", async () => {
-    const simulate = vi
-      .fn()
-      .mockResolvedValue({
-        engine: "wasm",
-        positions: (state.graph.nodes as SeedNode[]).map((n) => ({ id: n.id, x: 41, y: 42 })),
+  it.each([true, false])(
+    "hands the opt-in render its nodes only after layout settles (success=%s)",
+    async (success) => {
+      state.initialFrame.mockImplementation(() => {});
+      if (success) (state.graph.nodes[0] as SeedNode).x = -7;
+      const positions = (state.graph.nodes as SeedNode[]).map(({ id }) => ({ id, x: 41, y: 42 }));
+      const simulate = vi.fn(async () => {
+        if (!success) throw new Error("layout failed");
+        return { engine: "wasm" as const, positions };
       });
+      render(
+        <KnowledgeGraph
+          layoutClient={{
+            simulate,
+            engineInfo: () => ({ ...fakeEngineInfo(), wasmEnabled: true }),
+          }}
+        />,
+      );
+      expect(state.initialFrame).not.toHaveBeenCalled();
+      await act(async () => {});
+      expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(success ? 41 : undefined);
+    },
+  );
+  it("does not hand off a replacement graph when the aborted layout resolves late", async () => {
+    let resolveOld!: (value: {
+      engine: "wasm";
+      positions: { id: string; x: number; y: number }[];
+    }) => void;
+    const old = new Promise<Parameters<typeof resolveOld>[0]>((resolve) => {
+      resolveOld = resolve;
+    });
+    const simulate =
+      vi.fn<import("../../workers/forceGraphClient").ForceGraphLayoutClient["simulate"]>();
+    simulate
+      .mockReturnValueOnce(old)
+      .mockResolvedValueOnce({ engine: "wasm", positions: [{ id: "shared", x: 32, y: 33 }] });
+    const layoutClient = {
+      simulate,
+      engineInfo: () => ({ ...fakeEngineInfo(), wasmEnabled: true }),
+    };
+    const view = render(<KnowledgeGraph layoutClient={layoutClient} />);
+    state.graph = graph("next");
+    view.rerender(<KnowledgeGraph layoutClient={layoutClient} />);
+    expect(simulate.mock.calls[0][1].signal.aborted).toBe(true);
+    await act(async () => {
+      resolveOld({ engine: "wasm", positions: [{ id: "shared", x: 999, y: 999 }] });
+    });
+    expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(32);
+  });
+  it("does not gate the default renderer behind worker completion", () => {
+    render(<KnowledgeGraph />);
+    expect(TestWorker.instances).toHaveLength(1);
+    expect(state.initialFrame).toHaveBeenCalledExactlyOnceWith(undefined);
+  });
+  it("uses the supplied opt-in layout client and cancels its request on unmount", async () => {
+    const simulate = vi.fn().mockResolvedValue({
+      engine: "wasm",
+      positions: (state.graph.nodes as SeedNode[]).map((n) => ({ id: n.id, x: 41, y: 42 })),
+    });
     const view = render(<KnowledgeGraph layoutClient={{ simulate, engineInfo: fakeEngineInfo }} />);
     expect(simulate).toHaveBeenCalledOnce();
     expect(TestWorker.instances).toHaveLength(0);
@@ -144,7 +218,9 @@ describe("KnowledgeGraph layout lifecycle", () => {
   });
   it("rollback drill: removing the injected client restores the default engine path", async () => {
     const failing = vi.fn().mockRejectedValue(new Error("wasm_layout_failed"));
-    const first = render(<KnowledgeGraph layoutClient={{ simulate: failing, engineInfo: fakeEngineInfo }} />);
+    const first = render(
+      <KnowledgeGraph layoutClient={{ simulate: failing, engineInfo: fakeEngineInfo }} />,
+    );
     await act(async () => {});
     expect(TestWorker.instances).toHaveLength(0);
     first.unmount();
