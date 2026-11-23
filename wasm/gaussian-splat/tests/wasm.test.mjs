@@ -50,6 +50,20 @@ test('enforces input cap before growing memory and clears the old input on rejec
   assert.equal(e.reserve(-1), 0);
 });
 
+test('validates a full-size capture and accepts a fresh record after rejecting an oversized capture', async () => {
+  const e = await engine();
+  const valid = record();
+  const capture = Buffer.alloc(MAX, valid);
+  assert.equal(validate(e, capture), MAX / valid.length);
+
+  capture.writeFloatLE(0, MAX - valid.length + 20);
+  assert.equal(validate(e, capture), -2);
+
+  assert.equal(e.reserve(MAX + valid.length), 0);
+  assert.equal(e.validate(), -1);
+  assert.equal(validate(e, valid), 1);
+});
+
 test('VM enforces the hard memory ceiling at 16 MiB', async () => {
   const e = await engine();
   e.memory.grow(256 - e.memory.buffer.byteLength / 65536);
