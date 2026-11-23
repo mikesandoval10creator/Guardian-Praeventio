@@ -10,7 +10,8 @@ import { build } from 'vite';
 import { securityHeaders } from '../../../../src/server/middleware/securityHeaders.ts';
 
 assert.equal(env.NODE_ENV, 'production');
-const { readBuiltLayoutWasm } = createRequire(import.meta.url)('../../../../scripts/lib/layout-wasm-gate.cjs');
+const require = createRequire(import.meta.url);
+const { readBuiltLayoutWasm } = require('../../../../scripts/lib/layout-wasm-gate.cjs');
 const wasm = readBuiltLayoutWasm({ required: true });
 const bundle = await build({ configFile: false, publicDir: false, worker: { format: 'es' }, build: {
   write: false, rollupOptions: { input: fileURLToPath(new URL('./entry.mjs', import.meta.url)) },
@@ -48,7 +49,7 @@ try {
   assert.match(policy, /script-src [^;]*'wasm-unsafe-eval'/);
   assert.match(policy, /worker-src 'self'/);
   await page.waitForFunction(() => typeof globalThis.layoutProbe === 'function');
-  const run = (scenario) => page.evaluate((value) => globalThis.layoutProbe(value), scenario);
+  const run = (scenario, payload) => page.evaluate(([mode, input]) => globalThis.layoutProbe(mode, input), [scenario, payload]);
   const baseline = await run('off');
   assert.equal(baseline.engine, 'typescript');
   assert.deepEqual(baseline.positions.map(({ id }) => id), ['a', 'b']);
@@ -64,6 +65,29 @@ try {
   assert.deepEqual(await run('missing'), { ...baseline, fallbackReason: 'layout_module_unavailable' });
   assert.ok(requests.includes('/missing.wasm'));
   assert.deepEqual(await run('abort'), { error: 'AbortError' });
+  const fixture = require('../../../../scripts/fixtures/force-graph/fixtures-1000.json');
+  const nodes = fixture.nodes.map(({ id }) => ({ id }));
+  for (const input of [
+    { nodes, links: fixture.links, iterations: 80, dim: 2 },
+    { nodes: nodes.map((node, i) => i === 1 ? { ...node, x: 0, y: 1, z: 2 }
+      : i === 2 ? { ...node, x: 40, z: -3 } : node), links: fixture.links, iterations: 80, dim: 3 },
+  ]) {
+    const reference = await run('off', input);
+    const result = await run('on', input);
+    assert.equal(reference.engine, 'typescript');
+    assert.equal(result.engine, 'wasm');
+    for (const positions of [reference.positions, result.positions]) {
+      assert.deepEqual(positions.map(({ id }) => id), nodes.map(({ id }) => id));
+    }
+    result.positions.forEach((point, index) => {
+      const expected = reference.positions[index];
+      for (const axis of input.dim === 2 ? ['x', 'y'] : ['x', 'y', 'z']) {
+        assert.ok(Math.abs(point[axis] - expected[axis]) <= 1e-6 + 1e-9 * Math.abs(expected[axis]),
+          `${input.dim}D ${point.id}.${axis}: WASM ${point[axis]} vs TypeScript ${expected[axis]}`);
+      }
+    });
+    globalThis.console.log(`PASS: ${input.dim}D layout parity with missing coordinates (${nodes.length} nodes)`);
+  }
   assert.ok(workers.some((url) => /\/forceGraphWasmWorker-[^/]+\.js$/.test(url.pathname)));
   assert.ok(workers.every((url) => url.origin === origin));
   assert.deepEqual(errors, []);

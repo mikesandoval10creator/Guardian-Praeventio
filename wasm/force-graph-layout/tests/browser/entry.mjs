@@ -6,7 +6,7 @@ const input = {
   links: [{ source: 'a', target: 'b' }], iterations: 60, dim: 2,
 };
 
-globalThis.layoutProbe = async (scenario) => {
+globalThis.layoutProbe = async (scenario, payload = input) => {
   const client = createForceGraphLayoutClient({
     wasmEnabled: scenario !== 'off',
     prepareWasmWorker: async (signal) => {
@@ -17,7 +17,7 @@ globalThis.layoutProbe = async (scenario) => {
     },
   });
   const controller = new globalThis.AbortController();
-  const work = client.simulate(input, { signal: controller.signal });
+  const work = client.simulate(payload, { signal: controller.signal });
   if (scenario === 'abort') controller.abort();
   try { return await work; }
   catch (error) { return { error: error.name }; }
