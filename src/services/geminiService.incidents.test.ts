@@ -8,6 +8,16 @@ afterEach(() => vi.unstubAllGlobals());
 
 const valid = { summary: 'Resumen', immediateCauses: [], rootCauses: [], correctiveActions: [] };
 
+it('forwards the abort signal without changing the incident request body', async () => {
+  const controller = new AbortController();
+  const fetchMock = vi.fn<typeof fetch>(async () => Response.json({ result: valid }));
+  vi.stubGlobal('fetch', fetchMock);
+  await expect(investigateIncidentWithAI('Incidente', 'Relato', '', { signal: controller.signal })).resolves.toEqual(valid);
+  const request = fetchMock.mock.calls[0]?.[1];
+  expect(request?.signal).toBe(controller.signal);
+  expect(JSON.parse(String(request?.body))).toEqual({ action: 'investigateIncidentWithAI', args: ['Incidente', 'Relato', ''] });
+});
+
 function respondWith(result: unknown) {
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ result })));
 }

@@ -40,7 +40,9 @@ it('explains an analysis failure, preserves the form, and clears the message on 
   await start();
   expect(screen.getByText('Resultado de prueba')).toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  expect(investigate).toHaveBeenLastCalledWith('Incidente de prueba', 'Relato de prueba', '');
+  expect(investigate).toHaveBeenLastCalledWith('Incidente de prueba', 'Relato de prueba', '', {
+    signal: expect.any(AbortSignal),
+  });
   expect(addNode).not.toHaveBeenCalled();
 });
 
@@ -70,6 +72,7 @@ it.each(['completed', 'pending'] as const)('discards a %s analysis when changing
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar Investigación IA' }));
   });
   expect(investigate).toHaveBeenCalledOnce();
+  const signal: AbortSignal | undefined = investigate.mock.calls[0]?.[3]?.signal;
   if (timing === 'completed') {
     await act(async () => { resolve(result); });
     expect(screen.getByRole('button', { name: 'Guardar en Red Neuronal' })).toBeEnabled();
@@ -77,7 +80,13 @@ it.each(['completed', 'pending'] as const)('discards a %s analysis when changing
 
   projectId = 'p2';
   view.rerender(<IncidentInvestigation />);
-  if (timing === 'pending') await act(async () => { resolve(result); });
+  if (timing === 'pending') {
+    try {
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      await act(async () => { resolve(result); });
+    }
+  }
   expect(screen.queryByText('Resultado anterior')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Guardar en Red Neuronal' })).not.toBeInTheDocument();
   expect(screen.getAllByRole('textbox')[0]).toHaveValue('');
