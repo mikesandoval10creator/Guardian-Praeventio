@@ -12,6 +12,21 @@ A configured WASM client requires BOTH `wasmEnabled: true` and a trusted
 `createWasmWorker` factory. Shipping and enabling that factory/module is a
 separate adoption gate, not an implicit effect of this bridge.
 
+`createForceGraphWasmWorker` provides the real opt-in module-worker factory.
+It accepts a compiled module from the trusted build, not a URL, and does not
+fetch or enable anything by itself. The worker handles one layout under the
+existing client deadline and fallback. The CI browser probe exercises that
+factory with a Vite bundle and the Express production-mode CSP served locally:
+
+```sh
+npm run layout-wasm:build
+NODE_ENV=production node wasm/force-graph-layout/tests/browser/run.mjs
+```
+
+The probe checks TypeScript with no WASM request when off, actual Rust/WASM
+positions against TypeScript when on, fallback on an incompatible ABI, and
+cancellation. It is not a production asset rollout or a canvas benchmark.
+
 ## Ownership and cancellation
 
 Each precompute request owns one Worker. A graph change, dimension change or

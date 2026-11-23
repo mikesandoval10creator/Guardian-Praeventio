@@ -120,7 +120,7 @@ jobs:
         run: npm install -g npm@12 && npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: Set up Python for offline license audit
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0, immutable action commit
@@ -140,6 +140,11 @@ jobs:
           npm run test:layout-wasm
         env:
           LAYOUT_WASM_REQUIRED: '1'
+
+      - name: Exercise bundled force-graph workers under the production-mode CSP
+        run: node wasm/force-graph-layout/tests/browser/run.mjs
+        env:
+          NODE_ENV: production
 
       - name: Install Firebase tools (emulator)
         run: npm install -g firebase-tools@13
