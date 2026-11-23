@@ -25,11 +25,13 @@ rejection. These tolerances are **not** speed/adoption thresholds.
 
 ## Inputs and provenance
 
-Twelve cases: empty, single-unseeded, two-seeded, coincident, warm-3d, dangling,
-duplicate IDs, unseeded multi-node, mixed-degree, and the existing shared
-100/1000/10000-node fixtures. The mixed-degree graph has a link with degree3
-at both endpoints, exercising a non-unit link strength. Shared JSON inputs
-were copied byte-for-byte from the historical
+Fifteen cases: empty, single-unseeded, two-seeded, coincident, warm-3d, dangling,
+duplicate IDs, unseeded multi-node, mixed-degree, the existing shared
+100/1000/10000-node fixtures, and a linked 1,000-node fixture with fractional
+D3 seeds at 1, 10 and 80 ticks. The last three cases exercise decimal decoding
+into `f64`; they do not establish parity when Rust generates its own seeds.
+The mixed-degree graph has a link with degree3 at both endpoints, exercising
+a non-unit link strength. Shared JSON inputs were copied byte-for-byte from the historical
 `force-graph-rust-parity-20261027` lab. Their SHA256/size/shape metadata is
 versioned in `scripts/fixtures/force-graph/manifest.json` and verified by the
 suite. That check guards committed input integrity, not independent historical
