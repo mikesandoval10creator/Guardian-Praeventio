@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Guardian Praeventio — Graphify</title>
+<style>html,body,#graph{margin:0;width:100%;height:100%;overflow:hidden;background:#0b1020;color:#e6edf3;font:14px system-ui}#bar{position:fixed;z-index:2;top:12px;left:12px;right:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:#111a2bdd;border:1px solid #30405c;border-radius:12px;backdrop-filter:blur(10px)}#bar strong{font-size:16px}#search{min-width:230px;padding:8px 10px;border-radius:7px;border:1px solid #50617d;background:#0b1020;color:white}button{padding:8px 12px;background:#263c62;color:white;border:0;border-radius:7px;cursor:pointer}#status{opacity:.8}#tip{position:fixed;bottom:12px;left:12px;padding:8px 12px;background:#111a2bdd;border-radius:8px;z-index:2}</style></head>
+<body><div id="bar"><strong>Guardian Praeventio · Graphify</strong><span id="counts">Cargando grafo…</span><input id="search" placeholder="Buscar nodo por nombre o archivo"><button id="reset">Vista completa</button><span id="status"></span></div><div id="graph"></div><div id="tip">Acerca/aleja con rueda · arrastra para explorar · haz clic en un nodo para ver detalles</div>
+<script type="module">
+import Graph from 'https://esm.sh/graphology@0.26.0?bundle';
+import Sigma from 'https://esm.sh/sigma@3.0.2?bundle';
+const status=document.querySelector('#status'), container=document.querySelector('#graph');
+try {
+ const r=await fetch('./graph.json'); if(!r.ok) throw Error('No se pudo cargar graph.json: HTTP '+r.status);
+ const data=await r.json(); const g=new Graph({multi:true,type:'undirected'});
+ const groups=new Map();
+ for(const n of data.nodes){const c=Number.isFinite(n.community)?n.community:0;if(!groups.has(c))groups.set(c,[]);groups.get(c).push(n)}
+ const groupIds=[...groups.keys()].sort((a,b)=>a-b), count=groupIds.length;
+ groupIds.forEach((c,ci)=>{const arr=groups.get(c), a=2*Math.PI*ci/count, radius=50+Math.sqrt(count)*3, cx=Math.cos(a)*radius,cy=Math.sin(a)*radius;arr.forEach((n,i)=>{const t=2*Math.PI*i/Math.max(1,arr.length), rr=Math.sqrt(i/Math.max(1,arr.length))*10;g.addNode(String(n.id),{x:cx+Math.cos(t)*rr,y:cy+Math.sin(t)*rr,size:Math.max(1,Math.min(5,1+Math.log2((n.degree||1)+1))),label:String(n.label||n.id),color:'#68a7ff',source_file:n.source_file||'',source_location:n.source_location||'',community:n.community_name||String(c),file_type:n.file_type||''})})});
+ let ei=0;for(const e of data.links){if(g.hasNode(String(e.source))&&g.hasNode(String(e.target))){try{g.addEdgeWithKey('e'+ei++,String(e.source),String(e.target),{label:e.relation||'',color:'#40516b',size:.35,relation:e.relation||'',confidence:e.confidence||''})}catch{}}}
+ document.querySelector('#counts').textContent=`${g.order.toLocaleString()} nodos · ${g.size.toLocaleString()} relaciones · commit ${String(data.built_at_commit||'').slice(0,8)}`;
+ const renderer=new Sigma(g,container,{renderEdgeLabels:false,defaultNodeColor:'#68a7ff',defaultEdgeColor:'#40516b',labelRenderedSizeThreshold:7});
+ renderer.on('clickNode',({node})=>{const a=g.getNodeAttributes(node);status.textContent=`${a.label} · ${a.source_file}:${a.source_location} · ${a.community}`});
+ document.querySelector('#reset').onclick=()=>renderer.getCamera().animatedReset();
+ document.querySelector('#search').addEventListener('input',ev=>{const q=ev.target.value.trim().toLowerCase();if(!q){g.forEachNode((id,a)=>g.setNodeAttribute(id,'color','#68a7ff'));status.textContent='';return}let found=null;g.forEachNode((id,a)=>{const hit=(a.label+' '+a.source_file).toLowerCase().includes(q);g.setNodeAttribute(id,'color',hit?'#ffb454':'#253149');if(hit&&!found)found=id});if(found){renderer.getCamera().animate(g.getNodeAttributes(found),{duration:450});status.textContent='Coincidencia encontrada; sigue escribiendo para afinar.'}else status.textContent='Sin coincidencias'});
+} catch(e){document.querySelector('#counts').textContent='Error cargando el grafo';status.textContent=String(e);console.error(e)}
+</script></body></html>
