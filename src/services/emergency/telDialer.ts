@@ -17,6 +17,11 @@
  * testable without a DOM.
  */
 
+// The URI format has ONE owner: `emergencyNumbers.toTelUri` (same sanitizing
+// rule used by EmergencyAuthorityCallPanel and PublicEmergencyButton). This
+// module must not grow a second implementation of the tel-injection filter.
+import { toTelUri } from './emergencyNumbers';
+
 /** How the dial attempt was dispatched. */
 export type DialOutcome =
   | 'native_bridge'
@@ -36,12 +41,15 @@ export interface DialResult {
 }
 
 /**
- * Build a `tel:` URI. Only digits, `+`, `*` and `#` survive, so a malformed
- * or hostile value can never inject another scheme.
+ * Build a `tel:` URI with the shared sanitizer.
+ *
+ * The format itself belongs to `emergencyNumbers.toTelUri` — this wrapper only
+ * adds the "no digits -> no uri" rule, because `toTelUri('')` would produce a
+ * bare `tel:` that the platform would treat as a valid (but empty) number.
  */
 export function toSafeTelUri(number: string): string {
-  const sanitized = String(number ?? '').replace(/[^0-9*#+]/g, '');
-  return sanitized ? `tel:${sanitized}` : '';
+  const uri = toTelUri(String(number ?? ''));
+  return uri === 'tel:' ? '' : uri;
 }
 
 /**
