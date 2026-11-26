@@ -20,6 +20,15 @@ import {
 } from '../../services/gamification/crewMedallaStats';
 import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
 import { logger } from '../../utils/logger';
+import {
+  classifyBreadcrumbLoad,
+  describeGeneralCallOutcome,
+  filterFreshPeers,
+  formatElapsed,
+  latestBreadcrumb,
+  trainingState,
+  type Breadcrumb,
+} from './emergencySquadContracts';
 import type { Worker } from '../../types';
 import type { BrigadeRole } from '../../services/emergencyBrigade/emergencyBrigadeService';
 
@@ -51,23 +60,10 @@ const TONE_CLASS: Record<Tone, string> = {
   zinc: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20',
 };
 
-/** Real training validity from `trainedAt` + `trainingValidYears` (no fabricated data). */
-function trainingState(trainedAt: string, validYears: number): { label: string; tone: Tone } {
-  const trained = new Date(trainedAt);
-  if (Number.isNaN(trained.getTime())) return { label: 'Capacitación sin fecha registrada', tone: 'amber' };
-  const expires = new Date(trained);
-  expires.setFullYear(expires.getFullYear() + (validYears || 0));
-  const fmt = expires.toLocaleDateString('es-CL');
-  return expires.getTime() > Date.now()
-    ? { label: `Capacitación vigente hasta ${fmt}`, tone: 'emerald' }
-    : { label: `Capacitación vencida (${fmt})`, tone: 'rose' };
-}
-
-interface Breadcrumb {
-  lat: number;
-  lng: number;
-  timestamp: number;
-}
+/** Real training validity from `trainedAt` + `trainingValidYears` (no fabricated data).
+ *  The rule now comes from `emergencySquadContracts.trainingState`, which uses the
+ *  SAME 365-day year as `emergencyBrigadeService` — the UI and the coverage rule
+ *  can no longer disagree about whether a capability is still valid. */
 
 export function EmergencySquadManager() {
   const { user } = useFirebase();
@@ -126,16 +122,22 @@ export function EmergencySquadManager() {
   const [viewMode, setViewMode] = useState<'squad' | 'search' | 'skills'>('squad');
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
   const [loadingCrumbs, setLoadingCrumbs] = useState(false);
+  // Ticket "Error de lectura GPS enmascarado como 'sin datos'": a read
+  // failure must not look like "you have no GPS history".
+  const [crumbsError, setCrumbsError] = useState<unknown>(null);
   const [calling, setCalling] = useState(false);
+  // Ticket "Llamado General no reporta fallo de notificacion".
+  const [callNotice, setCallNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const userUid = user?.uid;
   useEffect(() => {
     if (viewMode !== 'search' || !userUid) return;
     let active = true;
     setLoadingCrumbs(true);
+    setCrumbsError(null);
     getBreadcrumbs(userUid, 20)
       .then(value => { if (active) setBreadcrumbs(value); })
-      .catch(() => { if (active) setBreadcrumbs([]); })
+      .catch((err) => { if (active) { setCrumbsError(err); setBreadcrumbs([]); } })
       .finally(() => { if (active) setLoadingCrumbs(false); });
     return () => { active = false; };
   }, [viewMode, userUid]);
@@ -152,21 +154,45 @@ export function EmergencySquadManager() {
   const handleGeneralCall = async () => {
     if (!projectId || calling) return;
     setCalling(true);
+    setCallNotice(null);
     try {
       await triggerEmergency('sos', projectId);
+      // Ticket "Llamado General no reporta fallo de notificacion": the
+      // success path now says something too, so the worker knows the brigade
+      // was summoned.
+      setCallNotice({ kind: 'ok', text: 'Llamado general enviado a la brigada.' });
     } catch (err) {
       logger.error('[EmergencySquadManager] llamado general falló', err);
+      // The failure MUST be visible: the worker has to know the brigade was
+      // NOT summoned and use another channel.
+      const outcome = describeGeneralCallOutcome(err);
+      setCallNotice({
+        kind: 'error',
+        text:
+          outcome.kind === 'failed'
+            ? `Llamado general NO enviado: ${outcome.message}`
+            : 'Llamado general NO enviado.',
+      });
     } finally {
       setCalling(false);
     }
   };
 
-  const formatTime = (ts: number) => {
-    const diff = Math.floor((Date.now() - ts) / 60000);
-    if (diff < 1) return 'Hace menos de 1 min';
-    if (diff === 1) return 'Hace 1 min';
-    return `Hace ${diff} min`;
-  };
+  // Ticket "Companeros BLE sin filtro de antiguedad (falsa presencia 'en
+  // rango')": a peer seen hours ago is not a colleague within range.
+  const PEER_FRESHNESS_MS = 5 * 60_000;
+  const freshPeers = useMemo(
+    () => filterFreshPeers(peerBreadcrumbs, PEER_FRESHNESS_MS),
+    [peerBreadcrumbs],
+  );
+
+  // The breadcrumb load state: loading / failed / empty / loaded.
+  const crumbState = useMemo(
+    () => classifyBreadcrumbLoad({ loading: loadingCrumbs, error: crumbsError, breadcrumbs }),
+    [loadingCrumbs, crumbsError, breadcrumbs],
+  );
+
+  const formatTime = (ts: number) => formatElapsed(ts);
 
   return (
     <Card className="p-6 border-rose-500/20 bg-zinc-900/50">
@@ -206,6 +232,19 @@ export function EmergencySquadManager() {
       </div>
 
       <AnimatePresence mode="wait">
+        {callNotice && (
+          <div
+            role="status"
+            data-testid="general-call-notice"
+            className={`mb-4 rounded-xl border px-4 py-3 text-sm font-bold ${
+              callNotice.kind === 'error'
+                ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+            }`}
+          >
+            {callNotice.text}
+          </div>
+        )}
         {viewMode === 'skills' ? (
           <motion.div key="skills" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <SkillTree crewStats={crewStats} />
@@ -225,9 +264,18 @@ export function EmergencySquadManager() {
               </p>
             </div>
 
-            {loadingCrumbs ? (
+            {crumbState.status === 'loading' ? (
               <div className="text-center py-8 text-zinc-500 text-sm">Cargando rastro GPS...</div>
-            ) : breadcrumbs.length === 0 ? (
+            ) : crumbState.status === 'failed' ? (
+              <div className="text-center py-8 space-y-2" data-testid="crumbs-error">
+                <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+                <p className="text-rose-400 text-sm font-bold">No se pudo leer el rastro GPS.</p>
+                <p className="text-zinc-500 text-xs">{crumbState.message}</p>
+                <p className="text-zinc-600 text-xs">
+                  Esto NO significa que no tengas posiciones registradas: el rastro no se pudo leer.
+                </p>
+              </div>
+            ) : crumbState.status === 'empty' ? (
               <div className="text-center py-8 space-y-2">
                 <MapPin className="w-8 h-8 text-zinc-700 mx-auto" />
                 <p className="text-zinc-500 text-sm">Sin rastro GPS disponible.</p>
@@ -253,7 +301,13 @@ export function EmergencySquadManager() {
             )}
 
             <p className="text-[10px] text-zinc-600 text-center">
-              {breadcrumbs.length > 0 && `${breadcrumbs.length} posición(es) registrada(s) • Última: ${new Date(breadcrumbs[0]?.timestamp).toLocaleTimeString()}`}
+              {breadcrumbs.length > 0 &&
+                `${breadcrumbs.length} posición(es) registrada(s) • Última: ${new Date(
+                  // Ticket "Contrato de orden de getBreadcrumbs no documentado":
+                  // the UI assumes breadcrumbs[0] is the most recent. The
+                  // contract is now explicit and enforced at the point of use.
+                  latestBreadcrumb(breadcrumbs)?.timestamp ?? 0,
+                ).toLocaleTimeString()}`}
             </p>
 
             {/* BLE Peer Breadcrumbs */}
@@ -264,11 +318,15 @@ export function EmergencySquadManager() {
                   <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Compañeros detectados vía BLE</p>
                   {bleScanning && <span className="text-[10px] text-blue-400 animate-pulse">Escaneando...</span>}
                 </div>
-                {peerBreadcrumbs.length === 0 ? (
-                  <p className="text-xs text-zinc-600">Sin compañeros BLE detectados en rango.</p>
+                {freshPeers.length === 0 ? (
+                  <p className="text-xs text-zinc-600">
+                    {peerBreadcrumbs.length > 0
+                      ? 'Sin compañeros BLE recientes (los últimos registros superaron la ventana de 5 min).'
+                      : 'Sin compañeros BLE detectados en rango.'}
+                  </p>
                 ) : (
                   <div className="space-y-2">
-                    {peerBreadcrumbs.slice(0, 10).map(peer => (
+                    {freshPeers.slice(0, 10).map(peer => (
                       <div key={peer.peerId} className="flex items-center gap-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                         <div className="w-3 h-3 rounded-full bg-blue-400 shrink-0" />
                         <div className="flex-1 min-w-0">

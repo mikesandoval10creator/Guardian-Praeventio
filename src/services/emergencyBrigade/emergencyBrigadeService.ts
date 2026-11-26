@@ -10,6 +10,8 @@
 //
 // Determinístico, sin LLM.
 
+import { isTrainingValid } from './trainingValidity';
+
 // ────────────────────────────────────────────────────────────────────────
 // Public types
 // ────────────────────────────────────────────────────────────────────────
@@ -76,15 +78,12 @@ export function buildBrigadeCoverageReport(
 
   const expiredTrainings: BrigadeMember[] = [];
   for (const m of active) {
-    const trainedMs = Date.parse(m.trainedAt);
-    const expiresMs = trainedMs + m.trainingValidYears * 365 * 86_400_000;
     // Fail-closed: a corrupt/unparseable `trainedAt` must NOT count as valid
     // brigade coverage — a brigade can't be certified "ready" on garbage data.
-    // `Date.parse` returns NaN on a bad date and `NaN < nowMs` is always false,
-    // so WITHOUT this guard the member would skip `expiredTrainings` AND
-    // increment `byRole`, inflating `meetsMinimum` for a brigade that is
-    // actually under-covered — a life-safety false positive.
-    if (Number.isNaN(trainedMs) || expiresMs < nowMs) {
+    // The rule itself lives in `trainingValidity.ts` (the 365-day year that
+    // expires a capability slightly earlier than a calendar year) so the UI,
+    // this service and `EmergencyBrigade.tsx` cannot diverge.
+    if (!isTrainingValid(m.trainedAt, m.trainingValidYears, nowMs)) {
       expiredTrainings.push(m);
     } else {
       byRole[m.role] += 1;

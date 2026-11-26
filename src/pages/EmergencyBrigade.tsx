@@ -23,6 +23,7 @@
 
 import { useMemo, useState } from 'react';
 import { humanErrorMessage } from '../lib/humanError';
+import { isTrainingValid } from '../services/emergencyBrigade/trainingValidity';
 import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
@@ -599,10 +600,9 @@ export function EmergencyBrigade() {
     const nowMs = Date.now();
     for (const m of data?.members ?? []) {
       if (!m.active) continue;
-      const trainedMs = Date.parse(m.trainedAt);
-      if (!Number.isFinite(trainedMs)) continue;
-      const expiresMs = trainedMs + m.trainingValidYears * 365 * 86_400_000;
-      if (expiresMs < nowMs) continue;
+      // One source of truth for the validity rule: `trainingValidity.ts`.
+      // A corrupt `trainedAt` fails closed (never counted as valid coverage).
+      if (!isTrainingValid(m.trainedAt, m.trainingValidYears, nowMs)) continue;
       buckets[m.role].push(m);
     }
     return buckets;
