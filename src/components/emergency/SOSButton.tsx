@@ -33,8 +33,26 @@ import { logger } from '../../utils/logger';
 // requires the SOS ring buffer in Sentry breadcrumbs to discriminate
 // trigger source (long-press here) from auto-detection paths.
 import { analytics } from '../../services/analytics';
+// Ticket "PII (uid) crudo en analytics": the catalog declares role_hash as a
+// sha256 hex, never the raw value. `userIdHash` is the salted digest the
+// analytics layer already uses (ComiteParitario uses the same helper).
+import { userIdHash } from '../../services/analytics/adapter';
+// Ticket "import() dinámico en path crítico": the auth header is needed on
+// EVERY SOS attempt. A dynamic import here means a cold cache pays a chunk
+// download before the request leaves the device — exactly the wrong moment to
+// add latency. Static import: the module ships in the main bundle.
+import { apiAuthHeader } from '../../lib/apiAuth';
 import type { SosEvent } from '../../services/emergency/sosOutbox';
 import { randomId } from '../../utils/randomId';
+// Ticket "tel: depende de plataforma": dialing goes through an adapter so a
+// Capacitor WebView hands the URI to the OS instead of swallowing it.
+import { dialPhone, resolveDialDependencies } from '../../services/emergency/telDialer';
+// Ticket "fallback tel: depende de selectedProject?.phone": a project without a
+// phone used to leave the worker with no number at all.
+import {
+  formatEmergencyInstruction,
+  resolveEmergencyContact,
+} from '../../services/emergency/emergencyContact';
 
 const HOLD_MS = 3_000;
 const GEO_TIMEOUT_MS = 5_000;
@@ -44,6 +62,9 @@ const GEO_TIMEOUT_MS = 5_000;
 // rather than waiting indefinitely.  7 s is short enough to feel fast
 // but long enough for a slow mobile data connection to succeed.
 const SOS_FETCH_TIMEOUT_MS = 7_000;
+// Ticket "Toast timer no cancelable": the toast auto-dismiss timer must be
+// cancellable so unmounting does not update state on an unmounted component.
+const TOAST_TTL_MS = 4_000;
 
 /**
  * Identity of one manual SOS attempt. It must be created before the initial
@@ -79,6 +100,15 @@ type SosRequestBody = {
   projectId: string | null;
   geo: GeoPoint | null;
   timestamp: string;
+  /**
+   * Ticket "captureGeo no abortable ni validado": the device could not give a
+   * position (permission denied, no geolocation, timeout). The server already
+   * derives the uncertainty from `geo == null`; this flag makes it explicit in
+   * the payload so responders and analytics can tell "no location reported"
+   * apart from "location not attempted". Optional on the wire so an older
+   * client build keeps replaying with the same idempotency fingerprint.
+   */
+  coordsUncertain?: boolean;
 };
 
 /** Build the audited SOS request shared by the initial POST and its replay key. */
@@ -102,6 +132,35 @@ type SosAttemptResult =
   | { kind: 'delivered' }
   | { kind: 'zero_reach' }
   | { kind: 'transport_failure'; error: unknown; queued: boolean; queueError?: unknown };
+
+/**
+ * Ticket "res.json() con .catch(() => ({delivered:false})) enmascara contratos
+ * rotos del server".
+ *
+ * The old code treated every unparseable body as `delivered: false`, so any
+ * 2xx response that was not JSON forced the `tel:` fallback and told the
+ * worker "nobody was reached" even when the server HAD delivered. The three
+ * cases are now distinguished:
+ *   - an explicit `delivered: false`  -> zero reach (the server says so);
+ *   - a 2xx body that is not JSON      -> delivered (the server accepted it)
+ *     plus a contract warning, because the contract drifted;
+ *   - an explicit `delivered: true`    -> delivered.
+ */
+export async function classifySosResponse(response: {
+  json?: () => Promise<unknown>;
+}): Promise<{ kind: 'delivered' | 'zero_reach'; contractWarning: boolean }> {
+  if (typeof response.json !== 'function') {
+    return { kind: 'delivered', contractWarning: true };
+  }
+  try {
+    const parsed = await response.json();
+    const delivered = (parsed as { delivered?: unknown } | null)?.delivered;
+    if (delivered === false) return { kind: 'zero_reach', contractWarning: false };
+    return { kind: 'delivered', contractWarning: false };
+  } catch {
+    return { kind: 'delivered', contractWarning: true };
+  }
+}
 
 /**
  * Submit one SOS attempt and durably queue transport failures using the same
@@ -151,11 +210,15 @@ export async function submitSosAttempt(input: {
     };
   }
 
-  const sosResult =
-    typeof response.json === 'function'
-      ? ((await response.json().catch(() => ({ delivered: false }))) as { delivered?: boolean })
-      : {};
-  return sosResult.delivered === false ? { kind: 'zero_reach' } : { kind: 'delivered' };
+  const classified = await classifySosResponse(
+    response as unknown as { json?: () => Promise<unknown> },
+  );
+  if (classified.contractWarning) {
+    logger.warn('SOSButton: 2xx SOS response was not a readable JSON contract; assuming delivered', {
+      status: (response as { status?: number }).status,
+    });
+  }
+  return classified.kind === 'zero_reach' ? { kind: 'zero_reach' } : { kind: 'delivered' };
 }
 
 async function captureGeo(): Promise<GeoPoint | null> {
@@ -182,6 +245,39 @@ export function isLongPress(downMs: number, upMs: number, holdMs: number = HOLD_
   return upMs - downMs >= holdMs;
 }
 
+/**
+ * Ticket "Race de doble fireSOS en hold repetido".
+ *
+ * `submitting` only flips to true once `fireSOS` starts, which is three
+ * seconds after the press began. A second `pointerdown` inside that window
+ * scheduled a SECOND `fireSOS`: two POSTs, two `tel:` dials, two outbox
+ * entries. The guard must therefore be a ref that flips the moment the hold
+ * is scheduled, not the React state that only flips later.
+ */
+export function shouldScheduleHold(state: {
+  holdScheduled: boolean;
+  submitting: boolean;
+}): boolean {
+  if (state.submitting) return false;
+  return !state.holdScheduled;
+}
+
+/**
+ * Ticket "captureGeo no abortable ni validado".
+ *
+ * When the device cannot report a position, the worker is told so explicitly
+ * and the human fallback is prioritized over the offline queue: a queued SOS
+ * without coordinates is worth less than a phone call that reaches a human.
+ */
+export function shouldPrioritizeHumanFallback(input: {
+  geo: GeoPoint | null;
+  delivered: boolean;
+  queued: boolean;
+}): boolean {
+  if (input.delivered) return false;
+  return input.geo === null || !input.queued;
+}
+
 export function SOSButton(): React.ReactElement | null {
   const { mode } = useAppMode();
   const { selectedProject } = useProject();
@@ -193,16 +289,27 @@ export function SOSButton(): React.ReactElement | null {
   const downAtRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ticket "Race de doble fireSOS en hold repetido": flips when the hold is
+  // scheduled, so a second press inside the 3s window cannot schedule again.
+  const holdScheduledRef = useRef(false);
+  // Ticket "Toast timer no cancelable en desmontaje": the auto-dismiss timer
+  // is tracked so unmount can cancel it.
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((text: string): void => {
     setToast(text);
-    setTimeout(() => setToast(null), 4_000);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      toastTimerRef.current = null;
+      setToast(null);
+    }, TOAST_TTL_MS);
   }, []);
 
   const cancelHold = useCallback((): void => {
     setPressing(false);
     setProgress(0);
     downAtRef.current = 0;
+    holdScheduledRef.current = false;
     if (rafRef.current != null && typeof window !== 'undefined') {
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -212,6 +319,29 @@ export function SOSButton(): React.ReactElement | null {
       confirmTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * Tickets "tel: depende de plataforma" + "fallback tel: depende de
+   * selectedProject?.phone": reach a human through the platform adapter, and
+   * when there is no number to dial, return an explicit instruction instead
+   * of a toast that leaves the worker without a channel.
+   */
+  const reachAHuman = useCallback(
+    (opts: { geo: GeoPoint | null }): { dialed: boolean; instruction: string | null } => {
+      const resolution = resolveEmergencyContact({
+        projectPhone: selectedProject?.phone ?? null,
+        geo: opts.geo,
+      });
+      if (resolution.contact) {
+        const outcome = dialPhone(resolution.contact.number, resolveDialDependencies()).outcome;
+        if (outcome !== 'unavailable') {
+          return { dialed: true, instruction: null };
+        }
+      }
+      return { dialed: false, instruction: formatEmergencyInstruction(resolution.regional) };
+    },
+    [selectedProject],
+  );
 
   const fireSOS = useCallback(async (): Promise<void> => {
     setSubmitting(true);
@@ -227,10 +357,12 @@ export function SOSButton(): React.ReactElement | null {
       // header en MODE=test, cae a Bearer del idToken en producción).
       // SOSButton es vidas-críticas: el botón debe funcionar incluso si
       // el user está anónimo (sin auth) → no tiramos si authHeader es null.
-      const { apiAuthHeader } = await import('../../lib/apiAuth');
+      // Static import (ticket "import() dinámico en path crítico"): a dynamic
+      // import here would download a chunk exactly when the worker needs the
+      // request to leave the device.
       const authHeader = await apiAuthHeader();
       const projectId = selectedProject?.id ?? null;
-      const body = {
+      const body: SosRequestBody = {
         type: 'sos' as const,
         // The server derives identity from verifyAuth, not this field. Keep a
         // stable wire value for anonymous attempts so an outbox replay has the
@@ -239,6 +371,11 @@ export function SOSButton(): React.ReactElement | null {
         projectId,
         geo,
         timestamp: new Date().toISOString(),
+        // Ticket "captureGeo no abortable ni validado": the uncertainty is
+        // explicit in the payload. The server still derives it from
+        // `geo == null`; this only makes it visible to responders and
+        // analytics without changing the server contract.
+        coordsUncertain: geo === null,
       };
       const attempt = await submitSosAttempt({
         clientEventId,
@@ -268,13 +405,21 @@ export function SOSButton(): React.ReactElement | null {
         if (attempt.queueError !== undefined) {
           logger.error('SOSButton: failed to queue offline SOS', { qerr: attempt.queueError });
         }
-        const phone = selectedProject?.phone;
-        if (phone && typeof window !== 'undefined') {
-          window.location.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
-        } else if (attempt.queued) {
-          showToast('Sin red: tu alerta quedó en cola y se reenviará al recuperar señal.');
+        // Tickets "tel: depende de plataforma" + "fallback tel: depende de
+        // selectedProject?.phone": dial through the adapter, and when there is
+        // no number to dial, say so in the toast instead of pretending.
+        const human = reachAHuman({ geo });
+        if (human.dialed) {
+          return;
+        }
+        if (attempt.queued) {
+          showToast(
+            `Sin red: tu alerta quedó en cola y se reenviará al recuperar señal. ${human.instruction ?? ''}`.trim(),
+          );
         } else {
-          showToast('No se pudo enviar la alerta — contacta al supervisor.');
+          showToast(
+            `No se pudo enviar la alerta — contacta al supervisor. ${human.instruction ?? ''}`.trim(),
+          );
         }
         return;
       }
@@ -282,10 +427,14 @@ export function SOSButton(): React.ReactElement | null {
       // Analytics: the SOS was accepted and recorded even if no responder was
       // reached. Never show the success toast for a zero-reach result.
       try {
+        // Ticket "PII (uid) crudo en analytics": the catalog declares
+        // role_hash as a sha256 hex, never the raw uid. `userIdHash` is the
+        // salted digest the analytics layer already uses elsewhere.
+        const roleHash = await userIdHash(user?.uid ?? 'anonymous');
         void analytics.track('emergency.sos.triggered', {
           sos_type: 'unknown',
           trigger_source: 'long_press',
-          role_hash: user?.uid ?? 'anonymous',
+          role_hash: roleHash,
         });
       } catch { /* analytics must never break user flow */ }
       if (attempt.kind === 'zero_reach') throw new Error('sos_not_delivered');
@@ -322,10 +471,24 @@ export function SOSButton(): React.ReactElement | null {
           logger.error('SOSButton: failed to queue offline SOS', { qerr });
         }
       }
-      const phone = selectedProject?.phone;
-      if (phone && typeof window !== 'undefined') {
-        window.location.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
-      } else if (zeroReach) {
+      // Ticket "captureGeo no abortable ni validado": without coordinates the
+      // queued retry is worth less than a human reached now.
+      const prioritizeHuman = shouldPrioritizeHumanFallback({
+        geo,
+        delivered: false,
+        queued,
+      });
+      if (prioritizeHuman) {
+        const human = reachAHuman({ geo });
+        if (human.dialed) return;
+        if (zeroReach) {
+          showToast(
+            `Alerta registrada, pero sin confirmar a un responder. ${human.instruction ?? ''}`.trim(),
+          );
+          return;
+        }
+      }
+      if (zeroReach) {
         showToast('Alerta registrada, pero sin confirmar a un responder — contacta directo a tu supervisor.');
       } else if (queued) {
         showToast('Sin red: tu alerta quedó en cola y se reenviará al recuperar señal.');
@@ -336,12 +499,24 @@ export function SOSButton(): React.ReactElement | null {
       setSubmitting(false);
       cancelHold();
     }
-  }, [user, selectedProject, showToast, cancelHold]);
+  }, [user, selectedProject, showToast, cancelHold, reachAHuman]);
 
-  const onPointerDown = useCallback((): void => {
-    if (submitting) return;
+  const onPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>): void => {
+    // Ticket "Race de doble fireSOS en hold repetido": the guard flips the
+    // moment the hold is scheduled, not when fireSOS starts three seconds
+    // later. A second press inside that window is ignored.
+    if (!shouldScheduleHold({ holdScheduled: holdScheduledRef.current, submitting })) return;
+    holdScheduledRef.current = true;
     setPressing(true);
     downAtRef.current = Date.now();
+    // Ticket "onPointerLeave === onPointerUp": capture the pointer so a slide
+    // off the button (small screen, shaky hand, work glove) still delivers the
+    // pointerup here and the hold completes.
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort; the hold still works without it.
+    }
     const tick = (): void => {
       const elapsed = Date.now() - downAtRef.current;
       const p = Math.min(1, elapsed / HOLD_MS);
@@ -358,8 +533,13 @@ export function SOSButton(): React.ReactElement | null {
     }, HOLD_MS);
   }, [submitting, fireSOS]);
 
-  const onPointerUp = useCallback((): void => {
+  const onPointerUp = useCallback((event?: React.PointerEvent<HTMLButtonElement>): void => {
     if (submitting) return;
+    // Ticket "onPointerLeave === onPointerUp cancela hold por deslizamiento
+    // accidental": a leave while the pointer is STILL pressed is a slide, not
+    // a release. `buttons > 0` means the finger is still down, so the hold
+    // must survive it (the worker believes help was requested).
+    if (event && typeof event.buttons === 'number' && event.buttons > 0) return;
     const downAt = downAtRef.current;
     if (downAt > 0 && !isLongPress(downAt, Date.now())) {
       cancelHold();
@@ -368,7 +548,16 @@ export function SOSButton(): React.ReactElement | null {
   }, [submitting, cancelHold]);
 
   useEffect(() => {
-    return () => cancelHold();
+    // Ticket "Toast timer no cancelable en desmontaje": cancel the toast timer
+    // and the hold timers when the component unmounts, so no state update lands
+    // on an unmounted component.
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      cancelHold();
+    };
   }, [cancelHold]);
 
   if (mode !== 'emergency') return null;
