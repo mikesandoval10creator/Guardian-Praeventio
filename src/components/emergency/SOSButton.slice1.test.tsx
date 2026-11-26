@@ -22,6 +22,7 @@ import {
   classifySosResponse,
   createSosClientEventId,
   isLongPress,
+  isValidGeoPoint,
   shouldPrioritizeHumanFallback,
   shouldScheduleHold,
   submitSosAttempt,
@@ -84,7 +85,7 @@ describe('SOSButton — submitSosAttempt honours the new classification', () => 
       authHeader: null,
       body: {
         type: 'sos', uid: 'u1', projectId: 'p1', geo: null,
-        timestamp: '2026-11-26T00:00:00.000Z', coordsUncertain: true,
+        timestamp: '2026-11-26T00:00:00.000Z',
       },
       fetcher: async () => ({
         ok: true,
@@ -101,7 +102,7 @@ describe('SOSButton — submitSosAttempt honours the new classification', () => 
       authHeader: null,
       body: {
         type: 'sos', uid: 'u1', projectId: 'p1', geo: null,
-        timestamp: '2026-11-26T00:00:00.000Z', coordsUncertain: true,
+        timestamp: '2026-11-26T00:00:00.000Z',
       },
       fetcher: async () => ({
         ok: true,
@@ -135,22 +136,53 @@ describe('SOSButton — human fallback priority', () => {
   });
 });
 
-describe('SOSButton — payload', () => {
-  it('marks the coordinates as uncertain when the device gave none', () => {
+describe('SOSButton — body is an idempotency contract', () => {
+  it('carries exactly the fields the outbox replay reconstructs', () => {
     const request = buildSosRequest('k3', null, {
       type: 'sos', uid: 'u1', projectId: 'p1', geo: null,
-      timestamp: '2026-11-26T00:00:00.000Z', coordsUncertain: true,
+      timestamp: '2026-11-26T00:00:00.000Z',
     });
-    expect(request.body).toContain('"coordsUncertain":true');
-    expect(request.body).toContain('"geo":null');
+    const body = JSON.parse(request.body as string) as Record<string, unknown>;
+    // The replay (`sosOutboxClient.sendSos`) rebuilds the body from the stored
+    // SosEvent with EXACTLY these keys. Any extra key here would make the
+    // replay a different request for the same Idempotency-Key: the server
+    // would stop recognising it as a replay and create a SECOND alert.
+    expect(Object.keys(body).sort()).toEqual(['geo', 'projectId', 'timestamp', 'type', 'uid']);
   });
 
-  it('marks the coordinates as certain when the device reported them', () => {
-    const request = buildSosRequest('k4', null, {
-      type: 'sos', uid: 'u1', projectId: 'p1', geo: { lat: -33.45, lng: -70.67 },
-      timestamp: '2026-11-26T00:00:00.000Z', coordsUncertain: false,
+  it('sends the same key on the replay', () => {
+    const request = buildSosRequest('same-key', null, {
+      type: 'sos', uid: 'u1', projectId: 'p1', geo: null,
+      timestamp: '2026-11-26T00:00:00.000Z',
     });
-    expect(request.body).toContain('"coordsUncertain":false');
+    expect(request.headers['Idempotency-Key']).toBe('same-key');
+  });
+});
+
+describe('SOSButton — geo validation', () => {
+  it('accepts a real position', () => {
+    expect(isValidGeoPoint({ lat: -33.45, lng: -70.67 })).toBe(true);
+  });
+
+  it('rejects an out-of-range latitude', () => {
+    expect(isValidGeoPoint({ lat: 91, lng: 0 })).toBe(false);
+  });
+
+  it('rejects an out-of-range longitude', () => {
+    expect(isValidGeoPoint({ lat: 0, lng: 181 })).toBe(false);
+  });
+
+  it('rejects a non-finite reading', () => {
+    expect(isValidGeoPoint({ lat: Number.NaN, lng: 0 })).toBe(false);
+  });
+
+  it('rejects a non-numeric reading', () => {
+    expect(isValidGeoPoint({ lat: 'abc', lng: 'def' })).toBe(false);
+  });
+
+  it('rejects null and undefined', () => {
+    expect(isValidGeoPoint(null)).toBe(false);
+    expect(isValidGeoPoint(undefined)).toBe(false);
   });
 });
 

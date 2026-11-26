@@ -101,14 +101,16 @@ type SosRequestBody = {
   geo: GeoPoint | null;
   timestamp: string;
   /**
-   * Ticket "captureGeo no abortable ni validado": the device could not give a
-   * position (permission denied, no geolocation, timeout). The server already
-   * derives the uncertainty from `geo == null`; this flag makes it explicit in
-   * the payload so responders and analytics can tell "no location reported"
-   * apart from "location not attempted". Optional on the wire so an older
-   * client build keeps replaying with the same idempotency fingerprint.
+   * NOTE: this body is part of an IDEMPOTENCY CONTRACT, not just a payload.
+   * The outbox replay (`sosOutboxClient.sendSos`) reconstructs it from the
+   * stored `SosEvent`, and the server fingerprints the WHOLE body for the
+   * `Idempotency-Key`. Any field added here must be added there too, or the
+   * replay is no longer recognised as a replay (it becomes a second alert).
+   *
+   * The location uncertainty is NOT a wire field on purpose: the server
+   * already derives it from `geo == null` (`hasGeo: validatedGeo !== null`)
+   * and the supervisor email renders "Sin ubicación GPS reportada".
    */
-  coordsUncertain?: boolean;
 };
 
 /** Build the audited SOS request shared by the initial POST and its replay key. */
@@ -221,16 +223,40 @@ export async function submitSosAttempt(input: {
   return classified.kind === 'zero_reach' ? { kind: 'zero_reach' } : { kind: 'delivered' };
 }
 
+/**
+ * Ticket "captureGeo no abortable ni validado".
+ *
+ * A malformed position is worse than no position: the supervisor would be
+ * dispatched to coordinates that do not exist. The device coordinates are
+ * validated before they reach the wire, and an invalid reading is treated as
+ * "no position" so the human fallback takes over.
+ */
+export function isValidGeoPoint(value: unknown): value is GeoPoint {
+  if (!value || typeof value !== 'object') return false;
+  const { lat, lng } = value as { lat?: unknown; lng?: unknown };
+  if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (lat < -90 || lat > 90) return false;
+  if (lng < -180 || lng > 180) return false;
+  return true;
+}
+
 async function captureGeo(): Promise<GeoPoint | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        resolve({
+      (pos) => {
+        const point: GeoPoint = {
           lat: Number(pos.coords.latitude.toFixed(5)),
           lng: Number(pos.coords.longitude.toFixed(5)),
-        }),
+        };
+        // An out-of-range or non-finite reading is treated as "no position":
+        // the worker must be told, not misdirected.
+        resolve(isValidGeoPoint(point) ? point : null);
+      },
       () => resolve(null),
+      // The read is bounded: a device that never answers must not hold the
+      // SOS hostage.
       { enableHighAccuracy: true, timeout: GEO_TIMEOUT_MS, maximumAge: 0 },
     );
   });
@@ -371,11 +397,6 @@ export function SOSButton(): React.ReactElement | null {
         projectId,
         geo,
         timestamp: new Date().toISOString(),
-        // Ticket "captureGeo no abortable ni validado": the uncertainty is
-        // explicit in the payload. The server still derives it from
-        // `geo == null`; this only makes it visible to responders and
-        // analytics without changing the server contract.
-        coordsUncertain: geo === null,
       };
       const attempt = await submitSosAttempt({
         clientEventId,
